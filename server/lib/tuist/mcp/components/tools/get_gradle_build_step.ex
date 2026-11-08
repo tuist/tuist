@@ -1,5 +1,5 @@
 defmodule Tuist.MCP.Components.Tools.GetGradleBuildStep do
-  @moduledoc "Get recorded Gradle build steps. IDs are opaque and scoped to the build. Logs are not collected. Gradle includes timed tasks, configuration and transforms; legacy reports use the first recorded timestamp as origin. Times are milliseconds; time filters select overlaps and end_ms is exclusive. Retention is 90 days."
+  @moduledoc "Get a recorded Gradle build step. IDs are opaque and scoped to the build. Logs are not collected. Gradle includes timed tasks, configuration and transforms; legacy reports use the first recorded timestamp as origin. Times are milliseconds. Retention is 90 days."
   use Tuist.MCP.Tool,
     name: "get_gradle_build_step",
     title: "Get Gradle Build Step",

@@ -15,10 +15,12 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
+  alias Tuist.RemoteExecution
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
+  alias Tuist.Sandboxes.Concurrency, as: SandboxConcurrency
   alias Tuist.Utilities.ByteFormatter
 
   # Enough to see a pattern without the card becoming the page.
@@ -36,13 +38,12 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:sandbox_concurrency_form, to_form(SandboxConcurrency.change_limits(account), as: "account"))
+         |> assign(:remote_execution_concurrency_form, remote_execution_concurrency_form(account))
          |> assign(:prepaid_balance, balance)
-         |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_pool_quote, nil)
          |> assign(:prepaid_pool_coverage, nil)
-         |> assign(:prepaid_quote, nil)
-         |> assign_standing_prepaid(account, subscription)
          |> assign(:has_subscription, not is_nil(subscription))
          |> assign_free_tier(account)
          |> assign_kura(account)
@@ -86,6 +87,36 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   ## Plan & billing event handlers (moved from OpsAccountsLive)
+
+  @impl true
+  def handle_event("update_sandbox_concurrency_limits", %{"account" => params}, socket) do
+    case SandboxConcurrency.update_limits(socket.assigns.account, params) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:sandbox_concurrency_form, to_form(SandboxConcurrency.change_limits(account), as: "account"))
+         |> put_flash(:info, dgettext("dashboard", "Sandbox concurrency limits updated."))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :sandbox_concurrency_form, to_form(changeset, as: "account"))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_remote_execution_concurrency_limits", %{"account" => params}, socket) do
+    case RemoteExecution.update_limits(socket.assigns.account, params) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:remote_execution_concurrency_form, remote_execution_concurrency_form(account))
+         |> put_flash(:info, dgettext("dashboard", "Remote execution concurrency limits updated."))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :remote_execution_concurrency_form, to_form(changeset, as: "account"))}
+    end
+  end
 
   @impl true
   def handle_event("update_runner_concurrency_limits", %{"account" => params}, socket) do
@@ -184,46 +215,6 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
-  # Quoted live as ops types, so the money leaving the customer is on
-  # screen before the charge is created rather than inferred from a
-  # minute count.
-  @impl true
-  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
-    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
-  end
-
-  @impl true
-  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
-    case parse_minutes(minutes) do
-      {:ok, minutes} ->
-        account = Accounts.create_customer_when_absent(socket.assigns.account)
-
-        case Prepaid.set_minutes(account, minutes) do
-          {:ok, _result} ->
-            refreshed = Prepaid.balance(account)
-
-            {:noreply,
-             socket
-             |> assign(:account, preload_billing(account))
-             |> assign(:prepaid_balance, refreshed)
-             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
-             |> assign(:prepaid_quote, nil)
-             |> put_flash(:info, set_minutes_message(account, minutes))}
-
-          {:error, reason} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
-             )}
-        end
-
-      :error ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
-    end
-  end
-
   @impl true
   def handle_event("quote_prepaid_pool", params, socket) do
     {:noreply,
@@ -246,7 +237,6 @@ defmodule TuistWeb.OpsAccountLive do
              socket
              |> assign(:account, preload_billing(account))
              |> assign(:prepaid_balance, refreshed)
-             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
              |> assign(:prepaid_pool_quote, nil)
              |> assign(:prepaid_pool_coverage, nil)
              |> put_flash(:info, grant_pool_message(account, attrs))}
@@ -257,37 +247,6 @@ defmodule TuistWeb.OpsAccountLive do
 
       :error ->
         {:noreply, put_flash(socket, :error, prepaid_pool_error(:unreadable))}
-    end
-  end
-
-  @impl true
-  def handle_event("quote_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
-    {:noreply, assign(socket, :standing_prepaid_quote, quote_minutes(minutes))}
-  end
-
-  # Sets the subscription item only. It does not touch the period already
-  # running, so an operator agreeing a deal mid-cycle uses the field above
-  # for this cycle and this one for every cycle after.
-  @impl true
-  def handle_event("set_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
-    case parse_minutes(minutes) do
-      {:ok, minutes} ->
-        account = socket.assigns.account
-
-        case Prepaid.set_standing_minutes(account, minutes) do
-          {:ok, minutes} ->
-            {:noreply,
-             socket
-             |> assign(:standing_prepaid_minutes_value, minutes)
-             |> assign(:standing_prepaid_quote, nil)
-             |> put_flash(:info, set_standing_minutes_message(account, minutes))}
-
-          {:error, reason} ->
-            {:noreply, put_flash(socket, :error, standing_prepaid_error(reason))}
-        end
-
-      :error ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to stop."))}
     end
   end
 
@@ -577,29 +536,6 @@ defmodule TuistWeb.OpsAccountLive do
     }
   end
 
-  defp quote_minutes(raw) do
-    case parse_minutes(raw) do
-      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
-      _ -> nil
-    end
-  end
-
-  defp set_minutes_message(account, 0) do
-    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
-  end
-
-  defp set_minutes_message(account, minutes) do
-    quoted = Prepaid.quote_minutes(minutes)
-
-    dgettext(
-      "dashboard",
-      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
-      minutes: format_number(minutes),
-      amount: format_money(quoted.invoiced),
-      account: account.name
-    )
-  end
-
   defp quote_pool(params) do
     with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
          {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
@@ -687,29 +623,6 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp blank_to_nil(_raw), do: nil
 
-  # The standard prepaid terms as a credit multiplier, which the pool form
-  # opens on.
-  def standard_credit_multiplier do
-    Prepaid.default_funding_ratio_bp()
-    |> Decimal.new()
-    |> Decimal.div(10_000)
-    |> Decimal.normalize()
-    |> Decimal.to_string(:normal)
-  end
-
-  def credit_multiplier_hint do
-    paid = Money.new(100_000, :USD)
-    {:ok, quote} = Prepaid.quote_pool(paid.amount, Decimal.new(standard_credit_multiplier()))
-
-    dgettext(
-      "dashboard",
-      "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute. The standard prepaid terms are %{multiplier}, so %{paid} paid grants %{granted} of credit.",
-      multiplier: standard_credit_multiplier(),
-      paid: format_money(paid),
-      granted: format_money(quote.granted)
-    )
-  end
-
   defp grant_pool_message(account, attrs) do
     {:ok, quote} = Prepaid.quote_pool(attrs.paid_cents, attrs.credit_multiplier)
 
@@ -766,79 +679,6 @@ defmodule TuistWeb.OpsAccountLive do
   def prepaid_pool_error(reason),
     do: dgettext("dashboard", "Could not grant the pool: %{reason}", reason: inspect(reason))
 
-  defp assign_standing_prepaid(socket, account, subscription) do
-    {minutes, unavailable} =
-      case Prepaid.standing_minutes(account) do
-        {:ok, minutes} -> {minutes, nil}
-        {:error, reason} -> {0, reason}
-      end
-
-    socket
-    |> assign(:standing_prepaid_minutes_value, minutes)
-    |> assign(:standing_prepaid_unavailable, unavailable)
-    |> assign(:standing_prepaid_quote, nil)
-    # The item is billed and granted on the renewal invoice, so the end of
-    # the period now running is when the next minutes land.
-    |> assign(:standing_prepaid_next_at, subscription && subscription.current_period_end)
-  end
-
-  defp set_standing_minutes_message(account, 0) do
-    dgettext("dashboard", "%{account} will no longer be billed or granted minutes at each renewal.",
-      account: account.name
-    )
-  end
-
-  defp set_standing_minutes_message(account, minutes) do
-    quoted = Prepaid.quote_minutes(minutes)
-
-    dgettext(
-      "dashboard",
-      "%{account} will be billed %{amount} and granted %{minutes} minutes at each renewal. The cycle now running is unchanged.",
-      minutes: format_number(minutes),
-      amount: format_money(quoted.invoiced),
-      account: account.name
-    )
-  end
-
-  def standing_prepaid_error(:no_subscription),
-    do: dgettext("dashboard", "This account has no active subscription to carry standing minutes.")
-
-  def standing_prepaid_error(:not_monthly),
-    do: dgettext("dashboard", "Standing minutes need a subscription that renews monthly, and this one does not.")
-
-  def standing_prepaid_error(:on_runner_trial),
-    do:
-      dgettext("dashboard", "This account is on a runner trial, so standing minutes would buy credit it can never spend.")
-
-  def standing_prepaid_error(:no_prepaid_price_configured),
-    do: dgettext("dashboard", "No prepaid minutes price is configured for this environment yet.")
-
-  def standing_prepaid_error(reason),
-    do: dgettext("dashboard", "Could not read or set the standing monthly minutes: %{reason}", reason: inspect(reason))
-
-  def standing_prepaid_next_label(nil), do: dgettext("dashboard", "the next renewal")
-
-  def standing_prepaid_next_label(%DateTime{} = next_at), do: Timex.format!(next_at, "{Mfull} {D}, {YYYY}")
-
-  # The field opens on what the account holds, so an operator corrects a
-  # figure rather than working out the difference from the table above.
-  defp held_minutes(nil), do: 0
-
-  # A pool is not what the field sets, so counting it would sell its minutes
-  # again as a month's worth.
-  defp held_minutes(%{grants: grants}) do
-    grants |> Enum.reject(&(&1.kind == "pool")) |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
-  end
-
-  defp parse_minutes(raw) when is_binary(raw) do
-    case Integer.parse(String.trim(raw)) do
-      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
-      _ -> :error
-    end
-  end
-
-  defp parse_minutes(_raw), do: :error
-
   def prepaid_pool_invoice_label(%DateTime{} = closes_at), do: Timex.format!(closes_at, "{Mfull} {D}, {YYYY}")
 
   def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
@@ -860,6 +700,12 @@ defmodule TuistWeb.OpsAccountLive do
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
+    |> to_form(as: "account")
+  end
+
+  defp remote_execution_concurrency_form(account) do
+    account
+    |> RemoteExecution.change_limits()
     |> to_form(as: "account")
   end
 

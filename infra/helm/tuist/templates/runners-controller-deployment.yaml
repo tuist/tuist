@@ -58,6 +58,12 @@ rules:
   - apiGroups: [node.k8s.io]
     resources: [runtimeclasses]
     verbs: [get, list, watch]
+  # Count all workloads on runner hosts, including other namespaces' DaemonSets.
+  # `watch` lets the autoscaler react to a new macOS sandbox reservation Pod
+  # (its cache keeps only those outside the runners namespace).
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -247,6 +253,14 @@ spec:
             # webhook. In-cluster Service URL — same path used by
             # the autoscaler.
             - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
+          {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
+          # Sandbox daemons share the Linux fleet's nodes. An env var rather
+          # than a flag, so a controller release that predates it ignores it
+          # instead of failing on an unknown flag.
+          env:
+            - name: TUIST_SANDBOXES_NAMESPACE
+              value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

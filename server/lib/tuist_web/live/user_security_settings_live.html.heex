@@ -1,0 +1,290 @@
+<TuistWeb.SSOLinkHTML.security_settings_frame
+  title={@title}
+  subtitle={
+    if @live_action == :passkeys,
+      do:
+        dgettext(
+          "dashboard_auth",
+          "Sign in without a password."
+        ),
+      else:
+        dgettext(
+          "dashboard_auth",
+          "Protect your account with an authenticator app and recovery codes."
+        )
+  }
+>
+  <.alert
+    :for={kind <- [:info, :error]}
+    :if={Phoenix.Flash.get(@flash, kind)}
+    type="secondary"
+    status={if kind == :error, do: "error", else: "information"}
+    size="small"
+    title={Phoenix.Flash.get(@flash, kind)}
+  />
+  <%= if !@fresh_session? do %>
+    <TuistWeb.SSOLinkHTML.reauthentication_notice return_to={
+      if @live_action == :passkeys,
+        do: ~p"/#{@selected_account.name}/settings/passkeys",
+        else: ~p"/#{@selected_account.name}/settings/two-factor-authentication"
+    } />
+  <% else %>
+    <%= if @live_action == :passkeys do %>
+      <div data-part="section">
+        <.button
+          href={~p"/users/settings/passkeys/new"}
+          variant="primary"
+          size="large"
+          label={dgettext("dashboard_auth", "Add a passkey")}
+        />
+        <p :if={@passkeys == []}>
+          {dgettext("dashboard_auth", "You haven't added any passkeys yet.")}
+        </p>
+        <ul :if={@passkeys != []} id="passkey-list">
+          <li :for={passkey <- @passkeys}>
+            <div data-part="passkey-details">
+              <h2>{passkey.name}</h2>
+              <p>
+                {dgettext("dashboard_auth", "Added")} {Calendar.strftime(
+                  passkey.inserted_at,
+                  "%Y-%m-%d"
+                )}
+              </p>
+              <p>
+                {if passkey.last_used_at,
+                  do:
+                    dgettext("dashboard_auth", "Last used") <>
+                      " " <> Calendar.strftime(passkey.last_used_at, "%Y-%m-%d %H:%M UTC"),
+                  else: dgettext("dashboard_auth", "Never used")}
+              </p>
+            </div>
+            <div data-part="row-actions">
+              <.modal
+                id={"rename-passkey-#{passkey.id}"}
+                title={dgettext("dashboard_auth", "Rename passkey")}
+              >
+                <:trigger :let={attrs}>
+                  <.button
+                    variant="secondary"
+                    size="small"
+                    label={dgettext("dashboard_auth", "Rename")}
+                    aria-label={dgettext("dashboard_auth", "Rename %{name}", name: passkey.name)}
+                    {attrs}
+                  />
+                </:trigger>
+                <form
+                  id={"rename-passkey-form-#{passkey.id}"}
+                  method="post"
+                  action={~p"/users/settings/passkeys/#{passkey.id}/rename"}
+                >
+                  <input
+                    type="hidden"
+                    name="_csrf_token"
+                    value={Phoenix.Controller.get_csrf_token()}
+                  />
+                  <.text_input
+                    id={"passkey-name-#{passkey.id}"}
+                    name="name"
+                    value={passkey.name}
+                    label={dgettext("dashboard_auth", "Passkey name")}
+                    autocomplete="off"
+                    data-1p-ignore
+                    show_prefix={false}
+                  />
+                  <p>
+                    {dgettext(
+                      "dashboard_auth",
+                      "This name is only used in Tuist."
+                    )}
+                  </p>
+                </form>
+                <:footer>
+                  <.modal_footer>
+                    <:action>
+                      <.button
+                        variant="secondary"
+                        label={dgettext("dashboard_auth", "Cancel")}
+                        phx-click="close-security-modal"
+                        phx-value-id={"rename-passkey-#{passkey.id}"}
+                      />
+                    </:action>
+                    <:action>
+                      <.button
+                        type="submit"
+                        form={"rename-passkey-form-#{passkey.id}"}
+                        variant="primary"
+                        label={dgettext("dashboard_auth", "Save")}
+                      />
+                    </:action>
+                  </.modal_footer>
+                </:footer>
+              </.modal>
+              <.button
+                href={~p"/users/settings/passkeys/#{passkey.id}/delete"}
+                variant="secondary"
+                size="small"
+                label={dgettext("dashboard_auth", "Remove")}
+                aria-label={dgettext("dashboard_auth", "Remove %{name}", name: passkey.name)}
+              />
+            </div>
+          </li>
+        </ul>
+      </div>
+    <% else %>
+      <div data-part="section">
+        <div data-part="section-header">
+          <h2>{dgettext("dashboard_auth", "Authenticator app")}</h2>
+          <.badge
+            label={
+              if @enabled,
+                do: dgettext("dashboard_account", "Enabled"),
+                else: dgettext("dashboard_account", "Not enabled")
+            }
+            color={if @enabled, do: "success", else: "neutral"}
+          />
+        </div>
+        <%= if @enabled do %>
+          <div data-part="settings-row">
+            <div>
+              <h2>{dgettext("dashboard_auth", "Recovery codes")}</h2>
+              <p id="mfa-recovery-count">
+                {dngettext(
+                  "dashboard_auth",
+                  "%{count} recovery code remaining.",
+                  "%{count} recovery codes remaining.",
+                  @recovery_code_count
+                )}
+              </p>
+            </div>
+            <.modal
+              id="regenerate-recovery-modal"
+              title={dgettext("dashboard_auth", "Regenerate recovery codes")}
+            >
+              <:trigger :let={attrs}>
+                <.button
+                  variant="secondary"
+                  size="medium"
+                  label={dgettext("dashboard_auth", "Regenerate recovery codes")}
+                  {attrs}
+                />
+              </:trigger>
+              <form id="mfa-regenerate" method="post" action={~p"/users/settings/mfa/recovery"}>
+                <input
+                  type="hidden"
+                  name="_csrf_token"
+                  value={Phoenix.Controller.get_csrf_token()}
+                />
+                <p>
+                  {dgettext(
+                    "dashboard_auth",
+                    "Your old codes will stop working and other sessions will be signed out."
+                  )}
+                </p>
+                <.text_input
+                  id="mfa-recovery-code"
+                  name="mfa_code"
+                  value=""
+                  label={dgettext("dashboard_auth", "Authentication or recovery code")}
+                  show_prefix={false}
+                  autocomplete="one-time-code"
+                  required
+                />
+              </form>
+              <:footer>
+                <.modal_footer>
+                  <:action>
+                    <.button
+                      variant="secondary"
+                      label={dgettext("dashboard_auth", "Cancel")}
+                      phx-click="close-security-modal"
+                      phx-value-id="regenerate-recovery-modal"
+                    />
+                  </:action>
+                  <:action>
+                    <.button
+                      type="submit"
+                      form="mfa-regenerate"
+                      variant="primary"
+                      label={dgettext("dashboard_auth", "Generate new recovery codes")}
+                    />
+                  </:action>
+                </.modal_footer>
+              </:footer>
+            </.modal>
+          </div>
+        <% else %>
+          <form method="post" action={~p"/users/settings/mfa/enroll"}>
+            <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+            <.button
+              variant="primary"
+              size="medium"
+              type="submit"
+              label={dgettext("dashboard_auth", "Set up authenticator app")}
+            />
+          </form>
+        <% end %>
+      </div>
+      <div :if={@enabled} data-part="section">
+        <div data-part="section">
+          <.modal
+            id="disable-mfa-modal"
+            title={dgettext("dashboard_auth", "Disable two-factor authentication")}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                variant="destructive"
+                size="medium"
+                label={dgettext("dashboard_auth", "Disable two-factor authentication")}
+                {attrs}
+              />
+            </:trigger>
+            <form id="mfa-disable" method="post" action={~p"/users/settings/mfa/disable"}>
+              <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+              <p>
+                {dgettext(
+                  "dashboard_auth",
+                  "Your account will no longer require an authenticator code at sign-in."
+                )}
+              </p>
+              <.text_input
+                id="mfa-code"
+                name="mfa_code"
+                value=""
+                label={dgettext("dashboard_auth", "Authentication or recovery code")}
+                show_prefix={false}
+                autocomplete="one-time-code"
+                required
+              />
+            </form>
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    variant="secondary"
+                    label={dgettext("dashboard_auth", "Cancel")}
+                    phx-click="close-security-modal"
+                    phx-value-id="disable-mfa-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    form="mfa-disable"
+                    variant="destructive"
+                    label={dgettext("dashboard_auth", "Disable two-factor authentication")}
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+  <.link_button
+    href={~p"/#{@selected_account.name}/settings/authentication"}
+    variant="primary"
+    size="large"
+    label={dgettext("dashboard_account", "Settings")}
+  />
+</TuistWeb.SSOLinkHTML.security_settings_frame>

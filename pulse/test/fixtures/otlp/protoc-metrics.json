@@ -1,0 +1,170 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-api"
+            }
+          },
+          {
+            "key": "service.namespace",
+            "value": {
+              "stringValue": "example"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "pod-1"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "production"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "production"
+            }
+          },
+          {
+            "key": "bytes",
+            "value": {
+              "bytesValue": "AP8="
+            }
+          }
+        ],
+        "droppedAttributesCount": 1
+      },
+      "scopeMetrics": [
+        {
+          "scope": {
+            "name": "example.instrumentation",
+            "version": "1.2.3",
+            "attributes": [
+              {
+                "key": "enabled",
+                "value": {
+                  "boolValue": false
+                }
+              }
+            ],
+            "droppedAttributesCount": 2
+          },
+          "metrics": [
+            {
+              "name": "cpu.utilization",
+              "description": "Synthetic scalar fixture",
+              "unit": "1",
+              "gauge": {
+                "dataPoints": [
+                  {
+                    "timeUnixNano": "1700000000123456789",
+                    "asDouble": -0.0,
+                    "exemplars": [
+                      {
+                        "timeUnixNano": "1700000000123456788",
+                        "asDouble": -0.0,
+                        "spanId": "6465616462656566",
+                        "traceId": "30313233343536373839616263646566",
+                        "filteredAttributes": [
+                          {
+                            "key": "request.id",
+                            "value": {
+                              "stringValue": "fixture-request"
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "attributes": [
+                      {
+                        "key": "http.method",
+                        "value": {
+                          "stringValue": "GET"
+                        }
+                      },
+                      {
+                        "key": "integer",
+                        "value": {
+                          "intValue": "9223372036854775807"
+                        }
+                      },
+                      {
+                        "key": "nested",
+                        "value": {
+                          "arrayValue": {
+                            "values": [
+                              {
+                                "boolValue": false
+                              },
+                              {
+                                "bytesValue": "AP8="
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "timeUnixNano": "1700000000123456790",
+                    "asInt": "-9223372036854775808"
+                  },
+                  {
+                    "timeUnixNano": "1700000000123456791",
+                    "asDouble": "NaN"
+                  },
+                  {
+                    "timeUnixNano": "1700000000123456792",
+                    "asDouble": "Infinity"
+                  },
+                  {
+                    "timeUnixNano": "1700000000123456793",
+                    "flags": 1
+                  }
+                ]
+              },
+              "metadata": [
+                {
+                  "key": "category",
+                  "value": {
+                    "stringValue": "runtime"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "request.count",
+              "unit": "{request}",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "startTimeUnixNano": "1700000000000000000",
+                    "timeUnixNano": "1700000000123456794",
+                    "asInt": "20"
+                  },
+                  {
+                    "startTimeUnixNano": "1700000000000000000",
+                    "timeUnixNano": "1700000000123456795",
+                    "asDouble": 22.0
+                  }
+                ],
+                "aggregationTemporality": 2,
+                "isMonotonic": true
+              }
+            }
+          ],
+          "schemaUrl": "https://example.com/metric-schema/1"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.27.0"
+    }
+  ]
+}

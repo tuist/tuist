@@ -89,7 +89,11 @@ const (
 // never more than the volume. The image keeps its full capacity, so a job can
 // write past this into space nothing reserved. The server's placement
 // (`Tuist.Runners.CacheVolumes`, `reserved_bytes`) mirrors this; keep them in step.
+// A Docker data root reserves its saved bytes plus DockerGrowthBytes.
 func (i Identity) ExpectedBytes(defaultBytes int64) int64 {
+	if i.Kind == KindDocker {
+		return min(i.VolumeSize(defaultBytes), i.HeadSizeBytes+DockerGrowthBytes)
+	}
 	expected := int64(UnmeasuredVolumeBytes)
 	if i.HeadSizeBytes > 0 {
 		expected = i.HeadSizeBytes + max(GrowthBytes, i.HeadSizeBytes/2)
@@ -125,6 +129,9 @@ type Slot struct {
 	// MountedGeneration is the older generation a branch was cloned from because
 	// its base was not on the host, or 0.
 	MountedGeneration int64 `json:"mounted_generation,omitempty"`
+	// ColdReason is why a warm identity's branch started empty (the Cold*
+	// constants), or "".
+	ColdReason string `json:"cold_reason,omitempty"`
 	// PublishCold is set for one seal when the server lets a branch that started
 	// empty replace its lineage's HEAD (the "publish" decision).
 	PublishCold bool `json:"-"`
@@ -222,7 +229,7 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= maxVolumeBytes && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= kindMaxVolumeBytes(identity, maxVolumeBytes) && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
 }
 func validKind(identity Identity) bool {
 	switch identity.Kind {
@@ -230,6 +237,8 @@ func validKind(identity Identity) bool {
 		return identity.Generation == 0
 	case KindCheckout:
 		return identity.Generation >= 0 && identity.BaseGeneration == 0 && !identity.CanPublish
+	case KindDocker:
+		return identity.Generation == 0
 	default:
 		return false
 	}
@@ -370,6 +379,9 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 	}
 	if cold, ok := s.backend.(interface{ Cold(Slot) bool }); ok && cold.Cold(slot) {
 		slot.Warm = false
+		if reason, ok := s.backend.(interface{ ColdReason(Slot) string }); ok {
+			slot.ColdReason = reason.ColdReason(slot)
+		}
 	}
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
@@ -605,4 +617,14 @@ func (s *Store) InUse(scope string) bool {
 		}
 	}
 	return false
+}
+
+// kindMaxVolumeBytes is the largest volume the host accepts for the identity:
+// a Docker data root always has DockerVolumeBytes, whatever the host's maximum
+// for other volumes.
+func kindMaxVolumeBytes(identity Identity, maxVolumeBytes int64) int64 {
+	if identity.Kind == KindDocker {
+		return max(maxVolumeBytes, DockerVolumeBytes)
+	}
+	return maxVolumeBytes
 }

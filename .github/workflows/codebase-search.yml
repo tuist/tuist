@@ -6,11 +6,15 @@ on:
       - main
     paths:
       - codebase-search/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/codebase-search.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - codebase-search/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/codebase-search.yml
   merge_group: {}
 
@@ -60,6 +64,7 @@ jobs:
         with:
           context: ./codebase-search
           file: ./codebase-search/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: false
           build-args: |
             TUIST_REVISION=${{ github.event.pull_request.base.sha || github.sha }}

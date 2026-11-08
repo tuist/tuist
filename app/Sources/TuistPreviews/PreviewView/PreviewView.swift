@@ -2,6 +2,7 @@ import Foundation
 import NukeUI
 import SwiftUI
 import TuistErrorHandling
+import TuistNavigation
 import TuistNoora
 import TuistServer
 import TuistSimulator
@@ -9,7 +10,9 @@ import XcodeGraph
 
 public struct PreviewView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
+    @Environment(AppNavigation.self) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var viewModel: PreviewViewModel
     @State private var showingDeleteAlert = false
 
@@ -102,6 +105,8 @@ public struct PreviewView: View {
                             Text(notes)
                                 .font(.body)
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .environment(\.layoutDirection, preview.releaseNotesLayoutDirection ?? layoutDirection)
                         }
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,6 +143,13 @@ public struct PreviewView: View {
             }
             .padding(.horizontal, Noora.Spacing.spacing4)
             .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        navigation.openWeb(preview.url)
+                    } label: {
+                        Label("Open on web", systemImage: "safari")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     ShareLink(item: preview.url)
                 }

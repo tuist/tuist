@@ -46,6 +46,10 @@ directly in that same workflow. Keep permission decisions in the workflow:
   startup: system `_NSExtensionMain` entry with retained Swift main/entry metadata.
   The isolated UI preview has the same gate before simulator tests. A successful
   compile alone does not verify modern system appearance.
+- macOS builds run real Sparkle framework/signature and appcast checks before
+  archiving. Those checks use disposable copies and Ed25519 keys, never a user's
+  Keychain or distribution credentials. Keep them in fork builds too; production
+  signing, notarization and publication remain in the protected release workflow.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact
   name labeled with the build host OS and architecture.
 - Validate changes with `actionlint .github/workflows/atlas-mobile.yml` and the

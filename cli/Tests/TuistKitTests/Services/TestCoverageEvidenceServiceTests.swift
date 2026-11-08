@@ -5,6 +5,7 @@ import Testing
 import TuistConfig
 import TuistEnvironment
 import TuistTesting
+import XcodeGraph
 import XCResultParser
 @testable import TuistKit
 
@@ -102,6 +103,118 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test func addsWhatTheLaunchedAppExecutedToTheTestSuiteAndTargetThatLaunchedIt() {
+        let evidence = TestCoverageEvidenceService.reduce(
+            outputs: [output([
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppUITests",
+                    suite: "SearchUITests",
+                    name: "testSearch",
+                    counters: [0: [0]]
+                ),
+            ])],
+            filesByFunction: ["/products/App": ["add": ["/src/SearchUITests.swift"]]],
+            targets: ["AppUITests": ["/src/SearchUITests.swift": IndexSet([3])]],
+            launched: [
+                .init(module: "AppUITests", suite: "SearchUITests", name: "testSearch"): [
+                    "/src/App/Search.swift": IndexSet(integersIn: 10 ... 12),
+                    "/src/App/Shared.swift": IndexSet([1]),
+                ],
+                .init(module: "AppUITests", suite: "SearchUITests", name: ""): ["/src/App/Shared.swift": IndexSet([2])],
+            ]
+        )
+
+        #expect(evidence == TestCoverageEvidence(
+            paths: ["/src/App/Search.swift", "/src/App/Shared.swift", "/src/SearchUITests.swift"],
+            scopes: [
+                .init(
+                    kind: .target, module: "AppUITests", suite: "", name: "", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 2], [3, 3]]
+                ),
+                .init(kind: .suite, module: "AppUITests", suite: "SearchUITests", name: "", files: [1], lines: [[2, 2]]),
+                .init(
+                    kind: .test, module: "AppUITests", suite: "SearchUITests", name: "testSearch()", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 1], []]
+                ),
+            ]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffItsBuildProduct() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        let bundle = products.appending(components: "AppUITests-Runner.app", "PlugIns", "AppUITests.xctest")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let product = bundle.appending(component: "AppUITests").pathString
+        FileManager.default.createFile(atPath: product, contents: Data())
+        let installed = directory.pathString
+            + "/XCTestDevices/CLONE/data/Containers/Bundle/Application/UUID/AppUITests-Runner.app/PlugIns/AppUITests.xctest/AppUITests"
+
+        let productsDirectories = [directory.appending(components: "Build", "Products", "Debug").pathString, products.pathString]
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+        #expect(TestCoverageEvidenceService
+            .buildProduct(ofInstalledImage: product, productsDirectories: productsDirectories) == nil)
+        // Xcode deletes a clone after the run, but not always before the evidence reads it.
+        try FileManager.default.createDirectory(
+            atPath: (installed as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: installed, contents: Data())
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+        #expect(TestCoverageEvidenceService.buildProduct(
+            ofInstalledImage: "/gone/libFoo.dylib",
+            productsDirectories: productsDirectories
+        ) ==
+            nil)
+    }
+
+    @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffTheTestProductsWhenRunWithoutBuilding() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let testProducts = directory.appending(component: "TestProducts.xctestproducts")
+        let bundle = testProducts.appending(
+            components: "Binaries",
+            "0",
+            "Debug-iphonesimulator",
+            "App.app",
+            "PlugIns",
+            "AppTests.xctest"
+        )
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let product = bundle.appending(component: "AppTests").pathString
+        FileManager.default.createFile(atPath: product, contents: Data())
+        let derivedData = directory.appending(component: "DerivedData")
+        try FileManager.default.createDirectory(
+            atPath: derivedData.appending(components: "Build", "ProfileData").pathString,
+            withIntermediateDirectories: true
+        )
+        let installed = directory.pathString
+            + "/XCTestDevices/CLONE/data/Containers/Bundle/Application/UUID/App.app/PlugIns/AppTests.xctest/AppTests"
+
+        let productsDirectories = TestCoverageEvidenceService.productsDirectories(
+            derivedDataDirectory: derivedData,
+            testProductsPath: testProducts
+        )
+
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+    }
+
+    @Test func readsThePlatformOffAnXcodebuildDestination() {
+        #expect(Platform(xcodebuildDestination: "platform=iOS Simulator,id=ABC") == .iOS)
+        #expect(Platform(xcodebuildDestination: "generic/platform=iOS") == .iOS)
+        #expect(Platform(xcodebuildDestination: "platform=macOS,arch=arm64") == .macOS)
+        #expect(Platform(xcodebuildDestination: "platform=OS X") == .macOS)
+        #expect(Platform(xcodebuildDestination: "platform=tvOS Simulator,name=Apple TV") == .tvOS)
+        #expect(Platform(xcodebuildDestination: "platform=watchOS Simulator") == .watchOS)
+        #expect(Platform(xcodebuildDestination: "platform=visionOS Simulator") == .visionOS)
+        #expect(Platform(xcodebuildDestination: "id=ABC") == nil)
+        #expect(Platform(xcodebuildDestination: "platform=DriverKit") == nil)
+    }
+
     @Test func namesATestModuleAfterItsBundle() {
         #expect(TestCoverageEvidenceService
             .testModule(ofImage: "/p/Debug/CoreTests.xctest/Contents/MacOS/CoreTests") == "CoreTests")
@@ -168,12 +281,7 @@ struct TestCoverageEvidenceServiceTests {
     }
 
     @Test(.withMockedEnvironment()) func collectsOnlyWhenTheRunUploadsCoverage() async {
-        // Without the `COVERAGE` client flag.
         #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: .test()) == nil)
-
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-        let noUpload = TuistConfig.Tuist.test(testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false)))
-        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: noUpload) == nil)
     }
 
     @Test(.inTemporaryDirectory) func saysWhenNoTestProcessRecordedEvidence() async throws {
@@ -215,7 +323,7 @@ struct TestCoverageEvidenceServiceTests {
     }
 
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
 
         let session = try #require(await TestCoverageEvidenceService().prepare(platform: .iOSSimulator, config: .test()))
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }

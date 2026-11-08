@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/aggregators.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for quantile.
+clear
+
+load 10s
+	data{test="two samples",point="a"} 0
+	data{test="two samples",point="b"} 1
+	data{test="three samples",point="a"} 0
+	data{test="three samples",point="b"} 1
+	data{test="three samples",point="c"} 2
+	data{test="uneven samples",point="a"} 0
+	data{test="uneven samples",point="b"} 1
+	data{test="uneven samples",point="c"} 4
+	data{test="NaN sample",point="a"} 0
+	data{test="NaN sample",point="b"} 1
+	data{test="NaN sample",point="c"} NaN
+	data_histogram{test="histogram sample", point="c"} {{schema:2 count:4 sum:10 buckets:[1 0 0 0 1 0 0 1 1]}}
+	foo 0 1 0 1 0 1 0.8
+
+# 80th percentile.
+# The NaN sample is treated as the smallest possible value.
+eval instant at 1m quantile without(point)(0.8, data)
+	expect no_info
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
+	{test="NaN sample"} 0.6
+
+# 20th percentile.
+# A quantile between NaN and 0 is interpolated as NaN.
+eval instant at 1m quantile without(point)(0.2, data)
+	{test="two samples"} 0.2
+	{test="three samples"} 0.4
+	{test="uneven samples"} 0.4
+	{test="NaN sample"} NaN
+
+# The histogram is ignored here so the result doesn't change but it has an info annotation now.
+eval instant at 1m quantile without(point)(0.8, {__name__=~"data(_histogram)?"})
+	expect info
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
+	{test="NaN sample"} 0.6
+
+# The histogram is ignored here so there is no result but it has an info annotation now.
+eval instant at 1m quantile(0.8, data_histogram)
+  expect info
+
+# Bug #5276.
+eval instant at 1m quantile without(point)(scalar(foo), data)
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
+	{test="NaN sample"} 0.6
+
+eval instant at 1m quantile without(point)((scalar(foo)), data)
+	{test="two samples"} 0.8
+	{test="three samples"} 1.6
+	{test="uneven samples"} 2.8
+	{test="NaN sample"} 0.6
+
+eval instant at 1m quantile without(point)(NaN, data)
+	expect warn regex: PromQL warning: quantile value should be between 0 and 1, got NaN \([0-9]+:[0-9]+\)
+	{test="two samples"} NaN
+	{test="three samples"} NaN
+	{test="uneven samples"} NaN
+	{test="NaN sample"} NaN
+
+# Bug #15971.
+eval range from 0m to 1m step 10s quantile without(point) (scalar(foo), data)
+	{test="two samples"} 0 1 0 1 0 1 0.8
+	{test="three samples"} 0 2 0 2 0 2 1.6
+	{test="uneven samples"} 0 4 0 4 0 4 2.8
+	{test="NaN sample"} NaN 1 NaN 1 NaN 1 0.6
+
+# Exact quantile ranks must not interpolate with zero weight next to infinity.
+clear
+
+load 10s
+	data{test="finite before +Inf",point="a"} 1
+	data{test="finite before +Inf",point="b"} 2
+	data{test="finite before +Inf",point="c"} Inf
+	data{test="finite after -Inf",point="a"} -Inf
+	data{test="finite after -Inf",point="b"} 2
+	data{test="finite after -Inf",point="c"} 3
+	data{test="positive infinity",point="a"} 1
+	data{test="positive infinity",point="b"} Inf
+	data{test="negative infinity",point="a"} -Inf
+	data{test="mixed infinities",point="a"} -Inf
+	data{test="mixed infinities",point="b"} Inf
+
+eval instant at 0m quantile without(point)(0.5, data)
+	expect no_info
+	expect no_warn
+	{test="finite before +Inf"} 2
+	{test="finite after -Inf"} 2
+	{test="positive infinity"} +Inf
+	{test="negative infinity"} -Inf
+	{test="mixed infinities"} NaN
+
+eval instant at 0m quantile without(point)(1, data{test="positive infinity"})
+	expect no_info
+	expect no_warn
+	{test="positive infinity"} +Inf
+
+eval instant at 0m quantile without(point)(0, data{test="negative infinity"})
+	expect no_info
+	expect no_warn
+	{test="negative infinity"} -Inf
+

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 enum AtlasAIService: String {
     case claude, chatgpt
@@ -63,7 +62,9 @@ struct AtlasClaudeAccountView: View {
             }
             Section {
                 SecureField("Paste subscription token", text: $token)
+                    #if os(iOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
                     .privacySensitive()
                     .accessibilityIdentifier("claude-token")
@@ -86,7 +87,11 @@ struct AtlasClaudeAccountView: View {
                             .textSelection(.enabled)
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            #if os(macOS)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+                            #else
                             .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                            #endif
                         Text("Follow the sign-in instructions, then paste the subscription token above. " +
                              "Use a Claude subscription token, not an Anthropic API key. Subscription terms apply.")
                         Link(destination: URL(string: "https://code.claude.com/docs/en/setup")!) {
@@ -107,15 +112,21 @@ struct AtlasClaudeAccountView: View {
             if accounts.account("claude")?.credentialConfigured == true {
                 Section {
                     Button("Disconnect Claude", role: .destructive) { confirmingDisconnect = true }
-                        .disabled(accounts.busy)
+                        .disabled(accounts.busy || accounts.cached)
                 }
             }
         }
         .protectsAtlasNavigation()
+        #if os(iOS)
         .toolbar(.hidden, for: .tabBar)
+        #else
+        .formStyle(.grouped)
+        #endif
         .navigationTitle("Claude")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
+        #endif
         .safeAreaInset(edge: .bottom) {
             Button(action: save) {
                 HStack {
@@ -145,7 +156,7 @@ struct AtlasClaudeAccountView: View {
     }
 
     private var canSave: Bool {
-        !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !accounts.busy && !saving
+        !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !accounts.busy && !accounts.cached && !saving
     }
 
     private func save() {
@@ -222,14 +233,20 @@ struct AtlasChatGPTAccountView: View {
             if accounts.account("chatgpt")?.credentialConfigured == true {
                 Section {
                     Button("Disconnect ChatGPT", role: .destructive) { confirmingDisconnect = true }
-                        .disabled(accounts.busy)
+                        .disabled(accounts.busy || accounts.cached)
                 }
             }
         }
         .protectsAtlasNavigation()
+        #if os(iOS)
         .toolbar(.hidden, for: .tabBar)
+        #else
+        .formStyle(.grouped)
+        #endif
         .navigationTitle("ChatGPT")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .safeAreaInset(edge: .bottom) { actions }
         .modifier(AtlasThemedContent())
         .task(id: accounts.login?.id) { if accounts.login != nil { await accounts.poll() } }
@@ -264,7 +281,9 @@ struct AtlasChatGPTAccountView: View {
                 } else {
                     Button {
                         Task {
-                            if accounts.account("chatgpt") == nil { await accounts.load() } else { await accounts.startChatGPT() }
+                            if accounts.account("chatgpt") == nil || accounts.cached {
+                                await accounts.load()
+                            } else { await accounts.startChatGPT() }
                         }
                     } label: {
                         HStack {
@@ -288,7 +307,7 @@ struct AtlasChatGPTAccountView: View {
     }
 
     private var startLabel: String {
-        if accounts.account("chatgpt") == nil { return "Load connection status" }
+        if accounts.account("chatgpt") == nil || accounts.cached { return "Load connection status" }
         return accounts.busy ? "Please wait…" : "Sign in with ChatGPT"
     }
 }

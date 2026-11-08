@@ -1342,6 +1342,7 @@ var hashPartInstaller = map[string]string{
 	"log-shipper":             "installLogShipper",
 	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
+	"tart-kubelet-probe":      "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
 	"tart-install":            "installTart",

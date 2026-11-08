@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/histograms.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Test histogram functions ignore NaN bucket boundaries and warn.
+load 1m
+  series{le="0.5"} 1
+  series{le="+Inf"} 3
+  series{le="NaN"} 2
+
+eval instant at 0 histogram_quantile(0.5, series)
+	expect no_info
+	expect warn msg: PromQL warning: bucket label "le" is missing or has a malformed value of "NaN" for metric name "series" (1:25)
+	{} 0.5
+
+eval instant at 0 histogram_quantiles(series, "q", 0.25, 0.5)
+	expect no_info
+	expect warn msg: PromQL warning: bucket label "le" is missing or has a malformed value of "NaN" for metric name "series" (1:21)
+	{q="0.25"} 0.375
+	{q="0.5"} 0.5
+
+eval instant at 0 histogram_fraction(-Inf, 1, series)
+	expect no_info
+	expect warn msg: PromQL warning: bucket label "le" is missing or has a malformed value of "NaN" for metric name "series" (1:29)
+	{} 0.3333333333333333
+
+clear

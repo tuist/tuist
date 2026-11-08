@@ -8,7 +8,9 @@ defmodule Tuist.Accounts.UserNotifier do
 
   alias Tuist.Accounts.User
   alias Tuist.Environment
+  alias Tuist.Locale
   alias Tuist.Mailer
+  alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -161,7 +163,7 @@ defmodule Tuist.Accounts.UserNotifier do
 
     """
     <!DOCTYPE html>
-    <html lang="#{String.replace(locale, "_", "-")}">
+    <html lang="#{String.replace(locale, "_", "-")}" dir="#{Locale.direction(locale)}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -290,8 +292,8 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to reset a user password.
   """
   def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
-    deliver(
-      user.email,
+    user.email
+    |> build_email(
       dgettext("dashboard_account", "Reset password instructions"),
       %{
         title: dgettext("dashboard_account", "Did you request to reset your password?"),
@@ -310,6 +312,88 @@ defmodule Tuist.Accounts.UserNotifier do
         ]
       }
     )
+    |> Mailer.deliver_now()
+  rescue
+    # Bamboo raises ArgumentError for missing adapter settings, even with deliver_now/1.
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_mfa_change_notification(user, enabled?) do
+    subject =
+      if enabled?,
+        do: dgettext("dashboard_account", "Two-factor authentication enabled"),
+        else: dgettext("dashboard_account", "Two-factor authentication disabled")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The two-factor authentication settings for your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_passkey_change_notification(user, added?) do
+    subject =
+      if added?,
+        do: dgettext("dashboard_account", "Passkey added"),
+        else: dgettext("dashboard_account", "Passkey removed")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_recovery_notification(user, event) do
+    {subject, message} =
+      case event do
+        :used ->
+          {dgettext("dashboard_account", "Recovery code used"),
+           dgettext(
+             "dashboard_account",
+             "A recovery code was used to access or change security settings on your Tuist account."
+           )}
+
+        :regenerated ->
+          {dgettext("dashboard_account", "Recovery codes regenerated"),
+           dgettext(
+             "dashboard_account",
+             "New recovery codes were created for your Tuist account. All previous codes are now invalid."
+           )}
+      end
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        message,
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
   @doc """
@@ -604,7 +688,14 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp air_usage_label(:runner_minutes, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+    do:
+      dgettext(
+        "dashboard_account",
+        "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})",
+        usage: delimit(usage),
+        limit: delimit(limit),
+        linux: delimit(Allowance.free_monthly_minutes(:linux))
+      )
 
   defp air_usage_label(:cache_egress_megabytes, usage, limit) do
     dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",

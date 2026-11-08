@@ -232,12 +232,14 @@ The node heartbeats every 60 seconds against a 180-second lease. Tuist considers
 
 Back in **Cache** in the dashboard, the node appears under **Registered nodes** with its endpoint, region, status, and last heartbeat. A node that never appears is not reaching the registration endpoint or is failing authorization. A node that appears and then disappears has stopped heartbeating or has stopped reporting itself ready.
 
-### Match the tenant identifier to your account handle {#match-the-tenant-identifier}
+### Use the account's permanent tenant identifier {#match-the-tenant-identifier}
 
-`KURA_TENANT_ID` must equal your Tuist account handle. The control plane compares the heartbeat's tenant against the account resolved from the credential and rejects a mismatch with `409 tenant_mismatch`, so a node with the wrong value authenticates successfully and still never registers.
+`KURA_TENANT_ID` is the account's permanent cache identity. For an account that has never been renamed, it equals the account handle. After a rename, keep the original value on every node, including replacement nodes: changing it selects a different storage namespace, and renaming the account does not migrate stored artifacts. Reuse the tenant from an existing node or the `tenant_id` returned by enrollment rather than inferring it from the account's current URL.
+
+The control plane compares the heartbeat's tenant against the account resolved from the credential and rejects a mismatch with `409 tenant_mismatch`, so a node with the wrong value authenticates successfully and still never registers.
 
 > [!IMPORTANT]
-> Both the Helm chart and the container example earlier in this guide default this to `default`. That value is correct for a self-hosted Tuist server, where the tenant is a local label, and wrong for an account on the Tuist-hosted server, where it has to name the account. Enrolling the node avoids the question entirely, because the control plane supplies the value.
+> Both the Helm chart and the container example earlier in this guide default this to `default`. Replace it with the account's tenant identifier before registering the node. Enrolling the node avoids the question entirely, because the control plane supplies the value.
 
 An unset `KURA_TENANT_ID` does not skip the check. It disables registration altogether: the node keeps serving cache traffic, nothing appears in the dashboard, and no error is reported. If a node is healthy but missing from **Registered nodes**, check this variable first.
 

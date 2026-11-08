@@ -25,7 +25,7 @@
     },
     {
       "customType": "regex",
-      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which server-production-deployment.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which linux-runner-image-release.yml picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
@@ -69,6 +69,15 @@
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ghRunnerVersion:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Base images in the server Dockerfile. Each one is an `ARG *_IMAGE` default behind a registry-mirror prefix ARG (`DOCKER_IMAGE_PREFIX`, `DOCKER_OFFICIAL_IMAGE_PREFIX`), which the dockerfile manager skips as `contains-variable`. The tags are literals after the prefix so this manager can read them; a `@sha256:` digest after the tag is kept up to date as well.",
+      "fileMatch": ["^server/Dockerfile$"],
+      "matchStrings": [
+        "ARG [A-Z_]+_IMAGE=\"\\$\\{DOCKER(?:_OFFICIAL)?_IMAGE_PREFIX\\}(?<depName>[a-z0-9._/-]+):(?<currentValue>[^\"@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -88,6 +97,12 @@
       "commitMessageTopic": "GitHub Actions runner",
       "prPriority": 10,
       "automerge": true
+    },
+    {
+      "description": "Refresh Linux runner base digests through the image release pipeline.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "commitMessagePrefix": "fix(linux-runner-image):"
     },
     {
       "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm, gh): route through the linux-runner-image release flow.",
@@ -137,6 +152,26 @@
       "commitMessagePrefix": "chore(infra):",
       "commitMessageTopic": "mise",
       "automerge": true
+    },
+    {
+      "description": "Server Dockerfile base images. Not automerged: a base image bump changes what ships in the server release.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "commitMessagePrefix": "fix(server):"
+    },
+    {
+      "description": "hexpm/elixir tags are `<elixir>-erlang-<otp>-debian-bookworm-<YYYYMMDD>-slim`. hexpm only rebuilds the newest Elixir patch against the newest patch of each OTP release line when Debian publishes a new date, so an older Elixir/OTP pair stops getting newer Debian dates; the update has to move all three together. Versions order by Elixir minor, Elixir patch, OTP minor, OTP patch, then date, and the OTP major is held as the compatibility key, so an OTP major is a manual change. An Elixir minor shows up as a major update. Keep mise.toml's elixir and erlang pins in step with the tag in the same PR.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "matchPackageNames": ["hexpm/elixir"],
+      "versioning": "regex:^1\\.(?<major>\\d+)\\.(?<minor>\\d+)-erlang-(?<compatibility>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?(?:\\.\\d+)?-debian-bookworm-(?<revision>\\d{8})-slim$"
+    },
+    {
+      "description": "Dated Debian slim tags (`<codename>-<YYYYMMDD>-slim`). They are multi-arch indexes, so the runner base stays reproducible without losing arm64. The codename is the compatibility key, so a Debian major release is a manual change.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "matchPackageNames": ["debian"],
+      "versioning": "regex:^(?<compatibility>[a-z]+)-(?<major>\\d{4})(?<minor>\\d{2})(?<patch>\\d{2})-slim$"
     }
   ]
 }

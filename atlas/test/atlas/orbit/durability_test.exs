@@ -7,11 +7,17 @@ defmodule Atlas.Orbit.DurabilityTest do
   # credo:disable-for-next-line Credo.Check.Warning.AsyncTests
   use Atlas.DataCase, async: false
   use Oban.Testing, repo: Atlas.Repo
+  use Mimic
 
   import Atlas.OrbitFixtures
+  import Phoenix.ChannelTest
 
   alias Atlas.Audit.Activity
   alias Atlas.Authorization.Roles
+  alias Atlas.Environments
+  alias Atlas.Environments.Command
+  alias Atlas.Environments.Commands
+  alias Atlas.LLMs.Runner
   alias Atlas.Orbit
   alias Atlas.Orbit.Checkpoints
   alias Atlas.Orbit.Message
@@ -22,8 +28,14 @@ defmodule Atlas.Orbit.DurabilityTest do
   alias Atlas.Orbit.Tools
   alias Atlas.Orbit.Workers.RunThread
   alias Atlas.Repo
+  alias AtlasWeb.EnvironmentChannel
+  alias AtlasWeb.PresenceSocket
+  alias ReqLLM.Message.ReasoningDetails
 
-  setup do
+  @endpoint AtlasWeb.Endpoint
+
+  setup context do
+    if context[:device_deployment], do: set_mimic_global(context)
     orbit_profile_fixture()
     user = user_fixture(["accounts:read"])
     {:ok, thread, _} = Orbit.ensure_private(user)
@@ -115,6 +127,389 @@ defmodule Atlas.Orbit.DurabilityTest do
   end
 
   describe "deploys and lost replicas" do
+    @tag :device_deployment
+    test "RunThread resumes a known device result through real Condukt without another command or card", context do
+      c = personal_environment_run!(context)
+      test_pid = self()
+
+      initial = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        if Enum.any?(JSON.decode!(body)["messages"], &(&1["role"] == "tool")) do
+          send(test_pid, :known_device_result_reached_model)
+
+          receive do
+            :release -> Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Done."}))
+          end
+        else
+          Req.Test.json(conn, tool_call("environment_read_file", %{"path" => "README.md"}))
+        end
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(initial) end)
+      worker = Task.async(fn -> perform_job(RunThread, %{"run_id" => c.run.id, "resume" => 0}) end)
+      assert_push "snapshot", %{commands: [%{id: command_id, arguments: %{"project_id" => project_id}}]}, 5_000
+      assert project_id == c.project_id
+      command = Repo.get!(Command, command_id)
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+      payload = %{"claim_token" => claimed.claim_token, "success" => true, "output" => "known device evidence"}
+      assert {:ok, %{received: true}} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+      assert_receive :known_device_result_reached_model, 5_000
+
+      send(worker.pid, {:EXIT, self(), :shutdown})
+      assert :ok = Task.await(worker, 5_000)
+      assert %Run{status: "queued", resume_count: 1} = Repo.reload!(c.run)
+      assert_enqueued(worker: RunThread, args: %{"run_id" => c.run.id, "resume" => 1})
+      card = Repo.get!(Message, command.message_id)
+      assert card.tool_status == "succeeded"
+      assert {:ok, snapshot} = Checkpoints.load(Repo.reload!(c.run))
+      assert inspect(snapshot.messages) =~ "known device evidence"
+
+      # Existing runs must not retarget even if thread selection changes separately.
+      c.thread |> Ecto.Changeset.change(environment_id: nil, project_id: nil) |> Repo.update!()
+
+      resumed = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        messages = JSON.decode!(body)["messages"]
+        assert inspect(messages) =~ "known device evidence"
+
+        if Enum.count(messages, &(&1["role"] == "tool")) < 2 do
+          Req.Test.json(conn, tool_call("environment_read_file", %{"path" => "README.md"}))
+        else
+          Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Recovered device evidence."}))
+        end
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(resumed) end)
+      assert :ok = perform_job(RunThread, %{"run_id" => c.run.id, "resume" => 1})
+      assert %Run{status: "succeeded", environment_id: environment_id, project_id: ^project_id} = Repo.reload!(c.run)
+      assert environment_id == c.environment.id
+      assert Repo.aggregate(from(command in Command, where: command.run_id == ^c.run.id), :count) == 1
+
+      assert Repo.aggregate(
+               from(message in Message, where: message.run_id == ^c.run.id and message.kind == "tool"),
+               :count
+             ) == 1
+
+      assert Repo.reload!(command).status == "settled"
+      assert Repo.reload!(card).id == command.message_id
+      assert {:ok, []} = Commands.queued(c.user, c.client_id, c.environment.id)
+
+      assert {:ok, %{disabled: true}} = Environments.disable(c.user, c.client_id, c.environment.id)
+      assert_continued_thread!(c, nil, nil, [])
+      assert Repo.reload!(command).environment_id == c.environment.id
+      assert Repo.reload!(command).status == "settled"
+      assert Message.tool_output(Repo.reload!(card)) == "known device evidence"
+    end
+
+    @tag :device_deployment
+    test "RunThread resumes an interrupted claimed terminal as unknown, never redispatching", context do
+      c = personal_environment_run!(context)
+      test_pid = self()
+
+      initial = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        messages = JSON.decode!(body)["messages"]
+
+        if Enum.any?(messages, &(&1["role"] == "tool")) do
+          send(test_pid, {:terminal_ticket_reached_model, messages})
+
+          receive do
+            :release -> Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Command queued."}))
+          end
+        else
+          Req.Test.json(conn, tool_call("environment_terminal", %{"command" => "pwd"}))
+        end
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(initial) end)
+      worker = Task.async(fn -> perform_job(RunThread, %{"run_id" => c.run.id, "resume" => 0}) end)
+      assert_receive {:terminal_ticket_reached_model, ticket_messages}, 5_000
+      assert inspect(ticket_messages) =~ "queued"
+      assert {:ok, %{commands: [%{id: command_id, status: "queued"}]}} = Commands.list(c.user, c.thread.id)
+      assert {:ok, [%{id: ^command_id}]} = Commands.queued(c.user, c.client_id, c.environment.id)
+      command = Repo.get!(Command, command_id)
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+
+      assert {:error, :environment_run_active} =
+               Environments.select(c.user, c.thread.id, %{"environment_id" => nil, "project_id" => nil})
+
+      send(worker.pid, {:EXIT, self(), :shutdown})
+      assert :ok = Task.await(worker, 5_000)
+      assert %Run{status: "queued", resume_count: 1} = Repo.reload!(c.run)
+      assert_enqueued(worker: RunThread, args: %{"run_id" => c.run.id, "resume" => 1})
+      assert Repo.reload!(command).status == "claimed"
+      assert Repo.get!(Message, command.message_id).tool_status == "succeeded"
+      assert {:ok, []} = Commands.queued(c.user, c.client_id, c.environment.id)
+      command |> Ecto.Changeset.change(result_deadline: DateTime.add(DateTime.utc_now(), -1)) |> Repo.update!()
+      Commands.sweep()
+      assert Repo.reload!(command).status == "unknown"
+      refute Repo.reload!(command).continuation_message_id
+
+      resumed = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        messages = JSON.decode!(body)["messages"]
+
+        if Enum.count(messages, &(&1["role"] == "tool")) >= 2 do
+          send(test_pid, {:unknown_device_result, messages})
+          Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "The command outcome is unknown."}))
+        else
+          Req.Test.json(conn, tool_call("environment_terminal", %{"command" => "pwd"}))
+        end
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(resumed) end)
+      assert :ok = perform_job(RunThread, %{"run_id" => c.run.id, "resume" => 1})
+      assert_receive {:unknown_device_result, messages}
+      assert inspect(messages) =~ Commands.unknown()
+      assert Repo.reload!(c.run).status == "succeeded"
+      assert Repo.aggregate(from(command in Command, where: command.run_id == ^c.run.id), :count) == 1
+
+      assert Repo.aggregate(
+               from(message in Message, where: message.run_id == ^c.run.id and message.kind == "tool"),
+               :count
+             ) == 1
+
+      assert Repo.reload!(command).status == "unknown"
+      assert Repo.reload!(command).claim_token == claimed.claim_token
+      assert Message.tool_output(Repo.get!(Message, command.message_id)) == Commands.unknown()
+      assert {:ok, []} = Commands.queued(c.user, c.client_id, c.environment.id)
+
+      assert {:ok, %{disabled: true}} = Environments.disable(c.user, c.client_id, c.environment.id)
+      {next_client_id, _token} = Atlas.PushFixtures.native_access_token(c.user)
+      next_project_id = Ecto.UUID.generate()
+
+      assert {:ok, next_environment} =
+               Environments.register(c.user, next_client_id, Ecto.UUID.generate(), %{
+                 Atlas.EnvironmentFixtures.registration(next_project_id)
+                 | "name" => "Another Mac",
+                   "terminal" => false
+               })
+
+      assert {:ok, _} = Environments.renew(c.user, next_client_id, next_environment.id, Ecto.UUID.generate())
+
+      assert_continued_thread!(
+        c,
+        next_environment.id,
+        next_project_id,
+        ~w(environment_list_directory environment_read_file)
+      )
+
+      assert Repo.reload!(command).environment_id == c.environment.id
+      assert Repo.reload!(command).run_id == c.run.id
+      assert Repo.reload!(command).claim_token == claimed.claim_token
+      assert Repo.reload!(command).status == "unknown"
+      assert is_nil(Repo.reload!(command).result)
+      assert JSON.decode!(Repo.reload!(command).arguments)["project_id"] == c.project_id
+      assert {:ok, []} = Commands.queued(c.user, next_client_id, next_environment.id)
+
+      assert {:error, :not_found} =
+               Commands.claim(c.user, next_client_id, next_environment.id, command.id, %{
+                 "digest" => command.digest
+               })
+    end
+
+    @tag :device_deployment
+    test "terminal immediately dispatches, outlives its successful run and transactionally continues server-only with encrypted evidence",
+         context do
+      c = personal_environment_run!(context)
+
+      initial = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        if Enum.any?(JSON.decode!(body)["messages"], &(&1["role"] == "tool")) do
+          assert body =~ "queued"
+          Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "The terminal job is queued."}))
+        else
+          Req.Test.json(conn, tool_call("environment_terminal", %{"command" => "xcodebuild -version"}))
+        end
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(initial) end)
+      assert :ok = perform_job(RunThread, %{"run_id" => c.run.id, "resume" => 0})
+      assert Repo.reload!(c.run).status == "succeeded"
+      assert {:ok, %{commands: [%{id: command_id, status: "queued"}]}} = Commands.list(c.user, c.thread.id)
+      command = Repo.get!(Command, command_id)
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+      assert {:ok, _} = Environments.select(c.user, c.thread.id, %{"environment_id" => nil, "project_id" => nil})
+
+      payload = %{
+        "claim_token" => claimed.claim_token,
+        "success" => true,
+        "output" => "Xcode confirmed private evidence"
+      }
+
+      assert {:ok, %{received: true}} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+      assert {:ok, %{received: true}} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+      notice_id = Repo.reload!(command).continuation_message_id
+      assert is_binary(notice_id)
+      notice = Repo.get!(Message, notice_id)
+      refute notice.body =~ "Xcode"
+      assert notice.device_output =~ "Xcode confirmed private evidence"
+      follow_up = Orbit.active_run(Repo.reload!(c.thread))
+      assert follow_up.trigger_seq == notice.position
+      assert follow_up.environment_id == nil
+      assert follow_up.project_id == nil
+      assert Repo.aggregate(from(r in Run, where: r.thread_id == ^c.thread.id), :count) == 2
+      assert Repo.aggregate(from(j in Oban.Job, where: fragment("?->>'run_id'", j.args) == ^follow_up.id), :count) == 1
+      # Lost job recovery uses the existing run and source, never a new command.
+      Repo.delete_all(from j in Oban.Job, where: fragment("?->>'run_id'", j.args) == ^follow_up.id)
+      follow_up |> Ecto.Changeset.change(updated_at: DateTime.add(DateTime.utc_now(), -120)) |> Repo.update!()
+      Runs.recover_queued()
+      assert_enqueued(worker: RunThread, args: %{"run_id" => follow_up.id, "resume" => 0})
+
+      continued = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        request = JSON.decode!(body)
+        assert body =~ "Xcode confirmed private evidence"
+        refute Enum.any?(request["tools"], &String.starts_with?(get_in(&1, ["function", "name"]), "environment_"))
+
+        Req.Test.json(
+          conn,
+          completion(%{"role" => "assistant", "content" => "The confirmed Xcode result is available."})
+        )
+      end
+
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(continued) end)
+      assert :ok = perform_job(RunThread, %{"run_id" => follow_up.id, "resume" => 0})
+      assert Repo.reload!(follow_up).status == "succeeded"
+      assert Repo.reload!(command).environment_id == c.environment.id
+      assert Repo.reload!(command).project_id == c.project_id
+      assert Repo.aggregate(Command, :count) == 1
+      assert {:ok, []} = Commands.queued(c.user, c.client_id, c.environment.id)
+      assert {:ok, %{received: true}} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+      assert Repo.reload!(command).continuation_message_id == notice_id
+      assert Repo.aggregate(from(r in Run, where: r.thread_id == ^c.thread.id), :count) == 2
+    end
+
+    for phase <- [:original, :newer] do
+      @tag :device_deployment
+      test "a terminal result queues one continuation behind the #{phase} active run", context do
+        phase = unquote(phase)
+        c = personal_environment_run!(context)
+        running!(c.run, attempt: 0)
+        command = Atlas.EnvironmentFixtures.command_fixture(c, "environment_terminal", %{"command" => "true"})
+        claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+
+        active =
+          if phase == :newer do
+            assert :ok = Runs.complete(c.run.id, 0, {:ok, "Terminal running independently."})
+
+            assert {:ok, _message, :created} =
+                     Orbit.post_message(c.user, c.thread, %{
+                       "body" => "Continue with other work while the job runs.",
+                       "client_id" => Ecto.UUID.generate()
+                     })
+
+            next = Orbit.active_run(c.thread)
+            running!(next, attempt: 0)
+            next
+          else
+            c.run
+          end
+
+        payload = %{"claim_token" => claimed.claim_token, "success" => true, "output" => "confirmed behind #{phase}"}
+        assert {:ok, _} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+        assert {:ok, _} = Commands.complete(c.user, c.client_id, c.environment.id, command.id, payload)
+        notice = Repo.get!(Message, Repo.reload!(command).continuation_message_id)
+        assert Orbit.active_run(c.thread).id == active.id
+        refute Repo.exists?(from r in Run, where: r.thread_id == ^c.thread.id and r.trigger_seq == ^notice.position)
+        assert notice.device_output =~ "success: true"
+        assert notice.device_output =~ command.id
+
+        assert :ok = Runs.complete(active.id, 0, {:ok, "Active work finished."})
+        follow_up = Orbit.active_run(c.thread)
+        assert follow_up.trigger_seq == notice.position
+        Runs.follow_up(c.thread.id)
+
+        assert Repo.aggregate(
+                 from(r in Run, where: r.thread_id == ^c.thread.id and r.trigger_seq == ^notice.position),
+                 :count
+               ) == 1
+
+        assert Repo.reload!(command).status == "settled"
+      end
+    end
+
+    @tag :device_deployment
+    test "a disabled original Mac fences an already queued terminal continuation without inference", context do
+      c = personal_environment_run!(context)
+      running!(c.run, attempt: 0)
+      command = Atlas.EnvironmentFixtures.command_fixture(c, "environment_terminal", %{"command" => "true"})
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+      assert :ok = Runs.complete(c.run.id, 0, {:ok, "Terminal running independently."})
+
+      assert {:ok, _} =
+               Commands.complete(c.user, c.client_id, c.environment.id, command.id, %{
+                 "claim_token" => claimed.claim_token,
+                 "success" => true,
+                 "output" => "confirmed result"
+               })
+
+      follow_up = Orbit.active_run(c.thread)
+      assert {:ok, _} = Environments.disable(c.user, c.client_id, c.environment.id)
+      stub(Runner, :orbit_client_opts, fn _user, _opts -> flunk("revoked continuation dispatched inference") end)
+      assert :ok = perform_job(RunThread, %{"run_id" => follow_up.id, "resume" => 0})
+      assert Repo.reload!(follow_up).status == "cancelled"
+      refute Orbit.active_run(c.thread)
+      assert Repo.reload!(command).status == "settled"
+    end
+
+    @tag :device_deployment
+    test "the completion outbox recovers a replica lost between active-run commit and follow-up", context do
+      c = personal_environment_run!(context)
+      running!(c.run, attempt: 0)
+      command = Atlas.EnvironmentFixtures.command_fixture(c, "environment_terminal", %{"command" => "true"})
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+
+      assert {:ok, _} =
+               Commands.complete(c.user, c.client_id, c.environment.id, command.id, %{
+                 "claim_token" => claimed.claim_token,
+                 "success" => true,
+                 "output" => "confirmed before replica loss"
+               })
+
+      # Simulate the persisted half of Runs.complete, followed by process loss
+      # before its separate follow_up call. There is deliberately no queued run.
+      c.run |> Repo.reload!() |> Ecto.Changeset.change(status: "succeeded") |> Repo.update!()
+      refute Orbit.active_run(c.thread)
+      Commands.sweep()
+      follow_up = Orbit.active_run(c.thread)
+      notice = Repo.get!(Message, Repo.reload!(command).continuation_message_id)
+      assert follow_up.trigger_seq == notice.position
+      assert_enqueued(worker: RunThread, args: %{"run_id" => follow_up.id, "resume" => 0})
+      Commands.sweep()
+      assert Orbit.active_run(c.thread).id == follow_up.id
+      assert Repo.aggregate(from(r in Run, where: r.thread_id == ^c.thread.id), :count) == 2
+    end
+
+    @tag :device_deployment
+    test "archive/restore retires completion outbox work waiting behind a newer run", context do
+      c = personal_environment_run!(context)
+      running!(c.run, attempt: 0)
+      command = Atlas.EnvironmentFixtures.command_fixture(c, "environment_terminal", %{"command" => "true"})
+      claimed = Atlas.EnvironmentFixtures.claim_fixture(c, command)
+      assert :ok = Runs.complete(c.run.id, 0, {:ok, "Terminal running independently."})
+
+      assert {:ok, _, :created} =
+               Orbit.post_message(c.user, c.thread, %{"body" => "Other work", "client_id" => Ecto.UUID.generate()})
+
+      assert {:ok, _} =
+               Commands.complete(c.user, c.client_id, c.environment.id, command.id, %{
+                 "claim_token" => claimed.claim_token,
+                 "success" => true,
+                 "output" => "confirmed behind newer work"
+               })
+
+      assert {:ok, _} = Orbit.set_status(c.user, c.thread, "archived")
+      assert {:ok, _} = Orbit.set_status(c.user, c.thread, "active")
+      Commands.sweep()
+      refute Orbit.active_run(c.thread)
+      notice = Repo.get!(Message, Repo.reload!(command).continuation_message_id)
+      refute notice.address_agent
+      assert Repo.aggregate(from(r in Run, where: r.thread_id == ^c.thread.id), :count) == 2
+    end
+
     test "a shutdown signal checkpoints the attempt and enqueues a resume", %{run: run} do
       test_pid = self()
 
@@ -154,9 +549,24 @@ defmodule Atlas.Orbit.DurabilityTest do
       running!(run, attempt: 0)
       %Run{session_id: session_id} = Repo.get!(Run, run.id)
 
+      reasoning = [
+        %ReasoningDetails{
+          provider: :openai,
+          format: "atlas-codex-v1",
+          provider_data: %{
+            "item" => %{
+              "type" => "reasoning",
+              "id" => "rs_resume",
+              "encrypted_content" => "opaque-resume-state",
+              "summary" => []
+            }
+          }
+        }
+      ]
+
       messages = [
         Condukt.Message.user("Original request with the triggering question"),
-        Condukt.Message.assistant("Looking that up.")
+        Condukt.Message.assistant([{:reasoning_details, reasoning}, {:text, "Looking that up."}])
       ]
 
       :telemetry.execute([:condukt, :llm_turn, :start], %{system_time: 0}, %{
@@ -174,6 +584,7 @@ defmodule Atlas.Orbit.DurabilityTest do
         Repo.query!("SELECT checkpoint FROM orbit_runs WHERE id = $1", [Ecto.UUID.dump!(run.id)])
 
       refute raw =~ "Original request"
+      refute raw =~ "opaque-resume-state"
 
       # Another attempt's session cannot overwrite it.
       Checkpoints.record("some-other-session", [Condukt.Message.user("intruder")], 2)
@@ -193,6 +604,19 @@ defmodule Atlas.Orbit.DurabilityTest do
       contents = Enum.map(sent, &(&1["content"] |> inspect()))
       assert Enum.any?(contents, &(&1 =~ "Original request with the triggering question"))
       assert Enum.any?(contents, &(&1 =~ "interrupted by a server restart"))
+      assert %{"reasoning_details" => [replayed]} = Enum.find(sent, &(&1["role"] == "assistant"))
+
+      assert replayed == %{
+               "format" => "atlas-codex-v1",
+               "index" => 0,
+               "item" => %{
+                 "type" => "reasoning",
+                 "id" => "rs_resume",
+                 "encrypted_content" => "opaque-resume-state",
+                 "summary" => []
+               }
+             }
+
       assert %Run{status: "succeeded", checkpoint: nil} = Repo.get!(Run, run.id)
     end
 
@@ -580,6 +1004,97 @@ defmodule Atlas.Orbit.DurabilityTest do
                &(&1.id == "atlas-thread-checkpoints")
              )
     end
+  end
+
+  defp assert_continued_thread!(c, environment_id, project_id, expected_device_tools) do
+    {history, _meta} = Orbit.list_messages(c.thread)
+    command_ids = Repo.all(from command in Command, where: command.thread_id == ^c.thread.id, select: command.id)
+
+    assert {:ok, thread} =
+             Environments.select(c.user, c.thread.id, %{
+               "environment_id" => environment_id,
+               "project_id" => project_id
+             })
+
+    assert thread.id == c.thread.id
+    assert thread.personal_environment_dispatched
+
+    assert {:ok, _message, :created} =
+             Orbit.post_message(c.user, thread, %{
+               "body" => "Continue here without retrying earlier device commands or moving local files.",
+               "client_id" => Ecto.UUID.generate()
+             })
+
+    next_run = Orbit.active_run(thread)
+    assert next_run.id != c.run.id
+    assert next_run.environment_id == environment_id
+    assert next_run.project_id == project_id
+    assert Repo.reload!(c.run).environment_id == c.environment.id
+    assert Repo.reload!(c.run).project_id == c.project_id
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(body)
+      offered = Enum.map(request["tools"], & &1["function"]["name"])
+      assert Enum.filter(offered, &String.starts_with?(&1, "environment_")) == expected_device_tools
+      assert "list_accounts" in offered
+      assert inspect(request["messages"]) =~ "Find Example Org"
+      assert inspect(request["messages"]) =~ List.last(history).body
+
+      if Enum.any?(request["messages"], &(&1["role"] == "tool")) do
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Continued with a server lookup."}))
+      else
+        Req.Test.json(conn, tool_call("list_accounts", %{}))
+      end
+    end
+
+    stub(Runner, :orbit_client_opts, fn _user, _opts -> client_opts(plug) end)
+    assert :ok = perform_job(RunThread, %{"run_id" => next_run.id, "resume" => 0})
+    assert Repo.reload!(next_run).status == "succeeded"
+    assert Repo.reload!(next_run).environment_id == environment_id
+    assert Repo.reload!(next_run).project_id == project_id
+    {continued, _meta} = Orbit.list_messages(thread)
+    assert Enum.take(continued, length(history)) == history
+    assert List.last(continued).body == "Continued with a server lookup."
+    assert Repo.all(from command in Command, where: command.thread_id == ^thread.id, select: command.id) == command_ids
+    assert Repo.get_by!(Message, run_id: next_run.id, kind: "tool").tool_name == "list_accounts"
+  end
+
+  defp personal_environment_run!(context) do
+    Repo.delete!(context.run)
+    {client_id, token} = Atlas.PushFixtures.native_access_token(context.user)
+    project_id = Ecto.UUID.generate()
+
+    {:ok, environment} =
+      Environments.register(
+        context.user,
+        client_id,
+        Ecto.UUID.generate(),
+        Atlas.EnvironmentFixtures.registration(project_id)
+      )
+
+    {:ok, thread} =
+      Environments.select(context.user, context.thread.id, %{
+        "environment_id" => environment.id,
+        "project_id" => project_id
+      })
+
+    {:ok, run} =
+      Repo.transaction(fn -> Orbit.start_run!(thread, context.run.trigger_seq, context.user, context.user) end)
+
+    {:ok, socket} = connect(PresenceSocket, %{}, connect_info: %{auth_token: token})
+
+    assert {:ok, %{commands: []}, _socket} =
+             subscribe_and_join(socket, EnvironmentChannel, "environment:#{environment.id}", %{})
+
+    %{
+      user: context.user,
+      client_id: client_id,
+      environment: environment,
+      thread: thread,
+      run: run,
+      project_id: project_id
+    }
   end
 
   defp expire_lease!(run) do

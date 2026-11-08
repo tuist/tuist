@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,16 +61,19 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	ScalewayClient     *scaleway.Client
-	CredentialsManager *credentials.Manager
+	APIReader               client.Reader
+	ProcessorDeploymentName string
+	Scheme                  *runtime.Scheme
+	ScalewayClient          *scaleway.Client
+	CredentialsManager      *credentials.Manager
 
 	// Recorder emits Events on lifecycle transitions. `kubectl describe
 	// scalewayapplesiliconmachine` then shows a tail-followable timeline
 	// of state changes alongside the static Conditions block, which is
 	// the difference between "I can see this is broken" and "I can see
 	// what step it's currently doing" while a Mac mini is mid-bootstrap.
-	Recorder record.EventRecorder
+	Recorder     record.EventRecorder
+	osUpdateDial osUpdateDialFunc
 
 	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
 	// Required for tart-kubelet to authenticate to the cluster.
@@ -262,7 +264,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -282,7 +284,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// Machine) are still reconciled normally — useful for tests
 	// and for any operator-side bring-up before MachineDeployment
 	// adoption completes.
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -503,6 +505,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			"Bootstrap secret for %s has no sudo password and the Scaleway refresh did not recover one — verify credentials at the source",
 			machine.Name)
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
+	if handled, result, err := r.reconcileScalewayOSUpdate(ctx, machine, sshKey, bootstrapCreds); handled || err != nil {
+		return result, err
 	}
 
 	// Detect Node drift: bootstrap previously succeeded

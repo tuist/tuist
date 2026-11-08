@@ -1019,14 +1019,14 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
 
     test "spills off a region whose nodes have room and admission would refuse" do
-      # us-west's box has 110 GiB free, but its pods already reserve more than
-      # the 85% of allocatable admission stops at, so an instance placed there
+      # us-west's box has 70 GiB free, but its pods already reserve more than
+      # the 90% of allocatable admission stops at, so an instance placed there
       # would be refused on every attempt to create it.
       account = update_region!(organization_account(), :usa)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       serving(["us-east", "us-west"])
       seed_origin(account, "US-CA")
-      reserved(%{"us-west" => 690, "us-east" => 0})
+      reserved(%{"us-west" => 730, "us-east" => 0})
       event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-east"}}

@@ -25,7 +25,7 @@ defmodule Tuist.Runners.GitLabTest do
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
-      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 4, memory_gb: 16}}
+      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 16, memory_gb: 48}}
     end)
 
     {:ok, connection} =
@@ -123,7 +123,7 @@ defmodule Tuist.Runners.GitLabTest do
     assert trace ==
              Calendar.strftime(job.inserted_at, "%Y-%m-%dT%H:%M:%S") <>
                ".000000Z 00O section_start:#{unix}:tuist_waiting_for_runner\r\e[0K" <>
-               "Waiting for a Tuist runner for tuist-macos (4 vCPU, 16 GB)\n"
+               "Waiting for a Tuist runner for tuist-macos (16 vCPU, 48 GB)\n"
 
     assert {:ok, %{waiting_trace: ^trace}} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
   end
@@ -383,7 +383,7 @@ defmodule Tuist.Runners.GitLabTest do
       Concurrency.update_limits(account, %{
         runner_linux_vcpus_limit: 32,
         runner_linux_memory_gb_limit: 64,
-        runner_macos_vcpus_limit: 64,
+        runner_macos_vcpus_limit: 128,
         runner_macos_memory_gb_limit: 256
       })
 

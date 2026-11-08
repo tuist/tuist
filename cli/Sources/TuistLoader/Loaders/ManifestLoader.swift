@@ -395,7 +395,7 @@ public class ManifestLoader: ManifestLoading {
             "/usr/bin/xcrun",
             "swift",
             "-suppress-warnings",
-            "-I", searchPaths.includeSearchPath.pathString,
+        ] + searchPaths.includeSearchPaths.flatMap { ["-I", $0.pathString] } + [
             "-L", searchPaths.librarySearchPath.pathString,
             "-F", searchPaths.frameworkSearchPath.pathString,
             "-l\(frameworkName)",
@@ -508,10 +508,9 @@ public class ManifestLoader: ManifestLoading {
                     path,
                     try await XcodeController.current.selected().path,
                     AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
-                    searchPaths.includeSearchPath,
                     searchPaths.librarySearchPath,
                     searchPaths.frameworkSearchPath,
-                ]
+                ] + searchPaths.includeSearchPaths
                 if let developerDirXcodePath {
                     readOnlyPaths.append(developerDirXcodePath)
                 }

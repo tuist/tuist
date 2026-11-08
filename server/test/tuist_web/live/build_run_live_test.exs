@@ -29,20 +29,72 @@ defmodule TuistWeb.BuildRunLiveTest do
     project: project,
     organization: organization
   } do
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+    generation = CommandEventsFixtures.command_event_fixture(project_id: project.id, tuist_version: "4.100.0")
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        generation_id: generation.id,
+        tuist_version: "4.200.0-canary.2",
+        custom_values: %{"team" => "mobile"}
+      )
+
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
     {:ok, view, _} = live(conn, path)
 
-    for label <- ["Xcode version", "macOS version", "Mac device"] do
+    for label <- ["Tuist CLI version", "Tuist generator version", "Xcode version", "macOS version", "Mac device"] do
       assert has_element?(view, "#build-environment-content[hidden]", label)
       refute has_element?(view, "[data-part=build-details]", label)
     end
 
     assert has_element?(view, "#build-environment-content", "12.4")
     assert has_element?(view, "#build-environment-content", "11.2.3")
+    assert has_element?(view, "#build-environment-content", "4.100.0")
+    assert has_element?(view, "#build-environment-content", "4.200.0-canary.2")
     assert has_element?(view, "[data-part=build-details]", "Configuration")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
     refute has_element?(view, "[data-part=build-details] #build-environment")
+  end
+
+  @tag :build_environment
+  test "Xcode versions omit duplicates but preserve standalone versions", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    for {cli_version, generator_version, expected_fields} <- [
+          {"4.216.0-canary.26", "4.216.0-canary.26", [{"Tuist CLI version", "4.216.0-canary.26"}]},
+          {nil, "4.100.0", [{"Tuist generator version", "4.100.0"}]},
+          {"", "4.100.0", [{"Tuist generator version", "4.100.0"}]},
+          {"4.200.0", nil, [{"Tuist CLI version", "4.200.0"}]},
+          {nil, nil, []}
+        ] do
+      generation =
+        if generator_version do
+          CommandEventsFixtures.command_event_fixture(project_id: project.id, tuist_version: generator_version)
+        end
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          generation_id: generation && generation.id,
+          tuist_version: cli_version
+        )
+
+      {:ok, view, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+
+      version_fields =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.find("#build-environment-grid [data-field^='field:Tuist']")
+        |> Enum.map(fn field ->
+          {field |> Floki.find("dt") |> Floki.text() |> String.trim(),
+           field |> Floki.find("dd") |> Floki.text() |> String.trim()}
+        end)
+
+      assert version_fields == expected_fields
+    end
   end
 
   test "builds without recorded steps or aligned samples hide Timeline", %{
@@ -409,6 +461,60 @@ defmodule TuistWeb.BuildRunLiveTest do
              lv,
              ~s(a[data-part="pull-request-button"][href="https://github.com/tuist/tuist/pull/23958"]),
              "PR #23958"
+           )
+  end
+
+  test "escapes client-supplied issue fields when linking issues to GitHub", %{conn: conn, organization: organization} do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+      )
+
+    issue = fn path, message ->
+      %{
+        type: :error,
+        target: "App",
+        project: "App",
+        title: "Compilation failed",
+        signature: "signature",
+        step_type: :swift_compilation,
+        path: path,
+        message: message,
+        starting_line: 7,
+        ending_line: 7,
+        starting_column: 1,
+        ending_column: 1
+      }
+    end
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "failure",
+        git_commit_sha: ~s(abc"><img src=x class=pwn-sha>),
+        issues: [
+          issue.("<img src=x class=pwn-path>", "<img src=x class=pwn-message>"),
+          issue.("App/Sources/Safe.swift", "Cannot find 'foo' in scope"),
+          Map.merge(issue.("", "Deprecated"), %{type: :warning, step_type: :other, title: "Can't find a<b"})
+        ]
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    for marker <- ["pwn-path", "pwn-message", "pwn-sha"] do
+      refute has_element?(lv, ".#{marker}")
+    end
+
+    assert has_element?(lv, "h3[data-part=title] a", "<img src=x class=pwn-path>")
+    assert has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title]), "Can't find a<b")
+    refute has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title] a))
+    assert has_element?(lv, "[data-part=issue]", "<img src=x class=pwn-message> in <img src=x class=pwn-path>#L7")
+
+    assert has_element?(
+             lv,
+             ~s(a[href="https://github.com/tuist/tuist/blob/abc\\"><img src=x class=pwn-sha>/App/Sources/Safe.swift#L7"]),
+             "App/Sources/Safe.swift#L7"
            )
   end
 

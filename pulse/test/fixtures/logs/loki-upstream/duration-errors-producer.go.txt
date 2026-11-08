@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Error-table inputs: Copyright 2009 The Go Authors. See Go-LICENSE.
+// Source: Go 1.27.3 src/time/time_test.go:1016-1043, plus the two pinned
+// Loki inputs and fourteen Pulse controls documented in README.md.
+// Reproduction: build with Go 1.27.3, then pass that time_test.go path as
+// the executable's first argument. Normal Elixir replay needs no Go.
+package main
+
+import (
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
+	"time"
+	"unicode/utf8"
+)
+
+func main() {
+	f, err := parser.ParseFile(token.NewFileSet(), os.Args[1], nil, 0)
+	if err != nil {
+		panic(err)
+	}
+	inputs := []string{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		v, ok := n.(*ast.ValueSpec)
+		if !ok || len(v.Names) != 1 || v.Names[0].Name != "parseDurationErrorTests" {
+			return true
+		}
+		for _, row := range v.Values[0].(*ast.CompositeLit).Elts {
+			input, err := strconv.Unquote(row.(*ast.CompositeLit).Elts[0].(*ast.BasicLit).Value)
+			if err != nil {
+				panic(err)
+			}
+			if utf8.ValidString(input) {
+				inputs = append(inputs, input)
+			}
+		}
+		return false
+	})
+	inputs = append(inputs, "not_a_number", "2weeeeee", "1s2", "1\n", "1\t", "1\"", "1\\", "1\x00", "1µx", "1μx", "1😀", "1\x7f", "9223372036854775809unknown", "1.2.3s", "1s-2s", "1s 2s")
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	for _, input := range inputs {
+		_, err := time.ParseDuration(input)
+		if err == nil {
+			panic("expected invalid input")
+		}
+		if err := enc.Encode([2]string{input, err.Error()}); err != nil {
+			panic(err)
+		}
+	}
+}

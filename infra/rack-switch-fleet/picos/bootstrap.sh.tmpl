@@ -17,6 +17,8 @@
 # and commits; then, once the key file exists, turns ZTP's configuration leaf
 # off in a second commit, which saves the key into the backup, and disables
 # ZTP itself. A failure anywhere leaves ZTP on, so the next boot tries again.
+# For a switch whose MAC the site records with a live WAN port, a third commit
+# sets up the WAN path; its failure is only logged.
 # version and switch_mac come from the switch's own ztp-functions.sh.
 # shellcheck disable=SC1091,SC2154
 source /usr/bin/ztp-functions.sh
@@ -88,6 +90,40 @@ output="$(/pica/bin/pica_sh -c "configure;set system ztp enable false;commit" 2>
 if ! grep -q '^Commit OK' <<<"$output"; then
   log "second commit failed; ZTP stays on for the next boot: $(grep -m1 -E 'ERROR|Failed' <<<"$output")"
   exit 1
+fi
+
+# The WAN path, in a commit of its own so that a failure costs only this: the
+# carrier's port untagged on the WAN VLAN and the edges' ports tagged with it,
+# as the controller configures them. A factory switch passes the carrier
+# untagged, and the controller is reached over that same WAN, so without this
+# the first edge of a site loses its way out when its rack-edge pod moves the
+# WAN onto the VLAN.
+wan_vlan='@WAN_VLAN@'
+wan_paths='@WAN_PATHS@'
+# The management port's MAC is the one the edge's DHCP answered, so it is the
+# one the site records. ZTP's own switch_mac is the system MAC, one above it
+# (64:9d:99:d9:81:0f against eth0's :0e on the bench unit).
+mac="$(tr -d ':-' <<<"$(cat /sys/class/net/eth0/address 2>/dev/null || echo "${switch_mac:-}")" | tr 'A-F' 'a-f')"
+if [ -n "$wan_paths" ]; then
+  read -r vlan_id vlan_name <<<"$wan_vlan"
+  found=""
+  while read -r path_mac wan legs; do
+    [ -n "$path_mac" ] && [ "$path_mac" = "$mac" ] || continue
+    found=1
+    commands="configure;set vlans vlan-id $vlan_id vlan-name \"$vlan_name\""
+    commands+=";set interface gigabit-ethernet te-1/1/$wan family ethernet-switching native-vlan-id $vlan_id"
+    for leg in ${legs//,/ }; do
+      commands+=";set interface gigabit-ethernet te-1/1/$leg family ethernet-switching port-mode trunk"
+      commands+=";set interface gigabit-ethernet te-1/1/$leg family ethernet-switching vlan members $vlan_id"
+    done
+    output="$(/pica/bin/pica_sh -c "$commands;commit" 2>&1 | tr -d '\r')"
+    if grep -q '^Commit OK' <<<"$output"; then
+      log "WAN path: te-1/1/$wan untagged and te-1/1/{$legs} tagged on VLAN $vlan_id"
+    else
+      log "WAN path commit failed; the controller sets it once it reaches the switch: $(grep -m1 -E 'ERROR|Failed' <<<"$output")"
+    fi
+  done <<<"$wan_paths"
+  [ -n "$found" ] || log "no WAN path recorded for switch ${mac:-of unknown MAC}; the controller sets it once it reaches the switch"
 fi
 
 ztp_disable

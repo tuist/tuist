@@ -52,6 +52,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         duration: Keyword.get(attrs, :duration, 1000),
         macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
         xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        tuist_version: Keyword.get(attrs, :tuist_version, ""),
         is_ci: Keyword.get(attrs, :is_ci, false),
         model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
         scheme: Keyword.get(attrs, :scheme, "App"),
@@ -154,6 +155,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ci_host: Keyword.get(attrs, :ci_host),
         ci_provider: Keyword.get(attrs, :ci_provider),
         shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+        test_impact_run_id: Keyword.get(attrs, :test_impact_run_id),
         only_test_identifiers: Keyword.get(attrs, :only_test_identifiers, []),
         coverage_evidence: Keyword.get(attrs, :coverage_evidence),
         skip_test_identifiers: Keyword.get(attrs, :skip_test_identifiers, []),
@@ -269,6 +271,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     test_case_run = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
+      test_run_destination_id: Keyword.get(attrs, :test_run_destination_id),
       test_module_run_id: Keyword.get_lazy(attrs, :test_module_run_id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.get_lazy(attrs, :test_case_id, fn -> UUIDv7.generate() end),
       project_id: project_id,

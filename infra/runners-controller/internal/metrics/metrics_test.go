@@ -67,7 +67,7 @@ func TestClearAutoscalerLeavesRunnerPoolPhaseReplicas(t *testing.T) {
 	minWarmFloor.Reset()
 	phaseReplicas.Reset()
 
-	RecordAllocation(pool, 1, 2, 3, 3)
+	RecordAllocation(pool, 1, 2, 2, 3, 3)
 	RecordPodPhases(pool, 4, 5, 6)
 
 	ClearAutoscaler(pool)

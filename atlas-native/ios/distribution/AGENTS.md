@@ -5,6 +5,10 @@ certificate and Atlas-specific ad-hoc profile from 1Password. Keep this Bash-onl
 use macOS `security`, `plutil`, PlistBuddy and `codesign` rather than a separate
 profile-validation framework.
 
+- `bundle.sh` pins the host and Share provisioning documents by 1Password item ID.
+  Preserve their `.mobileprovision` filenames when replacing document contents;
+  when creating replacement items, update the references and packaging fixtures
+  together. Keep previous items available for rollback.
 - Keep private keys in a temporary keychain and remove credentials on exit.
   `keychain.sh` adds it to the user search list for signing and restores the exact
   original list before deletion, including on failure. `codesign --keychain` alone
@@ -31,9 +35,19 @@ profile-validation framework.
   unexpired and cover every registered device in the host profile. All extension
   profile checks run before fetching the private certificate. Do not reuse the
   host profile or its APNs, Associated Domains or Keychain entitlements.
+- Share additionally requires App ID `dev.tuist.atlas.share` and the separate ad-hoc
+  profile document `Atlas_Share_Ad_Hoc.mobileprovision` referenced in `bundle.sh`.
+  Enable/register App Group `group.dev.tuist.atlas.share` on both host and Share IDs,
+  regenerate their profiles with the same certificate and host devices, and grant
+  the publication identity access to that new profile. This is a separate authorized
+  Apple/vault provisioning operation, never performed by a build. `share.sh` requires
+  exact array authorization (no wildcard), narrows the signing copy to that group,
+  and rejects wrong/missing bundles or profiles before private certificate access.
+  The shared profile validator checks team/expiration/certificate/devices for both
+  extensions; Share inherits no APNs, domains or host Keychain entitlements.
 - Only the temporary distribution copy receives the extension profile and matching
-  host marketing/build versions. Scan both executables for Swift runtime libraries,
-  sign libraries and nested frameworks inside-out, then sign/verify the extension
+  host marketing/build versions. Scan all three executables for Swift runtime libraries,
+  sign libraries and nested frameworks inside-out, then sign/verify both extensions
   with its own identity-only entitlements, then sign/verify the containing app with
   its existing entitlements. `--deep` is verification only, never a signing shortcut.
   The simulator/preview ad-hoc signature is not a device distribution identity.

@@ -1,0 +1,42 @@
+resource_spans {
+  resource {
+    attributes { key: "service.name" value { string_value: "trace-fixture" } }
+    attributes { key: "blob" value { bytes_value: "\000\377" } }
+    attributes { key: "text" value { string_value: "AP8=" } }
+  }
+  scope_spans {
+    scope {
+      name: "fidelity-test"
+      attributes { key: "blob" value { bytes_value: "\000\377" } }
+      attributes { key: "text" value { string_value: "AP8=" } }
+    }
+    spans {
+      trace_id: "0123456789abcdef"
+      span_id: "deadbeef"
+      name: "fixture.request"
+      start_time_unix_nano: 1700000000123456789
+      end_time_unix_nano: 1700000000123457789
+      attributes { key: "blob" value { bytes_value: "\000\377" } }
+      attributes { key: "text" value { string_value: "AP8=" } }
+      attributes { key: "integer" value { int_value: 1 } }
+      attributes { key: "double" value { double_value: 1 } }
+      attributes { key: "negative_zero" value { double_value: -0.0 } }
+      attributes { key: "minimum" value { int_value: -9223372036854775808 } }
+      attributes { key: "maximum" value { int_value: 9223372036854775807 } }
+      attributes { key: "empty" value {} }
+      attributes { key: "nested" value { array_value { values { bool_value: false } values { kvlist_value { values { key: "blob" value { bytes_value: "\000\377" } } values { key: "text" value { string_value: "AP8=" } } } } } } }
+      events {
+        time_unix_nano: 1700000000123457000
+        name: "fixture.event"
+        attributes { key: "blob" value { bytes_value: "\000\377" } }
+        attributes { key: "text" value { string_value: "AP8=" } }
+      }
+      links {
+        trace_id: "abcdef0123456789"
+        span_id: "beefdead"
+        attributes { key: "blob" value { bytes_value: "\000\377" } }
+        attributes { key: "text" value { string_value: "AP8=" } }
+      }
+    }
+  }
+}

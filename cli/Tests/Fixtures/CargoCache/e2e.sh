@@ -10,6 +10,8 @@ cleanup() {
 trap cleanup EXIT
 cp "$FIXTURE/Cargo.toml" "$FIXTURE/Cargo.lock" "$ROOT/"
 cp -R "$FIXTURE/src" "$ROOT/src"
+touch "$ROOT/not-a-state-directory"
+test "$(XDG_STATE_HOME="$ROOT/not-a-state-directory" "$TUIST_CLI_BINARY" cargo __compiler rustc --print sysroot)" = "$(rustc --print sysroot)"
 mkdir -p "$ROOT/cache"
 cat > "$ROOT/wrapper" <<'WRAPPER'
 #!/bin/sh

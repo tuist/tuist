@@ -395,6 +395,46 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert Shards.download_build(nil, "/nowhere") == {:error, :no_build}
   end
 
+  test "names the store a build downloads from, without its signature" do
+    expect(TuistEx.Analytics.Report, :debug, fn message ->
+      assert message ==
+               "Downloading the shard build from http://shard-storage.kura.svc.cluster.local:3900"
+
+      :ok
+    end)
+
+    expect(TuistEx.HTTP, :download, fn _url, _archive -> {:error, {:http, 404}} end)
+
+    assert Shards.download_build(
+             "http://shard-storage.kura.svc.cluster.local:3900/shards/1/2/bundle.zip?X-Amz-Signature=secret",
+             "/nowhere"
+           ) == {:error, :no_build}
+  end
+
+  test "retries a build download that fails to connect, then gives up after three attempts" do
+    stub(TuistEx.Analytics.Report, :debug, fn _ -> :ok end)
+
+    timeout =
+      {:failed_connect, [{:to_address, {~c"shard-storage", 3900}}, {:inet, [:inet], :timeout}]}
+
+    parent = self()
+
+    expect(TuistEx.HTTP, :download, 2, fn _url, _archive -> {:error, timeout} end)
+    expect(TuistEx.HTTP, :download, fn _url, _archive -> {:error, {:http, 404}} end)
+
+    assert Shards.download_build("http://shard-storage/build", "/nowhere",
+             sleep: &send(parent, {:slept, &1})
+           ) == {:error, :no_build}
+
+    assert_received {:slept, 500}
+    assert_received {:slept, 1000}
+
+    expect(TuistEx.HTTP, :download, 3, fn _url, _archive -> {:error, timeout} end)
+
+    assert Shards.download_build("http://shard-storage/build", "/nowhere", sleep: fn _ -> :ok end) ==
+             {:error, timeout}
+  end
+
   test "writes the shard matrix where GitHub Actions reads job outputs", %{directory: directory} do
     output = Path.join(directory, "github_output")
     File.write!(output, "previous=1\n")

@@ -171,7 +171,7 @@ defmodule Tuist.Kura.PromExPluginTest do
         pods: [replica, replica, reserved_pod(84)]
       )
 
-      pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.85)
+      pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.90)
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
 

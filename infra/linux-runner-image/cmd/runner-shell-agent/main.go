@@ -48,13 +48,14 @@ var tokenPaths = []string{
 var directHTTPTransport = &http.Transport{
 	Proxy:           nil,
 	DialContext:     (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-	TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+	TLSClientConfig: runnerTLSConfig(),
 	IdleConnTimeout: 30 * time.Second,
 }
 
 var directHTTPClientInstance = &http.Client{
-	Timeout:   10 * time.Second,
-	Transport: directHTTPTransport,
+	Timeout:       10 * time.Second,
+	Transport:     directHTTPTransport,
+	CheckRedirect: secureRedirect,
 }
 
 type runnerSession struct {
@@ -133,7 +134,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logf("polling shell sessions at %s", discovery)
+	logf("polling shell sessions")
 
 	for {
 		token, err := readToken()
@@ -242,7 +243,7 @@ func discoverSession(discovery string, token string) (*runnerSession, error) {
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, discovery, nil)
 	if err != nil {
-		return nil, err
+		return nil, runnerConnectionError{err}
 	}
 
 	request.Header.Set("Authorization", "Bearer "+token)
@@ -260,7 +261,7 @@ func discoverSession(discovery string, token string) (*runnerSession, error) {
 
 	response, err := directHTTPClient().Do(request)
 	if err != nil {
-		return nil, err
+		return nil, runnerConnectionError{err}
 	}
 	defer response.Body.Close()
 
@@ -269,20 +270,14 @@ func discoverSession(discovery string, token string) (*runnerSession, error) {
 	}
 
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 300))
-		detail := strings.TrimSpace(strings.ReplaceAll(string(body), "\n", " "))
-		if detail != "" {
-			logf("session discovery returned HTTP %d: %s", response.StatusCode, detail)
-		} else {
-			logf("session discovery returned HTTP %d", response.StatusCode)
-		}
+		logf("session discovery returned HTTP %d", response.StatusCode)
 		return nil, nil
 	}
 
 	var session runnerSession
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maxDiscoveryResponseBytes))
 	if err := decoder.Decode(&session); err != nil {
-		return nil, err
+		return nil, runnerResponseError{err}
 	}
 
 	if session.SessionID <= 0 || session.WebSocketURL == "" {
@@ -294,18 +289,20 @@ func discoverSession(discovery string, token string) (*runnerSession, error) {
 
 func sessionWebSocketURL(session runnerSession, discovery string) (string, error) {
 	rawURL := session.WebSocketURL
-	if os.Getenv("TUIST_RUNNER_SHELL_USE_DISCOVERY_ORIGIN") == "0" {
-		return rawURL, nil
-	}
-
 	discovered, err := url.Parse(discovery)
 	if err != nil {
-		return "", err
+		return "", runnerConnectionError{err}
 	}
 
 	websocketURL, err := url.Parse(rawURL)
 	if err != nil {
-		return "", err
+		return "", runnerConnectionError{err}
+	}
+	if os.Getenv("TUIST_RUNNER_SHELL_USE_DISCOVERY_ORIGIN") == "0" {
+		if discovered.Scheme == "https" && websocketURL.Scheme != "wss" {
+			return "", errors.New("refusing secure session downgrade")
+		}
+		return rawURL, nil
 	}
 
 	scheme := "ws"
@@ -319,19 +316,27 @@ func sessionWebSocketURL(session runnerSession, discovery string) (string, error
 }
 
 func connectWebSocket(rawURL string, token string) (*websocket.Conn, error) {
+	return connectWebSocketWithTLS(rawURL, token, runnerTLSConfig())
+}
+
+func connectWebSocketWithTLS(rawURL string, token string, config *tls.Config) (*websocket.Conn, error) {
+	config, err := certificateTrustConfig(config, nil)
+	if err != nil {
+		return nil, runnerConnectionError{err}
+	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, err
+		return nil, runnerConnectionError{err}
 	}
 
 	if parsed.Scheme != "ws" && parsed.Scheme != "wss" {
-		return nil, fmt.Errorf("unsupported websocket scheme: %s", parsed.Scheme)
+		return nil, errors.New("unsupported websocket scheme")
 	}
 
 	dialer := &websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		Proxy:            nil,
-		TLSClientConfig:  &tls.Config{MinVersion: tls.VersionTLS12},
+		TLSClientConfig:  config,
 		NetDialContext:   (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 	}
 
@@ -345,14 +350,9 @@ func connectWebSocket(rawURL string, token string) (*websocket.Conn, error) {
 	if err != nil {
 		if response != nil {
 			defer response.Body.Close()
-			body, _ := io.ReadAll(io.LimitReader(response.Body, 300))
-			detail := strings.TrimSpace(strings.ReplaceAll(string(body), "\n", " "))
-			if detail != "" {
-				return nil, fmt.Errorf("websocket handshake failed: %s: %s", response.Status, detail)
-			}
-			return nil, fmt.Errorf("websocket handshake failed: %s", response.Status)
+			return nil, fmt.Errorf("websocket handshake failed (HTTP %d): %w", response.StatusCode, runnerConnectionError{err})
 		}
-		return nil, err
+		return nil, runnerConnectionError{err}
 	}
 
 	conn.SetReadLimit(maxWebSocketMessageBytes)
@@ -380,7 +380,7 @@ func bridgeSession(session runnerSession, token string, discovery string) error 
 		return err
 	}
 
-	logf("connecting shell tunnel for session %d -> %s", session.SessionID, webSocketURL)
+	logf("connecting shell tunnel for session %d", session.SessionID)
 	conn, err := connectWebSocket(webSocketURL, token)
 	if err != nil {
 		return err

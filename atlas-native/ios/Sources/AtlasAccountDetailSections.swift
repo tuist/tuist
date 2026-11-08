@@ -122,7 +122,10 @@ struct AtlasAccountDetailSections: View {
                             }
                         }
                         .modifier(AtlasThemedContent())
-                        .navigationTitle(label).navigationBarTitleDisplayMode(.inline)
+                        .navigationTitle(label)
+                        #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
                     } label: {
                         Text(record[title].isEmpty ? label : formatted(record[title], field: title))
                     }

@@ -171,9 +171,17 @@ func renderOSUpdateDownloadScript(root, id, label string) string {
 
 // renderOSUpdateInstallScript reads the volume owner's password from stdin, so it never appears in a process's arguments.
 func renderOSUpdateInstallScript(root, id, label, user string) string {
-	return renderOSUpdateJobScript(root, id, OSUpdateJobInstall, "IFS= read -r pw\n",
-		`printf '%s\n' "$pw" | sudo -n softwareupdate --install `+shellQuote(label)+
-			" --restart --user "+shellQuote(user)+" --stdinpass")
+	// softwareupdate authenticates over SSH but cannot request the console
+	// logout from sshd's bootstrap namespace (SUOSUErrorDomain 804). Enter the
+	// volume owner's existing console session before asking it to restart.
+	preamble := "IFS= read -r pw\nuser=" + shellQuote(user) + `
+[ "$(stat -f '%Su' /dev/console)" = "$user" ] || { echo 'OS update requires the volume owner at the console' >&2; exit 1; }
+console_uid=$(id -u "$user")
+case "$console_uid" in ''|*[!0-9]*|0) echo 'Invalid console uid' >&2; exit 1 ;; esac
+`
+	return renderOSUpdateJobScript(root, id, OSUpdateJobInstall, preamble,
+		`printf '%s\n' "$pw" | sudo -n /bin/launchctl asuser "$console_uid" /usr/sbin/softwareupdate --install `+shellQuote(label)+
+			" --restart --force --user "+shellQuote(user)+" --stdinpass")
 }
 
 func renderOSUpdateFetchInstallerScript(root, id, version string) string {

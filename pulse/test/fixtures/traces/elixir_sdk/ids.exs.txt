@@ -1,0 +1,4 @@
+defmodule SDKFixtureIds do
+  def generate_trace_id, do: 0x0102030405060708090A0B0C0D0E0F10
+  def generate_span_id, do: :erlang.unique_integer([:positive])
+end

@@ -1,0 +1,87 @@
+# Runners (server)
+
+Leaf node for `Tuist.Runners` dispatch and claims. Cache volumes have their
+own node: [`cache_volumes/AGENTS.md`](cache_volumes/AGENTS.md). GitLab
+acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md). Bitrise pools:
+[`bitrise/AGENTS.md`](bitrise/AGENTS.md).
+
+## Rack sites
+
+The design and the alternatives considered are in [`sites.md`](sites.md).
+
+- A rack job is bound to its Xcode and shape, never to a site. Dispatch queues
+  it on the rack pool for its profile (`Catalog.site_pool_name/1`), which spans
+  every site whose runners are on. Do not reintroduce a per-job site choice at
+  dispatch or a worker that moves queued jobs between sites: a dark site is
+  less capacity, which the runners-controller already sees.
+- The claim decides the site: `Sites.claim_site/2` reads the claiming Pod's
+  Node label `node.cluster.x-k8s.io/rack-site` (cached per Node, errors not
+  cached), falling back to the pool's site (`Catalog.fleet_site/1`) for a Node
+  without the label or that cannot be read. Never take the site from anything
+  the guest reports.
+- Everything site-specific follows that claim site: the Kura runner-cache
+  endpoint in the claim response, `runner_claims.site`, and
+  `runner_workflow_jobs.site` (set by every transition that binds a job to a
+  Pod, including jobs GitHub places on the runner; cleared on requeue).
+  `Kura.RunnerCache` attributes jobs to a site by that column, falling back to
+  the pool's site for rows claimed before it existed.
+- Cache affinity is a bounded claim preference only
+  (`Sites.prefer_cache_site/3`): a runner passes over a job whose account's
+  runner cache is warm at another site, and none at its own, for the job's
+  first 60 seconds in the queue. Never let it hold a job longer; it must not
+  stall work when the warm site is busy or dark. It reads nothing while no
+  available private region is at another site, so one site costs no query.
+- `SiteSpilloverWorker` is only the rented-fleet fallback, for an env that
+  rents macOS hosts. The rack pool is down (`Sites.status/1`) only when no Node
+  at any site fits or nothing claims.
+- Rack pool names keep the home site (`<prefix>-ber1-<xcode>`). Rename them only
+  together with turning a second site's runners on, and move queued rows in the
+  same deploy.
+- Tests: every routing rule above has ExUnit coverage in `sites_test.exs`,
+  `claims_test.exs`, `runners_test.exs` and `kura/runner_cache_test.exs`. The
+  Node-site cache is global and keyed by Node name, so tests use unique Node
+  names.
+
+## Linux cache paths
+
+Linux profiles share one runner pool per shape and Ubuntu release
+(`Catalog.pool_name/1`); accounts never get pools of their own. Every account uses
+the existing regional Kura Service directly; vRack enrollment changes transport
+at the host level. Keep profile sizing, fleet accounting and macOS site selection
+independent. Old internal cohort labels remain hidden during rolling upgrades.
+
+## Linux OS versions
+
+- A Linux profile's `os_version` selects its pool the way a macOS profile's
+  Xcode does. The catalog default's pools keep the shape-only names; every
+  other release appends its tag (`-ubuntu-22-04`), and
+  `infra/helm/tuist/templates/runner-pool.yaml` applies the same rule. Never
+  rename the default's pools: queued rows name them.
+- Existing profiles are pinned to the release they ran (`ubuntu-24.04`);
+  only new profiles take the default. Moving the default therefore moves no
+  one, and the pinned release's pools gain a suffix in the same deploy, so
+  rewrite unclaimed queued `fleet_name`s with it, as the Xcode retirements do.
+- Helm tells the server only the releases it rendered pools for
+  (`TUIST_RUNNER_LINUX_OS_VERSIONS`). Retiring a release needs a migration
+  moving its profiles and unclaimed queued jobs first; see
+  `infra/linux-runner-image/image-rollout.md`.
+- OS does not change billing: metering is per shape (`billing_multiplier/3`).
+
+## API jobs
+
+`Tuist.Runners.APIJobs` serves forges and orchestrators without a runner
+protocol (`POST /api/accounts/:handle/runners/jobs`, `provider = "api"`). Tuist
+is the coordinator: the job is queued in the shared lifecycle, the claiming VM
+runs it with `tuist-job-runner` (`infra/linux-runner-image/job-runner/`) and
+reports through the job-scoped report endpoints, and outcomes reach the caller
+as `runner_job.started` / `runner_job.completed` webhooks.
+
+- Jobs are untrusted: no cache signing grant, no shared cache volumes.
+- The encrypted payload (script, env, secrets, clone token) is cleared on
+  completion, cancellation, lost Pod, and by `ExpireAPIJobWorker` a day after
+  creation. Never log or return it.
+- `idempotency_key` is unique per account; a reused key returns the existing
+  job. Cancellation of a running job travels back on the executor's log-post
+  response (`cancel_requested`), so the executor polls with empty batches.
+- The VM reports its own outcome; the orphan sweep fails a job only once its
+  Pod is gone.

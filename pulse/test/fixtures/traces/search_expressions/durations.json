@@ -1,0 +1,62 @@
+[
+  {
+    "literal": "0ns",
+    "nanos": 0,
+    "accepted": true
+  },
+  {
+    "literal": "1us",
+    "nanos": 1000,
+    "accepted": true
+  },
+  {
+    "literal": "1µs",
+    "nanos": 1000,
+    "accepted": true
+  },
+  {
+    "literal": "1h30m",
+    "nanos": 5400000000000,
+    "accepted": true
+  },
+  {
+    "literal": "1.5s",
+    "nanos": 1500000000,
+    "accepted": true
+  },
+  {
+    "literal": "500.000001ms",
+    "nanos": 500000001,
+    "accepted": true
+  },
+  {
+    "literal": "0.3333333333333333333333m",
+    "nanos": 20000000000,
+    "accepted": true
+  },
+  {
+    "literal": "0.99999999999999999999999s",
+    "nanos": 1000000000,
+    "accepted": true
+  },
+  {
+    "literal": "0.0000000001s",
+    "nanos": 0,
+    "accepted": true
+  },
+  {
+    "literal": "9223372036854775807ns",
+    "nanos": 9223372036854775807,
+    "accepted": true
+  },
+  {
+    "literal": "9223372036854775808ns",
+    "nanos": 0,
+    "accepted": false
+  },
+  {
+    "literal": "2562048h",
+    "nanos": 0,
+    "accepted": false
+  }
+]

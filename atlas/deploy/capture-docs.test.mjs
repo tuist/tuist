@@ -14,20 +14,24 @@ async function fixture(t, mode = 'success') {
   const output = join(root, 'output');
   await mkdir(output);
   const chrome = join(root, 'fake chrome.mjs');
-  await writeFile(chrome, `#!/usr/bin/env node
-import { writeFileSync } from 'node:fs';
+  await writeFile(chrome, `#!${process.execPath}
+import { appendFileSync, writeFileSync } from 'node:fs';
 const mode = ${JSON.stringify(mode)};
 const args = process.argv.slice(2);
 const shot = args.find(arg => arg.startsWith('--screenshot=')).slice('--screenshot='.length);
 writeFileSync(shot.replace('.png', '.json'), JSON.stringify(args));
 console.error('capture diagnostics');
 if (mode === 'failure') process.exit(7);
-if (mode === 'hang') {
+if (['hang', 'teardown-hang', 'truncated-hang'].includes(mode)) {
   writeFileSync(shot.replace('.png', '.pid'), String(process.pid));
   setTimeout(() => {}, 60_000);
-} else if (mode !== 'missing') {
+}
+if (mode !== 'hang' && mode !== 'missing') {
   const header = mode === 'invalid' ? Buffer.from('not a png') : Buffer.from('89504e470d0a1a0a', 'hex');
   writeFileSync(shot, Buffer.concat([header, Buffer.alloc(mode === 'incomplete' ? 10 : 1024)]));
+  const end = Buffer.from('0000000049454e44ae426082', 'hex');
+  if (mode === 'teardown-hang') setTimeout(() => appendFileSync(shot, end), 250);
+  else if (mode !== 'truncated' && mode !== 'truncated-hang') appendFileSync(shot, end);
 }
 `);
   await chmod(chrome, 0o700);
@@ -38,7 +42,7 @@ test('capture bounds page waits and uses a temporary profile', async t => {
   const options = await fixture(t);
   await captureOne({ ...options, extra: ['--force-dark-mode'] });
   const args = JSON.parse(await readFile(join(options.output, 'desktop.json'), 'utf8'));
-  for (const flag of ['--timeout=15000', '--virtual-time-budget=5000', '--disable-dev-shm-usage', '--force-dark-mode']) {
+  for (const flag of ['--timeout=15000', '--disable-dev-shm-usage', '--force-dark-mode']) {
     assert.ok(args.includes(flag));
   }
   assert.ok(args.includes(`--user-data-dir=${join(options.temporary, 'profile-desktop')}`));
@@ -55,20 +59,34 @@ test('failed capture removes stale images and preserves diagnostics', async t =>
   assert.match(await readFile(join(options.output, 'desktop.log'), 'utf8'), /capture diagnostics/);
 });
 
-test('missing, incomplete and invalid images fail', async t => {
-  for (const mode of ['missing', 'incomplete', 'invalid']) {
+test('missing, incomplete, truncated and invalid images fail', async t => {
+  for (const mode of ['missing', 'incomplete', 'truncated', 'invalid']) {
     await t.test(mode, async sub => {
       await assert.rejects(captureOne(await fixture(sub, mode)), /PNG.*desktop.log/);
     });
   }
 });
 
-test('timed-out browser is reaped and diagnostics survive', async t => {
-  const options = await fixture(t, 'hang');
-  await assert.rejects(captureOne({ ...options, timeout: 1000 }), /timeout after 1000ms.*desktop.log/);
+test('complete screenshot succeeds and reaps a browser stuck in teardown', async t => {
+  const options = await fixture(t, 'teardown-hang');
+  await captureOne({ ...options, timeout: 1000 });
+  const image = await readFile(join(options.output, 'desktop.png'));
+  assert.equal(image.subarray(-12).toString('hex'), '0000000049454e44ae426082');
   const pid = Number(await readFile(join(options.output, 'desktop.pid'), 'utf8'));
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
   assert.match(await readFile(join(options.output, 'desktop.log'), 'utf8'), /capture diagnostics/);
+});
+
+test('timed-out browser is reaped and diagnostics survive', async t => {
+  for (const mode of ['hang', 'truncated-hang']) {
+    await t.test(mode, async sub => {
+      const options = await fixture(sub, mode);
+      await assert.rejects(captureOne({ ...options, timeout: 1000 }), /timeout after 1000ms.*desktop.log/);
+      const pid = Number(await readFile(join(options.output, 'desktop.pid'), 'utf8'));
+      assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+      assert.match(await readFile(join(options.output, 'desktop.log'), 'utf8'), /capture diagnostics/);
+    });
+  }
 });
 
 const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -83,6 +101,12 @@ test('real Chrome captures a page with a resource that never completes', { skip:
   });
   await new Promise(accept => server.listen(0, '127.0.0.1', accept));
   t.after(() => new Promise(accept => { server.closeAllConnections(); server.close(accept); }));
-  await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  t.diagnostic(spawnSync(chrome, ['--version'], { encoding: 'utf8' }).stdout.trim());
+  try {
+    await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  } catch (error) {
+    t.diagnostic(await readFile(join(options.output, 'desktop.log'), 'utf8'));
+    throw error;
+  }
   assert.ok((await readFile(join(options.output, 'desktop.png'))).subarray(0, 8).equals(PNG_HEADER));
 });

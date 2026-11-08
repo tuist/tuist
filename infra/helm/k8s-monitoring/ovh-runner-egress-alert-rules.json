@@ -1,0 +1,178 @@
+[
+  {
+    "annotations": {
+      "summary": "Runner vRack {{ $labels.vrack }} transmit bandwidth exceeds 80% in {{ $labels.cluster }}",
+      "description": "The runner Additional IP block has sustained more than 4 Gbps for ten minutes against its 5 Gbps limit. Check per-host vRack traffic against the 1 Gbps NIC limit before adding concurrency. The query counts only the configured private NICs, not primary public interfaces.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/cluster-api-provider-tuist/docs/ovh-runner-egress.md#bandwidth-monitoring"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster, vrack, cidr) (rate(node_network_transmit_bytes_total[5m]) * on (cluster, instance, device) group_left(address) max by (cluster, instance, device, address) (node_network_info) * on (cluster, instance, address) group_left(vrack, cidr) label_replace(label_replace(max by (cluster, node, mac, vrack, cidr) (capt_runner_egress_info), \"instance\", \"$1\", \"node\", \"(.*)\"), \"address\", \"$1\", \"mac\", \"(.*)\")) * 8 / 5000000000",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.8
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [
+
+                ],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning",
+      "affected_service": "Runners"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runner networking",
+    "title": "OVH runner vRack transmit bandwidth near capacity",
+    "uid": "ovh-runner-vrack-transmit"
+  },
+  {
+    "annotations": {
+      "summary": "Runner vRack {{ $labels.vrack }} receive bandwidth exceeds 80% in {{ $labels.cluster }}",
+      "description": "The runner Additional IP block has sustained more than 4 Gbps for ten minutes against its 5 Gbps limit. Check per-host vRack traffic against the 1 Gbps NIC limit before adding concurrency. The query counts only the configured private NICs, not primary public interfaces.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/cluster-api-provider-tuist/docs/ovh-runner-egress.md#bandwidth-monitoring"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster, vrack, cidr) (rate(node_network_receive_bytes_total[5m]) * on (cluster, instance, device) group_left(address) max by (cluster, instance, device, address) (node_network_info) * on (cluster, instance, address) group_left(vrack, cidr) label_replace(label_replace(max by (cluster, node, mac, vrack, cidr) (capt_runner_egress_info), \"instance\", \"$1\", \"node\", \"(.*)\"), \"address\", \"$1\", \"mac\", \"(.*)\")) * 8 / 5000000000",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.8
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [
+
+                ],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning",
+      "affected_service": "Runners"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runner networking",
+    "title": "OVH runner vRack receive bandwidth near capacity",
+    "uid": "ovh-runner-vrack-receive"
+  }
+]

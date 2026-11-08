@@ -196,6 +196,24 @@ func TestCacheVolumeFieldsSurviveCRDAdmission(t *testing.T) {
 	}
 }
 
+func TestNestedVirtualizationSurvivesCRDAdmission(t *testing.T) {
+	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.UnmarshalStrict(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	versions := doc["spec"].(map[string]any)["versions"].([]any)
+	schema := versions[0].(map[string]any)["schema"].(map[string]any)["openAPIV3Schema"].(map[string]any)
+	spec := schema["properties"].(map[string]any)["spec"].(map[string]any)["properties"].(map[string]any)
+	field, ok := spec["nestedVirtualization"].(map[string]any)
+	if !ok || field["type"] != "boolean" {
+		t.Fatalf("spec.nestedVirtualization = %v, want a boolean property", field)
+	}
+}
+
 func TestHoldRecentPeakSurvivesCRDAdmission(t *testing.T) {
 	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
 	if err != nil {

@@ -64,6 +64,8 @@ defmodule Tuist.Tests.TestCaseRun do
     field :git_commit_sha, Ch, type: "String"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
+    field :is_flakiness_excluded, :boolean, default: false
+    field :test_run_destination_id, Ch, type: "Nullable(UUID)"
     field :is_new, :boolean, default: false
     field :is_quarantined, :boolean, default: false
     field :coverage_evidence, Ch, type: "Enum8('none' = 0, 'own' = 1, 'overlapped' = 2)", default: "none"
@@ -117,6 +119,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_flaky,
       :is_new,
       :is_quarantined,
+      :is_flakiness_excluded,
       :coverage_evidence,
       :duration,
       :inserted_at,

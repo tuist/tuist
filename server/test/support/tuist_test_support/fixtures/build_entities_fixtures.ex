@@ -4,6 +4,7 @@ defmodule TuistTestSupport.Fixtures.BuildEntitiesFixtures do
   alias Tuist.BuildEntities
 
   @identities %{
+    cargo_crates: {:cargo, "crate", %{"source" => "src/lib.rs", "name" => "app", "kind" => "lib"}},
     bazel_actions:
       {:bazel, "action",
        %{"target_label" => "//app:lib", "mnemonic" => "CppCompile", "primary_output" => "bazel-out/debug/bin/app/lib.o"}},

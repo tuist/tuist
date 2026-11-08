@@ -27,12 +27,98 @@ k8s-monitoring:
               key: deployment.environment
               value: canary
 
+    # Independently deployed in-cluster Pulse. Features leave
+    # `destinations` empty, so every feature sends to all compatible
+    # destinations. Metrics/logs share Cloud's processing; traces are unsampled.
+    # Separate write queues keep Pulse retries independent of Cloud delivery.
+    # Basic auth carries the tenant as the username.
+    pulse-metrics:
+      type: prometheus
+      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
+      auth:
+        type: basic
+        usernameKey: pulse-username
+        passwordKey: pulse-password
+      secret:
+        create: false
+        name: pulse-credentials
+        namespace: observability
+      extraLabels:
+        env: canary
+
+    pulse-logs:
+      type: loki
+      url: http://pulse.observability.svc.cluster.local:4000/loki/api/v1/push
+      auth:
+        type: basic
+        usernameKey: pulse-username
+        passwordKey: pulse-password
+      secret:
+        create: false
+        name: pulse-credentials
+        namespace: observability
+      extraLabels:
+        env: canary
+
+    pulse-traces:
+      type: otlp
+      url: http://pulse.observability.svc.cluster.local:4000
+      protocol: http
+      metrics:
+        enabled: false
+      logs:
+        enabled: false
+      traces:
+        enabled: true
+      auth:
+        type: basic
+        usernameKey: pulse-username
+        passwordKey: pulse-password
+      secret:
+        create: false
+        name: pulse-credentials
+        namespace: observability
+      # Pulse rejects requests above 10,000 records or 4 MiB; the default
+      # 8192-span trigger with no ceiling can exceed both under load.
+      processors:
+        serviceGraphMetrics:
+          enabled: true
+          destinations: [pulse-metrics]
+          receiver:
+            otlp:
+              grpc:
+                maxReceivedMessageSize: 20MB
+          collector:
+            controller:
+              replicas: 1
+              nodeSelector:
+                node.cluster.x-k8s.io/pool: general
+            alloy:
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+        batch:
+          size: 2048
+          maxSize: 2048
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: canary
+
   # Put the receiver on the tailnet. See values-production.yaml for the full
   # rationale; the short version is that everything running on a Mac mini —
   # the Tart guests and now the host itself — reaches the cluster only over
   # the tailnet, and the receiver's `loki.source.api` on 3100 is where their
   # logs land (infra/helm/tuist macosFleet.hostLogs.url points here).
   collectors:
+    alloy-control-plane:
+      includeDestinations:
+        - grafana-cloud-metrics
+        - pulse-metrics
     alloy-receiver:
       service:
         annotations:

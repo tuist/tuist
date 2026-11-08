@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
+Stand up a new Tuist workload cluster (staging / canary / production / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -67,6 +67,91 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 
 ---
 
+## Controlled CNPG switchover
+
+Use this path when incident recovery calls for moving the primary to a healthy
+replica. It requests a CNPG-managed switchover; it does not force a promotion or
+repair stalled storage. During the October 27, 2026 incident, promotion failed
+because the elevated role could patch `clusters` but not `clusters/status`.
+No switchover occurred, and service recovered without intervention.
+
+`tuist-edit-cnpg-write` now grants only `patch` on `clusters/status` in
+`postgresql.cnpg.io`, in addition to its existing parent-resource and backup
+permissions. It aggregates into `edit`, bound to `tuist-<env>-write`. Ordinary
+`tuist-admins` and `tuist-eng` remain bound to `view`; canary and production
+receive their write group only during a human-driven JIT elevation. Staging
+keeps standing write membership through either access door. RBAC cannot limit
+this permission to particular status fields or to the promote command.
+
+The locally verified plugin was **1.29.1**, commit
+`a4060c152630c9e8958e17d3d23f26b4eb30b69f`. Its
+[promotion implementation](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/internal/cmd/plugin/promote/promote.go)
+gets the Cluster and target Pod, then
+[patches status with optimistic locking](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/pkg/resources/status/patch.go).
+It sets the target primary, timestamp, switchover phase/reason and readiness
+condition. It needs no status `update`, Pod write or additional Secret access.
+Existing read permissions cover its GETs. Check `kubectl cnpg version` when
+diagnosing a different plugin version.
+
+1. Confirm the context, namespace, Cluster and candidate with the incident
+   lead. Read the current primary and phase, instance health, replication lag,
+   storage/node health and recent backup state. A Pod existing or being Ready
+   alone does not establish that its WAL replay is caught up. Stop if the
+   candidate is unhealthy, lag is unexplained, or a switchover is already in
+   progress. Review the Cluster through normal read access; detailed SQL/exec
+   diagnostics require the write tier.
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -o yaml
+   kubectl --context tuist-k8s-production -n tuist get pods -l cnpg.io/cluster=tuist-tuist-pg -o wide
+   ```
+
+2. On canary/production, have a human request and approve `/elevate <env>`
+   with intent naming the Cluster and controlled switchover. Agents must not
+   invoke `/elevate`, click Approve or retrieve an admin kubeconfig. Proceed
+   only within the authorized window and scope. Staging needs no elevation.
+
+3. Check the **explicit subresource** using the normal identity, without
+   impersonation:
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist auth can-i patch clusters.postgresql.cnpg.io --subresource=status
+   ```
+
+   Expected: `no` outside elevation on canary/production, `yes` during that
+   environment's elevation, and `yes` on staging. Do not use
+   `clusters.postgresql.cnpg.io/status`: the slash form can be interpreted as
+   a resource name, checking the parent resource instead. It misleadingly
+   returned `yes` during the incident. If the explicit check says `no`, stop
+   and check deployment/aggregation and the elevation; do not bypass the gateway.
+
+4. After confirming the candidate and replication state, request promotion
+   once. This example selects `tuist-tuist-pg-2`; choose the actual healthy
+   candidate rather than assuming instance 2 is suitable:
+
+   ```bash
+   kubectl cnpg promote --context tuist-k8s-production tuist-tuist-pg 2 -n tuist
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -w
+   ```
+
+   Command success means the request was accepted, not that the switchover
+   completed. Confirm `status.currentPrimary` and `status.targetPrimary` both
+   name the selected instance, the Cluster becomes healthy, replication
+   resumes, and application writes/latency recover. If it stalls, inspect
+   operator and instance logs and reassess storage health before another action.
+   Record the candidate, timestamps and outcome in the incident/elevation trail.
+
+5. After the human ends the elevation or its TTL expires, repeat the explicit
+   check: it must return `no` on canary/production. Staging remains `yes`.
+
+The Pomerium deployment workflow applies the chart to all three environments
+on merge. After rollout, verify the explicit check before, during and after an
+authorized window; a permission check does not require performing a switchover.
+Local `bash infra/helm/pomerium/test-access-tiers.sh` checks rendered grants and
+bindings, not live aggregation or policy membership. Reverting the new status
+rule through the same deployment removes this capability without changing
+existing CNPG parent writes; it does not undo a switchover already requested.
+
 ## Prerequisites
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
@@ -77,7 +162,7 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview and pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -102,7 +187,7 @@ The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 > routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
 > directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
 > and the manifests still outside Flux (ClusterClass/bare-metal templates,
-> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
 > always fine.
 
 ## 2. Author the Cluster CR
@@ -113,7 +198,7 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
 - [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
 - tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
+- `tuist-preview`, which hosted ephemeral pull request and Slack-requested previews, is retired: its manifest, the preview workflows, and the Slack `/preview` command are removed, and the live cluster was deleted on 2026-11-05. `mise -C infra run helm:preview-up` still deploys the same embedded chart shape to a local kind cluster.
 
 For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
@@ -128,10 +213,10 @@ kubectl -n org-tuist get cluster <name> -w
 # Available=True once control plane is up. ~3–5 min cold start.
 ```
 
-Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+Only under break-glass (a wedged Flux) apply directly:
 
 ```bash
-kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>
 ```
 
 ## 4. Bootstrap the workload cluster
@@ -151,7 +236,7 @@ CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
-APP_NS=tuist-<env>   # production uses tuist (no suffix); preview uses preview-system
+APP_NS=tuist-<env>   # production uses tuist (no suffix)
 
 sed "s/__NAMESPACE__/${APP_NS}/g" infra/k8s/mgmt/ci-service-account.yaml \
   | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
@@ -287,6 +372,135 @@ Do not run creation during routine deploys or recovery. Preserve the existing it
 
 **Rotation and rollback:** this ExternalSecret uses `refreshPolicy: OnChange`, not periodic refresh. Source edits alone do not propagate into the runtime Secret; synchronization happens on creation or ExternalSecret metadata/spec changes. Existing `Ready=True` therefore does not attest that the current 1Password value is unchanged or still accessible. During an approved rotation, explicitly request synchronization by updating the ExternalSecret's `force-sync` annotation, then verify synchronization before replacing **every** participant. Changing the Kubernetes Secret does not update environment variables in already-running BEAMs. Coordinate source change, synchronization and process replacement as one maintenance operation, with membership and cross-node notifications checked afterwards. Never rotate incidentally to fix a deploy or missing key. Application rollback with a chart revision that retains this ExternalSecret preserves its Secret and cookie. A Helm rollback to a pre-ExternalSecret revision deletes the ESO resource and its owner-referenced runtime Secret, reverting to the earlier cookie behavior and membership islands; it does not delete the durable 1Password item. The first migration from image-baked cookies and the mixed-version qualification gates are documented in [multi-replica clustering](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
+## Managed outbound email (SES)
+
+SES uses AWS account `881372579491`, region `eu-west-1`, verified Easy DKIM
+identity `tuist.dev` and custom MAIL FROM `ses-bounces.tuist.dev`. Production
+access is granted (initial quota: 50,000 recipients/day, 14/second). Keep the
+account on pay-as-you-go rather than an SES subscription plan. Sending uses
+the HTTPS API, not SMTP. AWS supports OIDC federation through STS, but this
+initial integration uses independently scoped send-only IAM users, not root
+keys or the applications' object-storage credentials.
+
+| Sender | IAM user | 1Password source |
+| --- | --- | --- |
+| Server staging | `tuist-server-staging-ses` | `tuist-k8s-staging/SES` |
+| Server canary | `tuist-server-canary-ses` | `tuist-k8s-canary/SES` |
+| Server production | `tuist-server-production-ses` | `tuist-k8s-production/SES` |
+| Atlas (including former Hive newsletters/support) | `tuist-atlas-production-ses` | `atlas-k8s-production/atlas-ses` |
+| Slack invitations | `tuist-slack-production-ses` | `tuist-k8s-production/SLACK_INVITATION_APP` |
+
+Server/Atlas items contain `access_key_id` and `secret_access_key`; Slack's
+existing item additionally contains `ses-access-key-id` and
+`ses-secret-access-key`. Keep unrelated fields and existing Mailgun credentials
+for rollback. Each environment's External Secrets store must access its own
+vault. Server keys permit only `noreply@tuist.dev`, Slack only
+`hello@tuist.dev`, and Atlas `*@tuist.dev`; all are restricted to Ireland's
+verified identity/configuration set and `ses:SendEmail`/`ses:SendRawEmail`.
+They cannot read account settings, suppressions or feedback queues.
+
+Managed-common selects `server.mailing.provider: ses` and
+`sesRegion: eu-west-1` for staging, canary and production. The same mailing
+environment reaches web, workers and migration runtimes. Atlas's managed overlay
+sets `ATLAS_MAILER_PROVIDER=ses` and maps its app-prefixed credentials; Slack's
+production overlay selects `mailer.provider: ses`. Standalone defaults retain
+Mailgun, and the Atlas demo receives no SES credentials. Applications do not
+fall back to Mailgun after a send error, avoiding duplicate deliveries.
+
+**Before cutover:** export Mailgun's hard bounces and complaints and import them
+with SES `PutSuppressedDestination` (`BOUNCE`/`COMPLAINT`) in Ireland. Preserve
+newsletter unsubscribe state in Atlas; SES suppression does not replace consent
+or unsubscribe checks. The initial migration on 2026-11-05 imported and verified
+all 332 bounces and 7 complaints exported from Mailgun; its unsubscribe list was
+empty. Reconcile any new suppressions accumulated before the actual cutover.
+Keep Mailgun inbound routes and the root domain's MX/SPF/DMARC records intact;
+outbound migration does not migrate incoming support email.
+
+The identity's default `tuist-mail` configuration set publishes send, delivery,
+bounce, complaint, reject and delivery-delay events through SNS to the encrypted
+`tuist-mail-events` SQS queue (14-day retention). Account suppression is enabled
+for bounces and complaints. CloudWatch alarms `tuist-mail-BounceRate` (3%) and
+`tuist-mail-ComplaintRate` (0.05%) notify SNS topic `tuist-mail-alerts`.
+Its email subscription at `contact@tuist.dev` was confirmed during initial
+provisioning. For a rebuild, confirm the subscription email and verify it is no
+longer `PendingConfirmation` before relying on alerts. Queue retrieval and
+personal-data export restrictions are documented in
+[the email delivery inventory](../../server/data-export.md#managed-outbound-email-delivery).
+
+**Validation and rollout:** first render the charts with CI placeholders, then
+deploy staging through the normal approved deployment path. Verify ExternalSecret
+readiness without reading Kubernetes Secrets. Send a confirmation/reset message
+from the deployed application to a controlled mailbox, inspect DKIM/SPF/DMARC
+and reply-to headers, and correlate its SES message ID with a delivery event.
+Repeat for canary before production, then validate Atlas's support reply headers
+and newsletter unsubscribe headers and Slack's confirmation flow in their
+independent releases. Simulator sends succeeded with all five IAM users;
+delivery/bounce/complaint events and IAM sender/region restrictions were checked.
+These synthetic checks do not establish inbox placement at Apple or validate
+the deployed applications. All environments share the account's quota and
+reputation; non-production sends must remain controlled and low volume.
+
+**Rollback:** select `server.mailing.provider: mailgun`,
+`mailer.provider: mailgun`, or `env.ATLAS_MAILER_PROVIDER: mailgun` in the
+appropriate managed values and redeploy that application. All three charts
+retain Mailgun secret mappings during cutover so restarting old images remain
+configured, including Server's email-confirmation requirement.
+Wait for ExternalSecret reconciliation before starting replacement pods. Rotate
+SES keys independently by creating a replacement IAM key, updating that user's
+1Password fields, verifying synchronization and a successful application send,
+then retiring the old key. Never rotate by rerunning bootstrap blindly or
+delete the Mailgun account while inbound routes or rollback still depend on it.
+
+## 5f. ClickHouse tailnet ingress without public NodePorts
+
+The managed ClickHouse HTTP-only tailnet Service uses `loadBalancerClass: tailscale`
+when `clickhouse.managed.tailscale.proxyGroup` is set. The ProxyGroup routes its
+Tailscale VIP to the Service's **ClusterIP**, not its TCP NodePort. Keep
+`allocateLoadBalancerNodePorts: false` and explicit `nodePort: null` in the chart:
+disabling allocation alone does not remove an existing server-allocated port.
+Do not recreate the Service or change its name, selector, port, hostname or VIP.
+The separate ProxyGroup **UDP** NodePort Services carry encrypted Tailscale
+transport and must remain intact.
+
+**Rollout:** qualify staging, then canary, then production, using separately
+approved deployments and the normal access rules above. First establish a
+successful hardening-only release with the currently deployed application and
+other runtime images/values unchanged. Record that Helm revision as the
+**rollback floor** before combining this with application changes. For each env:
+
+1. Before upgrading, privately record the Service UID, ClusterIP(s), annotations,
+   ports, VIP and Ready EndpointSlices; the proxy StatefulSet's readiness; and
+   current public IPv4/IPv6 node addresses plus the previously reachable inventory.
+   Establish a positive HTTP `/ping` control from an authorized tailnet peer.
+2. Upgrade in place. Verify the same UID, ClusterIP(s), selector, HTTP 8123,
+   hostname, VIP and healthy backends, with allocation disabled and **no nonzero
+   NodePort on any port**. With the intended context and namespace selected,
+   this read-only assertion must succeed:
+
+   ```bash
+   kubectl --context "$context" -n "$namespace" get service tuist-tuist-clickhouse-tailnet -o json |
+     jq -e '.spec.allocateLoadBalancerNodePorts == false and all(.spec.ports[]; (.nodePort // 0) == 0)'
+   ```
+
+   Production's namespace is `tuist`; staging/canary use `tuist-<env>`.
+3. Check `TailscaleIngressSvcConfigured`, both ingress proxy replicas' readiness,
+   and HTTP `/ping` through the unchanged tailnet hostname. Then, under approved
+   fixture/data-validation scope, run a macOS xcresult-processor fixture and verify
+   its expected ClickHouse persistence, including any configured mirrors. Ready
+   Pods, `/ping`, and a completed job alone do not prove that expected rows arrived.
+4. From outside the tailnet, use fresh normal TCP connections to verify the old
+   public NodePort is closed across the recorded and current public node inventory,
+   paired with the positive tailnet control. Re-read the live Service for any new
+   allocation; checking only the old port is insufficient.
+
+**Failure and rollback:** check the Service invariant after failed deployments
+and automatic rollbacks too. The initial transition's atomic rollback can restore
+the old manifest and allocate a *different* public NodePort. Treat that as exposure
+still open, stop promotion, and request authorized re-hardening. Once the floor is
+established, application rollback must retain this hardened chart (for example,
+roll back the application image under it), not restore a pre-hardening chart.
+This is network exposure reduction, not a kernel vulnerability patch.
+
 ## 6. First deploy
 
 ### Manual smoke test
@@ -310,6 +524,22 @@ curl -v https://<env>.tuist.dev/ready
 gh workflow run server-deployment.yml -f environment=<env>
 ```
 
+### Pulse instance
+
+Pulse deploys independently into each cluster's `observability` namespace, not
+as part of the server or monitoring chart. Before its first release/deployment,
+verify the existing buckets and environment-vault fields described in the
+[Pulse bootstrap prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
+The release pipeline publishes matching image/chart artifacts before cascading
+staging → canary → production; manual redeployments select a published version
+through `pulse-deployment.yml` on main. Keep each instance single-replica and
+queries private. Workload ingress permits only exact authenticated `/mcp`,
+`/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` over TLS for external
+senders; in-cluster collectors still use the private Service. Coordinate the initial
+collector and Atlas rename with retirement of the old writer and resource
+ownership checks. Customer reconciliation is not implemented. Production
+mutations still require the approval described in the infrastructure access policy.
+
 ## 7. Observability
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
@@ -321,36 +551,15 @@ load-balancer telemetry under `cluster="tuist-management"`, so it remains
 available when a workload cluster is unreachable. Alert queries and setup
 instructions live in
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
+Its independent management-local Pulse backend is a separate Flux child,
+not a dependency on production. Bootstrap its private bucket and management-vault
+items using the [Pulse prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
+The apply workflow retains Cloud-only collection until backend/ESO readiness;
+after bootstrap, reconcile monitoring and verify fresh `cluster="tuist-management"`
+samples in both destinations. This does not switch management alerts or remove
+their external heartbeat/no-data protection.
 
-## 8. Preview environments (ephemeral pull request / commit deploys)
-
-Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and the in-cluster `preview-janitor` CronJob from the platform chart.
-
-Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. Cluster-wide state is reconciled separately from previews. [`preview-platform-reconcile.yml`](../../.github/workflows/preview-platform-reconcile.yml) owns the platform chart and the single Kura controller in the `kura` namespace, and runs on push to `main` when those paths change, after the controller image publishes, or on manual dispatch. Preview deploys never touch cluster-wide releases: a server-only pull request no longer upgrades cert-manager, and two previews deploying at once cannot race on the shared `platform` release. A preview deploy fails fast when the controller is absent, so **dispatch that workflow once against a freshly bootstrapped cluster before deploying the first preview**.
-
-Because the controller is cluster-wide, previews run the controller from `main` rather than a per-pull-request build. Only the Kura *runtime* is built per pull request, and each preview pins its own runtime image. Controller changes are covered by `kura-controller-image.yml` and by staging.
-
-The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to run without it, so that no environment silently tracks a mutable tag. The reconcile workflow resolves it from `main` and `mise run helm:preview-up` passes the tag it built locally. To run the task by hand, pass the `sha-<short>` tag of a controller image published to `ghcr.io/tuist/kura-controller`.
-
-Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
-
-Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether the janitor's namespace delete finishes or is interrupted. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by the `preview-janitor` CronJob.
-
-Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
-
-### 8.1 Wildcard domain record and certificate
-
-The preview platform chart annotates the ingress controller's LoadBalancer Service so [ExternalDNS](https://kubernetes-sigs.github.io/external-dns/) owns `*.preview.tuist.dev` and keeps it pointed at the current ingress address. The chart also replaces the wildcard in ExternalDNS's ownership text-record name with `_wildcard`, which Cloudflare accepts.
-
-Migrating from the previously hand-created wildcard is a one-time manual step, and it is required rather than optional. ExternalDNS only manages records that carry its ownership text record, so it will neither update nor delete a wildcard that an operator created by hand. Left in place, the stale record keeps resolving every per-pull-request subdomain to the old ingress address. After applying the platform chart to a cluster that still has one, delete the unowned `*.preview.tuist.dev` record in Cloudflare and let ExternalDNS recreate both the address record and its ownership record. Confirm the handover by checking that a `_wildcard.preview.tuist.dev` text record exists and names this cluster's owner id before relying on preview URLs.
-
-The platform chart issues the wildcard certificate through cert-manager's Cloudflare domain-validation flow; ingress-nginx picks it up through the `--default-ssl-certificate` flag set in the chart values.
-
-### 8.2 Preview-specific 1Password items
-
-In the `tuist-k8s-preview` vault: `TUIST_LICENSE_KEY` (Login or Password category, `password` field). The `Service Account Auth Token: tuist-preview-k8s` 1P item authorizes ESO to read it.
-
-### Production air-gapped license
+## 8. Production air-gapped license
 
 Production uses the signed air-gapped license so server startup does not depend
 on Keygen availability or outbound connectivity. Store the Base64-encoded
@@ -435,16 +644,6 @@ The server publishes `tuist_license_valid` and
 and 30-day warning rules from
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md) before
 the first production deployment.
-
-### 8.3 First preview
-
-```bash
-gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
-# or, for a one-off commit:
-gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
-```
-
-The platform chart's `preview-janitor` CronJob runs hourly inside the preview cluster, deleting expired preview `KuraInstance` resources and namespaces.
 
 ## 9. Dedicated pentest cluster
 

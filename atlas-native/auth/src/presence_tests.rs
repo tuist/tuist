@@ -13,6 +13,7 @@ fn saved() -> Session {
         access_token: "test-token".into(),
         refresh_token: "refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     }
 }
 

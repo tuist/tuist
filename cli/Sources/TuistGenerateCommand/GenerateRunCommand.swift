@@ -71,6 +71,9 @@
         )
         var configuration: String?
 
+        @Option(name: .long, help: "Destinations to generate: all, simulator, or device. Native macOS targets remain supported.")
+        var destination: CacheDestination = .all
+
         public func run() async throws {
             if !binaryCache {
                 AlertController.current.warning(.alert(
@@ -88,7 +91,8 @@
                 noOpen: !open,
                 configuration: configuration,
                 ignoreBinaryCache: !binaryCache,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                destination: destination
             )
         }
     }

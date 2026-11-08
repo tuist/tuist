@@ -206,8 +206,25 @@ defmodule Tuist.Mix.CacheTest do
 
     {:ok, bypass_build} = insert(context, false, [event("native", "bypass")])
     {:ok, legacy_build} = insert(context, false, [])
+
+    {:ok, attributed_build} =
+      context
+      |> attributes(false, [])
+      |> Map.merge(%{
+        account_id: context.project.account_id,
+        actor_account_id: context.user.account.id,
+        submission_auth: "token"
+      })
+      |> Mix.create_build()
+
     rows = Cache.recent_builds(context.project.id, context.opts)
-    assert length(rows) == 3
+    assert length(rows) == 4
+
+    assert %{name: name, source: :verified} =
+             Tuist.ReportActor.actor(Enum.find(rows, &(&1.build.id == attributed_build)).build)
+
+    assert name == context.user.account.name
+    rows = Enum.reject(rows, &(&1.build.id == attributed_build))
     assert Cache.recent_hit_rate(rows) == 50.0
     assert Cache.recent_hit_rate([]) == nil
     by_id = Map.new(rows, &{&1.build.id, &1})

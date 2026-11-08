@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Range query over native histograms with multiple quantiles: exercises the per-step path that the
+# instant-only upstream cases don't.
+load 1m
+  histogram{job="api"} {{schema:0 sum:5 count:4 buckets:[1 2 1]}}x2
+
+eval range from 0m to 2m step 1m histogram_quantiles(histogram, "q", 0.5, 0.9)
+  expect no_warn
+  {job="api", q="0.5"} 1.414213562373095 1.414213562373095 1.414213562373095
+  {job="api", q="0.9"} 3.0314331330207964 3.0314331330207964 3.0314331330207964
+
+clear
+
+# An out-of-range quantile (>1) returns +Inf and emits a warning, while a valid quantile in the same
+# call is unaffected. The upstream cases only pass a single out-of-range quantile, so they don't cover
+# this per-quantile independence.
+load 1m
+  series{job="api", le="1"}    1
+  series{job="api", le="10"}   3
+  series{job="api", le="+Inf"} 3
+
+eval instant at 0m histogram_quantiles(series, "quantile", 0.5, 2)
+  expect warn regex: PromQL warning: quantile value should be between 0 and 1, got 2 \([0-9]+:[0-9]+\)
+  {job="api", quantile="0.5"} 3.25
+  {job="api", quantile="2.0"} +Inf
+
+clear
+
+# Passing the same quantile twice yields two identical output series per group, which must fail
+# rather than silently emitting duplicates. Label-name collisions (quantile label clashing with an
+# existing label) are already covered by the upstream histograms.test cases, but repeating a quantile
+# is not, so we guard it here against the DeduplicateAndMerge wrapper being eliminated for this function.
+load 1m
+  histogram{job="api"} {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+
+eval instant at 0m histogram_quantiles(histogram, "q", 0.5, 0.5)
+  expect fail
+
+clear
+
+# A quantile that varies over the query range: each step is labelled with that step's quantile value,
+# so a single input series fans out into one output series per distinct quantile value, each carrying
+# only the steps where that value applied.
+load 1m
+  histogram{job="api"} {{schema:0 sum:5 count:4 buckets:[1 2 1]}} {{schema:0 sum:5 count:4 buckets:[1 2 1]}} {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  quantile                0.1 0.2 0.5
+
+eval range from 0m to 2m step 1m histogram_quantiles(histogram, "q", scalar(quantile))
+  expect no_warn
+  {job="api", q="0.1"} 0.6597539553864471 _ _
+  {job="api", q="0.2"} _ 0.8705505632961241 _
+  {job="api", q="0.5"} _ _ 1.414213562373095
+
+clear
+
+# Two quantiles that vary over the range and collide at a step (both 0.2 at the second step) must fail,
+# since that step would otherwise contain two series with the same label set.
+load 1m
+  histogram{job="api"} {{schema:0 sum:5 count:4 buckets:[1 2 1]}} {{schema:0 sum:5 count:4 buckets:[1 2 1]}} {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  quantile                0.1 0.2 0.5
+  quantile2               0.2 0.2 0.7
+
+eval range from 0m to 2m step 1m histogram_quantiles(histogram, "q", scalar(quantile), scalar(quantile2))
+  expect fail
+
+clear

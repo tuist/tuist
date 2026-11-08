@@ -1,3 +1,4 @@
+#if os(iOS)
 import ActivityKit
 import Foundation
 import SwiftUI
@@ -244,3 +245,4 @@ extension EnvironmentValues {
         set { self[AtlasLiveActivityKey.self] = newValue }
     }
 }
+#endif

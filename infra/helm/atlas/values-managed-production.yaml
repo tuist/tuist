@@ -33,6 +33,24 @@ tuistServer:
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
 
+# Pulse (observability backends in the Tuist clusters), proxied over MCP as
+# one upstream per environment; tools surface as `<name>__<tool>`, so
+# production reads are `pulse__query_promql` and canary's
+# `pulse_canary__query_promql`. Each Pulse verifies the projected
+# ServiceAccount token offline against this cluster's pinned JWKS and trusts
+# `system:serviceaccount:atlas-production:atlas` read-only for its own
+# audience (infra/helm/k8s-monitoring `workloadIdentity`). Staging is left out:
+# it often runs another branch without Pulse, and an unreachable upstream slows
+# every tools/list.
+pulse:
+  upstreams:
+    - name: pulse
+      mcpUrl: https://pulse.tuist.dev/mcp
+      audience: pulse.tuist.dev
+    - name: pulse_canary
+      mcpUrl: https://pulse-canary.tuist.dev/mcp
+      audience: pulse-canary.tuist.dev
+
 image:
   repository: ghcr.io/tuist/atlas
   # Tag is set per-deploy by the GitHub Actions workflow (`--set image.tag=…`).
@@ -88,6 +106,11 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
+  # Mailgun until ATLAS_SES_STARTS_AT, then SES without a restart, after 30
+  # days' notice of the subprocessor change. Afterwards set the provider to ses.
+  ATLAS_MAILER_PROVIDER: "mailgun"
+  ATLAS_SES_STARTS_AT: "2026-12-06T00:00:00Z"
+  ATLAS_SES_REGION: "eu-west-1"
   ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
   # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.
   # Its public certificate must match atlas-mobile-previews signing configuration.
@@ -110,6 +133,14 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # The Tuist server reports MCP agent feedback with a projected ServiceAccount
+  # token (audience atlas-support-ingest) from the Tuist production cluster.
+  # Atlas verifies it offline against that cluster's pinned public JWKS, from
+  # `kubectl --context tuist-k8s-production get --raw /openid/v1/jwks`.
+  # Add the new key here before the Tuist cluster rotates its signing key.
+  ATLAS_SUPPORT_INGEST_TOKEN_ISSUER: "https://kubernetes.default.svc.cluster.local"
+  ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT: "tuist:tuist-server"
+  ATLAS_SUPPORT_INGEST_TOKEN_JWKS: '{"keys":[{"use":"sig","kty":"RSA","kid":"ThNjNgV4Cy9fBbCAci-HQ6ZflqRRLaf8JPC_18l4cIY","alg":"RS256","n":"wNQWOfA0AvS-skdlR3o5uU-1Kt5Zzkysm7qhV5BXdDOZD3JN5AbwFXunRGrETUossi1fRGCEEaTh_GKbqnlWPHQDkfH8XSt6DS1MgejxNFKTAElokBC31s-bNnu_62JQ9HV2bpGjLmuEBX4sAhKo3iho5KxujH-ZLt61EEAOgskG5TrEshXFqHZeghXqzRBkWZjLSAXI8idQuGUrioQExgdygng01aO6J8-uNltH4IsEyHKilhkPTPZW_ZNcdBKAdgibQv4YZuh9u_0EMcUUz_LWOP-Y31br9QLsHymoDtCsRgAcFJvxy93uQ3RZU1DnkSHQ9wl4UgZPsdxsnwa-Sw","e":"AQAB"}]}'
   # POC access request pings go to #customers. The default in
   # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
   # channel being tracked in Atlas' slack_channels table; the escape hatch is
@@ -201,6 +232,13 @@ externalSecrets:
     # the same ingest pipeline external SDKs use — no HTTP hop, so an
     # ingest outage cannot loop back through the logger. This replaces the
     # previous route that posted envelopes to hive.tuist.dev.
+    # Personal OAuth needs client credentials, not the bot/signing credentials.
+    # Provision both fields before deployment; see the account-connections
+    # section in infra/k8s/atlas/onboarding.md.
+    ATLAS_SLACK_CLIENT_ID:
+      remoteRef: "atlas-slack-company/client_id"
+    ATLAS_SLACK_CLIENT_SECRET:
+      remoteRef: "atlas-slack-company/client_secret"
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
@@ -225,6 +263,10 @@ externalSecrets:
       remoteRef: "atlas-gtm-ingest-token/password"
     MAILGUN_API_KEY:
       remoteRef: "atlas-mailgun/api_key"
+    ATLAS_SES_ACCESS_KEY_ID:
+      remoteRef: "atlas-ses/access_key_id"
+    ATLAS_SES_SECRET_ACCESS_KEY:
+      remoteRef: "atlas-ses/secret_access_key"
     ATLAS_INBOX_WEBHOOK_SECRET:
       remoteRef: "atlas-inbox-webhook-secret/password"
     ATLAS_GITHUB_APP_ID:
@@ -233,6 +275,9 @@ externalSecrets:
       remoteRef: "atlas-github-app/app_name"
     ATLAS_GITHUB_APP_CLIENT_ID:
       remoteRef: "atlas-github-app/client_id"
+    # Provision the OAuth secret first; the App private key cannot replace it.
+    ATLAS_GITHUB_APP_CLIENT_SECRET:
+      remoteRef: "atlas-github-app/client_secret"
     ATLAS_GITHUB_APP_PRIVATE_KEY:
       remoteRef: "atlas-github-app/private_key"
     ATLAS_GITHUB_APP_WEBHOOK_SECRET:

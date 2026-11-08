@@ -24,6 +24,14 @@ exit "${CLIENT_EXIT:-0}"
 CLIENT
 chmod +x "$fixture/bin/tuist-cache-volume"
 
+# The volume's fill, in percent, while Gradle's local build cache exists and after it is gone.
+cat > "$fixture/bin/df" <<'DF'
+#!/bin/bash
+if [ -e "${!#}/build-cache-1" ]; then used=${USED_WITH_BUILD_CACHE:-10}; else used=${USED_WITHOUT_BUILD_CACHE:-10}; fi
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nvolume 1000 %s %s %s%% /volume\n' "$used" "$((100 - used))" "$used"
+DF
+chmod +x "$fixture/bin/df"
+
 setup() { (cd "$fixture/workspace" && PATH="$fixture/bin:/usr/bin:/bin" /bin/bash "$package/setup.sh"); }
 [[ $(ls -A "$package" | LC_ALL=C sort) == $'LICENSE.md\nREADME.md\nSOURCE_COMMIT\naction.yml\nsetup.sh' ]]
 [[ $(cat "$package/SOURCE_COMMIT") == "$(git -C "$action" rev-parse HEAD)" ]]
@@ -53,6 +61,26 @@ printf '%s\n' --key tuist-gradle --path "$fixture/home/.gradle/caches" --path "$
 cmp "$fixture/expected" "$CAPTURE_ARGS"
 grep -q '^::warning::This runner image does not support the size input' "$fixture/out"
 echo 'ok: an older client attaches without the size and warns'
+
+fill() { rm -rf "$fixture/home/.gradle"; mkdir -p "$fixture/home/.gradle/caches/"{build-cache-1,modules-2} "$fixture/home/.gradle/wrapper/dists"; }
+
+fill
+USED_WITH_BUILD_CACHE=74 USED_WITHOUT_BUILD_CACHE=10 setup > "$fixture/out"
+[[ -d "$fixture/home/.gradle/caches/build-cache-1" && -d "$fixture/home/.gradle/caches/modules-2" ]]
+echo 'ok: a cache below three quarters full is left alone'
+
+fill
+USED_WITH_BUILD_CACHE=75 USED_WITHOUT_BUILD_CACHE=74 setup > "$fixture/out"
+[[ ! -e "$fixture/home/.gradle/caches/build-cache-1" && -d "$fixture/home/.gradle/caches/modules-2" ]]
+if grep -q '::warning::' "$fixture/out"; then echo 'FAIL: unexpected warning' >&2; exit 1; fi
+echo 'ok: a nearly full cache drops only the local build cache when that is enough'
+
+fill
+USED_WITH_BUILD_CACHE=90 USED_WITHOUT_BUILD_CACHE=75 setup > "$fixture/out"
+[[ -z $(ls -A "$fixture/home/.gradle/caches") && -d "$fixture/home/.gradle/wrapper/dists" ]]
+grep -q '^::warning::The Gradle cache was nearly full' "$fixture/out"
+[[ -f "$fixture/home/.gradle/init.d/tuist-gradle-cache.gradle" ]]
+echo 'ok: a cache still nearly full without the build cache starts empty and keeps the wrapper'
 
 rm -rf "$fixture/home/.gradle"
 CLIENT_EXIT=2 TUIST_GRADLE_CACHE_SIZE=50 setup > "$fixture/out"

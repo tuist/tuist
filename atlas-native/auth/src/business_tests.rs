@@ -9,6 +9,7 @@ fn saved() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     }
 }
 
@@ -444,26 +445,32 @@ fn finance_overview_preserves_exact_values_and_only_belongs_to_invoices() {
 
 #[test]
 fn profile_forwards_only_optional_push_capabilities_not_provider_configuration() {
-    let network = MockTransport::new(vec![json!({
-        "server_version":"0.7.2", "user":{"name":"Taylor","email":"taylor@example.org"},
-        "push_notifications":{"ios":true,"android":false,"private_key":"never-forward"}
-    })]);
-    let output = execute_using(
-        &network,
-        saved(),
-        Resource::Profile,
-        Action::List {
-            page: 1,
-            query: String::new(),
-            filters: BTreeMap::new(),
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        output["push_notifications"],
-        json!({"ios":true,"android":false})
-    );
-    assert!(!output.to_string().contains("never-forward"));
+    for macos in [None, Some(false), Some(true)] {
+        let mut capabilities = json!({"ios":true,"android":false,"private_key":"never-forward"});
+        if let Some(enabled) = macos {
+            capabilities["macos"] = json!(enabled);
+        }
+        let network = MockTransport::new(vec![json!({
+            "server_version":"0.7.2", "user":{"name":"Taylor","email":"taylor@example.org"},
+            "push_notifications":capabilities
+        })]);
+        let output = execute_using(
+            &network,
+            saved(),
+            Resource::Profile,
+            Action::List {
+                page: 1,
+                query: String::new(),
+                filters: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            output["push_notifications"],
+            json!({"ios":true,"android":false,"macos":macos.unwrap_or(false)})
+        );
+        assert!(!output.to_string().contains("never-forward"));
+    }
 }
 
 #[test]

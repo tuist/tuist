@@ -1,0 +1,33 @@
+{
+  "receiver": "Incidents",
+  "group_by": [
+    "grafana_folder",
+    "alertname",
+    "cluster"
+  ],
+  "group_wait": "0s",
+  "group_interval": "5m",
+  "repeat_interval": "4h",
+  "object_matchers": [
+    [
+      "alertname",
+      "=",
+      "Tuist production VM allocator failures across pods"
+    ],
+    [
+      "cluster",
+      "=",
+      "tuist-production"
+    ],
+    [
+      "severity",
+      "=",
+      "critical"
+    ],
+    [
+      "grafana_folder",
+      "=",
+      "Alerts"
+    ]
+  ]
+}

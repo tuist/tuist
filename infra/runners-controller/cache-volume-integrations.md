@@ -83,7 +83,13 @@ retrieves provider metadata; the storage lifecycle never accepts scope or save
 permission from the mount request or job environment.
 
 - **GitHub:** retain the existing installation-authenticated run/repository
-  lookup, including run attempt and source repository checks.
+  lookup, including run attempt and source repository checks. A job whose
+  workflow grants `id-token: write` also hands the server a GitHub OIDC token
+  from the job-started hook, which binds the session to the job it names without
+  waiting for the `in_progress` webhook (`Runners.ExecutionTokens`). Its
+  claims then settle the identity of push, schedule and workflow_dispatch jobs
+  without reading the run; pull request jobs still read it, and attach read-only
+  when GitHub cannot answer.
 - **Buildkite:** before returning the job acquisition token, retrieve the account-owned job UUID through the existing
   [Stacks job API](https://buildkite.com/docs/apis/agent-api/stacks). Check job,
   build, build number, organization slug and pipeline slug against the assignment.
@@ -98,7 +104,8 @@ permission from the mount request or job environment.
   the job. Mounts use that snapshot with the live executed-job binding and an
   enabled installation. Failed refreshes clear prior authority. No additional
   API token is needed.
-- **GitLab:** use the encrypted acquired job token for
+- **GitLab:** when the job is acquired, and again at allocation only if that
+  failed, use the encrypted acquired job token for
   [GET /job](https://docs.gitlab.com/api/jobs/#retrieve-a-job-by-job-token), checking
   the assigned job ID, project ID, running status and commit SHA. Scope by the
   canonical instance digest and immutable project ID. Find the exact branch
@@ -135,9 +142,11 @@ A volume's capacity is chosen by the server for each use. The guest may send
 `requested_volume_bytes` (a whole number of decimal GB, 1 to 100 GB) with its
 acquire request; hosts drop any other value and never fail a request because of
 it. Hosts forward a valid request and always send `max_volume_bytes`, their
-largest accepted volume: 32 GB on Linux (`--max-volume-gb`,
-`runnersFleetLinux.cacheVolumes.maxVolumeGB`) and 100 GB on macOS
-(`--custom-cache-max-volume-gb`) by default. A server answer of 507 means the
+largest accepted volume: 100 GB by default on both platforms, Linux through
+`runnersFleetLinux.cacheVolumes.maxVolumeGB` (`--max-volume-gb`, whose own
+default is 32 GB) and macOS through `--custom-cache-max-volume-gb`. Linux
+admission reserves the expected write, not the capacity, and Docker volumes
+already take 100 GB on the same cache filesystem. A server answer of 507 means the
 volume exceeds that maximum: the host does not retry and the job continues
 cold (macOS mailbox reason `capacity`, Linux status 503). A volume without a server-chosen size is
 created at the host default of 20 GB.

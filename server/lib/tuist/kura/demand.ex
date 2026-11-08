@@ -468,24 +468,29 @@ defmodule Tuist.Kura.Demand do
           |> Map.put(:updated_at, now)
         end)
 
-      {count, _} =
-        Repo.insert_all(AccountRegionLifecycle, rows,
-          conflict_target: [:account_id, :service_region],
-          on_conflict:
-            from(l in AccountRegionLifecycle,
-              update: [
-                set: [
-                  last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
-                  # GREATEST ignores NULL, so a batch without traffic keeps the
-                  # clock where it was.
-                  last_cache_traffic_at: fragment("GREATEST(?, EXCLUDED.last_cache_traffic_at)", l.last_cache_traffic_at),
-                  updated_at: fragment("EXCLUDED.updated_at")
+      rows
+      |> Enum.chunk_every(1_000)
+      |> Enum.reduce(0, fn batch, total ->
+        {count, _} =
+          Repo.insert_all(AccountRegionLifecycle, batch,
+            conflict_target: [:account_id, :service_region],
+            on_conflict:
+              from(l in AccountRegionLifecycle,
+                update: [
+                  set: [
+                    last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                    # GREATEST ignores NULL, so a batch without traffic keeps the
+                    # clock where it was.
+                    last_cache_traffic_at:
+                      fragment("GREATEST(?, EXCLUDED.last_cache_traffic_at)", l.last_cache_traffic_at),
+                    updated_at: fragment("EXCLUDED.updated_at")
+                  ]
                 ]
-              ]
-            )
-        )
+              )
+          )
 
-      count
+        total + count
+      end)
     end)
   end
 

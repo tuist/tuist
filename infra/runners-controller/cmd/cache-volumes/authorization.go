@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,9 @@ import (
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
+
+// errNotFound is the server's answer that it has nothing to allocate yet.
+var errNotFound = errors.New("nothing to allocate")
 
 func (a *agent) authorize(ctx context.Context, podUID string, asked time.Time, body []byte) (cachevolumes.Identity, error) {
 	var identity cachevolumes.Identity
@@ -34,6 +38,9 @@ func (a *agent) allocate(ctx context.Context, url, podUID string, asked time.Tim
 		}
 		if err != nil || status == http.StatusOK {
 			return err
+		}
+		if status == http.StatusNotFound {
+			return errNotFound
 		}
 		// The volume is larger than this host's maximum. Retrying cannot help.
 		if status == http.StatusInsufficientStorage {

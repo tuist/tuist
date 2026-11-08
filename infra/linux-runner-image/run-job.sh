@@ -22,6 +22,13 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+# Dispatch is the only source of this attestation. An untrusted job receives
+# no grant and must not inherit one from the image environment.
+unset TUIST_CACHE_SIGNING_GRANT
+if [ -s "${JIT_PATH}.cache-grant" ]; then
+  export TUIST_CACHE_SIGNING_GRANT="$(cat "${JIT_PATH}.cache-grant")"
+fi
+
 # Optional: route the job's Tuist cache at the account's per-job
 # endpoint when dispatch-poll.sh staged one. The CLI honors
 # TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
@@ -37,10 +44,100 @@ if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   fi
 fi
 
+if [ -s "${JIT_PATH}.api-job.json" ]; then
+  [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
+  exec /usr/local/bin/tuist-job-runner --job-file "${JIT_PATH}.api-job.json" \
+    --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
 if [ -s "${JIT_PATH}.gitlab.json" ]; then
   [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
   exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \
     --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
+BITRISE_ENV_PATH="${JIT_PATH}.bitrise-env"
+
+# Bitrise branch. The den agent connects to the claimed build's pool with
+# the staged intro secret, and Bitrise hands it any build of that pool, so,
+# as on GitHub, it can wait for a build a sibling already took.
+# `--single-task` stops it after its first build and the idle watchdog stops
+# one that never gets one. The build start hook named in the agent config
+# reports the build the agent took and latches the watchdog.
+if [ -s "${BITRISE_ENV_PATH}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${BITRISE_ENV_PATH}"
+  set +a
+
+  if [ -z "${BITRISE_DEN_AGENT_INTRO_SECRET:-}" ]; then
+    echo "$(date -u +%FT%TZ) run-job: bitrise env staged but incomplete; aborting"
+    exit 1
+  fi
+
+  BITRISE_HOME="${HOME:-/home/runner}/.bitrise"
+  BITRISE_JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
+  BITRISE_WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
+  rm -f "${BITRISE_JOB_STARTED_MARKER}" "${BITRISE_WATCHDOG_PID_FILE}"
+  mkdir -p "${BITRISE_HOME}" "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}/bitrise"
+  cat >"${BITRISE_HOME}/agent-config.yml" <<AGENT_CONFIG
+bitrise_dirs:
+  BITRISE_DATA_HOME_DIR: ${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}/bitrise
+hooks:
+  do_on_build_start: /usr/local/share/tuist/bitrise-hooks/build-start
+AGENT_CONFIG
+  (
+    umask 077
+    {
+      printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${TUIST_RUNNER_REPORT_TOKEN:-}"
+      printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_REPORT_URL:-}"
+      printf 'TUIST_RUNNER_JOB_STARTED_MARKER=%s\n' "${BITRISE_JOB_STARTED_MARKER}"
+      printf 'TUIST_RUNNER_WATCHDOG_PID_FILE=%s\n' "${BITRISE_WATCHDOG_PID_FILE}"
+    } >"${BITRISE_HOME}/tuist-runner-job.env"
+  ) || echo "$(date -u +%FT%TZ) run-job: failed to stage the bitrise job env; the build will run unattributed"
+  unset TUIST_RUNNER_REPORT_TOKEN
+
+  if [ -x /usr/local/bin/vitals.sh ]; then
+    /usr/local/bin/vitals.sh &
+  fi
+
+  # The agent logs `Current task` the moment Bitrise assigns it a build,
+  # seconds before the build start hook runs, so that line latches the
+  # watchdog too. Its output is teed so it still reaches the Pod logs.
+  BITRISE_AGENT_LOG=/tmp/tuist-bitrise-agent.log
+  : >"${BITRISE_AGENT_LOG}"
+
+  echo "$(date -u +%FT%TZ) run-job: connecting bitrise agent"
+  /usr/local/bin/bitrise-den-agent connect \
+    --server https://exec.bitrise.io \
+    --single-task \
+    --tracking-id "$(hostname)" > >(tee -a "${BITRISE_AGENT_LOG}") 2>&1 &
+  agent_pid=$!
+  unset BITRISE_DEN_AGENT_INTRO_SECRET
+  trap 'kill -TERM "${agent_pid}" 2>/dev/null || true' TERM INT
+
+  idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
+  if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+    (
+      waited=0
+      while [ "${waited}" -lt "${idle_timeout}" ]; do
+        [ -e "${BITRISE_JOB_STARTED_MARKER}" ] && exit 0
+        grep -q '"msg":"Current task' "${BITRISE_AGENT_LOG}" 2>/dev/null && exit 0
+        kill -0 "${agent_pid}" 2>/dev/null || exit 0
+        sleep 1
+        waited=$((waited + 1))
+      done
+      grep -q '"msg":"Current task' "${BITRISE_AGENT_LOG}" 2>/dev/null && exit 0
+      echo "$(date -u +%FT%TZ) run-job: no bitrise build assigned within ${idle_timeout}s; terminating idle agent"
+      kill -TERM "${agent_pid}" 2>/dev/null || true
+    ) &
+    printf '%s' "$!" >"${BITRISE_WATCHDOG_PID_FILE}" 2>/dev/null || true
+  fi
+
+  wait "${agent_pid}"
+  rc=$?
+  echo "$(date -u +%FT%TZ) run-job: bitrise agent exited ${rc}"
+  exit "${rc}"
 fi
 
 BUILDKITE_ENV_PATH="${JIT_PATH}.buildkite-env"
@@ -173,18 +270,39 @@ if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
     echo "::warning::Could not publish the runner cache endpoint to the job environment"
   fi
 fi
-for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+for _var in TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
   _value="\${!_var:-}"
   if [ -n "\${_value}" ]; then
+    # GitHub prints GITHUB_ENV values in later step headers. Register the
+    # dispatch credential before publishing it to that environment.
+    if [ "\${_var}" = "TUIST_CACHE_SIGNING_GRANT" ]; then
+      printf '::add-mask::%s\\n' "\${_value}"
+    fi
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Hand the host the job's GitHub OIDC token before the attaches below, so the
+# server learns which job this runner runs without waiting for GitHub's report.
+# The runner offers a token only to jobs granted id-token: write.
+if [ -n "\${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --prove-execution || true
+fi
+# Move dockerd onto the repository's Docker cache volume before the runner
+# pulls job and service containers, beside the cached checkout and within its
+# window. Any miss leaves dockerd on the job's ephemeral data root.
+if [ "\${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker &
+  _docker_pid=\$!
+fi
 # Mount the job's cached checkout at its workspace before the first step, so a
 # stock actions/checkout reuses it instead of cloning. The host decides whether
 # there is one; any miss leaves the workspace empty and the job checks out as
 # before.
 if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
   "${CACHE_VOLUME_BIN}" --checkout "\${GITHUB_WORKSPACE}" || true
+fi
+if [ -n "\${_docker_pid:-}" ]; then
+  wait "\${_docker_pid}" || true
 fi
 exit 0
 HOOK
@@ -275,6 +393,12 @@ while kill -0 "${runner_pid}" 2>/dev/null; do
   rc=$?
 done
 [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+# Clean the job's Docker cache volume and hand it back, or report that a job
+# without one used Docker. After the job and outside its billed time; never
+# affects the exit code.
+if [ "${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker-teardown || true
+fi
 # Hand the host what the job's checkout added, after the job and outside its
 # billed time; the host verifies it and builds the next cached checkout from it.
 # Never affects the exit code.

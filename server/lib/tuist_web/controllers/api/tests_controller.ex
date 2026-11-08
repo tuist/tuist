@@ -372,6 +372,12 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The shard plan ID if this test run is part of a sharded execution."
            },
+           test_impact_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not."
+           },
            only_test_identifiers: %Schema{
              type: :array,
              items: %Schema{type: :string},
@@ -860,6 +866,7 @@ defmodule TuistWeb.API.TestsController do
               ci_provider: test_run.ci_provider,
               build_run_id: test_run.build_run_id,
               shard_plan_id: test_run.shard_plan_id,
+              test_impact_run_id: test_run.test_impact_run_id,
               shard_index: Map.get(body_params, :shard_index),
               shard_attempt: Map.get(body_params, :shard_attempt),
               shard_report_revision: Map.get(body_params, :shard_report_revision),
@@ -1172,6 +1179,7 @@ defmodule TuistWeb.API.TestsController do
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
       shard_plan_id: Map.get(params, :shard_plan_id),
+      test_impact_run_id: Map.get(params, :test_impact_run_id),
       shard_index: Map.get(params, :shard_index),
       shard_attempt: Map.get(params, :shard_attempt),
       shard_report_revision: Map.get(params, :shard_report_revision),

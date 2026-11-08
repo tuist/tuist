@@ -9,8 +9,9 @@ defmodule Tuist.Runners.Profile do
   Profiles are platform-specific. The dimensions that vary by
   platform:
 
-    * `:linux` — `(vcpus, memory_gb)`, picked from
-      `Tuist.Runners.Catalog.shapes(:linux)`.
+    * `:linux` — `(vcpus, memory_gb)` plus an `os_version`, picked from
+      `Tuist.Runners.Catalog.shapes(:linux)` and `Catalog.os_versions/0`.
+      The pool is keyed on both, like macOS's Xcode version.
     * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
       picked from `Catalog.shapes(:macos)` and
       `Catalog.xcode_versions/0`. The pool is keyed on both, so a
@@ -56,6 +57,10 @@ defmodule Tuist.Runners.Profile do
     field :vcpus, :integer
     field :memory_gb, :integer
     field :xcode_version, :string
+    # Linux only: the Ubuntu release the profile's pool runs, from
+    # `Catalog.os_versions/0` (`ubuntu-24.04`). NULL on macOS, and on Linux
+    # rows written before the column existed, which run on the default.
+    field :os_version, :string
     field :protected, :boolean, default: false
     # Every branch of the repository saves. Forks and pull_request_target never
     # have a writer branch, so they never do. When false, only the default
@@ -65,6 +70,7 @@ defmodule Tuist.Runners.Profile do
     # Branches that save besides the default branch. nil when there are none.
     field :cache_writer_branches, {:array, :string}
     field :cached_checkouts, :boolean, default: true
+    field :docker_cache, :boolean, default: true
 
     belongs_to :account, Account
 
@@ -90,10 +96,13 @@ defmodule Tuist.Runners.Profile do
       platform*. Required.
     * `:xcode_versions` — list of supported Xcode versions. Only
       consulted for macOS profiles; ignored for Linux.
+    * `:os_versions` — list of supported Linux OS versions. Only
+      consulted for Linux profiles; ignored for macOS.
   """
   def changeset(profile, attrs, opts \\ []) when is_list(opts) do
     shapes = Keyword.get(opts, :shapes, [])
     xcode_versions = Keyword.get(opts, :xcode_versions, [])
+    os_versions = Keyword.get(opts, :os_versions, [])
 
     changeset =
       profile
@@ -104,11 +113,13 @@ defmodule Tuist.Runners.Profile do
         :vcpus,
         :memory_gb,
         :xcode_version,
+        :os_version,
         :protected,
         :cache_writer_all_branches,
         :cache_writer_default_branch,
         :cache_writer_branches,
-        :cached_checkouts
+        :cached_checkouts,
+        :docker_cache
       ])
       |> validate_required([
         :account_id,
@@ -135,10 +146,13 @@ defmodule Tuist.Runners.Profile do
       :linux ->
         changeset
         |> put_change(:xcode_version, nil)
+        |> validate_required([:os_version])
         |> validate_shape(shapes)
+        |> validate_os_version(os_versions)
 
       :macos ->
         changeset
+        |> put_change(:os_version, nil)
         |> validate_required([:xcode_version])
         |> validate_shape(shapes)
         |> validate_xcode_version(xcode_versions)
@@ -149,14 +163,20 @@ defmodule Tuist.Runners.Profile do
   end
 
   @doc """
-  Changeset for the cache settings alone: the writer policy and cached
-  checkouts. Unlike `changeset/3` it does not validate the profile's shape
+  Changeset for the cache settings alone: the writer policy, cached
+  checkouts and the Docker cache. Unlike `changeset/3` it does not validate the profile's shape
   against the current catalog.
   """
   def cache_settings_changeset(profile, attrs) do
     profile
-    |> cast(attrs, [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches, :cached_checkouts])
-    |> validate_required([:cache_writer_all_branches, :cache_writer_default_branch, :cached_checkouts])
+    |> cast(attrs, [
+      :cache_writer_all_branches,
+      :cache_writer_default_branch,
+      :cache_writer_branches,
+      :cached_checkouts,
+      :docker_cache
+    ])
+    |> validate_required([:cache_writer_all_branches, :cache_writer_default_branch, :cached_checkouts, :docker_cache])
     |> validate_cache_writer_branches()
   end
 
@@ -236,6 +256,21 @@ defmodule Tuist.Runners.Profile do
 
       true ->
         add_error(changeset, :xcode_version, "must match one of the available Xcode versions", validation: :xcode_version)
+    end
+  end
+
+  defp validate_os_version(changeset, catalog) do
+    os_version = get_field(changeset, :os_version)
+
+    cond do
+      is_nil(os_version) ->
+        changeset
+
+      Enum.any?(catalog, &(&1.os_version == os_version)) ->
+        changeset
+
+      true ->
+        add_error(changeset, :os_version, "must match one of the available operating systems", validation: :os_version)
     end
   end
 

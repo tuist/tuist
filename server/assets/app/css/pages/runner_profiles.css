@@ -165,7 +165,7 @@
       padding: 0;
       width: 100%;
       color: var(--noora-surface-label-primary);
-      text-align: left;
+      text-align: start;
 
       &[aria-expanded="true"] [data-part="section-chevron"] {
         transform: rotate(180deg);

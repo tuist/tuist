@@ -28,7 +28,32 @@ defmodule TuistEx.Analytics.Coverage do
   # The native counters of the modules Mimic copied, from before the copy.
   @before_swap {__MODULE__, :before_swap}
 
+  # What limits a run to the tests it names, rather than leaving some out.
+  @selectors ~w(--only --failed --stale --name-pattern)
+
   def requested?(test_args), do: "--cover" in test_args
+
+  @doc """
+  Whether the run's own arguments limit it to the tests they select:
+  `--only`, `--failed`, `--stale`, `--name-pattern`, or explicit test files or
+  lines. Such a run names the tests it ran; any other partial run names the
+  tests it left out.
+  """
+  def narrowed?(test_args) do
+    files?(test_args) or
+      Enum.any?(test_args, fn arg ->
+        Enum.any?(@selectors, &(arg == &1 or String.starts_with?(arg, &1 <> "=")))
+      end)
+  end
+
+  @doc """
+  The tags the run's own `--exclude` options filter on, as ExUnit names
+  them in an exclusion's reason (`"due to <tag> filter"`).
+  """
+  def excluded_tags(test_args) do
+    {options, _rest, _invalid} = OptionParser.parse(test_args, switches: [exclude: :keep])
+    for {:exclude, filter} <- options, do: filter |> String.split(":", parts: 2) |> hd()
+  end
 
   @doc """
   Whether the run's own arguments left tests out on purpose: a filter, or

@@ -10,7 +10,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > :is([data-part="github-card-section"], [data-part="origin-card-section"]) {
+  & > :is([data-part="github-card-section"], [data-part="origin-card-section"], [data-part="entire-card-section"]) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
@@ -151,11 +151,17 @@
 
   /* Title and subtitle on the left, the actions on the same line to the
      right; when connected, the fields run the full width underneath. */
-  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"]) {
+  &
+    > :is(
+      [data-part="buildkite-card-section"],
+      [data-part="gitlab-card-section"],
+      [data-part="bitrise-card-section"],
+      [data-part="amp-card-section"]
+    ) {
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form, [id^="amp-settings-form-"]) {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -214,18 +220,142 @@
     }
   }
 
-  & #connect-gitlab-modal > [data-part="positioner"] > [data-part="content"] {
+  & #bitrise-pools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+
+    & > [data-part="pools-header"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="heading"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+
+      & > :not([data-part="heading"]) {
+        flex-shrink: 0;
+      }
+    }
+
+    & > [data-part="pool"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="details"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-1);
+        min-width: 0;
+
+        & > [data-part="name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="stack"] {
+          color: var(--noora-surface-label-tertiary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          overflow-wrap: anywhere;
+        }
+      }
+
+      & > [data-part="profile"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="hint"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="empty"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > :last-child {
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  & #add-bitrise-pool-modal [data-part="add-bitrise-pool"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-6) var(--noora-spacing-4);
+
+    & > .noora-alert {
+      align-self: flex-start;
+    }
+
+    & > [data-part="fields"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="field"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      justify-content: flex-end;
+    }
+  }
+
+  & #bitrise-token-form {
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+  }
+
+  &
+    :is(#connect-gitlab-modal, #connect-bitrise-modal, #add-bitrise-pool-modal)
+    > [data-part="positioner"]
+    > [data-part="content"] {
     width: min(520px, 90vw);
   }
 
-  & #connect-gitlab-modal [data-part="connect-gitlab"] > [data-part="actions"] {
+  &
+    :is(#connect-gitlab-modal [data-part="connect-gitlab"], #connect-bitrise-modal [data-part="connect-bitrise"])
+    > [data-part="actions"] {
     display: flex;
     justify-content: flex-end;
   }
 
   &
-    :is(#connect-buildkite-modal, #connect-gitlab-modal)
-    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
+    :is(#connect-buildkite-modal, #connect-gitlab-modal, #connect-bitrise-modal)
+    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"], [data-part="connect-bitrise"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
@@ -264,7 +394,7 @@
     }
   }
 
-  & :is(#add-connection-modal, #add-origin-connection-modal) {
+  & :is(#add-connection-modal, #add-origin-connection-modal, #entire-connection-modal) {
     & [data-part="content"] {
       & [data-part="create-connection"] {
         display: flex;
@@ -332,7 +462,9 @@
             #repository-dropdown,
             #origin-project-dropdown,
             #origin-repository-dropdown,
-            #origin-installation-dropdown
+            #origin-installation-dropdown,
+            #entire-project-dropdown,
+            #entire-repository-dropdown
           ) {
           width: min(244px, 100%);
 
@@ -357,5 +489,38 @@
         }
       }
     }
+  }
+}
+
+#integrations > [data-part="amp-card-section"][hidden] {
+  display: none;
+}
+
+:is(#connect-amp-modal, #disconnect-amp-modal) > [data-part="positioner"] > [data-part="content"] {
+  width: min(560px, 90vw);
+}
+
+:is(#connect-amp-modal, #disconnect-amp-modal) [data-part="amp-form"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  ol {
+    margin: 0;
+    padding-inline-start: var(--noora-spacing-7);
+  }
+  li + li {
+    margin-top: var(--noora-spacing-3);
+  }
+  p {
+    margin: 0;
+  }
+  [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
   }
 }

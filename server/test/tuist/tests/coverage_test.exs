@@ -148,6 +148,24 @@ defmodule Tuist.Tests.CoverageTest do
              ]
     end
 
+    test "records the platform the client resolved the run's destination to", %{project: project, account: account} do
+      {:ok, test} =
+        create_test(project, account, %{
+          coverage: %{tool: "llvm-cov", tool_version: "27.0", platform: "ios", partial: false, files: [add()]}
+        })
+
+      platform =
+        ClickHouseRepo.one(
+          from(c in CoverageRun,
+            where: c.test_run_id == ^test.id,
+            group_by: c.test_run_id,
+            select: fragment("argMax(?, ?)", c.platform, c.version)
+          )
+        )
+
+      assert platform == "ios"
+    end
+
     test "records Xcode coverage as measured by xccov with the run's Xcode", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_version: "27.0", xcode_coverage: coverage([add()])})
 
@@ -172,7 +190,8 @@ defmodule Tuist.Tests.CoverageTest do
           storage_key: "key",
           partial: true,
           tool: "cover",
-          tool_version: "OTP 28/Elixir 1.19.5"
+          tool_version: "OTP 28/Elixir 1.19.5",
+          platform: ""
         }
       )
 
@@ -432,7 +451,7 @@ defmodule Tuist.Tests.CoverageTest do
 
   describe "the xcode_coverage feature flag" do
     test "drops the coverage of an account that does not have it", %{project: project, account: account} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
 
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 
@@ -643,6 +662,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files test_impact_diffs test_impact_run_tests test_impact_runs)
   end
 end

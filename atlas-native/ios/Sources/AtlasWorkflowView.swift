@@ -12,6 +12,7 @@ struct AtlasWorkflowView: View {
     @State private var attempted = false
     @State private var execution: String?
     @State private var admitted: String?
+    @State private var loadRevision = UUID()
 
     private var fields: [AtlasNativeField] {
         ((workflow?["form"] as? [String: Any])?["fields"] as? [[String: Any]] ?? []).map { AtlasNativeField(value: $0) }
@@ -26,7 +27,9 @@ struct AtlasWorkflowView: View {
                     Text(workflow["description"] as? String ?? "")
                     Text("Version \(workflow["version"] as? Int ?? 0)").foregroundStyle(.secondary)
                 }
-                if supported {
+                if workflow["cached"] as? Bool == true {
+                    Text("Saved workflow. Connect to refresh its inputs and run it.").foregroundStyle(.secondary)
+                } else if supported {
                     ForEach(fields) { field in
                         Section {
                             AtlasWorkflowField(field: field, value: binding(field)).disabled(request != nil)
@@ -48,6 +51,7 @@ struct AtlasWorkflowView: View {
         }
         .navigationTitle("Run workflow")
         .task { await load() }
+        .refreshable { await load() }
         .sheet(isPresented: $reviewing, onDismiss: dismissReview) {
             NavigationStack {
                 ScrollView {
@@ -88,11 +92,26 @@ struct AtlasWorkflowView: View {
         Binding(get: { values[field.id] ?? field.initial }, set: { values[field.id] = $0 })
     }
     private func load() async {
+        guard request == nil else { return }
+        let revision = UUID()
+        loadRevision = revision
+        if workflow == nil, let data = await authentication.cachedRead(["operation": "native", "action": "workflow", "id": id]),
+           let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           loadRevision == revision, request == nil, !Task.isCancelled { workflow = saved }
         do {
-            workflow = try await authentication.native(["action": "workflow", "id": id])
-        } catch is CancellationError { } catch { self.error = error.localizedDescription }
+            let fresh = try await authentication.native(["action": "workflow", "id": id])
+            try Task.checkCancellation()
+            guard loadRevision == revision, request == nil else { return }
+            workflow = fresh
+            error = nil
+        } catch is CancellationError { } catch {
+            guard loadRevision == revision, request == nil, !Task.isCancelled else { return }
+            if AtlasReadCache.accessDenied(error) { workflow = nil }
+            self.error = error.localizedDescription
+        }
     }
     private func prepare() {
+        guard workflow?["cached"] as? Bool != true else { return }
         do {
             if request == nil {
                 request = ["action": "run", "id": id, "revision_id": workflow?["revision_id"] ?? "",
@@ -146,7 +165,9 @@ struct AtlasWorkflowField: View {
         case "text": TextField(label, text: $value, axis: .vertical).lineLimit(3...8)
         default:
             TextField(label, text: $value)
+                #if os(iOS)
                 .keyboardType(["integer", "number"].contains(field.kind) ? .numbersAndPunctuation : .default)
+                #endif
         }
     }
     @ViewBuilder private var dateInput: some View {

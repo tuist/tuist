@@ -9,6 +9,7 @@ on:
       - tuist_common/**
       - tuist_ex/**
       - noora/**
+      - condukt/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
       - .github/actions/mise/action.yml
@@ -22,6 +23,7 @@ on:
       - tuist_common/**
       - tuist_ex/**
       - noora/**
+      - condukt/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
       - .github/actions/mise/action.yml
@@ -486,7 +488,7 @@ jobs:
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Test frontend interactions
-        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
       - name: Check CSS custom property references
@@ -542,8 +544,9 @@ jobs:
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
-          # Run esbuild and capture output
-          output=$(mix esbuild app --log-level=warning 2>&1 || true)
+          # The install step compiled dependencies. Do not mix cached local
+          # dependency compiler warnings into the JavaScript warning gate.
+          output=$(mix "do" deps.loadpaths --no-compile --no-deps-check + esbuild app --log-level=warning 2>&1 || true)
 
           # Filter out known non-warning messages
           warnings=$(echo "$output" | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild" | grep -v "^$" || true)
@@ -634,12 +637,14 @@ jobs:
             --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
             --env TUIST_DEPLOY_ENV=prod \
             --env TUIST_HOSTED=1 \
+            --env TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION=true \
             --env TUIST_OBJECT_STORAGE_PROVIDER=azure_blob \
             --env TUIST_PROMETHEUS_ENABLED=1 \
             tuist/tuist \
             /app/bin/tuist eval '
               :web = Tuist.Environment.mode()
               :prod = Tuist.Environment.env()
+              true = Tuist.Environment.sso_require_login_domain_verification?()
               true = File.regular?(Application.app_dir(:tuist, "priv/static/server/self-host/.env.example"))
               parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
               {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)

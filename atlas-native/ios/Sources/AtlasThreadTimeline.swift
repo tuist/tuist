@@ -1,5 +1,46 @@
 import SwiftUI
 
+struct AtlasThreadTranscript<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    private var usesList: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
+    var body: some View {
+        if usesList {
+            List {
+                content
+                    .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, 0)
+            .buttonStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 14) { content }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(maxWidth: 720).frame(maxWidth: .infinity)
+                    .background {
+                        if #unavailable(iOS 18.0, macOS 15.0) {
+                            GeometryReader { content in
+                                Color.clear.preference(key: AtlasThreadScrollPreference.self, value: content.frame(in: .global))
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
 struct AtlasThreadTimeline: View {
     let timeline: AtlasThreadTimelineData
     let selfId: String?
@@ -7,29 +48,26 @@ struct AtlasThreadTimeline: View {
     let action: (String, String) async -> Bool
 
     var body: some View {
-        LazyVStack(spacing: 14) {
-            ForEach(timeline.groups) { group in
-                VStack(spacing: 14) {
-                    if let first = group.messages.first {
-                        if let date = group.date {
-                            Text(date, format: .dateTime.month(.abbreviated).day().year())
-                                .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
-                        }
-                        if !group.children.isEmpty {
-                            AtlasToolActivity(messages: group.children, selfId: selfId, parent: first, action: action)
-                        } else if group.tools {
-                            AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
-                        } else {
-                            AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
-                                await action(first.id, event)
-                            }
+        ForEach(timeline.groups) { group in
+            VStack(spacing: 14) {
+                if let first = group.messages.first {
+                    if let date = group.date {
+                        Text(date, format: .dateTime.month(.abbreviated).day().year())
+                            .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
+                    }
+                    if !group.children.isEmpty {
+                        AtlasToolActivity(messages: group.children, selfId: selfId, parent: first, action: action)
+                    } else if group.tools {
+                        AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
+                    } else {
+                        AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
+                            await action(first.id, event)
                         }
                     }
                 }
-                .id(group.id)
             }
+            .id(group.id)
         }
-        .scrollTargetLayout()
     }
 }
 
@@ -74,8 +112,7 @@ struct AtlasThreadNavigation: View {
                 }
             }
             .buttonStyle(.plain)
-            .background(.regularMaterial, in: Capsule())
-            .overlay { Capsule().strokeBorder(.primary.opacity(0.12)) }
+            .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
         }
     }
 
@@ -99,7 +136,10 @@ struct AtlasThreadNavigation: View {
                     .accessibilityIdentifier("thread-prompt-\(message.id)")
                 }
             }
-            .navigationTitle("Prompts").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Prompts")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingPrompts = false } } }
         }
         .frame(idealWidth: 380, idealHeight: 440)

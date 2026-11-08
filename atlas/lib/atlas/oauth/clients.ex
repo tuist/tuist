@@ -54,5 +54,8 @@ defmodule Atlas.OAuth.Clients do
   def list_clients_jwk, do: EctoClients.list_clients_jwk()
 
   @impl Boruta.Openid.Clients
-  def refresh_jwk_from_jwks_uri(client_id), do: EctoClients.refresh_jwk_from_jwks_uri(client_id)
+  # Boruta refreshes a key by fetching the client's `jwks_uri` with an
+  # unguarded HTTP GET whenever a client assertion fails to verify, so a stored
+  # URI would let anyone holding a client ID make the server request it.
+  def refresh_jwk_from_jwks_uri(_client_id), do: {:error, "JWK refresh from JWKS URI not supported"}
 end

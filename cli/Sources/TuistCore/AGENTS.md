@@ -1,14 +1,7 @@
-# TuistCore (Domain Core)
+# TuistCore
 
-This module contains core domain abstractions and shared models used across the CLI.
-
-## Responsibilities
-- Cross-cutting domain models for command runs and analytics (e.g., `CommandEvent`, `RunGraph`).
-- Shared run metadata and cache-related telemetry types.
-
-## Boundaries
-- Avoid direct dependency on CLI command wiring (`TuistKit`) or entry points.
-- Keep IO-heavy or integration-specific logic in feature modules (HTTP, Server, Cache).
+Shared domain models and run metadata. Keep command wiring and IO-heavy
+HTTP/server/cache integrations in their owning feature modules, not here.
 
 ## Invariants
 - Analytics types are Codable and designed for transport to the server.
@@ -19,9 +12,6 @@ This module contains core domain abstractions and shared models used across the 
 - Cargo compilation entries use the shared `cargo` cache category (`Cargo/`), with 30-day retention and the support-cache byte share. Include it in the central support-cache eviction order. Its entry glob must reach individual action/blob files and staging entries below project directories, so a hot project cannot protect all historical contents from eviction. Feature modules must not create unbounded parallel cache roots.
 - Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 
-## Related Context
-- Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
-- Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - SDK action records, CAS blobs, and materialized XCFrameworks share the existing `binaries` category and byte budget; preserve paths already returned to generation during eviction.
 
 - Subhash diagnostics carry optional effective destinations, foreign-build hashes, and UI-test device/runtime inputs. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.

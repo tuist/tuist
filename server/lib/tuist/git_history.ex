@@ -222,12 +222,7 @@ defmodule Tuist.GitHistory do
 
     {rows, _generations} =
       Enum.map_reduce(commits, known_generations, fn commit, generations ->
-        generation =
-          max(
-            1 + Enum.reduce(commit.parents, 0, &max(Map.get(generations, &1, 0), &2)),
-            Map.get(known_generations, commit.sha, 0)
-          )
-
+        generation = generation(commit.parents, generations, Map.get(known_generations, commit.sha, 0))
         now = DateTime.truncate(DateTime.utc_now(), :second)
 
         row = %{
@@ -252,11 +247,15 @@ defmodule Tuist.GitHistory do
         end)
       end)
 
+    # Commits sent again with nothing new below them keep their generation,
+    # and so do their descendants.
+    renumbered = for row <- rows, row.generation > Map.get(known_generations, row.sha, 0), do: row.sha
+
     {:ok, :ok} =
       Repo.transaction(fn ->
         rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Commit, &1, on_conflict: :nothing))
         edges |> Enum.chunk_every(1_000) |> Enum.each(&Repo.insert_all(CommitParent, &1, on_conflict: :nothing))
-        raise_generations(repository_id, rows)
+        raise_generations(repository_id, renumbered)
         :ok
       end)
 
@@ -296,29 +295,76 @@ defmodule Tuist.GitHistory do
     kahn(Enum.reverse(unblocked, ready), children, pending, [commit | ordered])
   end
 
+  # Git's generation number: one above the highest of the parents' (a parent
+  # not stored counts as 0), and never below the generation already stored.
+  defp generation(parents, generations, floor) do
+    max(floor, 1 + Enum.reduce(parents, 0, &max(Map.get(generations, &1, 0), &2)))
+  end
+
   # A commit stored before one of its ancestors was numbered as if the
-  # ancestor were generation 0, and so were its descendants: raise them along
-  # the stored edges until they are above their parents again.
-  defp raise_generations(repository_id, rows) do
-    rows
+  # ancestor were generation 0, and so were its descendants. Given the SHAs
+  # whose generation this upload set or raised, renumber their stored
+  # descendants until each is above its parents again.
+  #
+  # The walk collects the descendants as a set, visiting each commit once
+  # whatever the number of paths to it, and the new generations are worked
+  # out parents first over that set, each parent outside it at its stored
+  # generation. Only the commits whose generation went up are written.
+  defp raise_generations(_repository_id, []), do: :ok
+
+  defp raise_generations(repository_id, shas) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        WITH RECURSIVE descendants (sha) AS (
+          SELECT unnest($2::varchar[])
+          UNION
+          SELECT p.child_sha
+          FROM descendants d
+          JOIN git_commit_parents p ON p.repository_id = $1 AND p.parent_sha = d.sha
+        )
+        SELECT c.sha, c.generation,
+          ARRAY(SELECT p.parent_sha FROM git_commit_parents p WHERE p.repository_id = $1 AND p.child_sha = c.sha)
+        FROM descendants d
+        JOIN git_commits c ON c.repository_id = $1 AND c.sha = d.sha
+        """,
+        [repository_id, shas]
+      )
+
+    descendants = Enum.map(rows, fn [sha, _generation, parents] -> %{sha: sha, parents: parents} end)
+    stored = Map.new(rows, fn [sha, generation, _parents] -> {sha, generation} end)
+
+    outside_parents =
+      descendants |> Enum.flat_map(& &1.parents) |> Enum.uniq() |> Enum.reject(&Map.has_key?(stored, &1))
+
+    known_generations =
+      from(c in Commit,
+        where: c.repository_id == ^repository_id and c.sha in ^outside_parents,
+        select: {c.sha, c.generation}
+      )
+      |> Repo.all()
+      |> Map.new()
+      |> Map.merge(stored)
+
+    {raised, _generations} =
+      descendants
+      |> parents_first()
+      |> Enum.flat_map_reduce(known_generations, fn commit, generations ->
+        generation = generation(commit.parents, generations, stored[commit.sha])
+        raised = if generation > stored[commit.sha], do: [{commit.sha, generation}], else: []
+        {raised, Map.put(generations, commit.sha, generation)}
+      end)
+
+    raised
     |> Enum.chunk_every(1_000)
     |> Enum.each(fn chunk ->
       Repo.query!(
         """
-        WITH RECURSIVE raised (sha, generation, depth) AS (
-          SELECT v.sha, v.generation, 0 FROM unnest($2::varchar[], $3::integer[]) AS v (sha, generation)
-          UNION
-          SELECT p.child_sha, r.generation + 1, r.depth + 1
-          FROM raised r
-          JOIN git_commit_parents p ON p.repository_id = $1 AND p.parent_sha = r.sha
-          JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.child_sha
-          WHERE c.generation <= r.generation AND r.depth < $4
-        )
-        UPDATE git_commits c SET generation = r.generation
-        FROM (SELECT sha, max(generation) AS generation FROM raised GROUP BY sha) r
-        WHERE c.repository_id = $1 AND c.sha = r.sha AND c.generation < r.generation
+        UPDATE git_commits c SET generation = v.generation
+        FROM unnest($2::varchar[], $3::integer[]) AS v (sha, generation)
+        WHERE c.repository_id = $1 AND c.sha = v.sha AND c.generation < v.generation
         """,
-        [repository_id, Enum.map(chunk, & &1.sha), Enum.map(chunk, & &1.generation), settings(nil).window_commits]
+        [repository_id, Enum.map(chunk, &elem(&1, 0)), Enum.map(chunk, &elem(&1, 1))]
       )
     end)
   end

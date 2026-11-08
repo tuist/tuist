@@ -9,7 +9,9 @@
 
 Build Insights helps you find what slows your Cargo builds down and catch regressions before they affect the whole team. You can compare local builds with CI, see how build times change, and inspect the crates compiled in each build.
 
-> [!IMPORTANT] Requirements
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link> to connect your project and authenticate.
 
 ## Report your builds {#report-your-builds}
@@ -31,6 +33,16 @@ Open a build from **Builds → Build Runs** on the dashboard. Use the date, envi
 On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 
 Each row is one `rustc` invocation for a crate, which can contain many source files. **Crate root** identifies its root source file; the duration is for the whole compiler job, not that file alone. A crate can appear more than once for different targets or configurations. Compiler messages are grouped in **Warnings** and **Errors**.
+
+### Track crates across builds {#crate-history}
+
+When available for your project, **Builds → Crates** shows observed crates and their compilation history. Open a crate to compare its recorded durations and outcomes across builds, then follow a compilation back to its Cargo build. The same inventory is available through `/cargo/crates` in the project API and the shared MCP build-entity tools with `kind: cargo_crates`.
+
+Crates are grouped by their exact recorded root path, name and kind. Changing checkout paths can split histories; profiles, features and target triples are not distinguished. This is an inventory of observed compiler jobs, not every crate in your workspace. Cached or up-to-date crates do not create compilation samples.
+
+### Attribute build reports {#report-attribution}
+
+Authenticated reports identify the individual behind personal credentials. Shared credentials need not identify an individual. Optionally set `TUIST_ACTOR_ID` to a stable opaque identifier on the reporting machine; it is off by default and is displayed as an unverified claim, never used for authorization. Older servers may ignore the claim. Do not put secrets in it.
 
 ## Read the timings {#timing-boundaries}
 
@@ -55,8 +67,9 @@ Open a build's **Cache** tab to see task hits, task misses, hit rate, and downlo
 
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
-> [!WARNING] Experimental compilation cache
-> The first version caches only registry leaf libraries with verified inputs and outputs. Workspace crates, build scripts, procedural macros, dependencies on other crates, incremental compilation, native linking, and executables build normally. Cache keys retain absolute paths, so reuse across different checkout paths isn't supported yet.
+<!-- @snippet: ../cache/_rust-experimental -->
+
+Incremental compilations build normally.
 
 ### Builds that run tests {#builds-that-run-tests}
 

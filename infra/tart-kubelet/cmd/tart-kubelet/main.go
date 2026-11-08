@@ -41,6 +41,7 @@ import (
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/macosandbox"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -383,6 +384,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if nodeLabels == nil {
+		nodeLabels = map[string]string{}
+	}
+	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
+	nodeLabels[macosandbox.WarmHostLabel] = "v1"
+	sandboxService := &macosandbox.Service{Kube: typedClient, Node: nodeName, Root: filepath.Join(tartClient.UserDataDir, ".macos-sandboxes")}
+	tartClient.LaunchGuard = sandboxService.LaunchGuard
+	if err := mgr.Add(sandboxService); err != nil {
+		setupLog.Error(err, "add macOS sandbox service")
+		os.Exit(1)
+	}
 	var customVolumes *podagent.CustomVolumes
 	var prefetch *podagent.PrefetchPoller
 	if customCacheURL != "" && space.Enabled() {
@@ -399,7 +411,7 @@ func main() {
 			os.Exit(1)
 		}
 		// Every host of the class warms the custom HEADs the server lists for it.
-		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes}
+		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes, Checkouts: customVolumes}
 		if err := mgr.Add(prefetch); err != nil {
 			setupLog.Error(err, "add custom cache prefetch")
 			os.Exit(1)
@@ -504,6 +516,8 @@ func main() {
 		Heartbeat:      30 * time.Second,
 		PrewarmGate:    prewarmGate,
 		RuntimeVersion: tartClient.Version,
+		MemoryPressure: nodeagent.HostMemoryPressure,
+		PIDPressure:    nodeagent.HostPIDPressure,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config

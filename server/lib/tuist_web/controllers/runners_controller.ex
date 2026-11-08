@@ -91,7 +91,8 @@ defmodule TuistWeb.RunnersController do
       {:error, :unknown_account} ->
         conn |> put_status(:not_found) |> json(%{error: "account not configured"})
 
-      {:error, mint_failure} when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] ->
+      {:error, mint_failure}
+      when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed, :bitrise_mint_failed] ->
         conn |> put_status(:bad_gateway) |> json(%{error: "credential mint failed"})
 
       {:error, :not_in_cluster} ->
@@ -110,7 +111,7 @@ defmodule TuistWeb.RunnersController do
 
       GET /api/internal/runners/desired_replicas?fleet=<name>
       → 200 { fleet, claimed, occupied, queued, withheld,
-              p95_concurrent_last_hour }
+              p95_concurrent_last_hour, learned_warm_floor }
 
   Authentication: same SA-token + TokenReview path as the dispatch
   endpoint. Anyone with a valid in-cluster SA token can read —
@@ -172,10 +173,11 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform and site, which
+  #   * locality — the fleet's platform and the site the claiming runner's
+  #     Node is at (`Tuist.Runners.Sites.claim_site/2`), which
   #     `runner_cache_endpoint_url/3` matches against the private
   #     region's `runner_platforms` and `site`, so a node co-located with
-  #     one fleet never serves a fleet on the wrong side of a WAN.
+  #     one site never serves a runner on the wrong side of a WAN.
   defp dispatch_response(
          credential,
          account,
@@ -221,6 +223,12 @@ defmodule TuistWeb.RunnersController do
         waiting_trace: credential.waiting_trace
       }
     }
+  end
+
+  defp credential_fields(%{kind: :api, job: job}), do: %{api_job: job}
+
+  defp credential_fields(%{kind: :bitrise} = credential) do
+    %{bitrise_intro_secret: credential.intro_secret, bitrise_report_token: credential.report_token}
   end
 
   defp credential_fields(%{kind: :buildkite} = credential) do

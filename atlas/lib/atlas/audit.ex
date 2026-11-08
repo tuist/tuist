@@ -337,6 +337,8 @@ defmodule Atlas.Audit do
   def resource_path("mcp_oauth_session", target_id, _metadata) when is_binary(target_id) and target_id != "",
     do: "/admin/mcps"
 
+  def resource_path("user_connection", _target_id, _metadata), do: "/settings/connections"
+
   def resource_path("letter", _target_id, _metadata), do: "/outbound/postal"
 
   def resource_path("finance_transaction_attachment", _target_id, _metadata), do: "/commercial/finance"

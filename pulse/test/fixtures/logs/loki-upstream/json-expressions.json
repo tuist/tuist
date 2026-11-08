@@ -1,0 +1,1626 @@
+{
+  "attribution": "Grafana Labs contributors; extraction adapted for Pulse on 2026-10-28. See adjacent LICENSE. No Loki parser or query runtime is executed.",
+  "constructor_failure_cases": [
+    {
+      "destination": "app",
+      "error": "cannot parse expression [field with space]: syntax error: unexpected FIELD",
+      "error_assertion": "exact",
+      "error_format": "cannot parse expression [%s]: syntax error: %s",
+      "error_suffix": "unexpected FIELD",
+      "expression": "field with space",
+      "fields": [
+        [
+          "app",
+          "field with space"
+        ]
+      ],
+      "function": "TestJSONExpressionParserFailures",
+      "name": "invalid field name",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"invalid field name\",\n\t\t\tNewLabelExtractionExpr(\"app\", `field with space`),\n\t\t\t\"unexpected FIELD\",\n\t\t},\n",
+      "sha256": "81b81d2f0a4bc1e50c2d0691235c3ed7182294f91ecad20a8a2b9981022fc34f",
+      "source_end": 785,
+      "source_start": 781
+    },
+    {
+      "destination": "app",
+      "error": "cannot parse expression [\"pod\"]]: syntax error: unexpected STRING, expecting LSB or FIELD",
+      "error_assertion": "exact",
+      "error_format": "cannot parse expression [%s]: syntax error: %s",
+      "error_suffix": "unexpected STRING, expecting LSB or FIELD",
+      "expression": "\"pod\"]",
+      "fields": [
+        [
+          "app",
+          "\"pod\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParserFailures",
+      "name": "missing opening square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing opening square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `\"pod\"]`),\n\t\t\t\"unexpected STRING, expecting LSB or FIELD\",\n\t\t},\n",
+      "sha256": "e5c87f1002a58afc621d7a5fc7a038c7fc6b6c5a48f115157626ef65b43eb4a6",
+      "source_end": 790,
+      "source_start": 786
+    },
+    {
+      "destination": "app",
+      "error": "cannot parse expression [[\"pod\"]: syntax error: unexpected $end, expecting RSB",
+      "error_assertion": "exact",
+      "error_format": "cannot parse expression [%s]: syntax error: %s",
+      "error_suffix": "unexpected $end, expecting RSB",
+      "expression": "[\"pod\"",
+      "fields": [
+        [
+          "app",
+          "[\"pod\""
+        ]
+      ],
+      "function": "TestJSONExpressionParserFailures",
+      "name": "missing closing square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `[\"pod\"`),\n\t\t\t\"unexpected $end, expecting RSB\",\n\t\t},\n",
+      "sha256": "3e93ef3962156bc4dd4a647d22e4580a7b011b54684c039476de39859142c4db",
+      "source_end": 795,
+      "source_start": 791
+    },
+    {
+      "destination": "app",
+      "error": "cannot parse expression [[\"pod\"\"uuid\"]]: syntax error: unexpected STRING, expecting RSB",
+      "error_assertion": "exact",
+      "error_format": "cannot parse expression [%s]: syntax error: %s",
+      "error_suffix": "unexpected STRING, expecting RSB",
+      "expression": "[\"pod\"\"uuid\"]",
+      "fields": [
+        [
+          "app",
+          "[\"pod\"\"uuid\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParserFailures",
+      "name": "missing closing square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `[\"pod\"\"uuid\"]`),\n\t\t\t\"unexpected STRING, expecting RSB\",\n\t\t},\n",
+      "sha256": "18b27cfc8a1eb056b431324eac23e01e7e74adc73df24dc5041332bb5a43586f",
+      "source_end": 800,
+      "source_start": 796
+    },
+    {
+      "destination": "app",
+      "error": "cannot parse expression [pod..uuid]: syntax error: unexpected DOT, expecting FIELD",
+      "error_assertion": "exact",
+      "error_format": "cannot parse expression [%s]: syntax error: %s",
+      "error_suffix": "unexpected DOT, expecting FIELD",
+      "expression": "pod..uuid",
+      "fields": [
+        [
+          "app",
+          "pod..uuid"
+        ]
+      ],
+      "function": "TestJSONExpressionParserFailures",
+      "name": "invalid nesting",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"invalid nesting\",\n\t\t\tNewLabelExtractionExpr(\"app\", `pod..uuid`),\n\t\t\t\"unexpected DOT, expecting FIELD\",\n\t\t},\n",
+      "sha256": "31779ffe289efbb993bd53fa112ff3325a8460391a405bc6520a57b2e2501996",
+      "source_end": 805,
+      "source_start": 801
+    }
+  ],
+  "counts": {
+    "constructor_failure_rows": 5,
+    "engine_empty_evaluations": 0,
+    "engine_evaluations": 5,
+    "engine_expected_entries": 0,
+    "engine_expected_series": 4,
+    "engine_fixtures": 1,
+    "engine_instant_evaluations": 3,
+    "engine_load_rows": 2,
+    "engine_loaded_entries": 8,
+    "engine_metadata_load_rows": 0,
+    "engine_numeric_slots": 6,
+    "engine_range_evaluations": 2,
+    "engine_reject_evaluations": 1,
+    "engine_select_evaluations": 0,
+    "engine_series_evaluations": 4,
+    "engine_sparse_slots": 1,
+    "expression_rows": 29,
+    "grammar_nil_path_rows": 1,
+    "grammar_path_rows": 11,
+    "grammar_reject_rows": 6,
+    "grammar_rows": 18,
+    "table_hinted_rows": 1,
+    "table_metadata_rows": 1,
+    "table_ordered_expressions": 30,
+    "table_unhinted_rows": 28,
+    "total_source_rows_and_evaluations": 57
+  },
+  "expression_cases": [
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "single field",
+      "raw": "\t\t{\n\t\t\t\"single field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "0e73b902b94c1b0272e21f99982d48bebd9219acf09df1ec9afcbca8c4c9e565",
+      "source_end": 425,
+      "source_start": 415,
+      "structured_metadata": {},
+      "want": {
+        "app": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"app\", \"foo\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"test\", `[\"field with space\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "test",
+          "[\"field with space\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "alternate syntax",
+      "raw": "\t\t{\n\t\t\t\"alternate syntax\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"test\", `[\"field with space\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"test\", \"value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "22b88388d043e7f030c116d3fda2b222743cd2d5139d4cf193939b9ae4806bde",
+      "source_end": 436,
+      "source_start": 426,
+      "structured_metadata": {},
+      "want": {
+        "test": "value"
+      },
+      "want_expression": "labels.FromStrings(\"test\", \"value\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t\tNewLabelExtractionExpr(\"namespace\", \"namespace\"),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ],
+        [
+          "namespace",
+          "namespace"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "multiple fields",
+      "raw": "\t\t{\n\t\t\t\"multiple fields\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t\tNewLabelExtractionExpr(\"namespace\", \"namespace\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "ed4c931d05774b9ebe34192576d465f7aa7021bb30c5466bcd4ee6145ad964ba",
+      "source_end": 450,
+      "source_start": 437,
+      "structured_metadata": {},
+      "want": {
+        "app": "foo",
+        "namespace": "prod"
+      },
+      "want_expression": "labels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t)"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"utf8\", `[\"field with ÜFT8👌\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "utf8",
+          "[\"field with ÜFT8👌\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "utf8",
+      "raw": "\t\t{\n\t\t\t\"utf8\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"utf8\", `[\"field with ÜFT8👌\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"utf8\", \"value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "bf02c9df25e08c3dd61c09306ff71b07d3c9bf8c0e223340b3d27a9bf39589c6",
+      "source_end": 461,
+      "source_start": 451,
+      "structured_metadata": {},
+      "want": {
+        "utf8": "value"
+      },
+      "want_expression": "labels.FromStrings(\"utf8\", \"value\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", \"pod.uuid\"),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "pod.uuid"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "nested field",
+      "raw": "\t\t{\n\t\t\t\"nested field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", \"pod.uuid\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "4accdb62d1eba7a8224037e30c4b3b5f51aa06eb63fcb8f57c372ebd1b47a6b8",
+      "source_end": 472,
+      "source_start": 462,
+      "structured_metadata": {},
+      "want": {
+        "uuid": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"foo\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod[\"uuid\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "pod[\"uuid\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "nested field alternate syntax",
+      "raw": "\t\t{\n\t\t\t\"nested field alternate syntax\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod[\"uuid\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "46d0ac56e7cfcb52b1685f71ce03d388c1c1727ee0e4c5c0957cdd885b645e6b",
+      "source_end": 483,
+      "source_start": 473,
+      "structured_metadata": {},
+      "want": {
+        "uuid": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"foo\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"][\"uuid\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "[\"pod\"][\"uuid\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "nested field alternate syntax 2",
+      "raw": "\t\t{\n\t\t\t\"nested field alternate syntax 2\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"][\"uuid\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "0d58f44b474b3a88ed0c1c302f351e01d30d1713694bea180a95e3af694e4c4b",
+      "source_end": 494,
+      "source_start": 484,
+      "structured_metadata": {},
+      "want": {
+        "uuid": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"foo\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"].uuid`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "[\"pod\"].uuid"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "nested field alternate syntax 3",
+      "raw": "\t\t{\n\t\t\t\"nested field alternate syntax 3\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"].uuid`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "4b514493a7bf9d41fa247bca8d2ec5ef301b0ead69ad5c0af78d2e498d11fa1f",
+      "source_end": 505,
+      "source_start": 495,
+      "structured_metadata": {},
+      "want": {
+        "uuid": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"foo\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[0]`),\n\t\t\t}",
+      "fields": [
+        [
+          "param",
+          "pod.deployment.params[0]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "array element",
+      "raw": "\t\t{\n\t\t\t\"array element\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[0]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"1\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "848ccf11365253268741a6a73a28c5f8bcc68e03a1169ba895731ed3cd3702a5",
+      "source_end": 516,
+      "source_start": 506,
+      "structured_metadata": {},
+      "want": {
+        "param": "1"
+      },
+      "want_expression": "labels.FromStrings(\"param\", \"1\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"undefined\", `pod[\"\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "undefined",
+          "pod[\"\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "object element not present",
+      "raw": "\t\t{\n\t\t\t\"object element not present\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"undefined\", `pod[\"\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"undefined\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "b45b5c0b3ddf995fa6089c9d95b98a0d4e3f1944d10cb4f4ff92702aff836b84",
+      "source_end": 527,
+      "source_start": 517,
+      "structured_metadata": {},
+      "want": {
+        "undefined": ""
+      },
+      "want_expression": "labels.FromStrings(\"undefined\", \"\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[\"\"]`),\n\t\t\t}",
+      "fields": [
+        [
+          "param",
+          "pod.deployment.params[\"\"]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "accessing invalid array index",
+      "raw": "\t\t{\n\t\t\t\"accessing invalid array index\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[\"\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "7cdb835fa54c83625640a45b6c4842c0ad8c1706142b7b0f2a1f33b7f3d51562",
+      "source_end": 538,
+      "source_start": 528,
+      "structured_metadata": {},
+      "want": {
+        "param": ""
+      },
+      "want_expression": "labels.FromStrings(\"param\", \"\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[3]`),\n\t\t\t}",
+      "fields": [
+        [
+          "param",
+          "pod.deployment.params[3]"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "array string element",
+      "raw": "\t\t{\n\t\t\t\"array string element\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[3]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"string_value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "00f889cb6e9c52b547df8f1749eeb3759a4c8f5832c192927659246948674718",
+      "source_end": 549,
+      "source_start": 539,
+      "structured_metadata": {},
+      "want": {
+        "param": "string_value"
+      },
+      "want_expression": "labels.FromStrings(\"param\", \"string_value\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"params\", `pod.deployment.params`),\n\t\t\t}",
+      "fields": [
+        [
+          "params",
+          "pod.deployment.params"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "full array",
+      "raw": "\t\t{\n\t\t\t\"full array\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"params\", `pod.deployment.params`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"params\", `[1,2,3,\"string_value\"]`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "80d413007cc17bdeafed8dc34da79cb0d659f4505a3a6072f34bd13eac5ffa75",
+      "source_end": 560,
+      "source_start": 550,
+      "structured_metadata": {},
+      "want": {
+        "params": "[1,2,3,\"string_value\"]"
+      },
+      "want_expression": "labels.FromStrings(\"params\", `[1,2,3,\"string_value\"]`)"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"deployment\", `pod.deployment`),\n\t\t\t}",
+      "fields": [
+        [
+          "deployment",
+          "pod.deployment"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "full object",
+      "raw": "\t\t{\n\t\t\t\"full object\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"deployment\", `pod.deployment`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"deployment\", `{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "2f3e22fbad22d4c69e1adac7739e2406759443e5c313e485d887821ab0a1828e",
+      "source_end": 571,
+      "source_start": 561,
+      "structured_metadata": {},
+      "want": {
+        "deployment": "{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}"
+      },
+      "want_expression": "labels.FromStrings(\"deployment\", `{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}`)"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nope\", `pod.nope`),\n\t\t\t}",
+      "fields": [
+        [
+          "nope",
+          "pod.nope"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "expression matching nothing",
+      "raw": "\t\t{\n\t\t\t\"expression matching nothing\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nope\", `pod.nope`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"nope\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "22e5c023e88df8d29f02c1816897f5f1e54a775611afd63a03b2b5925dc04f31",
+      "source_end": 582,
+      "source_start": 572,
+      "structured_metadata": {},
+      "want": {
+        "nope": ""
+      },
+      "want_expression": "labels.FromStrings(\"nope\", \"\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nf\", `null_field`),\n\t\t\t}",
+      "fields": [
+        [
+          "nf",
+          "null_field"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "null field",
+      "raw": "\t\t{\n\t\t\t\"null field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nf\", `null_field`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"nf\", \"\"), // null is coerced to an empty string\n\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "3f19a00b974843bd185746b6a859a0a7e21118bfef5b13152a03c49e70fad38e",
+      "source_end": 594,
+      "source_start": 583,
+      "structured_metadata": {},
+      "want": {
+        "nf": ""
+      },
+      "want_expression": "labels.FromStrings(\"nf\", \"\")"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"bool\", `bool_field`),\n\t\t\t}",
+      "fields": [
+        [
+          "bool",
+          "bool_field"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "boolean field",
+      "raw": "\t\t{\n\t\t\t\"boolean field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"bool\", `bool_field`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"bool\", `false`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "43a4610449e6b3c27e94d8d8a043a900328f51cd5a988da92754dc12bbd25ffc",
+      "source_end": 605,
+      "source_start": 595,
+      "structured_metadata": {},
+      "want": {
+        "bool": "false"
+      },
+      "want_expression": "labels.FromStrings(\"bool\", `false`)"
+    },
+    {
+      "base_labels": {
+        "uuid": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "pod.uuid"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "label override",
+      "raw": "\t\t{\n\t\t\t\"label override\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\"),\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"uuid_extracted\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "9517cd03b4214f47f3a5e106d3b6b2829a43ad21f84bfd2c16ae62cc630fab7b",
+      "source_end": 618,
+      "source_start": 606,
+      "structured_metadata": {},
+      "want": {
+        "uuid": "bar",
+        "uuid_extracted": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"uuid_extracted\", \"foo\",\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "uuid": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"request_size\", `request.size.invalid`),\n\t\t\t}",
+      "fields": [
+        [
+          "request_size",
+          "request.size.invalid"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "non-matching expression",
+      "raw": "\t\t{\n\t\t\t\"non-matching expression\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"request_size\", `request.size.invalid`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\"),\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"request_size\", \"\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "94eac66ec133948e4007917635d55a169b15f33f299de5e9193f4879a0622f77",
+      "source_end": 631,
+      "source_start": 619,
+      "structured_metadata": {},
+      "want": {
+        "request_size": "",
+        "uuid": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"request_size\", \"\",\n\t\t\t)"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "pod.uuid"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{}",
+      "line_expression": "[]byte(\"{}\")",
+      "metadata_expression": "nil",
+      "name": "empty line",
+      "raw": "\t\t{\n\t\t\t\"empty line\",\n\t\t\t[]byte(\"{}\"),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "a9dd3c47f8e34ec12e96ab81bae5e394cad5b10db5f9c6c84a34c86e2f0fa0b1",
+      "source_end": 642,
+      "source_start": 632,
+      "structured_metadata": {},
+      "want": {
+        "uuid": ""
+      },
+      "want_expression": "labels.FromStrings(\"uuid\", \"\")"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "will.not.work"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "nil",
+      "name": "existing labels are not affected",
+      "raw": "\t\t{\n\t\t\t\"existing labels are not affected\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"uuid\", \"\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "0d9e108fd862bec9a2adddba0e04722fe6e0d9a0e87fbc5eec6f9b68cc5c27e7",
+      "source_end": 655,
+      "source_start": 643,
+      "structured_metadata": {},
+      "want": {
+        "foo": "bar",
+        "uuid": ""
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"uuid\", \"\",\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "will.not.work"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "invalid json",
+      "line_expression": "[]byte(`invalid json`)",
+      "metadata_expression": "nil",
+      "name": "invalid JSON line",
+      "raw": "\t\t{\n\t\t\t\"invalid JSON line\",\n\t\t\t[]byte(`invalid json`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "2cf1a40b87312d823cd27662d37b443269d45f350ca60b48e991b574616d738b",
+      "source_end": 668,
+      "source_start": 656,
+      "structured_metadata": {},
+      "want": {
+        "__error__": "JSONParserErr",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "will.not.work"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NewParserHint([]string{\"__error__\"}, nil, false, true, \"\")",
+      "hinted": true,
+      "initial_parsed_labels": {},
+      "line": "invalid json",
+      "line_expression": "[]byte(`invalid json`)",
+      "metadata_expression": "nil",
+      "name": "invalid JSON line with hints",
+      "raw": "\t\t{\n\t\t\t\"invalid JSON line with hints\",\n\t\t\t[]byte(`invalid json`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t),\n\t\t\tNewParserHint([]string{\"__error__\"}, nil, false, true, \"\"),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "b82c9c3bb925af053008740668fc0fc63f23736bc39be94ecd3bae63158851d9",
+      "source_end": 681,
+      "source_start": 669,
+      "structured_metadata": {},
+      "want": {
+        "__error__": "JSONParserErr",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t}",
+      "fields": [
+        [
+          "uuid",
+          "will.not.work"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "",
+      "line_expression": "[]byte(``)",
+      "metadata_expression": "nil",
+      "name": "empty line",
+      "raw": "\t\t{\n\t\t\t\"empty line\",\n\t\t\t[]byte(``),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "331c4e1e5920fbcc0be480f8f036bbd03f0e5b9e65da006c37bbb1bb518876b5",
+      "source_end": 692,
+      "source_start": 682,
+      "structured_metadata": {},
+      "want": {
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\")"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"{ \\\"key\\\": \\\"value\\\", \\\"key2\\\":\\\"value2\\\"}\"}",
+      "line_expression": "[]byte(`{\"app\":\"{ \\\"key\\\": \\\"value\\\", \\\"key2\\\":\\\"value2\\\"}\"}`)",
+      "metadata_expression": "nil",
+      "name": "nested escaped object",
+      "raw": "\t\t{\n\t\t\t\"nested escaped object\",\n\t\t\t[]byte(`{\"app\":\"{ \\\"key\\\": \\\"value\\\", \\\"key2\\\":\\\"value2\\\"}\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{ \"key\": \"value\", \"key2\":\"value2\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "d256d7bcc83b5c104f0b2e80d2374949047b2ef02942fe067e6da8757a2d4d48",
+      "source_end": 705,
+      "source_start": 693,
+      "structured_metadata": {},
+      "want": {
+        "app": "{ \"key\": \"value\", \"key2\":\"value2\"}",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{ \"key\": \"value\", \"key2\":\"value2\"}`,\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":{\"name\":\"great \\\"loki\\\"\"}",
+      "line_expression": "[]byte(`{\"app\":{\"name\":\"great \\\"loki\\\"\"}`)",
+      "metadata_expression": "nil",
+      "name": "nested object with escaped value",
+      "raw": "\t\t{\n\t\t\t\"nested object with escaped value\",\n\t\t\t[]byte(`{\"app\":{\"name\":\"great \\\"loki\\\"\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "484e6ea17183c513d17413303efa397ef7b463aac09918ffe384130cd80034ab",
+      "source_end": 718,
+      "source_start": 706,
+      "structured_metadata": {},
+      "want": {
+        "app": "{\"name\":\"great \\\"loki\\\"\"}",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"{\\\"name\\\":\\\"great \\\\\\\"loki\\\\\\\"\\\"}\"}",
+      "line_expression": "[]byte(`{\"app\":\"{\\\"name\\\":\\\"great \\\\\\\"loki\\\\\\\"\\\"}\"}`)",
+      "metadata_expression": "nil",
+      "name": "field with escaped value inside the json string",
+      "raw": "\t\t{\n\t\t\t\"field with escaped value inside the json string\",\n\t\t\t[]byte(`{\"app\":\"{\\\"name\\\":\\\"great \\\\\\\"loki\\\\\\\"\\\"}\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "ac85da5db2f718fe7386d9bd0faf48cfa97c480f7bea18fea46325bd03dc97bb",
+      "source_end": 731,
+      "source_start": 719,
+      "structured_metadata": {},
+      "want": {
+        "app": "{\"name\":\"great \\\"loki\\\"\"}",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t)"
+    },
+    {
+      "base_labels": {
+        "foo": "bar"
+      },
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"app\":\"duplicate\"}",
+      "line_expression": "[]byte(`{\"app\":\"foo\",\"app\":\"duplicate\"}`)",
+      "metadata_expression": "nil",
+      "name": "duplicate field name takes first value",
+      "raw": "\t\t{\n\t\t\t\"duplicate field name takes first value\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"app\":\"duplicate\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "af016f2fb904d5080337c61ae609ddc838f749edb87e5c637ded59d6c1c0ea33",
+      "source_end": 744,
+      "source_start": 732,
+      "structured_metadata": {},
+      "want": {
+        "app": "foo",
+        "foo": "bar"
+      },
+      "want_expression": "labels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", \"foo\",\n\t\t\t)"
+    },
+    {
+      "base_labels": {},
+      "expressions_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t}",
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "function": "TestJSONExpressionParser",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "line": "{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}",
+      "line_expression": "testLine",
+      "metadata_expression": "map[string]string{\"app\": \"app_sm\"}",
+      "name": "duplicate conflict with structured metadata",
+      "raw": "\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"app_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"app\": \"app_sm\"},\n\t\t},\n",
+      "sha256": "b125ad26b3aeb8d5e3444077e878d9f83b53466177cf5c9a2b8335d7115e94b9",
+      "source_end": 757,
+      "source_start": 745,
+      "structured_metadata": {
+        "app": "app_sm"
+      },
+      "want": {
+        "app": "app_sm",
+        "app_extracted": "foo"
+      },
+      "want_expression": "labels.FromStrings(\"app\", \"app_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t)"
+    }
+  ],
+  "fixtures": [
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "{\"user\":{\"id\":\"u1\",\"name\":\"alice\"},\"tags\":[\"x\",\"y\"]}",
+          "start": 20,
+          "every": 20,
+          "count": 4,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 290,
+          "source_end": 290,
+          "sha256": "a0f2dab96082ef4d3157d50a6183b340170019d5fde850b9facc35ab25732d48",
+          "raw": "  {app=\"a\"} `{\"user\":{\"id\":\"u1\",\"name\":\"alice\"},\"tags\":[\"x\",\"y\"]}` @ 20s [repeat every 20s for 4]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"a\":1}",
+          "start": 20,
+          "every": 20,
+          "count": 4,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 291,
+          "source_end": 291,
+          "sha256": "b49d02befbe6129b2017ddfc0d531aacfa71d4b8cdf23940f2d87eba271eb7d6",
+          "raw": "  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 4]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])",
+          "parser_form": "explicit_paths",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "tag": "x",
+                "who": "u1"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact combined metric label/value oracle",
+              "source_start": 294,
+              "source_end": 294,
+              "sha256": "e78a9e07afc672952874048091c25a4ef6eb709ef1c95b23d3a650065a175ce1",
+              "raw": "  {app=\"a\", who=\"u1\", tag=\"x\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 293,
+          "source_end": 294,
+          "sha256": "3131cc519125a31db938738be9520c1c6497c35be516e0259dd1a3ff30072a02",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])",
+          "parser_form": "explicit_paths",
+          "mode": "range",
+          "start": 40,
+          "end": 80,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "tag": "x",
+                "who": "u1"
+              },
+              "values": [
+                "2",
+                "3",
+                "3"
+              ],
+              "purpose": "exact combined metric label/value oracle",
+              "source_start": 296,
+              "source_end": 296,
+              "sha256": "972306fbffeddd4a0e0e4592c146e0461b406b61a6df795d09c2466acb416118",
+              "raw": "  {app=\"a\", who=\"u1\", tag=\"x\"} 2 3 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 295,
+          "source_end": 296,
+          "sha256": "1ac6651dd1286f3f76cacc3f19ec941079795573f69dea2fb40626069c0e4761",
+          "raw": "eval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])  # overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 2 3 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])",
+          "parser_form": "explicit_paths",
+          "mode": "range",
+          "start": 60,
+          "end": 180,
+          "step": 120,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "tag": "x",
+                "who": "u1"
+              },
+              "values": [
+                "3",
+                "_"
+              ],
+              "purpose": "exact combined metric label/value oracle",
+              "source_start": 298,
+              "source_end": 298,
+              "sha256": "7d1406131d97ec9530862c81f197e5090b804734932ab1bc299256aac874a205",
+              "raw": "  {app=\"a\", who=\"u1\", tag=\"x\"} 3 _\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 297,
+          "source_end": 298,
+          "sha256": "8b84f5321018eb27f0b429a5628adc228406b53c4d6a7f6f79deba2c066fc968",
+          "raw": "eval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m]) # non-overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3 _\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json age=\"user.age\" [1m])",
+          "parser_form": "explicit_paths",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "age": "",
+                "app": "a"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact combined metric label/value oracle",
+              "source_start": 300,
+              "source_end": 300,
+              "sha256": "a214f34a5ed6be6b5acb64ebe5367b539c9ade6da5a0d8720aa8ce1483e30689",
+              "raw": "  {app=\"a\", age=\"\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 299,
+          "source_end": 300,
+          "sha256": "ebf991ab5c38399ac3a1a0aeed7d954b2c0c26c629b18479095935eac546cf19",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json age=\"user.age\" [1m])\n  {app=\"a\", age=\"\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json bad=\"user[\" [1m])",
+          "parser_form": "explicit_paths",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "cannot parse expression",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 301,
+          "source_end": 302,
+          "sha256": "b1463e4a691930719633d32104a2e8ef214150b18bf507552524e2fbfe4b7efa",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json bad=\"user[\" [1m])\n  expect fail msg: cannot parse expression\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 288,
+      "source_end": 302,
+      "sha256": "bd055bf13d889b2466a68da3301f7a606f8f842e93c1596b61921301215c7eee",
+      "raw": "clear\nload\n  {app=\"a\"} `{\"user\":{\"id\":\"u1\",\"name\":\"alice\"},\"tags\":[\"x\",\"y\"]}` @ 20s [repeat every 20s for 4]\n  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 4]\n\neval instant at 60s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3\neval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])  # overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 2 3 3\neval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m]) # non-overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3 _\neval instant at 60s count_over_time({app=\"a\"} | json age=\"user.age\" [1m])\n  {app=\"a\", age=\"\"} 3\neval instant at 60s count_over_time({app=\"a\"} | json bad=\"user[\" [1m])\n  expect fail msg: cannot parse expression\n"
+    }
+  ],
+  "grammar_cases": [
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "app",
+      "function": "TestJSONExpressionParser",
+      "name": "single field",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"single field\",\n\t\t\t\"app\",\n\t\t\t[]interface{}{\"app\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "e4eb0833cf4d5eca6e45f19c79d3cec5b76e7fb7e69d45e887197727b9d4e6af",
+      "source_end": 24,
+      "source_start": 19,
+      "want": [
+        "app"
+      ],
+      "want_expression": "[]interface{}{\"app\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "[\"field with space\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "top-level field with spaces",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"top-level field with spaces\",\n\t\t\t`[\"field with space\"]`,\n\t\t\t[]interface{}{\"field with space\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "0330b6975c7b6bbe4866073835d8adfd983d0978e41cab45a8f133cdd38e5106",
+      "source_end": 30,
+      "source_start": 25,
+      "want": [
+        "field with space"
+      ],
+      "want_expression": "[]interface{}{\"field with space\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "[\"field with ÜFT8👌\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "top-level field with UTF8",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"top-level field with UTF8\",\n\t\t\t`[\"field with ÜFT8👌\"]`,\n\t\t\t[]interface{}{\"field with ÜFT8👌\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "0af5f28dc68b64b99e426bcf9a9dad9f0a0d62cf999830221dd8f98f93763846",
+      "source_end": 36,
+      "source_start": 31,
+      "want": [
+        "field with ÜFT8👌"
+      ],
+      "want_expression": "[]interface{}{\"field with ÜFT8👌\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "[0]",
+      "function": "TestJSONExpressionParser",
+      "name": "top-level array access",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"top-level array access\",\n\t\t\t`[0]`,\n\t\t\t[]interface{}{0},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "a436685d2dc9ba2697bc73dc34e40ca3933c1ec7da7e2bdaafa8befee3fa8366",
+      "source_end": 42,
+      "source_start": 37,
+      "want": [
+        0
+      ],
+      "want_expression": "[]interface{}{0}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "pod.uuid",
+      "function": "TestJSONExpressionParser",
+      "name": "nested field",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"nested field\",\n\t\t\t`pod.uuid`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "5536963ebd86f5b27cbb6e226866524e06ee7418fa13c08a21cec8b7a5884e75",
+      "source_end": 48,
+      "source_start": 43,
+      "want": [
+        "pod",
+        "uuid"
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"uuid\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "pod[\"uuid\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "nested field alternate syntax",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"nested field alternate syntax\",\n\t\t\t`pod[\"uuid\"]`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "f18a3e08062c89e44e3d8a6a83c96cc2c41655e6a119766d1f72ce163bf0dec9",
+      "source_end": 54,
+      "source_start": 49,
+      "want": [
+        "pod",
+        "uuid"
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"uuid\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "[\"pod\"][\"uuid\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "nested field alternate syntax 2",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"nested field alternate syntax 2\",\n\t\t\t`[\"pod\"][\"uuid\"]`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "01babba63c29c13f18c35288a542a0976e9df95623f631f3007d286c9a120bf6",
+      "source_end": 60,
+      "source_start": 55,
+      "want": [
+        "pod",
+        "uuid"
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"uuid\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "pod.deployment.params[0]",
+      "function": "TestJSONExpressionParser",
+      "name": "array access",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"array access\",\n\t\t\t`pod.deployment.params[0]`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "7871c2344646a8bc74c24ea71fe5e98d7d8bb8e41b1f6e5c04d0b841849b685a",
+      "source_end": 66,
+      "source_start": 61,
+      "want": [
+        "pod",
+        "deployment",
+        "params",
+        0
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"deployment\", \"params\", 0}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "pod.deployment.params[0].param",
+      "function": "TestJSONExpressionParser",
+      "name": "multi-level array access",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"multi-level array access\",\n\t\t\t`pod.deployment.params[0].param`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "cf83a43bff82401931221d8ec6a0fa9ca2fbb42d4fed7f0880e0840e5222edf4",
+      "source_end": 72,
+      "source_start": 67,
+      "want": [
+        "pod",
+        "deployment",
+        "params",
+        0,
+        "param"
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "pod.deployment.params[0][\"param\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "multi-level array access alternate syntax",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"multi-level array access alternate syntax\",\n\t\t\t`pod.deployment.params[0][\"param\"]`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "9ef2f2b0d8fcb4c55133d05bca1b0765177d7ff5ea34590627c3c9e8b51c77bf",
+      "source_end": 78,
+      "source_start": 73,
+      "want": [
+        "pod",
+        "deployment",
+        "params",
+        0,
+        "param"
+      ],
+      "want_expression": "[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"}"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "",
+      "function": "TestJSONExpressionParser",
+      "name": "empty",
+      "outcome": "nil_path",
+      "raw": "\t\t{\n\t\t\t\"empty\",\n\t\t\t``,\n\t\t\tnil,\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "cb1a8a07f7e04e6521919f2eaa48fbe3125ac952cabfba5bebfeb9e50f16dfc4",
+      "source_end": 84,
+      "source_start": 79,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected FIELD",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected FIELD\")",
+      "expression": "field with space",
+      "function": "TestJSONExpressionParser",
+      "name": "invalid field access",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"invalid field access\",\n\t\t\t`field with space`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected FIELD\"),\n\t\t},\n",
+      "sha256": "152a9518d6d002918c16682780e79e31ffc1995203ab1604ef4eb1220375656e",
+      "source_end": 91,
+      "source_start": 86,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected STRING, expecting LSB or FIELD",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected STRING, expecting LSB or FIELD\")",
+      "expression": "\"pod\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "missing opening square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing opening square bracket\",\n\t\t\t`\"pod\"]`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected STRING, expecting LSB or FIELD\"),\n\t\t},\n",
+      "sha256": "ba0b3b67e4048e143def622f0e6832268f5e8e453a7264ea4b1e005cc18a525b",
+      "source_end": 97,
+      "source_start": 92,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected $end, expecting RSB",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected $end, expecting RSB\")",
+      "expression": "[\"pod\"",
+      "function": "TestJSONExpressionParser",
+      "name": "missing closing square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\t`[\"pod\"`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected $end, expecting RSB\"),\n\t\t},\n",
+      "sha256": "c4ea2e60aea709fc0b780cae752b80bc602091fa89cf56a294fd5df4542a42dc",
+      "source_end": 103,
+      "source_start": 98,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected STRING, expecting RSB",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected STRING, expecting RSB\")",
+      "expression": "[\"pod\"\"deployment\"]",
+      "function": "TestJSONExpressionParser",
+      "name": "missing closing square bracket",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\t`[\"pod\"\"deployment\"]`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected STRING, expecting RSB\"),\n\t\t},\n",
+      "sha256": "ad81c7aa021e78869501491da7cf813632fd42f94dc1a82de3c931ef0391d987",
+      "source_end": 109,
+      "source_start": 104,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected DOT, expecting FIELD",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected DOT, expecting FIELD\")",
+      "expression": "pod..uuid",
+      "function": "TestJSONExpressionParser",
+      "name": "invalid nesting",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"invalid nesting\",\n\t\t\t`pod..uuid`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected DOT, expecting FIELD\"),\n\t\t},\n",
+      "sha256": "407809d1f250f853e5cafaf140da00d93cb0e48feee1b57a72604817a37b00c1",
+      "source_end": 115,
+      "source_start": 110,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": "syntax error: unexpected $end, expecting RSB",
+      "error_assertion": "exact",
+      "error_expression": "fmt.Errorf(\"syntax error: unexpected $end, expecting RSB\")",
+      "expression": "[\"key",
+      "function": "TestJSONExpressionParser",
+      "name": "syntax error on key access",
+      "outcome": "reject",
+      "raw": "\t\t{\n\t\t\t\"syntax error on key access\",\n\t\t\t`[\"key`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected $end, expecting RSB\"),\n\t\t},\n",
+      "sha256": "a8c2a2b5dd8edf67d517a88aa8db3fc46670e5f9117af06fb65215022170c6e4",
+      "source_end": 121,
+      "source_start": 116,
+      "want": null,
+      "want_expression": "nil"
+    },
+    {
+      "error": null,
+      "error_assertion": "not_asserted",
+      "error_expression": "nil",
+      "expression": "utf8",
+      "function": "TestJSONExpressionParser",
+      "name": "identifier with number",
+      "outcome": "path",
+      "raw": "\t\t{\n\t\t\t\"identifier with number\",\n\t\t\t`utf8`,\n\t\t\t[]interface{}{\"utf8\"},\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "891ff6be89d3eab4878ce92d9df1083b01f57ed1a2a4a3d6cae615cb88f8692e",
+      "source_end": 127,
+      "source_start": 122,
+      "want": [
+        "utf8"
+      ],
+      "want_expression": "[]interface{}{\"utf8\"}"
+    }
+  ],
+  "license": "AGPL-3.0-only",
+  "limitations": [
+    "Frozen upstream source oracles only. This extraction runs neither Loki nor Pulse and makes no HTTP/Parquet/S3, client, deployment, capacity, full JSON/LogQL grammar, exact hint, repeated-parser or collision-ownership parity claim.",
+    "Complete expression table: 403-758; inert harness: 759-773. Complete five-row constructor-failure table: 775-806; harness: 807-815. Duplicate test names remain ordered rows, not map keys.",
+    "Complete grammar table: 10-128; harness: 129-143. The empty-expression row only asserts nil path, not nil error. Nonempty-path rows also do not assert nil error. Preserve this ambiguity rather than extrapolating HTTP acceptance or rejection.",
+    "Complete explicit-path engine block: 283-303, including heading, comments and blank separator. Its sole clear/load fixture is 288-302. The next parser heading is regexp() at 304 and is excluded. The earlier explicit-fields ownership control at 169 belongs to the adjacent json-parser.json fixture and is not duplicated here.",
+    "The nested object with escaped value source row lacks the outer closing brace yet expects a successfully extracted object. The two invalid-json rows expect only __error__=JSONParserErr, not invented __error_details__. Preserve these selective upstream assertions; do not normalize inputs or expand their oracle."
+  ],
+  "provenance": {
+    "method": "Standard-library Go AST plus bounded logqltest source extraction, following json-parser-producer.go.txt; no runtime evaluation. All six complete source SHA-256 values must match before extraction or output. Labels referencing errJSON/logqlmodel.ErrorLabel resolve from their pinned Go declarations, not Pulse.",
+    "producer": "test/fixtures/logs/loki-upstream/json-expressions-producer.go.txt",
+    "range_hash_convention": "SHA-256 of exact inclusive complete source lines, including the final newline. All raw fields preserve original bytes, indentation, comments, spelling and duplicate row names. Array order is source order.",
+    "repository": "https://github.com/grafana/loki",
+    "sources": [
+      {
+        "path": "pkg/logql/log/parser_test.go",
+        "sha256": "346b91ced2d38e51d8cf7fd8acb3335ea5796e9286fd901b45dd625c0b3634ff",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/log/parser_test.go",
+        "selections": [
+          {
+            "purpose": "complete TestJSONExpressionParser declaration, shared testLine, schema and all 29 ordered rows",
+            "source_start": 403,
+            "source_end": 758,
+            "sha256": "bbddc32b9b3b04173f25836930a64ebe34e1c7166af6294c11e4b4ed2e8e5f92",
+            "raw": "func TestJSONExpressionParser(t *testing.T) {\n\ttestLine := []byte(`{\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":\"value\",\"null_field\":null,\"bool_field\":false,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}}}`)\n\n\ttests := []struct {\n\t\tname               string\n\t\tline               []byte\n\t\texpressions        []LabelExtractionExpr\n\t\tlbs                labels.Labels\n\t\twant               labels.Labels\n\t\thints              ParserHint\n\t\tstructuredMetadata map[string]string\n\t}{\n\t\t{\n\t\t\t\"single field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"alternate syntax\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"test\", `[\"field with space\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"test\", \"value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"multiple fields\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t\tNewLabelExtractionExpr(\"namespace\", \"namespace\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"utf8\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"utf8\", `[\"field with ÜFT8👌\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"utf8\", \"value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", \"pod.uuid\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field alternate syntax\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod[\"uuid\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field alternate syntax 2\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"][\"uuid\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field alternate syntax 3\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `[\"pod\"].uuid`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"foo\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"array element\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[0]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"1\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"object element not present\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"undefined\", `pod[\"\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"undefined\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"accessing invalid array index\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[\"\"]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"array string element\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"param\", `pod.deployment.params[3]`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"param\", \"string_value\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"full array\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"params\", `pod.deployment.params`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"params\", `[1,2,3,\"string_value\"]`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"full object\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"deployment\", `pod.deployment`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"deployment\", `{\"ref\":\"foobar\", \"params\": [1,2,3,\"string_value\"]}`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"expression matching nothing\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nope\", `pod.nope`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"nope\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"null field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"nf\", `null_field`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"nf\", \"\"), // null is coerced to an empty string\n\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"boolean field\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"bool\", `bool_field`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"bool\", `false`),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"label override\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\"),\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"uuid_extracted\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"non-matching expression\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"request_size\", `request.size.invalid`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\"),\n\t\t\tlabels.FromStrings(\"uuid\", \"bar\",\n\t\t\t\t\"request_size\", \"\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"empty line\",\n\t\t\t[]byte(\"{}\"),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `pod.uuid`),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"uuid\", \"\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"existing labels are not affected\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"uuid\", \"\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"invalid JSON line\",\n\t\t\t[]byte(`invalid json`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"invalid JSON line with hints\",\n\t\t\t[]byte(`invalid json`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\tlogqlmodel.ErrorLabel, errJSON,\n\t\t\t),\n\t\t\tNewParserHint([]string{\"__error__\"}, nil, false, true, \"\"),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"empty line\",\n\t\t\t[]byte(``),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"uuid\", `will.not.work`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested escaped object\",\n\t\t\t[]byte(`{\"app\":\"{ \\\"key\\\": \\\"value\\\", \\\"key2\\\":\\\"value2\\\"}\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{ \"key\": \"value\", \"key2\":\"value2\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested object with escaped value\",\n\t\t\t[]byte(`{\"app\":{\"name\":\"great \\\"loki\\\"\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"field with escaped value inside the json string\",\n\t\t\t[]byte(`{\"app\":\"{\\\"name\\\":\\\"great \\\\\\\"loki\\\\\\\"\\\"}\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", `{\"name\":\"great \\\"loki\\\"\"}`,\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"duplicate field name takes first value\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"app\":\"duplicate\"}`),\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", `app`),\n\t\t\t},\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\",\n\t\t\t\t\"app\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"app_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t),\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"app\": \"app_sm\"},\n\t\t},\n\t}\n"
+          },
+          {
+            "purpose": "inert harness provenance: constructor success, hints, metadata and flat label assertions",
+            "source_start": 759,
+            "source_end": 773,
+            "sha256": "9b7de39989f600b6c78f84f83e1c91e06fb8e850c46de20c3085371d61ee12a9",
+            "raw": "\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tj, err := NewJSONExpressionParser(tt.expressions)\n\t\t\trequire.NoError(t, err, \"cannot create JSON expression parser\")\n\t\t\tb := NewBaseLabelsBuilderWithGrouping(nil, tt.hints, false, false).ForLabels(tt.lbs, labels.StableHash(tt.lbs))\n\t\t\tb.Reset()\n\t\t\t// Set structured metadata if specified\n\t\t\tfor key, value := range tt.structuredMetadata {\n\t\t\t\tb.Set(StructuredMetadataLabel, key, value)\n\t\t\t}\n\t\t\t_, _ = j.Process(0, tt.line, b)\n\t\t\trequire.Equal(t, tt.want, b.LabelsResult().Labels())\n\t\t})\n\t}\n}\n"
+          },
+          {
+            "purpose": "complete TestJSONExpressionParserFailures declaration, schema and all five rows",
+            "source_start": 775,
+            "source_end": 806,
+            "sha256": "c531d9013c8b92fc870c222cf282a9ccee4ebc7aca1cafbfada4a5fd0e24b67f",
+            "raw": "func TestJSONExpressionParserFailures(t *testing.T) {\n\ttests := []struct {\n\t\tname       string\n\t\texpression LabelExtractionExpr\n\t\terror      string\n\t}{\n\t\t{\n\t\t\t\"invalid field name\",\n\t\t\tNewLabelExtractionExpr(\"app\", `field with space`),\n\t\t\t\"unexpected FIELD\",\n\t\t},\n\t\t{\n\t\t\t\"missing opening square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `\"pod\"]`),\n\t\t\t\"unexpected STRING, expecting LSB or FIELD\",\n\t\t},\n\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `[\"pod\"`),\n\t\t\t\"unexpected $end, expecting RSB\",\n\t\t},\n\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\tNewLabelExtractionExpr(\"app\", `[\"pod\"\"uuid\"]`),\n\t\t\t\"unexpected STRING, expecting RSB\",\n\t\t},\n\t\t{\n\t\t\t\"invalid nesting\",\n\t\t\tNewLabelExtractionExpr(\"app\", `pod..uuid`),\n\t\t\t\"unexpected DOT, expecting FIELD\",\n\t\t},\n\t}\n"
+          },
+          {
+            "purpose": "constructor-failure exact error assertion and original formatting template",
+            "source_start": 807,
+            "source_end": 815,
+            "sha256": "650f6228f112cc06bfee49dbc0865aef91fdc3da14c47e78f3cb32f2bbd33181",
+            "raw": "\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\t_, err := NewJSONExpressionParser([]LabelExtractionExpr{tt.expression})\n\n\t\t\trequire.NotNil(t, err)\n\t\t\trequire.Equal(t, err.Error(), fmt.Sprintf(\"cannot parse expression [%s]: syntax error: %s\", tt.expression.Expression, tt.error))\n\t\t})\n\t}\n}\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/log/jsonexpr/jsonexpr_test.go",
+        "sha256": "e2e4ded6592d2f8a7d44301db7696e48fcd91da7d2ef26aade94c62fad73b4d0",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/log/jsonexpr/jsonexpr_test.go",
+        "selections": [
+          {
+            "purpose": "complete TestJSONExpressionParser grammar declaration, schema and all 18 rows",
+            "source_start": 10,
+            "source_end": 128,
+            "sha256": "66d2155d9a8a829268d4714e37cf70453e13ed374e5ba50cc80b4940a69a401c",
+            "raw": "func TestJSONExpressionParser(t *testing.T) {\n\t// {\"app\":\"foo\",\"field with space\":\"value\",\"field with ÜFT8👌\":true,\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\", \"params\": [{\"param\": true},2,3]}}}\n\n\ttests := []struct {\n\t\tname       string\n\t\texpression string\n\t\twant       []interface{}\n\t\terror      error\n\t}{\n\t\t{\n\t\t\t\"single field\",\n\t\t\t\"app\",\n\t\t\t[]interface{}{\"app\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"top-level field with spaces\",\n\t\t\t`[\"field with space\"]`,\n\t\t\t[]interface{}{\"field with space\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"top-level field with UTF8\",\n\t\t\t`[\"field with ÜFT8👌\"]`,\n\t\t\t[]interface{}{\"field with ÜFT8👌\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"top-level array access\",\n\t\t\t`[0]`,\n\t\t\t[]interface{}{0},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field\",\n\t\t\t`pod.uuid`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field alternate syntax\",\n\t\t\t`pod[\"uuid\"]`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested field alternate syntax 2\",\n\t\t\t`[\"pod\"][\"uuid\"]`,\n\t\t\t[]interface{}{\"pod\", \"uuid\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"array access\",\n\t\t\t`pod.deployment.params[0]`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"multi-level array access\",\n\t\t\t`pod.deployment.params[0].param`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"multi-level array access alternate syntax\",\n\t\t\t`pod.deployment.params[0][\"param\"]`,\n\t\t\t[]interface{}{\"pod\", \"deployment\", \"params\", 0, \"param\"},\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"empty\",\n\t\t\t``,\n\t\t\tnil,\n\t\t\tnil,\n\t\t},\n\n\t\t{\n\t\t\t\"invalid field access\",\n\t\t\t`field with space`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected FIELD\"),\n\t\t},\n\t\t{\n\t\t\t\"missing opening square bracket\",\n\t\t\t`\"pod\"]`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected STRING, expecting LSB or FIELD\"),\n\t\t},\n\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\t`[\"pod\"`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected $end, expecting RSB\"),\n\t\t},\n\t\t{\n\t\t\t\"missing closing square bracket\",\n\t\t\t`[\"pod\"\"deployment\"]`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected STRING, expecting RSB\"),\n\t\t},\n\t\t{\n\t\t\t\"invalid nesting\",\n\t\t\t`pod..uuid`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected DOT, expecting FIELD\"),\n\t\t},\n\t\t{\n\t\t\t\"syntax error on key access\",\n\t\t\t`[\"key`,\n\t\t\tnil,\n\t\t\tfmt.Errorf(\"syntax error: unexpected $end, expecting RSB\"),\n\t\t},\n\t\t{\n\t\t\t\"identifier with number\",\n\t\t\t`utf8`,\n\t\t\t[]interface{}{\"utf8\"},\n\t\t\tnil,\n\t\t},\n\t}\n"
+          },
+          {
+            "purpose": "inert grammar harness provenance: path equality for all rows; errors checked only when nonnil",
+            "source_start": 129,
+            "source_end": 143,
+            "sha256": "c179c639117f364cd7c6b015d0a11b87816426916ab7f6140f21a3c740f7e978",
+            "raw": "\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tparsed, err := Parse(tt.expression, false)\n\n\t\t\trequire.Equal(t, tt.want, parsed)\n\n\t\t\tif tt.error == nil {\n\t\t\t\treturn\n\t\t\t}\n\n\t\t\trequire.NotNil(t, err)\n\t\t\trequire.Equal(t, tt.error.Error(), err.Error())\n\t\t})\n\t}\n}\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "sha256": "07d63941842085ca40bbc3944884377e802df38ede67027b9702594e840114ea",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "selections": [
+          {
+            "purpose": "complete explicit-JSON engine block through the separator before regexp at 304",
+            "source_start": 283,
+            "source_end": 303,
+            "sha256": "7d23975cef34a6cbad539bd2f1374ba8a0ea807cf1246066f3d04055503dba88",
+            "raw": "# json() with label expressions:\n# - `user.id` reads a nested field.\n# - `tags[0]` indexes an array.\n# - A path with no match adds an empty-value label.\n# - An invalid expression fails at parse time.\nclear\nload\n  {app=\"a\"} `{\"user\":{\"id\":\"u1\",\"name\":\"alice\"},\"tags\":[\"x\",\"y\"]}` @ 20s [repeat every 20s for 4]\n  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 4]\n\neval instant at 60s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3\neval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m])  # overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 2 3 3\neval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json who=\"user.id\", tag=\"tags[0]\" [1m]) # non-overlapping\n  {app=\"a\", who=\"u1\", tag=\"x\"} 3 _\neval instant at 60s count_over_time({app=\"a\"} | json age=\"user.age\" [1m])\n  {app=\"a\", age=\"\"} 3\neval instant at 60s count_over_time({app=\"a\"} | json bad=\"user[\" [1m])\n  expect fail msg: cannot parse expression\n\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/log/error.go",
+        "sha256": "d836fe896703aaa92d53baa61e6532c605344261460af3bab3994d531fa14458",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/log/error.go",
+        "selections": [
+          {
+            "purpose": "source of errJSON used in two expression-table expected labels",
+            "source_start": 11,
+            "source_end": 11,
+            "sha256": "ae3b0088106863771c25a6ac762fc40f81c704483ab10118da848e7dae506a33",
+            "raw": "\terrJSON             = \"JSONParserErr\"\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logqlmodel/error.go",
+        "sha256": "21816c4294243f16157f6408d92fb0907612a3258333288ab39b3f84bf7a4db5",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logqlmodel/error.go",
+        "selections": [
+          {
+            "purpose": "source of logqlmodel.ErrorLabel used in two expression-table expected labels",
+            "source_start": 27,
+            "source_end": 27,
+            "sha256": "58e5ddcba3044afd320a67cf25b3eb28cc35e0057fdbdab170d1b26367c83ceb",
+            "raw": "\tErrorLabel             = \"__error__\"\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/internal/logqltest/parser.go",
+        "sha256": "9e39b25a51dd254d9e2ac2517558bcd172d652844043c34c116abaa10dc3b239",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/internal/logqltest/parser.go",
+        "selections": [
+          {
+            "purpose": "inert engine epoch provenance",
+            "source_start": 19,
+            "source_end": 25,
+            "sha256": "627d8e513a55690e21c96dbdba9e57d1b1bfab34ff91157c89b6fdd4a70e91ce",
+            "raw": "// epoch is the base time the script's relative timestamps are added to. Timestamps in a\n// script (`@ 10s`, `eval instant at 60s`) are durations offset from this base.\n//\n// A realistic base, not Unix(0,0): the query-range HTTP codec sends times as integer nanoseconds,\n// and loghttp.parseTimestamp reads any value with 10 or fewer digits as seconds. Times near\n// Unix(0,0) have <= 10 digits and are misread as seconds; a 2026 base keeps them at 19 digits.\nvar epoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)\n"
+          },
+          {
+            "purpose": "inert repeat count, ordering, timestamp and metadata provenance",
+            "source_start": 129,
+            "source_end": 135,
+            "sha256": "59b9141cfbe3c9db6717a8f88e9f1e16ed15637b6fa22cb5e3e42576b332a416",
+            "raw": "\tfor i := 0; i < count; i++ {\n\t\tstream.Entries = append(stream.Entries, push.Entry{\n\t\t\tTimestamp:          epoch.Add(start + time.Duration(i)*step),\n\t\t\tLine:               strings.ReplaceAll(message, \"{{.i}}\", strconv.Itoa(i)),\n\t\t\tStructuredMetadata: metadata,\n\t\t})\n\t}\n"
+          },
+          {
+            "purpose": "inert engine log-string delimiter/no-unescaping provenance",
+            "source_start": 162,
+            "source_end": 178,
+            "sha256": "0a8fe27edd5fec947da811d6d6ba523fc51208db3480d04f3bf66ae75c0b4c79",
+            "raw": "// splitQuoted returns the first quoted log line in s and the remainder after it. The line may be\n// delimited by double quotes (\"...\") or by backticks (`...`). Backticks are raw and let the line\n// hold double quotes, e.g. a JSON object. Neither form processes escape sequences.\nfunc splitQuoted(s string) (text, rest string, err error) {\n\tstart := strings.IndexAny(s, \"\\\"`\")\n\tif start < 0 {\n\t\treturn \"\", \"\", fmt.Errorf(\"missing quoted log line\")\n\t}\n\tquote := s[start]\n\tend := strings.IndexByte(s[start+1:], quote)\n\tif end < 0 {\n\t\treturn \"\", \"\", fmt.Errorf(\"unterminated quoted log line\")\n\t}\n\tend += start + 1\n\treturn s[start+1 : end], s[end+1:], nil\n}\n\n"
+          },
+          {
+            "purpose": "inert engine rejection message-substring provenance",
+            "source_start": 428,
+            "source_end": 451,
+            "sha256": "fe72a32b37058040993c8bef533be35044af60643d15b0f065dad928f557366e",
+            "raw": "func (p *expectationsParser) parse(line string) error {\n\tswitch {\n\tcase strings.HasPrefix(line, \"expect fail\"):\n\t\tp.exp.fail = true\n\t\tbody := strings.TrimSpace(strings.TrimPrefix(line, \"expect fail\"))\n\t\tswitch {\n\t\tcase body == \"\":\n\t\t\t// Bare `expect fail`: any error satisfies it.\n\t\tcase strings.HasPrefix(body, \"msg:\"):\n\t\t\tp.exp.failKind = failMsg\n\t\t\tp.exp.failText = strings.TrimSpace(strings.TrimPrefix(body, \"msg:\"))\n\t\t\tif p.exp.failText == \"\" {\n\t\t\t\treturn fmt.Errorf(\"`expect fail msg:` requires a message substring\")\n\t\t\t}\n\t\tcase strings.HasPrefix(body, \"regex:\"):\n\t\t\tp.exp.failKind = failRegex\n\t\t\tp.exp.failText = strings.TrimSpace(strings.TrimPrefix(body, \"regex:\"))\n\t\t\tif p.exp.failText == \"\" {\n\t\t\t\treturn fmt.Errorf(\"`expect fail regex:` requires a regex pattern\")\n\t\t\t}\n\t\tdefault:\n\t\t\t// A typo'd qualifier (e.g. `mesg:`) must not silently degrade to \"any error\".\n\t\t\treturn fmt.Errorf(\"unsupported `expect fail` qualifier %q (use `msg:` or `regex:`)\", body)\n\t\t}\n"
+          },
+          {
+            "purpose": "inert quote-aware inline-comment provenance",
+            "source_start": 732,
+            "source_end": 749,
+            "sha256": "62dcfd98c913fb4f8d0c785e28c230e12ba7c7647d806a9d88814cd1af984ea3",
+            "raw": "// stripComment removes a trailing `# ...` comment, ignoring `#` inside \"...\" or `...` quotes.\nfunc stripComment(line string) string {\n\tvar quote byte\n\tfor i := 0; i < len(line); i++ {\n\t\tc := line[i]\n\t\tswitch {\n\t\tcase quote != 0:\n\t\t\tif c == quote {\n\t\t\t\tquote = 0\n\t\t\t}\n\t\tcase c == '\"' || c == '`':\n\t\t\tquote = c\n\t\tcase c == '#':\n\t\t\treturn strings.TrimRight(line[:i], \" \\t\")\n\t\t}\n\t}\n\treturn line\n}\n"
+          }
+        ]
+      }
+    ]
+  },
+  "replay": {
+    "categories": "Only the unit metadata-collision row supplies structured metadata in this selection. Its want and all metric oracles are flat labels; no categorized expected labels are invented. Engine loads retain separate labels and metadata owners (both selected metadata maps are empty). The complete selected explicit-path engine block contains no select evaluations or categorized entry expectations; expected_entries stays empty and no parse-all/ownership cases from the preceding block are imported.",
+    "constructors": "All five constructor_failure_cases preserve the exact ordered expression, original error suffix and full expected error. The full error is assembled only with the original fmt.Sprintf template from the upstream assertion at 812, not generated by a parser or inferred from Pulse. These are parser-construction oracles, not complete HTTP admission-error envelopes.",
+    "engine": "Times, steps and repeat intervals are integer seconds relative to 2026-01-01T00:00:00Z. Replay may shift the entire fixture to a deterministic retained epoch, preserving every relative timestamp. Repeat count includes the first entry: start+i*every for i=0..count-1. Keep both app=a and app=noise loads, their order and all eight entries; reset only on clear. Engine log strings preserve content between delimiters without unescaping, unlike Go AST string literals. Query text excludes only quote-aware trailing source comments; raw preserves them.",
+    "grammar": "want preserves typed path components: strings stay strings and integer array indexes stay integers. All rows assert path equality, including want=null for the empty expression. The harness returns without checking err whenever its table error is nil, including empty and all 11 nonempty-path rows. Consequently error=null with error_assertion=not_asserted is provenance, NOT an assertion that parsing succeeds. Empty is outcome=nil_path, never invented accept/reject. Only the six nonnil-error rows assert an exact error string. Grammar rows have no invented destination, line or HTTP query.",
+    "hints": "hint_expression is inert original Go source. Only invalid JSON line with hints (669-681) uses NewParserHint([]string{\"__error__\"}, nil, false, true, \"\"); the other 28 use NoParserHints(). Public ordinary-stage replay can compare the frozen flat error oracle but cannot claim to exercise the hinted builder, extraction selection or short-circuit behavior. Do not drop the row or alter its expected labels.",
+    "metrics": "Instant cases have equal start/end and step=0; range cases have explicit steps. Expected series contain exact combined labels and original numeric-string slots at start+i*step. An underscore is a missing point, never zero. outcome=reject keeps the exact upstream expected message substring in reject, not a full HTTP error body. No case expects empty output. expected_entries=[] is a mode placeholder, not an expect-empty assertion.",
+    "requirements": "Normal replay reads committed JSON using Elixir/Rust JSON only, without Go, network or expectation generation. The producer is optional provenance tooling, not a build/test dependency.",
+    "table": "Each expression_cases row is one original flat LabelsResult().Labels() oracle. fields is an ordered array of [destination, path_expression] pairs, not a map; expressions_expression preserves the original Go declaration. Resolve testLine from its exact source literal at 404, without JSON reserialization. Preserve every malformed/empty/escaped/duplicate-key line exactly. base_labels is the stream owner; structured_metadata attaches after reset and before parsing; initial_parsed_labels={} records no previous parsed state. want is combined, NOT a categorized oracle. Metadata nil becomes {} for replay; metadata_expression retains nil versus a literal map. The harness ignores Process return values and does not assert a rewritten line or keep flag; do not invent those expectations."
+  },
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "schema_version": 1
+}

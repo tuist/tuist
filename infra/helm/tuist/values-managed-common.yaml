@@ -78,6 +78,7 @@ server:
     name: tuist-server
   enabled: true
   hosted: true
+  ssoRequireLoginDomainVerification: true
   skipEmailConfirmation: false
   logLevel: info
   image:
@@ -155,6 +156,12 @@ server:
     # vault before a deploy.
     grafanaClickHouse:
       enabled: true
+    # ChatGPT subscription sign-in. The CHATGPT_OAUTH item (client_id) must
+    # exist in the environment's vault before a deploy. It currently holds
+    # Pi's public Codex client ID; swap the value for Tuist's own client once
+    # OpenAI issues one, with no chart change.
+    chatgptClient:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -189,9 +196,11 @@ server:
   google:
     managedSecrets: true
 
-  # Mailing identity (not secret — shared across managed envs). The Mailgun API
-  # key itself is the only mail secret and stays in the per-env MAILGUN 1P item.
+  # Each environment reads its own send-only SES credentials from its SES item.
+  # The verified identity and region are shared, not the credentials.
   mailing:
+    provider: ses
+    sesRegion: eu-west-1
     domain: mail.tuist.dev
     fromAddress: noreply@tuist.dev
     replyToAddress: contact@tuist.dev
@@ -591,11 +600,18 @@ observability:
 # Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
 runnersFleet:
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
+  xcodeOverrides:
+    "27.2":
+      # RC build 27B48, published before merge. Remove this bootstrap pin
+      # once a versioned runner-image release includes the 27.2 profile.
+      imageTag: macos-27-2-069e7465
   xcodeVersions:
-    - xcodeVersion: "27.2-beta"
+    - xcodeVersion: "27.3-beta"
+    # The customer selector is 27.2; its base is explicitly 27.2-rc.
+    - xcodeVersion: "27.2"
     - xcodeVersion: "27.1"
     - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
@@ -605,3 +621,26 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+
+# KVM is a standard managed Linux runner capability. Disable defaultEnabled
+# to roll pools back to the stock kernel while leaving host preparation intact.
+runnersFleetLinux:
+  # Ubuntu 22.04 stays selectable until GitHub removes its hosted image
+  # (Apr 17, 2027). Its image, `<semver>-ubuntu-22-04`, is resolved per
+  # deploy into `osRunnerImages`.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+    - osVersion: ubuntu-22.04
+  nestedVirtualization:
+    enabled: true
+    defaultEnabled: true
+
+# Prepare host services; account admission is gated by the :sandboxes flag.
+sandboxes:
+  macos:
+    enabled: true
+# Account-owned provider workloads run on the general pool.
+ampOrbProvider:
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general

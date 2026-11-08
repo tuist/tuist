@@ -18,12 +18,63 @@ defmodule Tuist.Slack.Client do
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
   # Slack incoming-webhook error strings that mean the destination is dead
-  # and further attempts will keep failing until the user re-authorizes the
-  # app: token revoked, workspace uninstalled the app, service or team is
-  # gone. Slack returns these as a plain-text body alongside a 400/401/403
-  # (or 404 for `no_service`, already handled by the status-only clause).
+  # and further attempts will keep failing until the user changes the
+  # destination: token revoked, workspace uninstalled the app, service or
+  # team is gone, or the channel is archived. Slack returns these as a
+  # plain-text body alongside a 4xx response (or 404 for `no_service`,
+  # already handled by the status-only clause).
   # See https://api.slack.com/messaging/webhooks#handling_errors.
-  @permanent_webhook_errors ~w(invalid_token no_service no_service_id no_team team_disabled action_prohibited)
+  @permanent_webhook_errors ~w(invalid_token no_service no_service_id no_team team_disabled action_prohibited channel_is_archived)
+
+  @doc "One bounded delivery attempt. The durable caller owns all retries and rate-limit waits."
+  def deliver_once(destination, blocks) do
+    {url, headers, payload} =
+      case destination do
+        {:webhook, url} ->
+          {url, [], %{blocks: blocks, unfurl_links: false, unfurl_media: false}}
+
+        {:channel, token, channel} ->
+          {@chat_post_message_url, [{"authorization", "Bearer #{token}"}],
+           %{channel: channel, blocks: blocks, unfurl_links: false, unfurl_media: false}}
+      end
+
+    response =
+      Req.post(url,
+        headers: headers,
+        json: payload,
+        retry: false,
+        redirect: false,
+        receive_timeout: 10_000,
+        pool_timeout: 5_000,
+        connect_options: [timeout: 5_000]
+      )
+
+    delivery_response(response)
+  end
+
+  defp delivery_response({:ok, %Req.Response{status: 429} = response}) do
+    {:snooze, delivery_retry_after(Req.Response.get_header(response, "retry-after"))}
+  end
+
+  defp delivery_response({:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}) do
+    if error in ~w(invalid_auth token_revoked account_inactive channel_not_found not_in_channel is_archived),
+      do: {:discard, :slack_rejected},
+      else: {:error, :slack_error}
+  end
+
+  defp delivery_response({:ok, %Req.Response{status: status}}) when status in 200..299, do: :ok
+  defp delivery_response({:ok, %Req.Response{status: status}}) when status in 400..499, do: {:discard, :slack_rejected}
+  defp delivery_response({:ok, _}), do: {:error, :slack_unavailable}
+  defp delivery_response({:error, _}), do: {:error, :slack_transport_error}
+
+  defp delivery_retry_after([value | _]) do
+    case Integer.parse(value) do
+      {seconds, ""} when seconds > 0 -> seconds
+      _ -> 1
+    end
+  end
+
+  defp delivery_retry_after(_), do: 1
 
   @doc """
   Exchanges an OAuth authorization code for an `incoming-webhook` token.

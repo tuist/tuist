@@ -5,6 +5,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Workers.AlertEvaluationBatchWorker
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -16,6 +17,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
+    # Keep the existing monitor/transition assertions synchronous. The batch
+    # worker suite covers persisted dispatch and re-evaluation on retry.
+    stub(AlertEvaluationBatchWorker, :enqueue, &AlertEvaluationWorker.apply_evaluation/4)
     # By default, treat every triggered test case as validated on the default
     # branch so the existing transition/recovery assertions are unaffected.
     # Tests exercising the new-test exclusion override this stub.
@@ -769,6 +773,40 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
+  test "rolling recovery ignores correlated runner crashes (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    test_case_id = UUIDv7.generate()
+    base = NaiveDateTime.utc_now()
+
+    insert_test_case_runs([
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 1, :second)),
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 2, :second)),
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 3, :second),
+        is_flakiness_excluded: true,
+        status: "failure"
+      )
+    ])
+
+    expect(FlakyTestsMonitor, :evaluate, fn _ -> %{triggered: []} end)
+
+    expect(Automations, :list_active_alert_events, fn _ ->
+      [%{test_case_id: test_case_id, triggered_at: base}]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+    assert :ok = run(automation.id)
+  end
+
   test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
@@ -823,6 +861,127 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
+  end
+
+  test "no-new-matches recovery unmutes after a quiet period while older flakes are still in the trigger window (real ClickHouse)" do
+    # The Pinterest trap: experiment-branch flakes mute a test, and the 30-day
+    # trigger window keeps matching long after they stop, so recovery that
+    # waits for the condition to clear never fires. This condition recovers
+    # once the recovery window passes without a new flake, and after that only
+    # a new flake mutes the test again.
+    project = ProjectsFixtures.project_fixture()
+    test_pid = self()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}],
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3, "condition" => "no_new_matches"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    stub(ActionExecutor, :execute_actions, fn actions, _alert, %{id: id} ->
+      if actions != [], do: send(test_pid, {:actions, id, actions})
+      :ok
+    end)
+
+    test_case_id = UUIDv7.generate()
+    passing = fn ran_at -> run_attrs(project.id, test_case_id, ran_at) end
+    flaky = fn ran_at -> run_attrs(project.id, test_case_id, ran_at, git_branch: "experiment", is_flaky: true) end
+
+    # Runs are dated when they are reported, in order, so the trigger and the
+    # recovery, which are stamped with the clock, fall between the batches.
+    report = fn runs ->
+      now = NaiveDateTime.utc_now()
+
+      runs
+      |> Enum.with_index(fn build, index -> build.(NaiveDateTime.add(now, index - length(runs), :millisecond)) end)
+      |> insert_test_case_runs()
+    end
+
+    report.([passing, passing, flaky])
+
+    assert :ok = run(automation.id)
+    assert_received {:actions, ^test_case_id, [%{"state" => "muted"}]}
+
+    # Three runs since the mute, but a flake among them restarts the quiet
+    # period, leaving only two after it.
+    report.([passing, flaky, passing, passing])
+
+    assert :ok = run(automation.id)
+    refute_received {:actions, _, _}
+
+    report.([passing])
+
+    assert :ok = run(automation.id)
+    assert_received {:actions, ^test_case_id, [%{"state" => "enabled"}]}
+
+    # Both flakes are still inside the 30-day trigger window, but they predate
+    # the recovery, so they must not mute the test again.
+    assert :ok = run(automation.id)
+    refute_received {:actions, _, _}
+
+    report.([flaky])
+
+    assert :ok = run(automation.id)
+    assert_received {:actions, ^test_case_id, [%{"state" => "muted"}]}
+  end
+
+  test "no-new-matches recovery over days restarts on failures in the alert's own branch scope (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d"},
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d", "condition" => "no_new_matches"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    now = NaiveDateTime.utc_now()
+    failed_on_pull_request_id = UUIDv7.generate()
+    failed_recently_id = UUIDv7.generate()
+    failed_earlier_id = UUIDv7.generate()
+    ids = [failed_on_pull_request_id, failed_recently_id, failed_earlier_id]
+
+    insert_test_case_runs([
+      # Reliability measures the default branch, so a pull-request failure is
+      # not a new matching run.
+      run_attrs(project.id, failed_on_pull_request_id, NaiveDateTime.add(now, -12, :hour),
+        git_branch: "feature",
+        status: 1
+      ),
+      run_attrs(project.id, failed_recently_id, NaiveDateTime.add(now, -12, :hour), is_default_branch: true, status: 1),
+      run_attrs(project.id, failed_earlier_id, NaiveDateTime.add(now, -2, :day), is_default_branch: true, status: 1)
+    ])
+
+    # All three still match the trigger; the condition need not clear.
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _automation -> %{triggered: ids} end)
+    stub(FlakyTestsMonitor, :measurable_test_case_ids, fn _automation, candidate_ids -> candidate_ids end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      Enum.map(ids, &%{test_case_id: &1, triggered_at: NaiveDateTime.add(now, -3, :day)})
+    end)
+
+    test_pid = self()
+
+    stub(ActionExecutor, :execute_actions, fn _actions, _alert, %{id: id} ->
+      send(test_pid, {:recovered, id})
+      :ok
+    end)
+
+    stub(Automations, :create_alert_event, fn _attrs -> :ok end)
+
+    assert :ok = run(automation.id)
+
+    assert_received {:recovered, ^failed_on_pull_request_id}
+    assert_received {:recovered, ^failed_earlier_id}
+    refute_received {:recovered, ^failed_recently_id}
   end
 
   test "re-arms a cleared test case immediately, without recovery actions, when recovery is disabled" do

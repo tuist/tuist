@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Render-only regression checks. Never use a kubeconfig or impersonate a user.
+set -euo pipefail
+
+ROOT="${ROOT:-$(git rev-parse --show-toplevel)}"
+chart="$ROOT/infra/helm/pomerium"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+for env in staging canary production; do
+  helm lint "$chart" -f "$chart/values-$env.yaml" \
+    --set kubeImpersonator.image.tag=ci >/dev/null
+  helm template pomerium-kube "$chart" --namespace pomerium \
+    -f "$chart/values-$env.yaml" --set kubeImpersonator.image.tag=ci \
+    | yq -o json -I0 'select(.kind != null)' | jq -s . > "$work/$env.json"
+
+  jq -e --arg env "$env" '
+    def role($name):
+      [.[] | select(.kind == "ClusterRole" and .metadata.name == $name)]
+      | if length == 1 then .[0] else error("missing/duplicate role: " + $name) end;
+    def bindings($group):
+      [.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding")
+       | select(any(.subjects[]?; .kind == "Group" and .name == $group))];
+    def includes($value): any(.[]; . == $value or . == "*");
+    def statusWriter:
+      any(.rules[]?;
+        (.apiGroups | includes("postgresql.cnpg.io")) and
+        (.resources | any(.[]; . == "clusters/status" or . == "*/status" or . == "*")) and
+        any(.verbs[]; . != "get" and . != "list" and . != "watch"));
+
+    . as $resources |
+    # Keep the complete CNPG grant narrow: parent writes, status PATCH only,
+    # and existing ad-hoc backups. In particular no status UPDATE or wildcard.
+    (role("tuist-edit-cnpg-write") |
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-edit"] == "true" and
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] != "true" and
+      (.rules | sort_by(.resources | join(","))) == ([
+        {apiGroups: ["postgresql.cnpg.io"], resources: ["clusters", "poolers", "scheduledbackups"],
+         verbs: ["get", "list", "watch", "update", "patch"]},
+        {apiGroups: ["postgresql.cnpg.io"], resources: ["clusters/status"], verbs: ["patch"]},
+        {apiGroups: ["postgresql.cnpg.io"], resources: ["backups"], verbs: ["get", "list", "watch", "create"]}
+      ] | sort_by(.resources | join(",")))) and
+
+    # No other rendered role may introduce a status mutation path.
+    ([.[] | select(.kind == "ClusterRole" or .kind == "Role") | select(statusWriter) |
+      .metadata.name] == ["tuist-edit-cnpg-write"]) and
+    # Every extension to view remains strictly read-only.
+    (all(.[] | select(.kind == "ClusterRole" and
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
+      all(.rules[].verbs[]; . == "get" or . == "list" or . == "watch"))) and
+    (role("tuist-view-infra-read") | any(.rules[];
+      (.apiGroups | includes("postgresql.cnpg.io")) and
+      (.resources | includes("clusters")) and (.verbs | index("get") != null))) and
+
+    # Policy inspection must not grant other Cilium resources or write verbs.
+    (role("tuist-view-infra-read") |
+      [.rules[] | select(.apiGroups | includes("cilium.io"))] == [{
+        apiGroups: ["cilium.io"],
+        resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "ciliumegressgatewaypolicies"],
+        verbs: ["get", "list", "watch"]
+      }]) and
+    # No extension to view may expose core Secrets, including via wildcards.
+    (all(.[] | select(.kind == "ClusterRole" and
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
+      all(.rules[]; ((.apiGroups | includes("")) and (.resources | includes("secrets"))) | not))) and
+
+    # The aggregation controller owns the rules of an aggregated role. Rendering
+    # them, even as [], makes every upgrade after the first fail with a
+    # server-side apply conflict.
+    (all(.[] | select(.kind == "ClusterRole" and .aggregationRule != null);
+      has("rules") | not)) and
+
+    # Both ordinary identity groups bind only to view, plus the built-in
+    # read-only role for the public issuer discovery document and JWKS.
+    (all("tuist-admins", "tuist-eng";
+      . as $group | $resources | bindings($group) |
+      all(.[]; .kind == "ClusterRoleBinding") and
+      ([.[].roleRef] | sort_by(.name)) == [
+        {apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole",
+         name: "system:service-account-issuer-discovery"},
+        {apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: "view"}
+      ])) and
+    # The write tier is reached only through the current environment write
+    # group. Staging uses the same binding, with standing membership supplied
+    # by its policy. Nothing binds the built-in edit, which reads Secrets.
+    (all(.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding");
+      .roleRef.name != "edit" and .roleRef.name != "admin" and .roleRef.name != "cluster-admin")) and
+    ([.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding") |
+      select(.roleRef.name == "tuist-write")] |
+      length == 1 and .[0].kind == "ClusterRoleBinding" and
+      .[0].subjects == [{kind: "Group", name: ("tuist-" + $env + "-write"),
+        apiGroup: "rbac.authorization.k8s.io"}]) and
+    # The write tier aggregates everything edit does except the bootstrap
+    # system:aggregate-to-edit, whose Secret and ServiceAccount-identity rules
+    # tuist-write-core leaves out.
+    (role("tuist-write") | (has("rules") | not) and .aggregationRule.clusterRoleSelectors == [
+      {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-view": "true"}},
+      {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-edit": "true"},
+       matchExpressions: [
+         {key: "kubernetes.io/bootstrapping", operator: "NotIn", values: ["rbac-defaults"]},
+         {key: "app.kubernetes.io/name", operator: "NotIn", values: ["external-secrets"]}]},
+      {matchLabels: {"tuist.dev/aggregate-to-write": "true"}}
+    ]) and
+    # External Secrets writes come back as a force-sync patch only. A
+    # SecretStore, PushSecret or generator write can copy a Secret out.
+    (role("tuist-write-externalsecrets") | .rules == [
+      {apiGroups: ["external-secrets.io"], resources: ["externalsecrets"], verbs: ["patch"]}]) and
+    (all(.[] | select(.kind == "ClusterRole") | select(.metadata.labels // {} |
+        .["tuist.dev/aggregate-to-write"] == "true" or
+        .["rbac.authorization.k8s.io/aggregate-to-edit"] == "true");
+      all(.rules[]; (.apiGroups | any(.[]; . == "*" or endswith("external-secrets.io"))) and
+        (.resources | any(.[]; . != "externalsecrets")) | not))) and
+    # No role the write tier aggregates may reach Secrets or take on a
+    # ServiceAccount identity, including via wildcards.
+    (all(.[] | select(.kind == "ClusterRole") | select(.metadata.labels // {} |
+        .["tuist.dev/aggregate-to-write"] == "true" or
+        .["rbac.authorization.k8s.io/aggregate-to-edit"] == "true" or
+        .["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
+      all(.rules[]; (.apiGroups | includes("")) and (
+        (.resources | includes("secrets")) or
+        ((.resources | includes("serviceaccounts")) and (.verbs | includes("impersonate"))) or
+        ((.resources | includes("serviceaccounts/token")) and (.verbs | includes("create")))
+      ) | not))) and
+    # StorageClass adoption and cleanup: reads on view, mutation only on the
+    # environment write group through a direct binding, never via edit.
+    (role("tuist-view-infra-read") | any(.rules[];
+      (.apiGroups | includes("storage.k8s.io")) and (.resources | includes("storageclasses")))) and
+    (role("tuist-storageclass-write") |
+      .metadata.labels["rbac.authorization.k8s.io/aggregate-to-edit"] != "true" and
+      .rules == [{apiGroups: ["storage.k8s.io"], resources: ["storageclasses"],
+        verbs: ["update", "patch", "delete"]}]) and
+    ([.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding") |
+      select(.roleRef.name == "tuist-storageclass-write")] |
+      length == 1 and .[0].subjects == [{kind: "Group", name: ("tuist-" + $env + "-write"),
+        apiGroup: "rbac.authorization.k8s.io"}]) and
+    # Do not bypass aggregation with a direct binding to the CNPG role.
+    (all(.[] | select(.kind == "ClusterRoleBinding" or .kind == "RoleBinding");
+      .roleRef.name != "tuist-edit-cnpg-write"))
+  ' "$work/$env.json" >/dev/null || {
+    echo "FAIL: $env access-tier permissions changed" >&2
+    exit 1
+  }
+  echo "PASS: $env access tiers are isolated; chart lint/render passed"
+done

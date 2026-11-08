@@ -1,0 +1,968 @@
+[
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "operation"
+        },
+        {
+          "type": "string",
+          "value": "operation\n😀"
+        }
+      ]
+    },
+    "target": "span:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "detail"
+        },
+        {
+          "type": "string",
+          "value": "detail\n😀"
+        }
+      ]
+    },
+    "target": "span:statusMessage"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "sdk"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "sdk"
+        }
+      ]
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "sdk"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "sdk"
+        }
+      ]
+    },
+    "target": "instrumentation:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "v1"
+        },
+        {
+          "type": "string",
+          "value": "v2"
+        }
+      ]
+    },
+    "target": "instrumentation:version"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "target": "event:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "event:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=\"span\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "target": "event:name"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.shared=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "event:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "query": "{resource.service.name=~\"work.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "target": "event:name"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "query": "{span.shared=~\"spa.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "event\n😀"
+        }
+      ]
+    },
+    "target": "event:name"
+  }
+]

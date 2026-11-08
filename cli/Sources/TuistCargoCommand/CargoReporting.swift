@@ -37,27 +37,30 @@ struct CargoReporting {
     func metadata() async -> [String: Any] {
         let ci = CIController().ciInfo()
         var result: [String: Any] = ["is_ci": ci != nil]
-        for (field, args) in [
-            ("git_branch", ["rev-parse", "--abbrev-ref", "HEAD"]),
-            ("git_commit_sha", ["rev-parse", "HEAD"]),
-            ("git_remote_url_origin", ["remote", "get-url", "origin"]),
-        ] {
-            result[field] = try? await process.capture("git", arguments: args, environment: environment, directory: directory)
+        // Concurrently: the build waits for none of them, but each costs a process start.
+        func capture(_ executable: String, _ arguments: [String]) async -> String? {
+            try? await process.capture(executable, arguments: arguments, environment: environment, directory: directory)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        // One `rev-parse` answers both: the commit, then the branch.
+        async let revisions = capture("git", ["rev-parse", "HEAD", "--abbrev-ref", "HEAD"])
+        async let origin = capture("git", ["remote", "get-url", "origin"])
+        let lines = await revisions?.split(separator: "\n").map(String.init) ?? []
+        result["git_branch"] = lines.count == 2 ? lines[1] : nil
+        result["git_commit_sha"] = lines.count == 2 ? lines[0] : nil
+        result["git_remote_url_origin"] = await origin
         result["ci_provider"] = ci.map { String(describing: $0.provider) }
         result["ci_run_id"] = ci?.runId
         result["ci_project_handle"] = ci?.projectHandle
         result["ci_host"] = ci?.host
         result["git_ref"] = environment["GITHUB_REF"] ?? environment["CI_COMMIT_REF_NAME"]
-        result["rust_version"] = try? await process.capture(
-            "rustc",
-            arguments: ["--version"],
-            environment: environment,
-            directory: directory
-        )
-        .trimmingCharacters(in: .whitespacesAndNewlines)
         return result
+    }
+
+    /// `rustc --version`, for sessions that did not resolve the toolchain's identity, whose `-vV` starts with it.
+    func rustVersion() async -> String? {
+        try? await process.capture("rustc", arguments: ["--version"], environment: environment, directory: directory)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func build(
@@ -113,7 +116,15 @@ struct CargoReporting {
         if metadataLimit > 20, payload["custom_metadata"] == nil {
             AlertController.current.warning(.alert("Cargo build metadata is invalid and was omitted from the report."))
         }
-        if let cache = CargoCacheReport.read(root: root) { payload["cache"] = cache }
+        if let cache = CargoCacheReport.read(root: root) {
+            payload["cache"] = cache
+            if environment["TUIST_DEBUG"] == "1",
+               let tasks = (cache["details"] as? [String: Any])?["tasks"] as? [[String: Any]]
+            {
+                let lines = tasks.map { "Tuist Cargo cache: \($0["status"] ?? "") \($0["kind"] ?? "") \($0["name"] ?? "")\n" }
+                FileHandle.standardError.write(Data(lines.sorted().joined().utf8))
+            }
+        }
         await submit(payload, kind: "builds")
     }
 
@@ -157,7 +168,9 @@ struct CargoReporting {
         await submit(payload, kind: "tests")
     }
 
-    func tests(report: CargoTestReport, metadata: [String: Any], failed: Bool) async {
+    func tests(
+        report: CargoTestReport, metadata: [String: Any], failed: Bool, shardID: String? = nil, shardIndex: Int? = nil
+    ) async {
         var payload = metadata
         let label = environment["TUIST_SCHEME"].flatMap { $0.isEmpty ? nil : $0 }
         payload.merge(
@@ -171,6 +184,7 @@ struct CargoReporting {
             ],
             uniquingKeysWith: { _, new in new }
         )
+        if let shardID { payload["shard_plan_id"] = shardID; payload["shard_index"] = shardIndex }
         await submit(payload, kind: "tests")
     }
 

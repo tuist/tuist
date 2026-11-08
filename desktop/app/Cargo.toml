@@ -1,0 +1,36 @@
+[package]
+name = "tuist-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# Unbundled macOS builds show the executable name in the Dock.
+[[bin]]
+name = "Tuist"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+async-channel = "2"
+getrandom.workspace = true
+gpui.workspace = true
+gpui_platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml = "0.8.23"
+tuist-credentials.workspace = true
+tuist-navigation.workspace = true
+tuist-session.workspace = true
+tuist-updater.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+tempfile = "3"
+
+# Sets the Dock icon, which an unbundled binary otherwise lacks.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData"] }

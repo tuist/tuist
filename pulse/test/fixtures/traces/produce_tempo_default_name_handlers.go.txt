@@ -1,0 +1,85 @@
+package frontend
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/stretchr/testify/require"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"sort"
+	"testing"
+)
+
+func TestPulseDefaultNameHandlers(t *testing.T) {
+	raw, err := os.ReadFile("/tmp/pulse-tempo-default-names/oracle.json")
+	require.NoError(t, err)
+	var cases []struct {
+		Query    string          `json:"query"`
+		Complete json.RawMessage `json:"complete"`
+		V1       json.RawMessage `json:"v1"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &cases))
+	for _, c := range cases {
+		for _, version := range []int{1, 2} {
+			for _, scope := range []string{"", "&scope=", "&scope=none"} {
+				v2 := &tempopb.SearchTagsV2Response{}
+				require.NoError(t, json.Unmarshal(c.Complete, v2))
+				stored := &tempopb.SearchTagsV2Response{}
+				for _, s := range v2.Scopes {
+					if s.Name != "intrinsic" {
+						stored.Scopes = append(stored.Scopes, s)
+					}
+				}
+				v1 := &tempopb.SearchTagsResponse{}
+				require.NoError(t, json.Unmarshal(c.V1, v1))
+				next := &mockRoundTripper{responseFn: func() proto.Message {
+					if version == 1 {
+						return v1
+					}
+					return stored
+				}}
+				f := frontendWithSettings(t, next, nil, nil, nil)
+				path := "/api/search/tags?q=" + url.QueryEscape(c.Query) + scope
+				if version == 2 {
+					path = "/api/v2/search/tags?q=" + url.QueryEscape(c.Query) + scope
+				}
+				req := httptest.NewRequest("GET", path, nil)
+				req = req.WithContext(user.InjectOrgID(context.Background(), "tenant"))
+				rec := httptest.NewRecorder()
+				if version == 1 {
+					f.SearchTagsHandler.ServeHTTP(rec, req)
+				} else {
+					f.SearchTagsV2Handler.ServeHTTP(rec, req)
+				}
+				require.Equal(t, http.StatusOK, rec.Code)
+				wire, err := io.ReadAll(rec.Body)
+				require.NoError(t, err)
+				if version == 1 {
+					got := &tempopb.SearchTagsResponse{}
+					require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wire), got))
+					sort.Strings(got.TagNames)
+					require.Equal(t, v1.TagNames, got.TagNames)
+				} else {
+					got := &tempopb.SearchTagsV2Response{}
+					require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(wire), got))
+					sort.Slice(got.Scopes, func(i, j int) bool { return got.Scopes[i].Name < got.Scopes[j].Name })
+					for _, s := range got.Scopes {
+						sort.Strings(s.Tags)
+					}
+					got.Metrics = nil
+					require.True(t, proto.Equal(got, v2), "got=%s want=%s", got.String(), v2.String())
+				}
+			}
+		}
+	}
+	// Actual frontend requests, but owned fake backend responses. Not a live datasource.
+	require.NoError(t, os.WriteFile("/tmp/pulse-tempo-default-names/frontend-oracle.json", []byte("{\"cases\":90,\"omitted_empty_none_scopes\":true,\"v1_excludes_intrinsics\":true,\"v2_adds_intrinsics\":true,\"backend\":\"owned_stub\"}\n"), 0644))
+}

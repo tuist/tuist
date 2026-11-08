@@ -24,7 +24,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.34.6
+    version: v1.35.10
     controlPlane:
       replicas: 3
     variables:
@@ -133,6 +133,11 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.
         # General-purpose pool: Phoenix server, redis, system DaemonSets,
         # plus the 3-instance CloudNativePG cluster — its hard pod
         # anti-affinity (`topologyKey: kubernetes.io/hostname,

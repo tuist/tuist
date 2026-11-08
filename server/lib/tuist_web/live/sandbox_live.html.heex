@@ -1,0 +1,177 @@
+<div id="sandbox">
+  <.button
+    navigate={~p"/#{@selected_account.name}/sandboxes/instances"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_sandboxes", "Instances")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title">
+      <h1>{display_name(@sandbox)}</h1>
+      <% status = status(@sandbox) %>
+      <.badge label={status.label} color={status.color} style="light-fill" size="large" />
+    </div>
+    <div :if={@can_manage} data-part="actions">
+      <.button
+        :if={can_pause?(@sandbox)}
+        id="sandbox-pause"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :pause,
+            do: dgettext("dashboard_sandboxes", "Pausing…"),
+            else: dgettext("dashboard_sandboxes", "Pause")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="pause"
+      >
+        <:icon_left><.player_pause /></:icon_left>
+      </.button>
+      <.button
+        :if={can_resume?(@sandbox)}
+        id="sandbox-resume"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :resume,
+            do: dgettext("dashboard_sandboxes", "Resuming…"),
+            else: dgettext("dashboard_sandboxes", "Resume")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="resume"
+      >
+        <:icon_left><.player_play /></:icon_left>
+      </.button>
+      <.button
+        :if={Sandboxes.archivable?(@sandbox) or archiving?(@sandbox)}
+        id="sandbox-archive"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :archive or archiving?(@sandbox),
+            do: dgettext("dashboard_sandboxes", "Archiving…"),
+            else: dgettext("dashboard_sandboxes", "Archive")
+        }
+        disabled={not is_nil(@pending) or archiving?(@sandbox)}
+        phx-click="archive"
+      >
+        <:icon_left><.file_zip /></:icon_left>
+      </.button>
+      <.button
+        :if={can_delete?(@sandbox)}
+        id="sandbox-delete"
+        variant="secondary"
+        size="medium"
+        label={
+          if @pending == :delete,
+            do: dgettext("dashboard_sandboxes", "Deleting…"),
+            else: dgettext("dashboard_sandboxes", "Delete")
+        }
+        disabled={not is_nil(@pending)}
+        phx-click="request_delete"
+      >
+        <:icon_left><.trash /></:icon_left>
+      </.button>
+    </div>
+  </div>
+
+  <.flash_alerts flash={@flash} />
+
+  <.alert
+    :if={@sandbox.state == :error}
+    id="sandbox-error"
+    status="error"
+    type="secondary"
+    size="large"
+    title={dgettext("dashboard_sandboxes", "This sandbox failed")}
+    description={
+      @sandbox.error_message ||
+        dgettext("dashboard_sandboxes", "The machine running it reported an error.")
+    }
+  />
+
+  <.card title={dgettext("dashboard_sandboxes", "Sandbox details")} icon="stack_2">
+    <.card_section>
+      <div data-part="metadata-grid">
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Sandbox ID")}</div>
+          <span data-part="label">{@sandbox.id}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "vCPUs")}</div>
+          <span data-part="label">{@sandbox.vcpus}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Memory")}</div>
+          <span data-part="label">{gigabytes(@sandbox.memory_mb / 1024)}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Disk")}</div>
+          <span data-part="label">{gigabytes(@sandbox.workspace_gb)}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Created")}</div>
+          <span data-part="label" title={time(@sandbox.inserted_at)}>
+            {relative_time(@sandbox.inserted_at)}
+          </span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Last active")}</div>
+          <span data-part="label" title={time(last_active_at(@sandbox))}>
+            {relative_time(last_active_at(@sandbox))}
+          </span>
+        </div>
+        <div :if={@sandbox.state == :paused} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Paused")}</div>
+          <span data-part="label" title={time(@sandbox.paused_at || @sandbox.updated_at)}>
+            {relative_time(@sandbox.paused_at || @sandbox.updated_at)}
+          </span>
+        </div>
+        <div :if={@sandbox.state == :archived} data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Archived")}</div>
+          <span data-part="label" title={time(@sandbox.archived_at || @sandbox.updated_at)}>
+            {relative_time(@sandbox.archived_at || @sandbox.updated_at)}
+          </span>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.modal
+    id="sandbox-confirm-delete"
+    title={dgettext("dashboard_sandboxes", "Delete sandbox")}
+    description={
+      dgettext(
+        "dashboard_sandboxes",
+        "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
+      )
+    }
+    on_dismiss="cancel_delete"
+  >
+    <:trigger><span hidden></span></:trigger>
+    <.line_divider />
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard_sandboxes", "Cancel")}
+            variant="secondary"
+            phx-click="cancel_delete"
+          />
+        </:action>
+        <:action>
+          <.button
+            id="sandbox-confirm-delete-button"
+            label={dgettext("dashboard_sandboxes", "Delete sandbox")}
+            variant="destructive"
+            phx-click="delete"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>

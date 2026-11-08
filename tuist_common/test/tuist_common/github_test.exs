@@ -472,4 +472,141 @@ defmodule TuistCommon.GitHubTest do
       refute_received {:rate_limit, _measurements, _metadata}
     end
   end
+
+  describe "anonymous fallback" do
+    @allow_list_refusal %Req.Response{
+      status: 403,
+      body: %{"message" => "the `acme` organization has an IP allow list enabled"},
+      headers: %{
+        "x-ratelimit-limit" => ["5000"],
+        "x-ratelimit-used" => ["10"],
+        "x-ratelimit-remaining" => ["4990"]
+      }
+    }
+
+    # Answers authenticated requests with `authenticated` and anonymous ones
+    # with `anonymous`, reporting each call's credential to the test process.
+    defp stub_by_credential(authenticated, anonymous) do
+      test_pid = self()
+
+      stub(Req, :request, fn opts ->
+        authorized? = Enum.any?(opts[:headers], &match?({"authorization", _}, &1))
+        send(test_pid, {:requested, if(authorized?, do: :authenticated, else: :anonymous)})
+        if authorized?, do: {:ok, authenticated}, else: {:ok, anonymous}
+      end)
+    end
+
+    test "repeats a refused request without the token when opted in" do
+      stub_by_credential(@allow_list_refusal, %Req.Response{
+        status: 200,
+        body: [%{"name" => "11.0.3"}],
+        headers: %{}
+      })
+
+      assert {:ok, ["11.0.3"]} =
+               GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+
+      assert_received {:requested, :authenticated}
+      assert_received {:requested, :anonymous}
+    end
+
+    test "keeps an anonymous not found, which is the real answer for a public repository" do
+      stub_by_credential(@allow_list_refusal, %Req.Response{status: 404, body: %{}, headers: %{}})
+
+      assert {:error, :not_found} =
+               GitHub.get_file_content("acme/sdk", "test-token", ".gitmodules", "v1",
+                 anonymous_fallback: true
+               )
+    end
+
+    test "returns the original refusal when the anonymous request is throttled" do
+      stub_by_credential(@allow_list_refusal, %Req.Response{
+        status: 403,
+        body: %{},
+        headers: %{"x-ratelimit-remaining" => ["0"], "x-ratelimit-reset" => ["1780000000"]}
+      })
+
+      assert {:error, {:http_error, 403}} =
+               GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+    end
+
+    test "does not retry a rate-limited 403" do
+      stub_by_credential(
+        %Req.Response{status: 403, body: %{}, headers: %{"x-ratelimit-remaining" => ["0"]}},
+        %Req.Response{status: 200, body: [], headers: %{}}
+      )
+
+      assert {:error, {:rate_limited, 403, nil}} =
+               GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+
+      refute_received {:requested, :anonymous}
+    end
+
+    test "does not retry a secondary rate limit that carries no rate-limit headers" do
+      stub_by_credential(
+        %Req.Response{
+          status: 403,
+          body: %{"message" => "You have exceeded a secondary rate limit."},
+          headers: %{}
+        },
+        %Req.Response{status: 200, body: [], headers: %{}}
+      )
+
+      assert {:error, {:http_error, 403}} =
+               GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+
+      refute_received {:requested, :anonymous}
+    end
+
+    test "returns the original refusal when the anonymous request fails to connect" do
+      test_pid = self()
+
+      stub(Req, :request, fn opts ->
+        if Enum.any?(opts[:headers], &match?({"authorization", _}, &1)) do
+          {:ok, @allow_list_refusal}
+        else
+          send(test_pid, {:requested, :anonymous})
+          {:error, %Req.TransportError{reason: :timeout}}
+        end
+      end)
+
+      assert {:error, {:http_error, 403}} =
+               GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+
+      assert_received {:requested, :anonymous}
+    end
+
+    test "reports only the token's budget to rate-limit telemetry" do
+      test_pid = self()
+      handler_id = "github-anonymous-fallback-#{System.unique_integer([:positive])}"
+
+      :telemetry.attach(
+        handler_id,
+        GitHub.rate_limit_event_name(),
+        fn _event, measurements, _metadata, _config ->
+          send(test_pid, {:rate_limit, measurements})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      stub_by_credential(@allow_list_refusal, %Req.Response{
+        status: 200,
+        body: [],
+        headers: %{"x-ratelimit-limit" => ["60"], "x-ratelimit-used" => ["1"]}
+      })
+
+      assert {:ok, []} = GitHub.list_tags("acme/sdk", "test-token", anonymous_fallback: true)
+      assert_received {:rate_limit, %{limit: 5000, used: 10}}
+      refute_received {:rate_limit, %{limit: 60}}
+    end
+
+    test "does not retry unless the caller opts in" do
+      stub_by_credential(@allow_list_refusal, %Req.Response{status: 200, body: [], headers: %{}})
+
+      assert {:error, {:http_error, 403}} = GitHub.list_tags("acme/sdk", "test-token")
+      refute_received {:requested, :anonymous}
+    end
+  end
 end

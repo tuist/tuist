@@ -1,6 +1,7 @@
 package dev.tuist.app.data.previews
 
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.api.model.ListProjects200Response
@@ -8,7 +9,9 @@ import dev.tuist.app.api.model.PaginationMetadata
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.PreviewsIndex1
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.data.auth.TokenStorage
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -30,7 +33,12 @@ class PreviewsRepositoryTest {
         previewsApi = mockk()
         projectsApi = mockk()
         moshi = Moshi.Builder().build()
-        repository = PreviewsRepository(previewsApi, projectsApi, moshi)
+        val tokens = mockk<TokenStorage> {
+            every { snapshot() } returns TokenStorage.Session("profile", 0, "tuist", "https://tuist.dev")
+            every { selectedAccount() } returns "tuist"
+            every { isCurrent(any()) } returns true
+        }
+        repository = PreviewsRepository(previewsApi, projectsApi, moshi, tokens)
     }
 
     @Test
@@ -60,6 +68,19 @@ class PreviewsRepositoryTest {
         val result = repository.listProjects()
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `projects are filtered to global organization and foreign previews are rejected`() = runTest {
+        val own = Project("main", "tuist/app", 1, Project.Visibility.`private`)
+        val other = own.copy(id = 2, fullName = "other/app")
+        coEvery { projectsApi.listProjects() } returns Response.success(ListProjects200Response(listOf(other, own)))
+        assertEquals(listOf(own), repository.listProjects())
+        try {
+            repository.listPreviews("other", "app")
+            org.junit.Assert.fail("Foreign organization must not reach the preview API")
+        } catch (_: IllegalArgumentException) { }
+        io.mockk.coVerify(exactly = 0) { previewsApi.listPreviews(any(), any(), any(), any()) }
     }
 
     @Test(expected = RuntimeException::class)
@@ -133,6 +154,55 @@ class PreviewsRepositoryTest {
         } throws RuntimeException("Network error")
 
         repository.listPreviews("tuist", "tuist")
+    }
+
+    @Test
+    fun `preview decoding preserves APKs from older and future servers`() {
+        val adapter = Moshi.Builder()
+            .addLast(KotlinJsonAdapterFactory())
+            .build()
+            .adapter(Preview::class.java)
+
+        for (future in listOf(false, true)) {
+            val extraBuild = if (future) {
+                """, {
+                    "id":"future",
+                    "type":"future_format",
+                    "url":"https://example.com/future",
+                    "supported_platforms":["future_os"],
+                    "supported_architectures":["future_cpu"]
+                }"""
+            } else {
+                ""
+            }
+            val platforms = if (future) """["android","future_os"]""" else """["android"]"""
+            val preview = requireNotNull(adapter.fromJson("""
+                {
+                    "id":"preview",
+                    "url":"https://example.com/preview",
+                    "icon_url":"https://example.com/icon",
+                    "device_url":"https://example.com/install",
+                    "qr_code_url":"https://example.com/qr",
+                    "inserted_at":"2026-10-30T00:00:00Z",
+                    "created_from_ci":false,
+                    "supported_platforms":$platforms,
+                    "builds":[{
+                        "id":"apk",
+                        "type":"apk",
+                        "url":"https://example.com/app.apk",
+                        "supported_platforms":["android"]
+                    }$extraBuild],
+                    "future_metadata":{"ignored":true}
+                }
+            """.trimIndent()))
+
+            val apk = requireNotNull(preview.builds.firstOrNull { it.type == "apk" })
+            assertEquals("https://example.com/app.apk", apk.url)
+            assertEquals(listOf("android"), apk.supportedPlatforms)
+            assertEquals(null, apk.supportedArchitectures)
+            assertTrue(preview.supportedPlatforms.contains("android"))
+            assertEquals(if (future) 2 else 1, preview.builds.size)
+        }
     }
 
     private fun createPreview(id: String, displayName: String): Preview {

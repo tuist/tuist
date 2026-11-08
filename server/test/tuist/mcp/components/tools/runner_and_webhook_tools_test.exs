@@ -196,6 +196,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                  "profile_name" => "missing",
                  "cache_writer_branches" => ["main"]
                })
+
+      assert UpdateRunnerProfile.annotations().destructiveHint
     end
 
     test "lists the shapes and Xcode versions profiles can use", %{account: account, conn: conn} do
@@ -206,7 +208,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
 
       assert %{"shapes" => shapes, "xcode_versions" => xcode_versions} = JSON.decode!(text)
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in shapes
-      assert %{"platform" => "macos", "vcpus" => 6, "memory_gb" => 14, "default" => true} in shapes
+      assert %{"platform" => "macos", "vcpus" => 8, "memory_gb" => 24, "default" => true} in shapes
       assert %{"xcode_version" => "26.5", "default" => true} in xcode_versions
     end
 
@@ -302,8 +304,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
         account_id: account.id,
         name: "xcode",
         platform: :macos,
-        vcpus: 6,
-        memory_gb: 14,
+        vcpus: 8,
+        memory_gb: 24,
         xcode_version: "26.5"
       })
 
@@ -314,7 +316,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                  "xcode_version" => "26.4.1"
                })
 
-      assert %{"vcpus" => 6, "memory_gb" => 14, "xcode_version" => "26.4.1"} = JSON.decode!(text)
+      assert %{"vcpus" => 8, "memory_gb" => 24, "xcode_version" => "26.4.1"} = JSON.decode!(text)
     end
 
     test "deletes a profile but not a default one", %{account: account, conn: conn} do

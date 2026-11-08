@@ -2,11 +2,12 @@ import Foundation
 import TuistREAPI
 
 final class CargoCacheMeasurement {
-    let invocation: CargoCacheInvocation
+    let invocation: any CargoCacheAction
     private var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
     private var records: [[String: Any]] = []
+    private(set) var hasRemoteFailure = false
 
-    init(invocation: CargoCacheInvocation) {
+    init(invocation: any CargoCacheAction) {
         self.invocation = invocation
     }
 
@@ -14,7 +15,7 @@ final class CargoCacheMeasurement {
         counters[hit ? "hits" : "misses"] = 1
         records.append([
             "record": "task", "key": Self.key(invocation.key), "name": invocation.name,
-            "kind": "rust", "status": hit ? "hit" : "miss",
+            "kind": invocation.kind, "status": hit ? "hit" : "miss",
         ])
     }
 
@@ -41,10 +42,9 @@ final class CargoCacheMeasurement {
         records.append(["record": "reference", "key": Self.key(invocation.key), "object": Self.key(digest)])
     }
 
-    var hasRemoteFailure: Bool { counters["remote_failures", default: 0] > 0 }
-
-    func failure(upload: Bool = false) {
+    func failure(upload: Bool = false, endpoint: Bool = true) {
         counters[upload ? "background_upload_failures" : "remote_failures", default: 0] += 1
+        if !upload, endpoint { hasRemoteFailure = true }
     }
 
     func write() {

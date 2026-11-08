@@ -5,6 +5,7 @@ import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.data.auth.TokenStorage
 import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,12 +57,15 @@ class PreviewsRepository @Inject constructor(
     private val previewsApi: PreviewsApi,
     private val projectsApi: ProjectsApi,
     private val moshi: Moshi,
+    private val tokens: TokenStorage,
 ) {
     suspend fun listProjects(): List<Project> {
+        val (session, account) = synchronized(tokens) { tokens.snapshot() to tokens.selectedAccount() }
         val response = projectsApi.listProjects()
+        check(tokens.isCurrent(session)) { "Organization changed" }
         val body = response.body()
         if (response.isSuccessful && body != null) {
-            return body.projects
+            return body.projects.filter { it.fullName.substringBefore('/') == account }
         }
         val message = response.serverErrorMessage()
         throw when (response.code()) {
@@ -76,6 +80,7 @@ class PreviewsRepository @Inject constructor(
         projectHandle: String,
         previewId: String,
     ): Preview {
+        requireAccount(accountHandle)
         val response = previewsApi.getPreview(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -100,6 +105,7 @@ class PreviewsRepository @Inject constructor(
         projectHandle: String,
         previewId: String,
     ) {
+        requireAccount(accountHandle)
         val response = previewsApi.deletePreview(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -122,6 +128,7 @@ class PreviewsRepository @Inject constructor(
         page: Int = 1,
         pageSize: Int = 10,
     ): PreviewsPage {
+        requireAccount(accountHandle)
         val response = previewsApi.listPreviews(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -142,6 +149,12 @@ class PreviewsRepository @Inject constructor(
             403 -> ListPreviewsError.Forbidden(message)
             else -> ListPreviewsError.Unknown(response.code())
         }
+    }
+
+    val serverUrl: String get() = tokens.selectedServer()
+
+    private fun requireAccount(account: String) {
+        require(account == tokens.selectedAccount()) { "Project belongs to another organization" }
     }
 
     private fun <T> Response<T>.serverErrorMessage(): String {

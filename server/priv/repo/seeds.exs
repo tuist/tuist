@@ -50,6 +50,10 @@ alias Tuist.Xcode.XcodeGraph
 alias Tuist.Xcode.XcodeProject
 alias Tuist.Xcode.XcodeTarget
 
+if Logger.compare_levels(Logger.level(), :info) == :lt do
+  Logger.configure(level: :info)
+end
+
 # CI seeds with MIX_ENV=test, where both repos use the SQL sandbox pool. Its
 # implicit checkout drops this script's connection after the default 120s
 # ownership timeout, which a full seed now exceeds.
@@ -5800,6 +5804,10 @@ IO.puts("  - kura usage events: #{length(kura_events)}")
 # evidence, and the per-commit totals every coverage page reads. It lives in
 # its own file so it can be re-seeded alone.
 Code.eval_file(Path.join(__DIR__, "coverage_seeds.exs"))
+
+# Test selection: what each measured commit would have had to run, planned
+# from the coverage seeds' listings and per-test evidence.
+Code.eval_file(Path.join(__DIR__, "test_selection_seeds.exs"))
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

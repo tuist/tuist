@@ -4,6 +4,7 @@ defmodule TuistWeb.BuildController do
   alias Tuist.Authorization
   alias Tuist.Bazel
   alias Tuist.Builds
+  alias Tuist.Builds.Trace
   alias Tuist.Gradle
   alias Tuist.Mix
   alias Tuist.Projects
@@ -16,7 +17,7 @@ defmodule TuistWeb.BuildController do
 
     with {:ok, project} <- Projects.get_project_by_slug("#{account}/#{project_name}", preload: [:account]),
          :ok <- Authorization.authorize(:build_read, user, project),
-         {:ok, build} <- timeline_build(project, params),
+         {:ok, build} <- Trace.get_build(project, build_id(params)),
          true <- build.project_id == project.id do
       # Bandit negotiates HTTP compression; never cache this authenticated response.
       conn
@@ -27,18 +28,59 @@ defmodule TuistWeb.BuildController do
     end
   end
 
-  defp timeline_build(%{build_system: :gradle} = project, %{"build_run_id" => id}),
-    do: Gradle.get_build(id, project_id: project.id)
+  defp build_id(%{"build_run_id" => id}), do: id
+  defp build_id(%{"invocation_id" => id}), do: id
 
-  defp timeline_build(%{build_system: :bazel} = project, %{"invocation_id" => id}),
-    do: Bazel.get_invocation(project.id, id, include_cache_summary: false)
+  @doc """
+  Downloads the build's timeline as a Chrome Trace Event JSON file for Perfetto.
+  """
+  def trace(conn, %{"account_handle" => account, "project_handle" => project_name} = params) do
+    user = Authentication.current_user(conn)
 
-  defp timeline_build(%{build_system: :xcode} = project, %{"build_run_id" => id}),
-    do: Builds.get_build(id, project_id: project.id)
+    with {:ok, project} <- Projects.get_project_by_slug("#{account}/#{project_name}", preload: [:account]),
+         :ok <- Authorization.authorize(:build_read, user, project),
+         {:ok, build} <- Trace.get_build(project, build_id(params)),
+         true <- build.project_id == project.id do
+      send_trace(conn, project, build)
+    else
+      _ -> raise NotFoundError, dgettext("errors", "Build not found")
+    end
+  end
 
-  defp timeline_build(%{build_system: :mix} = project, %{"build_run_id" => id}), do: Mix.get_build(id, project.id)
+  @doc """
+  Serves the same file to holders of a link signed by `Tuist.Builds.Trace.sign_token/2`,
+  which the MCP server hands to agents after authorizing them for the build.
+  """
+  def signed_trace(conn, %{"token" => token}) do
+    with {:ok, project_id, build_id} <- Trace.verify_token(token),
+         {:ok, project} <- project_id |> Projects.get_project_by_id() |> ok_or_not_found(),
+         {:ok, build} <- Trace.get_build(project, build_id) do
+      send_trace(conn, project, build)
+    else
+      _ -> raise NotFoundError, dgettext("errors", "Build not found")
+    end
+  end
 
-  defp timeline_build(_project, _params), do: {:error, :not_found}
+  defp ok_or_not_found(nil), do: {:error, :not_found}
+  defp ok_or_not_found(project), do: {:ok, project}
+
+  defp send_trace(conn, project, build) do
+    trace =
+      build
+      |> Trace.load()
+      |> Trace.encode(%{
+        name: "#{project.account.name}/#{project.name} #{project.build_system} build",
+        build_id: build.id,
+        build_system: project.build_system
+      })
+
+    conn
+    |> put_resp_header("cache-control", "private, no-store")
+    |> send_download({:binary, JSON.encode!(trace)},
+      filename: "build-#{build.id}-trace.json",
+      content_type: "application/json"
+    )
+  end
 
   defp timeline_metadata(%Builds.Build{} = build), do: Builds.build_timeline(build.id, duration: build.duration)
   defp timeline_metadata(%Gradle.Build{} = build), do: Gradle.Timeline.load(build, include_metrics: false)

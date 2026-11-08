@@ -4,6 +4,8 @@ defmodule Tuist.Runners.Catalog do
   the runner fleets expose. Read from application config:
 
     * `:runner_linux_shapes` — Linux shape catalog.
+    * `:runner_linux_os_versions` — Ubuntu releases runnable on the
+      Linux fleet.
     * `:runner_linux_pools` — operator-defined Linux pools.
     * `:runner_macos_shapes` — macOS shape catalog.
     * `:runner_macos_xcode_versions` — Xcode versions runnable on the
@@ -47,7 +49,7 @@ defmodule Tuist.Runners.Catalog do
   # compute unit is one minute on that baseline:
   #
   #   Linux  2 vCPU /  8 GB = one Linux compute unit
-  #   macOS  6 vCPU / 14 GB = one macOS compute unit
+  #   macOS  8 vCPU / 24 GB = one macOS compute unit
   #
   # Within a platform, shapes are weighted by resources. On a cloud bill
   # roughly two thirds of a machine's cost is CPU and one third memory, so
@@ -66,7 +68,7 @@ defmodule Tuist.Runners.Catalog do
   # credit grant, discount, or contract to one platform.
   @compute_unit_bp 10_000
   @vcpu_weight 8
-  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 6 + 14}
+  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 8 + 24}
 
   @doc """
   Billing multiplier for a machine, in basis points, relative to its own
@@ -163,14 +165,15 @@ defmodule Tuist.Runners.Catalog do
   """
   def linux_fleet_resources do
     shape_resources =
-      Enum.map(shapes(:linux), fn shape ->
+      for shape <- shapes(:linux), os_version <- linux_os_versions_for_pools() do
         %{
-          fleet_name: pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}),
+          fleet_name:
+            pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb, os_version: os_version}),
           platform: :linux,
           vcpus: shape.vcpus,
           memory_gb: shape.memory_gb
         }
-      end)
+      end
 
     pool_resources =
       Enum.map(linux_pools(), fn pool ->
@@ -225,23 +228,68 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  The Ubuntu releases Linux profiles can run on, newest first, from
+  `:runner_linux_os_versions`. Each entry carries the `os_version`
+  profiles store (`ubuntu-24.04`), the `tag` that suffixes its pool
+  names and image tags (`ubuntu-24-04`), and a display `label`.
+  """
+  def os_versions do
+    raw =
+      case Application.get_env(:tuist, :runner_linux_os_versions, []) do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    raw
+    |> Enum.map(&normalize_os_version/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.os_version)
+    |> Enum.sort_by(& &1.release, :desc)
+  end
+
+  @doc """
+  Look up a Linux OS version in the catalog. Returns `nil` if absent.
+  """
+  def find_os_version(os_version) when is_binary(os_version) do
+    Enum.find(os_versions(), &(&1.os_version == os_version))
+  end
+
+  def find_os_version(_), do: nil
+
+  @doc """
+  The Linux OS version tagged `default: true`: what new Linux profiles
+  get, and the one whose pools carry no OS suffix. Returns `nil` if none.
+  """
+  def default_os_version do
+    Enum.find(os_versions(), & &1.default?)
+  end
+
+  @doc """
   Name of the `RunnerPool` CR a profile dispatches to.
 
-    * `:linux` — `<linux-prefix>-<vcpus>vcpu-<memory_gb>gb` (e.g.
-      `tuist-runner-pool-linux-4vcpu-16gb`). Prefix injected via
-      `TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX`.
+    * `:linux` — `<linux-prefix>-<vcpus>vcpu-<memory_gb>gb` for the
+      catalog's default OS version (e.g.
+      `tuist-runner-pool-linux-4vcpu-16gb`), with `-<os-tag>` appended
+      for any other OS version (e.g.
+      `tuist-runner-pool-linux-4vcpu-16gb-ubuntu-22-04`). Prefix
+      injected via `TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX`.
     * `:macos` — `<macos-prefix>-<xcode-version-dashes>` for the
       catalog's default shape (e.g. `tuist-runner-pool-macos-26-5`),
       with `-<vcpus>vcpu-<memory_gb>gb` appended for any other shape
-      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). Prefix
+      (e.g. `tuist-runner-pool-macos-26-5-16vcpu-48gb`). Prefix
       injected via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
 
   Accepts any map with the relevant fields — `%Profile{}` works, as
   does a plain `%{platform: ..., vcpus: ..., memory_gb: ...}`.
   """
-  def pool_name(%{platform: :linux, vcpus: vcpus, memory_gb: memory_gb})
+  def pool_name(%{platform: :linux, vcpus: vcpus, memory_gb: memory_gb} = profile)
       when is_integer(vcpus) and is_integer(memory_gb) do
-    "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
+    base = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
+
+    case linux_os_suffix(Map.get(profile, :os_version)) do
+      nil -> base
+      suffix -> "#{base}-#{suffix}"
+    end
   end
 
   def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
@@ -273,16 +321,40 @@ defmodule Tuist.Runners.Catalog do
 
   defp macos_shape_suffix(_), do: nil
 
-  @doc """
-  Name of the `RunnerPool` CR that runs a macOS profile at a site: the pool
-  `pool_name/1` names, racked at the site, which `templates/runner-pool.yaml`
-  renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
-  `tuist-runner-pool-macos-ber1-26-6`). The site comes before the Xcode so the
-  shape suffix stays last, which `resources_for_fleet/1` matches on.
+  # Same rule for the Linux OS dimension: the default OS version's pools
+  # keep the shape-only names every Linux pool had before profiles could
+  # pick an OS, and `templates/runner-pool.yaml` suffixes every other OS
+  # version's pools with its tag. A profile without an OS version (a row
+  # written by a replica that predates the column) runs on the default.
+  defp linux_os_suffix(os_version) when is_binary(os_version) do
+    case default_os_version() do
+      %{os_version: ^os_version} -> nil
+      _ -> os_version_tag(os_version)
+    end
+  end
 
-  Only pools the environment declares at a site (`TUIST_RUNNERS_SITE_POOLS`)
-  count, so a profile whose Xcode or shape no site racks answers `nil`, and so
-  does a Linux profile. With several sites racking it, the first by name wins.
+  defp linux_os_suffix(_), do: nil
+
+  defp linux_os_versions_for_pools do
+    case os_versions() do
+      [] -> [nil]
+      os_versions -> Enum.map(os_versions, & &1.os_version)
+    end
+  end
+
+  @doc """
+  Name of the rack `RunnerPool` that runs a macOS profile: the pool
+  `pool_name/1` names, racked on the rack, which `templates/runner-pool.yaml`
+  renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
+  `tuist-runner-pool-macos-ber1-26-6`), named after the rack's home site. The
+  site comes before the Xcode so the shape suffix stays last, which
+  `resources_for_fleet/1` matches on. The pool spans every site whose runners
+  are on, so a job queued on it is bound to its Xcode and shape, and the Node of
+  the runner that claims it decides the site (`Tuist.Runners.Sites`).
+
+  Only pools the environment declares on the rack (`TUIST_RUNNERS_SITE_POOLS`)
+  count, so a profile whose Xcode or shape the rack does not run answers `nil`,
+  and so does a Linux profile. With several listed, the first by name wins.
   """
   def site_pool_name(%{platform: :macos} = profile) do
     site_pools = Tuist.Environment.runners_site_pools()
@@ -371,7 +443,9 @@ defmodule Tuist.Runners.Catalog do
 
   @doc """
   The site a fleet is racked at (`TUIST_RUNNERS_SITE_POOLS`), or `nil` for a
-  fleet that is not at one. A site's fleets take its runner-cache region.
+  fleet that is not on the rack. A rack pool spans every site whose runners are
+  on and is named after this one, so it is the site a claim falls back to for a
+  Node without a site label (`Tuist.Runners.Sites.claim_site/2`).
   """
   def fleet_site(fleet_name) when is_binary(fleet_name) do
     case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
@@ -547,6 +621,27 @@ defmodule Tuist.Runners.Catalog do
 
   def parse_xcode_versions_json(_), do: :error
 
+  @doc """
+  Decode the JSON wire form of the Linux OS catalog into the
+  `:runner_linux_os_versions` config shape (`osVersion` →
+  `:os_version`). Mirrors `parse_xcode_versions_json/1` for the
+  `runnersFleetLinux.osVersions` Helm list.
+  """
+  def parse_os_versions_json(json) when is_binary(json) do
+    case JSON.decode(json) do
+      {:ok, list} when is_list(list) ->
+        Enum.map(list, fn entry ->
+          base = %{os_version: entry["osVersion"]}
+          if entry["default"] == true, do: Map.put(base, :default, true), else: base
+        end)
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_os_versions_json(_), do: :error
+
   defp shapes_config_key(:linux), do: :runner_linux_shapes
   defp shapes_config_key(:macos), do: :runner_macos_shapes
 
@@ -578,6 +673,30 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp normalize_xcode_version(_), do: nil
+
+  # Only Ubuntu releases (`ubuntu-<yy>.<mm>`) are runnable: the runner
+  # image is built on Ubuntu, and the release decides the image tag.
+  defp normalize_os_version(%{os_version: os_version} = entry) when is_binary(os_version) do
+    case Regex.run(~r/^ubuntu-(\d{2})\.(\d{2})$/, os_version) do
+      [_, year, month] ->
+        %{
+          os_version: os_version,
+          tag: os_version_tag(os_version),
+          label: "Ubuntu #{year}.#{month}",
+          release: {String.to_integer(year), String.to_integer(month)},
+          default?: Map.get(entry, :default, false)
+        }
+
+      nil ->
+        nil
+    end
+  end
+
+  defp normalize_os_version(_), do: nil
+
+  # `ubuntu-22.04` → `ubuntu-22-04`, the suffix on its pool names and on
+  # the `ghcr.io/tuist/tuist-linux-runner:<semver>-<tag>` image tags.
+  defp os_version_tag(os_version), do: String.replace(os_version, ".", "-")
 
   # `26.5` → `26-5`, `26.4.1` → `26-4-1`. Matches the
   # `ghcr.io/tuist/tuist-runner:macos-<version-tag>` tag scheme the

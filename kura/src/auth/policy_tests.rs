@@ -33,6 +33,202 @@ const GUARDIAN_SECRET: &str = "tuist-guardian-secret";
 use std::sync::Mutex;
 
 #[tokio::test]
+async fn network_cache_policy_authorizes_http_and_grpc_but_not_credentials_or_other_operations() {
+    use axum::{body::Body, http::Request};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    let enabled = Arc::new(AtomicBool::new(true));
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let app = Router::new().route("/_internal/kura/cache-policy", get({
+        let enabled = enabled.clone();
+        let calls = calls.clone();
+        move |headers: HeaderMap, axum::extract::Query(query): axum::extract::Query<BTreeMap<String, String>>| {
+            let enabled = enabled.clone();
+            let calls = calls.clone();
+            async move {
+                use base64::Engine as _;
+                assert_eq!(headers["authorization"], format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("00000000-0000-0000-0000-000000000001:kura-secret")));
+                assert_eq!(query["tenant_id"], "acme");
+                calls.fetch_add(1, Ordering::SeqCst);
+                Json(json!({"tenant_id": "acme", "network_trusted_cache_access": enabled.load(Ordering::SeqCst)}))
+            }
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let engine = engine_introspection_only(&base);
+    let mut request = ctx();
+    request.tenant_id = Some("acme".into());
+    let decisions =
+        futures_util::future::join_all((0..16).map(|_| engine.evaluate_access(&request))).await;
+    assert!(
+        decisions
+            .iter()
+            .all(|decision| matches!(decision, AccessDecision::Allow))
+    );
+    let context = crate::test_support::test_context_with_auth(
+        |config| config.tenant_id = "acme".into(),
+        Some(engine.clone()),
+    )
+    .await;
+    let http = crate::http::router(context.state.clone());
+    let uri = "/api/cache/gradle/network-key?tenant_id=acme&namespace_id=widgets";
+    let response = http
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(uri)
+                .body(Body::from("network cache bytes"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    let response = http
+        .clone()
+        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.into_body().collect().await.unwrap().to_bytes(),
+        "network cache bytes"
+    );
+
+    for value in ["", "Bearer ", "Bearer rejected"] {
+        let response = http
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header("authorization", value)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(!response.status().is_success(), "supplied {value:?}");
+    }
+    let response = http
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .header("authorization", "one")
+                .header("authorization", "two")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let response = http
+        .oneshot(
+            Request::builder()
+                .uri("/api/cache/gradle/network-key?tenant_id=other&namespace_id=widgets")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let grpc = crate::reapi::routes(context.state.clone());
+    let path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+    for (headers, expected) in [(vec![], "0"), (vec![""], "16"), (vec!["one", "two"], "16")] {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers");
+        for header in headers {
+            request = request.header("authorization", header);
+        }
+        let response = grpc
+            .clone()
+            .oneshot(request.body(Body::from(vec![0u8; 5])).unwrap())
+            .await
+            .unwrap();
+        let status = response.headers().get("grpc-status").cloned();
+        let body = response.into_body().collect().await.unwrap();
+        let status = status.or_else(|| {
+            body.trailers()
+                .and_then(|trailers| trailers.get("grpc-status").cloned())
+        });
+        assert_eq!(status.unwrap().to_str().unwrap(), expected);
+    }
+    for operation in [
+        "asset.read",
+        "asset.write",
+        "namespace.delete",
+        "build_event_stream",
+    ] {
+        let mut request = ctx();
+        request.tenant_id = Some("acme".into());
+        request.operation = operation.into();
+        assert!(matches!(
+            engine.evaluate_access(&request).await,
+            AccessDecision::Deny(_)
+        ));
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    enabled.store(false, Ordering::SeqCst);
+    engine.clear_caches().await;
+    let mut request = ctx();
+    request.tenant_id = Some("acme".into());
+    assert!(matches!(
+        engine.evaluate_access(&request).await,
+        AccessDecision::Deny(_)
+    ));
+    server.abort();
+}
+
+#[tokio::test]
+async fn network_cache_policy_fails_closed_for_missing_wrong_tenant_and_failed_responses() {
+    for (status, body) in [
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "other", "network_trusted_cache_access": true}),
+        ),
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "acme", "network_trusted_report_publishing": true}),
+        ),
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "acme", "network_trusted_cache_access": "true"}),
+        ),
+        (StatusCode::NOT_FOUND, json!({})),
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({"tenant_id": "acme", "network_trusted_cache_access": true}),
+        ),
+    ] {
+        let app = Router::new().route(
+            "/_internal/kura/cache-policy",
+            get(move || {
+                let body = body.clone();
+                async move { (status, Json(body)) }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let engine = engine_introspection_only(&base);
+        let mut request = ctx();
+        request.tenant_id = Some("acme".into());
+        assert!(matches!(
+            engine.evaluate_access(&request).await,
+            AccessDecision::Deny(_)
+        ));
+        server.abort();
+    }
+}
+
+#[tokio::test]
 async fn renamed_account_authorizes_current_grants_without_changing_stored_artifacts() {
     use axum::body::Body;
     use axum::http::Request;
@@ -2251,4 +2447,273 @@ async fn a_settled_target_is_answered_while_another_is_being_consulted() {
     assert_eq!(*calls.lock().unwrap(), 1);
 
     drop(consulting);
+}
+
+// The legacy route's `projects` names what a credential reaches, not what it
+// may do there: a read-only token, a viewer, or a member of an account that
+// keeps writes to tokens is listed too. A server that sends `cache_grants`
+// beside it is saying which action each project allows, and they decide. A
+// server older than the grants sends `projects` alone, which keeps answering
+// as before so opaque credentials can still write while the server catches up.
+#[tokio::test]
+async fn the_legacy_route_grants_only_the_actions_its_cache_grants_allow() {
+    for introspection_client in [true, false] {
+        let base = spawn_tuist_auth_mock(
+            |_headers, _payload| {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+                )
+            },
+            |headers| {
+                let mut body = cache_access_payload(&["acme"], &["acme/ios"]);
+                if headers["authorization"] != "Bearer opaque-token-from-older-server" {
+                    body["cache_grants"] = cache_grants_payload(&["acme"], &[], &["acme/ios"], &[]);
+                }
+                (StatusCode::OK, body)
+            },
+        )
+        .await;
+        let engine = engine_pointing_at(&base, introspection_client);
+
+        let mut read = ctx();
+        read.tenant_id = Some("acme".into());
+        read.namespace_id = Some("ios".into());
+        read.headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+
+        let mut write = read.clone();
+        write.method = "PUT".into();
+        write.operation = "artifact.write".into();
+
+        assert!(matches!(
+            engine.evaluate_access(&read).await,
+            AccessDecision::Allow
+        ));
+        let deny = expect_deny(engine.evaluate_access(&write).await);
+        assert_eq!(deny.status, 403, "introspection: {introspection_client}");
+
+        let mut older_server_write = write.clone();
+        older_server_write.headers.insert(
+            "authorization".into(),
+            "Bearer opaque-token-from-older-server".into(),
+        );
+        assert!(matches!(
+            engine.evaluate_access(&older_server_write).await,
+            AccessDecision::Allow
+        ));
+    }
+}
+
+// A read-only credential keeps uploading for its whole build. Once the
+// server's grants have said read-only, its writes are refused from what the
+// node holds until the level is revalidated, rather than every few seconds
+// costing another round trip to hear the same answer.
+#[tokio::test]
+async fn a_write_the_server_grants_refuse_is_held_past_the_short_refusal_window() {
+    let cache_access_calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = cache_access_calls.clone();
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+            )
+        },
+        move |_| {
+            *calls_for_handler.lock().unwrap() += 1;
+            let mut body = cache_access_payload(&[], &["acme/ios"]);
+            body["cache_grants"] = cache_grants_payload(&[], &[], &["acme/ios"], &[]);
+            (StatusCode::OK, body)
+        },
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut write = ctx();
+    write.tenant_id = Some("acme".into());
+    write.namespace_id = Some("ios".into());
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+    write
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+    assert_eq!(*cache_access_calls.lock().unwrap(), 1);
+
+    engine.age_entry(&write, Duration::from_secs(5)).await;
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+    assert_eq!(*cache_access_calls.lock().unwrap(), 1);
+}
+
+// The control: a refusal no route has settled, here an account-scoped write a
+// read-only introspection answer leaves inconclusive, is asked about again once
+// the short window passes, so a permission just granted is picked up.
+#[tokio::test]
+async fn a_refusal_no_route_settled_is_asked_about_again_after_the_short_window() {
+    let introspections = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = introspections.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&["acme"], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut write = ctx();
+    write.tenant_id = Some("acme".into());
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+    write
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+    engine.age_entry(&write, Duration::from_secs(5)).await;
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+
+    assert_eq!(*introspections.lock().unwrap(), 2);
+}
+
+// What introspection already established survives a grants answer that does
+// not name the project: the write is refused, and the read it allowed is still
+// answered from what the node holds.
+#[tokio::test]
+async fn the_legacy_route_keeps_the_level_introspection_established() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+            )
+        },
+        |_| {
+            let mut body = cache_access_payload(&[], &[]);
+            body["cache_grants"] = cache_grants_payload(&[], &[], &[], &[]);
+            (StatusCode::OK, body)
+        },
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut read = ctx();
+    read.tenant_id = Some("acme".into());
+    read.namespace_id = Some("ios".into());
+    read.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let mut write = read.clone();
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+    assert!(matches!(
+        engine.evaluate_access(&read).await,
+        AccessDecision::Allow
+    ));
+}
+
+// An account withheld for payment is absent from the grants, which alone reads
+// as never having had access. The refusal names the plan instead.
+#[tokio::test]
+async fn the_legacy_route_answers_payment_required_beside_its_grants() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+        |_| {
+            let mut body = cache_access_payload(&[], &[]);
+            body["cache_grants"] = cache_grants_payload(&[], &[], &[], &[]);
+            body["payment_required"] = json!(["acme"]);
+            (StatusCode::OK, body)
+        },
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut read = ctx();
+    read.tenant_id = Some("acme".into());
+    read.namespace_id = Some("ios".into());
+    read.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert_eq!(expect_deny(engine.evaluate_access(&read).await).status, 402);
+}
+
+// A read-only credential's writes stay refused while the server is down, past
+// the point where its level is revalidated. Answered unavailable instead, a
+// Gradle build retries the store, gives up, and stops reading the cache too.
+#[tokio::test]
+async fn a_settled_refusal_holds_while_the_backend_is_down() {
+    let down = Arc::new(AtomicBool::new(false));
+    let down_for_introspection = down.clone();
+    let down_for_access = down.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if down_for_introspection.load(Ordering::SeqCst) {
+                return (StatusCode::SERVICE_UNAVAILABLE, json!({}));
+            }
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+            )
+        },
+        move |_| {
+            if down_for_access.load(Ordering::SeqCst) {
+                return (StatusCode::SERVICE_UNAVAILABLE, json!({}));
+            }
+            let mut body = cache_access_payload(&[], &["acme/ios"]);
+            body["cache_grants"] = cache_grants_payload(&[], &[], &["acme/ios"], &[]);
+            (StatusCode::OK, body)
+        },
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut read = ctx();
+    read.tenant_id = Some("acme".into());
+    read.namespace_id = Some("ios".into());
+    read.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+    let mut write = read.clone();
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+
+    down.store(true, Ordering::SeqCst);
+    engine.age_entry(&write, Duration::from_secs(11 * 60)).await;
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&write).await).status,
+        403
+    );
+    assert!(matches!(
+        engine.evaluate_access(&read).await,
+        AccessDecision::Allow
+    ));
 }

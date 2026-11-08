@@ -16,6 +16,7 @@ Tuist is rolling out a new billing model, so accounts can be on different models
 
 - **Newer usage-based model**: meters cache egress and cache requests (downloads across the module, Xcode, Gradle, and Bazel caches; uploads and storage are free) and passing test cases reported to Test Insights. Usage from Tuist Runners is counted differently. Selective testing is listed as unlimited.
 - **Older model**: meters module cache and selective testing by CLI interactions with the server.
+- **Tuist Runners**: billed per minute of job time, with separate macOS and Linux rates; see Compute availability below.
 - **Listed as included without metering**: generated projects, previews, the Swift package registry, build insights, and bundle insights.
 
 ## How to estimate cost
@@ -29,17 +30,13 @@ According to the pricing FAQ, Tuist warns before plan limits are reached and the
 
 ## Project first, environment second
 
-Tuist recommends improving the project and avoiding repeated build and test work before buying more compute. Minute- or build-metered execution charges can grow with the work you want to eliminate; compare the [documented billing units and incentives](/marketing-markdown/compare#billing-and-incentives), not just the price of one minute.
+Tuist recommends improving the project and avoiding repeated build and test work before buying more compute. Minute- or build-metered execution charges can grow with the work you want to eliminate; compare the [documented billing units and total costs](/marketing-markdown/compare#compare-total-costs), not just the price of one minute. The [CI costs guide](/marketing-markdown/solutions/ci-costs) shows where spend usually goes, and the [comparison guides](/marketing-markdown/compare) cover how Tuist relates to other build and CI providers.
 
-Tuist also meters feature usage, including cache downloads and reported passing tests under the newer model. Project optimization is our adoption order, not a claim that our commercial interests are automatically identical to every customer's. Include Tuist's charges in the before/after total, alongside retained compute, storage, and network costs.
+Tuist also meters feature usage, including cache downloads and reported passing tests under the newer model, and bills its optional runners per minute. Project optimization is our adoption order, not a claim that our commercial interests are automatically identical to every customer's. Include Tuist's charges in the before/after total, alongside retained compute, storage, and network costs.
 
 ## Compute availability
 
-Tuist Runners are invite-only and runner pricing is not public yet. Hosted plan pricing does not include or imply compute rates. [Contact the team](mailto:contact@tuist.dev) for access.
-
-## Limitations
-
-Free allowances are not unlimited usage. Actual charges depend on the account's plan, billing model, recorded usage, and any signed agreement. A rate copied from elsewhere is not a quote. For procurement, self-hosting, or custom terms, [book a conversation](https://cal.tuist.dev/team/tuist/tuist).
+Tuist Runners are invite-only. Their macOS and Linux rates are listed on the live [pricing table](/pricing) alongside the plans and are billed per minute of job time on top of any plan. Every plan includes monthly free macOS and Linux allowances and a free cache volume storage allowance, with storage beyond it billed per GB-month. [Contact the team](mailto:contact@tuist.dev) for access and for further yearly or volume discounts.
 
 - [Live pricing and comparison table](/pricing)
 - [Product overview](/marketing-markdown)

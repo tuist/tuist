@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
+  alias Tuist.TestImpactAnalysis.Input
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -262,6 +263,29 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "measured", covered_lines: 5, executable_lines: 7, skipped_tests_count: 0} =
              Reported.compute(project, "base")
+  end
+
+  test "carries a skipped test from the version test selection resolves for the same blobs", %{
+    project: project,
+    account: account
+  } do
+    base = base_run(project, account)
+    head_run(project, account, head_files())
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    assert %{carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+
+    # With nothing changed, selection reads the head's blobs, as carry does.
+    input =
+      Input.load(project,
+        repository_id: Reported.repository_id(project.id, "head"),
+        baseline_sha: "head",
+        baseline_run_ids: [base.id]
+      )
+
+    trim = Enum.find(input.tests, &(&1.name == "testTrim()"))
+    assert %{reproduced: %{sha: "base", run_id: run_id}} = Input.evidence(input, trim.test_case_id)
+    assert run_id == base.id
   end
 
   test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
@@ -1689,6 +1713,49 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   test "carries every test of a target a skip identifier names", %{project: project, account: account} do
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
              skipping(project, account, ["AppTests"])
+  end
+
+  test "a percent-encoded skip identifier names a test whose suite holds a slash", %{project: project, account: account} do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 1])], %{
+      git_commit_sha: "base",
+      build_system: "mix",
+      scheme: nil,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 2,
+          test_cases: [
+            %{name: "rejects nil", test_suite_name: "add/2", status: "success", duration: 1},
+            %{name: "totals", test_suite_name: "", status: "success", duration: 1}
+          ]
+        }
+      ]
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 0])], %{
+      git_commit_sha: "head",
+      build_system: "mix",
+      scheme: nil,
+      partial: true,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 1,
+          test_cases: [%{name: "totals", test_suite_name: "", status: "success", duration: 1}]
+        }
+      ],
+      skip_test_identifiers: ["CartTest/add%2F2/rejects nil"]
+    })
+
+    # Mix records no per-test evidence, so the skipped test is a gap.
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:collection_off]
   end
 
   test "carries nothing for a skip identifier that names a test no ancestor ran", %{project: project, account: account} do

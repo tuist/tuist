@@ -19,10 +19,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	"golang.org/x/crypto/ssh"
@@ -103,6 +102,11 @@ type OVHDedicatedMachineReconciler struct {
 	DefaultOS                string
 	PrivateNetworkConfigName string
 	PrivateNetworkNamespace  string
+	RunnerEgressConfigName   string
+	RunnerEgressNamespace    string
+	runnerEgressMu           sync.Mutex
+	// RunnerEgressRunScript is the test seam for pinned, bounded host repairs.
+	RunnerEgressRunScript func(context.Context, *infrav1.OVHDedicatedMachine, string) error
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines,verbs=get;list;watch;create;update;patch;delete
@@ -123,12 +127,12 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
 
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -219,7 +223,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
 			// Persist inside the lock: the deferred patch flushes only after the
 			// lock is released, which would reopen the window it exists to close.
-			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+			if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil {
 				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.Name, patchErr)
 			}
 			// Requeue rather than bootstrapping inline: the next reconcile
@@ -352,6 +356,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
+		egressErr := r.reconcileRunnerEgress(ctx, machine, node)
+		if egressErr != nil {
+			logger.Error(egressErr, "runner egress repair failed; will retry")
+		}
 		networkErr := r.reconcilePrivateNetwork(ctx, machine, node)
 		var pending *privateNetworkPending
 		if errors.As(networkErr, &pending) {
@@ -361,7 +369,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, machine.Spec.KataRuntime, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -373,6 +381,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+			// Not a return path for its own failures: a host that cannot
+			// offer nested guests still serves every other Pod, and the
+			// drift checks after this one must keep running for it.
+			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kvmErr != nil {
+				logger.Error(kvmErr, "kata nested virtualization repair failed; will retry")
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
 			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
 				logger.Error(quotaErr, "containerd quota lift failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -380,7 +396,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
 		}
-		if networkErr != nil {
+		if networkErr != nil || egressErr != nil {
 			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
@@ -397,6 +413,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
 		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
 		Taints:        machine.Spec.NodeTaints,
 		KataRuntime:   machine.Spec.KataRuntime,
@@ -454,6 +471,11 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 	if len(running) > 0 {
 		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
 		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
+	// Withdraw the policy and remove the address before dropping SSH credentials
+	// or starting the asynchronous reinstall. Only then can the IP be reused.
+	if err := r.cleanupRunnerEgress(ctx, machine); err != nil {
+		return ctrl.Result{}, err
 	}
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)

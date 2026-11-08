@@ -52,7 +52,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .any,
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         cacheStorageFactory = .init()
@@ -376,7 +377,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -416,7 +418,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -456,7 +459,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .none },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -505,7 +509,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -691,7 +696,8 @@ struct GenerateServiceOutdatedDependenciesTests {
                 configuration: .any,
                 cacheProfile: .any,
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(cacheStorageFactory)

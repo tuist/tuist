@@ -12,6 +12,21 @@ struct AtlasAIAccountsTests {
     "interval":0,"expires_at":"2026-10-15T16:00:00Z"}
     """.utf8)
 
+    @Test func savedMetadataCannotEnableSetupAndAccessDenialClearsIt() async {
+        var failure = "network"
+        let accounts = AtlasAIAccounts { request in
+            if request["action"] as? String != "list" { return Data("{}".utf8) }
+            throw AtlasAuthenticationError(kind: failure, message: "Unavailable")
+        }
+        accounts.cachedRequest = { _ in metadata }
+        await accounts.load()
+        #expect(accounts.cached && accounts.account("claude")?.credentialConfigured == true)
+        #expect(!(await accounts.saveClaude("example-token")))
+        failure = "sign_in_required"
+        await accounts.load()
+        #expect(accounts.accounts.isEmpty && !accounts.cached && !accounts.busy)
+    }
+
     @Test func loadsMetadataAndSavesClaudeThroughAPI() async {
         var actions: [String] = []
         let accounts = AtlasAIAccounts { request in
@@ -180,6 +195,42 @@ struct AtlasAIAccountsTests {
         #expect(!accounts.busy)
         accounts.clearError()
         #expect(accounts.errorMessage == nil)
+    }
+
+}
+
+@MainActor
+struct AtlasProfileTests {
+    @Test func profileRefreshRetainsLoadedContentButClearsRevokedAndInvalidatedState() async throws {
+        let data = Data("""
+        {"server_version":"1.2","user":{"name":"Taylor","email":"taylor@example.org","description":"Engineer"}}
+        """.utf8)
+        let model = AtlasProfile()
+        await model.load(request: { _ in data }, cachedRead: nil)
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let request: ([String: Any]) async throws -> Data = { _ in
+            try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        let refresh = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        #expect(model.profile?.user.email == "taylor@example.org" && model.profile?.serverVersion == "1.2")
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "network", message: "Offline"))
+        await refresh.value
+        #expect(model.profile?.user.description == "Engineer" && model.errorMessage == "Offline")
+
+        let late = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        model.invalidate()
+        finish?.resume(returning: data)
+        await late.value
+        #expect(model.profile == nil && model.errorMessage == nil)
+
+        await model.load(request: { _ in data }, cachedRead: nil)
+        await model.load(request: { _ in
+            throw AtlasAuthenticationError(kind: "forbidden", message: "Access revoked")
+        }, cachedRead: nil)
+        #expect(model.profile == nil && model.errorMessage == "Access revoked")
     }
 
     @Test func profileEditorRetainsDraftOnFailureAndSendsOnlyDescription() async throws {

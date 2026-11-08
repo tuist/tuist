@@ -34,6 +34,7 @@ defmodule Tuist.Shards.TestReport do
     field :build_system, Ch, type: "LowCardinality(String)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
+    field :test_impact_run_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)"
     field :skip_test_identifiers, Ch, type: "Array(String)"
     field :stress_mode, Ch, type: "LowCardinality(String)"
@@ -89,24 +90,26 @@ defmodule Tuist.Shards.TestReport do
   def identity_digest(attrs) do
     attrs
     |> Map.drop([:id, :ran_at, :inserted_at, :xcode_coverage])
-    |> without_local_paths()
+    |> without_local_metadata()
     |> digest()
   end
 
-  defp without_local_paths(%_{} = value), do: value
+  defp without_local_metadata(%_{} = value), do: value
 
-  defp without_local_paths(%{} = value) do
-    Map.new(value, fn
+  defp without_local_metadata(%{} = value) do
+    value
+    |> Map.drop([:is_flakiness_excluded, "is_flakiness_excluded"])
+    |> Map.new(fn
       {key, %{} = report} when key in [:crash_report, "crash_report"] ->
         {key, Map.drop(report, [:file_path, "file_path"])}
 
       {key, nested} ->
-        {key, without_local_paths(nested)}
+        {key, without_local_metadata(nested)}
     end)
   end
 
-  defp without_local_paths(values) when is_list(values), do: Enum.map(values, &without_local_paths/1)
-  defp without_local_paths(value), do: value
+  defp without_local_metadata(values) when is_list(values), do: Enum.map(values, &without_local_metadata/1)
+  defp without_local_metadata(value), do: value
 
   def digest(row) do
     row

@@ -54,6 +54,9 @@ spec:
                   type: string
                 cacheVolumeURL:
                   type: string
+                dockerCache:
+                  type: boolean
+                  description: Moves each job's dockerd onto its repository's Docker cache volume. Requires cacheVolumeRoot and cacheVolumeURL.
                 labels:
                   type: array
                   items:
@@ -70,6 +73,9 @@ spec:
                 fleetSelector:
                   type: string
                   description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                site:
+                  type: string
+                  description: Rack site whose Nodes (`node.cluster.x-k8s.io/rack-site=<site>`) the pool's Pods pin to within its fleet. Empty places them anywhere in the fleet.
                 dispatchLabel:
                   type: string
                   description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
@@ -131,6 +137,15 @@ spec:
                     sidecar to every Linux runner Pod. The microVM keeps
                     the sidecar's privileged surface off the bare-metal
                     host.
+                nestedVirtualization:
+                  type: boolean
+                  description: |
+                    Gives the runner container a usable /dev/kvm (Linux
+                    `kata-qemu` pools only), so jobs can run
+                    hardware-accelerated guests such as x86_64 Android
+                    emulators. Pods boot the KVM-enabled guest kernel,
+                    land only on `tuist.dev/kata-kvm=true` hosts, and
+                    request one `devices.tuist.dev/kvm`.
                 provisioning:
                   type: object
                   description: |
@@ -200,6 +215,16 @@ spec:
                         work. macOS and uncontended pools honor it as a
                         floor; real load (claimed + queued) is always funded
                         above it.
+                    maxLearnedWarmPoolFloor:
+                      type: integer
+                      default: 0
+                      minimum: 0
+                      description: |
+                        Cap on the warm floor the server learns from the
+                        pool's own jobs: the burst its jobs arrive in, kept
+                        idle above the pool's load while the pool has had a
+                        job in the last day. 0 turns the learned floor off,
+                        leaving only minWarmPoolFloor.
                     maxReplicas:
                       type: integer
                       default: 0
@@ -268,6 +293,10 @@ spec:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                lastDemandAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the autoscaler last saw the pool with real work (occupied, queued or held at an account's limit), stamped at most every ten minutes. tart-kubelet ranks the images it keeps within a host's golden budget by it.
                 unplaceableSince:
                   type: string
                   format: date-time

@@ -28,6 +28,24 @@ null, i.e. a present key with no value.
 {{- end }}
 {{- range $host := .Values.rackFleet.hosts }}
 {{- $hostName := required "each rackFleet.hosts entry needs a name" $host.name }}
+{{- /* A host at another site than `rackFleet.site` takes that site's block in
+`rackFleet.sites`: its SSH ingress (the site's edges, never the default site's)
+and, while the site's runners are off, its own Node fleet, so the rack's pools
+never place a runner on it. Once the site's runners are on, its Node joins the
+rack fleet the rack's pools select (`tuist.rackSiteFleetName`).
+*/}}
+{{- $siteFleet := "" }}
+{{- $siteSSHIngress := $.Values.rackFleet.sshIngressAllowCIDRs }}
+{{- if and $host.site (ne $host.site $.Values.rackFleet.site) }}
+{{- if not (hasKey ($.Values.rackFleet.sites | default dict) $host.site) }}
+{{- fail (printf "rackFleet.hosts[%s].site is %q, which is neither rackFleet.site nor a key of rackFleet.sites" $hostName $host.site) }}
+{{- end }}
+{{- $siteFleet = include "tuist.rackSiteFleetName" (dict "root" $ "site" $host.site) }}
+{{- if eq $siteFleet $fleetName }}
+{{- $siteFleet = "" }}
+{{- end }}
+{{- $siteSSHIngress = dig $host.site "sshIngressAllowCIDRs" (list) $.Values.rackFleet.sites }}
+{{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackHost
@@ -50,9 +68,9 @@ spec:
   drops the router's LAN address, and a rack host has no public path.
   `empty` rather than `required`: `required` only rejects nil and "", and the
   values default is an empty list. */}}
-  {{- $sshIngressAllowCIDRs := $host.sshIngressAllowCIDRs | default $.Values.rackFleet.sshIngressAllowCIDRs }}
+  {{- $sshIngressAllowCIDRs := $host.sshIngressAllowCIDRs | default $siteSSHIngress }}
   {{- if empty $sshIngressAllowCIDRs }}
-  {{- fail (printf "rackFleet.sshIngressAllowCIDRs (or rackFleet.hosts[%s].sshIngressAllowCIDRs) is required: list the LAN address of every subnet router that advertises the host's address, as a /32" $hostName) }}
+  {{- fail (printf "rackFleet.sshIngressAllowCIDRs (or rackFleet.sites.<site>.sshIngressAllowCIDRs, or rackFleet.hosts[%s].sshIngressAllowCIDRs) is required: list the LAN address of every subnet router that advertises the host's address, as a /32" $hostName) }}
   {{- end }}
   sshIngressAllowCIDRs:
     {{- toYaml $sshIngressAllowCIDRs | nindent 4 }}
@@ -63,7 +81,7 @@ spec:
   {{- /* A host lent to another fleet's runner pools: its Node carries this
   `tuist.dev/fleet` instead of the rack fleet's, so the rack's own pools
   leave it alone. */}}
-  {{- with $host.nodeFleet }}
+  {{- with $host.nodeFleet | default (ternary "" $siteFleet (not (empty $host.lendTo))) }}
   nodeFleet: {{ . | quote }}
   {{- end }}
   {{- /* A host lent to another env: its Node registers in that env's cluster,

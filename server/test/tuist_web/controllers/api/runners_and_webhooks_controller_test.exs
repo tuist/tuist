@@ -5,6 +5,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Allowance
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -119,6 +120,93 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     assert [%{"id" => id, "signing_secret_last_four" => "abcd"}] = response["endpoints"]
     assert id == endpoint.id
     refute inspect(response) =~ "plaintext-signing-secret"
+  end
+
+  describe "API jobs" do
+    setup %{account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Allowance, :exhausted?, fn _account -> false end)
+      {:ok, _} = Profiles.create(account, %{name: "ci", platform: :linux, vcpus: 4, memory_gb: 16})
+      :ok
+    end
+
+    defp job_body(overrides \\ %{}) do
+      Map.merge(
+        %{
+          profile: "ci",
+          repository_url: "https://git.example.com/acme/app.git",
+          commit_sha: String.duplicate("b", 40),
+          ref: "refs/heads/main",
+          name: "test",
+          script: "mise run test",
+          env: %{"PLAIN" => "visible"},
+          secrets: %{"API_TOKEN" => "secret-value"},
+          idempotency_key: "acme/app:bbbb:test"
+        },
+        overrides
+      )
+    end
+
+    test "lets account tokens with runner write scope run, replay and cancel jobs", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]})
+        |> put_req_header("content-type", "application/json")
+
+      created =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body())
+        |> json_response(:created)
+
+      assert %{"status" => "queued", "repository" => "acme/app", "head_branch" => "main", "job_name" => "test"} = created
+      refute inspect(created) =~ "secret-value"
+
+      assert %{"workflow_job_id" => id} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{script: "other"}))
+               |> json_response(:ok)
+
+      assert id == created["workflow_job_id"]
+
+      assert %{"status" => "completed", "conclusion" => "cancelled"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs/#{id}/cancel")
+               |> json_response(:ok)
+    end
+
+    test "explains a job it cannot run", %{conn: conn, user: user, account: account} do
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+
+      assert %{"message" => "No runner profile matches the profile field."} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{profile: "missing"}))
+               |> json_response(:unprocessable_entity)
+
+      assert %{"message" => "repository_url must be an https URL without credentials"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{repository_url: "http://x.dev/a.git"}))
+               |> json_response(:unprocessable_entity)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/runners/jobs", Map.delete(job_body(), :script))
+      |> json_response(:bad_request)
+
+      stub(Allowance, :exhausted?, fn _account -> true end)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body())
+      |> json_response(:payment_required)
+    end
+
+    test "forbids runner readers from running or cancelling jobs", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+        |> put_req_header("content-type", "application/json")
+
+      conn |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body()) |> json_response(:forbidden)
+      conn |> post(~p"/api/accounts/#{account.name}/runners/jobs/1/cancel") |> json_response(:forbidden)
+    end
   end
 
   describe "runner profiles" do

@@ -23,8 +23,13 @@ type PoolDemand struct {
 	//     and Tart enforces it.
 	PerPodCost int64
 
-	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
+	// Floor is `WarmFloor`: `minWarmPoolFloor`, or load plus the learned
+	// spare when that is higher.
 	Floor int32
+
+	// InUse is `Signals.InUse`: the pool has load now or ran a job in the
+	// last hour. Its floor is funded before the floors of pools that did not.
+	InUse bool
 
 	// Load is `Signals.Load()` — Pods holding capacity (including
 	// post-job cache and teardown work), plus work waiting for a Pod,
@@ -54,8 +59,11 @@ type PoolDemand struct {
 //     "add a host" signal). Admitting blocked demand here is what keeps a
 //     pool whose work is temporarily unservable from being classified as
 //     idle and starved of a Pod forever on a saturated fleet.
-//  2. Floor — `minWarmPoolFloor` above load: the speculative warm
-//     guarantee that keeps the next spike off cold-start. Idle warm Pods.
+//  2. Floor — `WarmFloor` above load: the speculative warm guarantee
+//     that keeps the next spike off cold-start. Idle warm Pods. The floors
+//     of pools in use (load now, or a job in the last hour) are funded
+//     before those of pools that only hold a learned floor, so a rack
+//     short of seats keeps warm the pools whose jobs are arriving.
 //  3. Headroom — the p95 warm buffer (`Target` above floor+load). Also
 //     idle, the most speculative.
 //
@@ -90,7 +98,7 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 
 	out := make(map[string]int32, len(pools))
 
-	var loadWants, floorWants, headWants []tierWant
+	var loadWants, inUseFloorWants, idleFloorWants, headWants []tierWant
 
 	// Decompose each pool's Target into the three priority tiers.
 	for _, p := range pools {
@@ -124,7 +132,12 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 			loadWants = append(loadWants, tierWant{p.Name, load, p.PerPodCost, target})
 		}
 		if floorWant := floorTop - load; floorWant > 0 && p.PerPodCost > 0 {
-			floorWants = append(floorWants, tierWant{p.Name, floorWant, p.PerPodCost, target})
+			want := tierWant{p.Name, floorWant, p.PerPodCost, target}
+			if p.InUse {
+				inUseFloorWants = append(inUseFloorWants, want)
+			} else {
+				idleFloorWants = append(idleFloorWants, want)
+			}
 		}
 		if headWant := target - floorTop; headWant > 0 && p.PerPodCost > 0 {
 			headWants = append(headWants, tierWant{p.Name, headWant, p.PerPodCost, target})
@@ -182,10 +195,10 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 		remaining = 0
 	}
 
-	// Tier 2: floor (warm guarantee), then tier 3: headroom — only if
-	// floors fit in full. Floors yield to tier-1 load above; headroom
-	// yields to floors.
-	if grantTier(floorWants) {
+	// Tier 2: floor (warm guarantee), pools in use first, then tier 3:
+	// headroom — only if floors fit in full. Floors yield to tier-1 load
+	// above; headroom yields to floors.
+	if grantTier(inUseFloorWants) && grantTier(idleFloorWants) {
 		grantTier(headWants)
 	}
 
@@ -298,7 +311,7 @@ func capByShape(pools []PoolDemand, shapeCaps map[string]int32) []PoolDemand {
 
 		granted := make([]int32, len(members))
 		remaining := limit
-		for _, ceiling := range []func(PoolDemand) int32{loadCeiling, floorCeiling, targetCeiling} {
+		for _, ceiling := range []func(PoolDemand) int32{loadCeiling, inUseFloorCeiling, floorCeiling, targetCeiling} {
 			for remaining > 0 {
 				progressed := false
 				for j, i := range members {
@@ -327,9 +340,16 @@ func capByShape(pools []PoolDemand, shapeCaps map[string]int32) []PoolDemand {
 	return out
 }
 
-// The three ceilings capByShape fills in priority order, each the top of
-// one tier and each already bounded by the pool's own Target.
+// The ceilings capByShape fills in priority order, each the top of one tier
+// and each already bounded by the pool's own Target.
 func targetCeiling(p PoolDemand) int32 { return clampMin(p.Target, 0) }
+
+func inUseFloorCeiling(p PoolDemand) int32 {
+	if p.InUse {
+		return floorCeiling(p)
+	}
+	return loadCeiling(p)
+}
 
 func loadCeiling(p PoolDemand) int32 {
 	return clampMax(clampMin(p.Load, 0), targetCeiling(p))

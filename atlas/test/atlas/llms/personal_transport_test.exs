@@ -105,6 +105,41 @@ defmodule Atlas.LLMs.PersonalTransportTest do
     refute conn.resp_body =~ "private request details"
   end
 
+  test "a chosen ChatGPT model is used exactly and never falls back after rejection" do
+    actor = user_fixture()
+    connect(actor, "actor")
+
+    for {status, body, code} <- [
+          {429, "private quota details", "http_error"},
+          {400, %{"error" => %{"code" => "model_not_found", "message" => "private request details"}}, "model_not_found"}
+        ] do
+      expect(Req, :post, fn opts ->
+        assert opts[:json]["model"] == "gpt-6.1-sol"
+        {:ok, %{status: status, body: body}}
+      end)
+
+      conn =
+        Plug.Test.conn(
+          :post,
+          "/chat/completions",
+          JSON.encode!(%{"messages" => [%{"role" => "user", "content" => "Hi"}]})
+        )
+        |> PersonalTransport.call(user_id: actor.id, model: "chatgpt:gpt-6.1-sol")
+
+      assert conn.status == status
+      assert JSON.decode!(conn.resp_body)["error"]["code"] == code
+      refute conn.resp_body =~ "private"
+    end
+
+    assert {:ok, _} = Connections.disconnect(actor, "chatgpt")
+
+    conn =
+      Plug.Test.conn(:post, "/chat/completions", JSON.encode!(%{"messages" => []}))
+      |> PersonalTransport.call(user_id: actor.id, model: "chatgpt:gpt-6.1-sol")
+
+    assert conn.status == 401
+  end
+
   defp connect(user, suffix) do
     Repo.insert!(%Connection{
       user_id: user.id,

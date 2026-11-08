@@ -75,12 +75,10 @@ defmodule Tuist.OAuth.Clients do
   end
 
   @impl Boruta.Openid.Clients
-  def refresh_jwk_from_jwks_uri(client_id) do
-    case static_client(client_id) do
-      %Client{} -> {:error, "JWK refresh from JWKS URI not supported"}
-      nil -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
-    end
-  end
+  # Boruta refreshes a key by fetching the client's `jwks_uri` with an
+  # unguarded HTTP GET whenever a client assertion fails to verify, so a stored
+  # URI would let anyone holding a client ID make the server request it.
+  def refresh_jwk_from_jwks_uri(_client_id), do: {:error, "JWK refresh from JWKS URI not supported"}
 
   defp static_client(client_id) when is_binary(client_id) do
     Enum.find(
@@ -100,7 +98,7 @@ defmodule Tuist.OAuth.Clients do
         [URI.to_string(%{uri | host: "10.0.2.2"})]
 
       Environment.dev?() ->
-        http_config = Application.get_env(:tuist, TuistWeb.Endpoint)[:http] || []
+        http_config = Application.get_env(:tuist, Tuist.Web.endpoint())[:http] || []
         port = Keyword.get(http_config, :port, 8080)
         ["http://10.0.2.2:#{port}/oauth/callback/android"]
 

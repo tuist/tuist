@@ -20,21 +20,40 @@ struct CargoProcess {
         environment: [String: String],
         directory: AbsolutePath
     ) async throws -> String {
-        var data = Data()
+        let output = try await captureOutput(executable, arguments: arguments, environment: environment, directory: directory)
+        guard let result = String(data: output.stdout, encoding: .utf8)
+        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
+        return result
+    }
+
+    func captureOutput(
+        _ executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath
+    ) async throws -> (stdout: Data, stderr: Data) {
+        var stdout = Data()
+        var stderr = Data()
+        // Captures are probes, never jobs: the jobserver descriptors Cargo named belong to the hook client, not to
+        // the process running the probe.
+        var environment = environment
+        for name in ["CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS"] {
+            environment[name] = nil
+        }
         for try await event in runner.run(
             arguments: ["/usr/bin/env", executable] + arguments,
             environment: environment,
             workingDirectory: directory
         ) {
-            if case let .standardOutput(bytes) = event {
-                guard data.count + bytes.count <= 64_000_000
+            switch event {
+            case let .standardOutput(bytes):
+                guard stdout.count + bytes.count <= 64_000_000
                 else { throw CargoReportError(message: "Cargo metadata exceeds 64 MB.") }
-                data.append(contentsOf: bytes)
+                stdout.append(contentsOf: bytes)
+            case let .standardError(bytes):
+                guard stderr.count + bytes.count <= 1_000_000
+                else { throw CargoReportError(message: "Cargo compiler diagnostics exceed 1 MB.") }
+                stderr.append(contentsOf: bytes)
             }
         }
-        guard let result = String(data: data, encoding: .utf8)
-        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
-        return result
+        return (stdout, stderr)
     }
 
     func executable(
@@ -44,6 +63,18 @@ struct CargoProcess {
     ) async throws -> (path: String, toolchain: String?) {
         if let configured = environment["TUIST_CARGO_EXECUTABLE"] { return (configured, nil) }
         let options = invocation.toolchain.map { ["--toolchain", $0] } ?? []
+        // The active toolchain names its directory, so one rustup start answers both questions.
+        if invocation.toolchain == nil, environment["RUSTUP_TOOLCHAIN"] == nil,
+           let active = try? await capture(
+               "rustup", arguments: ["show", "active-toolchain"], environment: environment, directory: directory
+           ).components(separatedBy: " (").first?.trimmingCharacters(in: .whitespacesAndNewlines), !active.isEmpty,
+           !active.contains("/")
+        {
+            let home = environment["RUSTUP_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".rustup").path
+            let cargo = "\(home)/toolchains/\(active)/bin/cargo"
+            if FileManager.default.isExecutableFile(atPath: cargo) { return (cargo, active) }
+        }
         do {
             let path = try await capture(
                 "rustup",

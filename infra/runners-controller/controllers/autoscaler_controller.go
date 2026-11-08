@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -12,9 +13,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
@@ -101,6 +108,25 @@ type AutoscalerReconciler struct {
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
+
+	// SandboxesNamespace is where sandbox daemons run, whose memory is
+	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
+	// when the chart runs no sandboxes.
+	SandboxesNamespace string
+
+	// ReservationsNamespace, when set, is where the manager caches macOS
+	// sandbox reservation Pods; a new one reconciles the darwin pools at
+	// once instead of on the next poll.
+	ReservationsNamespace string
+
+	// APIReader is an uncached reader for the sandbox daemons, which live
+	// outside the namespace the manager caches. Nil falls back to Client.
+	APIReader client.Reader
+
+	// sandboxRetired remembers the runners retired for sandbox growths,
+	// per node, for preemptionSettle (see sandboxes.go).
+	sandboxMu      sync.Mutex
+	sandboxRetired map[string]map[types.UID]retiredRunner
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -150,15 +176,27 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 	}
 
-	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
-		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-	}
+	knobs := policyKnobs(pool)
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
+	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
+		// CI scaling continues. A failed publication cannot renew the server's
+		// short-lived grant, so sandbox admission fails closed independently.
+		logger.Error(err, "publish sandbox capacity allocation")
+	}
 
 	current := pool.Spec.Replicas
 	now := r.now()
+	r.stampDemand(ctx, pool, *signals, now, logger)
+
+	// A sandbox carve-out's growth waiting for room on a node outranks the
+	// idle warm runners there, whatever the cooldown.
+	preempted, err := r.preemptForSandboxGrowth(ctx, pool, fleet, now, logger)
+	if err != nil {
+		logger.Error(err, "retire idle runners for a sandbox growth; will retry")
+	}
+	if preempted {
+		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+	}
 
 	switch {
 	case desired == current:
@@ -220,6 +258,16 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 }
 
+// policyKnobs reads a pool's autoscaling knobs from its spec.
+func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
+	return scaling.PolicyKnobs{
+		MinWarmPoolFloor:        pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
+		MaxLearnedWarmPoolFloor: pool.Spec.Autoscaling.MaxLearnedWarmPoolFloor,
+		MaxReplicas:             pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak:        !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
+	}
+}
+
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
@@ -257,7 +305,8 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
-	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, perPool, allocated)
+	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, max(knobs.MinWarmPoolFloor, scaling.LearnedSpare(signals, knobs)), perPool, allocated)
+	metrics.RecordLearnedWarmFloor(pool.Name, signals.LearnedWarmFloor, scaling.LearnedSpare(signals, knobs))
 
 	// Publish the demand signals unsummed as well. The allocator only
 	// needs occupied+queued, but the split shows both dispatch progress
@@ -425,12 +474,8 @@ func (s podShape) key() string {
 // memory-per-vCPU is richer than its host's. Per-node `min` answers the
 // question kube-scheduler will actually be asked.
 //
-// darwin only, deliberately. Linux runner Pods are kata microVMs that
-// pin memory per sandbox while CPU is intentionally oversubscribed, so a
-// CPU quotient there would cap a fleet that is not CPU-bound; and those
-// hosts are homogeneous, so the byte budget is already exact.
-//
-// An empty result (no nodes, or a non-darwin pool) disables the cap.
+// Both platforms schedule on CPU and memory requests. Linux sandbox daemon
+// allocations come off each node before computing its runner seats.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -447,6 +492,21 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
+	nativeSlots := map[string]int32{}
+	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
+		daemons, err := r.sandboxDaemons(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, daemon := range daemons {
+			if daemon.native {
+				nativeSlots[daemon.node]++
+			}
+		}
+		for i := range nodes.Items {
+			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+		}
+	}
 
 	caps := make(map[string]int32, len(shapes))
 	for key, shape := range shapes {
@@ -458,7 +518,11 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 			if nodeFilterReason(&nodes.Items[i]) != "" {
 				continue
 			}
-			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+			available := nodeSeatsForShape(&nodes.Items[i], shape)
+			if nativeSlots[nodes.Items[i].Name] > 0 {
+				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
+			}
+			seats += available
 		}
 		caps[key] = seats
 	}
@@ -587,11 +651,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 				return nil, nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
-			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
-				IgnoreRecentPeak: !p.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-			}
+			k = policyKnobs(p)
 		}
 
 		cost, err := r.perPodCost(ctx, p)
@@ -635,7 +695,8 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
 			PerPodCost: cost,
-			Floor:      k.MinWarmPoolFloor,
+			Floor:      scaling.WarmFloor(sig, k),
+			InUse:      sig.InUse(),
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),
@@ -657,10 +718,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	var total int64
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
+	included := map[string]bool{}
 	for i := range nodes.Items {
 		if nodeFilterReason(&nodes.Items[i]) != "" {
 			continue
 		}
+		included[nodes.Items[i].Name] = true
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -670,7 +733,16 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	if reserve <= 0 {
 		reserve = defaultMemReserveFraction
 	}
-	return int64(float64(total) * reserve), nil
+	// Sandbox daemons' carve-outs are Pod requests the reserve fraction does
+	// not cover, and they move: counting them here is what hands memory to
+	// the warm pools when a carve-out shrinks and takes it back when one
+	// grows.
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(daemons, included)
+	return max(budget, 0), nil
 }
 
 // macosFleetAllocatableMemory sums allocatable memory across the Mac
@@ -699,6 +771,13 @@ func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, 
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for i := range nodes.Items {
+		nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+	}
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
 
@@ -720,6 +799,28 @@ func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.
 	return r.Patch(ctx, pool, client.MergeFrom(original))
 }
 
+// demandStampInterval bounds how often a pool's status.lastDemandAt is
+// written. tart-kubelet ranks images by it over hours and days, so a write
+// every five-second tick would only churn the object.
+const demandStampInterval = 10 * time.Minute
+
+// stampDemand records on the pool's status that it has real work now, for
+// tart-kubelet's golden budget. A failed write is retried on a later tick.
+func (r *AutoscalerReconciler) stampDemand(ctx context.Context, pool *tuistv1.RunnerPool, signals scaling.Signals, now time.Time, logger logr.Logger) {
+	if signals.Load() <= 0 {
+		return
+	}
+	if last := pool.Status.LastDemandAt; last != nil && now.Sub(last.Time) < demandStampInterval {
+		return
+	}
+	original := pool.DeepCopy()
+	ts := metav1.NewTime(now)
+	pool.Status.LastDemandAt = &ts
+	if err := r.Status().Patch(ctx, pool, client.MergeFrom(original)); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "stamp lastDemandAt; will retry")
+	}
+}
+
 func (r *AutoscalerReconciler) pollInterval() time.Duration {
 	if r.PollInterval > 0 {
 		return r.PollInterval
@@ -735,11 +836,38 @@ func (r *AutoscalerReconciler) now() time.Time {
 }
 
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{}).
-		Complete(r)
+		For(&tuistv1.RunnerPool{})
+	if r.ReservationsNamespace != "" {
+		// A new macOS sandbox reservation may be waiting for an idle CI
+		// runner's slot. Reconcile the darwin pools now rather than on the
+		// next poll, so the sandbox's create or restore waits less.
+		b = b.Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.darwinPools), builder.WithPredicates(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return e.Object.GetNamespace() == r.ReservationsNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
+			},
+			UpdateFunc:  func(event.UpdateEvent) bool { return false },
+			DeleteFunc:  func(event.DeleteEvent) bool { return false },
+			GenericFunc: func(event.GenericEvent) bool { return false },
+		}))
+	}
+	return b.Complete(r)
+}
+
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, _ client.Object) []reconcile.Request {
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools); err != nil {
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pool := range pools.Items {
+		if pool.Spec.OS == "darwin" {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&pool)})
+		}
+	}
+	return requests
 }

@@ -18,9 +18,9 @@ Measure the entire test job: test compilation, simulator or service startup, exe
 
 Investigate slow fixtures, shared state, retries, and unnecessary execution before adding parallel capacity. Gradle and Elixir suites can then use supported Tuist sharding; Bazel has test insights but not Tuist sharding today. Improving the tests and distributing them are separate steps.
 
-Selective testing operates at **test-target granularity**, using project-graph hashes and prior successful runs. It requires Tuist-generated Xcode projects and `tuist test`. It is not line-level test impact analysis and is not available for ordinary Xcode, Gradle, Bazel, or Elixir projects.
+Default selective testing operates at **test-target granularity**, using project-graph hashes and prior successful runs. It requires Tuist-generated Xcode projects and `tuist test`. An account-enabled early-access [coverage strategy](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project) can additionally select individual XCTest/XCUITest tests, with coverage uploads and TestCoverageAttribution. Tuist selective testing is not available for ordinary Xcode, Gradle, Bazel, or Elixir projects.
 
-Sharding spreads the tests that execute across parallel CI machines. Tuist supports sharding for Xcode, Gradle, and Elixir; not Bazel today. It needs execution history and available parallel capacity. On generated projects, selective testing can skip unchanged targets and sharding can distribute the remainder.
+Sharding spreads the tests that execute across parallel CI machines. Tuist supports sharding for Xcode, Gradle, and Elixir; not Bazel today. Cargo has target-level sharding within one package, and compatible Once releases support hosted shard plans; see the [sharding guides](/en/docs-markdown/guides/features/test-sharding) for their distinct requirements. Timing-balanced sharding uses reported execution history and needs parallel capacity. On generated projects, selective testing can skip unchanged targets and sharding can distribute the remainder. Measure total machine-minutes as well as wall-clock time: parallelism can increase setup and compute usage.
 
 If a suite has a few intrinsically slow tests, changing fixtures or test boundaries may be more effective than adding machines. Use evidence from [Tuist Tests](/marketing-markdown/tests) to choose the intervention rather than treating all parallelism as a saving.
 
@@ -28,7 +28,7 @@ If a suite has a few intrinsically slow tests, changing fixtures or test boundar
 
 An agent connected to the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) can use `list_test_cases` and `get_test_case` for duration history, then `list_test_case_runs` and `get_test_case_run` to examine individual attempts. Ask it to distinguish consistently slow tests from retry-driven time, and propose one measurable change.
 
-The agent should check the toolchain support matrix before recommending selective testing or sharding. Reading metrics does not itself modify tests or configure CI. For a compilation-heavy job, follow the [slow-build investigation](/marketing-markdown/solutions/slow-builds) too.
+Check the toolchain support matrix before relying on selective testing or sharding. Reading metrics does not itself modify tests or configure CI. For a compilation-heavy job, follow the [slow-build investigation](/marketing-markdown/solutions/slow-builds) too.
 
 ## First experiment
 
@@ -36,9 +36,5 @@ The agent should check the toolchain support matrix before recommending selectiv
 2. Investigate the slowest reported cases. If compilation dominates, test caching first.
 3. On generated Xcode projects, evaluate selective testing. Where sharding is supported, try a small number of shards and inspect the longest shard.
 4. Compare duration, coverage, queue time, and total machine-minutes. Keep the change only if it improves the goal you actually care about.
-
-## Limitations
-
-Missing results can distort timing history and balancing. Sharding needs multiple runners and may lower latency while increasing total compute usage through startup overhead and duplicated setup. Selective testing is only as complete as the modeled inputs; it is not a guarantee that arbitrary external effects are understood. Neither sharding nor quarantine fixes a slow or flaky test. Runners are optional; Tuist Runners remain invite-only with no public pricing.
 
 Related: [flaky tests](/marketing-markdown/solutions/flaky-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).

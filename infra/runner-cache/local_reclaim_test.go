@@ -10,6 +10,68 @@ import (
 	"time"
 )
 
+func TestAdmissionWaitsForDeferredReclamationBeforeEvictingAnotherMaster(t *testing.T) {
+	b, _ := newLocal(t)
+	b.ReclaimWait = time.Second
+	old := installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now().Add(-2*time.Hour))
+	keep := installMaster(t, b, second, strings.Repeat("b", 64), 1, time.Now().Add(-time.Hour))
+	checks := 0
+	b.FreeBytes = func(string) (uint64, error) {
+		if exists(b.master(old)) {
+			return 0, nil
+		}
+		if !exists(b.master(keep)) {
+			t.Fatal("evicted the second master before reclamation completed")
+		}
+		checks++
+		if checks < 3 {
+			return 0, nil
+		}
+		return 20, nil
+	}
+	if err := b.reserveBytes(context.Background(), 20); err != nil || !exists(b.master(keep)) {
+		t.Fatal("failed to wait for reclaimed space", err)
+	}
+}
+
+func TestAdmissionDoesNotAssumeDeletedFilesFreeSharedBlocks(t *testing.T) {
+	b, _ := newLocal(t)
+	b.ReclaimWait = 20 * time.Millisecond
+	installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now())
+	b.FreeBytes = func(string) (uint64, error) { return 0, nil }
+	if err := b.reserveBytes(context.Background(), 20); !errors.Is(err, ErrCapacity) {
+		t.Fatal("admitted shared blocks that remain allocated", err)
+	}
+}
+
+func TestAdmissionStopsOnReclamationReadFailure(t *testing.T) {
+	b, _ := newLocal(t)
+	b.ReclaimWait = time.Second
+	old := installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now().Add(-time.Hour))
+	keep := installMaster(t, b, second, strings.Repeat("b", 64), 1, time.Now())
+	failure := errors.New("filesystem I/O error")
+	b.FreeBytes = func(string) (uint64, error) {
+		if exists(b.master(old)) {
+			return 0, nil
+		}
+		return 0, failure
+	}
+	if err := b.reserveBytes(context.Background(), 20); !errors.Is(err, failure) || !exists(b.master(keep)) {
+		t.Fatal("continued eviction or lost the reclamation error", err)
+	}
+}
+
+func TestReclamationWaitKeepsTheAcquisitionDeadline(t *testing.T) {
+	b, _ := newLocal(t)
+	b.ReclaimWait = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	b.FreeBytes = func(string) (uint64, error) { cancel(); return 0, nil }
+	if err := b.waitForReclaim(ctx, 20); !errors.Is(err, context.Canceled) {
+		t.Fatal("lost acquisition cancellation", err)
+	}
+}
+
 func TestAdmissionReclaimsLocalMastersBeforeSharedDisk(t *testing.T) {
 	root := t.TempDir()
 	master := filepath.Join(root, "masters", strings.Repeat("a", 64), "cache.img")

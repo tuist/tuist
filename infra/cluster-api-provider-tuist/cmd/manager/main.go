@@ -33,7 +33,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(clusterv2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 }
 
@@ -75,6 +77,7 @@ func main() {
 		enableLeaderElection      bool
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
+		ovhRunnerEgressConfig     string
 		vultrPrivateNetworkConfig string
 		rackCardRootSecret        string
 
@@ -135,6 +138,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&ovhRunnerEgressConfig, "ovh-runner-egress-config", "",
+		"ConfigMap in the secrets namespace declaring OVH runner vRack egress")
 	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
 		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
@@ -649,12 +654,31 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
+	// controller-runtime's 15s lease / 10s renew deadline makes the manager
+	// exit whenever the apiserver is unreachable for 10s. Replacing a
+	// control-plane Machine (a Kubernetes upgrade) blackholes the in-cluster
+	// apiserver Service for 35s or more per member, so every upgrade
+	// crash-looped this pod. Nothing here is latency-sensitive, so trade
+	// slower failover for riding out a control-plane member swap. Releasing
+	// on cancel keeps rolling deploys from waiting out the longer lease;
+	// main exits as soon as the manager stops.
+	leaseDuration, renewDeadline, retryPeriod := 90*time.Second, 60*time.Second, 10*time.Second
 	mgrOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -665,12 +689,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}
@@ -720,6 +742,8 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		APIReader:                     mgr.GetAPIReader(),
+		ProcessorDeploymentName:       fleetSpreadDeployment,
 		Client:                        mgr.GetClient(),
 		Scheme:                        mgr.GetScheme(),
 		ScalewayClient:                scwClient,
@@ -1032,6 +1056,8 @@ func main() {
 			DefaultOS:                "ubuntu_24.04",
 			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
 			PrivateNetworkNamespace:  secretsNamespace,
+			RunnerEgressConfigName:   ovhRunnerEgressConfig,
+			RunnerEgressNamespace:    secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)

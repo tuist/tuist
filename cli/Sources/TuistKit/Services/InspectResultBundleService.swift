@@ -214,7 +214,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: Self.uploadsCoverage(config: config)
         )
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
@@ -243,14 +244,16 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             coverage: coverage,
             // A run collected coverage when its bundle has some Tuist uploads. Without a bundle
             // it can't be told.
-            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil }
+            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil },
+            testImpactRunId: await RunMetadataStorage.current.testImpactRunId
         )
         if !networkPublishing {
             await gitHistoryService.upload(
                 gitHistory,
                 workingDirectory: gitInfoDirectory,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                coverage: Self.uploadsCoverage(config: config)
             )
             let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
             await testSummary.testCases.forEach(context: .concurrent) { testCase in
@@ -449,7 +452,8 @@ extension UploadResultBundleService {
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: Self.uploadsCoverage(config: config)
         )
 
         try await analyticsArtifactUploadService.uploadResultBundle(
@@ -512,13 +516,15 @@ extension UploadResultBundleService {
             stressNewTests: stressNewTests,
             gitHistory: gitHistory?.payload,
             coverage: coverage,
-            coverageEnabled: manifest != nil
+            coverageEnabled: manifest != nil,
+            testImpactRunId: await RunMetadataStorage.current.testImpactRunId
         )
         await gitHistoryService.upload(
             gitHistory,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: Self.uploadsCoverage(config: config)
         )
 
         return test
@@ -580,13 +586,21 @@ extension UploadResultBundleService {
 
             // Test products built in another checkout carry that checkout: the compiler embedded its
             // paths, and only the build knows which blobs it compiled. The current checkout may be
-            // at other content, so its blobs are never used for those products.
+            // at other content, so its blobs are never used for those products. The build records
+            // its checkout as Git reports it, so the spelling the compiler used, when it went through a
+            // symlink, comes from the covered files as it does for the current checkout.
             let buildSources = await RunMetadataStorage.current.coverageBuildSources
             var rootSpellings = buildSources?.rootDirectories ?? []
-            for spelling in Self.rootSpellings(of: rootDirectory, coveredFilePaths: coveredFilePaths)
-                where !rootSpellings.contains(spelling)
-            {
-                rootSpellings.append(spelling)
+            let buildRoots = rootSpellings.filter { $0 != XcodeCoverageManifest.sourceRootPlaceholder }
+                .compactMap { try? AbsolutePath(validating: $0) }
+            for root in [rootDirectory] + buildRoots {
+                // Resolving a path is a few syscalls, and an earlier root has tied most of them.
+                let untied = coveredFilePaths.filter { path in !rootSpellings.contains { path.hasPrefix($0 + "/") } }
+                for spelling in Self.rootSpellings(of: root, coveredFilePaths: untied)
+                    where !rootSpellings.contains(spelling)
+                {
+                    rootSpellings.append(spelling)
+                }
             }
             let coveredPaths = Set(coveredFilePaths.map { Self.relativize($0, to: rootSpellings) })
             if !coveredPaths.isEmpty, coveredPaths.allSatisfy({ $0.hasPrefix("/") }) {
@@ -630,12 +644,10 @@ extension UploadResultBundleService {
 
     static let coverageUploadVariable = "TUIST_COVERAGE_UPLOAD"
 
-    /// Coverage is in early access behind the `COVERAGE` client feature flag
-    /// (`TUIST_FEATURE_FLAG_COVERAGE=1`), so released CLIs do no coverage work until it ships. Once
-    /// on, the environment variable, when set, wins over `Tuist.swift`, so a single run or CI job can
-    /// opt out of, or back into, a team-wide setting.
+    /// Whether the run does any coverage work: `Tuist.swift`'s `testInsights.coverage.upload`, off by
+    /// default. The environment variable, when set, wins over `Tuist.swift`, so a single run or CI job
+    /// can opt out of, or back into, a team-wide setting.
     static func uploadsCoverage(config: Tuist) -> Bool {
-        guard ClientFeatureFlags.contains("COVERAGE") else { return false }
         guard Environment.current.variables[coverageUploadVariable] != nil else {
             return config.testInsights.coverage.upload
         }

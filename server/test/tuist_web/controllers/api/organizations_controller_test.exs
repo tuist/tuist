@@ -99,6 +99,21 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                }
              ] == response["organizations"]
     end
+
+    test "returns empty list when authenticated with a project token of a personal account", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture(account: user.account, preload: [:account])
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      assert %{"organizations" => []} == json_response(conn, :ok)
+    end
   end
 
   describe "GET /api/organizations/{id}" do
@@ -566,6 +581,53 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   end
 
   describe "PUT /api/organizations/:organization_name" do
+    test "ordinary organization administrators can disable SSO under instance trust", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      )
+
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :ok)["sso_provider"] == nil
+    end
+
+    test "instance trust does not bypass ordinary organization authorization", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(name: "tuist-org")
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "allows an ordinary organization administrator to configure Google under instance trust", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "google", sso_organization_id: domain)
+
+      assert json_response(conn, :ok)["sso_provider"] == "google"
+    end
+
     test "updates an organization with SSO settings when user's google hosted domain is equal to the new value",
          %{conn: conn} do
       # Given
@@ -1199,7 +1261,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end)
 
     stub(Allowance, :period_breakdown, fn %{id: ^account_id}, ^period ->
-      %{minutes: 250, free_minutes: 100, billed: Money.new(1_200, :USD)}
+      %{minutes: 250, free_minutes: %{macos: 100, linux: 2_500}, billed: Money.new(1_200, :USD)}
     end)
   end
 end

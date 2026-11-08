@@ -1,0 +1,624 @@
+{
+  "navigation": {
+    "groups": {
+      "builds": { "text": "ბილდები" },
+      "tests": { "text": "ტესტები" },
+      "compute": { "text": "გამოთვლები" },
+      "bundles": { "text": "პაკეტები" },
+      "other-features": { "text": "სხვა ფუნქციები" }
+    },
+    "items": {
+      "agentic-coding": { "text": "აგენტური კოდირება" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
+      "bazel": { "text": "Bazel" },
+      "bazel-cache": { "text": "Bazel ქეში" },
+      "bitrise": { "text": "Bitrise" },
+      "build-and-publish": { "text": "აწყობა და გამოქვეყნება" },
+      "buildkite": { "text": "Buildkite" },
+      "cache-volumes": { "text": "ქეშის ტომები" },
+      "calendar": { "text": "კალენდარი" },
+      "channels": { "text": "არხები" },
+      "claude": { "text": "Claude" },
+      "compatibility": { "text": "თავსებადობა" },
+      "coverage": { "text": "დაფარვა" },
+      "data-retention": { "text": "მონაცემთა შენახვა" },
+      "docker": { "text": "Docker" },
+      "elixir": { "text": "Elixir" },
+      "elixir-cache": { "text": "Elixir ქეში" },
+      "entire": { "text": "სრული" },
+      "github-actions": { "text": "GitHub Actions" },
+      "gitlab-ci": { "text": "GitLab CI" },
+      "gradle": { "text": "Gradle" },
+      "grafana": { "text": "Grafana" },
+      "implicit-dependencies": { "text": "იარლიყებული დამოკიდებულებები" },
+      "iphone-app": { "text": "iPhone აპლიკაცია" },
+      "macos-app": { "text": "macOS აპლიკაცია" },
+      "new-project": { "text": "ახალი პროექტი" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Once ქეში" },
+      "once-project": { "text": "Once პროექტი" },
+      "once-remote-execution": { "text": "Once დაშორებული შესრულება" },
+      "origin": { "text": "Origin" },
+      "profiles": { "text": "პროფილები" },
+      "project-description": { "text": "პროექტის აღწერა" },
+      "release": { "text": "რელიზი" },
+      "release-calendar": { "text": "რელიზების კალენდარი" },
+      "release-channels": { "text": "რელიზების არხები" },
+      "run-previews": { "text": "პრევიუს გაშვება" },
+      "rust": { "text": "Rust" },
+      "rust-cache": { "text": "Rust ქეში" },
+      "rust-project": { "text": "Rust პროექტი" },
+      "sandboxes": { "text": "სენდბოქსები" },
+      "scim-provisioning": { "text": "SCIM მომარაგება" },
+      "server-api": { "text": "სერვერის API" },
+      "single-sign-on": { "text": "ერთჯერადი შესვლა (SSO)" },
+      "supported-types": { "text": "მხარდაჭერილი ტიპები" },
+      "webhooks": { "text": "Webhooks" },
+      "xcodegen-project": { "text": "XcodeGen პროექტი" },
+      "xcodeproj-integration": { "text": "Xcodeproj ინტეგრაცია" },
+      "ufeatures-architecture": { "text": "uFeatures არქიტექტურა" }
+    }
+  },
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "ენები 🌍"
+      },
+      "description": {
+        "text": "შეგიძლიათ დაეხმაროთ Tuist-ს მეტი ენის მხარდაჭერაში ან გააუმჯობესოთ ამ გვერდის ენობრივი სახელმძღვანელო."
+      },
+      "cta": {
+        "text": "შეიტანეთ წვლილი"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "ძიება",
+    "translations": {
+      "button": {
+        "button-text": "დოკუმენტაციის ძიება",
+        "button-aria-label": "დოკუმენტაციის ძიება"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "მოთხოვნის გასუფთავება",
+          "reset-button-aria-label": "მოთხოვნის გასუფთავება",
+          "cancel-button-text": "გაუქმება",
+          "cancel-button-aria-label": "გაუქმება"
+        },
+        "start-screen": {
+          "recent-searches-title": "ძიების ისტორია",
+          "no-recent-searches-text": "ძიების ისტორია არ არის",
+          "save-recent-search-button-title": "შეინახეთ ძიების ისტორიაში",
+          "remove-recent-search-button-title": "წაშალეთ ძიების ისტორიიდან",
+          "favorite-searches-title": "რჩეულები",
+          "remove-favorite-search-button-title": "წაშალეთ რჩეულებიდან"
+        },
+        "error-screen": {
+          "title-text": "შედეგების მიღება ვერ ხერხდება",
+          "help-text": "შეიძლება დაგჭირდეთ ქსელის კავშირის შემოწმება"
+        },
+        "footer": {
+          "select-text": "არჩევა",
+          "navigate-text": "ნავიგაცია",
+          "close-text": "დახურვა",
+          "search-by-text": "ძიების პროვაიდერი"
+        },
+        "no-results-screen": {
+          "no-results-text": "შესაბამისი შედეგები ვერ მოიძებნა",
+          "suggested-query-text": "შეგიძლიათ სცადოთ მოთხოვნა",
+          "report-missing-results-text": "ფიქრობთ, რომ ამ მოთხოვნას უნდა ჰქონდეს შედეგები?",
+          "report-missing-results-link-text": "დააწკაპუნეთ გამოხმაურებისთვის"
+        }
+      }
+    }
+  },
+  "navbar": {
+    "guides": {
+      "text": "სახელმძღვანელოები"
+    },
+    "cli": {
+      "text": "CLI"
+    },
+    "server": {
+      "text": "სერვერი"
+    },
+    "tutorials": {
+      "text": "გაკვეთილები"
+    },
+    "resources": {
+      "text": "რესურსები",
+      "items": {
+        "references": {
+          "text": "ცნობარები"
+        },
+        "contributors": {
+          "text": "ავტორები"
+        },
+        "changelog": {
+          "text": "ცვლილებების ჟურნალი"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "cli": {
+          "items": {
+            "debugging": {
+              "text": "დიბაგინგი"
+            },
+            "directories": {
+              "text": "დირექტორიები"
+            },
+            "shell-completions": {
+              "text": "Shell-ის ავტოშევსება"
+            }
+          }
+        },
+        "commands": {
+          "text": "ბრძანებები"
+        }
+      }
+    },
+    "references": {
+      "text": "ცნობარები",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "generated-projects": {
+              "text": "გენერირებული პროექტები"
+            }
+          }
+        },
+        "examples": {
+          "text": "მაგალითები"
+        },
+        "libraries": {
+          "text": "ბიბლიოთეკები"
+        },
+        "migrations": {
+          "text": "მიგრაციები",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "v3-დან v4-ზე"
+            }
+          }
+        },
+        "configuration": {
+          "text": "კონფიგურაცია",
+          "items": {
+            "tuist-toml": {
+              "text": "tuist.toml"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "ავტორები",
+      "items": {
+        "code": {
+          "text": "კოდი",
+          "items": {
+            "cli": {
+              "text": "CLI"
+            },
+            "server": {
+              "text": "სერვერი"
+            },
+            "handbook": {
+              "text": "სახელმძღვანელო"
+            },
+            "docs": {
+              "text": "დოკუმენტაცია"
+            }
+          }
+        },
+        "issue-reporting": {
+          "text": "შეცდომების შეტყობინება"
+        },
+        "code-reviews": {
+          "text": "კოდის რევიუ"
+        },
+        "principles": {
+          "text": "პრინციპები"
+        },
+        "debugging": {
+          "text": "დიბაგინგი"
+        },
+        "translate": {
+          "text": "ენები"
+        },
+        "releases": {
+          "text": "რელიზები"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "ლოგირება"
+            }
+          }
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "შესავალი",
+          "items": {
+            "why-server": {
+              "text": "რატომ სერვერი?"
+            },
+            "accounts-and-projects": {
+              "text": "ანგარიშები და პროექტები"
+            },
+            "authentication": {
+              "text": "ავთენტიკაცია"
+            },
+            "integrations": {
+              "text": "ინტეგრაციები"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "ლოკალური განლაგება",
+          "items": {
+            "install": {
+              "text": "ინსტალაცია"
+            },
+            "metrics": {
+              "text": "მეტრიკები"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "API დოკუმენტაცია"
+        },
+        "status": {
+          "text": "სტატუსი"
+        },
+        "metrics-dashboard": {
+          "text": "მეტრიკების დაფა"
+        }
+      }
+    },
+    "tutorials": {
+      "text": "გაკვეთილები",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "create-a-generated-project": {
+              "text": "გენერირებული პროექტის შექმნა"
+            }
+          }
+        }
+      }
+    },
+    "guides": {
+      "text": "სახელმძღვანელოები",
+      "items": {
+        "get-started": {
+          "text": "დაწყება",
+          "items": {
+            "choose-your-path": {
+              "text": "დაწყება"
+            },
+            "existing-xcode-project": {
+              "text": "Xcode პროექტი"
+            },
+            "generated-xcode-project": {
+              "text": "გენერირებული Xcode პროექტი"
+            },
+            "gradle-project": {
+              "text": "Gradle პროექტი"
+            },
+            "elixir-project": {
+              "text": "Elixir პროექტი"
+            },
+            "bazel-project": {
+              "text": "Bazel პროექტი"
+            }
+          }
+        },
+        "install-tuist": {
+          "text": "Tuist-ის ინსტალაცია"
+        },
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "Tuist-ის შესახებ"
+            }
+          }
+        },
+        "quick-start": {
+          "text": "სწრაფი დაწყება",
+          "items": {
+            "install-tuist": {
+              "text": "Tuist-ის ინსტალაცია"
+            },
+            "get-started": {
+              "text": "დაწყება"
+            }
+          }
+        },
+        "features": {
+          "text": "ფუნქციები"
+        },
+        "examples": {
+          "text": "მაგალითები",
+          "items": {
+            "generated-projects": {
+              "text": "გენერირებული პროექტები"
+            }
+          }
+        },
+        "develop": {
+          "text": "განვითარება",
+          "items": {
+            "generated-projects": {
+              "text": "გენერირებული პროექტები",
+              "items": {
+                "adoption": {
+                  "text": "დანერგვა",
+                  "items": {
+                    "new-project": {
+                      "text": "ახალი პროექტის შექმნა"
+                    },
+                    "swift-package": {
+                      "text": "Swift Package-ით ცდა"
+                    },
+                    "migrate": {
+                      "text": "მიგრაცია",
+                      "items": {
+                        "xcode-project": {
+                          "text": "Xcode პროექტი"
+                        },
+                        "swift-package": {
+                          "text": "Swift პაკეტი"
+                        },
+                        "xcodegen-project": {
+                          "text": "XcodeGen პროექტი"
+                        },
+                        "bazel-project": {
+                          "text": "Bazel პროექტი"
+                        }
+                      }
+                    }
+                  }
+                },
+                "manifests": {
+                  "text": "მანიფესტები"
+                },
+                "directory-structure": {
+                  "text": "დირექტორიების სტრუქტურა"
+                },
+                "editing": {
+                  "text": "რედაქტირება"
+                },
+                "dependencies": {
+                  "text": "დამოკიდებულებები"
+                },
+                "code-sharing": {
+                  "text": "კოდის გაზიარება"
+                },
+                "synthesized-files": {
+                  "text": "სინთეზირებული ფაილები"
+                },
+                "dynamic-configuration": {
+                  "text": "დინამიური კონფიგურაცია"
+                },
+                "templates": {
+                  "text": "შაბლონები"
+                },
+                "plugins": {
+                  "text": "პლაგინები"
+                },
+                "hashing": {
+                  "text": "ჰეშირება"
+                },
+                "inspect": {
+                  "text": "ინსპექცია",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "იარლიყებული იმპორტები"
+                    }
+                  }
+                },
+                "the-cost-of-convenience": {
+                  "text": "მოხერხებულობის ფასი"
+                },
+                "tma-architecture": {
+                  "text": "მოდულური არქიტექტურა"
+                },
+                "metadata-tags": {
+                  "text": "მეტამონაცემთა ტეგები"
+                },
+                "best-practices": {
+                  "text": "საუკეთესო პრაქტიკა"
+                }
+              }
+            },
+            "cache": {
+              "text": "ქეში",
+              "items": {
+                "xcode": {
+                  "text": "Xcode",
+                  "items": {
+                    "xcode-cache": {
+                      "text": "Xcode ქეში"
+                    },
+                    "module-cache": {
+                      "text": "მოდულის ქეში"
+                    }
+                  }
+                },
+                "gradle-cache": {
+                  "text": "Gradle ქეში"
+                }
+              }
+            },
+            "package-registries": {
+              "text": "პაკეტების რეესტრები",
+              "items": {
+                "swift": {
+                  "text": "Swift"
+                },
+                "xcode-project": {
+                  "text": "Xcode პროექტი"
+                },
+                "generated-project": {
+                  "text": "გენერირებული პროექტი"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-ზე დაფუძნებული ინტეგრაცია"
+                },
+                "swift-package": {
+                  "text": "Swift პაკეტი"
+                },
+                "continuous-integration": {
+                  "text": "უწყვეტი ინტეგრაცია"
+                }
+              }
+            },
+            "selective-testing": {
+              "text": "შერჩევა",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "გენერირებული Xcode პროექტი"
+                }
+              }
+            },
+            "test-sharding": {
+              "text": "დაყოფა",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "გენერირებული Xcode პროექტი"
+                }
+              }
+            },
+            "insights": {
+              "text": "ანალიტიკა",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "გენერირებული Xcode პროექტი"
+                }
+              }
+            },
+            "test-insights": {
+              "text": "ანალიტიკა",
+              "items": {
+                "flaky-tests": {
+                  "text": "არასტაბილურობა",
+                  "items": {
+                    "generated-xcode-project": {
+                      "text": "გენერირებული Xcode პროექტი"
+                    }
+                  }
+                }
+              }
+            },
+            "bundle-insights": {
+              "text": "ანალიტიკა",
+              "items": {
+                "apple": {
+                  "text": "Apple"
+                },
+                "android": {
+                  "text": "Android"
+                }
+              }
+            },
+            "runners": {
+              "text": "რანერები",
+              "items": {
+                "ci-providers": {
+                  "text": "CI პროვაიდერები"
+                }
+              }
+            }
+          }
+        },
+        "agentic-coding": {
+          "text": "აგენტური კოდირება",
+          "items": {
+            "mcp": {
+              "text": "MCP"
+            },
+            "skills": {
+              "text": "უნარები"
+            }
+          }
+        },
+        "integrations": {
+          "text": "ინტეგრაციები",
+          "items": {
+            "continuous-integration": {
+              "text": "უწყვეტი ინტეგრაცია"
+            },
+            "http-proxy": {
+              "text": "HTTP პროქსი"
+            },
+            "sso": {
+              "text": "SSO"
+            },
+            "slack": {
+              "text": "Slack"
+            },
+            "git-forges": {
+              "text": "Git პლატფორმები",
+              "items": {
+                "github": {
+                  "text": "GitHub"
+                }
+              }
+            }
+          }
+        },
+        "server": {
+          "text": "სერვერი",
+          "items": {
+            "accounts-and-projects": {
+              "text": "ანგარიშები და პროექტები"
+            },
+            "authentication": {
+              "text": "ავთენტიკაცია"
+            },
+            "network": {
+              "text": "ქსელი"
+            },
+            "self-hosting": {
+              "text": "თვითმასპინძლობა",
+              "items": {
+                "server": {
+                  "text": "სერვერი"
+                },
+                "cache": {
+                  "text": "ქეში"
+                },
+                "telemetry": {
+                  "text": "ტელემეტრია"
+                }
+              }
+            }
+          }
+        },
+        "share": {
+          "text": "გაზიარება",
+          "items": {
+            "previews": {
+              "text": "პრევიუები"
+            }
+          }
+        }
+      }
+    }
+  }
+}

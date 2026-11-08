@@ -4,6 +4,7 @@ defmodule Tuist.Docs.SidebarTest do
 
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.Page
   alias Tuist.Docs.Sidebar
 
@@ -12,6 +13,46 @@ defmodule Tuist.Docs.SidebarTest do
 
     tree = Sidebar.tree()
     assert [_ | _] = tree
+  end
+
+  test "groups channels and calendar under Release in CLI fallback and server navigation" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+    [cli] = Sidebar.cli_tree()
+    server = Enum.find(Sidebar.guides_tree(), &(&1.label == "Server"))
+    self_hosting = Enum.find(server.items, &(&1.label == "Self-hosting"))
+
+    for {items, base} <- [{cli.items, "/en/cli"}, {self_hosting.items, "/en/guides/server/self-host"}] do
+      release = Enum.find(items, &(&1.label == "Release"))
+      assert is_nil(release.slug)
+
+      assert Enum.map(release.items, &{&1.label, &1.slug}) == [
+               {"Channels", "#{base}/release/channels"},
+               {"Calendar", "#{base}/release/calendar"}
+             ]
+    end
+  end
+
+  test "every authored navigation label is available to the translation rule" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
+    catalog =
+      "../../priv/docs/strings/en.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> JSON.decode!()
+      |> catalog_texts()
+      |> MapSet.new()
+
+    # Example names come from project READMEs, not the navigation catalog.
+    examples = MapSet.new(Loader.load_example_items!(), &elem(&1, 0))
+
+    missing =
+      Sidebar.tree()
+      |> navigation_labels()
+      |> Enum.reject(&(is_nil(&1) or MapSet.member?(catalog, &1) or MapSet.member?(examples, &1)))
+      |> Enum.uniq()
+
+    assert missing == [], "Navigation labels missing from strings/en.json: #{inspect(missing)}"
   end
 
   test "puts install and the starting journeys first in the guides sidebar" do
@@ -31,13 +72,37 @@ defmodule Tuist.Docs.SidebarTest do
              {"Gradle project", "/en/guides/get-started/gradle-project"},
              {"Elixir project", "/en/guides/get-started/elixir-project"},
              {"Rust project", "/en/guides/get-started/rust-project"},
-             {"Bazel project", "/en/guides/get-started/bazel-project"}
+             {"Bazel project", "/en/guides/get-started/bazel-project"},
+             {"Once project", "/en/guides/get-started/once-project"}
            ]
 
     assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
+  test "previews separates build systems, supported types, and ways to run" do
+    bundles = Enum.find(Sidebar.guides_tree(), &(&1.label == "Bundles"))
+    previews = Enum.find(bundles.items, &(&1.label == "Previews"))
+
+    assert [build, types, run] = previews.items
+    assert build.label == "Build and publish"
+    assert {types.label, types.slug} == {"Supported types", "/en/guides/features/previews/types"}
+    assert run.label == "Run previews"
+
+    assert Enum.map(build.items, &{&1.label, &1.slug, &1.icon}) == [
+             {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
+             {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
+             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"},
+             {"Once", "/en/guides/features/previews/once", "brand_once"}
+           ]
+
+    assert Enum.map(run.items, &{&1.label, &1.slug}) == [
+             {"CLI", "/en/guides/features/previews/run/cli"},
+             {"macOS app", "/en/guides/features/previews/run/macos"},
+             {"iPhone app", "/en/guides/features/previews/run/ios"}
+           ]
   end
 
   test "links every Rust journey with the Rust brand logo" do
@@ -117,9 +182,15 @@ defmodule Tuist.Docs.SidebarTest do
   test "localizes each Insights item by its catalogue path, not by English label" do
     tree = Sidebar.tree_for_tab(:guides, "es")
 
-    insights_by_group =
-      for %Sidebar.Group{label: group, items: items} <- tree,
-          group in ["Builds", "Tests", "Bundles"],
+    es_strings =
+      "../../priv/docs/strings/es.json"
+      |> Path.expand(__DIR__)
+      |> File.read!()
+      |> JSON.decode!()
+
+    insights_by_category =
+      for %Sidebar.Group{category: category, items: items} <- tree,
+          category in ["Builds", "Tests", "Bundles"],
           item <- items,
           item.slug in [
             "/es/guides/features/build-insights",
@@ -127,12 +198,16 @@ defmodule Tuist.Docs.SidebarTest do
             "/es/guides/features/bundle-insights"
           ],
           into: %{} do
-        {group, item.label}
+        {category, item}
       end
 
-    assert insights_by_group["Builds"] == "Análisis de builds"
-    assert insights_by_group["Tests"] == "Insights"
-    assert insights_by_group["Bundles"] == "Insights"
+    assert insights_by_category |> Map.keys() |> Enum.sort() == ["Builds", "Bundles", "Tests"]
+
+    for {_category, item} <- insights_by_category do
+      expected = get_in(es_strings, String.split(item.text_path, ".") ++ ["text"])
+      assert is_binary(expected)
+      assert item.label == expected
+    end
   end
 
   test "returns the top-level category for localized slugs" do
@@ -151,5 +226,17 @@ defmodule Tuist.Docs.SidebarTest do
   defp collect_item_slugs(%{slug: slug, items: items}) do
     own = if slug, do: [slug], else: []
     own ++ Enum.flat_map(items, &collect_item_slugs/1)
+  end
+
+  defp navigation_labels(nodes) do
+    Enum.flat_map(nodes, fn node -> [node.label | navigation_labels(node.items)] end)
+  end
+
+  defp catalog_texts(map) do
+    Enum.flat_map(map, fn
+      {"text", value} when is_binary(value) -> [value]
+      {_key, value} when is_map(value) -> catalog_texts(value)
+      _ -> []
+    end)
   end
 end

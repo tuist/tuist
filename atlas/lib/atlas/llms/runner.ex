@@ -99,7 +99,7 @@ defmodule Atlas.LLMs.Runner do
   def orbit_client_opts(%User{id: user_id}, opts \\ []) do
     profile_client_opts(:orbit, opts)
     |> Keyword.put(:llm_request_options,
-      req_http_options: [plug: {PersonalTransport, user_id: user_id}]
+      req_http_options: [plug: {PersonalTransport, user_id: user_id, model: Keyword.get(opts, :model)}]
     )
   end
 

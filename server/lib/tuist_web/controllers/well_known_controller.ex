@@ -33,7 +33,10 @@ defmodule TuistWeb.WellKnownController do
   def tuist_discovery(conn, _params) do
     conn
     |> put_resp_header("cache-control", "no-store")
-    |> json(%{network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?()})
+    |> json(%{
+      network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?(),
+      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?()
+    })
   end
 
   def agent_skills_index(conn, _params) do
@@ -264,7 +267,7 @@ defmodule TuistWeb.WellKnownController do
         details: [
           %{
             appID: app_id,
-            paths: ["/*/*/previews/*"]
+            paths: ["NOT /*/*/previews/latest", "NOT /*/*/previews/*/*", "/*/*/previews/*"]
           }
         ]
       }

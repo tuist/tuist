@@ -204,7 +204,7 @@ func TestUserDataGivesAStorageNodeAQuotaedDataFilesystem(t *testing.T) {
 		t.Errorf("/ is %v, want it capped at 64G", size)
 	}
 	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "-1" {
-		t.Errorf("/data is %v, want the rest of the disk", size)
+		t.Errorf("/data is %v, want the full legacy data partition", size)
 	}
 	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
 	for _, bind := range []string{
@@ -562,12 +562,122 @@ func TestUserDataRefusesAnEdgeNetworkItCannotBuild(t *testing.T) {
 		"peer is the edge":  func(s *Seed) { s.Edge.Peer = "10.255.255.2" },
 		"peer is not an IP": func(s *Seed) { s.Edge.Peer = "ber1-edge-a" },
 		"IPv6 VRRP address": func(s *Seed) { s.Edge.Address, s.Edge.Peer = "fd00::2/64", "fd00::1" },
+		"WAN on the VRRP VLAN": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4000}
+		},
+		"WAN without a prefix": func(s *Seed) { s.Edge.WAN = &StaticWAN{Address: "149.6.170.31", Gateway: "149.6.170.30", VLAN: 4001} },
+		"WAN gateway outside": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.29", VLAN: 4001}
+		},
+		"WAN gateway is it": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.31", VLAN: 4001}
+		},
 	} {
 		s := edgeSeed()
 		s.Edge = ber1EdgeB()
 		mutate(&s)
 		if _, err := UserData(s); err == nil {
 			t.Errorf("%s: rendered", name)
+		}
+	}
+}
+
+func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		var config struct {
+			Storage struct{ Config []map[string]any }
+		}
+		if err := yaml.Unmarshal([]byte(storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident, KuraLVM: true})), &config); err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]map[string]any{}
+		for _, action := range config.Storage.Config {
+			byID[fmt.Sprint(action["id"])] = action
+		}
+		if byID["kura-vg"]["type"] != "lvm_volgroup" || byID["kura-vg"]["name"] != "kura-volumes" {
+			t.Fatalf("missing VG: %v", byID)
+		}
+		if byID["data-lv"]["volgroup"] != "kura-vg" || byID["data-lv"]["size"] != "128G" || byID["data-fs"]["volume"] != "data-lv" {
+			t.Fatalf("wrong system LV: %v", byID)
+		}
+		if fmt.Sprint(byID["data"]["size"]) != "-1" {
+			t.Fatal("PV must span remaining data partition")
+		}
+		lvs := 0
+		for _, action := range byID {
+			if action["type"] == "lvm_partition" {
+				lvs++
+			}
+		}
+		if lvs != 1 {
+			t.Fatal("installer must leave tenant extents unallocated")
+		}
+		if resident && (byID["installer"]["preserve"] != true || byID["data"]["device"] != "disk1") {
+			t.Fatal("resident installer must survive on separate boot disk")
+		}
+	}
+	for _, role := range []string{"edge", "services"} {
+		if strings.Contains(storageLayout(role, true), "kura-volumes") {
+			t.Fatal("non-storage node gained VG")
+		}
+	}
+}
+
+func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
+	e := ber1EdgeB()
+	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
+	out, seed := renderEdgeNetwork(t, e)
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+
+	head := "cat > /target" + EdgeFirstWANPath + " <<'TUIST_EOF'\n"
+	start := strings.Index(late, head)
+	if start < 0 {
+		t.Fatalf("late-commands do not write the first-boot WAN:\n%s", late)
+	}
+	script := late[start+len(head):]
+	script = script[:strings.Index(script, "\nTUIST_EOF")]
+	for _, want := range []string{
+		"uplinks='enp2s0f1np1 enp2s0f0np0' vlan=4001 address='149.6.170.31/31' gateway='149.6.170.30'",
+		"state=" + EdgeFirstWANState + " metric=50",
+		"compgen -G '/etc/kubernetes/manifests/rack-edge-*.yaml'",
+		`arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the first-boot WAN lacks %q:\n%s", want, script)
+		}
+	}
+	if strings.Contains(script, "@") {
+		t.Errorf("a placeholder is left in the first-boot WAN:\n%s", script)
+	}
+	check := exec.Command("bash", "-n")
+	check.Stdin = strings.NewReader(script)
+	if msg, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("the first-boot WAN is not valid bash: %v\n%s", err, msg)
+	}
+	if !strings.Contains(late, "ExecStart="+EdgeFirstWANPath) ||
+		!strings.Contains(late, "curtin in-target --target=/target -- systemctl enable tuist-edge-first-wan.service") {
+		t.Errorf("late-commands do not enable the first-boot WAN:\n%s", late)
+	}
+	// The WAN is the service's, never netplan's, which would keep it on the
+	// standby edge too.
+	if strings.Contains(fmt.Sprint(seed.Autoinstall.Network), "149.6.170.31") {
+		t.Errorf("netplan carries the WAN: %+v", seed.Autoinstall.Network)
+	}
+	if !strings.Contains(out, "    - iputils-arping\n") {
+		t.Errorf("the install does not bring arping")
+	}
+
+	_, seed = renderEdgeNetwork(t, ber1EdgeB())
+	if strings.Contains(strings.Join(seed.Autoinstall.LateCommands, "\n"), EdgeFirstWANPath) {
+		t.Errorf("an edge with no WAN gets the first-boot WAN")
+	}
+}
+
+func TestStorageLayoutDefaultsToFullSharedXFS(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		got := storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident})
+		if strings.Contains(got, "lvm_") || !strings.Contains(got, "volume: data, fstype: xfs") {
+			t.Fatalf("unenrolled storage host changed layout: %s", got)
 		}
 	}
 }

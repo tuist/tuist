@@ -32,15 +32,14 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
     end
 
-    test "opts Markdown-only decision guides into marketing content usage", %{conn: conn} do
+    test "opts decision guides and their Markdown into marketing content usage", %{conn: conn} do
       body = conn |> get("/robots.txt") |> response(200)
 
       public_patterns =
         Regex.scan(~r/^Content-Usage: (\S+) train-ai=y, search=y, ai-input=y$/m, body, capture: :all_but_first)
 
-      for page <- MarketingMarkdown.decision_guides() do
-        path = MarketingMarkdown.alternate_path(page.path)
-
+      for page <- MarketingMarkdown.decision_guides(),
+          path <- [page.path, MarketingMarkdown.alternate_path(page.path)] do
         assert Enum.any?(public_patterns, fn [pattern] ->
                  if String.ends_with?(pattern, "$") do
                    path == String.trim_trailing(pattern, "$")
@@ -54,10 +53,6 @@ defmodule TuistWeb.RobotsTxtControllerTest do
                  Regex.match?(Regex.compile!("^" <> regex), path)
                end)
       end
-
-      refute body =~ "Content-Usage: /solutions"
-      refute body =~ "Content-Usage: /compare"
-      refute body =~ "Content-Usage: /build-systems"
     end
 
     test "points crawlers at the sitemap", %{conn: conn} do

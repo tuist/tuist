@@ -1,35 +1,23 @@
 ---
 {
-  "title": "Migrate an Xcode project",
-  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
-  "description": "Learn how to migrate an Xcode project to a Tuist project."
+  "title": "Bir Xcode projesini taşıma",
+  "titleTemplate": ":title · Taşıma · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Bir Xcode projesinin nasıl Tuist projesine taşınacağını öğrenin."
 }
 ---
-# Bir Xcode projesini taşıma {#migrate-an-xcode-project}
+# Xcode projesini taşıma {#migrate-an-xcode-project}
 
-Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> kullanarak yeni bir proje oluşturmadığınız sürece</LocalizedLink>, bu durumda
-her şey otomatik olarak yapılandırılır, Xcode projelerinizi Tuist'in ilkellerini
-kullanarak tanımlamanız gerekir. Bu sürecin ne kadar sıkıcı olduğu,
-projelerinizin ne kadar karmaşık olduğuna bağlıdır.
+<.localized_link href="/guides/features/projects/adoption/new-project">Tuist kullanarak yeni bir proje oluşturmadığınız</.localized_link> sürece, bu durumda her şey otomatik olarak yapılandırılır, Xcode projelerinizi Tuist'in temel bileşenlerini kullanarak tanımlamanız gerekir. Bu sürecin ne kadar zahmetli olduğu, projelerinizin karmaşıklığına bağlıdır.
 
-Muhtemelen bildiğiniz gibi, Xcode projeleri zaman içinde dağınık ve karmaşık
-hale gelebilir: dizin yapısıyla eşleşmeyen gruplar, hedefler arasında paylaşılan
-dosyalar veya mevcut olmayan dosyalara işaret eden dosya referansları
-(bazılarından bahsetmek gerekirse). Tüm bu birikmiş karmaşıklık, projeyi
-güvenilir bir şekilde taşıyan bir komut sağlamamızı zorlaştırıyor.
+Muhtemelen bildiğiniz gibi, Xcode projeleri zamanla dağınık ve karmaşık hale gelebilir: dizin yapısıyla eşleşmeyen gruplar, hedefler arasında paylaşılan dosyalar veya var olmayan dosyalara işaret eden dosya referansları (bazı örnekler). Biriken tüm bu karmaşıklık, projeyi güvenilir bir şekilde taşıyan bir komut sunmamızı zorlaştırıyor.
 
-Dahası, manuel geçiş projelerinizi temizlemek ve basitleştirmek için mükemmel
-bir uygulamadır. Bunun için sadece projenizdeki geliştiriciler değil, onları
-daha hızlı işleyen ve indeksleyen Xcode da minnettar olacaktır. Tuist'i tamamen
-benimsediğinizde, projelerin tutarlı bir şekilde tanımlanmasını ve basit
-kalmasını sağlayacaktır.
+Ayrıca, manuel taşıma projelerinizi temizlemek ve basitleştirmek için mükemmel bir alıştırmadır. Bunun için yalnızca projenizdeki geliştiriciler değil, onları daha hızlı işleyip indeksleyecek olan Xcode da minnettar olacaktır. Tuist'i tamamen benimsediğinizde, projelerin tutarlı bir şekilde tanımlandığını ve basit kaldığını sağlayacaktır.
 
-Bu işi kolaylaştırmak amacıyla, kullanıcılardan aldığımız geri bildirimlere
-dayanarak size bazı yönergeler sunuyoruz.
+Bu işi kolaylaştırmak amacıyla, kullanıcılardan aldığımız geri bildirimlere dayalı bazı yönergeler sunuyoruz.
 
-## Proje iskelesi oluşturun {#create-project-scaffold}
+## Proje iskeletini oluşturma {#create-project-scaffold}
 
-Öncelikle aşağıdaki Tuist dosyaları ile projeniz için bir iskele oluşturun:
+Her şeyden önce, aşağıdaki Tuist dosyalarını kullanarak projeniz için bir iskelet oluşturun:
 
 ::: code-group
 
@@ -70,31 +58,24 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
     ]
 )
 ```
 <!-- -->
 :::
 
-`Project.swift` projenizi tanımlayacağınız manifesto dosyasıdır ve
-`Package.swift` bağımlılıklarınızı tanımlayacağınız manifesto dosyasıdır. `
-Tuist.swift` dosyası, projeniz için proje kapsamındaki Tuist ayarlarını
-tanımlayabileceğiniz yerdir.
+`Project.swift`, projenizi tanımlayacağınız manifest dosyasıdır ve `Package.swift`, bağımlılıklarınızı tanımlayacağınız manifest dosyasıdır. `Tuist.swift` dosyası, projeniz için proje kapsamındaki Tuist ayarlarını tanımlayabileceğiniz yerdir.
 
 > [!TIP]
-> **Project Name With -tuist Suffix**
+> **-Tuist sonekli proje adı**
 >
-> Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` son ekini
-> eklemenizi öneririz. Projenizi Tuist'e tam olarak geçirdikten sonra bunu
-> bırakabilirsiniz.
+> Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` sonekini eklemenizi öneririz. Projenizi Tuist'e tamamen taşıdığınızda bunu kaldırabilirsiniz.
 
 
-## Tuist projesini CI'da derleyin ve test edin {#build-and-test-the-tuist-project-in-ci}
+## Tuist projesini CI'da derleme ve test etme {#build-and-test-the-tuist-project-in-ci}
 
-Her değişikliğin geçişinin geçerli olduğundan emin olmak için, Tuist tarafından
-manifesto dosyanızdan oluşturulan projeyi derlemek ve test etmek için sürekli
-entegrasyonunuzu genişletmenizi öneririz:
+Her değişikliğin taşınmasının geçerli olduğundan emin olmak için, sürekli entegrasyonunuzu manifest dosyanızdan Tuist tarafından oluşturulan projeyi derleyip test edecek şekilde genişletmenizi öneririz:
 
 ```bash
 tuist install
@@ -102,12 +83,9 @@ tuist generate
 xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## Proje derleme ayarlarını `.xcconfig` dosyalarına çıkarın {#extract-the-project-build-settings-into-xcconfig-files}
+## Proje derleme ayarlarını `.xcconfig` dosyalarına çıkarma {#extract-the-project-build-settings-into-xcconfig-files}
 
-Projeyi daha yalın hale getirmek ve taşımayı kolaylaştırmak için derleme
-ayarlarını projeden bir `.xcconfig` dosyasına çıkarın. Projedeki derleme
-ayarlarını bir `.xcconfig` dosyasına çıkarmak için aşağıdaki komutu
-kullanabilirsiniz:
+Projeyi daha yalın ve taşınması daha kolay hale getirmek için derleme ayarlarını projeden bir `.xcconfig` dosyasına çıkarın. Derleme ayarlarını projeden bir `.xcconfig` dosyasına çıkarmak için aşağıdaki komutu kullanabilirsiniz:
 
 
 ```bash
@@ -115,8 +93,7 @@ mkdir -p xcconfigs/
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Project.xcconfig
 ```
 
-Ardından `Project.swift` dosyanızı yeni oluşturduğunuz `.xcconfig` dosyasına
-işaret edecek şekilde güncelleyin:
+Ardından, az önce oluşturduğunuz `.xcconfig` dosyasına işaret etmesi için `Project.swift` dosyanızı güncelleyin:
 
 ```swift
 import ProjectDescription
@@ -124,8 +101,8 @@ import ProjectDescription
 let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
-        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
-        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
+        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
+        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
     ]),
     targets: [
         /** Targets will go here **/
@@ -133,15 +110,13 @@ let project = Project(
 )
 ```
 
-Ardından, derleme ayarlarında yapılan değişikliklerin doğrudan `.xcconfig`
-dosyalarında yapılmasını sağlamak için aşağıdaki komutu çalıştırmak üzere
-sürekli entegrasyon işlem hattınızı genişletin:
+Ardından, derleme ayarlarına yönelik değişikliklerin doğrudan `.xcconfig` dosyalarına yapılmasını sağlamak için sürekli entegrasyon hattınızı aşağıdaki komutu çalıştıracak şekilde genişletin:
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## Paket bağımlılıklarını ayıklayın {#extract-package-dependencies}
+## Paket bağımlılıklarını çıkarma {#extract-package-dependencies}
 
 Projenizin tüm bağımlılıklarını `Tuist/Package.swift` dosyasına çıkarın:
 
@@ -165,54 +140,44 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
 
 > [!TIP]
-> **Product Types**
+> **Ürün türleri**
 >
-> Belirli bir paket için ürün türünü `PackageSettings` yapısındaki `productTypes`
-> sözlüğüne ekleyerek geçersiz kılabilirsiniz. Tuist varsayılan olarak tüm
-> paketlerin statik çerçeveler olduğunu varsayar.
+> Belirli bir paket için ürün türünü, `PackageSettings` yapısındaki `productTypes` sözlüğüne ekleyerek geçersiz kılabilirsiniz. Varsayılan olarak Tuist, tüm paketlerin statik çerçeveler olduğunu varsayar.
 
 
-## Geçiş sırasını belirleyin {#determine-the-migration-order}
+## Taşıma sırasını belirleme {#determine-the-migration-order}
 
-Hedefleri en çok bağımlı olandan en az bağımlı olana doğru taşımanızı öneririz.
-Bir projenin hedeflerini bağımlılık sayısına göre sıralayarak listelemek için
-aşağıdaki komutu kullanabilirsiniz:
+Hedefleri, en çok bağımlı olunanlardan en az bağımlı olunanlara doğru taşımanızı öneririz. Bir projenin hedeflerini bağımlılık sayısına göre sıralanmış olarak listelemek için aşağıdaki komutu kullanabilirsiniz:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Hedefleri taşımaya listenin en üstünden başlayın, çünkü en çok bağlı olanlar
-bunlardır.
+Listedeki en üstten başlayarak hedefleri taşımaya başlayın, çünkü bunlar en çok bağımlı olunanlardır.
 
 
 ## Hedefleri taşıma {#migrate-targets}
 
-Hedefleri teker teker taşıyın. Birleştirmeden önce değişikliklerin gözden
-geçirildiğinden ve test edildiğinden emin olmak için her hedef için bir çekme
-isteği yapmanızı öneririz.
+Hedefleri tek tek taşıyın. Değişikliklerin birleştirilmeden önce incelenmesini ve test edilmesini sağlamak için her hedef için bir çekme isteği oluşturmanızı öneririz.
 
-### Hedef derleme ayarlarını `.xcconfig` dosyalarına çıkarın {#extract-the-target-build-settings-into-xcconfig-files}
+### Hedef derleme ayarlarını `.xcconfig` dosyalarına çıkarma {#extract-the-target-build-settings-into-xcconfig-files}
 
-Proje derleme ayarlarında yaptığınız gibi, hedefi daha yalın ve taşıması daha
-kolay hale getirmek için hedef derleme ayarlarını bir `.xcconfig` dosyasına
-çıkarın. Hedeften derleme ayarlarını bir `.xcconfig` dosyasına çıkarmak için
-aşağıdaki komutu kullanabilirsiniz:
+Proje derleme ayarlarında yaptığınız gibi, hedefi daha yalın ve taşınması daha kolay hale getirmek için hedef derleme ayarlarını bir `.xcconfig` dosyasına çıkarın. Derleme ayarlarını hedeften bir `.xcconfig` dosyasına çıkarmak için aşağıdaki komutu kullanabilirsiniz:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### Hedefi `Project.swift` dosyasında tanımlayın {#define-the-target-in-the-projectswift-file}
+### Hedefi `Project.swift` dosyasında tanımlama {#define-the-target-in-the-projectswift-file}
 
-Hedefi `Project.targets` adresinde tanımlayın:
+Hedefi `Project.targets` içinde tanımlayın:
 
 ```swift
 import ProjectDescription
@@ -224,53 +189,42 @@ let project = Project(
         .release(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
     ]),
     targets: [
-        .target( // [!code ++]
-            name: "TargetX", // [!code ++]
-            destinations: .iOS, // [!code ++]
-            product: .framework, // [!code ++] // or .staticFramework, .staticLibrary...
-            bundleId: "dev.tuist.targetX", // [!code ++]
-            sources: ["Sources/TargetX/**"], // [!code ++]
-            dependencies: [ // [!code ++]
-                /** Dependencies go here **/ // [!code ++]
-                /** .external(name: "Kingfisher") **/ // [!code ++]
-                /** .target(name: "OtherProjectTarget") **/ // [!code ++]
-            ], // [!code ++]
-            settings: .settings(configurations: [ // [!code ++]
-                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-                .debug(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-            ]) // [!code ++]
-        ), // [!code ++]
+        .target(
+            name: "TargetX",
+            destinations: .iOS,
+            product: .framework, // or .staticFramework, .staticLibrary...
+            bundleId: "dev.tuist.targetX",
+            sources: ["Sources/TargetX/**"],
+            dependencies: [
+                /** Dependencies go here **/
+                /** .external(name: "Kingfisher") **/
+                /** .target(name: "OtherProjectTarget") **/
+            ],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+                .release(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+            ])
+        ),
     ]
 )
 ```
 
 > [!NOTE]
-> **Test Targets**
+> **Test hedefleri**
 >
-> Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu
-> `Project.swift` dosyasında da tanımlamalısınız.
+> Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak onu da `Project.swift` dosyasında tanımlamalısınız.
 
 
-### Hedef geçişi doğrulayın {#validate-the-target-migration}
+### Hedef taşınmasını doğrulama {#validate-the-target-migration}
 
-Projenin derlendiğinden emin olmak için `tuist generate` ardından `xcodebuild
-build` ve testlerin geçtiğinden emin olmak için `tuist test` çalıştırın. Ek
-olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulan Xcode
-projesini mevcut projeyle karşılaştırmak için
-[xcdiff](https://github.com/bloomberg/xcdiff) kullanabilirsiniz.
+Projenin derlendiğinden emin olmak için `tuist generate` ve ardından `xcodebuild build` komutunu, testlerin geçtiğinden emin olmak için ise `tuist test` komutunu çalıştırın. Ek olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulan Xcode projesini mevcut olanla karşılaştırmak üzere [xcdiff](https://github.com/bloomberg/xcdiff) kullanabilirsiniz.
 
-### Tekrarla {#repeat}
+### Tekrarlama {#repeat}
 
-Tüm hedefler tamamen taşınana kadar tekrarlayın. İşiniz bittiğinde, `tuist
-generate` ve ardından `xcodebuild build` ve `tuist test` kullanarak projeyi
-derlemek ve test etmek için CI ve CD boru hatlarınızı güncellemenizi öneririz.
+Tüm hedefler tamamen taşınana kadar tekrarlayın. İşiniz bittiğinde, projeyi `tuist generate` ve ardından `xcodebuild build` ile `tuist test` kullanarak derleyip test etmek için CI ve CD hatlarınızı güncellemenizi öneririz.
 
-## Sorun Giderme {#troubleshooting}
+## Sorun giderme {#troubleshooting}
 
-### Eksik dosyalar nedeniyle derleme hataları. {#compilation-errors-due-to-missing-files}
+### Eksik dosyalardan kaynaklanan derleme hataları. {#compilation-errors-due-to-missing-files}
 
-Xcode proje hedeflerinizle ilişkili dosyaların tümü hedefi temsil eden bir dosya
-sistemi dizininde bulunmuyorsa, derlenmeyen bir projeyle karşılaşabilirsiniz.
-Tuist ile projeyi oluşturduktan sonra dosya listesinin Xcode projesindeki dosya
-listesiyle eşleştiğinden emin olun ve dosya yapısını hedef yapıyla hizalama
-fırsatını değerlendirin.
+Xcode proje hedeflerinizle ilişkili dosyaların tamamı hedefi temsil eden bir dosya sistemi dizininde bulunmuyorsa, derlenmeyen bir projeyle karşılaşabilirsiniz. Tuist ile projeyi oluşturduktan sonraki dosya listesinin Xcode projesindeki dosya listesiyle eşleştiğinden emin olun ve dosya yapısını hedef yapısıyla hizalama fırsatını değerlendirin.

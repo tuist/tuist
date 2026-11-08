@@ -22,3 +22,10 @@ Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Appli
 ## Replica-safety rollout
 
 Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task. Keep best-effort test-ingestion enrichments on the existing detached `Tuist.Tasks` path; they do not require an application-level task supervisor, drainer or extra pod grace. Required analytics buffer shutdown retains its existing lifecycle; it does not make acknowledged in-memory staging durable across hard replica loss.
+
+- The xcresult readiness children include `Tuist.XcresultDrain`. Its local
+  virtio-fs handshake pauses `process_xcresult`, waits for no active jobs, stops
+  the queue and confirms its supervisor is gone before acknowledging VM
+  teardown. `Oban.Notifiers.PG` cannot deliver a Linux server's pause into an
+  undistributed guest. Runtime configuration always starts this queue paused,
+  including Oban-only restarts; the local monitor resumes only serving VMs.

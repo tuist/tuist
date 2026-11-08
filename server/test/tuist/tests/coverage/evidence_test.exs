@@ -237,7 +237,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
   end
 
   test "stores nothing while the account's coverage flag is off", %{test_run: test_run} do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
     Evidence.record(test_run, @evidence)
 
     assert CoverageFixtures.evidence_rows(test_run) == []

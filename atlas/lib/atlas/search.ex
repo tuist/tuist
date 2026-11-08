@@ -18,6 +18,8 @@ defmodule Atlas.Search do
   alias Atlas.GTM.Opportunity
   alias Atlas.GTM.Signal
   alias Atlas.GTM.SocialChannelIdea
+  alias Atlas.Moodboard.Comment, as: MoodboardComment
+  alias Atlas.Moodboard.Resource, as: MoodboardResource
   alias Atlas.Notes.Note
   alias Atlas.Repo
   alias Atlas.Search.Record
@@ -227,6 +229,45 @@ defmodule Atlas.Search do
     )
   end
 
+  def index_moodboard_resource(%MoodboardResource{} = resource, opts \\ []) do
+    host_terms = if resource.url, do: resource.url |> URI.parse() |> Map.fetch!(:host) |> String.replace(~r/[.\-]/, " ")
+
+    upsert_record(
+      %{
+        source_type: "moodboard_resource",
+        source_id: resource.id,
+        title: resource.title,
+        body:
+          join_text([
+            resource.description,
+            resource.content,
+            Enum.join(resource.tags, " "),
+            resource.source_description,
+            resource.source_text,
+            resource.url,
+            host_terms
+          ]),
+        path: "/library/moodboard/#{resource.id}",
+        metadata: %{"visibility" => "authenticated", "created_by_id" => resource.created_by_id, "kind" => resource.kind}
+      },
+      opts
+    )
+  end
+
+  def index_moodboard_comment(%MoodboardComment{} = comment, resource, opts \\ []) do
+    upsert_record(
+      %{
+        source_type: "moodboard_comment",
+        source_id: comment.id,
+        title: resource.title,
+        body: comment.body,
+        path: "/library/moodboard/#{resource.id}",
+        metadata: %{"visibility" => "authenticated", "resource_id" => resource.id, "author_id" => comment.author_id}
+      },
+      opts
+    )
+  end
+
   def index_social_channel_idea(%SocialChannelIdea{} = idea, opts \\ []) do
     upsert_record(
       %{
@@ -312,7 +353,12 @@ defmodule Atlas.Search do
        gtm_signals: backfill(Signal, &index_gtm_signal(&1, opts)),
        blog_post_ideas: backfill(BlogPostIdea, &index_blog_post_idea(&1, opts)),
        social_channel_ideas: backfill(SocialChannelIdea, &index_social_channel_idea(&1, opts)),
-       notes: backfill(Note, &index_note(&1, opts))
+       notes: backfill(Note, &index_note(&1, opts)),
+       moodboard_resources: backfill(MoodboardResource, &index_moodboard_resource(&1, opts)),
+       moodboard_comments:
+         backfill(MoodboardComment, fn comment ->
+           index_moodboard_comment(comment, Repo.get!(MoodboardResource, comment.resource_id), opts)
+         end)
      }}
   end
 

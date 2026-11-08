@@ -102,25 +102,71 @@ public struct Tuist: Codable, Equatable, Sendable {
     public struct TestInsights: Codable, Equatable, Sendable {
         /// Options for the code coverage of test runs.
         public struct Coverage: Codable, Equatable, Sendable {
-            /// When `true` (default), the code coverage a test run gathered is uploaded with it.
-            /// Set to `false` to upload test runs without their coverage.
+            /// When `true`, the code coverage a test run gathered is uploaded with it.
+            /// When `false` (default), test runs are uploaded without their coverage.
             public let upload: Bool
 
             /// Creates code coverage options.
-            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
+            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `false`.
             ///   The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
-            public static func coverage(upload: Bool = true) -> Self {
+            public static func coverage(upload: Bool = false) -> Self {
                 Coverage(upload: upload)
+            }
+        }
+
+        /// Options for selective testing, which `tuist test` uses to skip the tests a change can't affect.
+        public struct SelectiveTesting: Codable, Equatable, Sendable {
+            /// How selective testing decides which tests to skip beyond the test targets whose hash already passed.
+            public struct Strategy: Codable, Equatable, Sendable {
+                private enum Kind: String, Codable, Sendable {
+                    case coverage
+                }
+
+                private let kind: Kind
+
+                /// Selects tests by the code coverage of earlier runs. Test targets whose hash already passed are
+                /// skipped as with the default; in the test targets left, the XCTest and XCUITest tests whose recorded
+                /// coverage doesn't include a changed file are skipped too. Swift Testing tests run whenever their
+                /// target runs. Without an earlier run close enough to compare with, every test in scope runs, so that
+                /// run can be compared with next time; when coverage can't decide otherwise, such as after a change to
+                /// a dependency or build setting, the run uses the default. Every branch selects: pass
+                /// `--no-selective-testing` where every test should run, such as on the default branch.
+                ///
+                /// It requires uploading coverage (`coverage: .coverage(upload: true)`), and test targets that link
+                /// [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) so that runs record
+                /// which files each test executes.
+                public static func coverage() -> Self {
+                    Strategy(kind: .coverage)
+                }
+            }
+
+            /// How tests are selected beyond the test targets whose hash already passed. `nil`, the default, skips
+            /// only those targets.
+            public let strategy: Strategy?
+
+            /// Creates selective testing options.
+            /// - Parameter strategy: How tests are selected beyond the test targets whose hash already passed. Omit it
+            ///   to skip only those targets.
+            public static func selectiveTesting(strategy: Strategy? = nil) -> Self {
+                SelectiveTesting(strategy: strategy)
             }
         }
 
         /// The code coverage options.
         public let coverage: Coverage
 
+        /// The selective testing options. `nil` uses the default selective testing.
+        public let selectiveTesting: SelectiveTesting?
+
         /// Creates Test Insights options.
-        /// - Parameter coverage: The code coverage options.
-        public static func testInsights(coverage: Coverage = .coverage()) -> Self {
-            TestInsights(coverage: coverage)
+        /// - Parameters:
+        ///   - coverage: The code coverage options.
+        ///   - selectiveTesting: The selective testing options. Omit it to use the default selective testing.
+        public static func testInsights(
+            coverage: Coverage = .coverage(),
+            selectiveTesting: SelectiveTesting? = nil
+        ) -> Self {
+            TestInsights(coverage: coverage, selectiveTesting: selectiveTesting)
         }
     }
 

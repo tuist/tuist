@@ -5,7 +5,7 @@ import TuistNoora
 struct ExternalLinkRow: View {
     @Environment(\.openURL) private var openURL
 
-    let title: String
+    let title: LocalizedStringKey
     let url: URL
 
     var body: some View {
@@ -17,7 +17,7 @@ struct ExternalLinkRow: View {
                     .font(.body)
                     .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 Spacer()
-                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "arrow.up.forward.square")
                     .font(.title3.weight(.regular))
                     .foregroundColor(Noora.Colors.surfaceLabelTertiary)
             }

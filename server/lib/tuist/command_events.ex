@@ -85,6 +85,25 @@ defmodule Tuist.CommandEvents do
     end
   end
 
+  # Generation IDs are client-provided. Resolve them within the authorized project,
+  # in bounded batches, rather than trusting an unscoped event lookup per build.
+  def get_generation_versions(project_id, generation_ids) do
+    generation_ids
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+    |> Enum.chunk_every(500)
+    |> Enum.flat_map(fn ids ->
+      ClickHouseRepo.all(
+        from(e in Event,
+          where: e.project_id == ^project_id and e.name == "generate" and e.id in ^ids,
+          group_by: e.id,
+          select: {e.id, fragment("argMax(?, ?)", e.tuist_version, e.updated_at)}
+        )
+      )
+    end)
+    |> Map.new(fn {id, version} -> {id, if(version != "", do: version)} end)
+  end
+
   def get_user_for_command_event(command_event, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 

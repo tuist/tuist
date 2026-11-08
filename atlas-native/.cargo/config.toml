@@ -1,0 +1,4 @@
+# Keep host Rust/C dependencies compatible with Apple silicon's original OS floor.
+# Without this, cc uses the selected Xcode SDK's much newer deployment default.
+[env]
+MACOSX_DEPLOYMENT_TARGET = "11.0"

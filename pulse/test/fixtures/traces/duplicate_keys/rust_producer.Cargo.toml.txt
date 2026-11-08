@@ -1,0 +1,13 @@
+[package]
+name = "rustprod"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+opentelemetry = "=0.32.0"
+opentelemetry_sdk = { version = "=0.32.1", features = ["testing", "trace"] }
+opentelemetry-proto = { version = "=0.32.0", features = ["gen-tonic-messages", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["registry"] }
+tracing-opentelemetry = "=0.33.0"
+prost = "0.14"

@@ -49,6 +49,31 @@ for env in staging canary production; do
   [ "$grace" -gt $((wait_seconds + 15 + 15)) ] ||
     fail "$env: terminationGracePeriodSeconds $grace does not cover the $wait_seconds s drain and 30 s of shutdown"
 
+  if [ "$env" = canary ]; then
+    # One fixed-size rollout can keep ALL outgoing web pools alive while
+    # their replacements connect. maxSurge does not count terminating pods.
+    replicas="$(jq -r '.spec.replicas' <<<"$server")"
+    web_pool="$(jq -r '.spec.template.spec.containers[0].env[] | select(.name == "TUIST_DATABASE_POOL_SIZE") | .value' <<<"$server")"
+    pooler="$(jq -c '.[] | select(.kind == "Pooler")' "$WORK/tuist-$env.json")"
+    pooler_instances="$(jq -r '.spec.instances' <<<"$pooler")"
+    backend_pool="$(jq -r '.spec.pgbouncer.parameters.default_pool_size | tonumber' <<<"$pooler")"
+    reserve_pool="$(jq -r '.spec.pgbouncer.parameters.reserve_pool_size // "0" | tonumber' <<<"$pooler")"
+    # Per PgBouncer process: tuist/tuist_processor (Linux AND xcresult),
+    # tuist/tuist_swift_registry_sync, postgres/cnpg_pooler_pgbouncer (auth).
+    # Budget old + new poolers too; max_client_conn is NOT a backend cap.
+    web_connections=$((2 * replicas * web_pool))
+    pooled_connections=$((2 * pooler_instances * 3 * (backend_pool + reserve_pool)))
+    required_connections=$((web_connections + pooled_connections + 30))
+    postgres="$(jq -c '.[] | select(.apiVersion == "postgresql.cnpg.io/v1" and .kind == "Cluster")' "$WORK/tuist-$env.json")"
+    max_connections="$(jq -r '.spec.postgresql.parameters.max_connections | tonumber' <<<"$postgres")"
+    [ "$max_connections" -ge "$required_connections" ] ||
+      fail "canary: max_connections $max_connections < rollout budget $required_connections ($web_connections web + $pooled_connections pooled + 30 operational reserve)"
+    jq -e '.spec.postgresql.synchronous |
+      .method == "any" and .number == 1 and .dataDurability == "required"' <<<"$postgres" >/dev/null ||
+      fail "canary: the connection budget must not weaken synchronous durability"
+    echo "Canary rollout budget: $web_connections web + $pooled_connections pooled + 30 operational reserve <= $max_connections."
+  fi
+
   annotations="$(jq -c '[.[] | select(.kind == "Ingress" and (.metadata.name | endswith("-server")))][0].metadata.annotations' "$WORK/tuist-$env.json")"
   [ "$annotations" != "null" ] || fail "$env: no server Ingress"
   for expected in \

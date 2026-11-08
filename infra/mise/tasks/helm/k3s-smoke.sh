@@ -25,7 +25,7 @@ if grep -q "^dependencies:" "${CHART}/Chart.yaml"; then
 fi
 
 helm lint "$CHART" -f "$VALUES"
-helm template "$RELEASE" "$CHART" --include-crds -f "$VALUES" > "$rendered"
+helm template "$RELEASE" "$CHART" --namespace "$NAMESPACE" --include-crds -f "$VALUES" > "$rendered"
 echo "Rendered $(wc -l <"$rendered") lines of manifests."
 
 if [[ "$RENDER_ONLY" == "true" ]]; then
@@ -111,6 +111,7 @@ fi
 
 "$KUBECTL_BIN" get nodes -o wide
 "$KUBECTL_BIN" get storageclass
+KUBECTL="$KUBECTL_BIN" TUIST_HELM_TEST_UPGRADE=1 python3 "${CHART}/test-clickhouse-tailnet.py"
 "$KUBECTL_BIN" create namespace "$NAMESPACE" --dry-run=client -o yaml | "$KUBECTL_BIN" apply -f -
 "$KUBECTL_BIN" apply --dry-run=server -n "$NAMESPACE" -f "$rendered"
 

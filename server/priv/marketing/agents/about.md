@@ -19,7 +19,3 @@ Tuist started as an open-source, client-side toolkit for Apple's ecosystem, best
 - Sharing development app builds: [Previews](/marketing-markdown/previews).
 - Plans and billing: [Pricing](/marketing-markdown/pricing).
 - Trust and dependency risk: [Security](/marketing-markdown/security), [Openness](/marketing-markdown/openness), [Longevity](/marketing-markdown/longevity).
-
-## Limitations
-
-The mission statement is not a support matrix or a performance guarantee. Use the product guides and documentation for current capabilities, and the live [About page](/about) for the current team.

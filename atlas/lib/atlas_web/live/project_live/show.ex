@@ -12,6 +12,7 @@ defmodule AtlasWeb.ProjectLive.Show do
   alias Atlas.Engineering.Projects.Webhook
   alias Atlas.Engineering.Projects.Webhooks
   alias AtlasWeb.Endpoint
+  alias AtlasWeb.ProjectLive.Alerts, as: ErrorAlerts
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -29,7 +30,8 @@ defmodule AtlasWeb.ProjectLive.Show do
          |> assign_project_form(Projects.change_project(project))
          |> assign(:delete_project_form, delete_project_form())
          |> assign(:errors_enabled?, Errors.enabled?())
-         |> assign(:project_key, Errors.primary_project_key(project))}
+         |> assign(:project_key, Errors.primary_project_key(project))
+         |> ErrorAlerts.attach()}
 
       {:error, :not_found} ->
         {:ok,
@@ -166,247 +168,250 @@ defmodule AtlasWeb.ProjectLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <section id="project-show">
-      <div data-part="header">
-        <div data-part="title-group">
-          <h1>{@project.name}</h1>
-          <p :if={@project.description}>{@project.description}</p>
+    <Layouts.app flash={@flash}>
+      <section id="project-show">
+        <div data-part="header">
+          <div data-part="title-group">
+            <h1>{@project.name}</h1>
+            <p :if={@project.description}>{@project.description}</p>
+          </div>
         </div>
-      </div>
 
-      <.card title={gettext("Settings")} icon="apps">
-        <.card_section>
-          <.form
-            id="edit-project-form"
-            for={@project_form}
-            phx-change="validate"
-            phx-submit="save"
-            data-part="form"
-          >
-            <.text_input
-              id="project-name"
-              field={@project_form[:name]}
-              label={gettext("Name")}
-              required={true}
-              show_required={true}
-            />
-            <.text_area
-              id="project-description"
-              field={@project_form[:description]}
-              label={gettext("Description")}
-              max_length={500}
-              rows={4}
-            />
-            <.text_input
-              id="project-slack-alert-channel"
-              field={@project_form[:slack_alert_channel]}
-              label={gettext("Slack alert channel")}
-              placeholder="#alerts-atlas"
-              hint={
+        <.card title={gettext("Settings")} icon="apps">
+          <.card_section>
+            <.form
+              id="edit-project-form"
+              for={@project_form}
+              phx-change="validate"
+              phx-submit="save"
+              data-part="form"
+            >
+              <.text_input
+                id="project-name"
+                field={@project_form[:name]}
+                label={gettext("Name")}
+                required={true}
+                show_required={true}
+              />
+              <.text_area
+                id="project-description"
+                field={@project_form[:description]}
+                label={gettext("Description")}
+                max_length={500}
+                rows={4}
+              />
+              <.text_input
+                id="project-slack-alert-channel"
+                field={@project_form[:slack_alert_channel]}
+                label={gettext("Slack alert channel")}
+                placeholder="#alerts-atlas"
+                hint={
+                  gettext(
+                    "Slack channel error alerts for this project are posted to. Leave empty to fall back to the organization-wide default."
+                  )
+                }
+              />
+              <div data-part="select-field">
+                <span>{gettext("Visibility")}</span>
+                <.select
+                  id="project-visibility"
+                  name={@project_form[:visibility].name}
+                  value={to_string(@project_form[:visibility].value)}
+                  label={gettext("Choose visibility")}
+                >
+                  <:item value="public" label={gettext("Public")} icon="world" />
+                  <:item value="private" label={gettext("Private")} icon="lock" />
+                </.select>
+              </div>
+              <div data-part="form-actions">
+                <.button
+                  label={gettext("Save project")}
+                  size="medium"
+                  variant="primary"
+                />
+              </div>
+            </.form>
+          </.card_section>
+        </.card>
+
+        <.card
+          :if={@errors_enabled? and @project_key}
+          title={gettext("Error tracking")}
+          icon="alert_hexagon"
+        >
+          <:actions>
+            <.button
+              variant="secondary"
+              size="medium"
+              label={gettext("Rotate")}
+              phx-click="rotate_error_key"
+              data-confirm={
                 gettext(
-                  "Slack channel error alerts for this project are posted to. Leave empty to fall back to the organization-wide default."
+                  "Rotating the Data Source Name invalidates the current one. Clients using it will need to be updated with the new value."
                 )
               }
             />
-            <div data-part="select-field">
-              <span>{gettext("Visibility")}</span>
-              <.select
-                id="project-visibility"
-                name={@project_form[:visibility].name}
-                value={to_string(@project_form[:visibility].value)}
-                label={gettext("Choose visibility")}
-              >
-                <:item value="public" label={gettext("Public")} icon="world" />
-                <:item value="private" label={gettext("Private")} icon="lock" />
-              </.select>
-            </div>
-            <div data-part="form-actions">
-              <.button
-                label={gettext("Save project")}
-                size="medium"
-                variant="primary"
-              />
-            </div>
-          </.form>
-        </.card_section>
-      </.card>
+          </:actions>
 
-      <.card
-        :if={@errors_enabled? and @project_key}
-        title={gettext("Error tracking")}
-        icon="alert_hexagon"
-      >
-        <:actions>
-          <.button
-            variant="secondary"
-            size="medium"
-            label={gettext("Rotate")}
-            phx-click="rotate_error_key"
-            data-confirm={
-              gettext(
-                "Rotating the Data Source Name invalidates the current one. Clients using it will need to be updated with the new value."
-              )
-            }
-          />
-        </:actions>
-
-        <.card_section data-part="error-tracking-card">
-          <p data-part="error-tracking-intro">
-            {gettext(
-              "Point any Sentry-compatible client at this Data Source Name and its events will show up on the Errors dashboard scoped to this project."
-            )}
-          </p>
-
-          <div data-part="dsn-row">
-            <div data-part="dsn-value">
-              <code>{ProjectKey.dsn(@project_key, Endpoint.url())}</code>
-              <.button
-                id={"copy-dsn-#{@project_key.id}"}
-                variant="secondary"
-                size="small"
-                icon_only
-                type="button"
-                phx-hook="Clipboard"
-                data-clipboard-value={ProjectKey.dsn(@project_key, Endpoint.url())}
-                aria-label={gettext("Copy Data Source Name")}
-                data-part="copy-button"
-              >
-                <span data-part="copy-icon"><.icon name="copy" /></span>
-                <span data-part="copy-check-icon"><.icon name="copy_check" /></span>
-              </.button>
-            </div>
-            <div :if={@project_key.last_used_at} data-part="dsn-meta">
-              {gettext("Last used %{when}",
-                when: format_short_datetime(@project_key.last_used_at)
+          <.card_section data-part="error-tracking-card">
+            <p data-part="error-tracking-intro">
+              {gettext(
+                "Point any Sentry-compatible client at this Data Source Name and its events will show up on the Errors dashboard scoped to this project."
               )}
+            </p>
+
+            <div data-part="dsn-row">
+              <div data-part="dsn-value">
+                <code>{ProjectKey.dsn(@project_key, Endpoint.url())}</code>
+                <.button
+                  id={"copy-dsn-#{@project_key.id}"}
+                  variant="secondary"
+                  size="small"
+                  icon_only
+                  type="button"
+                  phx-hook="Clipboard"
+                  data-clipboard-value={ProjectKey.dsn(@project_key, Endpoint.url())}
+                  aria-label={gettext("Copy Data Source Name")}
+                  data-part="copy-button"
+                >
+                  <span data-part="copy-icon"><.icon name="copy" /></span>
+                  <span data-part="copy-check-icon"><.icon name="copy_check" /></span>
+                </.button>
+              </div>
+              <div :if={@project_key.last_used_at} data-part="dsn-meta">
+                {gettext("Last used %{when}",
+                  when: format_short_datetime(@project_key.last_used_at)
+                )}
+              </div>
+              <div :if={!@project_key.last_used_at} data-part="dsn-meta">
+                {gettext("Never used")}
+              </div>
             </div>
-            <div :if={!@project_key.last_used_at} data-part="dsn-meta">
-              {gettext("Never used")}
+          </.card_section>
+        </.card>
+
+        <ErrorAlerts.section :if={@can_view_alerts?} {assigns} />
+
+        <.card title={gettext("Repositories")} icon="brand_github">
+          <:actions>
+            <.link_repository_modal form={@repository_form} />
+          </:actions>
+
+          <.card_section>
+            <div data-part="resource-table">
+              <.table
+                id="project-repositories-table"
+                rows={@project.github_repositories}
+                row_key={fn repository -> "repository-#{repository.id}" end}
+              >
+                <:col :let={repository} label={gettext("Repository")}>
+                  <.text_and_description_cell
+                    label={repository_full_name(repository)}
+                    description={gettext("Linked repository")}
+                    icon="brand_github"
+                  />
+                </:col>
+                <:col :let={repository} label="">
+                  <.button_cell>
+                    <:button>
+                      <.button
+                        label={gettext("Remove repository")}
+                        size="large"
+                        variant="secondary"
+                        icon_only={true}
+                        phx-click="remove_repository"
+                        phx-value-id={repository.id}
+                        data-confirm={
+                          gettext("Remove %{repository} from this project?",
+                            repository: repository_full_name(repository)
+                          )
+                        }
+                        title={gettext("Remove repository")}
+                        aria-label={gettext("Remove repository")}
+                      >
+                        <.trash />
+                      </.button>
+                    </:button>
+                  </.button_cell>
+                </:col>
+                <:empty_state>
+                  <.table_empty_state
+                    icon="brand_github"
+                    title={gettext("No repositories linked yet")}
+                    subtitle={gettext("Linked repositories appear here.")}
+                  />
+                </:empty_state>
+              </.table>
             </div>
-          </div>
-        </.card_section>
-      </.card>
+          </.card_section>
+        </.card>
 
-      <.card title={gettext("Repositories")} icon="brand_github">
-        <:actions>
-          <.link_repository_modal form={@repository_form} />
-        </:actions>
+        <.card title={gettext("Domains")} icon="treemap">
+          <:actions>
+            <.link_domain_modal
+              form={@link_domain_form}
+              available_domains={@available_domains}
+            />
+          </:actions>
 
-        <.card_section>
-          <div data-part="resource-table">
-            <.table
-              id="project-repositories-table"
-              rows={@project.github_repositories}
-              row_key={fn repository -> "repository-#{repository.id}" end}
-            >
-              <:col :let={repository} label={gettext("Repository")}>
-                <.text_and_description_cell
-                  label={repository_full_name(repository)}
-                  description={gettext("Linked repository")}
-                  icon="brand_github"
-                />
-              </:col>
-              <:col :let={repository} label="">
-                <.button_cell>
-                  <:button>
-                    <.button
-                      label={gettext("Remove repository")}
-                      size="large"
-                      variant="secondary"
-                      icon_only={true}
-                      phx-click="remove_repository"
-                      phx-value-id={repository.id}
-                      data-confirm={
-                        gettext("Remove %{repository} from this project?",
-                          repository: repository_full_name(repository)
-                        )
-                      }
-                      title={gettext("Remove repository")}
-                      aria-label={gettext("Remove repository")}
-                    >
-                      <.trash />
-                    </.button>
-                  </:button>
-                </.button_cell>
-              </:col>
-              <:empty_state>
-                <.table_empty_state
-                  icon="brand_github"
-                  title={gettext("No repositories linked yet")}
-                  subtitle={gettext("Linked repositories appear here.")}
-                />
-              </:empty_state>
-            </.table>
-          </div>
-        </.card_section>
-      </.card>
-
-      <.card title={gettext("Domains")} icon="treemap">
-        <:actions>
-          <.link_domain_modal
-            form={@link_domain_form}
-            available_domains={@available_domains}
-          />
-        </:actions>
-
-        <.card_section>
-          <div data-part="resource-table">
-            <.table
-              id="project-domains-table"
-              rows={@project.domains}
-              row_key={fn domain -> "domain-#{domain.id}" end}
-            >
-              <:col :let={domain} label={gettext("Domain")}>
-                <div data-part="cell" data-type="text_and_description">
-                  <div data-part="column">
-                    <.link
-                      navigate={~p"/engineering/domains/#{domain.id}"}
-                      data-part="domain-title-link"
-                    >
-                      <span data-part="label">{domain.name}</span>
-                    </.link>
-                    <span data-part="description">
-                      {domain.description || gettext("No description yet.")}
-                    </span>
+          <.card_section>
+            <div data-part="resource-table">
+              <.table
+                id="project-domains-table"
+                rows={@project.domains}
+                row_key={fn domain -> "domain-#{domain.id}" end}
+              >
+                <:col :let={domain} label={gettext("Domain")}>
+                  <div data-part="cell" data-type="text_and_description">
+                    <div data-part="column">
+                      <.link
+                        navigate={~p"/engineering/domains/#{domain.id}"}
+                        data-part="domain-title-link"
+                      >
+                        <span data-part="label">{domain.name}</span>
+                      </.link>
+                      <span data-part="description">
+                        {domain.description || gettext("No description yet.")}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </:col>
-              <:col :let={domain} label="">
-                <.button_cell>
-                  <:button>
-                    <.button
-                      label={gettext("Remove domain")}
-                      size="large"
-                      variant="secondary"
-                      icon_only={true}
-                      phx-click="remove_domain"
-                      phx-value-id={domain.id}
-                      data-confirm={
-                        gettext("Remove %{domain} from this project?",
-                          domain: domain.name
-                        )
-                      }
-                      title={gettext("Remove domain")}
-                      aria-label={gettext("Remove domain")}
-                    >
-                      <.trash />
-                    </.button>
-                  </:button>
-                </.button_cell>
-              </:col>
-              <:empty_state>
-                <.table_empty_state
-                  icon="treemap"
-                  title={gettext("No domains defined")}
-                  subtitle={gettext("Link a domain to slice this project's work.")}
-                />
-              </:empty_state>
-            </.table>
-          </div>
-        </.card_section>
-      </.card>
+                </:col>
+                <:col :let={domain} label="">
+                  <.button_cell>
+                    <:button>
+                      <.button
+                        label={gettext("Remove domain")}
+                        size="large"
+                        variant="secondary"
+                        icon_only={true}
+                        phx-click="remove_domain"
+                        phx-value-id={domain.id}
+                        data-confirm={
+                          gettext("Remove %{domain} from this project?",
+                            domain: domain.name
+                          )
+                        }
+                        title={gettext("Remove domain")}
+                        aria-label={gettext("Remove domain")}
+                      >
+                        <.trash />
+                      </.button>
+                    </:button>
+                  </.button_cell>
+                </:col>
+                <:empty_state>
+                  <.table_empty_state
+                    icon="treemap"
+                    title={gettext("No domains defined")}
+                    subtitle={gettext("Link a domain to slice this project's work.")}
+                  />
+                </:empty_state>
+              </.table>
+            </div>
+          </.card_section>
+        </.card>
 
-      <%!--
+        <%!--
       The webhook card mints URLs under `/webhooks/projects/:project_id/:source/:token`,
       but the ingest controller did not come across in this port. Hide the card
       (and hold back the matching MCP tools) until `Projects.ingest_webhook/4`
@@ -414,21 +419,22 @@ defmodule AtlasWeb.ProjectLive.Show do
       Grafana to a URL that returns 404. The helpers stay compiled so bringing
       the card back is a one-line revert.
       --%>
-      <%= if false do %>
-        <.webhooks_card
-          webhooks={@webhooks}
-          webhook_form={@webhook_form}
-          webhook_sources={@webhook_sources}
-          selected_source={@selected_source}
-          created_webhook_url={@created_webhook_url}
-        />
-      <% end %>
+        <%= if false do %>
+          <.webhooks_card
+            webhooks={@webhooks}
+            webhook_form={@webhook_form}
+            webhook_sources={@webhook_sources}
+            selected_source={@selected_source}
+            created_webhook_url={@created_webhook_url}
+          />
+        <% end %>
 
-      <.delete_project_section
-        project={@project}
-        delete_project_form={@delete_project_form}
-      />
-    </section>
+        <.delete_project_section
+          project={@project}
+          delete_project_form={@delete_project_form}
+        />
+      </section>
+    </Layouts.app>
     """
   end
 

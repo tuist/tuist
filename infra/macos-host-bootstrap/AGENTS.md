@@ -19,7 +19,27 @@ converged afterwards (`UpdateTartKubelet`, the drift push).
   match nothing (zsh aborts), and quote expansions (zsh does not word-split).
   Tests that execute a script run it under `/bin/sh` and zsh (`loginShells`).
 
-## Tart
+## tart-kubelet executable
+
+`tart_kubelet_install.go` checks the on-disk SHA-256, executable bit and code
+signature before uploading. CR status is not proof that the file is intact.
+A config-only push reuses a matching executable. A replacement is streamed into
+a private root-owned directory beside the destination, checked against the
+operator artifact's SHA-256 and existing Go ad-hoc signature, then renamed over
+the executable. Never truncate or re-sign the live inode: a running process may
+still map it. The installer has a five-minute host-side watchdog independent of
+SSH cleanup and removes its own staging directory on failure. Both the probe
+and install protocol participate in `HostConfigHash`.
+
+Tests run the protocol through both login shells, retain an open reference to
+the old inode, and exercise corrupt/truncated uploads, invalid signatures and
+an indefinitely open input stream. On macOS the successful-install test verifies
+the real Go test binary's ad-hoc signature.
+
+For legacy orphaned writers and old macOS kernels, see the provider's
+[TCP clock incident and rollout runbook](../cluster-api-provider-tuist/macos-tcp-clock.md).
+
+## Tart app
 
 `installTart` (`tart.go`) runs on both paths. It installs a release to
 `/usr/local/lib/tart/<version>/tart.app` and renames a new `/usr/local/bin/tart`
@@ -37,3 +57,12 @@ the pre-versioned `/usr/local/lib/tart.app`.
 - Tart's on-disk compatibility between versions is recorded in "Tart versions"
   in [`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md). Read it before
   adding a release.
+
+## OS installer session
+
+In-place `softwareupdate --install` runs through `launchctl asuser` in the
+volume owner's existing console session. Direct SSH authentication succeeded
+but restart failed with `SUOSUErrorDomain 804` on the October 27 processor wave;
+`--force` alone did not resolve it. Check console ownership and a non-root UID
+before starting the detached job. Passwords remain on stdin, never argv or
+files. Both login-shell tests cover the guard and invocation.

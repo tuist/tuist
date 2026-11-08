@@ -77,13 +77,20 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             throw CacheConfigCommandServiceError.missingFullHandle
         }
 
-        try await ensureAuthenticated(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
+        let networkTrusted = try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: resolvedServerURL, authenticationController: serverAuthenticationController
+        )
+        if !networkTrusted {
+            try await ensureAuthenticated(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
+        }
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
-        let token = try await getCacheTokenService.getCacheToken(serverURL: resolvedServerURL, fullHandle: resolvedFullHandle)
-            .token
+        if networkTrusted { try ServerReportPublishingMode.validateDestination(cacheURL) }
+        let token = networkTrusted ? "" : try await getCacheTokenService.getCacheToken(
+            serverURL: resolvedServerURL, fullHandle: resolvedFullHandle
+        ).token
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,

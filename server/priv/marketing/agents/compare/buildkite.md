@@ -6,7 +6,7 @@ Choose Tuist when its supported toolchain integrations, compatible cache reuse, 
 
 Buildkite documents [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), available on **Pro or Enterprise** plans, as well as [Test Engine splitting with bktec](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md) and [flaky-test detection and quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md).
 
-Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Do not imply that hosted Apple machines, test acceleration, or agent-ready workflows are exclusive to Tuist.
+Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Hosted Apple machines, test acceleration, and agent-ready workflows are not exclusive to Tuist.
 
 ## Compare the responsibilities
 
@@ -28,9 +28,5 @@ Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) in o
 ## Sources and review
 
 Sources checked on **2026-10-08**: Buildkite's [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), [bktec acceleration](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md), [flaky-test management](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md), [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md), and [Tuist Tests](/marketing-markdown/tests). This comparison is written by Tuist and treats orchestration, execution, and test acceleration as distinct decisions.
-
-## Limitations
-
-Framework support and plan/deployment requirements vary. Tuist currently has no Bazel sharding or selective testing; Elixir quarantine is not applied yet. Public source does not imply every component has the same license or self-hosting rights. Tuist Runners are invite-only with no public pricing. No fastest-provider, cheapest-provider, or guaranteed-saving claim is established.
 
 Related: [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), and [all comparisons](/marketing-markdown/compare).

@@ -156,7 +156,12 @@ defmodule TuistWeb.BazelInvocationLive do
 
   def render(assigns) do
     ~H"""
-    <div id="bazel-invocation" class="bazel-invocation">
+    <div
+      id="bazel-invocation"
+      class="bazel-invocation"
+      phx-hook="PageFavicon"
+      data-favicon-status={@invocation.status}
+    >
       <.button
         label={@bazel_back_label}
         data-part="back-button"
@@ -205,6 +210,9 @@ defmodule TuistWeb.BazelInvocationLive do
           source="bazel"
           url={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
+          }
+          trace_url={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/trace.json"
           }
         />
       </section>

@@ -55,6 +55,18 @@ node_exporter never reads it half written.
 | `macos_fan_max_rpm` | `fan` | rated maximum |
 | `macos_system_power_watts` | | total system power |
 | `macos_thermal_pressure_level` | | 0 nominal, 1 moderate, 2 heavy, 3 trapping, 4 sleeping |
+| `macos_host_info` | `product_version`, `kernel_release` | installed macOS and Darwin versions |
+| `macos_host_uptime_seconds` | | seconds since `kern.boottime` |
+| `macos_host_tcp_time_wait` | | IPv4 and IPv6 TCP sockets in TIME_WAIT |
+| `macos_host_health_collection_success` | | 1 when both system info and TCP collection succeeded, otherwise 0 |
+
+Host health uses read-only `sysctl` and `netstat`, each with a three-second
+deadline, independently of the hardware frameworks. Failed readings are omitted,
+never reported as zero; the collection-success metric exposes partial failures
+even while the textfile stays fresh. The monitoring allow-list must keep all four
+families. OS version and uptime identify hosts needing a maintenance wave;
+TIME_WAIT accumulation is a diagnostic signal, not proof of a frozen TCP clock.
+See the [TCP clock runbook](../cluster-api-provider-tuist/macos-tcp-clock.md).
 
 node_exporter adds `node_textfile_mtime_seconds`, which is how old the sample
 is. Alert on its age rather than on missing series.

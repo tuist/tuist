@@ -1,0 +1,50 @@
+package vparquet4
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"os"
+	"sort"
+	"testing"
+)
+
+func TestPulseValueEnvelopes(t *testing.T) {
+	for _, spec := range []struct{ File, Prefix, Field string }{{"oracle.json", "result", "response"}, {"dynamic-filters.json", "filtered", "complete"}} {
+		raw, err := os.ReadFile("/tmp/pulse-more-discovery/" + spec.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var cases []map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &cases); err != nil {
+			t.Fatal(err)
+		}
+		for i, c := range cases {
+			var values tempopb.SearchTagValuesV2Response
+			if err = json.Unmarshal(c[spec.Field], &values); err != nil {
+				t.Fatal(err)
+			}
+			set := map[string]bool{}
+			for _, v := range values.TagValues {
+				set[v.Value] = true
+			}
+			strings := []string{}
+			for v := range set {
+				strings = append(strings, v)
+			}
+			sort.Strings(strings)
+			wire, err := os.ReadFile(fmt.Sprintf("/tmp/pulse-more-discovery/v1-%s-%02d.protobuf", spec.Prefix, i))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := &tempopb.SearchTagValuesResponse{}
+			if err = proto.Unmarshal(wire, got); err != nil {
+				t.Fatal(err)
+			}
+			if !proto.Equal(got, &tempopb.SearchTagValuesResponse{TagValues: strings}) {
+				t.Fatalf("v1 envelope %s/%d got=%s", spec.Prefix, i, got.String())
+			}
+		}
+	}
+}

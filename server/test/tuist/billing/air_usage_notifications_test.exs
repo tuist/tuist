@@ -2,11 +2,76 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Role
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Billing.AirUsageNotification
   alias Tuist.Billing.AirUsageNotifications
   alias Tuist.Billing.Workers.AirUsageNotificationWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+
+  test "queues all admins of a large organization once, including the final partial batch" do
+    owner = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture(creator: owner)
+    set_cache_requests(organization.account.id, 800_000)
+
+    users =
+      1..8_001
+      |> Enum.map(fn index ->
+        owner
+        |> Map.take(User.__schema__(:fields))
+        |> Map.delete(:id)
+        |> Map.put(:token, "admin-#{index}-#{organization.id}")
+        |> Map.put(:email, "admin-#{index}-#{organization.id}@example.com")
+      end)
+      |> Enum.chunk_every(500)
+      |> Enum.flat_map(fn rows ->
+        {_, users} = Repo.insert_all(User, rows, returning: [:id])
+        users
+      end)
+
+    roles =
+      users
+      |> Enum.map(fn _user ->
+        %{
+          name: "admin",
+          resource_type: "Organization",
+          resource_id: organization.id,
+          created_at: owner.created_at,
+          updated_at: owner.updated_at
+        }
+      end)
+      |> Enum.chunk_every(500)
+      |> Enum.flat_map(fn rows ->
+        {_, roles} = Repo.insert_all(Role, rows, returning: [:id])
+        roles
+      end)
+
+    users
+    |> Enum.zip(roles)
+    |> Enum.map(fn {user, role} ->
+      %{user_id: user.id, role_id: role.id, created_at: owner.created_at, updated_at: owner.updated_at}
+    end)
+    |> Enum.chunk_every(500)
+    |> Enum.each(&Repo.insert_all(UserRole, &1))
+
+    now = DateTime.utc_now()
+    assert {:ok, _} = AirUsageNotifications.enqueue(organization.account.id, now)
+
+    notifications = Repo.all(AirUsageNotification)
+    expected_user_ids = MapSet.new([owner.id | Enum.map(users, & &1.id)])
+    assert length(notifications) == MapSet.size(expected_user_ids)
+    assert MapSet.new(notifications, & &1.user_id) == expected_user_ids
+
+    jobs = all_enqueued(worker: AirUsageNotificationWorker)
+    assert length(jobs) == length(notifications)
+    assert MapSet.new(jobs, & &1.args["notification_id"]) == MapSet.new(notifications, & &1.id)
+
+    assert {:ok, _} = AirUsageNotifications.enqueue(organization.account.id, now)
+    assert Repo.aggregate(AirUsageNotification, :count) == length(notifications)
+    assert all_enqueued(worker: AirUsageNotificationWorker) == jobs
+  end
 
   test "notifies every admin, excluding ordinary members and viewers" do
     owner = AccountsFixtures.user_fixture()

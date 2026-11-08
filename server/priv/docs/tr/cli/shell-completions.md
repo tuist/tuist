@@ -1,38 +1,29 @@
 ---
 {
-  "title": "Shell completions",
+  "title": "Kabuk tamamlamaları",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Learn how to configure your shell to auto-complete Tuist commands."
+  "description": "Tuist komutlarını otomatik tamamlamak için kabuğunuzu nasıl yapılandıracağınızı öğrenin."
 }
 ---
-# Shell tamamlamaları
+# Kabuk tamamlamaları {#shell-completions}
 
-Tuist **global olarak** yüklediyseniz (örneğin Homebrew aracılığıyla), komutları
-ve seçenekleri otomatik olarak tamamlamak için Bash ve Zsh için kabuk
-tamamlayıcıları yükleyebilirsiniz.
+Tuist'i **genel olarak kurduysanız** (örneğin Homebrew aracılığıyla), Zsh, Bash ve Fish için kabuk tamamlamalarını yükleyerek komutları ve seçenekleri otomatik tamamlayabilirsiniz.
 
-> [!WARNING]
-> **What Is A Global Installation**
+> [!NOTE]
+> **Genel kurulum nedir**
 >
-> Genel kurulum, kabuğunuzun `$PATH` ortam değişkeninde bulunan bir kurulumdur.
-> Bu, terminalinizdeki herhangi bir dizinden `tuist` çalıştırabileceğiniz anlamına
-> gelir. Bu Homebrew için varsayılan kurulum yöntemidir.
+> Genel kurulum, kabuğunuzun `$PATH` ortam değişkeninde bulunan bir kurulumdur. Bu, terminalinizde herhangi bir dizinden `tuist` çalıştırabileceğiniz anlamına gelir. Bu, Homebrew için varsayılan kurulum yöntemidir.
 
 
-#### Zsh {#zsh}
+## Zsh {#zsh}
 
-Eğer [oh-my-zsh](https://ohmyz.sh/) yüklüyse, otomatik olarak yüklenen tamamlama
-betiklerinden oluşan bir dizine zaten sahipsinizdir - `.oh-my-zsh/completions`.
-Yeni tamamlama betiğinizi bu dizindeki `_tuist` adlı yeni bir dosyaya
-kopyalayın:
+[oh-my-zsh](https://ohmyz.sh/) yüklüyse, otomatik olarak yüklenen tamamlama betiklerinin bulunduğu bir dizine zaten sahipsiniz — `.oh-my-zsh/completions`. Yeni tamamlama betiğinizi o dizindeki `_tuist` adlı yeni bir dosyaya kopyalayın:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh` olmadan, işlev yolunuza tamamlama betikleri için bir yol eklemeniz
-ve tamamlama betiği otomatik yüklemesini açmanız gerekir. İlk olarak, bu
-satırları `~/.zshrc` adresine ekleyin:
+`oh-my-zsh` olmadan, tamamlama betikleri için bir yolu işlev yolunuza eklemeniz ve tamamlama betiği otomatik yüklemeyi etkinleştirmeniz gerekir. İlk olarak, şu satırları `~/.zshrc` dosyasına ekleyin:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -40,35 +31,36 @@ autoload -U compinit
 compinit
 ```
 
-Ardından, `~/.zsh/completion` adresinde bir dizin oluşturun ve tamamlama komut
-dosyasını yeni dizine, yine `_tuist` adlı bir dosyaya kopyalayın.
+Ardından, `~/.zsh/completion` konumunda bir dizin oluşturun ve tamamlama betiğini yine `_tuist` adlı bir dosyaya kopyalayarak yeni dizine taşıyın.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash {#bash}
+## Bash {#bash}
 
-Eğer [bash-completion](https://github.com/scop/bash-completion) yüklüyse, yeni
-tamamlama betiğinizi `/usr/local/etc/bash_completion.d/_tuist` dosyasına
-kopyalayabilirsiniz:
+[bash-completion](https://github.com/scop/bash-completion) yüklüyse, yeni tamamlama betiğinizi doğrudan bash-completion'ın dizinine kopyalayabilirsiniz:
 
 ```bash
-tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
+tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-bash-completion olmadan, tamamlama betiğini doğrudan kaynak olarak kullanmanız
-gerekecektir. ` ~/.bash_completions/` gibi bir dizine kopyalayın ve ardından
-aşağıdaki satırı `~/.bash_profile` veya `~/.bashrc` dizinine ekleyin:
+bash-completion olmadan, tamamlama betiğini doğrudan kaynak olarak yüklemeniz gerekir. Betiği `~/.bash_completions/` gibi bir dizine yazın:
 
 ```bash
-source ~/.bash_completions/example.bash
+mkdir -p ~/.bash_completions
+tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
 ```
 
-#### Balık {#fish}
+Ardından aşağıdaki satırı `~/.bash_profile` veya `~/.bashrc` dosyasına ekleyin:
 
-fish shell](https://fishshell.com) kullanıyorsanız, yeni tamamlama kodunuzu
-`~/.config/fish/completions/tuist.fish` adresine kopyalayabilirsiniz:
+```bash
+source ~/.bash_completions/tuist.bash
+```
+
+## Fish {#fish}
+
+[fish shell](https://fishshell.com) kullanıyorsanız, yeni tamamlama betiğinizi `~/.config/fish/completions/tuist.fish` konumuna kopyalayabilirsiniz:
 
 ```bash
 mkdir -p ~/.config/fish/completions

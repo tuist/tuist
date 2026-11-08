@@ -41,11 +41,18 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var remoteDownloader = true
 
+    @Flag(
+        name: .long,
+        help: "Run Linux actions on Tuist remote executors when the account has remote execution enabled. Falls back to the remote cache alone when it is not available."
+    )
+    var remoteExecution = false
+
     public func run() async throws {
         try await BazelSetupCommandService().run(
             directory: path,
             buildInsights: buildInsights,
             remoteDownloader: remoteDownloader,
+            remoteExecution: remoteExecution,
             addBazelrcImport: addBazelrcImport
         )
     }

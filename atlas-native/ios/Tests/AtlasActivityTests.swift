@@ -2,6 +2,15 @@ import Foundation
 import Testing
 
 struct AtlasActivityTests {
+    @Test(arguments: [nil, "idle", "queued", "running", "compacting", "unknown"], ["active", "archived"])
+    func inboxIndicatorsDescribeOnlyAuthoritativeWork(agentStatus: String?, status: String) {
+        let thread = AtlasThread(id: "thread", title: "Builds", kind: "private", status: status,
+                                 summary: "", origin: "manual", ownerId: nil, participants: [], updatedAt: "",
+                                 agentStatus: agentStatus)
+        let labels = ["queued": "Pip is queued", "running": "Pip is running", "compacting": "Pip is compacting"]
+        #expect(thread.activityLabel == (status == "active" ? labels[agentStatus ?? ""] : nil))
+    }
+
     @Test func decodesAPNsContentWithoutACustomJSONStrategy() throws {
         let data = Data("""
         {"active_count":5,"conversations":[

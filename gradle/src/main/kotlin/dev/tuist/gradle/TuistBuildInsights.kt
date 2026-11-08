@@ -164,6 +164,7 @@ abstract class TuistBuildInsightsService :
     abstract val objects: ObjectFactory
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
+    private val jobSummary by lazy { GitHubActionsJobSummary() }
 
     private val machineMetricsService = parameters.machineMetrics.get().also { it.attachReporter() }
 
@@ -292,7 +293,10 @@ abstract class TuistBuildInsightsService :
 
     override fun close() {
         val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
-        val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
+        if (executionTelemetry.tasks.isEmpty() && !executionTelemetry.failures.buildFailed) return
+
+        // GitHub uploads the summary when the step ends, so it must be written before Gradle returns.
+        val shouldUploadInBackground = (uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())) && !jobSummary.isEnabled
         val observations = try {
             withoutMetadataInputTracking(objects.newInstance(MetricsInputTracking::class.java).state) {
                 val maxWorkers = try {
@@ -407,7 +411,12 @@ abstract class TuistBuildInsightsService :
                     when (val status = connection.responseCode) {
                         HttpURLConnection.HTTP_CREATED -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, BuildReportResponse::class.java)
+                                Gson().fromJson(reader, BuildReportResponse::class.java).also { response ->
+                                    val dashboardUrl = URI(resolvedUrl).resolve(
+                                        "/${config.accountHandle}/${config.projectHandle}/builds/build-runs/${response.id}"
+                                    )
+                                    jobSummary.writeBuild(report, dashboardUrl.toString())
+                                }
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
@@ -524,15 +533,13 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val logger = Logging.getLogger(TuistBuildInsightsPlugin::class.java)
 
     override fun apply(project: Project) {
-        if (project !== project.rootProject) return
-
         val config = TuistGradleConfig.from(project) ?: return
-        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.machineMetrics.set(project.gradle.sharedServices.registerIfAbsent(
                 "tuistMachineMetrics",
                 TuistMachineMetricsService::class.java
@@ -541,8 +548,8 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
-            parameters.rootProjectName.set(project.rootProject.name)
-            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.rootProjectName.set(config.rootProjectName)
+            parameters.projectDir.set(project.rootDir)
             parameters.customTags.set(config.customMetadata.tags)
             parameters.customValues.set(config.customMetadata.values)
             parameters.gitBranch.set(gitInfo.branch())

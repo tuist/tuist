@@ -32,12 +32,12 @@
   & > figure {
     position: relative;
     z-index: var(--noora-z-index-1);
-    margin-right: var(--noora-spacing-6);
+    margin-inline-end: var(--noora-spacing-6);
     margin: var(--noora-spacing-6);
 
     @media (min-width: 1024px) {
-      margin-right: var(--noora-spacing-14);
-      margin-left: var(--noora-spacing-14);
+      margin-inline-start: var(--noora-spacing-14);
+      margin-inline-end: var(--noora-spacing-14);
       max-width: 1296px;
     }
   }

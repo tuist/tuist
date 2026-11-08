@@ -15,9 +15,10 @@ source "$(dirname "$0")/lib.sh"
 started=$(date +%s)
 while :; do
   jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100")"
-  report="$(jq -r --argjson macos "${MACOS_PICKUP_MINUTES}" --argjson linux "${LINUX_PICKUP_MINUTES}" '
+  report="$(jq -r --argjson macos "${MACOS_PICKUP_MINUTES}" --argjson linux "${LINUX_PICKUP_MINUTES}" --argjson docker "${DOCKER_CACHE_PROBES:-false}" '
     now as $now
-    | [.jobs[] | select(.name | test("^(macOS|Linux) "))
+    | [.jobs[] | select((.name | test("^(macOS|Linux) ")) and (.name | endswith(" / Publication window") | not))
+       | select($docker or (.name | startswith("Linux Docker cache ") | not))
        | (if (.name | startswith("macOS")) then $macos else $linux end) as $bound
        | {name, label: (.labels | join(",")),
           waiting: (.status | IN("queued", "waiting", "pending")),

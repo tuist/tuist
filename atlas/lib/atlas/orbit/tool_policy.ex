@@ -127,6 +127,7 @@ defmodule Atlas.Orbit.ToolPolicy do
     "cancel_chatgpt_provider_login",
     "disconnect_llm_provider",
     "list_llm_provider_connections",
+    "manage_account_connections",
     # MCP and identity administration.
     "create_mcp_server",
     "delete_mcp_server",
@@ -165,6 +166,11 @@ defmodule Atlas.Orbit.ToolPolicy do
     # Viewer-dependent personal data.
     "get_time_off_overview",
     "get_time_off_calendar",
+    # Personal mailboxes and Slack search would expose the owner's private
+    # messages to every reader of a shared thread.
+    "search_my_gmail",
+    "get_my_gmail_message",
+    "search_my_slack",
     # External side effects.
     "send_account_email",
     "send_email_broadcast",

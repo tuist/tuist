@@ -100,21 +100,29 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     assert {:error, :invalid_parameters} = Query.run(:show, account.id, %{"volume_id" => "not-a-uuid"})
   end
 
-  test "scopes reads, analytics and clearing to the authorized account", %{
+  test "scopes reads, analytics and deletion to the authorized account", %{
     other: other,
     account: account,
     uses: [use | _]
   } do
-    for action <- [:show, :jobs, :analytics, :clear] do
+    for action <- [:show, :jobs, :analytics, :delete, :clear] do
       assert {:error, :not_found} = Query.run(action, other.id, %{"volume_id" => use.volume_id})
     end
 
     assert {:ok, %{volumes: []}} = Query.run(:list, other.id, %{})
     before = CacheVolumes.get(account.id, use.volume_id)
-    assert {:ok, %{cleared: true}} = Query.run(:clear, account.id, %{"volume_id" => use.volume_id})
-    after_clear = CacheVolumes.get(account.id, use.volume_id)
-    assert after_clear.generation == before.generation + 1
-    assert after_clear.deleted_at
+    assert {:ok, %{deleted: true}} = Query.run(:delete, account.id, %{"volume_id" => use.volume_id})
+    deleted = CacheVolumes.get(account.id, use.volume_id)
+    assert deleted.generation == before.generation + 1
+    assert deleted.deleted_at
+    assert {:ok, %{volumes: volumes, pagination_metadata: %{total_count: 2}}} = Query.run(:list, account.id, %{})
+    refute Enum.any?(volumes, &(&1.id == use.volume_id))
+  end
+
+  test "the deprecated clear action deletes the volume", %{account: account, uses: [use | _]} do
+    assert {:ok, %{id: id, cleared: true}} = Query.run(:clear, account.id, %{"volume_id" => use.volume_id})
+    assert id == use.volume_id
+    assert CacheVolumes.get(account.id, use.volume_id).deleted_at
   end
 
   test "exposes saved lifecycle separately from hit outcomes and paginates history", %{account: account, uses: [use | _]} do
@@ -146,6 +154,22 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
 
     assert {:ok, %{jobs: []}} =
              Query.run(:jobs, account.id, %{"volume_id" => use.volume_id, "page_size" => 1, "page" => 2})
+  end
+
+  test "says why a job started empty", %{account: account, uses: [use | _]} do
+    use
+    |> Ecto.Changeset.change(
+      status: "discarded",
+      warm: false,
+      base_generation: 3,
+      cold_reason: "downloading",
+      attached_at: DateTime.utc_now()
+    )
+    |> Repo.update!()
+
+    assert {:ok, %{jobs: [job]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    refute job.cache_hit
+    assert job.cache_status_description =~ "still downloading the saved copy"
   end
 
   test "says when a job started from an older saved copy", %{account: account, uses: [use | _]} do

@@ -18,6 +18,7 @@ const absoluteZeroCelsius = -273.15
 // Readings is one sample of the host's sensors. A field the host does not
 // have, or that could not be read, is absent rather than zero.
 type Readings struct {
+	HostHealth *HostHealth
 	// Temperature per HID sensor name, in Celsius. Several services share a
 	// name (Apple silicon lists each die sensor three times, a few tenths of a
 	// degree apart), and the hottest of them is kept, so a name maps to one
@@ -57,6 +58,26 @@ func (r *Readings) AddTemperature(name string, celsius float64) {
 // stable order.
 func Format(r Readings) string {
 	var b strings.Builder
+	if h := r.HostHealth; h != nil {
+		header(&b, "macos_host_health_collection_success", "Whether both host system info and TCP socket collection succeeded.")
+		complete := 0
+		if h.Complete {
+			complete = 1
+		}
+		fmt.Fprintf(&b, "macos_host_health_collection_success %d\n", complete)
+		if h.ProductVersion != "" && h.KernelRelease != "" {
+			header(&b, "macos_host_info", "Installed macOS version and Darwin kernel release.")
+			fmt.Fprintf(&b, "macos_host_info{product_version=\"%s\",kernel_release=\"%s\"} 1\n", escape(h.ProductVersion), escape(h.KernelRelease))
+		}
+		if h.UptimeSeconds != nil {
+			header(&b, "macos_host_uptime_seconds", "Seconds since the host booted.")
+			fmt.Fprintf(&b, "macos_host_uptime_seconds %s\n", number(*h.UptimeSeconds))
+		}
+		if h.TCPTimeWait != nil {
+			header(&b, "macos_host_tcp_time_wait", "TCP sockets in TIME_WAIT, across IPv4 and IPv6.")
+			fmt.Fprintf(&b, "macos_host_tcp_time_wait %d\n", *h.TCPTimeWait)
+		}
+	}
 	if len(r.Temperatures) > 0 {
 		header(&b, "macos_sensor_temperature_celsius",
 			"Temperature of a hardware sensor, the hottest reading among the HID sensors that share its name.")

@@ -70,7 +70,7 @@ func ManagedKey(key string) string {
 type Subject struct {
 	Scope string
 	Use   string
-	// Kind is custom, managed or checkout, or "" when the host cannot tell.
+	// Kind is custom, managed, checkout or docker, or "" when the host cannot tell.
 	Kind string
 	// Key is set only for a managed volume.
 	Key string
@@ -82,7 +82,9 @@ type Subject struct {
 	MountedGeneration int64
 	// CheckoutGeneration is the clear generation a checkout master belongs to.
 	CheckoutGeneration int64
-	Pod                string
+	// ColdReason is why a warm identity's branch started empty, or "".
+	ColdReason string
+	Pod        string
 }
 
 func SubjectOf(slot Slot) Subject {
@@ -90,10 +92,12 @@ func SubjectOf(slot Slot) Subject {
 	switch {
 	case slot.Kind == KindCheckout:
 		kind, key = KindCheckout, ""
+	case slot.Kind == KindDocker:
+		kind, key = KindDocker, ""
 	case key != "":
 		kind = KindManaged
 	}
-	subject := Subject{Scope: slot.Scope, Use: slot.ID, Kind: kind, Key: key, Generation: slot.BaseGeneration, MountedGeneration: slot.MountedGeneration, Pod: slot.PodName}
+	subject := Subject{Scope: slot.Scope, Use: slot.ID, Kind: kind, Key: key, Generation: slot.BaseGeneration, MountedGeneration: slot.MountedGeneration, ColdReason: slot.ColdReason, Pod: slot.PodName}
 	if kind == KindCheckout {
 		subject.CheckoutGeneration = slot.Generation
 	}
@@ -123,6 +127,7 @@ func (s Subject) Fields() []any {
 	}
 	addInt("mounted_generation", s.MountedGeneration)
 	addInt("checkout_generation", s.CheckoutGeneration)
+	add("cold_reason", s.ColdReason)
 	add("pod", s.Pod)
 	return fields
 }
@@ -158,6 +163,20 @@ const (
 	EvictNoMetadata = "no_metadata"
 	EvictCleared    = "cleared"
 )
+
+// Cold reasons say why a warm identity's branch started empty on this host:
+// a download of its lineage was in flight, the host evicted its last copy
+// (ColdEvicted followed by the eviction reason), or the host has no record of
+// holding one.
+const (
+	ColdDownloading = "downloading"
+	ColdEvicted     = "evicted_"
+	ColdNotOnHost   = "not_on_host"
+)
+
+// evictionReasons are the reasons a master is evicted for, the suffixes a cold
+// reason may carry after ColdEvicted.
+var evictionReasons = map[string]bool{EvictExpired: true, EvictIdle: true, EvictSuperseded: true, EvictConflict: true, EvictNoMetadata: true, "speculative": true, "in_use": true}
 
 func logger(l *slog.Logger) *slog.Logger {
 	if l == nil {

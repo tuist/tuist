@@ -2,7 +2,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // RackAppleSiliconMachineSpec is one Mac mini we own as a node. The RackHost
@@ -129,7 +129,7 @@ type RackAppleSiliconMachineStatus struct {
 	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
 }
 
-// OSUpdateStatus tracks one in-place macOS update of a rack host.
+// OSUpdateStatus tracks host macOS maintenance; rented hosts support in-place updates only.
 type OSUpdateStatus struct {
 	// ID names this update's job directory on the host, so a resumed update
 	// recognises the download and install it started and never one an earlier

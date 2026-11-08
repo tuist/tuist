@@ -38,6 +38,17 @@ defmodule TuistWeb.SSOLoginLive do
 
         {:noreply, redirect(socket, to: redirect_url)}
 
+      {:error, :login_domain_ambiguous} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext(
+             "dashboard_auth",
+             "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+           )
+         )}
+
       {:error, :not_found} ->
         socket =
           put_flash(

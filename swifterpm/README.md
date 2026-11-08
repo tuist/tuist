@@ -256,6 +256,12 @@ Build the Apple rules wrapper:
 mise exec -- bazel build //:swifterpm_macos
 ```
 
+Apple HTTP sessions preserve native trust and additionally reject twelve
+compromised public keys. TLS failures and cancellation do not fall back to Git.
+See [certificate trust](CERTIFICATE-TRUST.md) for policy provenance, isolated
+standalone Bazel test commands and remaining Linux, external-tool and release
+qualification gates.
+
 ## Benchmarks 📊
 
 The benchmark script is [mise/tasks/benchmark/resolution.sh](mise/tasks/benchmark/resolution.sh). It clones or copies each codebase into a temporary directory, deletes it on completion, and compares SwiftPM against `swifterpm` for cold resolution and worktree-warm resolution.

@@ -305,6 +305,33 @@ defmodule Atlas.MCP.OAuthTest do
     assert params["scope"] == "grafana:read grafana:write"
   end
 
+  test "registers a dynamic client whose JSON response is labelled text/plain", %{user: user} do
+    server = %Server{
+      name: "ovh-servers",
+      url: "https://mcp.us.ovhcloud.example/mcp/v1_dedicated_server",
+      auth_type: :oauth2,
+      authorization_url: "https://mcp.us.ovhcloud.example/oauth-proxy/authorization",
+      token_url: "https://mcp.us.ovhcloud.example/oauth-proxy/token",
+      registration_url: "https://mcp.us.ovhcloud.example/oauth-proxy/register",
+      scopes: ["all"]
+    }
+
+    expect(Req, :post, fn %Req.Request{} ->
+      {:ok,
+       %Req.Response{
+         status: 201,
+         headers: %{"content-type" => ["text/plain; charset=utf-8"]},
+         body: ~s({"client_id":"ovh-client","client_secret":"ovh-secret"})
+       }}
+    end)
+
+    assert {:ok, url} =
+             OAuth.authorization_url(server, user, "http://localhost:3030/mcps/ovh-servers/callback", "/admin/mcps")
+
+    params = url |> URI.parse() |> then(&URI.decode_query(&1.query))
+    assert params["client_id"] == "ovh-client"
+  end
+
   defp insert_session!(user, server, attrs) do
     defaults = %{
       status: "authorized",

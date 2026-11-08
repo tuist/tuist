@@ -13,8 +13,8 @@ Its [remote cache](https://www.buildbuddy.io/remote-cache/) and [remote executio
 | Requirement | Tuist | BuildBuddy evidence to evaluate |
 | --- | --- | --- |
 | Reuse Bazel outputs | [Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) shares compatible action outputs independently of Tuist Runners. | BuildBuddy provides a Bazel remote cache too. Compare locality, transfer, retention, trust, and diagnostics. |
-| Execute actions on remote workers | Tuist remote caching avoids already-completed work; it does not provide Bazel remote execution. | BuildBuddy documents remote execution with platform and executor configuration. Remote execution and cache reuse have separate platform and executor requirements. |
-| Explain a Bazel build | [Build Insights](/en/docs-markdown/guides/features/build-insights) includes Bazel invocation and profile evidence with authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp). | The repository describes invocation details, target outcomes, timing profiles, artifacts, and test logs. Compare the exact investigation, not an assumed absence of toolchain insight. |
+| Execute actions on remote workers | Tuist's separate Linux execution integration is opt-in via `tuist bazel setup --remote-execution` for enabled accounts with capacity; unavailable execution falls back to cache-only setup with a warning. | BuildBuddy documents remote execution with platform and executor configuration. Remote execution and cache reuse have separate platform and executor requirements. |
+| Explain a Bazel build | [Build Insights](/en/docs-markdown/guides/features/build-insights) includes Bazel invocation and profile evidence with authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp). | BuildBuddy also documents cloud/on-prem [MCP access](https://www.buildbuddy.io/docs/enterprise-mcp/) to build/test metadata, logs, artifacts, and target statuses. Compare tool coverage and permissions. |
 | Operate across several toolchains | Tuist also supports Xcode, Gradle, and Elixir insights; caching and test acceleration vary by integration. | The cited BuildBuddy capabilities are Bazel-focused. Verify any additional offering separately rather than inferring unsupported integrations from this comparison. |
 | Inspect or self-host | Tuist publishes source; [supported server self-hosting](/en/docs-markdown/guides/server/self-host/server) requires Enterprise and component terms vary. | BuildBuddy publishes an MIT core and self-hosting instructions; commercial features can have different requirements. |
 
@@ -28,10 +28,6 @@ Configure [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cach
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [BuildBuddy repository](https://github.com/buildbuddy-io/buildbuddy), [component license](https://github.com/buildbuddy-io/buildbuddy/blob/master/LICENSE), [documentation](https://www.buildbuddy.io/docs/introduction/), [remote cache](https://www.buildbuddy.io/remote-cache/), [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/), and [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache). This comparison is written by Tuist and acknowledges the substantial Bazel overlap.
-
-## Limitations
-
-No benchmark or broad licensing superiority is established. Remote execution has its own platform, sandbox, and trust requirements. Tuist currently provides neither Bazel test sharding nor Bazel selective testing; generated Xcode projects are required for its selective testing. Tuist Runners are optional, invite-only, and have no public pricing. Verify feature and deployment terms before adopting either service.
+Sources checked on **2026-11-07**: [BuildBuddy repository](https://github.com/buildbuddy-io/buildbuddy), [component license](https://github.com/buildbuddy-io/buildbuddy/blob/master/LICENSE), [documentation](https://www.buildbuddy.io/docs/introduction/), [remote cache](https://www.buildbuddy.io/remote-cache/), [remote execution](https://www.buildbuddy.io/docs/remote-build-execution/), [MCP](https://www.buildbuddy.io/docs/enterprise-mcp/), and [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache). This comparison is written by Tuist and acknowledges the substantial Bazel overlap.
 
 Related: [Develocity](/marketing-markdown/compare/develocity), [slow builds](/marketing-markdown/solutions/slow-builds), and [all comparisons](/marketing-markdown/compare).

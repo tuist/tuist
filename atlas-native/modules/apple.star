@@ -11,7 +11,7 @@ def _atlas_apple_sdk_impl(ctx):
 
 atlas_apple_sdk = target_kind(
     docs = "Forward the selected iOS SDK to Darwin Clang without raising the deployment minimum.",
-    attrs = [attr("sdk", "string", required = True, configurable = False, allowed_values = ["iphoneos", "iphonesimulator"])],
+    attrs = [attr("sdk", "string", required = True, configurable = False, allowed_values = ["iphoneos", "iphonesimulator", "macosx"])],
     providers = ["apple_linkable"],
     capabilities = [capability("build", ["default"])],
     impl = _atlas_apple_sdk_impl,

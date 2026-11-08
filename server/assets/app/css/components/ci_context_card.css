@@ -65,6 +65,8 @@
       overflow: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      direction: ltr;
+      unicode-bidi: isolate;
       text-overflow: ellipsis;
       white-space: nowrap;
     }

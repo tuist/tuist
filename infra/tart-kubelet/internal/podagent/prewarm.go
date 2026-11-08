@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/macosandbox"
 	"sort"
 	"time"
 
@@ -159,6 +160,11 @@ func listRunnerPools(ctx context.Context, k8s client.Reader) ([]runnerPoolSpec, 
 		if err := json.Unmarshal(raw, &pool); err != nil {
 			return nil, fmt.Errorf("decode runner pool %s: %w", item.GetName(), err)
 		}
+		// A warm sandbox pool's VMs live in the host service's own store; the
+		// CI store never pulls, stages or keeps its image.
+		if pool.Metadata.Labels[macosandbox.WarmLabel] == "true" {
+			continue
+		}
 		pools = append(pools, pool)
 	}
 	return pools, nil
@@ -181,8 +187,9 @@ type runnerPoolSpec struct {
 		} `json:"autoscaling"`
 	} `json:"spec"`
 	Status struct {
-		ObservedImage string `json:"observedImage"`
-		PreviousImage string `json:"previousImage"`
+		ObservedImage string     `json:"observedImage"`
+		PreviousImage string     `json:"previousImage"`
+		LastDemandAt  *time.Time `json:"lastDemandAt"`
 	} `json:"status"`
 }
 

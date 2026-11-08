@@ -1,0 +1,54 @@
+name: Docker Build Cache Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Linux runner profile with the candidate Docker cache implementation
+        default: tuist-linux-large
+        type: string
+      experiment:
+        description: Unique experiment key; reuse across phases after cache publication
+        required: true
+        type: string
+      driver:
+        type: choice
+        options: [docker, docker-container]
+        required: true
+      phase:
+        type: choice
+        options: [cold, warm-layers, changed-source, same-size-write]
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-cache-${{ inputs.experiment }}-${{ inputs.driver }}
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-docker-builder
+        if: inputs.driver == 'docker-container'
+        id: builder
+        with:
+          cache-key: benchmark-${{ inputs.experiment }}
+      - name: Build and verify reuse
+        env:
+          CACHE_EXPERIMENT: ${{ inputs.experiment }}
+          CACHE_PHASE: ${{ inputs.phase }}
+          CACHE_DRIVER: ${{ inputs.driver }}
+          CACHE_BUILDER: ${{ steps.builder.outputs.name || 'default' }}
+        run: bash .github/scripts/docker-build-cache-benchmark.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-build-${{ inputs.driver }}-${{ inputs.phase }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/docker-build-cache-results

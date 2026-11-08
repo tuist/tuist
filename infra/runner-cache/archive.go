@@ -55,7 +55,7 @@ func CompressImage(src, dst string) (string, string, error) {
 	}
 	defer out.Close()
 	inventory, content := sha1.New(), sha256.New()
-	zw, err := zstd.NewWriter(io.MultiWriter(out, inventory, content), zstd.WithEncoderLevel(zstd.SpeedDefault))
+	zw, err := zstd.NewWriter(io.MultiWriter(newWritebackWriter(out), inventory, content), zstd.WithEncoderLevel(zstd.SpeedDefault))
 	if err != nil {
 		return "", "", err
 	}
@@ -217,6 +217,7 @@ func RestoreImage(ctx context.Context, src io.Reader, dst, digest string, maxByt
 }
 
 func restoreSparse(ctx context.Context, src io.Reader, out *os.File, maxBytes int64) (int64, error) {
+	writer := newWritebackWriter(out)
 	zr, err := zstd.NewReader(src, zstd.WithDecoderMaxWindow(archiveMaxWindow))
 	if err != nil {
 		return 0, err
@@ -250,6 +251,9 @@ func restoreSparse(ctx context.Context, src io.Reader, out *os.File, maxBytes in
 			return 0, errArchive
 		}
 		next = offset + length
+		if _, err = out.Seek(int64(offset), io.SeekStart); err != nil {
+			return 0, err
+		}
 		for length > 0 {
 			if err := ctx.Err(); err != nil {
 				return 0, err
@@ -258,10 +262,9 @@ func restoreSparse(ctx context.Context, src io.Reader, out *os.File, maxBytes in
 			if _, err = io.ReadFull(zr, buf[:n]); err != nil {
 				return 0, err
 			}
-			if _, err = out.WriteAt(buf[:n], int64(offset)); err != nil {
+			if _, err = writer.Write(buf[:n]); err != nil {
 				return 0, err
 			}
-			offset += n
 			length -= n
 		}
 	}
@@ -272,6 +275,7 @@ func restoreSparse(ctx context.Context, src io.Reader, out *os.File, maxBytes in
 }
 
 func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int64) (int64, error) {
+	writer := newWritebackWriter(out)
 	gz, err := gzip.NewReader(src)
 	if err != nil {
 		return 0, err
@@ -292,7 +296,7 @@ func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int6
 			if isZero(buf[:n]) {
 				_, err = out.Seek(int64(n), io.SeekCurrent)
 			} else {
-				_, err = out.Write(buf[:n])
+				_, err = writer.Write(buf[:n])
 			}
 			if err != nil {
 				return 0, err

@@ -1,13 +1,16 @@
 defmodule Tuist.Runners.Workers.SiteSpilloverWorker do
   @moduledoc """
-  Makes the rented fleet the backup of a site's. While a site pool is down
-  (`Tuist.Runners.Sites.status/1`), its queued jobs move to the rented pool for
-  the same Xcode and shape, whose runners then claim them. While it is up, its
-  jobs stay however long they queue, so a rented runner never picks up a job
-  the site would have run. A job a site runner claims is no longer `queued`
-  and is left alone (`Tuist.Runners.WorkflowJobs.move_queued/3`). In an env
-  that rents no macOS fleet (`Tuist.Environment.runners_rented_macos_fleet?/0`)
-  there is no backup, so site jobs wait for the site.
+  Makes the rented fleet the backup of the rack's. A rack pool spans every site
+  whose runners are on, so a site going dark only shrinks it and its jobs run
+  at the sites still up; nothing moves between sites. While the whole pool is
+  down (`Tuist.Runners.Sites.status/1`: no Node fits at any site, or nothing
+  claims), its queued jobs move to the rented pool for the same Xcode and shape,
+  whose runners then claim them. While it is up, its jobs stay however long they
+  queue, so a rented runner never picks up a job the rack would have run. A job
+  a rack runner claims is no longer `queued` and is left alone
+  (`Tuist.Runners.WorkflowJobs.move_queued/3`). In an env that rents no macOS
+  fleet (`Tuist.Environment.runners_rented_macos_fleet?/0`) there is no backup,
+  so rack jobs wait for the rack.
   """
   use Oban.Worker, queue: :default, max_attempts: 1
 

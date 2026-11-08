@@ -1660,10 +1660,13 @@ JSON
   write_legacy_swift_wrapper "${tmp}" || return 1
   local command phase
   local force_arguments=()
-  for phase in cold warm validation missing-pin update; do
+  for phase in cold warm validation forced-missing-pin missing-pin update; do
     command=resolve
     force_arguments=()
     if [[ "${phase}" = validation ]]; then
+      force_arguments=(--force-resolved-versions)
+    elif [[ "${phase}" = forced-missing-pin ]]; then
+      rm -rf "${tmp}/cache" "${package_dir}/.build"
       force_arguments=(--force-resolved-versions)
     elif [[ "${phase}" = missing-pin ]]; then
       rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build"
@@ -1698,7 +1701,7 @@ assert requests and all(request["authorized"] for request in requests), requests
 assert any(request["path"].endswith(".zip") for request in requests), requests
 PY
   test "$?" = 0 || return 1
-  echo "authenticated-${authentication_type}=cold,warm,validation,missing-pin,update"
+  echo "authenticated-${authentication_type}=cold,warm,validation,forced-missing-pin,missing-pin,update"
 }
 
 Describe "registry authentication regression coverage"
@@ -1865,14 +1868,14 @@ Describe "swifterpm registry integration"
   It "authenticates token registry requests on a legacy toolchain across cache states and updates"
     When call scenario_authenticated_registry_on_legacy_toolchain token
     The status should be success
-    The output should include "authenticated-token=cold,warm,validation,missing-pin,update"
+    The output should include "authenticated-token=cold,warm,validation,forced-missing-pin,missing-pin,update"
     The stderr should equal ""
   End
 
   It "authenticates basic registry requests on a legacy toolchain across cache states and updates"
     When call scenario_authenticated_registry_on_legacy_toolchain basic
     The status should be success
-    The output should include "authenticated-basic=cold,warm,validation,missing-pin,update"
+    The output should include "authenticated-basic=cold,warm,validation,forced-missing-pin,missing-pin,update"
     The stderr should equal ""
   End
 

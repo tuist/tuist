@@ -212,6 +212,10 @@ config :logger, :console,
     # Tuist.Runners.Buildkite structured fields
     :queue,
     :job_uuid,
+    # Tuist.Runners.Bitrise structured fields
+    :stack,
+    :profile,
+    :build_slug,
     :errors,
     :requested,
     :target,
@@ -266,6 +270,8 @@ config :logger, :console,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    # The binding a runner session had when a job's OIDC token named its job
+    :recorded_workflow_job_id,
     :repository,
     :conclusion,
     :ours,
@@ -285,6 +291,47 @@ config :logger, :console,
     :urls,
     :configured,
     :reconciling,
+    # Tuist.Sandboxes structured fields
+    :sandbox_id,
+    :agent_environment_id,
+    :anthropic_environment_id,
+    :environment_id,
+    :work_id,
+    :template,
+    :tag,
+    :boot_ms,
+    :restore_ms,
+    :admit_ms,
+    :node_call_ms,
+    :snapshot_ms,
+    :mem_bytes,
+    :disks_synced,
+    :from_archive,
+    :archive_key,
+    :archive_bytes,
+    :stored_bytes,
+    :disk_snapshot_id,
+    :last_used_at,
+    :freed_bytes,
+    :memory_bytes,
+    :paused_at,
+    :exit_code,
+    :repository_url,
+    :ref,
+    :stderr,
+    :backoff_ms,
+    :retry_after,
+    :data_type,
+    :work_item,
+    :node_event,
+    :command_id,
+    :frame_type,
+    :daemon_version,
+    :firecracker_version,
+    :sandboxes,
+    :templates,
+    :pending_commands,
+    :service_account,
     # Turnstile widget-failure signal from the signup LiveViews
     :turnstile_state,
     :turnstile_action
@@ -308,7 +355,9 @@ config :phoenix, :filter_parameters, [
   "secret",
   "token",
   "credential",
-  "installation_receipt"
+  "mfa_code",
+  "installation_receipt",
+  "arguments"
 ]
 
 # Use Jason for JSON parsing in Phoenix
@@ -383,6 +432,9 @@ config :tuist, :blocked_handles, [
   "blog",
   "news",
   "newsletter",
+  "compare",
+  "solutions",
+  "build-systems",
   "announcements",
   "features",
   "pricing",
@@ -470,10 +522,21 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
-# Baseline machine-minutes every account gets free per billing period.
-# Must match the first tier of the environment's runner Stripe Price;
-# see `Tuist.Runners.Allowance`.
+# Baseline machine-minutes of each platform every account gets free per
+# billing period. Each must match the first tier of the environment's runner
+# Stripe Price for that platform; see `Tuist.Runners.Allowance`.
 config :tuist, :runner_free_monthly_minutes, 100
+config :tuist, :runner_linux_free_monthly_minutes, 2_500
+
+# Linux OS catalog: the Ubuntu releases a Linux profile can run on. Same
+# role as `:runner_macos_xcode_versions`. Managed deploys override it at
+# boot from `TUIST_RUNNER_LINUX_OS_VERSIONS`, which Helm injects from the
+# `runnersFleetLinux.osVersions` entries it renders pools for. Exactly one
+# entry should carry `default: true`; its pools keep the shape-only names.
+config :tuist, :runner_linux_os_versions, [
+  %{os_version: "ubuntu-24.04", default: true},
+  %{os_version: "ubuntu-22.04"}
+]
 
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
@@ -506,11 +569,11 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
-# environments whose fleet is M2-L only.
+# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true},
-  %{vcpus: 12, memory_gb: 28}
+  %{vcpus: 8, memory_gb: 24, default: true},
+  %{vcpus: 16, memory_gb: 48}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
@@ -552,6 +615,8 @@ config :tuist, :urls,
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
   feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
+
+config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 
 config :tuist_common, finch_name: Tuist.Finch
 

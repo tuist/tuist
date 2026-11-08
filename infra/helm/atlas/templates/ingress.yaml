@@ -11,6 +11,8 @@ metadata:
     {{- end }}
     # external-dns picks the host out of `spec.tls.hosts` + `rules.host`.
     nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    # Leave headroom above inference's default 300-second upstream receive timeout.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}

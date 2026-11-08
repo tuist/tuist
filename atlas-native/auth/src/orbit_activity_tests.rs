@@ -11,6 +11,7 @@ fn session() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     }
 }
 

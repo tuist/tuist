@@ -39,7 +39,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # apart, so a footprint that differs from Air's is one sizing produced.
   @grown_pro_gib 32
   @pro_resident_gib @grown_pro_gib * @replicas
-  @pressure_line_gib trunc(@node_allocatable_bytes * 0.85 / (1024 * 1024 * 1024))
+  @pressure_line_gib trunc(@node_allocatable_bytes * 0.90 / (1024 * 1024 * 1024))
   # The fewest Air instances that leave the region too little headroom for a new
   # enterprise instance, though still enough for another Air one. Derived rather
   # than counted out so the fixtures track the real sizing.
@@ -693,10 +693,9 @@ defmodule Tuist.Kura.LifecycleTest do
           server
         end
 
-      # 702Gi reserved against a 670Gi line: 64Gi short of room for a new
-      # 32Gi enterprise instance, exactly what the grown Pro instance holds
-      # across its two replicas.
-      stub_region_reservation(702)
+      # Reclaim exactly the grown Pro instance's reservation to make room for
+      # a new Enterprise instance, without also draining an Air instance.
+      stub_region_reservation(@pressure_line_gib + @pro_resident_gib - @enterprise_resident_gib)
 
       assert :ok = Lifecycle.sweep()
 

@@ -9,6 +9,8 @@ on:
       - infra/macos-log-shipper/**
       - infra/macos-host-sensors/**
       - infra/tart-kubelet/**
+      - infra/sandbox-image/**
+      - infra/sandboxd/**
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - infra/helm/tuist/templates/rack-linux-fleet.yaml
@@ -23,6 +25,8 @@ on:
       - infra/macos-log-shipper/**
       - infra/macos-host-sensors/**
       - infra/tart-kubelet/**
+      - infra/sandbox-image/**
+      - infra/sandboxd/**
       - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - infra/helm/tuist/templates/rack-linux-fleet.yaml
@@ -112,6 +116,25 @@ jobs:
       - name: Vet (tart-kubelet)
         working-directory: infra/tart-kubelet
         run: go vet ./...
+
+  test-macos-sandbox-guest:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/sandbox-image/go.mod
+          cache-dependency-path: infra/sandbox-image/go.sum
+      # Process-group disappearance relies on Darwin's orphan reaper. A Linux
+      # build container's PID 1 need not reap children and cannot qualify this.
+      - name: Test macOS guest process fencing
+        working-directory: infra/sandbox-image
+        run: go test -race ./cmd/sbx-macos
+      - name: Vet macOS guest bridge
+        working-directory: infra/sandbox-image
+        run: go vet ./cmd/sbx-macos
 
   test-macos-log-shipper:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
@@ -215,7 +238,7 @@ jobs:
           echo "Generated CAPI artefacts are up to date"
 
   build:
-    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-macos-host-sensors, test-tart-kubelet, generated]
+    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-macos-host-sensors, test-tart-kubelet, test-macos-sandbox-guest, generated]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:

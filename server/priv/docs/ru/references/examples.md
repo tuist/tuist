@@ -1,15 +1,10 @@
 ---
 {
-  "title": "Examples",
-  "titleTemplate": ":title · References · Tuist",
-  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+  "title": "Примеры",
+  "titleTemplate": ":title · Справочник · Tuist",
+  "description": "Просмотрите примеры проектов, демонстрирующие возможности и шаблоны Tuist."
 }
 ---
 # Примеры
 
-В этом разделе вы найдете примеры
-<LocalizedLink to="/guides/features/projects">генерируемых проектов</LocalizedLink>, которые мы используем как
-[фикстуры](https://github.com/tuist/tuist/tree/main/cli/Fixtures) для запуска
-приемочных тестов. Они могут пригодиться вам при создании нового
-сгенерированного проекта или переносе существующего проекта Xcode для его
-генерации Tuist.
+В этом разделе вы найдете примеры <.localized_link href="/guides/features/projects">сгенерированных проектов</.localized_link>, которые мы используем как [примеры](https://github.com/tuist/tuist/tree/main/examples/xcode) для запуска приемочных тестов. Они могут быть полезны при создании нового сгенерированного проекта или миграции существующего Xcode-проекта на генерацию с помощью Tuist.

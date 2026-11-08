@@ -1,0 +1,119 @@
+name: Sandboxd Image
+
+# PR validation and the reusable publisher of the sandboxd OCI image, the
+# per-node Firecracker sandbox daemon (infra/sandboxd/) consumed by
+# `sandboxes.image` in the helm chart. Server deployments call it like
+# sandbox-image.yml: the source-derived immutable tag is reused across
+# unrelated server changes, so they do not restart the daemon on every node.
+# The production cascade builds once and promotes it through
+# canary/production; staging builds through server-deployment.yml. Manual
+# dispatch publishes a branch's tag for validation on staging.
+
+on:
+  pull_request:
+    paths:
+      - infra/sandboxd/**
+      - .github/workflows/sandboxd-image.yml
+      - .github/scripts/sandboxd-image-version.sh
+  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: Source commit to build (defaults to the caller SHA)
+        required: false
+        type: string
+    outputs:
+      image_tag:
+        description: Published immutable sandboxd tag
+        value: ${{ jobs.build.outputs.image_tag }}
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/sandboxd
+
+jobs:
+  test:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/sandboxd/go.mod
+          cache-dependency-path: infra/sandboxd/go.sum
+      - name: Test
+        working-directory: infra/sandboxd
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/sandboxd
+        run: go vet ./...
+      - uses: docker/setup-buildx-action@v3
+        if: github.event_name == 'pull_request'
+      - name: Validate build
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=sandboxd-image
+          cache-to: type=gha,mode=max,scope=sandboxd-image
+
+  build:
+    if: github.event_name != 'pull_request'
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    # Serialize publication so concurrent deployments cannot overwrite a tag.
+    concurrency:
+      group: sandboxd-publish
+      cancel-in-progress: false
+    outputs:
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve daemon version
+        id: version
+        run: |
+          set -euo pipefail
+          image_tag=$(bash .github/scripts/sandboxd-image-version.sh)
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
+      - name: Reuse published daemon
+        id: existing
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          exists=$(bash .github/scripts/sandbox-image-exists.sh "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG")
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        if: steps.existing.outputs.exists != 'true'
+        with:
+          context: .
+          file: infra/sandboxd/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}
+          cache-from: type=gha,scope=sandboxd-image
+          cache-to: type=gha,mode=max,scope=sandboxd-image

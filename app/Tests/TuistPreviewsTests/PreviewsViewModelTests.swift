@@ -17,7 +17,8 @@ import TuistSimulator
 
     private func subject(
         previewsService: ListPreviewsServicing? = nil,
-        tracksService: ListPreviewTracksServicing? = nil
+        tracksService: ListPreviewTracksServicing? = nil,
+        accountName: String? = nil
     ) -> PreviewsViewModel {
         if tracksService == nil {
             given(self.tracksService).listPreviewTracks(fullHandle: .any, serverURL: .any)
@@ -32,8 +33,30 @@ import TuistSimulator
             listPreviewsService: previewsService ?? self.previewsService,
             listPreviewTracksService: tracksService ?? self.tracksService,
             serverEnvironmentService: environmentService,
-            appStorage: appStorage
+            appStorage: appStorage,
+            accountName: accountName
         )
+    }
+
+    @Test func selected_organization_filters_projects_and_rejects_cross_organization_selection() async throws {
+        let subject = subject(accountName: "team")
+        given(appStorage).get(.any as Parameter<SelectedProjectFullHandleKey.Type>).willReturn("other/private")
+        given(projectsService).listProjects(serverURL: .any).willReturn([
+            .test(fullName: "other/private"), .test(fullName: "team/app"), .test(fullName: "team-extra/app"),
+        ])
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .value("team/app"), serverURL: .any
+            )
+            .willReturn(.test(previews: [.test(id: "team-preview")]))
+        try await subject.onAppear()
+        #expect(subject.projects.map(\.fullName) == ["team/app"])
+        #expect(subject.selectedProject?.fullName == "team/app")
+        #expect(subject.previews.map(\.id) == ["team-preview"])
+        try await subject.selectProject(.test(fullName: "other/private"))
+        #expect(subject.selectedProject?.fullName == "team/app")
+        #expect(subject.previews.map(\.id) == ["team-preview"])
     }
 
     @Test func refreshing_an_empty_project_list_can_discover_projects_and_previews() async throws {

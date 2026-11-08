@@ -2,6 +2,7 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -13,11 +14,22 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
     base = "/api/projects/#{user.account.name}/#{project.name}"
-    %{conn: Authentication.put_current_user(conn, user), base: base}
+    %{conn: Authentication.put_current_user(conn, user), base: base, user: user}
+  end
+
+  # Production, where the `:xcode_coverage` flag decides, for an account that
+  # doesn't have it.
+  defp without_flag do
+    stub(Environment, :env, fn -> :prod end)
+
+    stub(FunWithFlags, :enabled?, fn
+      :xcode_coverage, _opts -> false
+      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
+    end)
   end
 
   test "the coverage endpoints and commit listings do not exist while the flag is off", %{conn: conn, base: base} do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    without_flag()
 
     assert %{"message" => "Code coverage is in early access and is not enabled for this account."} =
              conn |> get(base <> "/tests/coverage/settings") |> json_response(404)
@@ -44,7 +56,7 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
   end
 
   test "the commit graph is collected whether or not the flag is on", %{conn: conn, base: base} do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    without_flag()
 
     assert %{"window_days" => _} = conn |> get(base <> "/tests/git-history/settings") |> json_response(200)
 
@@ -55,8 +67,19 @@ defmodule TuistWeb.Plugs.RequireCoveragePlugTest do
   end
 
   test "lets requests through once the account has the flag", %{conn: conn, base: base} do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
+    assert %{"inline_threshold_bytes" => _} = conn |> get(base <> "/tests/coverage/settings") |> json_response(200)
+  end
+
+  test "lets requests for a Mix project through without the flag", %{conn: conn, user: user} do
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
+    base = "/api/projects/#{user.account.name}/#{project.name}"
+    without_flag()
 
     assert %{"inline_threshold_bytes" => _} = conn |> get(base <> "/tests/coverage/settings") |> json_response(200)
+
+    assert conn
+           |> put_req_header("content-type", "application/json")
+           |> post(base <> "/tests/git-history/listings/missing", %{repository_url: @remote, shas: [@sha]})
+           |> json_response(200)
   end
 end

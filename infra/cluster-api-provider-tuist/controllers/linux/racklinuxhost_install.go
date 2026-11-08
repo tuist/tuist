@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -290,6 +290,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		return err
 	}
 	seed := rackinstall.Seed{
+		KuraLVM:         kuraLVMRequested(host.Annotations),
 		Host:            host.Spec.Hostname,
 		Role:            host.Spec.Role,
 		User:            firstNonEmpty(host.Spec.SSHUser, "tuist"),
@@ -719,7 +720,11 @@ func rackEdgeNetwork(e *infrav1.RackLinuxHostEdge) *rackinstall.EdgeNetwork {
 	if e == nil {
 		return nil
 	}
-	return &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+	n := &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+	if e.WAN != nil {
+		n.WAN = &rackinstall.StaticWAN{Address: e.WAN.Address, Gateway: e.WAN.Gateway, VLAN: int(e.WAN.VLAN)}
+	}
+	return n
 }
 
 // internetServes reports whether the internet boot server can hand the host

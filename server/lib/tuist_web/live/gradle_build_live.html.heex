@@ -1,4 +1,4 @@
-<div id="gradle-build">
+<div id="gradle-build" phx-hook="PageFavicon" data-favicon-status={@build.status}>
   <.button
     label={dgettext("dashboard_gradle", "Build Runs")}
     data-part="back-button"
@@ -98,6 +98,9 @@
       source="gradle"
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/timeline.json"
+      }
+      trace_url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/trace.json"
       }
     />
   </section>
@@ -207,6 +210,7 @@
     <TuistWeb.Components.BuildMetadata.environment_metadata
       values={@build.custom_values || %{}}
       fields={[
+        {dgettext("dashboard_gradle", "Tuist Gradle plugin version"), @build.tuist_version},
         {dgettext("dashboard_gradle", "Gradle Version"), @build.gradle_version},
         {dgettext("dashboard_gradle", "Java Version"), @build.java_version}
       ]}

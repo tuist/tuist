@@ -10,6 +10,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -41,6 +42,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -162,7 +164,7 @@ jobs:
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "tuist"
+          install_args: "tuist bats"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -179,12 +181,43 @@ jobs:
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
         run: swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions
+      - name: Test global flags
+        run: |
+          bin_path="$(swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions --show-bin-path)"
+          TUIST_EXECUTABLE="$bin_path/tuist" bats --print-output-on-failure e2e/global_flags.bats
+      # Next to the binary: resource bundles, Swift runtime libraries the system
+      # may lack, and ProjectDescription built with module interfaces so any
+      # Swift compiler can compile manifests against it.
+      - name: Package CLI preview
+        if: github.event.pull_request.head.repo.fork != true
+        run: |
+          flags=(--cache-path "$PWD/.build/dependency-cache" --replace-scm-with-registry --force-resolved-versions)
+          bin_path="$(swift build "${flags[@]}" --configuration debug --show-bin-path)"
+          # The cached scratch path may hold the previous pins, which --force-resolved-versions rejects after a bump.
+          swift package --cache-path "$PWD/.build/dependency-cache" --scratch-path .build/project-description \
+            resolve --replace-scm-with-registry
+          swift build "${flags[@]}" --scratch-path .build/project-description --product ProjectDescription \
+            --enable-parseable-module-interfaces -Xswiftc -enable-library-evolution
+          pd_path="$(swift build "${flags[@]}" --scratch-path .build/project-description --show-bin-path)"
+          dist=build/cli-preview-macos
+          mkdir -p "$dist/ProjectDescription.swiftmodule"
+          cp "$bin_path/tuist" "$pd_path/libProjectDescription.dylib" "$dist/"
+          cp "$pd_path/ProjectDescription.swiftmodule/arm64-apple-macos.swiftinterface" "$dist/ProjectDescription.swiftmodule/"
+          find "$bin_path" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$dist/" \;
+          xcrun swift-stdlib-tool --copy --platform macosx --destination "$dist" \
+            --scan-executable "$dist/tuist" --scan-executable "$dist/libProjectDescription.dylib"
+      - if: github.event.pull_request.head.repo.fork != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-preview-macos
+          path: build/cli-preview-macos
+          retention-days: 1
 
   cli-linux-build:
     name: Linux Build
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swift:6.4.1-noble
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
@@ -194,33 +227,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-musl-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-musl-swift-6.4.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-musl-${{ hashFiles('Package.swift') }}-
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
-      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
-      # (see #12229), and the registry answers 303 to storage over h2. Terminating
-      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
-      # target negotiates http/1.1 on its own, so only this hop needs forcing.
-      - name: Front the registry with an HTTP/1.1 proxy
-        shell: bash
-        run: |
-          nohup caddy reverse-proxy \
-            --from :8080 --to https://tuist.dev --change-host-header \
-            > /tmp/registry-proxy.log 2>&1 &
-          for _ in $(seq 1 30); do
-            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
-              exec 3>&-
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::registry proxy did not start listening on :8080"
-          cat /tmp/registry-proxy.log || true
-          exit 1
-      - name: Point SwiftPM at the proxy
-        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
+            linux-cli-musl-swift-6.4.1-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       # Releases ship a static musl binary, and the musl SDK exposes `Musl`
@@ -230,7 +239,21 @@ jobs:
           target=$(./mise/utilities/install_static_linux_sdk.sh)
           echo "SWIFT_SDK_TARGET=$target" >> "$GITHUB_ENV"
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
+        run: swift build --product tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
+      # The static binary needs nothing else at runtime, so it is the whole
+      # Linux distribution. cli-preview publishes it.
+      - name: Package CLI preview
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true
+        run: |
+          bin_path="$(swift build --product tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET" --show-bin-path)"
+          mkdir -p build/cli-preview-linux
+          llvm-objcopy --strip-unneeded "$bin_path/tuist" build/cli-preview-linux/tuist
+      - if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-preview-linux
+          path: build/cli-preview-linux
+          retention-days: 1
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
@@ -239,11 +262,43 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
+  # Publishes the CLI the builds above packaged as one preview, so people and
+  # agents can try a pull request with `tuist run <preview-url>`. A preview
+  # groups builds uploaded one after another, so one job uploads both. The new
+  # Linux client publishes because the pinned release lacks CLI previews.
+  cli-preview:
+    name: CLI Preview
+    needs: [cli-spm-build, cli-linux-build]
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The CLI reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-preview-*
+          path: build
+      - name: Share
+        run: |
+          # Artifacts drop executable bits.
+          chmod +x build/cli-preview-macos/tuist build/cli-preview-linux/tuist
+          # On Linux the CLI reads the project from tuist.toml, not Tuist.swift.
+          echo 'project = "tuist/tuist"' > tuist.toml
+          build/cli-preview-linux/tuist auth login
+          build/cli-preview-linux/tuist share build/cli-preview-macos --executable tuist
+          build/cli-preview-linux/tuist share build/cli-preview-linux --executable tuist
+
   cli-linux-unit-tests:
     name: Linux Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swift:6.4.1-noble
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
@@ -253,33 +308,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-swift-6.4.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
-      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
-      # (see #12229), and the registry answers 303 to storage over h2. Terminating
-      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
-      # target negotiates http/1.1 on its own, so only this hop needs forcing.
-      - name: Front the registry with an HTTP/1.1 proxy
-        shell: bash
-        run: |
-          nohup caddy reverse-proxy \
-            --from :8080 --to https://tuist.dev --change-host-header \
-            > /tmp/registry-proxy.log 2>&1 &
-          for _ in $(seq 1 30); do
-            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
-              exec 3>&-
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::registry proxy did not start listening on :8080"
-          cat /tmp/registry-proxy.log || true
-          exit 1
-      - name: Point SwiftPM at the proxy
-        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
+            linux-cli-swift-6.4.1-${{ hashFiles('Package.swift') }}-
+      - name: Install loopback TLS test dependency
+        run: apt-get update -qq && apt-get install -y --no-install-recommends openssl
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests

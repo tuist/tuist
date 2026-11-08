@@ -33,6 +33,10 @@ pdcAgent:
     - tuist-tuist-clickhouse.tuist-staging.svc.cluster.local:8123
 
 capi:
+  ovhRunnerEgress:
+    enabled: true
+    vrackID: pn-2023588
+    cidr: "5.39.98.144/29"
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2023588
@@ -68,6 +72,15 @@ egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
 
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  enabled: true
+  # Public half of the staging KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: t1i8qEBEdu1wb6Gvl7uaf5tmXwTvCQ89lxokelDjKQ8=
+  # Paris thin-ready labels were removed after the last rehearsal.
+  thinRegions: []
+
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
@@ -98,7 +111,17 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
+      enabled: true
+    apns:
+      enabled: true
+    fcm:
       enabled: true
     externalSecrets:
       fields:
@@ -122,7 +145,13 @@ server:
   publicPageChallenge:
     enabled: true
 
-  replicaCount: 1
+  # Two clustered replicas so staging exercises the cross-pod paths
+  # (PubSub routing to sandbox node sockets, :global singletons) that
+  # only production had before.
+  replicaCount: 2
+  cluster:
+    enabled: true
+    applicationName: tuist
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
@@ -143,17 +172,21 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    # Must equal the first tier of the runner Price above (2 minutes).
-    # Production leaves this unset and takes the 100 minute default.
+    # Must equal the first tier of each runner Price below (2 macOS and
+    # 50 Linux minutes). Production leaves these unset and takes the 100
+    # and 2,500 minute defaults.
     - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
       value: "2"
+    - name: TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      value: "50"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # Public validation uses the existing OVH ca-east fleet. Retire the
-      # Dedibox EU-West instances before the later fleet-retirement change.
-      # Preserve the Scaleway private cache beside the Mac mini fleet.
-      value: scw-fr-par-runners,ca-east
+      # Linux runners reuse ordinary regional instances. Before deploying,
+      # complete the staging migration in linux-runner-private-cache.md:
+      # drain the retired experiment and qualify the existing GRA host as EU-West.
+      # Preserve the independent macOS private cache.
+      value: scw-fr-par-runners,eu-west,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -239,9 +272,10 @@ server:
     prices:
       # macOS is billable here so runner billing can be exercised end to
       # end before production sees it. The Price is graduated: the first
-      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # 120000 compute-unit milliseconds (2 minutes on the 8 vCPU / 24 GB
       # baseline) are free, and beyond that each millisecond costs
-      # 0.000125 cents, which is $0.075 per baseline machine-minute.
+      # 0.000083333333 cents, which is $0.05 per baseline machine-minute
+      # (cut at the 12 decimals Stripe accepts, see production).
       #
       # Two minutes rather than production's hundred so the free tier and
       # the dispatch cap can both be reached in one short job instead of
@@ -255,18 +289,28 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is graduated the same way: the first 3000000
+      # compute-unit milliseconds (50 minutes on the 2 vCPU / 8 GB baseline,
+      # worth the same as the two macOS minutes) are free, and beyond that
+      # each millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      # below, and the rate with `@on_demand_rates` in
+      # `Tuist.Runners.Prepaid`.
       #
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
       # delete it, taking the cycle's accrued usage with it. Pause billing
-      # by removing the item, not by emptying this map.
+      # by removing the item, not by emptying this map. A replaced Price
+      # keeps being recognised the same way: its id moves under its meter in
+      # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
+      # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
+        runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
+        runner_macos_compute_unit_milliseconds: "price_1UY5MBLlKoN51eczRkfPBFEa"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkKLlKoN51eczld0hbV1t"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -275,11 +319,6 @@ server:
         cache_egress_megabytes: "price_1UUl1VLlKoN51eczSmpj5fSo"
         cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
         passing_test_cases: "price_1UIT1nLlKoN51eczZGPDCDJ1"
-      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
-      # macOS baseline machine-minute, carried as a subscription item whose
-      # quantity is the minutes. Never blank it once an account carries the
-      # item: a plan change would stop recognising it and delete it.
-      runner_prepaid_minutes: "price_1UGEIyLlKoN51ecz7e39epNp"
       air:
         usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
         flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
@@ -657,21 +696,15 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Staging capacity for physical vRack/Cilium validation. The public ca-east
-  # cache and existing runner fleet retain their placement.
-  #
-  # At 0 until its box is prepped: ns3220989 carries the adoption marker but
-  # refuses OVH_FLEET_SSH, so its Machine never became available and every
-  # staging deploy failed Helm's wait from 2026-10-05. Releasing the Machine
-  # reinstalls the box with the fleet key; once it is up (or after
-  # `PREP_NAMESPACE=tuist-staging mise run baremetal:prep-ovh
-  # ns3220989.ip-162-19-86.eu tuist-tuist-ovh-fleet-gra-runners-cache`), set
-  # this back to 1.
+  # Reuse the prepared RISE-1 as ordinary EU-West capacity. Retain the legacy
+  # fleet key/adoption prefix to preserve its Machine and physical host.
+  # OnDelete requires explicit pool-label migration before EU-West admission;
+  # see infra/kura-controller/linux-runner-private-cache.md.
   gra-runners-cache:
     enabled: true
-    replicas: 0
+    replicas: 1
     endpoint: ovh-us
-    nodePool: kura-ovh-gra-runners
+    nodePool: kura-dedibox
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-staging-gra-runners
       offer: rise-1
@@ -681,15 +714,8 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
-  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
-  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
-  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
-  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
-  # does not need production throughput, it needs to exercise the production
-  # integration.
-  #
-  # The one thing this shape cannot rehearse is the private link: RISE-S has no
-  # vRack option, where RISE-L carries 1 Gbit/s.
+  # Keep one RISE-M after moving retained fixtures off the legacy RISE-S.
+  # With one host, ordinary/vRack qualification runs sequentially after drain.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -707,11 +733,9 @@ ovhFleets:
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
-      # Case-insensitive substring of the box's commercialRange, which the
-      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
-      # matches without depending on how the CPU suffix is spelled on the server
-      # object. A value matching nothing adopts nothing, silently.
-      offer: rise-s
+      offer: rise-m
+      # Existing hosts are enrolled during drained network maintenance.
+      # All jobs share the direct regional cache path and runner pool.
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
@@ -888,6 +912,35 @@ buildersFleet:
   externalSecrets:
     enabled: false
 
+# Firecracker sandboxes for coding-agent sessions, on the OVH RISE-S that also
+# hosts the Linux runner pool. The daemon starts at the chart's 1 GiB floor,
+# which holds no sandbox, and grows up to 40 GiB as sandboxes need memory; the
+# kata runner pools keep the rest. The ceiling sits close to the box so
+# validation can drive a growth into idle warm runners, and the medium shape
+# is built at startup too. A deployment from a branch builds and selects the
+# daemon and template images from that branch. The admin API is on so
+# validation Jobs can drive the daemon without going through the server.
+sandboxes:
+  enabled: true
+  image:
+    tag: "sha-1949e6dfc6f9"
+  templateImage:
+    tag: "sha-56965cb61732"
+  nodePools:
+    - runners-linux
+  tolerations:
+    - key: tuist.dev/runner-tier
+      operator: Equal
+      value: bare-metal
+      effect: NoSchedule
+  maxMemoryGiB: 40
+  prebuildShapes: "2x4096,4x8192"
+  diskGiB: 100
+  archiveAfterHours: 24
+  admin:
+    enabled: true
+  logLevel: debug
+
 # Kata Containers + Firecracker runtime for Linux bare-metal nodes.
 # The `kataContainers` block above defaults to disabled; staging
 # flips it on so the kata-deploy DaemonSet installs the runtime on
@@ -937,10 +990,33 @@ runnersFleetLinux:
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
+    provisioning:
+      enabled: true
+      sizeGB: 200
+    dockerCache:
+      enabled: true
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
-  pools: []
+  nestedVirtualization:
+    enabled: true
+  # Nested-virtualization pool for Android emulator workloads (Gradle
+  # Managed Devices, Macrobenchmark). An operator pool rather than a shape
+  # because profiles cannot ask for /dev/kvm yet; workflows target it by
+  # its dispatch label. Scales to zero: an emulator job pays the microVM
+  # cold start, and nothing holds 18.5 GiB of the staging host while idle.
+  pools:
+    - name: kvm-8vcpu-16gb
+      dispatchLabel: tuist-staging-linux-kvm
+      runtimeClass: kata-qemu
+      pod:
+        cpuMilli: 8000
+        memoryMB: 16384
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 2
+        scaleDownCooldownSeconds: 300
   # Shape-keyed pools backing Runner Profiles. Customers reference them
   # via account-scoped profiles (`runs-on: tuist-<name>`); the server
   # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep
@@ -1008,10 +1084,8 @@ rackFleet:
     enabled: true
     # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two 8 vCPU /
+    # 24 GB guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true
@@ -1033,3 +1107,7 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 2
+
+ampOrbProvider:
+  enabled: true
+  url: https://staging.tuist.dev

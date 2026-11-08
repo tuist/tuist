@@ -10,6 +10,24 @@ struct AtlasTimeOffTests {
     "page":1,"total_pages":1,"total_count":1}}
     """.utf8)
 
+    @Test func savedHistorySurvivesOfflineButCannotWriteAndIsClearedAfterRevocation() async throws {
+        var saved = try #require(JSONSerialization.jsonObject(with: overview) as? [String: Any])
+        saved["cached"] = true
+        let cache = try JSONSerialization.data(withJSONObject: saved)
+        var failure = "network"
+        let model = AtlasTimeOff { action in
+            if action["action"] as? String != "list" { return Data("{}".utf8) }
+            throw AtlasAuthenticationError(kind: failure, message: "Unavailable")
+        }
+        model.cachedRequest = { _ in cache }
+        await model.load()
+        #expect(model.overview?.requests.items.first?.workingDays == 5 && model.overview?.cached == true)
+        #expect(!(await model.save(startsOn: "2027-06-07", endsOn: "2027-06-11", editing: nil)))
+        failure = "sign_in_required"
+        await model.load()
+        #expect(model.overview == nil && !model.busy)
+    }
+
     @Test func loadsPersonalHistoryAndPublicHolidaysWithIndependentPages() async {
         let model = AtlasTimeOff { action in
             #expect(action["action"] as? String == "list")

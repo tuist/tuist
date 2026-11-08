@@ -47,6 +47,15 @@ subsystem and its device registrations; do not claim Automation delivery through
 
 ## API and MCP primitive interfaces
 
+Portable `Atlas.Signals` sources admit pinned revisions with trigger `signal` and
+only an opaque `signal_id` input. `signals.decide@1` is a local transactional
+write adapter returning IDs/status/priority, not provider evidence. It rechecks
+source ownership, enabled state and current required scopes before opening Orbit
+and queuing generic attention pushes. Exact decisions replay; altered retries
+conflict. Protected signal/candidate getters, source configuration and personal
+business-profile consent remain excluded from generic workflow behaviors, so
+Automation readers cannot obtain captured source evidence through a plan.
+
 `Interfaces` is the shared inventory of operation name, scope, HTTP method/path and
 MCP tool. The router derives API routes from it, and MCP derives its read/write tool
 registrations from it. `Interface` owns the common closed input schemas, dispatch and
@@ -93,6 +102,8 @@ Query/sort/filter changes reset numbered pagination, preserve other controls and
 ## Platform-domain behavior contracts
 
 The `time_off_approvals` authorization area and new personal provider/leave tools from the native workspace are explicitly excluded, not automatically converted into workflow behaviors. Their reviewer/credential ownership rules require dedicated adapters. Registry coverage accepts a domain only when it has a registered behavior or an explicit excluded policy; preserve all published operation contracts when adding inventory classifications.
+
+Shared Moodboard resource, inference-suggestion and discussion tools are explicitly excluded from workflow behaviors. Authenticated dashboard/MCP access does not grant workflow authority over contributor-owned resources or author-owned comments. Keep both the contract ledger and its projection helper exclusions current until dedicated adapters are versioned.
 
 Personal self-description tools (`get_my_profile`, `update_my_profile`) are also explicitly excluded in the ledger and its projection helper: private caller context must not enter shared workflow outputs, and profile changes require the caller's explicit request rather than automated inference. Keep that exclusion covered by the registry tests when adding self-service MCP tools.
 

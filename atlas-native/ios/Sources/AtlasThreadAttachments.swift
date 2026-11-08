@@ -54,11 +54,21 @@ struct AtlasAttachmentFile: Sendable {
 
     static func preview(_ data: Data, filename: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        #if os(macOS)
+        let attributes: [FileAttributeKey: Any] = [.posixPermissions: 0o700]
+        let options: Data.WritingOptions = [.atomic]
+        #else
+        let attributes: [FileAttributeKey: Any] = [.protectionKey: FileProtectionType.complete]
+        let options: Data.WritingOptions = [.atomic, .completeFileProtection]
+        #endif
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
-                                               attributes: [.protectionKey: FileProtectionType.complete])
+                                               attributes: attributes)
         let file = directory.appendingPathComponent(safeName(filename), isDirectory: false)
         do {
-            try data.write(to: file, options: [.atomic, .completeFileProtection])
+            try data.write(to: file, options: options)
+            #if os(macOS)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            #endif
             return file
         } catch {
             try? FileManager.default.removeItem(at: directory)

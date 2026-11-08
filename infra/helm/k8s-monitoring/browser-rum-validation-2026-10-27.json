@@ -1,0 +1,156 @@
+{
+  "window": {
+    "start": "2026-10-20T08:00:00Z",
+    "end": "2026-10-27T08:00:00Z",
+    "stepSeconds": 3600
+  },
+  "sixHour": [
+    {
+      "surface": "api_docs",
+      "evaluations": 71,
+      "missingSessionPoints": 0,
+      "samplesMin": 1,
+      "samplesMax": 2,
+      "sessionsMin": 1,
+      "sessionsMax": 2,
+      "floorPassed": 0,
+      "p75OverTarget": 18,
+      "conditionPassed": 0,
+      "concentration": 0,
+      "p75Min": 0.692,
+      "p75Max": 3.952
+    },
+    {
+      "surface": "auth",
+      "evaluations": 168,
+      "missingSessionPoints": 0,
+      "samplesMin": 5,
+      "samplesMax": 190,
+      "sessionsMin": 5,
+      "sessionsMax": 104,
+      "floorPassed": 43,
+      "p75OverTarget": 5,
+      "conditionPassed": 0,
+      "concentration": 1,
+      "p75Min": 0.804,
+      "p75Max": 5.009
+    },
+    {
+      "surface": "challenge",
+      "evaluations": 165,
+      "missingSessionPoints": 0,
+      "samplesMin": 1,
+      "samplesMax": 27,
+      "sessionsMin": 1,
+      "sessionsMax": 27,
+      "floorPassed": 0,
+      "p75OverTarget": 98,
+      "conditionPassed": 0,
+      "concentration": 0,
+      "p75Min": 0.56275,
+      "p75Max": 33.122
+    },
+    {
+      "surface": "dashboard_anonymous",
+      "evaluations": 163,
+      "missingSessionPoints": 0,
+      "samplesMin": 1,
+      "samplesMax": 31,
+      "sessionsMin": 1,
+      "sessionsMax": 28,
+      "floorPassed": 0,
+      "p75OverTarget": 7,
+      "conditionPassed": 0,
+      "concentration": 0,
+      "p75Min": 0.324,
+      "p75Max": 5.464
+    },
+    {
+      "surface": "dashboard_authenticated",
+      "evaluations": 169,
+      "missingSessionPoints": 0,
+      "samplesMin": 8,
+      "samplesMax": 314,
+      "sessionsMin": 6,
+      "sessionsMax": 163,
+      "floorPassed": 71,
+      "p75OverTarget": 13,
+      "conditionPassed": 1,
+      "concentration": 9,
+      "p75Min": 0.68745,
+      "p75Max": 12.792
+    },
+    {
+      "surface": "docs",
+      "evaluations": 169,
+      "missingSessionPoints": 0,
+      "samplesMin": 3,
+      "samplesMax": 202,
+      "sessionsMin": 2,
+      "sessionsMax": 108,
+      "floorPassed": 12,
+      "p75OverTarget": 17,
+      "conditionPassed": 0,
+      "concentration": 0,
+      "p75Min": 0.682,
+      "p75Max": 7.591
+    },
+    {
+      "surface": "marketing",
+      "evaluations": 169,
+      "missingSessionPoints": 0,
+      "samplesMin": 11,
+      "samplesMax": 175,
+      "sessionsMin": 9,
+      "sessionsMax": 112,
+      "floorPassed": 25,
+      "p75OverTarget": 2,
+      "conditionPassed": 0,
+      "concentration": 0,
+      "p75Min": 0.817,
+      "p75Max": 2.696
+    }
+  ],
+  "twentyFourHour": [
+    {
+      "surface": "docs",
+      "checks": 169,
+      "eligible": 131,
+      "condition": 2,
+      "firstConditions": [
+        {
+          "time": "2026-10-26T05:00:00.000Z",
+          "p75": 3.198
+        },
+        {
+          "time": "2026-10-26T07:00:00.000Z",
+          "p75": 3.032
+        }
+      ]
+    },
+    {
+      "surface": "marketing",
+      "checks": 169,
+      "eligible": 162,
+      "condition": 0,
+      "firstConditions": []
+    }
+  ],
+  "quality": {
+    "gatewayCoverage": 1,
+    "rayCoverage": 1,
+    "unknownSurfaceSamplesPerSixHours": {
+      "min": 1,
+      "max": 5
+    },
+    "livenessSamplesPerTwoHours": {
+      "min": 7,
+      "max": 368
+    }
+  },
+  "notes": [
+    "169 hourly evaluation points; not a simulation of the 30-minute pending state.",
+    "Legacy eligible raw population, before new deduplication and unknown-navigation correction.",
+    "Distinct-session queries split into bounded ranges and instants after the 500-series limit."
+  ]
+}

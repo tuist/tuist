@@ -1,6 +1,10 @@
 import Combine
-import SafariServices
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import SafariServices
+#endif
 
 private struct AtlasServerKey: EnvironmentKey {
     static let defaultValue: URL? = nil
@@ -22,9 +26,17 @@ struct AtlasBrowserButton: View {
 
     var body: some View {
         if let server, let destination = AtlasDestination(screen: screen, recordID: recordID, server: server) {
+            #if os(macOS)
+            Button("Open in browser", systemImage: "safari") {
+                guard let browser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.org")!) else { return }
+                NSWorkspace.shared.open([destination.browserURL], withApplicationAt: browser,
+                                        configuration: NSWorkspace.OpenConfiguration())
+            }
+            #else
             Button("Open in browser", systemImage: "safari") { showingBrowser = true }
                 .sheet(isPresented: $showingBrowser) { AtlasBrowserView(url: destination.browserURL).ignoresSafeArea() }
                 .onReceive(linkChanges) { _ in showingBrowser = false }
+            #endif
         }
     }
 
@@ -36,9 +48,11 @@ struct AtlasBrowserButton: View {
     }
 }
 
+#if os(iOS)
 // An embedded browser explicitly opts out of Universal Link handoff to this app.
 private struct AtlasBrowserView: UIViewControllerRepresentable {
     let url: URL
     func makeUIViewController(context: Context) -> SFSafariViewController { SFSafariViewController(url: url) }
     func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
+#endif

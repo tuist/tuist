@@ -1,0 +1,105 @@
+defmodule SDKSnapshot do
+  require Record
+
+  Record.defrecordp(
+    :span,
+    Record.extract(:span, from: Path.join(:code.lib_dir(:opentelemetry, :include), "otel_span.hrl"))
+  )
+
+  Record.defrecordp(
+    :event,
+    Record.extract(:event, from: Path.join(:code.lib_dir(:opentelemetry, :include), "otel_span.hrl"))
+  )
+
+  Record.defrecordp(
+    :link,
+    Record.extract(:link, from: Path.join(:code.lib_dir(:opentelemetry, :include), "otel_span.hrl"))
+  )
+
+  Record.defrecordp(
+    :scope,
+    :instrumentation_scope,
+    Record.extract(:instrumentation_scope,
+      from: Path.join(:code.lib_dir(:opentelemetry_api, :include), "opentelemetry.hrl")
+    )
+  )
+
+  Record.defrecordp(
+    :status,
+    Record.extract(:status, from: Path.join(:code.lib_dir(:opentelemetry_api, :include), "opentelemetry.hrl"))
+  )
+
+  def document(records, resource) do
+    %{spans: Enum.map(records, &snapshot(&1, resource))}
+  end
+
+  defp snapshot(s, resource) do
+    scope = span(s, :instrumentation_scope)
+    status = span(s, :status)
+    events = :otel_events.list(span(s, :events))
+    links = :otel_links.list(span(s, :links))
+
+    %{
+      trace_id: hex(span(s, :trace_id), 128),
+      span_id: hex(span(s, :span_id), 64),
+      parent_id: hex(span(s, :parent_span_id), 64),
+      parent_remote: span(s, :parent_span_is_remote),
+      name: text(span(s, :name)),
+      kind: Map.fetch!(%{internal: 1, server: 2, client: 3, producer: 4, consumer: 5}, span(s, :kind)),
+      start: Integer.to_string(:opentelemetry.timestamp_to_nano(span(s, :start_time))),
+      end: Integer.to_string(:opentelemetry.timestamp_to_nano(span(s, :end_time))),
+      state: :otel_tracestate.encode_header(span(s, :tracestate)),
+      flags: span(s, :trace_flags),
+      attributes: attrs(span(s, :attributes)),
+      resource: attrs(:otel_resource.attributes(resource)),
+      resource_schema: text(:otel_resource.schema_url(resource)),
+      scope: %{
+        name: text(scope(scope, :name)),
+        version: text(scope(scope, :version)),
+        schema: text(scope(scope, :schema_url)),
+        attributes: []
+      },
+      status: if(status == :undefined, do: 0, else: Map.fetch!(%{unset: 0, ok: 1, error: 2}, status(status, :code))),
+      message: if(status == :undefined, do: "", else: text(status(status, :message))),
+      dropped_attributes: :otel_attributes.dropped(span(s, :attributes)),
+      dropped_events: :otel_events.dropped(span(s, :events)),
+      dropped_links: :otel_links.dropped(span(s, :links)),
+      events:
+        Enum.map(events, fn e ->
+          %{
+            name: text(event(e, :name)),
+            time: Integer.to_string(:opentelemetry.timestamp_to_nano(event(e, :system_time_native))),
+            attributes: attrs(event(e, :attributes)),
+            dropped: :otel_attributes.dropped(event(e, :attributes))
+          }
+        end),
+      links:
+        Enum.map(links, fn l ->
+          %{
+            trace_id: hex(link(l, :trace_id), 128),
+            span_id: hex(link(l, :span_id), 64),
+            state: :otel_tracestate.encode_header(link(l, :tracestate)),
+            attributes: attrs(link(l, :attributes)),
+            dropped: :otel_attributes.dropped(link(l, :attributes))
+          }
+        end)
+    }
+  end
+
+  defp hex(:undefined, _), do: ""
+  defp hex(id, bits), do: Base.encode16(<<id::size(bits)>>, case: :lower)
+  defp text(:undefined), do: ""
+  defp text(v) when is_binary(v), do: v
+  defp text(v) when is_atom(v), do: Atom.to_string(v)
+  defp text(v) when is_list(v), do: List.to_string(v)
+
+  defp attrs(values),
+    do: values |> :otel_attributes.map() |> Enum.map(fn {key, value} -> %{key: text(key), value: any(value)} end)
+
+  defp any(v) when is_boolean(v), do: %{boolValue: v}
+  defp any(v) when is_integer(v), do: %{intValue: Integer.to_string(v)}
+  defp any(v) when is_float(v), do: %{doubleValue: v}
+  defp any(v) when is_binary(v) or is_atom(v), do: %{stringValue: text(v)}
+  defp any(v) when is_list(v), do: %{arrayValue: %{values: Enum.map(v, &any/1)}}
+  defp any(v) when is_tuple(v), do: any(Tuple.to_list(v))
+end

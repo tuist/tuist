@@ -10,7 +10,7 @@
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
 > [!WARNING]
-> **License Required**
+> **License required**
 >
 > Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -23,11 +23,31 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the <.localized_link href="/cli/release/channels">Tuist CLI's release schedule</.localized_link>.
 
 We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
 
-See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
+See the <.localized_link href="/guides/server/self-host/release/channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
+
+## Browser session upgrade {#browser-session-upgrade}
+
+Browser sessions expire after seven days without authenticated page requests or LiveView interaction, and no later than 30 days after authentication. Remember me restores the same server-side session and cannot extend either deadline. Activity is checkpointed once per minute, so an idle session can expire up to 59 seconds earlier. WebSocket heartbeats, automatic reconnects, and background updates do not renew activity. These deadlines do not change machine credentials or API-token lifetimes.
+
+Run the additive `users_tokens` migration before starting upgraded application processes. Existing rows are not backfilled: their creation time bounds inactivity and absolute expiry, and they must freshly authenticate before accessing an SSO-enforced organization. The callback's provider, issuer or verified Workspace, and custom SSO connection are stored server-side and compared with the organization's current settings. A linked account is not session authentication proof.
+
+Upgrade every serving web replica before treating the policy as enforced. Older binaries can still accept their former 60-day sessions and do not enforce the new LiveView boundary; mixed versions are schema-compatible but not policy-equivalent. Expect users to sign in again. Rollback to older binaries weakens these controls; if schema rollback is necessary, stop all binaries that read the new fields before dropping them. Never extend old sessions or infer provenance to avoid reauthentication.
+
+## Authenticator-app MFA {#authenticator-app-mfa}
+
+The server includes native authenticator-app (TOTP) two-factor authentication. The dashboard does not link to it yet; a later release adds the settings entry point. It requires no activation flag, hosted-service dependency, or identity-provider credentials: only PostgreSQL, the migration below, a TOTP authenticator, and a stable encryption key shared by all serving replicas (`TUIST_SECRET_KEY_ENCRYPTION`, falling back to `TUIST_SECRET_KEY_BASE`). Keep server and authenticator clocks synchronized. MFA verification and its shared budget of five failed codes per five minutes use PostgreSQL row locks, not Redis.
+
+Setup requires a sign-in within the last five minutes, entering the setup key into a TOTP authenticator app, and confirming an app-generated code. Ten single-use recovery codes are shown once; store them securely. Disabling the factor also requires a recent sign-in and an unused authenticator or recovery code. Factor changes revoke other browser sessions. Password resets do not remove MFA, and this implementation does not provide an email-only or administrator bypass for a lost factor.
+
+Once enrolled, every new browser sign-in—including federated sign-in—requires the native second factor before receiving a session or completing browser-based CLI/device authorization. Direct password and Apple API login refuse enrolled users and instruct them to use browser sign-in. New email-agent claims for enrolled users require an MFA-verified browser session; mailbox-only legacy claims are refused. Existing API tokens, machine credentials, workload identities and their renewal rules are unchanged. This is optional per-user support, not an organization-wide MFA mandate, nor verification of an identity provider's own MFA policy. Organization SSO still requires the correct configured provider/issuer in addition to the native factor.
+
+Email is not required for enrollment, sign-in, recovery-code use, or disabling MFA. Factor-change notifications are best-effort; a delivery failure does not undo a completed change.
+
+Run the separate additive `user_mfa`/`users_tokens.mfa_verified_at` migration before the new binary. The TOTP secret uses the existing Vault encryption key; preserve that key and its backups. Complete the upgrade of **all authentication-serving replicas before allowing MFA enrollment**. Older binaries can bypass native MFA, so they are not a policy-compatible rollback target after enrollment. Dropping the MFA schema destroys enrollment and recovery state; stop readers first and retain an encrypted backup. Mixed-version schema compatibility is not evidence that either MFA or browser-session controls are enforced.
 
 ## OAuth upgrade and rollback boundary {#oauth-upgrade-and-rollback-boundary}
 
@@ -70,7 +90,7 @@ Allow EPMD (TCP 4369) and the configured distribution port only between trusted 
 
 ## Continuous deployment {#continuous-deployment}
 
-We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
+We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release/channels">Release channels</.localized_link> for the recommended pinning strategy.
 
 If you would rather absorb new features as they become stable without touching your manifests, pin `:latest`. The tag moves once a week on Monday morning, so schedule your deploy window accordingly. Here's an example GitHub Actions workflow that checks for and deploys the latest stable image on that cadence:
 
@@ -92,63 +112,48 @@ jobs:
           # Deploy to your infrastructure
 ```
 
-## Network-trusted report publishing {#network-trusted-report-publishing}
+<span id="network-trusted-report-publishing"></span>
+<span id="network-trusted-cache-access"></span>
 
-Self-hosted installations can opt into accepting completed **Xcode, Gradle, Elixir/Mix, and Bazel build and test reports** without individual sign-in. This policy is off by default and unavailable on hosted Tuist. It grants reporting only, not dashboard access, administration, reads, remote cache access, archives, attachments, shard planning, or artifact processing. The self-hosting license requirement remains enforced.
+## Network-trusted access {#network-trusted-access}
+
+Self-hosted installations can allow developers on a trusted network to submit insights, use the cache, or both without signing in. The dashboard and administration still require authentication.
+
+Enable only the capabilities you need:
+
+| Server environment variable | Allows without sign-in |
+| --- | --- |
+| `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` | Submit build and test insights |
+| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true` | Read and write cached build outputs |
+
+Both settings are **off by default**, independent, and apply instance-wide across all accounts and projects, including private projects. They are unavailable on hosted Tuist and do not replace the self-hosting license.
+
+The former `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` name remains a compatibility fallback when `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` is unset.
+
+> [!WARNING]
+> Only enable these settings behind an enforced office-network or VPN boundary. Anyone who can reach an enabled endpoint can submit reports or, with cache access enabled, read and overwrite cached outputs. This permits forged telemetry, cache poisoning, and capacity exhaustion. Reporting responses may also reveal private project handles and build systems. Tuist does not verify VPN membership or trust forwarded IP headers as proof of membership.
 
 ### Configure the instance {#network-trusted-instance-configuration}
 
-This is an **instance-wide runtime configuration**, not a dashboard or per-project setting. Enabling it permits credential-free reporting to **all existing and newly created Xcode, Gradle, Elixir/Mix, and Bazel projects across every account on the instance**, including private projects. It does not change project visibility or grant access to their existing reports. There is no project allowlist or dashboard toggle.
-
-1. Restrict the HTTP deployment and any Bazel BES ingress to your trusted network, for example a VPN and ingress firewall. Tuist does not verify VPN membership or infer trust from forwarded IP headers.
-2. Set the following environment variable on every server replica that handles report publishing or Bazel analytics ingestion:
-
-   ```sh
-   TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true
-   ```
-
-   For example, in the Tuist server service's Docker Compose configuration:
-
-   ```yaml
-   environment:
-     TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING: "true"
-   ```
-
-3. Restart or redeploy those replicas. The server reads the variable at startup; changing the deployment environment does not update an already running process. The default is `false`, and only the exact value `true` enables it. Hosted Tuist cannot enable this mode.
+1. Restrict the Tuist server, every Kura HTTP/gRPC listener, and any Bazel BES ingress to your trusted network using a firewall or private ingress.
+2. Upgrade every server and Kura replica before upgrading clients. Keep Kura authentication enabled with `KURA_AUTH_TUIST_URL` and its control-plane credentials; disabling it bypasses these restrictions. Configure your cache endpoint using the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
+3. Set the desired variables above on every relevant Tuist server replica, then restart or redeploy them. Only the exact value `true` enables a setting. There is no dashboard toggle or separate Kura flag.
 
 ### Configure the clients {#network-trusted-client-configuration}
 
-Keep credential-free publishing disabled during a rolling upgrade until the server and clients include the required safeguards: Gradle must treat unreadable credential directories and ancestors as errors, and unsigned Swift/Gradle build bodies must omit Git origins before serialization. Upgrading only the server cannot fix an older client's credential-absence decision or prevent a credential-bearing origin from being transmitted or logged by that client. Ordinary authenticated older clients remain supported. Clients using an older server without credential-free publishing support must still authenticate; a client opt-in cannot enable the server feature.
+Configure the final self-hosted server URL and project on each compatible client. Clients automatically discover which capabilities are enabled when credentials are absent; no client opt-in is needed. Discovery does not follow redirects. Existing credentials remain in use, and invalid or failed-refresh credentials cause an error rather than anonymous fallback. Sign in again or explicitly sign out to recover.
 
-**Upgrade the server before credential-free clients.** Deploy discovery support to every relevant replica before upgrading clients that previously used the legacy opt-in. Upgrading a client first, or rolling the server back to a version without discovery, stops credential-free publishing even if the older server accepts legacy unsigned requests. Authenticate during that transition or finish the server upgrade; restoring the old client flag does not bypass discovery. Configure the final server URL directly, because discovery does not follow redirects.
+Before enabling insights access, upgrade all tools sharing credentials to versions that preserve corrupt or rejected credentials, reject unreadable credential directories, and omit Git origins from unsigned reports. Older tools can delete credentials and unintentionally allow anonymous fallback; a server-only upgrade cannot fix this. If the server lacks discovery support or is rolled back to an older version, clients must authenticate. The former `TUIST_NETWORK_TRUSTED_PUBLISHING` client setting no longer applies.
 
-Configure the self-hosted server URL and project on each client. No client-side opt-in is required: when credentials are genuinely absent, compatible clients discover the instance policy through `GET /.well-known/tuist.json` and automatically select restricted, credential-free reporting only when `network_trusted_report_publishing` is `true`.
+- **Insights:** Submit completed Xcode, Gradle, Elixir/Mix, and Bazel reports only, without archive, attachment, coverage, shard-planning, or existing-report access. Actor claims are unverified; unsigned telemetry does not drive trusted test evidence or automation. See the <.localized_link href="/guides/features/build-insights/xcode#network-trusted-publishing">Xcode</.localized_link>, <.localized_link href="/guides/features/build-insights/gradle#network-trusted-publishing">Gradle</.localized_link>, and <.localized_link href="/guides/features/build-insights/elixir#network-trusted-publishing">Elixir</.localized_link> guides for client setup and privacy details.
+- **Cache:** Supported CLI compilation/module caching, Bazel caching, and Gradle task caching. Cache purges and Remote Asset downloads still require credentials. Clients without support must continue authenticating.
+- **Bazel:** Reporting requires an explicit `TUIST_BAZEL_BES_BACKEND` and compatible Kura. Cache and reporting options are enabled independently. Rerun `tuist bazel setup` after changing credentials or either setting; rerun `tuist cache config` for compilation-cache configuration changes.
 
-Discovery sends no report payload, credentials, or actor claim, does not follow redirects, and is not persisted across commands or builds. Older servers without discovery, disabled instances, malformed responses, and discovery failures do not permit unsigned publication. The report endpoint still enforces the policy on every submission, so discovery cannot grant access after publishing is disabled. During a rolling server upgrade, unsigned reporting may be unavailable until all relevant replicas support discovery and have the same configuration.
+Report requests are limited to 8 MB, 60 requests per minute and 10,000 per day per project. Configure shared Valkey for deployment-wide quotas with multiple replicas; otherwise limits are per process. If a configured shared quota backend is unavailable, unsigned reporting is rejected. Add ingress connection, body, and rate limits too.
 
-The former `TUIST_NETWORK_TRUSTED_PUBLISHING` environment variable and Gradle/Elixir client settings are no longer needed or consulted. Gradle retains its deprecated property so existing build scripts still compile. No project administrator action in the dashboard is required. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials never grant permission to publish anonymously. Elixir can retain an authenticated fallback to stored credentials or supplied OIDC, but fails if neither authenticates. Swift records a rejected refresh in the shared credential file so later commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
+### Disable network-trusted access {#disable-network-trusted-publishing}
 
-Keep tools sharing a credential directory on compatible versions. Older tools can delete credentials that newer clients intentionally preserve: for example, CLI 4.213.0 deletes rejected-refresh credentials, and Gradle 0.16.2 deletes corrupt credential files. If another tool removes the file, a newer client cannot distinguish that from deliberate sign-out and may select unsigned reporting on an enabled instance. Upgrade all credential writers to versions with credential-preservation safeguards before enabling the policy; do not mix legacy writers with newer clients against the same credential directory.
-
-| Client | Credential-free reporting path | Intentional limitations |
-| --- | --- | --- |
-| Xcode | `tuist inspect build` parses activity logs locally; `tuist inspect test` parses local XCResult bundles | No raw archive, attachment, coverage/history upload, selective-execution evidence, or remote processors |
-| Gradle | Build and test insights POST structured JSON | No cache discovery or shard references; quarantine lookup is skipped only when credentials are genuinely absent |
-| Elixir | `mix tuist.compile` and `mix tuist.test` POST structured JSON | No privileged coverage/history references; shards and artifact endpoints still require credentials |
-| Bazel | `tuist bazel setup` generates BES-only configuration for an explicit `TUIST_BAZEL_BES_BACKEND=grpcs://bes.example:443` | No remote cache, downloader, credential helper, or artifact reads; test reports contain target-level outcomes, not JUnit testcase detail |
-
-For Bazel, upgrade Kura as well as the control plane and deploy a compatible node with its authentication engine connected. The HTTP discovery manifest does not probe the configured BES endpoint's capabilities; an older Kura node may reject reporting-only streams even when HTTP discovery succeeds. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. After a server replica restarts with publishing disabled, it rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Rerun `tuist bazel setup` after changing credentials or the instance policy; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
-
-> [!WARNING]
-> Anyone who can reach a supported project's publishing endpoint on an enabled instance can submit telemetry, consume its quota, and claim an actor identifier. This applies to every account/project, not just a selected project. Reporting responses can also reveal whether an account/project handle exists and its build system, including private projects. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
-
-Credential-free requests are limited to 8 MB of request/decompressed data, bounded collections, and recursive structure limits. Project quotas are 60 requests per minute and 10,000 per day, independent of VPN NAT addresses. Rejected payloads also consume quota; authenticated publication is unaffected. Configure shared Valkey for deployment-wide enforcement with multiple replicas; without it, limits are per server process and reset on restart. If the configured shared quota backend is unavailable, credential-free publishing fails closed rather than falling back to per-node limits. Add ingress connection, body, and rate limits as a separate defense. Kura additionally bounds unsigned streams to 8 MB/20,000 retained events, 256 MiB of transport data, a five-minute idle/backpressure timeout, a six-hour lifetime, 16 concurrent streams per node, and four concurrent streams/retained invocation records per project. Discarded output/artifact events count only toward the transport cap. Unsigned telemetry has a separate bounded analytics queue/circuit breaker, with 128 KiB serialized invocation events and a 32 KiB inline test-summary budget. An idle BES connection (including a silent action that sends no events) can expire after five minutes. A network caller can occupy its bounded reporting slots until the lifetime limit; size ingress capacity accordingly. These reporting limits do not apply to authenticated traffic.
-
-The server generates report IDs; repeat submissions may produce duplicate reports. Replayed Bazel analytics for the same server invocation deduplicate the test summary, but a restarted BES stream receives a new invocation ID and cannot recover the previous stream's acknowledged events. Unsigned reports are visible telemetry, not authenticated test evidence: they cannot replace canonical testcase metadata, retroactively change authenticated runs, populate selective-execution or quarantine evidence indexes, influence coverage carry-forward/gaps/completeness or enqueue coverage recomputation, enqueue flaky alerts, trigger first-run webhooks, VCS comments, or automatic failure-agent events. Unknown testcases remain report-local; already known cases may be linked for navigation. Run views can show claimed outcomes, but trusted reliability/automation aggregates intentionally exclude them. Optional actor identifiers label telemetry but do not grant access or link claims to accounts.
-
-### Disable credential-free publishing {#disable-network-trusted-publishing}
-
-Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Clients without credentials stop publishing when discovery or report submission observes the disabled policy. The former client opt-in/opt-out setting no longer controls publication. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
+Set the relevant variable to `false`, then restart **every relevant server replica**. Old replicas can continue accepting credential-free requests until replaced. Cache access stops for new requests within 60 seconds of the last replica switching; in-flight transfers are not cancelled. Block traffic at ingress first if immediate revocation is required. Existing reports retain their usual visibility and retention, and authenticated clients continue working.
 
 ## Runtime requirements {#runtime-requirements}
 
@@ -261,19 +266,19 @@ The `system` database uses the `Atomic` engine, which defers a plain `DROP TABLE
 You’ll also need a solution to store files (e.g. framework and library binaries). The Tuist server supports S3-compatible storage and Azure Blob Storage for server-owned artifacts.
 
 > [!TIP]
-> **Optimized Caching**
+> **Optimized caching**
 >
 > If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted Kura nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
+> See the <.localized_link href="/guides/cache/self-host">self-hosted cache guide</.localized_link>.
 
 
 ### Self-hosted Kura nodes {#self-hosted-cache-nodes}
 
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
-1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. In fully self-hosted setups you can generate these values yourself and store them in your deployment secrets.
-2. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>, using the same control-plane credential.
+1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. The client ID **must be a UUID**. Generate the UUID and a random secret using the commands in the <.localized_link href="/guides/cache/self-host#control-plane-client">self-hosted cache guide</.localized_link> and store them in your deployment secrets.
+2. Deploy Kura nodes following the <.localized_link href="/guides/cache/self-host">self-hosted cache guide</.localized_link>, using the same control-plane credential.
 3. Configure each Kura node with `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL`. Registration heartbeats tell the server which ready, client-facing Kura endpoints it can advertise to the CLI.
 
 ## Configuration {#configuration}
@@ -281,7 +286,7 @@ To use self-hosted Kura nodes with a self-hosted Tuist server:
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
 > [!NOTE]
-> **Launch Checks**
+> **Launch checks**
 >
 > The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
 
@@ -295,7 +300,7 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_LICENSE` | The license provided after signing the service level agreement. Accepts either the standard license key or the base64-encoded certificate used in air-gapped environments where the server cannot contact external services. | Yes | | `******` |
 
 > [!WARNING]
-> **Expiration Date**
+> **Expiration date**
 >
 > Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -314,10 +319,11 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
-| `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
+| `TUIST_OPERATOR_EMAIL_DOMAIN` | Users whose email address ends in `@<this-domain>`, and who proved they control it, can access the operations URLs (`/ops/*`). When unset, nobody can access them. See [Operations](#operations) | No | | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | A label displayed as a badge in the dashboard navbar to identify the server instance (e.g. a version number or branch name) | No | Git branch in dev | `v1.2.3` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
-| `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING` | Accept completed build and test reports without credentials for all supported projects/accounts on a privately protected self-hosted instance. Read at startup; restart all relevant replicas after changing it. Does not grant dashboard, cache, archive, attachment, or administration access. | No | `false` | `true` |
+| `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` | Allow submitting build and test insights without sign-in. See [Network-trusted access](#network-trusted-access) for setup and security requirements. | No | `false` | `true` |
+| `TUIST_NETWORK_TRUSTED_CACHE_ACCESS` | Allow cache reads and writes without sign-in. See [Network-trusted access](#network-trusted-access) for setup and security requirements. | No | `false` | `true` |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
 | `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 
@@ -337,13 +343,17 @@ The following environment variables are used to configure the database connectio
 | `TUIST_MIGRATION_DATABASE_URL` | Optional Postgres URL used only by `Tuist.Release.migrate`. Set this to an owner role URL when `DATABASE_URL` points at a narrower runtime role. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_DATABASE_RUNTIME_ROLE` | Runtime Postgres role that migrations should grant application-table privileges to after they finish. Use this with `TUIST_MIGRATION_DATABASE_URL` when the web server should not connect as the schema owner. | No | | `tuist_web` |
 | `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
+| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database. The server certificate is not verified unless `TUIST_DATABASE_SSL_VERIFY` is enabled | No | `1` | `1` |
+| `TUIST_DATABASE_SSL_VERIFY` | When true, the database server certificate must chain to a trusted CA and match the `DATABASE_URL` host. Requires `TUIST_USE_SSL_FOR_DATABASE`. We recommend enabling it | No | `0` | `1` |
+| `TUIST_DATABASE_SSL_CA_CERT_FILE` | Path to a PEM file with the CA certificates used to verify the database server. When unset, the operating system's trust store is used | No | | `/etc/tuist/rds-global-bundle.pem` |
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
-| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
+| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in milliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in milliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
 | `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
+
+By default, Tuist encrypts the database connection but does not verify the server certificate, so an attacker on the network path can impersonate the database. Set `TUIST_DATABASE_SSL_VERIFY=1` to verify it. If your provider signs certificates with its own CA, as Amazon RDS and Google Cloud SQL do, download its CA bundle, mount it in the container, and point `TUIST_DATABASE_SSL_CA_CERT_FILE` at it. The host in `DATABASE_URL` must match a name or IP address in the certificate. With verification enabled, a certificate that fails these checks makes every database connection fail, so check the server logs for `Bad Certificate` or `Unknown CA` after enabling it.
 
 When `TUIST_DATABASE_SCHEMA` is not `public`, release migrations create the schema if it does not already exist before running the Ecto migration chain. If the migration role cannot create schemas, pre-create the schema and make the migration role its owner.
 
@@ -407,7 +417,7 @@ You'll then need to expose the following environment variables in the environmen
 You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
 
 > [!NOTE]
-> **Consent Screen Scopes**
+> **Consent screen scopes**
 >
 > You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
 
@@ -457,7 +467,7 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host) | No | `false` | `1` |
 
 > [!NOTE]
-> **Aws Authentication With Web Identity Token From Environment Variables**
+> **AWS web identity authentication from environment variables**
 >
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
@@ -535,15 +545,20 @@ Tuist requires email functionality for user authentication and transactional not
 \* Email configuration variables are required only if you want to send emails. If not configured, email confirmation is automatically skipped
 
 > [!NOTE]
-> **Smtp Support**
+> **SMTP support**
 >
 > Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 
 
 > [!NOTE]
-> **Air-gapped Deployments**
+> **Air-gapped deployments**
 >
 > For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+
+> [!NOTE]
+> **Email quotas and password-reset links**
+>
+> When email is configured, invitation emails (created, bulk or resent) are limited to one per recipient every five minutes, and to bursts of 50 refilling at 50 per hour per organization and per inviter. Cancelling an invitation does not restore the budget, and the invitations API answers an exhausted budget with `429` and `Retry-After`. With multiple replicas, configure shared Valkey for deployment-wide quotas; if it is configured but unavailable, invitation emails are refused. Password-reset links expire after 15 minutes.
 
 
 ### Git platform configuration {#git-platform-configuration}
@@ -684,7 +699,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 - pgweb for database administration
 
 > [!CAUTION]
-> **License Required**
+> **License required**
 >
 > A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -1096,8 +1111,16 @@ Tuist provides a set of utilities under `/ops/` that you can use to manage your 
 > [!WARNING]
 > **Authorization**
 >
-> Only confirmed users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` (default `tuist.dev`) can access the `/ops/` endpoints.
+> Only users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` can access the `/ops/` endpoints. If the variable is unset, nobody can access them. Set it to a domain whose mailboxes you control.
+>
+> A user also has to have proved control of their address: by following a confirmation or password-reset email, by signing in with Google, GitHub, or Apple, or by entering the one-time code or presenting the verified email of an agent sign-in. Accounts that were confirmed automatically, which is the default without a mail provider, don't qualify until they do. After the account is created, a proof is recorded only while the address is in `TUIST_OPERATOR_EMAIL_DOMAIN`, so after you set or change the variable, operators who haven't proved their address under it do so again. Accounts created by signing in with one of those providers, or through an agent sign-in, carry the proof from creation. Without a mail provider, an account registered with a password can't link one of those providers, so create operator accounts by signing in with Google, GitHub, or Apple, or configure a mail provider.
+>
+> Accounts created before this check existed haven't recorded that proof yet, so an existing operator regains access after resetting their password or signing in with one of those providers once.
+>
+> The first time an account in the operator domain without that proof proves its address that way, Tuist removes its password, passkeys and links to organization single sign-on providers, and signs it out of the browser and the CLI, because whoever registered the address may not own it. A password reset on such an account does the same, apart from setting the new password. An authenticator app set up on the account stays; if it isn't the owner's, remove it for them. Confirmed accounts outside the operator domain keep their credentials. The owner keeps signing in with the provider, or sets a new password through a reset.
+>
+> Accounts that SCIM provisioning creates or renames have no proof until their owner provides it.
 
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
+- **Errors (`/ops/errors`):** You can view unexpected errors that occurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
 - **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.

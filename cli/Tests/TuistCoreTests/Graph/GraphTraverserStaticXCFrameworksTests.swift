@@ -55,4 +55,44 @@ struct GraphTraverserStaticXCFrameworksTests {
                 == Set([staticSwiftA, staticSwiftB])
         )
     }
+
+    @Test(arguments: [
+        (.static, .static, .when([.ios, .macos])),
+        (.static, .dynamic, .when([.ios])),
+        (.dynamic, .static, .when([.ios, .macos])),
+        (.dynamic, .dynamic, .when([.ios, .macos])),
+    ] as [(BinaryLinking, BinaryLinking, PlatformCondition?)])
+    func linkableDependenciesRespectXCFrameworkLinkBoundaries(
+        linking: BinaryLinking, wrapperLinking: BinaryLinking, expectedCondition: PlatformCondition?
+    ) throws {
+        let target = Target.test(name: "App", destinations: [.iPhone, .mac])
+        let project = Project.test(targets: [target])
+        let app = GraphDependency.target(name: target.name, path: project.path)
+        let framework = GraphDependency.testXCFramework(path: "/SDK.xcframework", linking: linking)
+        let wrapper = GraphDependency.testXCFramework(path: "/Wrapper.xcframework", linking: wrapperLinking)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [app: [framework, wrapper], wrapper: [framework]],
+            dependencyConditions: [
+                GraphEdge(from: app, to: framework): try #require(.when([.ios])),
+                GraphEdge(from: app, to: wrapper): try #require(.when([.macos])),
+            ]
+        )
+
+        let references = try GraphTraverser(graph: graph).linkableDependencies(path: project.path, name: target.name)
+        let frameworks = references.filter {
+            if case let .xcframework(path, _, _, _, _) = $0 { return path == "/SDK.xcframework" }
+            return false
+        }
+
+        #expect(frameworks == [
+            .xcframework(
+                path: "/SDK.xcframework",
+                expectedSignature: nil,
+                infoPlist: .test(),
+                status: .required,
+                condition: expectedCondition
+            ),
+        ])
+    }
 }

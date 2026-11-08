@@ -52,6 +52,7 @@ struct CLI {
     var defaultRegistryURL: String?
     var disableSCMToRegistryTransformation = false
     var quiet = false
+    var verbose = false
     var disablePackageInfoCache = false
     var packageInfoCachePath: CLIPath?
     var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
@@ -288,6 +289,9 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     @Flag(name: [.customShort("q"), .customLong("quiet")])
     var quiet = false
 
+    @Flag(name: [.customShort("v"), .customLong("verbose")], help: "Print how long each resolution phase takes.")
+    var verbose = false
+
     @Flag(name: .customLong("disable-package-info-cache"))
     var disablePackageInfoCache = false
 
@@ -349,6 +353,7 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             defaultRegistryURL: defaultRegistryURL,
             disableSCMToRegistryTransformation: disableSCMToRegistryTransformation,
             quiet: quiet,
+            verbose: verbose,
             disablePackageInfoCache: disablePackageInfoCache,
             packageInfoCachePath: CLIPath.optional(packageInfoCachePath),
             cachedDirectoryMaterialization: cachedDirectoryMaterialization,
@@ -539,6 +544,16 @@ enum CLIRunner {
     }
 
     static func run(_ cli: CLI) async throws {
+        var debugHandler: (@Sendable (String) -> Void)?
+        if cli.verbose {
+            debugHandler = { message in FileHandle.standardError.write(Data("\(message)\n".utf8)) }
+        }
+        try await Environment.$debugHandler.withValue(debugHandler) {
+            try await runWithDebugHandler(cli)
+        }
+    }
+
+    private static func runWithDebugHandler(_ cli: CLI) async throws {
         try await Environment.withCachedDirectoryMaterialization(
             cli.cachedDirectoryMaterialization
         ) {
@@ -632,11 +647,13 @@ enum CLIRunner {
                 cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
                 mirrors: mirrors
             )
-            try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox,
-                sourceCacheDirectory: cache.root
-            )
+            try await PhaseTiming.measure("writing workspace state") {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
+                    disableSandbox: cli.disableSandbox,
+                    sourceCacheDirectory: cache.root
+                )
+            }
         }
     }
 
@@ -723,22 +740,24 @@ enum CLIRunner {
 
         let cache = try await Cache(root: cacheRoot)
 
-        let resolved = try await PackageResolver.resolveOrLoad(
-            packageDir: package,
-            scratchDir: scratch,
-            cache: cache,
-            registryConfig: registryConfig,
-            mirrors: mirrors,
-            registryConfigurationPath: paths.resolve(cli.configPath),
-            defaultRegistryURL: cli.defaultRegistryURL,
-            disableSandbox: cli.disableSandbox,
-            scmToRegistryTransformation: try scmToRegistryTransformation(cli),
-            preferResolvedFile: preferResolvedFile,
-            readOnly: readOnly,
-            skipUpdate: cli.skipUpdate,
-            writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
-            progress: cli.quiet ? nil : ResolutionProgressReporter()
-        )
+        let resolved = try await PhaseTiming.measure("loading pins") {
+            try await PackageResolver.resolveOrLoad(
+                packageDir: package,
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                mirrors: mirrors,
+                registryConfigurationPath: paths.resolve(cli.configPath),
+                defaultRegistryURL: cli.defaultRegistryURL,
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli),
+                preferResolvedFile: preferResolvedFile,
+                readOnly: readOnly,
+                skipUpdate: cli.skipUpdate,
+                writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
+                progress: cli.quiet ? nil : ResolutionProgressReporter()
+            )
+        }
 
         if !cli.quiet {
             ResolvedFile.print(resolved)
@@ -755,11 +774,13 @@ enum CLIRunner {
                 cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
                 mirrors: mirrors
             )
-            try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
-                disableSandbox: cli.disableSandbox,
-                sourceCacheDirectory: cache.root
-            )
+            try await PhaseTiming.measure("writing workspace state") {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
+                    disableSandbox: cli.disableSandbox,
+                    sourceCacheDirectory: cache.root
+                )
+            }
 
             // With the pins restored, confirm they still satisfy the manifest the
             // same way SwiftPM does. SwiftPM reuses the workspace state we just
@@ -785,15 +806,17 @@ enum CLIRunner {
         if cli.disablePackageInfoCache {
             return
         }
-        try await PackageInfoCacheWriter.write(
-            packageDir: package,
-            scratchDir: scratch,
-            resolved: resolved,
-            mirrors: mirrors,
-            cacheDir: paths.resolve(cli.packageInfoCachePath),
-            disableSandbox: cli.disableSandbox,
-            quiet: cli.quiet
-        )
+        try await PhaseTiming.measure("writing the package info cache") {
+            try await PackageInfoCacheWriter.write(
+                packageDir: package,
+                scratchDir: scratch,
+                resolved: resolved,
+                mirrors: mirrors,
+                cacheDir: paths.resolve(cli.packageInfoCachePath),
+                disableSandbox: cli.disableSandbox,
+                quiet: cli.quiet
+            )
+        }
     }
 
     static func scmToRegistryTransformation(_ cli: CLI) throws

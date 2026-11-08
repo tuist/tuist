@@ -3,7 +3,8 @@
 The environment's `capi.ovhPrivateNetwork` configuration names an already
 provisioned vRack and a reserved private IPv4 CIDR. The CAPI provider reconciles
 cache-tainted OVH machines in its own namespace, including existing Ready
-machines. Runner machines are excluded. MachineDeployment `OnDelete` does not
+machines. Kata runner machines participate only when `spec.vRackID` explicitly
+matches that environment’s vRack; legacy runners without a private NIC stay excluded. MachineDeployment `OnDelete` does not
 prevent this additive repair; no machine replacement or OS reinstall is used.
 
 Address reservations live in a separate controller-owned ConfigMap and survive

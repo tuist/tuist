@@ -405,6 +405,16 @@ defmodule Atlas.Inference do
   def model_allowed?(_binding, _requested_model, _provider_id), do: false
 
   def relay_request(%ModelBinding{} = binding, body, opts \\ []) when is_map(body) do
+    # Together's hybrid models use a native toggle, not OpenAI's "none" effort.
+    body =
+      if binding.upstream_provider == "together" and body["reasoning_effort"] == "none" do
+        body
+        |> Map.delete("reasoning_effort")
+        |> Map.put_new("reasoning", %{"enabled" => false})
+      else
+        body
+      end
+
     relay_request_to(binding, "chat/completions", body, stream?(body), opts)
   end
 
