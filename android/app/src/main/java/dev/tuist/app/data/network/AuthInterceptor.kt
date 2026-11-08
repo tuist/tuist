@@ -33,7 +33,7 @@ class AuthInterceptor @Inject constructor(
         val path = request.url.pathSegments
         val scopedAccount = when {
             path.size >= 5 && path.take(2) == listOf("api", "projects") && path[4] == "previews" -> path[2]
-            path.size >= 4 && path.take(2) == listOf("api", "accounts") && path[3] == "threads" -> path[2]
+            path.size >= 4 && path.take(2) == listOf("api", "accounts") && path[3] == "jams" -> path[2]
             else -> null
         }
         if (discovery == null && scopedAccount != null) {

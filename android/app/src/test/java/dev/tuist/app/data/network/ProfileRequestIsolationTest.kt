@@ -77,7 +77,7 @@ class ProfileRequestIsolationTest {
             server.enqueue(MockResponse().setBody("alpha-private-data").setHeadersDelay(500, TimeUnit.MILLISECONDS))
             val result = executor.submit<Boolean> {
                 try {
-                    client.newCall(Request.Builder().url(server.url("/api/accounts/alpha/threads")).build()).execute().use { it.body?.string() }
+                    client.newCall(Request.Builder().url(server.url("/api/accounts/alpha/jams")).build()).execute().use { it.body?.string() }
                     false
                 } catch (_: IOException) { true }
             }
@@ -87,9 +87,9 @@ class ProfileRequestIsolationTest {
             assertEquals("alice-refresh", tokens.getRefreshToken())
             assertEquals("beta", tokens.selectedAccount())
             listOf(
-                Request.Builder().url(server.url("/api/accounts/alpha/threads")).build(),
+                Request.Builder().url(server.url("/api/accounts/alpha/jams")).build(),
                 Request.Builder().url(server.url("/api/projects/alpha/app/previews")).build(),
-                Request.Builder().url(server.url("/api/accounts/beta/threads")).tag(TokenStorage.Session::class.java, alpha).build(),
+                Request.Builder().url(server.url("/api/accounts/beta/jams")).tag(TokenStorage.Session::class.java, alpha).build(),
             ).forEach { request ->
                 assertThrows(IOException::class.java) { client.newCall(request).execute().close() }
             }

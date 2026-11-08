@@ -37,7 +37,7 @@ defmodule TuistWeb.Endpoint do
 
   # `auth_token` must be a socket option: Phoenix overwrites a transport-level
   # value with it, which left every native connection without its bearer.
-  socket "/threads/socket", TuistWeb.ThreadsSocket,
+  socket "/jams/socket", TuistWeb.JamsSocket,
     auth_token: true,
     websocket: true,
     longpoll: false
@@ -185,7 +185,7 @@ defmodule TuistWeb.Endpoint do
   @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
 
   # Private conversations and Ship approvals must not become error-report data.
-  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, "threads" | _]}), do: %{}
+  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, "jams" | _]}), do: %{}
 
   def scrub_sentry_body(conn) do
     conn

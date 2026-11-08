@@ -98,7 +98,7 @@ import TuistServer
                     if bootstrapper.isReady {
                         #if DEBUG
                             if ProcessInfo.processInfo.arguments.contains("--layout-preview") ||
-                                Bundle.main.object(forInfoDictionaryKey: "TuistThreadsPreview") as? Bool == true
+                                Bundle.main.object(forInfoDictionaryKey: "TuistJamsPreview") as? Bool == true
                             {
                                 AccountHomeView(
                                     account: Account(email: "preview@example.com", handle: "pedro"),

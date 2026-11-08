@@ -27,7 +27,7 @@ is reserved for explicit native handoff, not sharing. Handoff generators always
 include the server. Omitting it still means `https://tuist.dev`, never the current
 device environment. Existing aliases remain accepted.
 
-Examples for an agent to include in a thread:
+Examples for an agent to include in a jam:
 
 ```markdown
 [Open your profile](tuist://app/profile)
@@ -37,9 +37,9 @@ Examples for an agent to include in a thread:
 
 Share canonical HTTPS links from agents, notifications, QR codes, and native
 Share actions. They work as ordinary browser links without the app installed.
-Native-only screens still require an installed app and a thread client that
+Native-only screens still require an installed app and a jam client that
 allows `tuist:` links. Custom schemes have no website fallback and can be claimed
-by other apps. This substrate does not change any thread renderer.
+by other apps. This substrate does not change any jam renderer.
 
 Canonical preview links navigate natively when delivered to the app and scoped
 to the active server. iOS declares associated domains and the server's Apple

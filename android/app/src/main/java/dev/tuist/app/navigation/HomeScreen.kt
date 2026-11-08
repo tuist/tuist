@@ -30,8 +30,8 @@ import dev.tuist.app.ui.notifications.NotificationsScreen
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
-import dev.tuist.app.ui.threads.ThreadsScreen
-import dev.tuist.app.ui.threads.ThreadsViewModel
+import dev.tuist.app.ui.jams.JamsScreen
+import dev.tuist.app.ui.jams.JamsViewModel
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -53,8 +53,8 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val threadsViewModel: ThreadsViewModel = hiltViewModel()
-    val threadsState by threadsViewModel.state.collectAsStateWithLifecycle()
+    val jamsViewModel: JamsViewModel = hiltViewModel()
+    val jamsState by jamsViewModel.state.collectAsStateWithLifecycle()
     val pendingUrl by navigation.pendingUrl.collectAsStateWithLifecycle()
 
     LaunchedEffect(pendingUrl, authState) {
@@ -101,8 +101,8 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
         confirmButton = { TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection() }) { Text(stringResource(R.string.profiles_cancel)) } },
     )
 
-    LaunchedEffect(threadsState.enabled) {
-        if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
+    LaunchedEffect(jamsState.enabled) {
+        if (!jamsState.enabled && currentDestination?.hasRoute<HomeTabs.Jams>() == true) {
             navController.navigate(HomeTabs.Previews) {
                 popUpTo(HomeTabs.Previews) { inclusive = true }
                 launchSingleTop = true
@@ -130,16 +130,16 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
                     },
                     label = { Text(stringResource(R.string.previews_title)) },
                 )
-                if (threadsState.enabled) NavigationBarItem(
-                    selected = currentDestination?.hasRoute<HomeTabs.Threads>() == true,
+                if (jamsState.enabled) NavigationBarItem(
+                    selected = currentDestination?.hasRoute<HomeTabs.Jams>() == true,
                     onClick = {
-                        navController.navigate(HomeTabs.Threads) {
+                        navController.navigate(HomeTabs.Jams) {
                             popUpTo(HomeTabs.Previews)
                             launchSingleTop = true
                         }
                     },
                     icon = { Icon(painterResource(R.drawable.ic_message), contentDescription = null) },
-                    label = { Text(stringResource(R.string.threads_title)) },
+                    label = { Text(stringResource(R.string.jams_title)) },
                 )
                 NavigationBarItem(
                     selected = currentDestination?.hierarchy?.any {
@@ -197,8 +197,8 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
             composable<HomeTabs.Notifications> {
                 NotificationsScreen(onBack = { navController.popBackStack() })
             }
-            composable<HomeTabs.Threads> {
-                ThreadsScreen(threadsViewModel)
+            composable<HomeTabs.Jams> {
+                JamsScreen(jamsViewModel)
             }
             composable<HomeTabs.PreviewDetail> {
                 PreviewDetailScreen(

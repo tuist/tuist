@@ -32,12 +32,12 @@
             @Bindable var navigation = navigation
             TabView(selection: $navigation.tab) {
                 if featureFlags.isEnabled(.ai) {
-                    ThreadsPreview(
+                    JamsPreview(
                         accountName: organizationName,
                         isLayoutPreview: isLayoutPreview
                     )
-                    .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right.fill") }
-                    .tag(AppNavigation.Tab.threads)
+                    .tabItem { Label("Jams", systemImage: "bubble.left.and.bubble.right.fill") }
+                    .tag(AppNavigation.Tab.jams)
                 }
 
                 previews
@@ -54,11 +54,11 @@
             .tint(Noora.Colors.accent)
             .onAppear {
                 if isLayoutPreview, featureFlags.isEnabled(.ai) {
-                    navigation.tab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? .previews : .threads
+                    navigation.tab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? .previews : .jams
                 }
             }
             .onChange(of: featureFlags.isEnabled(.ai)) { _, enabled in
-                if !enabled, navigation.tab == .threads { navigation.tab = .previews }
+                if !enabled, navigation.tab == .jams { navigation.tab = .previews }
             }
             .sheet(isPresented: $showingAddProfile, onDismiss: {
                 authenticationService.cancelAddingProfile()
@@ -90,7 +90,7 @@
                     }
                 }
             } message: {
-                Text("Open screens and unsent drafts will be closed. Running threads will continue.")
+                Text("Open screens and unsent drafts will be closed. Running jams will continue.")
             }
             .confirmationDialog("Sign out of Tuist?", isPresented: $showingSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) {
@@ -101,7 +101,7 @@
                     }
                 }
             } message: {
-                Text("Signing out of this app does not stop running threads.")
+                Text("Signing out of this app does not stop running jams.")
             }
             .alert("Layout preview", isPresented: $showingPreviewNotice) {
                 Button("OK", role: .cancel) {}

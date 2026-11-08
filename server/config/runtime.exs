@@ -786,7 +786,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Disk snapshot archive uploads each hold a slot for up to half an hour, so
 # they take turns on their own queue instead of filling :default.
 base_queues = [
-  threads: 10,
+  jams: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,

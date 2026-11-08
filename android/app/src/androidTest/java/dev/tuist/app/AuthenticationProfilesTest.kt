@@ -33,7 +33,7 @@ class AuthenticationProfilesTest {
     @Volatile private var oauthCookie: String? = null
     @Volatile private var browserHasCookie = false
     @Volatile private var rejectExchange = false
-    private val threadAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
+    private val jamAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val previewAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
     @Volatile private var membershipsEnabled = false
 
@@ -72,7 +72,7 @@ class AuthenticationProfilesTest {
             click("Previews")
             visible("org-upgrade/app")
             screenshot("upgrade-organization-previews")
-            click("Threads")
+            click("Jams")
             Thread.sleep(1500)
             click("Profile")
             visible("alice@example.invalid")
@@ -123,9 +123,9 @@ class AuthenticationProfilesTest {
                         MockResponse().setBody("""{"organizations":$organizations}""")
                     }
                     path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[],"cursor":null}""")
+                    path.contains("/jams") && !path.contains("/socket") -> {
+                        jamAccounts.add(path)
+                        MockResponse().setBody("""{"jams":[],"cursor":null}""")
                     }
                     path.contains("/previews") -> {
                         previewAccounts.add(path)
@@ -152,14 +152,14 @@ class AuthenticationProfilesTest {
                 visible("Profile")
                 assertEquals("alice-refresh", tokens.getRefreshToken())
                 assertFalse(File(context.applicationInfo.dataDir, "shared_prefs/tuist_secure_prefs.xml").readText().contains("alice-refresh"))
-                click("Threads")
+                click("Jams")
                 assertFalse(device.hasObject(By.desc("Switch account")))
                 chooser()
                 assertFalse(device.hasObject(By.text("Workspaces for this login")))
                 assertTrue(device.wait(Until.hasObject(By.textContains("alice (personal account)")), 10_000))
                 screenshot("00-personal-upgrade-fallback")
                 click("Cancel")
-                assertThreadsAccount("alice", "alice")
+                assertJamsAccount("alice", "alice")
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("01-legacy-profile")
@@ -190,7 +190,7 @@ class AuthenticationProfilesTest {
                 visible("bob@example.invalid")
                 assertEquals(2, tokens.profiles.value.size)
                 screenshot("05-added-second-profile")
-                assertThreadsAccount("org-b", "bob")
+                assertJamsAccount("org-b", "bob")
                 assertProjects("org-b")
 
                 chooser()
@@ -204,12 +204,12 @@ class AuthenticationProfilesTest {
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("07-switched-to-legacy")
-                assertThreadsAccount("org-a", "alice")
+                assertJamsAccount("org-a", "alice")
                 assertProjects("org-a")
                 chooser()
                 device.findObject(By.textContains("shared\n")).click()
                 visible("Profile")
-                assertThreadsAccount("shared", "alice")
+                assertJamsAccount("shared", "alice")
                 assertProjects("shared")
                 screenshot("07b-shared-organization-retains-eligible-alice")
                 chooser()
@@ -228,7 +228,7 @@ class AuthenticationProfilesTest {
                 visible("bob@example.invalid")
                 assertEquals(1, tokens.profiles.value.size)
                 screenshot("09-sign-out-removes-only-active")
-                assertThreadsAccount("org-b", "bob")
+                assertJamsAccount("org-b", "bob")
             }
         } finally { server.shutdown() }
     }
@@ -260,9 +260,9 @@ class AuthenticationProfilesTest {
                     path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"shared/$project","default_branch":"main","visibility":"private"}]}""")
                     path.contains("/previews") -> MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[]}""")
+                    path.contains("/jams") && !path.contains("/socket") -> {
+                        jamAccounts.add(path)
+                        MockResponse().setBody("""{"jams":[]}""")
                     }
                     path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
                     else -> MockResponse().setResponseCode(404)
@@ -285,8 +285,8 @@ class AuthenticationProfilesTest {
                 visible("shared/other-origin")
                 assertEquals("http://localhost:8081", tokens.snapshot().origin)
                 screenshot("13-selected-other-origin-previews")
-                assertThreadsAccount("shared", "bob")
-                assertTrue(otherCalls.any { it.contains("/api/accounts/shared/threads") })
+                assertJamsAccount("shared", "bob")
+                assertTrue(otherCalls.any { it.contains("/api/accounts/shared/jams") })
                 assertTrue(otherCalls.any { it.contains("/api/projects/shared/other-origin/previews") })
                 screenshot("14-selected-other-origin-login-identity")
             }
@@ -308,9 +308,9 @@ class AuthenticationProfilesTest {
                         previews.add(path)
                         MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
                     }
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[]}""")
+                    path.contains("/jams") && !path.contains("/socket") -> {
+                        jamAccounts.add(path)
+                        MockResponse().setBody("""{"jams":[]}""")
                     }
                     path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
                     else -> MockResponse().setResponseCode(404)
@@ -325,20 +325,20 @@ class AuthenticationProfilesTest {
                 assertTrue(previews.isNotEmpty())
                 assertTrue("First previews after process restart use persisted organization: $previews", previews.all { it.contains("/projects/org-b/") })
                 screenshot("10-cold-process-restart-organization-previews")
-                assertThreadsAccount("org-b", "bob")
+                assertJamsAccount("org-b", "bob")
                 screenshot("11-cold-restart-login-identity")
             }
         } finally { server.shutdown() }
     }
 
-    private fun assertThreadsAccount(account: String, login: String) {
+    private fun assertJamsAccount(account: String, login: String) {
         click("Profile")
         visible("$login@example.invalid")
-        threadAccounts.clear()
-        click("Threads")
+        jamAccounts.clear()
+        click("Jams")
         val deadline = System.currentTimeMillis() + 10_000
-        while (threadAccounts.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(100)
-        assertTrue("Threads use the global organization: $threadAccounts", threadAccounts.any { it.contains("/accounts/$account/threads") })
+        while (jamAccounts.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(100)
+        assertTrue("Jams use the global organization: $jamAccounts", jamAccounts.any { it.contains("/accounts/$account/jams") })
         click("Profile")
         visible("$login@example.invalid")
     }

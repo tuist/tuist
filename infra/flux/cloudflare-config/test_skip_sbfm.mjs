@@ -114,10 +114,10 @@ test('sockets, authentication, operator and scanner paths remain protected', () 
     '/auth/callback', '/ops/og-gallery', '/.git/config', '/wp-admin/install.php', '/tuist/tuist%2Fbuilds'], (p, m) => exempt(apiRule, p, m), false);
 });
 
-test('native threads socket handshake alone is exempt', () => {
-  assert.equal(exempt(apiRule, '/threads/socket/websocket'), true);
-  checkPaths(['/threads/socket/websocket'], (p, m) => exempt(apiRule, p, m), false, ['HEAD', ...writes]);
-  checkPaths(['/threads/socket/longpoll', '/threads/socket/websocket/', '/threads/socket/websocket/extra', '/threads/socket/private'], (p, m) => exempt(apiRule, p, m), false);
+test('native jams socket handshake alone is exempt', () => {
+  assert.equal(exempt(apiRule, '/jams/socket/websocket'), true);
+  checkPaths(['/jams/socket/websocket'], (p, m) => exempt(apiRule, p, m), false, ['HEAD', ...writes]);
+  checkPaths(['/jams/socket/longpoll', '/jams/socket/websocket/', '/jams/socket/websocket/extra', '/jams/socket/private', '/threads/socket/websocket'], (p, m) => exempt(apiRule, p, m), false);
 });
 
 test('non-read methods remain protected', () => {
