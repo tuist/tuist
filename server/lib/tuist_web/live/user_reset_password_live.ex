@@ -35,12 +35,27 @@ defmodule TuistWeb.UserResetPasswordLive do
                 )}
               </span>
             </div>
-            <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
+            <.form
+              data-part="form"
+              for={@form}
+              id="reset_password_form"
+              action={~p"/users/reset_password/#{@token}"}
+              method="post"
+              phx-submit="reset_password"
+            >
+              <input
+                type="hidden"
+                id="reset-username"
+                name="user[email]"
+                value={@user.email}
+                autocomplete="username"
+              />
               <.text_input
                 field={@form[:password]}
                 type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "New password")}
+                autocomplete="new-password"
                 show_prefix={false}
                 required
               />
@@ -49,6 +64,7 @@ defmodule TuistWeb.UserResetPasswordLive do
                 type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "Confirm password")}
+                autocomplete="new-password"
                 show_prefix={false}
                 required
               />
@@ -92,13 +108,19 @@ defmodule TuistWeb.UserResetPasswordLive do
   # Do not log in the user after reset password to avoid a
   # leaked token giving the user access to the account.
   def handle_event("reset_password", %{"user" => user_params}, socket) do
-    case Accounts.reset_user_password(socket.assigns.user, user_params) do
+    case Accounts.reset_user_password(socket.assigns.token, user_params) do
       {:ok, %{revoked_session_live_socket_ids: live_socket_ids}} ->
         Enum.each(live_socket_ids, &Endpoint.broadcast(&1, "disconnect", %{}))
 
         {:noreply,
          socket
          |> put_flash(:info, dgettext("dashboard_auth", "Password reset successfully."))
+         |> redirect(to: ~p"/users/log_in")}
+
+      {:error, :invalid_token} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Reset password link is invalid or it has expired.")
          |> redirect(to: ~p"/users/log_in")}
 
       {:error, changeset} ->

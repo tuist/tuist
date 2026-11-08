@@ -5,7 +5,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeTools do
 
   def execute(action, conn, args) do
     authorization =
-      if action == :clear,
+      if action == :delete,
         do: RunnerTools.authorize_runners_update(args, conn.assigns),
         else: RunnerTools.authorize_account(args, conn.assigns)
 
@@ -110,20 +110,20 @@ defmodule Tuist.MCP.Components.Tools.GetRunnerVolumeAnalytics do
   def execute(conn, args), do: Tuist.MCP.Components.Tools.RunnerVolumeTools.execute(:analytics, conn, args)
 end
 
-defmodule Tuist.MCP.Components.Tools.ClearRunnerVolume do
+defmodule Tuist.MCP.Components.Tools.DeleteRunnerVolume do
   @moduledoc false
   use Tuist.MCP.Tool,
-    name: "clear_runner_volume",
-    title: "Clear Runner Volume",
+    name: "delete_runner_volume",
+    title: "Delete Runner Volume",
     read_only_hint: false,
     destructive_hint: true,
-    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:clear)),
-    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:clear))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:delete)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:delete))
 
   @impl EMCP.Tool
   def description,
     do:
-      "Clear saved volume contents after user confirmation. This cannot be undone. Running jobs retain private copies but cannot save them; later jobs start empty. Requires account administration or the account:runners:write scope."
+      "Delete a volume and its saved contents after user confirmation. This cannot be undone. Running jobs retain private copies but cannot save them; later jobs with the same key start empty. Requires account administration or the account:runners:write scope."
 
-  def execute(conn, args), do: Tuist.MCP.Components.Tools.RunnerVolumeTools.execute(:clear, conn, args)
+  def execute(conn, args), do: Tuist.MCP.Components.Tools.RunnerVolumeTools.execute(:delete, conn, args)
 end

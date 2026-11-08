@@ -23,7 +23,7 @@ Use the project's failure history to repair shared state, timing assumptions, an
 
 Quarantine can be manual or automated where supported. Assign an owner, keep a repair issue, and periodically review whether a muted test has become reliable. Prefer retaining execution when that evidence is useful; skipping may be appropriate when a test cannot safely run.
 
-Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir detection requires retries and quarantine is not applied there yet. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests) before enabling a policy.
+Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir supports cross-run detection without retries and mute/skip quarantine with recent authenticated `tuist_ex` versions. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`; failed policy lookups run all tests. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests), including Cargo and canary Once support, before enabling a policy.
 
 ## Investigate with an agent
 
@@ -37,9 +37,5 @@ Ask it to group failure signatures, distinguish shared-environment failures from
 2. Select one frequently failing test and inspect every reported attempt, not only the green rerun.
 3. Reproduce the likely cause, such as shared state, an unbounded wait, or an unavailable dependency. Apply a targeted fix; quarantine only if containment is needed.
 4. Measure failure and retry frequency after the change, and remove quarantine when evidence supports it.
-
-## Limitations
-
-Insights cover reported results only. Different environments can explain different outcomes on the same code; classification is a signal to investigate. Quarantine can conceal real regressions and is not a replacement for fixing tests. Retries cost compute and can hide failures if earlier attempts are not reported. Faster machines or test sharding do not inherently fix flakiness.
 
 Related: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and the [Tests feature guide](/marketing-markdown/tests).

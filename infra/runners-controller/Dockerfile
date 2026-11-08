@@ -42,7 +42,12 @@ RUN set -eu; \
       arm64) sum=ac9c8efac980bb0505ead384d087e2acb6486fd8498691a2165fa174ec6118c2 ;; \
       *) echo "no pinned git-lfs for $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    wget -q -O /tmp/git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${TARGETARCH}-v${GIT_LFS_VERSION}.tar.gz"; \
+    # busybox wget has no retry option, and a single GitHub 5xx would fail the release.
+    for attempt in 1 2 3 4 5; do \
+      wget -q -O /tmp/git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${TARGETARCH}-v${GIT_LFS_VERSION}.tar.gz" && break; \
+      [ "$attempt" -lt 5 ] || exit 1; \
+      sleep $((attempt * 5)); \
+    done; \
     echo "$sum  /tmp/git-lfs.tar.gz" | sha256sum -c -; \
     tar -xzf /tmp/git-lfs.tar.gz -C /tmp; \
     install -D -m 0755 "/tmp/git-lfs-${GIT_LFS_VERSION}/git-lfs" /out/git-lfs

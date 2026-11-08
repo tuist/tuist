@@ -112,11 +112,11 @@ test('does not retry unmarked HTTP errors or log private response bodies', async
   }
 });
 
-test('explains the account sandbox limit without retrying', async () => {
+test('explains the account on-node Orb limit without retrying', async () => {
   const { code, output, requests } = await dispatch({}, () => ({ status: 429, headers: { 'X-Tuist-Orb-Refusal': 'sandbox-limit' } }));
   assert.notEqual(code, 0);
   assert.equal(requests.length, 1);
-  assert.match(output, /sandbox limit/);
+  assert.match(output, /limit of Orbs kept on sandbox nodes/);
   assert.match(output, /paused Orbs count/);
   assert.doesNotMatch(output, /private-response-body/);
 });
@@ -157,6 +157,31 @@ test('managed dispatch rereads the rotated workload token and ignores a requeste
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test('managed spawns forward the orb type and explain an unknown one; standalone spawns keep their shape', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-type-'));
+  const identity = join(directory, 'token');
+  try {
+    await writeFile(identity, 'identity');
+    const managed = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos' });
+    assert.equal(managed.code, 0, managed.output);
+    assert.equal(managed.requests[0].body.orb_type, 'macos');
+
+    const unknown = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'gpu' },
+      () => ({ status: 400, headers: { 'X-Tuist-Orb-Refusal': 'unknown-orb-type' } }));
+    assert.notEqual(unknown.code, 0);
+    assert.equal(unknown.requests.length, 1);
+    assert.match(unknown.output, /does not offer the orb type 'gpu'/);
+
+    const pause = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos', ORB_OPERATION: 'pause', ORB_TOKEN: '' });
+    assert.equal(pause.requests[0].body.orb_type, undefined);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+
+  const standalone = await dispatch({ ORB_TYPE: 'macos' });
+  assert.equal(standalone.code, 0, standalone.output);
+  assert.equal(standalone.requests[0].body.orb_type, undefined);
+  assert.equal(standalone.requests[0].body.template, 'default');
+});
+
 const admission = status => ({ status, headers: { 'X-Tuist-Orb-Retry': 'admission' } });
 
 test('never retries an ambiguous transport failure', async () => {
@@ -188,6 +213,7 @@ test('stops at the admission deadline instead of making another request', async 
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
   assert.match(output, /Timed out waiting for sandbox capacity/);
+  assert.match(output, /archiving a paused Orb/);
 });
 
 test('HTTP time counts against the wait deadline', async () => {
@@ -205,7 +231,7 @@ test('allows disabling waiting and rejects invalid or extended wait budgets', as
   const { code, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '0' }, () => admission(429));
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
-  for (const value of ['151', '-1', '1.5', 'forever', '99999999999999999', '08']) {
+  for (const value of ['91', '150', '-1', '1.5', 'forever', '99999999999999999', '08']) {
     const result = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: value });
     assert.equal(result.code, 1);
     assert.equal(result.requests.length, 0);

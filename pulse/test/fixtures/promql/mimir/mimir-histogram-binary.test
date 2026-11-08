@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Binary operations on native histograms
+load 5m
+  first_histogram{job="test"}    {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  second_histogram{job="test"}   {{schema:0 sum:10 count:6 buckets:[1 2 1]}}
+  third_histogram{job="control"} {{schema:0 sum:15 count:5 buckets:[3 4 2]}}
+  metric{job="test"}             2
+
+eval instant at 0 first_histogram + second_histogram
+  {job="test"} {{schema:0 sum:15 count:10 buckets:[2 4 2]}}
+
+eval instant at 0 second_histogram - first_histogram
+  {job="test"} {{schema:0 sum:5 count:2 buckets:[0 0 0]}}
+
+# Cannot multiply two histograms
+eval instant at 0 first_histogram * second_histogram
+  expect info
+  expect no_warn
+
+# Cannot divide a histogram by a histogram
+eval instant at 0 first_histogram / second_histogram
+  expect info
+  expect no_warn
+
+# Histogram multiplied by float
+eval instant at 0 first_histogram * metric
+  {job="test"} {{schema:0 count:8 sum:10 buckets:[2 4 2]}}
+
+# Works in either order
+eval instant at 0 metric * first_histogram
+  {job="test"} {{schema:0 count:8 sum:10 buckets:[2 4 2]}}
+
+# Histogram divide by float
+eval instant at 0 first_histogram / metric
+  {job="test"} {{schema:0 count:2 sum:2.5 buckets:[0.5 1 0.5]}}
+
+# Cannot divide a float by a histogram
+eval instant at 0 metric / first_histogram
+  expect info
+  expect no_warn
+
+# Cannot add a float to a histogram
+eval instant at 0 first_histogram + metric
+  expect info
+  expect no_warn
+
+# Cannot subtract a float from a histogram
+eval instant at 0 first_histogram - metric
+  expect info
+  expect no_warn
+
+# Cannot perform atan2 on a histogram.
+eval instant at 0 first_histogram atan2 metric
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 first_histogram ^ second_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 first_histogram ^ metric
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 metric ^ first_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 first_histogram % second_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 first_histogram % metric
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 metric % first_histogram
+  expect info
+  expect no_warn
+
+clear
+
+# One-to-one matching with all labels
+load 5m
+  first_histogram{env="prod",pod="pod-abc123"}    {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  first_histogram{env="dev",pod="pod-abc123"}     {{schema:0 sum:10 count:5 buckets:[2 3 2]}}
+  first_histogram{env="dev",pod="pod-xyz456"}     {{schema:0 sum:9 count:5 buckets:[2 3 1]}}
+  second_histogram{env="prod",pod="pod-abc123"}   {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  second_histogram{env="dev",pod="pod-abc123"}    {{schema:0 sum:10 count:5 buckets:[2 3 2]}}
+  second_histogram{env="dev",pod="pod-mno789"}    {{schema:0 sum:5 count:4 buckets:[1 1 1]}}
+
+eval instant at 0 first_histogram + second_histogram
+  {env="prod",pod="pod-abc123"} {{schema:0 sum:10 count:8 buckets:[2 4 2]}}
+  {env="dev",pod="pod-abc123"}  {{schema:0 sum:20 count:10 buckets:[4 6 4]}}
+
+eval instant at 0 second_histogram - first_histogram
+  {env="prod",pod="pod-abc123"} {{schema:0 sum:0 count:0 buckets:[0 0 0]}}
+  {env="dev",pod="pod-abc123"}  {{schema:0 sum:0 count:0 buckets:[0 0 0]}}
+
+clear
+
+load 5m
+  first_histogram{job="test"}    {{schema:0 sum:6 count:3 buckets:[1 2 3]}} {{schema:0 sum:12 count:6 buckets:[2 4 6]}} {{schema:0 sum:18 count:9 buckets:[3 6 9]}} {{schema:0 sum:24 count:12 buckets:[4 8 12]}}
+  second_histogram{job="test"}   {{schema:0 sum:6 count:3 buckets:[1 2 3]}} {{schema:0 sum:12 count:6 buckets:[2 4 6]}} {{schema:0 sum:18 count:9 buckets:[3 6 9]}} {{schema:0 sum:24 count:12 buckets:[4 8 12]}}
+
+# Test range query with native histograms
+eval range from 0 to 15m step 5m first_histogram + second_histogram
+  {job="test"} {{schema:0 sum:12 count:6 buckets:[2 4 6]}} {{schema:0 sum:24 count:12 buckets:[4 8 12]}} {{schema:0 sum:36 count:18 buckets:[6 12 18]}} {{schema:0 sum:48 count:24 buckets:[8 16 24]}}
+
+clear
+
+# Mixed float and histogram metrics
+load 1m
+  mixed_metric{job="test"}  10 1                                            2                                             3                                            {{schema:0 sum:6 count:3 buckets:[1 2 3]}}     {{schema:0 sum:12 count:6 buckets:[2 4 6]}}
+  another_mixed{job="test"} 10 {{schema:0 sum:12 count:6 buckets:[2 4 6]}}  {{schema:0 sum:12 count:6 buckets:[2 4 6]}}   4                                            5                                              {{schema:0 sum:12 count:6 buckets:[2 4 6]}}
+#                           @0 @5m                                          @10m                                          @15m                                         @20m                                           @25m
+
+eval range from 0 to 5m step 1m mixed_metric + another_mixed
+  expect info
+  expect no_warn
+  {job="test"}              20 _                                            _                                             7                                            _                                              {{schema:0 sum:24 count:12 buckets:[4 8 12]}}
+
+eval range from 0 to 5m step 1m mixed_metric - another_mixed
+  expect info
+  expect no_warn
+  {job="test"}              0  _                                            _                                             -1                                           _                                              {{schema:0 sum:0 count:0}}
+
+eval range from 0 to 5m step 1m mixed_metric * another_mixed
+  expect info
+  expect no_warn
+  {job="test"}              100 {{schema:0 sum:12 count:6 buckets:[2 4 6]}} {{schema:0 sum:24 count:12 buckets:[4 8 12]}}  12                                           {{schema:0 sum:30 count:15 buckets:[5 10 15]}} _
+
+eval range from 0 to 5m step 1m mixed_metric / another_mixed
+  expect info
+  expect no_warn
+  {job="test"}              1  _                                            _                                             0.75                                         {{schema:0 sum:1.2 count:0.6 buckets:[0.2 0.4 0.6]}} _
+
+clear
+
+# Test mixtures of histograms with exponential and custom buckets.
+load 1m
+  left   {{schema:0 sum:1 count:1 buckets:[1]}}  {{schema:0 sum:1 count:1 buckets:[1]}}                           {{schema:-53 sum:1 count:3 custom_values:[2 3] buckets:[1 2]}}   {{schema:-53 sum:1 count:3 custom_values:[2 3] buckets:[1 2]}}
+  right  {{schema:0 sum:3 count:4 buckets:[4]}}  {{schema:-53 sum:1 count:3 custom_values:[5 10] buckets:[1 2]}}  {{schema:-53 sum:1 count:3 custom_values:[5 10] buckets:[1 2]}}  {{schema:-53 sum:2 count:6 custom_values:[2 3] buckets:[5 2]}}
+
+# info is for nhcb reconciliation of different custom values
+# warning is for mixed exponential and custom buckets
+eval range from 0 to 3m step 1m left + right
+  expect info msg: PromQL info: mismatched custom buckets were reconciled during addition (1:1)
+  expect warn msg: PromQL warning: incompatible bucket layout encountered for binary operator + (1:1)
+  {}     {{schema:0 sum:4 count:5 buckets:[5]}}  _                                                                {{schema:-53 count:6 sum:2 buckets:[6]}}                         {{schema:-53 sum:3 count:9 custom_values:[2 3] buckets:[6 4]}}
+
+clear

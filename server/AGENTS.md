@@ -47,7 +47,7 @@ PostgreSQL is the primary database; ClickHouse analytics writes use `IngestRepo`
 
 ## Translations
 
-- Use `dgettext/2` for translatable text. Run `mix gettext.extract` after adding/changing or moving translated calls (CI checks source-line references) and commit only `.pot` templates alongside code; the Glossia GitHub App manages translations.
+- Use `dgettext/2` for translatable text. Run `mise run gettext:extract` (it force-recompiles in its own build path, away from a running dev server) after adding/changing or moving translated calls (CI checks source-line references) and commit only `.pot` templates alongside code; the Glossia GitHub App manages translations.
 - Never run `mix gettext.extract --merge` or edit `.po` files.
 - Currency symbols and monetary amounts are not translatable; surrounding descriptions such as "and up" or "per unit" are. Example: `"0€ " <> dgettext("marketing", "and up")`.
 - Improve translation quality through inherited `L10N.md` context and `L10N/<locale>.md` guidance. Declare shared glossary terms as a list in `L10N.md` and locale translations as a map in the locale file's frontmatter. Follow the [Glossia configuration](https://glossia.ai/docs/reference/l10n-md) and [glossary](https://glossia.ai/docs/reference/glossary) schemas; the CLI does not translate or validate.
@@ -127,6 +127,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
 
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
+
+LVM region enrollment encrypts all Kura claims by default and selects the
+extended disk resource. BER1 stays on its legacy class until explicitly
+enrolled after rack plugin/host preparation; the account flag alone cannot
+move it onto file-backed encryption. Desired and rendered manifest revisions
+must include both encryption and LVM enrollment identically.
 
 ## Deployment
 

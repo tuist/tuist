@@ -5,13 +5,20 @@ source "$(dirname "$0")/lib.sh"
 trap 'fail "Linux image/runtime" "a runtime assertion failed at line ${LINENO}"' ERR
 
 test "$(id -u)" != 0
-test "${ImageOS:-}" = ubuntu22
+# Profiles can select different Ubuntu releases. Setup actions need ImageOS
+# to describe the actual image, not a fixed acceptance-profile version.
+source /etc/os-release
+test "$ID" = ubuntu
+expected_image_os="ubuntu${VERSION_ID%%.*}"
+if [ "${ImageOS:-}" != "$expected_image_os" ]; then
+  fail "Linux image/runtime" "ImageOS=${ImageOS:-<unset>}, expected ${expected_image_os} for ${ID} ${VERSION_ID}"
+fi
 test -c /dev/kvm
 test -r /dev/kvm
 test -w /dev/kvm
 printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
-for executable in dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh runner-shell-agent tuist-cache-volume tuist-gitlab-runner; do
+for executable in dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh runner-shell-agent tuist-cache-volume tuist-gitlab-runner tuist-job-runner; do
   test -x "/usr/local/bin/${executable}"
 done
 test -x /home/runner/actions-runner/externals/tuist-cache-volume

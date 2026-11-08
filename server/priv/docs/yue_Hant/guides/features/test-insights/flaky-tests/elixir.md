@@ -2,69 +2,61 @@
 {
   "title": "Elixir 不穩定測試",
   "titleTemplate": ":title · 不穩定測試 · 測試洞察 · 功能 · 指南 · Tuist",
-  "description": "偵測及管理以 Mix 構建嘅 Elixir 專案中嘅不穩定測試。"
+  "description": "偵測及管理以 Mix 構建的 Elixir 專案中的不穩定測試。"
 }
 ---
 # Elixir 不穩定測試 {#elixir-flaky-tests}
 
-不穩定測試係指用同一份代碼多次運行時，會產生唔同結果（通過或失敗）嘅測試。佢哋會削弱你對測試套件嘅信任，亦會浪費開發人員時間去調查虛假失敗。Tuist 會自動偵測不穩定測試，並幫你隨住時間追蹤佢哋。
+> [!IMPORTANT]
+> **必要條件**
+>
+> - 完成<.localized_link href="/guides/get-started/elixir-project">共用 Elixir 設定</.localized_link>以回報你的測試執行
 
-> [!IMPORTANT] REQUIREMENTS
-> - 完成 <.localized_link href="/guides/get-started/elixir-project">共享 Elixir 設定</.localized_link> 以報告你嘅測試運行
+<!-- @snippet: ./_intro -->
 
-![Phoenix 應用程式嘅不穩定測試](/images/guides/features/elixir/flaky-tests.png)
+![Phoenix 應用程式的不穩定測試](/images/guides/features/elixir/flaky-tests.png)
 
-## 不穩定偵測點樣運作 {#how-it-works}
+## 不穩定偵測如何運作 {#how-it-works}
 
-Tuist 透過兩種方式偵測不穩定測試：
+Tuist 會以兩種方式偵測不穩定測試：
 
 ### 測試重試 {#test-retries}
 
-ExUnit 每次只運行每個測試一次，所以間歇性失敗嘅測試睇落同壞咗嘅測試一樣。啟用重試後，Hex 套件會再次運行失敗嘅測試，最多達到你設定嘅次數。如果重試時通過，該測試會被標記為不穩定；如果所有失敗嘅測試最終都通過，則運行成功。
+ExUnit 只會執行每個測試一次，因此間歇性失敗的測試看起來與已損壞的測試無異。啟用重試後，Hex 套件會再次執行失敗的測試，最多重試你設定的次數。如果在重試中通過，該測試會被標記為不穩定；只要所有失敗的測試最終都通過，整個執行就會成功。
 
-預設情況下重試係關閉嘅。將 `test_retries` 加入你喺 `mix.exs` 中現有嘅 Tuist 選項以启用佢哋：
+預設會停用重試。在 `mix.exs` 的現有 Tuist 選項中加入 `test_retries` 以啟用：
 
 ```elixir
 tuist: [project: "account/project", cache: true, test_retries: 2]
 ```
 
-或者對於單次運行，使用標誌或環境變數：
+或者針對單次執行，使用旗標或環境變數：
 
 ```bash
 mix test --retries 2
 TUIST_TEST_RETRIES=2 mix test
 ```
 
-標誌優先於環境變數，而環境變數優先於 `mix.exs`。
+旗標優先於環境變數，而環境變數優先於 `mix.exs`。
 
-只有失敗嘅測試會再次運行，就像 `mix test --failed` 運行佢哋嘅方式一樣，儀表板會顯示每次測試嘗試及其耗時。如果 ExUnit 因為 `--max-failures` 而提前停止運行，則不會重試。如果運行中所有失敗嘅測試都超時，亦不會重試，因為每次重試都會再次等待所有超時。使用 `--warnings-as-errors` 時亦會跳過重試，此時 `mix test` 將不再強制執行；另外，從 umbrella 項目嘅根目錄運行時亦會跳過重試；請喺其中一個應用程式內部運行測試以進行重試。
+只有失敗的測試會再次執行，方式如同 `mix test --failed` 執行它們；儀表板會顯示每次測試嘗試及其耗時。如果 ExUnit 因 `--max-failures` 而提早停止執行，則不會重試。如果失敗的測試全部逾時，也不會重試，因為每次重試都會再次等待所有逾時。使用 `--warnings-as-errors` 時也會略過重試，此時 `mix test` 不再強制執行；此外，從 umbrella 專案的根目錄執行時也會略過重試；請在 umbrella 內的其中一個應用程式中執行測試以進行重試。
 
-![一個不穩定嘅 ExUnit 測試及其歷史記錄](/images/guides/features/elixir/flaky-test-case.png)
+![不穩定的 ExUnit 測試及其歷史記錄](/images/guides/features/elixir/flaky-test-case.png)
 
-### 跨運行偵測 {#cross-run-detection}
+### 跨執行偵測 {#cross-run-detection}
 
-即使沒有測試重試，Tuist 亦可以透過比較同一提交上唔同 CI 運行嘅結果來偵測不穩定測試。如果一個測試喺一次 CI 運行中通過，但在同一提交嘅另一次運行中失敗，則兩次運行都會被標記為不穩定。
+即使沒有測試重試，Tuist 仍可透過比較同一提交在不同 CI 執行中的結果來偵測不穩定測試。如果某個測試在一次 CI 執行中通過，但在同一提交與方案標籤（`--scheme`）的另一次執行中失敗，則該失敗的執行會被標記為不穩定。
 
-這對於捕捉那些失敗頻率不足以被重試捕捉、但仍會導致間歇性 CI 失敗嘅不穩定測試特別有用。
+這對於捕捉那些失敗頻率不足以被重試機制抓到、但仍會導致間歇性 CI 失敗的不穩定測試特別有用。
 
-## 管理不穩定測試 {#managing-flaky-tests}
-
-### 自動清除
-
-偵測和清除係透過項目上嘅 **自動化警報** 進行。每個項目都會獲得一個默認嘅「不穩定測試偵測」自動化，其 *觸發器* 會將測試標記為不穩定，而其 *恢復* 機制會在測試經過配置嘅恢復窗口（默認 **14 天**）且未重新觸發後清除該標記。你可以喺 **設定 → 自動化** 下編輯它以更改恢復窗口或完全禁用恢復，令測試保持標記為不穩定，直到你手動清除佢哋。
-
-### 手動管理
-
-你亦可以喺測試案例詳情頁面手動標記或取消標記測試為不穩定。這喺以下情況很有用：
-- 你想喺修復已知不穩定測試時確認佢
-- 測試因基礎設施問題而被錯誤標記
+<!-- @snippet: ./_managing -->
 
 ## 隔離不穩定測試 {#quarantining}
 
-隔離可以防止不穩定測試喺你修復期間阻塞 CI。喺儀表板嘅測試頁面中，將其狀態更改為 **靜音** 或 **跳過**，或者喺 **設定 → 自動化** 下配置一個自動化，當測試變為不穩定時將其靜音或跳過，並在恢復後重新啟用。喺運行測試之前，`mix test` 會讀取項目中每個被隔離嘅測試並應用佢哋：
+隔離可防止不穩定測試在你修復期間阻礙 CI。在儀表板的測試頁面中，將其狀態改為**靜音**或**略過**，或在**設定 → 自動化**下設定自動化規則，讓測試在不穩定時自動靜音或略過，並在恢復後重新啟用。在執行測試前，`mix test` 會讀取專案中所有已隔離的測試並套用：
 
-- **靜音**：測試會運行，其失敗仍會被報告，但如果運行中唯一嘅失敗都係靜音測試，則運行會通過。重試仍會重新運行失敗嘅靜音測試，所以不穩定測試可能通過並被報告為不穩定。
-- **跳過**：測試不會運行。`mix test` 會喺運行開始前列出被跳過嘅測試。
+- **靜音**：測試仍會執行且失敗仍會被回報，但如果執行中唯一的失敗來自靜音測試，則該執行視為通過。重試仍會重新執行失敗的靜音測試，因此不穩定測試可能在重試中通過並被標記為不穩定。
+- **略過**：測試不會執行。`mix test` 會在執行開始前列出被略過的測試。
 
 ```text
 Tuist: skipping 1 quarantined test:
@@ -72,46 +64,44 @@ Tuist: skipping 1 quarantined test:
 Tuist: 1 muted test run, and their failures do not fail the run.
 ```
 
-如果任何非靜音測試失敗，或者 ExUnit 因為 `--max-failures` 而提前停止，運行就會像往常一樣失敗。
+如果任何非靜音測試失敗，或 ExUnit 因 `--max-failures` 而提早停止，執行就會像往常一樣失敗。
 
 > [!WARNING]
 > **限制**
 >
-> - 只有較新版本嘅 Hex 套件會應用隔離。較舊版本會像其他測試一樣運行靜音和跳過嘅測試，所以靜音測試嘅失敗仍會導致運行失敗。喺依賴佢之前，請更新 `tuist_ex`。
-> - 使用 `--warnings-as-errors` 或從 umbrella 項目嘅根目錄運行時，不會應用靜音測試。佢哋嘅失敗會導致運行失敗。請改為喺 umbrella 中每個應用程式內部運行測試。
-> - 跳過係根據測試嘅 describe 塊和名稱來匹配，而非其模組。另一個模組中具有相同 describe 塊和名稱嘅測試亦會被跳過。請參閱 [跳過如何選擇測試](#how-skipping-selects-tests)。
-> - 當你使用 `--only`、`--include` 或 `path:line` 選擇跳過嘅測試時，或者當測試唔係用 `test` 聲明時（例如 StreamData `property`），佢仍然會運行。
-> - 如果 `mix test` 無法讀取被隔離嘅測試，佢會運行每個測試並計算每次失敗。
-> - 讀取被隔離嘅測試需要憑證，即使是公開項目亦然。如果運行時沒有 `TUIST_TOKEN`、`mix tuist.login` 會話或持續集成身份令牌，則不會應用任何隔離。這包括來自 fork 嘅拉取請求，佢哋通常喺沒有密鑰嘅情況下運行。
-> - 使用 `--cover` 時，被跳過嘅測試會計為已移除：只有佢覆蓋嘅行會被報告為未覆蓋。
+> - 只有較新版本的 Hex 套件才會套用隔離。較舊版本會像其他測試一樣執行靜音和略過的測試，因此靜音測試的失敗仍會導致執行失敗。在依賴此功能前，請更新 `tuist_ex`。
+> - 使用 `--warnings-as-errors` 或從 umbrella 專案的根目錄執行時，不會套用靜音測試。此時這些測試的失敗會導致執行失敗。請改為在 umbrella 內的每個應用程式中執行測試。
+> - 略過是根據測試的 describe 區塊與名稱來比對，而非模組。另一個模組中具有相同 describe 區塊與名稱的測試也會被略過。請參閱[略過如何選擇測試](#how-skipping-selects-tests)。
+> - 當你使用 `--only`、`--include` 或 `path:line` 選取測試，或測試並非以 `test` 宣告（例如 StreamData 的 `property`）時，被略過的測試仍會執行。
+> - 如果 `mix test` 無法讀取已隔離的測試，它會執行所有測試並計算所有失敗。
+> - 讀取已隔離的測試需要憑證，即使是公開專案亦然。如果執行時沒有 `TUIST_TOKEN`、`mix tuist.login` 工作階段或持續整合身分令牌，則不會套用任何隔離。這包括來自分叉的拉取請求，它們通常在没有密鑰的情況下執行。
+> - 使用 `--cover` 時，被略過的測試會被視為移除：僅由該測試涵蓋的行會被回報為未涵蓋。
 >
-> `mix test` 會喺總結之後列出被錯誤遺漏嘅測試，以及仍然運行嘅被跳過測試。
+> `mix test` 會在摘要之後列出因略過而錯誤遺漏的測試，以及仍被執行的略過測試。
 
-### 跳過如何選擇測試 {#how-skipping-selects-tests}
+### 略過如何選擇測試 {#how-skipping-selects-tests}
 
-被跳過嘅測試係透過对其全名應用 ExUnit 過濾器來排除嘅，例如 `--exclude "test:test create_order/2 times out"`。ExUnit 過濾器無法同時匹配模組，所以：
+被略過的測試會透過基於其完整名稱的 ExUnit 篩選器排除，例如 `--exclude "test:test create_order/2 times out"`。ExUnit 篩選器無法同時比對模組，因此：
 
-- 另一個模組中具有相同 describe 塊和名稱嘅測試亦會被排除。`mix test` 會喺運行之後列出這些測試。
-- 當你使用 `--only`、`--include` 或 `path:line` 選擇測試時，即使佢被跳過亦會運行，因為 ExUnit 會喺排除過濾器之後應用包含過濾器。唔係用 `test` 聲明嘅測試（例如 StreamData `property`）亦然。`mix test` 會喺運行之後列出這些測試。
+- 另一個模組中具有相同 describe 區塊與名稱的測試也會被排除。`mix test` 會在執行後列出這些測試。
+- 當你使用 `--only`、`--include` 或 `path:line` 選取測試時，即使該測試已被略過仍會執行，因為 ExUnit 會在排除篩選器之後套用包含篩選器。並非以 `test` 宣告的測試（例如 StreamData 的 `property`）也是如此。`mix test` 會在執行後列出這些測試。
 
-### 再次運行被隔離嘅測試 {#running-quarantined-tests-again}
+### 再次執行已隔離的測試 {#running-quarantined-tests-again}
 
-傳遞 `--no-quarantine` 以運行每個測試並計算每次失敗，例如用於檢查修復：
+傳遞 `--no-quarantine` 以執行所有測試並計算所有失敗，例如用於驗證修復：
 
 ```bash
 mix test --no-quarantine
 ```
 
-喺測試頁面將其狀態恢復為 **啟用**，以便喺後續運行中包含佢。被跳過嘅測試喺再次運行之前不會產生新結果。
+在測試頁面將其狀態改回**啟用**，以便在後續執行中包含它。被略過的測試在再次執行之前不會產生新結果。
 
-如果 `mix test` 無法讀取被隔離嘅測試，佢會打印警告並運行所有測試而唔應用隔離。如果沒有憑證或已配置嘅項目，佢會運行所有測試而唔顯示警告。
+如果 `mix test` 無法讀取已隔離的測試，它會印出警告並執行所有測試（不套用隔離）。如果沒有憑證或未設定專案，它會執行所有測試且不會印出警告。
 
 Hex 套件尚未對新測試進行壓力測試。
 
-## Slack 通知 {#slack-notifications}
-
-透過喺你嘅 Slack 整合中設定 <.localized_link href="/guides/integrations/slack#flaky-test-alerts">測試不穩定提醒</.localized_link>，即時收到測試變得不穩定嘅通知。
+<!-- @snippet: ./_slack -->
 
 ## 查詢不穩定狀態 {#querying}
 
-數據可透過 HTTP 獲取。請參閱 API 參考中嘅 [測試案例端點](https://tuist.dev/api/docs#tag/test-cases)，以獲取完整嘅路由、過濾器和響應字段列表。要將測試案例標記或取消標記為不穩定，請發送帶有 `is_flaky` 嘅 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`，或使用 `update_test_case` Model Context Protocol 工具。
+資料可透過 HTTP 存取。請參閱 API 參考文件中的[測試案例端點](https://tuist.dev/api/docs#tag/test-cases)，以取得完整的路由、篩選器及回應欄位清單。若要將測試案例標記或取消標記為不穩定，請傳送帶有 `is_flaky` 的 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`，或使用 `update_test_case` Model Context Protocol 工具。

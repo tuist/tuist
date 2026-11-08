@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for double_exponential_smoothing
+clear
+
+# positive trends
+load 10s
+	http_requests{job="api-server", instance="0", group="production"}	0+10x1000 100+30x1000
+	http_requests{job="api-server", instance="1", group="production"}	0+20x1000 200+30x1000
+	http_requests{job="api-server", instance="0", group="canary"}		0+30x1000 300+80x1000
+	http_requests{job="api-server", instance="1", group="canary"}		0+40x2000
+	http_requests_mix{job="api-server", instance="0", group="production"}	0+10x1000 100+30x1000 {{schema:0 count:1 sum:2}}x1000
+	http_requests_mix{job="api-server", instance="1", group="production"}	0+20x1000 200+30x1000 {{schema:0 count:1 sum:2}}x1000
+	http_requests_mix{job="api-server", instance="0", group="canary"}		0+30x1000 300+80x1000 {{schema:0 count:1 sum:2}}x1000
+	http_requests_mix{job="api-server", instance="1", group="canary"}		0+40x2000 {{schema:0 count:1 sum:2}}x1000
+	http_requests_histogram{job="api-server", instance="1", group="canary"}	{{schema:0 count:1 sum:2}}x1000
+
+eval instant at 8000s double_exponential_smoothing(http_requests[1m], 0.01, 0.1)
+	expect no_info
+	{job="api-server", instance="0", group="production"} 8000
+	{job="api-server", instance="1", group="production"} 16000
+	{job="api-server", instance="0", group="canary"} 24000
+	{job="api-server", instance="1", group="canary"} 32000
+
+# double_exponential_smoothing should ignore histograms in a mixed range of floats and histograms, flagged by an info annotation.
+eval instant at 20010s double_exponential_smoothing(http_requests_mix[1m], 0.01, 0.1)
+	expect info
+	{job="api-server", instance="0", group="production"} 30100
+	{job="api-server", instance="1", group="production"} 30200
+	{job="api-server", instance="0", group="canary"} 80300
+	{job="api-server", instance="1", group="canary"} 80000
+
+# double_exponential_smoothing should silently ignore ranges consisting only of histograms.
+eval instant at 10000s double_exponential_smoothing(http_requests_histogram[1m], 0.01, 0.1)
+	expect no_info
+	#empty
+
+# negative trends
+clear
+load 10s
+	http_requests{job="api-server", instance="0", group="production"}	8000-10x1000
+	http_requests{job="api-server", instance="1", group="production"}	0-20x1000
+	http_requests{job="api-server", instance="0", group="canary"}		0+30x1000 300-80x1000
+	http_requests{job="api-server", instance="1", group="canary"}		0-40x1000 0+40x1000
+
+eval instant at 8000s double_exponential_smoothing(http_requests[1m], 0.01, 0.1)
+	{job="api-server", instance="0", group="production"} 0
+	{job="api-server", instance="1", group="production"} -16000
+	{job="api-server", instance="0", group="canary"} 24000
+	{job="api-server", instance="1", group="canary"} -32000
+

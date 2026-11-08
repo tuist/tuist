@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,9 +48,11 @@ import java.security.MessageDigest
 
 @Composable
 fun ProfileScreen(
+    onNotificationsClick: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
+    val isAIEnabled by viewModel.isAIEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
@@ -96,7 +99,8 @@ fun ProfileScreen(
                     Spacer(Modifier.height(NooraSpacing.Spacing4))
                     Text(
                         text = "@${acct.handle}",
-                        style = MaterialTheme.typography.bodyLarge,
+                        // Resolve the direction from the handle so the leading "@" stays in front of it in RTL.
+                        style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -124,6 +128,20 @@ fun ProfileScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+            if (isAIEnabled) {
+                AISubscriptionsSection()
+                Spacer(Modifier.height(NooraSpacing.Spacing3))
+            }
+
+            SectionCard {
+                LinkRow(
+                    title = stringResource(R.string.notifications_title),
+                    onClick = onNotificationsClick,
+                )
             }
 
             Spacer(Modifier.height(NooraSpacing.Spacing5))
@@ -218,7 +236,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun SectionCard(content: @Composable () -> Unit) {
+internal fun SectionCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

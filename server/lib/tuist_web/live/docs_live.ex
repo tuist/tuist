@@ -5,9 +5,11 @@ defmodule TuistWeb.DocsLive do
 
   import TuistWeb.Docs.MarkdownComponents, warn: false
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias Tuist.Docs.Redirects
+  alias Tuist.Docs.ReleaseStatus
   alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
@@ -34,6 +36,8 @@ defmodule TuistWeb.DocsLive do
     socket =
       socket
       |> assign(:locale, locale)
+      |> assign(:release_status, AsyncResult.loading())
+      |> assign(:release_refresh_timer, nil)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -44,6 +48,13 @@ defmodule TuistWeb.DocsLive do
   end
 
   def handle_params(params, url, socket) do
+    if socket.assigns.release_refresh_timer, do: Process.cancel_timer(socket.assigns.release_refresh_timer)
+
+    socket =
+      socket
+      |> assign(:release_refresh_timer, nil)
+      |> assign(:release_status, AsyncResult.loading())
+
     case socket.assigns.live_action do
       :overview -> handle_overview(socket)
       :show -> handle_show(params, url, socket)
@@ -56,7 +67,7 @@ defmodule TuistWeb.DocsLive do
     root_path = Paths.root_path(locale)
 
     description =
-      "Build, test, and run Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist's shared build infrastructure."
+      "Build, test, and run Xcode, Gradle, Bazel, Elixir, Rust, and Once projects with Tuist's shared build infrastructure."
 
     {:noreply,
      socket
@@ -125,10 +136,36 @@ defmodule TuistWeb.DocsLive do
          |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")
          |> assign(:head_markdown_path, Paths.markdown_path_from_slug(path))
+         |> load_release_status(path)
          |> StructuredMarkup.put_structured_data([
            StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),
            StructuredMarkup.get_breadcrumbs_structured_data(docs_breadcrumbs(page.title, locale, public_path))
          ])}
+    end
+  end
+
+  def handle_info(:refresh_release_status, %{assigns: %{view: :show}} = socket) do
+    {:noreply, load_release_status(socket, socket.assigns.requested_slug)}
+  end
+
+  def handle_info(:refresh_release_status, socket), do: {:noreply, socket}
+
+  defp load_release_status(socket, path) do
+    components =
+      case path |> String.split("/", trim: true) |> Enum.drop(1) do
+        ["cli", "release", page] when page in ["channels", "calendar"] -> [:cli]
+        ["guides", "server", "self-host", "release", page] when page in ["channels", "calendar"] -> [:server, :kura]
+        _ -> []
+      end
+
+    if connected?(socket) && components != [] do
+      socket
+      |> assign(:release_refresh_timer, Process.send_after(self(), :refresh_release_status, to_timeout(minute: 1)))
+      |> assign_async(:release_status, fn ->
+        {:ok, %{release_status: Map.new(components, &{&1, ReleaseStatus.get(&1)})}}
+      end)
+    else
+      socket
     end
   end
 
@@ -197,7 +234,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
@@ -328,10 +365,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+                    "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -349,7 +386,7 @@ defmodule TuistWeb.DocsLive do
                     "Understand build performance across local and continuous integration environments before slowdowns affect your team."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -398,7 +435,7 @@ defmodule TuistWeb.DocsLive do
                     "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -413,10 +450,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+                    "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -444,7 +481,7 @@ defmodule TuistWeb.DocsLive do
                     "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
                   )}
                 </p>
-                <.supported_for systems={~w(apple android)} />
+                <.supported_for systems={~w(apple android once)} />
               </div>
             </.link>
           </div>
@@ -475,7 +512,7 @@ defmodule TuistWeb.DocsLive do
                     "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -718,7 +755,7 @@ defmodule TuistWeb.DocsLive do
         "",
         dgettext(
           "docs",
-          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),
@@ -741,7 +778,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+            "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(
@@ -769,7 +806,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Insights"), test_insights_path)}: " <>
           dgettext(
             "docs",
-            "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+            "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
           ),
         "",
         "## " <> dgettext("docs", "Artifacts"),

@@ -20,6 +20,16 @@ import Config
 alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
 
+# Initial Pulse enrollment is one stable organization account ID, never a handle
+# supplied by the browser. Leave unset outside the Tuist deployment.
+config :tuist, :pulse,
+  account_id:
+    if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
+  base_url: System.get_env("TUIST_PULSE_URL"),
+  tenant: System.get_env("TUIST_PULSE_TENANT"),
+  token: System.get_env("TUIST_PULSE_TOKEN"),
+  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
@@ -72,6 +82,13 @@ if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
   end
 end
 
+config :tuist, Tuist.Entire.Client,
+  slug: System.get_env("TUIST_ENTIRE_PLUGIN_SLUG"),
+  private_key: System.get_env("TUIST_ENTIRE_PLUGIN_PRIVATE_KEY"),
+  key_id: System.get_env("TUIST_ENTIRE_PLUGIN_KEY_ID"),
+  core_url: System.get_env("TUIST_ENTIRE_CORE_URL", "https://eu.auth.entire.io"),
+  delivery_jwks_url: System.get_env("TUIST_ENTIRE_DELIVERY_JWKS_URL")
+
 config :tuist, :network_trusted_cache_access, System.get_env("TUIST_NETWORK_TRUSTED_CACHE_ACCESS") == "true"
 
 config :tuist,
@@ -97,6 +114,24 @@ case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
     end
 end
 
+case System.get_env("TUIST_RUNNER_LINUX_OS_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_os_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_LINUX_OS_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleetLinux.osVersions via toJson). Got: #{inspect(json)}"
+
+      os_versions ->
+        config :tuist, :runner_linux_os_versions, os_versions
+    end
+end
+
 case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
   nil ->
     :ok
@@ -115,21 +150,26 @@ case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
     end
 end
 
-case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
-  nil ->
-    :ok
+for {env_var, key} <- [
+      {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+    ] do
+  case System.get_env(env_var) do
+    nil ->
+      :ok
 
-  "" ->
-    :ok
+    "" ->
+      :ok
 
-  raw ->
-    case Integer.parse(raw) do
-      {minutes, ""} when minutes >= 0 ->
-        config :tuist, :runner_free_monthly_minutes, minutes
+    raw ->
+      case Integer.parse(raw) do
+        {minutes, ""} when minutes >= 0 ->
+          config :tuist, key, minutes
 
-      _ ->
-        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
-    end
+        _ ->
+          raise "#{env_var} must be a non-negative integer. Got: #{inspect(raw)}"
+      end
+  end
 end
 
 case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
@@ -190,7 +230,6 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       """
 
   database_config = Tuist.Environment.database_config_from_url(database_url)
-  database_hostname = Keyword.fetch!(database_config, :hostname)
   database_schema = Tuist.Environment.database_schema()
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
@@ -281,12 +320,7 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
-      Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(database_hostname),
-        verify: :verify_none
-      )
-
-      # TODO: Add proper certificate verification
+      Keyword.put(database_options, :ssl, Tuist.Environment.database_ssl_options())
     else
       database_options
     end
@@ -663,19 +697,52 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: Tuist.Environment.google_oauth_client_id(secrets),
   client_secret: Tuist.Environment.google_oauth_client_secret(secrets)
 
-# Mailgun configuration
-if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:prod, :can, :stag] do
-  base_uri =
-    cond do
-      env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"
-      env in [:dev] -> "https://api.mailgun.net/v3"
-    end
+if Tuist.Environment.env() in [:prod, :can, :stag] do
+  case Tuist.Environment.mailing_provider(secrets) do
+    "mailgun" ->
+      if Tuist.Environment.mail_configured?(secrets) do
+        config :tuist, Tuist.Mailer,
+          adapter: Bamboo.MailgunAdapter,
+          api_key: Tuist.Environment.mailgun_api_key(secrets),
+          domain: Tuist.Environment.mailing_domain(secrets),
+          base_uri: "https://api.eu.mailgun.net/v3"
+      end
 
-  config :tuist, Tuist.Mailer,
-    adapter: Bamboo.MailgunAdapter,
-    api_key: Tuist.Environment.mailgun_api_key(secrets),
-    domain: Tuist.Environment.mailing_domain(secrets),
-    base_uri: base_uri
+    "ses" ->
+      if !Tuist.Environment.mail_configured?(secrets) do
+        raise "SES requires TUIST_SES_REGION, TUIST_SES_ACCESS_KEY_ID, TUIST_SES_SECRET_ACCESS_KEY and TUIST_MAILING_FROM_ADDRESS"
+      end
+
+      # Storage uses ExAws too. Never inherit its credentials or region.
+      config :tuist, Tuist.Mailer,
+        adapter: Bamboo.SesAdapter,
+        ex_aws: [
+          region: Tuist.Environment.get([:ses, :region], secrets),
+          access_key_id: Tuist.Environment.get([:ses, :access_key_id], secrets),
+          secret_access_key: Tuist.Environment.get([:ses, :secret_access_key], secrets)
+        ]
+
+    provider ->
+      raise "unsupported mailing provider: #{inspect(provider)}"
+  end
+
+  # Tuist.Mailer sends through SES from this instant on, without a restart.
+  if ses_starts_at = Tuist.Environment.get([:mailing, :ses_starts_at], secrets) do
+    {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+    ex_aws =
+      for key <- [:region, :access_key_id, :secret_access_key] do
+        case Tuist.Environment.get([:ses, key], secrets) do
+          value when value in [nil, ""] ->
+            raise "TUIST_MAILING_SES_STARTS_AT requires TUIST_SES_#{String.upcase(to_string(key))}"
+
+          value ->
+            {key, value}
+        end
+      end
+
+    config :tuist, Tuist.Mailer, ses_cutover: {ses_starts_at, %{adapter: Bamboo.SesAdapter, ex_aws: ex_aws}}
+  end
 end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
@@ -706,6 +773,8 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
+# Push notifications get their own queue for the same reason: a new preview
+# fans out to one APNs request per device of every member who wants it.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 # GitLab coordinator requests may long-poll; isolate them from general background work.
@@ -715,6 +784,8 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
+  threads: 10,
+  remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
@@ -722,6 +793,7 @@ base_queues = [
   automation_notifications: 5,
   vcs_comments: 20,
   webhooks: 20,
+  push: 10,
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,

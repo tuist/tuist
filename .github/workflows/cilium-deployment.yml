@@ -25,11 +25,6 @@ name: Cilium Deployment
 # `needs` rather than a matrix: GitHub does not guarantee matrix
 # execution order, and `max-parallel: 1` only caps concurrency, so a
 # matrix could legally run production first.
-#
-# preview hangs off staging rather than sitting on the production path.
-# It is a real long-lived workload cluster running the same values (see
-# bootstrap-workload.sh), so leaving it out would park it permanently
-# outside reconciliation, but nothing gates on its result.
 
 on:
   push:
@@ -51,7 +46,7 @@ on:
         description: "Which cluster to reconcile"
         type: choice
         default: staging
-        options: [staging, canary, production, preview, all]
+        options: [staging, canary, production, all]
       force_restart:
         description: "Roll the agents even if they already run the current config"
         type: boolean
@@ -75,29 +70,11 @@ jobs:
       force_restart: ${{ inputs.force_restart == true }}
     secrets: inherit
 
-  preview:
-    needs: staging
-    # Off the production path: it must not block canary, and a targeted
-    # dispatch has to reach it with staging skipped. An allow-list rather
-    # than `!= 'failure'`, which would also admit `cancelled` — and
-    # `!cancelled()` does not cover that, since it reports whether this
-    # run was cancelled, not whether the dependency was.
-    if: >-
-      contains(fromJSON('["success","skipped"]'), needs.staging.result)
-      && (github.event_name != 'workflow_dispatch'
-          || inputs.environment == 'all'
-          || inputs.environment == 'preview')
-    uses: ./.github/workflows/cilium-apply.yml
-    with:
-      environment: preview
-      kubeconfig_source: environment_secret
-      force_restart: ${{ inputs.force_restart == true }}
-    secrets: inherit
-
   canary:
     needs: staging
-    # See the preview job for why this is an allow-list. A cancelled
-    # staging must not let canary through: job-level concurrency cancels a
+    # An allow-list rather than `!= 'failure'`, which would also admit
+    # `cancelled`; `!cancelled()` reports whether this run was cancelled,
+    # not whether the dependency was. A cancelled staging must not let canary through: job-level concurrency cancels a
     # *pending* job when a newer one enters the same group, and this lane
     # is shared with hccm and csi, so a csi job queueing at the wrong
     # moment could evict staging and leave the cascade rolling a change

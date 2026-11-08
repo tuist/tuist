@@ -2,6 +2,8 @@
 
 ## Responsibilities
 
+- Arabic renders right to left (`dir` comes from `Tuist.Locale.direction/1`). Use logical inline-axis properties; code, commands, logs and charts stay `direction: ltr`. Charts widened to 105% keep their overflow on the right with `margin-right: -5%`, because ECharts never mirrors. Mark English-only content (blog posts) with `lang="en" dir="ltr"`.
+
 - Authentication login-domain badges distinguish instance trust from DNS proof through separate `instance` and `verified` statuses sharing success tokens. Keep styling scoped to `authentication_settings.css`; discovery ambiguity uses the shared warning alert rather than a false DNS-verification failure.
 - Build environment uses a compact semantic definition list (`#build-environment-grid`) with labels above values, matching Build Details typography across Xcode, Gradle, Bazel, Mix, Cargo and Once. `components/build_metadata.css` shares the responsive 4/2/1-column grid between both cards and keeps environment values wrapping within their columns. Build Details row wrappers use `display: contents` so present fields fill left to right, then top to bottom without gaps when optional fields are missing; only `data-field="command"` spans the full row. Do not restore per-row flex/grid sizing or a property/value table for environment fields. Keep the separate Build environment Noora card compact and initially collapsed, hide its content before JavaScript mounts, and preserve a single-row header on narrow screens. Custom metadata remains a table inside Build Details, with its existing link treatment and 35% key column.
 

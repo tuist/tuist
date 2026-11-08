@@ -141,6 +141,42 @@ defmodule TuistWeb.BillingLiveTest do
     end
   end
 
+  describe "when a downgrade to air is pending" do
+    setup %{account: account} do
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        subscription_id: "sub_downgrading",
+        cancel_at_period_end: true
+      )
+
+      stub(Billing, :get_payment_method_id_from_subscription_id, fn _ -> nil end)
+      stub(Billing, :current_billing_period, fn _ -> {~U[2026-11-01 00:00:00Z], ~U[2026-12-01 00:00:00Z]} end)
+      :ok
+    end
+
+    test "says when the plan switches to air and keeps pro until then", %{conn: conn, account: account} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-pending-downgrade", "Your plan switches to Air on December 1")
+      assert has_element?(lv, "[data-part='current-plan-card-section']", "Pro")
+    end
+
+    test "keeping pro withdraws the downgrade", %{conn: conn, account: account} do
+      # Given
+      expect(Billing, :update_plan, fn %{plan: :pro} -> :ok end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # When
+      lv |> element("#billing-pending-downgrade button", "Keep Pro") |> render_click()
+
+      # Then
+      assert_redirect(lv, "/#{account.name}/billing")
+    end
+  end
+
   describe "when air plan" do
     test "renders the correct information", %{conn: conn, account: account} do
       # Given
@@ -396,7 +432,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free runner minutes plus 10K prepaid"
+      assert html =~ "100 free macOS minutes plus 10K prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
@@ -424,7 +460,7 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      assert html =~ "100 free runner minutes plus 40K prepaid"
+      assert html =~ "100 free macOS minutes plus 40K prepaid"
       refute html =~ "200K"
     end
   end

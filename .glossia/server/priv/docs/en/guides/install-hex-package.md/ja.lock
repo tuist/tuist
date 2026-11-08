@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "77a084382b2ff8031dd68d20ce188334534ab3e41a8f72a7e905546a283b27f4",
+  "hash": "e12698424a67d7d320712c3e86f7037c4b42086713b531628251d074db780dde",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,16 +17,16 @@
                   "content_hash": "f35562615714fab3c343cb97b02e6d5b7f1248743291cb100b107cac8307955f"
                 },
                 "## 2. Add the package {#add-the-package}": {
-                  "content_hash": "d80182d90312fe3845b5c4fd871ea421206d7e1ad6ed6c91ac82e2861001fdbd"
+                  "content_hash": "ff4a7ce9bc5063f1a238a46c3cbef7f15f6fbc81e9770e102522ddf5c103be86"
                 },
                 "## 3. Authenticate your team and continuous integration {#authenticate}": {
-                  "content_hash": "28bdecd444800028d75b0843d5e5c0793ed2e543d3f2a3512df4861e6f45a9cf"
+                  "content_hash": "c6aab9d9d6c1db1872256d64da275fb6fb19b2d29ffbf205f15aeddfcd04d274"
                 },
                 "## 4. Keep using `mix test` and `mix compile` {#aliases}": {
                   "content_hash": "4f7bcb23cd4849cf2670182bc85452bd9f92087addad2a2d87ddb4de341dfd56"
                 },
                 "## Configuration reference {#configuration-reference}": {
-                  "content_hash": "4e75908746be3b6befa2f6e82ea4dab3252fdf16b7487fe6c523dbea7fca0ab3"
+                  "content_hash": "05412d28fddf3edab7cca6cb325b6610c854ab1af37a49c8050a4716dc6fa13d"
                 },
                 "## Next steps {#next-steps}": {
                   "content_hash": "755adf340700edb196d0e7dabe4579914eb5000f6277d47357ad6a779969bc67"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "e4c7168776f0fa2e65621f2f16b673b8cd273c4704993908d372090edd4f69cf",
+          "hash": "4f6179357cecf117b8d25fe0a44906263a337323763899331ce1d58399b2e423",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-hex-package.md",
           "metadata": {
-            "content_hash": "5696944bd098457ee933d4d4fa8c5f5d143dad1e6e1c7bca048ff5bda56584fc"
+            "content_hash": "1d06975d677c5b511a68089f2a6ddb92d91791bba60ec20cc8c6e932a202b2fb"
           }
         },
         {
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,13 +122,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -141,21 +141,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -244,21 +244,21 @@
             }
           ],
           "details": {},
-          "hash": "cc2260b2fa6d195b0d29780027fb6a8419508758851a96defef5ffaccdee2746",
+          "hash": "eae453a9122801a22a36f9e2286955c67534bc9cc1675eb34388a9c476de6003",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "77a084382b2ff8031dd68d20ce188334534ab3e41a8f72a7e905546a283b27f4",
+      "hash": "e12698424a67d7d320712c3e86f7037c4b42086713b531628251d074db780dde",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-hex-package.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8bd1f60a04ff422781049fbac72b17a8ab67ff7d89ce0f81606b0ba587dce4b6",
+  "output_hash": "8fdaf13d533121027737277e6fc11e5a316f5eb8a0822620566488c8aa93a668",
   "output_path": "server/priv/docs/ja/guides/install-hex-package.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/install-hex-package.md",
-  "translated_at": "2026-10-29T16:28:53.398772Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-11-06T21:37:07.500068Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

@@ -35,6 +35,13 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  # `auth_token` must be a socket option: Phoenix overwrites a transport-level
+  # value with it, which left every native connection without its bearer.
+  socket "/threads/socket", TuistWeb.ThreadsSocket,
+    auth_token: true,
+    websocket: true,
+    longpoll: false
+
   plug TuistWeb.Plugs.DrainingPlug
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -74,8 +81,14 @@ defmodule TuistWeb.Endpoint do
   plug TuistCommon.RequestLoggerPlug
   plug TuistWeb.Plugs.RequestKindPlug
   plug TuistWeb.Plugs.SCIMErrorFormatPlug
-  plug Sentry.PlugContext, header_scrubber: {__MODULE__, :scrub_sentry_headers}
+
+  plug Sentry.PlugContext,
+    header_scrubber: {__MODULE__, :scrub_sentry_headers},
+    body_scrubber: {__MODULE__, :scrub_sentry_body}
+
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
+
+  plug TuistWeb.Plugs.EntireWebhookPlug
 
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
@@ -165,10 +178,36 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Session, @session_options
   plug TuistWeb.Router
 
+  # Sentry only scrubs password, passwd and secret parameters by default.
+  # Authenticator and single-use recovery codes are second-factor credentials,
+  # `token` carries credentials such as Claude subscription tokens, and MCP tool
+  # `arguments` can carry them at any depth of a JSON-RPC body.
+  @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
+
+  # Private conversations and Ship approvals must not become error-report data.
+  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, "threads" | _]}), do: %{}
+
+  def scrub_sentry_body(conn) do
+    conn
+    |> Sentry.PlugContext.default_body_scrubber()
+    |> drop_sentry_body_keys()
+  end
+
+  defp drop_sentry_body_keys(%{} = map) when not is_struct(map),
+    do: map |> Map.drop(@sentry_scrubbed_body_keys) |> Map.new(fn {key, value} -> {key, drop_sentry_body_keys(value)} end)
+
+  defp drop_sentry_body_keys(list) when is_list(list), do: Enum.map(list, &drop_sentry_body_keys/1)
+  defp drop_sentry_body_keys(value), do: value
+
   # Sentry only scrubs authorization, authentication and cookie by default.
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(["x-tuist-actor-id", "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()])
+    |> Map.drop([
+      "sec-websocket-protocol",
+      "x-csrf-token",
+      "x-tuist-actor-id",
+      "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()
+    ])
   end
 end

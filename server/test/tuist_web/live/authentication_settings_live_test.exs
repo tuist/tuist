@@ -195,15 +195,35 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "displays SSO and SCIM sections for organizations", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Single Sign-On"
     assert html =~ "Enable Single Sign-On"
     assert html =~ "SCIM provisioning"
     assert html =~ "/scim/v2"
+    refute has_element?(lv, "#passkeys-settings")
+    refute has_element?(lv, "#two-factor-settings")
+  end
+
+  test "personal authentication settings expose independent passkey and authenticator management", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#passkeys-settings a[href='/users/settings/passkeys']", "Manage passkeys")
+    assert has_element?(view, "#passkeys-settings", "0 passkeys added")
+    assert has_element?(view, "#two-factor-settings a[href='/users/settings/mfa']", "Manage two-factor authentication")
+    assert has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#two-factor-settings", "passkeys")
+
+    stub(Environment, :email_auth_enabled?, fn -> false end)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    refute has_element?(view, "#passkeys-settings")
+    assert has_element?(view, "#two-factor-settings")
   end
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(lv, ~s(#two-factor-settings a[href="/users/settings/mfa"]))
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     lv |> element("#oidc-configuration-toggle") |> render_click()
     refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
@@ -231,8 +251,10 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "hides provider options when SSO is disabled", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     refute html =~ "SSO provider"
+    # Two-factor authentication is personal, so organizations don't show it.
+    refute has_element?(lv, "[data-part=mfa-card]")
   end
 
   test "shows provider options when SSO is enabled via toggle", %{conn: conn, account: account} do
@@ -438,7 +460,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "describes the settings a lapsed verification keeps and still saves the configuration", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
@@ -460,7 +483,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, _lv, html} =
         conn
-        |> init_test_session(%{auth_method: :okta})
+        |> put_session(
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :okta,
+            provider_organization_id: "company.okta.com",
+            sso_organization_id: organization.id
+          })
+        )
         |> live(~p"/#{account.name}/settings/authentication")
 
       assert html =~ "Automatic enrollment is paused until the login email domain is verified"
@@ -729,7 +759,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         provider_organization_id: "https://login.vendor.example"
       })
 
-      conn = put_session(conn, :auth_method, :oauth2)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :oauth2,
+            provider_organization_id: "https://login.vendor.example",
+            sso_organization_id: organization.id
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       sso_form =
@@ -1033,7 +1073,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, _organization} =
         Accounts.update_organization(organization, %{
@@ -1043,7 +1084,16 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
           sso_automatic_enrollment: true
         })
 
-      conn = put_session(conn, :auth_method, :google)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "customer.example"
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
       render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 

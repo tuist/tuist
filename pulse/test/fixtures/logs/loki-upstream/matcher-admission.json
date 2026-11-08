@@ -1,0 +1,2181 @@
+{
+  "accepted_count": 15,
+  "boolean_only_rejection_count": 2,
+  "exact_error_count": 13,
+  "matcher_tuple_count": 5,
+  "rejected_count": 15,
+  "resolved_constants": [
+    {
+      "name": "errAtleastOneEqualityMatcherRequired",
+      "original_go": "errAtleastOneEqualityMatcherRequired = \"queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\\\".*\\\" does not meet this requirement, but app=~\\\".+\\\" will\"",
+      "source": "pkg/logql/syntax/parser.go",
+      "source_range": {
+        "end_byte_exclusive": 516,
+        "end_column": 223,
+        "end_line": 19,
+        "start_byte": 295,
+        "start_column": 2,
+        "start_line": 19
+      },
+      "value": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+    }
+  ],
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "row_count": 30,
+  "schema_version": 1,
+  "sources": [
+    {
+      "path": "pkg/logql/syntax/parser_test.go",
+      "sha256": "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99"
+    },
+    {
+      "path": "pkg/logql/syntax/parser.go",
+      "sha256": "a38e8d4760af3969d5316e456db8abed93655a66fd81f8cfdd2fa50226142667"
+    },
+    {
+      "path": "pkg/logqlmodel/error.go",
+      "sha256": "21816c4294243f16157f6408d92fb0907612a3258333288ab39b3f84bf7a4db5"
+    },
+    {
+      "path": "pkg/logql/syntax/test_utils.go",
+      "sha256": "9fcfb55c03fe98c52c19b00f3dc058c7d92c16dcf2138a39fc851a62cc6d67df"
+    },
+    {
+      "path": "pkg/logql/syntax/ast.go",
+      "sha256": "87eb6811c68654e2b2f7d629d799d215dc79fb549e0f9d71a805a46bd51e1e69"
+    }
+  ],
+  "supporting_declarations": [
+    {
+      "name": "NewParseError",
+      "original_go": "func NewParseError(msg string, line, col int) ParseError {\n\treturn ParseError{\n\t\tmsg:  msg,\n\t\tline: line,\n\t\tcol:  col,\n\t}\n}\n",
+      "sha256": "914274760e927f20e68969f656bfea4a35f9757893194436e815a81be4a80d91",
+      "source": "pkg/logqlmodel/error.go",
+      "source_range": {
+        "end_byte_exclusive": 2213,
+        "end_column": 2,
+        "end_line": 61,
+        "start_byte": 2090,
+        "start_column": 1,
+        "start_line": 55
+      }
+    },
+    {
+      "name": "ParseError.Error",
+      "original_go": "func (p ParseError) Error() string {\n\tif p.col == 0 \u0026\u0026 p.line == 0 {\n\t\treturn fmt.Sprintf(\"parse error : %s\", p.msg)\n\t}\n\treturn fmt.Sprintf(\"parse error at line %d, col %d: %s\", p.line, p.col, p.msg)\n}\n",
+      "sha256": "a5f7e9f3e14332b51b9dcc4142643b62e1a8e388567309c1445551e1d5811e84",
+      "source": "pkg/logqlmodel/error.go",
+      "source_range": {
+        "end_byte_exclusive": 1955,
+        "end_column": 2,
+        "end_line": 48,
+        "start_byte": 1754,
+        "start_column": 1,
+        "start_line": 43
+      }
+    },
+    {
+      "name": "AssertMatchers",
+      "original_go": "func AssertMatchers(t *testing.T, expected, actual []*labels.Matcher) {\n\trequire.Equal(t, RemoveFastRegexMatchers(expected), RemoveFastRegexMatchers(actual))\n}\n",
+      "sha256": "1409c7214ef126362d29422e164928e8cf563a6a9307654dc37445ae513004ac",
+      "source": "pkg/logql/syntax/test_utils.go",
+      "source_range": {
+        "end_byte_exclusive": 854,
+        "end_column": 2,
+        "end_line": 28,
+        "start_byte": 695,
+        "start_column": 1,
+        "start_line": 26
+      }
+    },
+    {
+      "name": "RemoveFastRegexMatchers",
+      "original_go": "func RemoveFastRegexMatchers(matchers []*labels.Matcher) []*labels.Matcher {\n\tresult := make([]*labels.Matcher, 0, len(matchers))\n\tfor _, matcher := range matchers {\n\t\tif matcher.Type == labels.MatchNotRegexp || matcher.Type == labels.MatchRegexp {\n\t\t\tmatcher = \u0026labels.Matcher{Type: matcher.Type, Name: matcher.Name, Value: matcher.Value}\n\t\t}\n\t\tresult = append(result, matcher)\n\t}\n\treturn result\n}\n",
+      "sha256": "0b7f62f683657242064513785e65914d173f4843fdf37e5731b30f3ba102e107",
+      "source": "pkg/logql/syntax/test_utils.go",
+      "source_range": {
+        "end_byte_exclusive": 1488,
+        "end_column": 2,
+        "end_line": 42,
+        "start_byte": 1090,
+        "start_column": 1,
+        "start_line": 33
+      }
+    },
+    {
+      "name": "mustNewMatcher",
+      "original_go": "func mustNewMatcher(t labels.MatchType, n, v string) *labels.Matcher {\n\tm, err := labels.NewMatcher(t, n, v)\n\tif err != nil {\n\t\tpanic(logqlmodel.NewParseError(err.Error(), 0, 0))\n\t}\n\treturn m\n}\n",
+      "sha256": "d8b09a37563d10901a0fbad25a5b76374fc88f98fc3b5f36ffe28364728719c7",
+      "source": "pkg/logql/syntax/ast.go",
+      "source_range": {
+        "end_byte_exclusive": 35278,
+        "end_column": 2,
+        "end_line": 1251,
+        "start_byte": 35085,
+        "start_column": 1,
+        "start_line": 1245
+      }
+    },
+    {
+      "name": "ParseError",
+      "original_go": "type ParseError struct {\n\tmsg       string\n\tline, col int\n}\n",
+      "sha256": "ded8f110bb530b1e5cb57032e51f4c8949f2e9c186a42c8a700685691493671e",
+      "source": "pkg/logqlmodel/error.go",
+      "source_range": {
+        "end_byte_exclusive": 1752,
+        "end_column": 2,
+        "end_line": 41,
+        "start_byte": 1693,
+        "start_column": 1,
+        "start_line": 38
+      }
+    }
+  ],
+  "tables": [
+    {
+      "accepted_count": 2,
+      "assertion_calls": [
+        {
+          "original_go": "t.Errorf(\"ParseMatchers() error = %v, wantErr %v\", err, tt.wantErr)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 116007,
+            "end_column": 72,
+            "end_line": 3402,
+            "start_byte": 115940,
+            "start_column": 5,
+            "start_line": 3402
+          }
+        },
+        {
+          "original_go": "require.Nil(t, got)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 116071,
+            "end_column": 24,
+            "end_line": 3407,
+            "start_byte": 116052,
+            "start_column": 5,
+            "start_line": 3407
+          }
+        },
+        {
+          "original_go": "AssertMatchers(t, tt.want, got)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 116119,
+            "end_column": 36,
+            "end_line": 3409,
+            "start_byte": 116088,
+            "start_column": 5,
+            "start_line": 3409
+          }
+        }
+      ],
+      "exact_error_count": 0,
+      "executor": {
+        "original_go": "for _, tt := range tests {\n\t\tt.Run(tt.input, func(t *testing.T) {\n\t\t\tgot, err := ParseMatchers(tt.input, true)\n\t\t\tif (err != nil) != tt.wantErr {\n\t\t\t\tt.Errorf(\"ParseMatchers() error = %v, wantErr %v\", err, tt.wantErr)\n\t\t\t\treturn\n\t\t\t}\n\n\t\t\tif tt.want == nil {\n\t\t\t\trequire.Nil(t, got)\n\t\t\t} else {\n\t\t\t\tAssertMatchers(t, tt.want, got)\n\t\t\t}\n\t\t})\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 116132,
+          "end_column": 3,
+          "end_line": 3412,
+          "start_byte": 115790,
+          "start_column": 2,
+          "start_line": 3398
+        }
+      },
+      "matcher_tuple_count": 5,
+      "name": "TestParseMatchers",
+      "parser_calls": [
+        {
+          "original_go": "ParseMatchers(tt.input, true)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 115900,
+            "end_column": 45,
+            "end_line": 3400,
+            "start_byte": 115871,
+            "start_column": 16,
+            "start_line": 3400
+          },
+          "validation_argument_expression": "true"
+        }
+      ],
+      "rejected_count": 2,
+      "row_count": 4,
+      "rows": [
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": [
+            {
+              "arguments": [
+                {
+                  "original_go": "labels.MatchEqual",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115258,
+                    "end_column": 37,
+                    "end_line": 3373,
+                    "start_byte": 115241,
+                    "start_column": 20,
+                    "start_line": 3373
+                  }
+                },
+                {
+                  "original_go": "\"app\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115265,
+                    "end_column": 44,
+                    "end_line": 3373,
+                    "start_byte": 115260,
+                    "start_column": 39,
+                    "start_line": 3373
+                  }
+                },
+                {
+                  "original_go": "\"foo\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115272,
+                    "end_column": 51,
+                    "end_line": 3373,
+                    "start_byte": 115267,
+                    "start_column": 46,
+                    "start_line": 3373
+                  }
+                }
+              ],
+              "constructor_expression": "mustNewMatcher",
+              "name": "app",
+              "op": "=",
+              "operator_symbol": "labels.MatchEqual",
+              "original_go": "mustNewMatcher(labels.MatchEqual, \"app\", \"foo\")",
+              "resolved": true,
+              "source": "pkg/logql/syntax/parser_test.go",
+              "source_range": {
+                "end_byte_exclusive": 115273,
+                "end_column": 52,
+                "end_line": 3373,
+                "start_byte": 115226,
+                "start_column": 5,
+                "start_line": 3373
+              },
+              "value": "foo"
+            },
+            {
+              "arguments": [
+                {
+                  "original_go": "labels.MatchRegexp",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115312,
+                    "end_column": 38,
+                    "end_line": 3374,
+                    "start_byte": 115294,
+                    "start_column": 20,
+                    "start_line": 3374
+                  }
+                },
+                {
+                  "original_go": "\"cluster\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115323,
+                    "end_column": 49,
+                    "end_line": 3374,
+                    "start_byte": 115314,
+                    "start_column": 40,
+                    "start_line": 3374
+                  }
+                },
+                {
+                  "original_go": "\".+bar\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115332,
+                    "end_column": 58,
+                    "end_line": 3374,
+                    "start_byte": 115325,
+                    "start_column": 51,
+                    "start_line": 3374
+                  }
+                }
+              ],
+              "constructor_expression": "mustNewMatcher",
+              "name": "cluster",
+              "op": "=~",
+              "operator_symbol": "labels.MatchRegexp",
+              "original_go": "mustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\")",
+              "resolved": true,
+              "source": "pkg/logql/syntax/parser_test.go",
+              "source_range": {
+                "end_byte_exclusive": 115333,
+                "end_column": 59,
+                "end_line": 3374,
+                "start_byte": 115279,
+                "start_column": 5,
+                "start_line": 3374
+              },
+              "value": ".+bar"
+            }
+          ],
+          "expected_matchers_expression": "[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t}",
+          "expected_matchers_present": true,
+          "original_go": "{\n\t\t\t`{app=\"foo\",cluster=~\".+bar\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t}",
+          "query": "{app=\"foo\",cluster=~\".+bar\"}",
+          "query_bytes_base64": "e2FwcD0iZm9vIixjbHVzdGVyPX4iLitiYXIifQ==",
+          "query_expression": "`{app=\"foo\",cluster=~\".+bar\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 0,
+          "source_range": {
+            "end_byte_exclusive": 115354,
+            "end_column": 4,
+            "end_line": 3377,
+            "start_byte": 115163,
+            "start_column": 3,
+            "start_line": 3370
+          },
+          "table": "TestParseMatchers",
+          "want_err_expression": "false"
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": [
+            {
+              "arguments": [
+                {
+                  "original_go": "labels.MatchNotEqual",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115470,
+                    "end_column": 40,
+                    "end_line": 3381,
+                    "start_byte": 115450,
+                    "start_column": 20,
+                    "start_line": 3381
+                  }
+                },
+                {
+                  "original_go": "\"app\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115477,
+                    "end_column": 47,
+                    "end_line": 3381,
+                    "start_byte": 115472,
+                    "start_column": 42,
+                    "start_line": 3381
+                  }
+                },
+                {
+                  "original_go": "\"foo\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115484,
+                    "end_column": 54,
+                    "end_line": 3381,
+                    "start_byte": 115479,
+                    "start_column": 49,
+                    "start_line": 3381
+                  }
+                }
+              ],
+              "constructor_expression": "mustNewMatcher",
+              "name": "app",
+              "op": "!=",
+              "operator_symbol": "labels.MatchNotEqual",
+              "original_go": "mustNewMatcher(labels.MatchNotEqual, \"app\", \"foo\")",
+              "resolved": true,
+              "source": "pkg/logql/syntax/parser_test.go",
+              "source_range": {
+                "end_byte_exclusive": 115485,
+                "end_column": 55,
+                "end_line": 3381,
+                "start_byte": 115435,
+                "start_column": 5,
+                "start_line": 3381
+              },
+              "value": "foo"
+            },
+            {
+              "arguments": [
+                {
+                  "original_go": "labels.MatchRegexp",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115524,
+                    "end_column": 38,
+                    "end_line": 3382,
+                    "start_byte": 115506,
+                    "start_column": 20,
+                    "start_line": 3382
+                  }
+                },
+                {
+                  "original_go": "\"cluster\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115535,
+                    "end_column": 49,
+                    "end_line": 3382,
+                    "start_byte": 115526,
+                    "start_column": 40,
+                    "start_line": 3382
+                  }
+                },
+                {
+                  "original_go": "\".+bar\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115544,
+                    "end_column": 58,
+                    "end_line": 3382,
+                    "start_byte": 115537,
+                    "start_column": 51,
+                    "start_line": 3382
+                  }
+                }
+              ],
+              "constructor_expression": "mustNewMatcher",
+              "name": "cluster",
+              "op": "=~",
+              "operator_symbol": "labels.MatchRegexp",
+              "original_go": "mustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\")",
+              "resolved": true,
+              "source": "pkg/logql/syntax/parser_test.go",
+              "source_range": {
+                "end_byte_exclusive": 115545,
+                "end_column": 59,
+                "end_line": 3382,
+                "start_byte": 115491,
+                "start_column": 5,
+                "start_line": 3382
+              },
+              "value": ".+bar"
+            },
+            {
+              "arguments": [
+                {
+                  "original_go": "labels.MatchNotRegexp",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115587,
+                    "end_column": 41,
+                    "end_line": 3383,
+                    "start_byte": 115566,
+                    "start_column": 20,
+                    "start_line": 3383
+                  }
+                },
+                {
+                  "original_go": "\"bar\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115594,
+                    "end_column": 48,
+                    "end_line": 3383,
+                    "start_byte": 115589,
+                    "start_column": 43,
+                    "start_line": 3383
+                  }
+                },
+                {
+                  "original_go": "\".?boo\"",
+                  "source": "pkg/logql/syntax/parser_test.go",
+                  "source_range": {
+                    "end_byte_exclusive": 115603,
+                    "end_column": 57,
+                    "end_line": 3383,
+                    "start_byte": 115596,
+                    "start_column": 50,
+                    "start_line": 3383
+                  }
+                }
+              ],
+              "constructor_expression": "mustNewMatcher",
+              "name": "bar",
+              "op": "!~",
+              "operator_symbol": "labels.MatchNotRegexp",
+              "original_go": "mustNewMatcher(labels.MatchNotRegexp, \"bar\", \".?boo\")",
+              "resolved": true,
+              "source": "pkg/logql/syntax/parser_test.go",
+              "source_range": {
+                "end_byte_exclusive": 115604,
+                "end_column": 58,
+                "end_line": 3383,
+                "start_byte": 115551,
+                "start_column": 5,
+                "start_line": 3383
+              },
+              "value": ".?boo"
+            }
+          ],
+          "expected_matchers_expression": "[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchNotEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t\tmustNewMatcher(labels.MatchNotRegexp, \"bar\", \".?boo\"),\n\t\t\t}",
+          "expected_matchers_present": true,
+          "original_go": "{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchNotEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t\tmustNewMatcher(labels.MatchNotRegexp, \"bar\", \".?boo\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t}",
+          "query": "{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"}",
+          "query_bytes_base64": "e2FwcCE9ImZvbyIsY2x1c3Rlcj1+Ii4rYmFyIixiYXIhfiIuP2JvbyJ9",
+          "query_expression": "`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 1,
+          "source_range": {
+            "end_byte_exclusive": 115625,
+            "end_column": 4,
+            "end_line": 3386,
+            "start_byte": 115358,
+            "start_column": 3,
+            "start_line": 3378
+          },
+          "table": "TestParseMatchers",
+          "want_err_expression": "false"
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": "nil",
+          "expected_matchers_present": true,
+          "original_go": "{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t}",
+          "query": "{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"",
+          "query_bytes_base64": "e2FwcCE9ImZvbyIsY2x1c3Rlcj1+Ii4rYmFyIixiYXIhfiIuP2JvbyI=",
+          "query_expression": "`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 2,
+          "source_range": {
+            "end_byte_exclusive": 115699,
+            "end_column": 4,
+            "end_line": 3391,
+            "start_byte": 115629,
+            "start_column": 3,
+            "start_line": 3387
+          },
+          "table": "TestParseMatchers",
+          "want_err_expression": "true"
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": "nil",
+          "expected_matchers_present": true,
+          "original_go": "{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"} |= \"test\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t}",
+          "query": "{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"} |= \"test\"",
+          "query_bytes_base64": "e2FwcCE9ImZvbyIsY2x1c3Rlcj1+Ii4rYmFyIixiYXIhfiIuP2JvbyJ9IHw9ICJ0ZXN0Ig==",
+          "query_expression": "`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"} |= \"test\"`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 3,
+          "source_range": {
+            "end_byte_exclusive": 115784,
+            "end_column": 4,
+            "end_line": 3396,
+            "start_byte": 115703,
+            "start_column": 3,
+            "start_line": 3392
+          },
+          "table": "TestParseMatchers",
+          "want_err_expression": "true"
+        }
+      ],
+      "selection": {
+        "name": "TestParseMatchers",
+        "original_go": "func TestParseMatchers(t *testing.T) {\n\ttests := []struct {\n\t\tinput   string\n\t\twant    []*labels.Matcher\n\t\twantErr bool\n\t}{\n\t\t{\n\t\t\t`{app=\"foo\",cluster=~\".+bar\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchNotEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t\tmustNewMatcher(labels.MatchNotRegexp, \"bar\", \".?boo\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"} |= \"test\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t},\n\t}\n\tfor _, tt := range tests {\n\t\tt.Run(tt.input, func(t *testing.T) {\n\t\t\tgot, err := ParseMatchers(tt.input, true)\n\t\t\tif (err != nil) != tt.wantErr {\n\t\t\t\tt.Errorf(\"ParseMatchers() error = %v, wantErr %v\", err, tt.wantErr)\n\t\t\t\treturn\n\t\t\t}\n\n\t\t\tif tt.want == nil {\n\t\t\t\trequire.Nil(t, got)\n\t\t\t} else {\n\t\t\t\tAssertMatchers(t, tt.want, got)\n\t\t\t}\n\t\t})\n\t}\n}\n",
+        "sha256": "587442f4625c0d42e0e6772ceadee5a9abb300e9c09ef56b86deaeffaa0ee1d7",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 116134,
+          "end_column": 2,
+          "end_line": 3413,
+          "start_byte": 115037,
+          "start_column": 1,
+          "start_line": 3364
+        }
+      },
+      "table": {
+        "original_go": "[]struct {\n\t\tinput   string\n\t\twant    []*labels.Matcher\n\t\twantErr bool\n\t}{\n\t\t{\n\t\t\t`{app=\"foo\",cluster=~\".+bar\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"}`,\n\t\t\t[]*labels.Matcher{\n\t\t\t\tmustNewMatcher(labels.MatchNotEqual, \"app\", \"foo\"),\n\t\t\t\tmustNewMatcher(labels.MatchRegexp, \"cluster\", \".+bar\"),\n\t\t\t\tmustNewMatcher(labels.MatchNotRegexp, \"bar\", \".?boo\"),\n\t\t\t},\n\t\t\tfalse,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t},\n\t\t{\n\t\t\t`{app!=\"foo\",cluster=~\".+bar\",bar!~\".?boo\"} |= \"test\"`,\n\t\t\tnil,\n\t\t\ttrue,\n\t\t},\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 115788,
+          "end_column": 3,
+          "end_line": 3397,
+          "start_byte": 115086,
+          "start_column": 11,
+          "start_line": 3365
+        }
+      }
+    },
+    {
+      "accepted_count": 9,
+      "assertion_calls": [
+        {
+          "original_go": "require.Equal(t, tc.err, err)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 123661,
+            "end_column": 33,
+            "end_line": 3656,
+            "start_byte": 123632,
+            "start_column": 4,
+            "start_line": 3656
+          }
+        }
+      ],
+      "exact_error_count": 10,
+      "executor": {
+        "original_go": "for _, tc := range []struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `count_over_time({foo=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({foo!=\"bar\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=\"baz\", foo!=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\"bar|baz\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app!~\"bar|baz\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d])`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)`,\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `count without (rate({namespace=\"apps\"}[15s]))`,\n\t\t\terr: logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16),\n\t\t},\n\t} {\n\t\tt.Run(tc.in, func(t *testing.T) {\n\t\t\t_, err := ParseSampleExpr(tc.in)\n\t\t\trequire.Equal(t, tc.err, err)\n\t\t})\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 123669,
+          "end_column": 3,
+          "end_line": 3658,
+          "start_byte": 121394,
+          "start_column": 2,
+          "start_line": 3582
+        }
+      },
+      "matcher_tuple_count": 0,
+      "name": "TestParseSampleExpr_equalityMatcher",
+      "parser_calls": [
+        {
+          "original_go": "ParseSampleExpr(tc.in)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 123628,
+            "end_column": 36,
+            "end_line": 3655,
+            "start_byte": 123606,
+            "start_column": 14,
+            "start_line": 3655
+          },
+          "validation_argument_expression": null
+        }
+      ],
+      "rejected_count": 10,
+      "row_count": 19,
+      "rows": [
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `count_over_time({foo=\"bar\"}[5m])`,\n\t\t}",
+          "query": "count_over_time({foo=\"bar\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHtmb289ImJhciJ9WzVtXSk=",
+          "query_expression": "`count_over_time({foo=\"bar\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 0,
+          "source_range": {
+            "end_byte_exclusive": 121503,
+            "end_column": 4,
+            "end_line": 3588,
+            "start_byte": 121455,
+            "start_column": 3,
+            "start_line": 3586
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121623,
+                  "end_column": 70,
+                  "end_line": 3591,
+                  "start_byte": 121587,
+                  "start_column": 34,
+                  "start_line": 3591
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121626,
+                  "end_column": 73,
+                  "end_line": 3591,
+                  "start_byte": 121625,
+                  "start_column": 72,
+                  "start_line": 3591
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121629,
+                  "end_column": 76,
+                  "end_line": 3591,
+                  "start_byte": 121628,
+                  "start_column": 75,
+                  "start_line": 3591
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 121630,
+              "end_column": 77,
+              "end_line": 3591,
+              "start_byte": 121562,
+              "start_column": 9,
+              "start_line": 3591
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `count_over_time({foo!=\"bar\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "count_over_time({foo!=\"bar\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHtmb28hPSJiYXIifVs1bV0p",
+          "query_expression": "`count_over_time({foo!=\"bar\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 1,
+          "source_range": {
+            "end_byte_exclusive": 121635,
+            "end_column": 4,
+            "end_line": 3592,
+            "start_byte": 121507,
+            "start_column": 3,
+            "start_line": 3589
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `count_over_time({app=\"baz\", foo!=\"bar\"}[5m])`,\n\t\t}",
+          "query": "count_over_time({app=\"baz\", foo!=\"bar\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHthcHA9ImJheiIsIGZvbyE9ImJhciJ9WzVtXSk=",
+          "query_expression": "`count_over_time({app=\"baz\", foo!=\"bar\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 2,
+          "source_range": {
+            "end_byte_exclusive": 121699,
+            "end_column": 4,
+            "end_line": 3595,
+            "start_byte": 121639,
+            "start_column": 3,
+            "start_line": 3593
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `count_over_time({app=~\".+\"}[5m])`,\n\t\t}",
+          "query": "count_over_time({app=~\".+\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHthcHA9fiIuKyJ9WzVtXSk=",
+          "query_expression": "`count_over_time({app=~\".+\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 3,
+          "source_range": {
+            "end_byte_exclusive": 121751,
+            "end_column": 4,
+            "end_line": 3598,
+            "start_byte": 121703,
+            "start_column": 3,
+            "start_line": 3596
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121870,
+                  "end_column": 70,
+                  "end_line": 3601,
+                  "start_byte": 121834,
+                  "start_column": 34,
+                  "start_line": 3601
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121873,
+                  "end_column": 73,
+                  "end_line": 3601,
+                  "start_byte": 121872,
+                  "start_column": 72,
+                  "start_line": 3601
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 121876,
+                  "end_column": 76,
+                  "end_line": 3601,
+                  "start_byte": 121875,
+                  "start_column": 75,
+                  "start_line": 3601
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 121877,
+              "end_column": 77,
+              "end_line": 3601,
+              "start_byte": 121809,
+              "start_column": 9,
+              "start_line": 3601
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "count_over_time({app=~\".*\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHthcHA9fiIuKiJ9WzVtXSk=",
+          "query_expression": "`count_over_time({app=~\".*\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 4,
+          "source_range": {
+            "end_byte_exclusive": 121882,
+            "end_column": 4,
+            "end_line": 3602,
+            "start_byte": 121755,
+            "start_column": 3,
+            "start_line": 3599
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `count_over_time({app=~\"bar|baz\"}[5m])`,\n\t\t}",
+          "query": "count_over_time({app=~\"bar|baz\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHthcHA9fiJiYXJ8YmF6In1bNW1dKQ==",
+          "query_expression": "`count_over_time({app=~\"bar|baz\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 5,
+          "source_range": {
+            "end_byte_exclusive": 121939,
+            "end_column": 4,
+            "end_line": 3605,
+            "start_byte": 121886,
+            "start_column": 3,
+            "start_line": 3603
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122063,
+                  "end_column": 70,
+                  "end_line": 3608,
+                  "start_byte": 122027,
+                  "start_column": 34,
+                  "start_line": 3608
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122066,
+                  "end_column": 73,
+                  "end_line": 3608,
+                  "start_byte": 122065,
+                  "start_column": 72,
+                  "start_line": 3608
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122069,
+                  "end_column": 76,
+                  "end_line": 3608,
+                  "start_byte": 122068,
+                  "start_column": 75,
+                  "start_line": 3608
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 122070,
+              "end_column": 77,
+              "end_line": 3608,
+              "start_byte": 122002,
+              "start_column": 9,
+              "start_line": 3608
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `count_over_time({app!~\"bar|baz\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "count_over_time({app!~\"bar|baz\"}[5m])",
+          "query_bytes_base64": "Y291bnRfb3Zlcl90aW1lKHthcHAhfiJiYXJ8YmF6In1bNW1dKQ==",
+          "query_expression": "`count_over_time({app!~\"bar|baz\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 6,
+          "source_range": {
+            "end_byte_exclusive": 122075,
+            "end_column": 4,
+            "end_line": 3609,
+            "start_byte": 121943,
+            "start_column": 3,
+            "start_line": 3606
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122198,
+                  "end_column": 70,
+                  "end_line": 3612,
+                  "start_byte": 122162,
+                  "start_column": 34,
+                  "start_line": 3612
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122201,
+                  "end_column": 73,
+                  "end_line": 3612,
+                  "start_byte": 122200,
+                  "start_column": 72,
+                  "start_line": 3612
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122204,
+                  "end_column": 76,
+                  "end_line": 3612,
+                  "start_byte": 122203,
+                  "start_column": 75,
+                  "start_line": 3612
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 122205,
+              "end_column": 77,
+              "end_line": 3612,
+              "start_byte": 122137,
+              "start_column": 9,
+              "start_line": 3612
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `1 + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "1 + count_over_time({app=~\".*\"}[5m])",
+          "query_bytes_base64": "MSArIGNvdW50X292ZXJfdGltZSh7YXBwPX4iLioifVs1bV0p",
+          "query_expression": "`1 + count_over_time({app=~\".*\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 7,
+          "source_range": {
+            "end_byte_exclusive": 122210,
+            "end_column": 4,
+            "end_line": 3613,
+            "start_byte": 122079,
+            "start_column": 3,
+            "start_line": 3610
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122368,
+                  "end_column": 70,
+                  "end_line": 3616,
+                  "start_byte": 122332,
+                  "start_column": 34,
+                  "start_line": 3616
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122371,
+                  "end_column": 73,
+                  "end_line": 3616,
+                  "start_byte": 122370,
+                  "start_column": 72,
+                  "start_line": 3616
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122374,
+                  "end_column": 76,
+                  "end_line": 3616,
+                  "start_byte": 122373,
+                  "start_column": 75,
+                  "start_line": 3616
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 122375,
+              "end_column": 77,
+              "end_line": 3616,
+              "start_byte": 122307,
+              "start_column": 9,
+              "start_line": 3616
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])",
+          "query_bytes_base64": "MSArIGNvdW50X292ZXJfdGltZSh7YXBwPX4iLisifVs1bV0pICsgY291bnRfb3Zlcl90aW1lKHthcHA9fiIuKiJ9WzVtXSk=",
+          "query_expression": "`1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 8,
+          "source_range": {
+            "end_byte_exclusive": 122380,
+            "end_column": 4,
+            "end_line": 3617,
+            "start_byte": 122214,
+            "start_column": 3,
+            "start_line": 3614
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])`,\n\t\t}",
+          "query": "1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])",
+          "query_bytes_base64": "MSArIGNvdW50X292ZXJfdGltZSh7YXBwPX4iLisifVs1bV0pICsgY291bnRfb3Zlcl90aW1lKHthcHA9fiIuKyJ9WzVtXSk=",
+          "query_expression": "`1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 9,
+          "source_range": {
+            "end_byte_exclusive": 122471,
+            "end_column": 4,
+            "end_line": 3620,
+            "start_byte": 122384,
+            "start_column": 3,
+            "start_line": 3618
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122633,
+                  "end_column": 70,
+                  "end_line": 3623,
+                  "start_byte": 122597,
+                  "start_column": 34,
+                  "start_line": 3623
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122636,
+                  "end_column": 73,
+                  "end_line": 3623,
+                  "start_byte": 122635,
+                  "start_column": 72,
+                  "start_line": 3623
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 122639,
+                  "end_column": 76,
+                  "end_line": 3623,
+                  "start_byte": 122638,
+                  "start_column": 75,
+                  "start_line": 3623
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 122640,
+              "end_column": 77,
+              "end_line": 3623,
+              "start_byte": 122572,
+              "start_column": 9,
+              "start_line": 3623
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1",
+          "query_bytes_base64": "MSArIGNvdW50X292ZXJfdGltZSh7YXBwPX4iLisifVs1bV0pICsgY291bnRfb3Zlcl90aW1lKHthcHA9fiIuKiJ9WzVtXSkgKyAx",
+          "query_expression": "`1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 10,
+          "source_range": {
+            "end_byte_exclusive": 122645,
+            "end_column": 4,
+            "end_line": 3624,
+            "start_byte": 122475,
+            "start_column": 3,
+            "start_line": 3621
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1`,\n\t\t}",
+          "query": "1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1",
+          "query_bytes_base64": "MSArIGNvdW50X292ZXJfdGltZSh7YXBwPX4iLisifVs1bV0pICsgY291bnRfb3Zlcl90aW1lKHthcHA9fiIuKyJ9WzVtXSkgKyAx",
+          "query_expression": "`1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 11,
+          "source_range": {
+            "end_byte_exclusive": 122740,
+            "end_column": 4,
+            "end_line": 3627,
+            "start_byte": 122649,
+            "start_column": 3,
+            "start_line": 3625
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d])`,\n\t\t}",
+          "query": "approx_count_distinct(mac, {foo=\"bar\"}[1d])",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge2Zvbz0iYmFyIn1bMWRdKQ==",
+          "query_expression": "`approx_count_distinct(mac, {foo=\"bar\"}[1d])`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 12,
+          "source_range": {
+            "end_byte_exclusive": 122803,
+            "end_column": 4,
+            "end_line": 3630,
+            "start_byte": 122744,
+            "start_column": 3,
+            "start_line": 3628
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()`,\n\t\t}",
+          "query": "approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge2Zvbz0iYmFyIn1bMWRdKSBieSAoKQ==",
+          "query_expression": "`approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 13,
+          "source_range": {
+            "end_byte_exclusive": 122872,
+            "end_column": 4,
+            "end_line": 3633,
+            "start_byte": 122807,
+            "start_column": 3,
+            "start_line": 3631
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)`,\n\t\t}",
+          "query": "approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge2Zvbz0iYmFyIn1bMWRdKSBieSAodmVyc2lvbik=",
+          "query_expression": "`approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 14,
+          "source_range": {
+            "end_byte_exclusive": 122948,
+            "end_column": 4,
+            "end_line": 3636,
+            "start_byte": 122876,
+            "start_column": 3,
+            "start_line": 3634
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123069,
+                  "end_column": 70,
+                  "end_line": 3639,
+                  "start_byte": 123033,
+                  "start_column": 34,
+                  "start_line": 3639
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123072,
+                  "end_column": 73,
+                  "end_line": 3639,
+                  "start_byte": 123071,
+                  "start_column": 72,
+                  "start_line": 3639
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123075,
+                  "end_column": 76,
+                  "end_line": 3639,
+                  "start_byte": 123074,
+                  "start_column": 75,
+                  "start_line": 3639
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 123076,
+              "end_column": 77,
+              "end_line": 3639,
+              "start_byte": 123008,
+              "start_column": 9,
+              "start_line": 3639
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "approx_count_distinct(mac, {}[1d])",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge31bMWRdKQ==",
+          "query_expression": "`approx_count_distinct(mac, {}[1d])`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 15,
+          "source_range": {
+            "end_byte_exclusive": 123081,
+            "end_column": 4,
+            "end_line": 3640,
+            "start_byte": 122952,
+            "start_column": 3,
+            "start_line": 3637
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123215,
+                  "end_column": 70,
+                  "end_line": 3643,
+                  "start_byte": 123179,
+                  "start_column": 34,
+                  "start_line": 3643
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123218,
+                  "end_column": 73,
+                  "end_line": 3643,
+                  "start_byte": 123217,
+                  "start_column": 72,
+                  "start_line": 3643
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123221,
+                  "end_column": 76,
+                  "end_line": 3643,
+                  "start_byte": 123220,
+                  "start_column": 75,
+                  "start_line": 3643
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 123222,
+              "end_column": 77,
+              "end_line": 3643,
+              "start_byte": 123154,
+              "start_column": 9,
+              "start_line": 3643
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "approx_count_distinct(mac, {}[1d]) by (version)",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge31bMWRdKSBieSAodmVyc2lvbik=",
+          "query_expression": "`approx_count_distinct(mac, {}[1d]) by (version)`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 16,
+          "source_range": {
+            "end_byte_exclusive": 123227,
+            "end_column": 4,
+            "end_line": 3644,
+            "start_byte": 123085,
+            "start_column": 3,
+            "start_line": 3641
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123371,
+                  "end_column": 70,
+                  "end_line": 3647,
+                  "start_byte": 123335,
+                  "start_column": 34,
+                  "start_line": 3647
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123374,
+                  "end_column": 73,
+                  "end_line": 3647,
+                  "start_byte": 123373,
+                  "start_column": 72,
+                  "start_line": 3647
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123377,
+                  "end_column": 76,
+                  "end_line": 3647,
+                  "start_byte": 123376,
+                  "start_column": 75,
+                  "start_line": 3647
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 123378,
+              "end_column": 77,
+              "end_line": 3647,
+              "start_byte": 123310,
+              "start_column": 9,
+              "start_line": 3647
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)",
+          "query_bytes_base64": "YXBwcm94X2NvdW50X2Rpc3RpbmN0KG1hYywge2ZvbyE9ImJhciJ9WzFkXSkgYnkgKHZlcnNpb24p",
+          "query_expression": "`approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 17,
+          "source_range": {
+            "end_byte_exclusive": 123383,
+            "end_column": 4,
+            "end_line": 3648,
+            "start_byte": 123231,
+            "start_column": 3,
+            "start_line": 3645
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "\"syntax error: unexpected RATE, expecting IDENTIFIER or )\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123537,
+                  "end_column": 92,
+                  "end_line": 3651,
+                  "start_byte": 123479,
+                  "start_column": 34,
+                  "start_line": 3651
+                }
+              },
+              {
+                "original_go": "1",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123540,
+                  "end_column": 95,
+                  "end_line": 3651,
+                  "start_byte": 123539,
+                  "start_column": 94,
+                  "start_line": 3651
+                }
+              },
+              {
+                "original_go": "16",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123544,
+                  "end_column": 99,
+                  "end_line": 3651,
+                  "start_byte": 123542,
+                  "start_column": 97,
+                  "start_line": 3651
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 16,
+              "line": 1,
+              "message": "syntax error: unexpected RATE, expecting IDENTIFIER or )"
+            },
+            "original_go": "logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 123545,
+              "end_column": 100,
+              "end_line": 3651,
+              "start_byte": 123454,
+              "start_column": 9,
+              "start_line": 3651
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `count without (rate({namespace=\"apps\"}[15s]))`,\n\t\t\terr: logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16),\n\t\t}",
+          "query": "count without (rate({namespace=\"apps\"}[15s]))",
+          "query_bytes_base64": "Y291bnQgd2l0aG91dCAocmF0ZSh7bmFtZXNwYWNlPSJhcHBzIn1bMTVzXSkp",
+          "query_expression": "`count without (rate({namespace=\"apps\"}[15s]))`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 18,
+          "source_range": {
+            "end_byte_exclusive": 123550,
+            "end_column": 4,
+            "end_line": 3652,
+            "start_byte": 123387,
+            "start_column": 3,
+            "start_line": 3649
+          },
+          "table": "TestParseSampleExpr_equalityMatcher",
+          "want_err_expression": null
+        }
+      ],
+      "selection": {
+        "name": "TestParseSampleExpr_equalityMatcher",
+        "original_go": "func TestParseSampleExpr_equalityMatcher(t *testing.T) {\n\tfor _, tc := range []struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `count_over_time({foo=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({foo!=\"bar\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=\"baz\", foo!=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\"bar|baz\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app!~\"bar|baz\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d])`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)`,\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `count without (rate({namespace=\"apps\"}[15s]))`,\n\t\t\terr: logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16),\n\t\t},\n\t} {\n\t\tt.Run(tc.in, func(t *testing.T) {\n\t\t\t_, err := ParseSampleExpr(tc.in)\n\t\t\trequire.Equal(t, tc.err, err)\n\t\t})\n\t}\n}\n",
+        "sha256": "5d647a773115ac726857ceebf220e11e0ecb0d086fe3181e3da7a94a13d68f93",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 123671,
+          "end_column": 2,
+          "end_line": 3659,
+          "start_byte": 121336,
+          "start_column": 1,
+          "start_line": 3581
+        }
+      },
+      "table": {
+        "original_go": "[]struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `count_over_time({foo=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({foo!=\"bar\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=\"baz\", foo!=\"bar\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `count_over_time({app=~\"bar|baz\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `count_over_time({app!~\"bar|baz\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m])`,\n\t\t},\n\t\t{\n\t\t\tin:  `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".*\"}[5m]) + 1`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `1 + count_over_time({app=~\".+\"}[5m]) + count_over_time({app=~\".+\"}[5m]) + 1`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d])`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by ()`,\n\t\t},\n\t\t{\n\t\t\tin: `approx_count_distinct(mac, {foo=\"bar\"}[1d]) by (version)`,\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d])`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `approx_count_distinct(mac, {foo!=\"bar\"}[1d]) by (version)`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin:  `count without (rate({namespace=\"apps\"}[15s]))`,\n\t\t\terr: logqlmodel.NewParseError(\"syntax error: unexpected RATE, expecting IDENTIFIER or )\", 1, 16),\n\t\t},\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 123554,
+          "end_column": 3,
+          "end_line": 3653,
+          "start_byte": 121413,
+          "start_column": 21,
+          "start_line": 3582
+        }
+      }
+    },
+    {
+      "accepted_count": 4,
+      "assertion_calls": [
+        {
+          "original_go": "require.Equal(t, tc.err, err)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 124388,
+            "end_column": 33,
+            "end_line": 3693,
+            "start_byte": 124359,
+            "start_column": 4,
+            "start_line": 3693
+          }
+        }
+      ],
+      "exact_error_count": 3,
+      "executor": {
+        "original_go": "for _, tc := range []struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `{foo=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!=\"bar\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{app=\"baz\", foo!=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin: `{app=~\".+\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{app=~\".*\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{foo=~\"bar|baz\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!~\"bar|baz\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t} {\n\t\tt.Run(tc.in, func(t *testing.T) {\n\t\t\t_, err := ParseLogSelector(tc.in, true)\n\t\t\trequire.Equal(t, tc.err, err)\n\t\t})\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 124396,
+          "end_column": 3,
+          "end_line": 3695,
+          "start_byte": 123736,
+          "start_column": 2,
+          "start_line": 3662
+        }
+      },
+      "matcher_tuple_count": 0,
+      "name": "TestParseLogSelectorExpr_equalityMatcher",
+      "parser_calls": [
+        {
+          "original_go": "ParseLogSelector(tc.in, true)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 124355,
+            "end_column": 43,
+            "end_line": 3692,
+            "start_byte": 124326,
+            "start_column": 14,
+            "start_line": 3692
+          },
+          "validation_argument_expression": "true"
+        }
+      ],
+      "rejected_count": 3,
+      "row_count": 7,
+      "rows": [
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `{foo=\"bar\"}`,\n\t\t}",
+          "query": "{foo=\"bar\"}",
+          "query_bytes_base64": "e2Zvbz0iYmFyIn0=",
+          "query_expression": "`{foo=\"bar\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 0,
+          "source_range": {
+            "end_byte_exclusive": 123824,
+            "end_column": 4,
+            "end_line": 3668,
+            "start_byte": 123797,
+            "start_column": 3,
+            "start_line": 3666
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123923,
+                  "end_column": 70,
+                  "end_line": 3671,
+                  "start_byte": 123887,
+                  "start_column": 34,
+                  "start_line": 3671
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123926,
+                  "end_column": 73,
+                  "end_line": 3671,
+                  "start_byte": 123925,
+                  "start_column": 72,
+                  "start_line": 3671
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 123929,
+                  "end_column": 76,
+                  "end_line": 3671,
+                  "start_byte": 123928,
+                  "start_column": 75,
+                  "start_line": 3671
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 123930,
+              "end_column": 77,
+              "end_line": 3671,
+              "start_byte": 123862,
+              "start_column": 9,
+              "start_line": 3671
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `{foo!=\"bar\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "{foo!=\"bar\"}",
+          "query_bytes_base64": "e2ZvbyE9ImJhciJ9",
+          "query_expression": "`{foo!=\"bar\"}`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 1,
+          "source_range": {
+            "end_byte_exclusive": 123935,
+            "end_column": 4,
+            "end_line": 3672,
+            "start_byte": 123828,
+            "start_column": 3,
+            "start_line": 3669
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `{app=\"baz\", foo!=\"bar\"}`,\n\t\t}",
+          "query": "{app=\"baz\", foo!=\"bar\"}",
+          "query_bytes_base64": "e2FwcD0iYmF6IiwgZm9vIT0iYmFyIn0=",
+          "query_expression": "`{app=\"baz\", foo!=\"bar\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 2,
+          "source_range": {
+            "end_byte_exclusive": 123978,
+            "end_column": 4,
+            "end_line": 3675,
+            "start_byte": 123939,
+            "start_column": 3,
+            "start_line": 3673
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `{app=~\".+\"}`,\n\t\t}",
+          "query": "{app=~\".+\"}",
+          "query_bytes_base64": "e2FwcD1+Ii4rIn0=",
+          "query_expression": "`{app=~\".+\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 3,
+          "source_range": {
+            "end_byte_exclusive": 124009,
+            "end_column": 4,
+            "end_line": 3678,
+            "start_byte": 123982,
+            "start_column": 3,
+            "start_line": 3676
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124107,
+                  "end_column": 70,
+                  "end_line": 3681,
+                  "start_byte": 124071,
+                  "start_column": 34,
+                  "start_line": 3681
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124110,
+                  "end_column": 73,
+                  "end_line": 3681,
+                  "start_byte": 124109,
+                  "start_column": 72,
+                  "start_line": 3681
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124113,
+                  "end_column": 76,
+                  "end_line": 3681,
+                  "start_byte": 124112,
+                  "start_column": 75,
+                  "start_line": 3681
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 124114,
+              "end_column": 77,
+              "end_line": 3681,
+              "start_byte": 124046,
+              "start_column": 9,
+              "start_line": 3681
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `{app=~\".*\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "{app=~\".*\"}",
+          "query_bytes_base64": "e2FwcD1+Ii4qIn0=",
+          "query_expression": "`{app=~\".*\"}`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 4,
+          "source_range": {
+            "end_byte_exclusive": 124119,
+            "end_column": 4,
+            "end_line": 3682,
+            "start_byte": 124013,
+            "start_column": 3,
+            "start_line": 3679
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": null,
+          "expected_error_expression": null,
+          "expected_error_present": false,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin: `{foo=~\"bar|baz\"}`,\n\t\t}",
+          "query": "{foo=~\"bar|baz\"}",
+          "query_bytes_base64": "e2Zvbz1+ImJhcnxiYXoifQ==",
+          "query_expression": "`{foo=~\"bar|baz\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 5,
+          "source_range": {
+            "end_byte_exclusive": 124155,
+            "end_column": 4,
+            "end_line": 3685,
+            "start_byte": 124123,
+            "start_column": 3,
+            "start_line": 3683
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        },
+        {
+          "expected_error": {
+            "arguments": [
+              {
+                "original_go": "errAtleastOneEqualityMatcherRequired",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124258,
+                  "end_column": 70,
+                  "end_line": 3688,
+                  "start_byte": 124222,
+                  "start_column": 34,
+                  "start_line": 3688
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124261,
+                  "end_column": 73,
+                  "end_line": 3688,
+                  "start_byte": 124260,
+                  "start_column": 72,
+                  "start_line": 3688
+                }
+              },
+              {
+                "original_go": "0",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124264,
+                  "end_column": 76,
+                  "end_line": 3688,
+                  "start_byte": 124263,
+                  "start_column": 75,
+                  "start_line": 3688
+                }
+              }
+            ],
+            "constructor_expression": "logqlmodel.NewParseError",
+            "diagnostic": {
+              "column": 0,
+              "line": 0,
+              "message": "queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\".*\" does not meet this requirement, but app=~\".+\" will"
+            },
+            "original_go": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+            "resolved": true,
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 124265,
+              "end_column": 77,
+              "end_line": 3688,
+              "start_byte": 124197,
+              "start_column": 9,
+              "start_line": 3688
+            }
+          },
+          "expected_error_expression": "logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0)",
+          "expected_error_present": true,
+          "expected_matchers": null,
+          "expected_matchers_expression": null,
+          "expected_matchers_present": false,
+          "original_go": "{\n\t\t\tin:  `{foo!~\"bar|baz\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t}",
+          "query": "{foo!~\"bar|baz\"}",
+          "query_bytes_base64": "e2ZvbyF+ImJhcnxiYXoifQ==",
+          "query_expression": "`{foo!~\"bar|baz\"}`",
+          "query_utf8_valid": true,
+          "reject": true,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 6,
+          "source_range": {
+            "end_byte_exclusive": 124270,
+            "end_column": 4,
+            "end_line": 3689,
+            "start_byte": 124159,
+            "start_column": 3,
+            "start_line": 3686
+          },
+          "table": "TestParseLogSelectorExpr_equalityMatcher",
+          "want_err_expression": null
+        }
+      ],
+      "selection": {
+        "name": "TestParseLogSelectorExpr_equalityMatcher",
+        "original_go": "func TestParseLogSelectorExpr_equalityMatcher(t *testing.T) {\n\tfor _, tc := range []struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `{foo=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!=\"bar\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{app=\"baz\", foo!=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin: `{app=~\".+\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{app=~\".*\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{foo=~\"bar|baz\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!~\"bar|baz\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t} {\n\t\tt.Run(tc.in, func(t *testing.T) {\n\t\t\t_, err := ParseLogSelector(tc.in, true)\n\t\t\trequire.Equal(t, tc.err, err)\n\t\t})\n\t}\n}\n",
+        "sha256": "656686469d6490c0096e4712f93509aed356980d18122d11f9a6843ada9c39c2",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 124398,
+          "end_column": 2,
+          "end_line": 3696,
+          "start_byte": 123673,
+          "start_column": 1,
+          "start_line": 3661
+        }
+      },
+      "table": {
+        "original_go": "[]struct {\n\t\tin  string\n\t\terr error\n\t}{\n\t\t{\n\t\t\tin: `{foo=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!=\"bar\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{app=\"baz\", foo!=\"bar\"}`,\n\t\t},\n\t\t{\n\t\t\tin: `{app=~\".+\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{app=~\".*\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t\t{\n\t\t\tin: `{foo=~\"bar|baz\"}`,\n\t\t},\n\t\t{\n\t\t\tin:  `{foo!~\"bar|baz\"}`,\n\t\t\terr: logqlmodel.NewParseError(errAtleastOneEqualityMatcherRequired, 0, 0),\n\t\t},\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 124274,
+          "end_column": 3,
+          "end_line": 3690,
+          "start_byte": 123755,
+          "start_column": 21,
+          "start_line": 3662
+        }
+      }
+    }
+  ]
+}

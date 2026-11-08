@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1cfaa77b1d5f107e8290d3e6ed1f416e50188b9a0f95d387c83570ea480187f7",
+  "hash": "4fd4580be61ce4e34ce046789064b6dd819581361713e67f010583d5ba4b5700",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,25 +11,19 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Rust flaky tests {#rust-flaky-tests}": {
-                  "content_hash": "0821ce6f0ab3b07a32b52abb185b35fa780ca476211b39546d8393e9f2300d91"
+                  "content_hash": "5b1cb327491d208cae90a7efc3c5b82a34c74f9a4261e09c7213e962afbe5262"
                 },
                 "## How flaky detection works {#how-it-works}": {
-                  "content_hash": "fbbc4cdc1ee1e1983b69932471ebfa252a5fd29d29e1b7102bb5272b5db7d1a4"
+                  "content_hash": "370569107ca3c14eb51cd31a39407b55ff7fc814014d353387849f27ea0bd8df"
                 },
-                "## Managing flaky tests {#managing-flaky-tests}": {
-                  "content_hash": "11d25e392de7f616097c41bd981e80c7ca6dc4bea26bcb5cbc19e63323498f7b"
+                "## Quarantining flaky tests {#quarantining}": {
+                  "content_hash": "7176173e6fbf0a6e149af0af9bf7e7d5e8a9ce1f01ada44ea1f148b718dcd294"
                 },
-                "## Quarantining and stress-testing {#quarantine}": {
-                  "content_hash": "2caced868f3db9c6a4d9626bb894b1a4355d61c01d8817d991f9bb4d8c1fb4ae"
+                "## Stress-testing new tests {#stress-testing-new-tests}": {
+                  "content_hash": "34263c1712c64f1f1295b0b4ea4b60d7e471c780295acd9cd4edea9b3426eaba"
                 },
-                "## Slack notifications {#notifications}": {
-                  "content_hash": "856726ad63260e88fd474be686a1b3173dd6a841f4ad9c909da8eae8d69cfd79"
-                },
-                "### Automatic clearing": {
-                  "content_hash": "a1db051794488e09dc1a8f3203b89ddf4a08c3a60d3ad20d9b48e5aa2715cf89"
-                },
-                "### Manual management": {
-                  "content_hash": "585ad32dcd7d0aeae6d42b4aca3072596f2b77048c13fe7ad7ee3161f35dc1c2"
+                "### Limitations {#limitations}": {
+                  "content_hash": "3f23f7c2fb914dd668a2d01e6399a59f0ad8b6ea3b2e3225583430976e3b8d24"
                 },
                 "Preamble": {
                   "content_hash": "801a32dccc437f9dc0f40b288ebfaa3a8fcc621878674c93c45d8c805beb21f0"
@@ -38,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "3c1560cd0c34e800ac61f2c509d2591e4de957599c68221e4bd7076a1db4de42",
+          "hash": "58d5ea43437f2c1e8aeada54c70137a1517ea786f5590eaf255f2e24b562ce71",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
           "metadata": {
-            "content_hash": "f01cc46bcd0f91d471a26c899881139caa79390808fd7a212b1153511c5d582f"
+            "content_hash": "cbc1f09e3842273c6ebf2ee510132de23448c446c318888da77c0593dc6d5bae"
           }
         },
         {
@@ -103,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,13 +116,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -141,21 +135,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -244,21 +238,21 @@
             }
           ],
           "details": {},
-          "hash": "4e15118006592820d9c916fdaf6b6f213536bcf1e9cd67c839cb0eeac52c3b2d",
+          "hash": "b2cf09f5b4c0a2ddcb30b4fd1b0417323ea9c97c52e7ab4fcfb6277ec557eb14",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "1cfaa77b1d5f107e8290d3e6ed1f416e50188b9a0f95d387c83570ea480187f7",
+      "hash": "4fd4580be61ce4e34ce046789064b6dd819581361713e67f010583d5ba4b5700",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "68336d30c2c3f1f6ccb9856408939f5fd081c8d6795420aaee4ea074bec66298",
+  "output_hash": "143f7adeced7a2e2741adbe71f483b7e091053d2984cb74ea570a79c8e93458f",
   "output_path": "server/priv/docs/ru/guides/features/test-insights/flaky-tests/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +274,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/rust.md",
-  "translated_at": "2026-10-29T15:53:54.978482Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-06T21:25:55.600209Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

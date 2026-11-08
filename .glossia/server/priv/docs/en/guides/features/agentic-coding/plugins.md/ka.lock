@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e6eef62418d6d7ed0c7a769c5ff95046842b6daebaf89619df0d0121f1d2c88d",
+  "hash": "910da83cb9252e4dd4bf80212ebd1ed636e1b64f667536bf45e1a731792e4513",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "548613f4034cdbf5f33a3e7d019d67f1aa368d36d50e926292281c80af6354ae"
                 },
                 "## Authentication": {
-                  "content_hash": "a5b16490c3456ea65abf3394be54687758654379d581eaac4144e280857ac527"
+                  "content_hash": "d584cd9bd529542621f923c63380032b59288f6535a91d6b57c4ea39dd150ab5"
                 },
                 "## Claude Code": {
                   "content_hash": "abc502d4c5ce2a294e95cb1ff390b3800d6cf7ba148720c85ca7a1d4ff00ba07"
@@ -23,7 +23,7 @@
                   "content_hash": "6e10e292f5b9004039a5bb28c204f184a2c37c3034332517554183bc353c930c"
                 },
                 "## Other coding agents": {
-                  "content_hash": "0893c582c160bea72bd23ef8587c209df03f4d2e69f29841af4052aa5ab1f0ae"
+                  "content_hash": "6ab02722e555485694b999998740b9d0e8759c7164a101787cc256dee87a0f2d"
                 },
                 "Preamble": {
                   "content_hash": "0699b9b732c7c9ec26f25b90277b9ae859268726cbc7f91a7accff2f414471d7"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "004e4d34ec13a15f91db831d34c6b7942112d4d0a7db0af3700d9c5953077646",
+          "hash": "a18f8c6a9f25a2796fa4266588db90487ee7cf545a630f52305a6cba6edbd29b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/plugins.md",
           "metadata": {
-            "content_hash": "b8b2a4af0d8f28e7a7002bab1b8f76f8049635d9e622de59596c412aace907d9"
+            "content_hash": "4ead91972ba1b6ef50a623bc200d9d76d8d78dd464edf6a84fc0907d2fb96263"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -226,21 +226,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "e6eef62418d6d7ed0c7a769c5ff95046842b6daebaf89619df0d0121f1d2c88d",
+      "hash": "910da83cb9252e4dd4bf80212ebd1ed636e1b64f667536bf45e1a731792e4513",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/plugins.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a72a0e9cbd837c15d3c40898587cf9ebb2bb1145675051f252cb6719087c2db5",
+  "output_hash": "33d215e99da56c9b15bf6fd0bdb72b5ba27cbc311bc4897830c7c7e997e7a398",
   "output_path": "server/priv/docs/ka/guides/features/agentic-coding/plugins.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/plugins.md",
-  "translated_at": "2026-10-30T13:32:45.665009Z",
-  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
+  "translated_at": "2026-11-06T15:52:35.046126Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

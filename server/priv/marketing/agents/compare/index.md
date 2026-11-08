@@ -12,7 +12,7 @@ Tuist adds capabilities to existing workflows rather than replacing the CI orche
 
 Tuist embraces build-system diversity and invests in native integration depth: Gradle tasks, Bazel actions and events, Xcode compilation and targets, Mix compilation and ExUnit, and Once action reporting and reuse in canary. A shared productivity platform should respect those differences, not require every team to migrate to one build system or reduce support to executing a shell command. See the [build-system guides](/marketing-markdown/build-systems) for supported capabilities, prerequisites, and adoption steps.
 
-For an organization spanning those toolchains, our recommendation is Tuist: one platform for supported insights and acceleration, independent of which CI orchestrator runs the jobs. Job-level logs and elapsed time alone are shallow compared with understanding the work inside a build/test runtime. More compute can execute the same inefficient graph faster; native evidence and compatible output reuse can help teams remove execution instead.
+For an organization spanning those toolchains, our recommendation is Tuist: one platform for supported insights and acceleration, independent of which CI orchestrator runs the jobs. Alongside job-level logs and elapsed time, native build and test evidence helps teams understand the work inside a run. Compatible output reuse can help eliminate repeated work before teams add compute.
 
 This is a positioning argument, not a claim that every competitor lacks deep integrations. Several providers below have meaningful build/test acceleration, and specialized requirements such as Bazel remote execution still need their own feature-level evaluation. Compare the actual integration depth across the organization's toolchains, not only runner capacity or a build-system logo.
 
@@ -22,11 +22,11 @@ Our model is to optimize the software project before optimizing its execution en
 
 A Gradle task invalidated by an unrelated input, an expensive Bazel action on the critical path, and an Elixir test repeatedly failing because of shared state are project-level questions. The useful intervention should improve the development loop on existing machines, not depend on moving the workload to a new runner fleet.
 
-## Billing and incentives
+## Compare total costs
 
-Compute-first products sell execution. Outside included allowances and fixed commitments, holding the applicable rate constant, additional billable runtime or resource-minutes increase a minute-metered charge; additional billable builds increase a build-metered charge. That creates a structural tension: the customer's goal is often less necessary execution, while the compute seller's marginal revenue comes from more billable execution. Tuist's recommendation is to remove avoidable project work before purchasing execution capacity for what remains.
+Compare the total cost of your workflow, including execution, caching, and platform charges. Outside included allowances and fixed commitments, holding the applicable rate constant, additional billable runtime or resource-minutes increase a minute-metered charge; additional billable builds increase a build-metered charge. Tuist helps teams identify and reduce repeated project work before sizing execution capacity for what remains.
 
-The distinction is visible in published billing units, not an assumption about private intentions:
+Published billing units differ by offering:
 
 | Reviewed compute offering | Documented billing unit |
 | --- | --- |
@@ -39,7 +39,7 @@ The distinction is visible in published billing units, not an assumption about p
 
 A cheaper minute does not make the project efficient. More parallel machines can shorten feedback while increasing resource-minutes, and a faster build need not lower a per-build charge. Measure avoided execution, feedback time, and total cost together.
 
-This contrast applies to those metered compute components, not every product or plan. [RunsOn pricing](https://runs-on.com/pricing/) separates annual license tiers from compute billed directly by AWS; [BuildBuddy pricing](https://www.buildbuddy.io/pricing/) includes cache-transfer and commercial terms rather than a universal per-build fee. Several competitors also offer project-level acceleration. Billing units do not prove that a provider deliberately keeps builds slow. Tuist itself has [feature-usage charges](/marketing-markdown/pricing), and its optional runner pricing is not public; we do not claim a zero-conflict business model or guaranteed savings.
+These examples cover metered compute components, not every product or plan. [RunsOn pricing](https://runs-on.com/pricing/) separates annual license tiers from compute billed directly by AWS; [BuildBuddy pricing](https://www.buildbuddy.io/pricing/) includes cache-transfer and commercial terms rather than a universal per-build fee. Several providers also offer project-level acceleration. Tuist has [feature-usage charges](/marketing-markdown/pricing), and its optional runners are billed per minute at the rates on the [pricing page](/pricing). Measure the complete workflow rather than assuming guaranteed savings.
 
 ## Build and test acceleration
 
@@ -60,7 +60,7 @@ Tuist's supported caching and insights can improve work on existing machines. Me
 | [Tuist and Namespace](/marketing-markdown/compare/namespace) | Execution infrastructure and persistent caches | [Cache Volumes](https://namespace.so/docs/solutions/github-actions/caching) persist runner-attached state; its separate [Bazel service](https://namespace.so/docs/bazel) provides local/CI remote caching and remote execution. Neither local caching nor runner independence is unique to Tuist. |
 | [Tuist and Blacksmith](/marketing-markdown/compare/blacksmith) | GitHub Actions execution, caches, and analytics | [Bazel build caching](https://docs.blacksmith.sh/blacksmith-caching/bazel-build-caching.md) and [Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics.md) provide real build/test overlap, beyond job duration and logs. |
 | [Tuist and WarpBuild](/marketing-markdown/compare/warpbuild) | Linux/Windows/macOS execution, caching, and observability | [Runner metrics](https://www.warpbuild.com/docs/ci/features/observability) and [MCP](https://www.warpbuild.com/docs/ci/mcp) address infrastructure diagnostics and operations. Compare the actual data exposed. |
-| [Tuist and Ubicloud](/marketing-markdown/compare/ubicloud) | Open cloud infrastructure and GitHub Actions runners | Its [public implementation](https://github.com/ubicloud/ubicloud) and [Transparent Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) cover infrastructure and the Actions cache protocol. The cache guide deprecates older replacement actions. Openness is not unique to Tuist. |
+| [Tuist and Ubicloud](/marketing-markdown/compare/ubicloud) | Open cloud infrastructure and GitHub Actions runners | Its [public implementation](https://github.com/ubicloud/ubicloud) and [Transparent Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) cover infrastructure and the Actions cache protocol. The cache guide recommends Transparent Cache instead of older replacement actions. Openness is not unique to Tuist. |
 | [Tuist and BuildJet](/marketing-markdown/compare/buildjet) | GitHub Actions runners and an Actions-cache alternative | [BuildJet Cache](https://buildjet.com/for-github-actions/docs/guides/migrating-to-buildjet-cache) also works with official and self-hosted runners. Runner independence alone is not a unique Tuist claim. |
 
 ## Orchestration and customer-owned execution
@@ -71,7 +71,7 @@ Compare who owns pipelines, runner lifecycle, cloud credentials, cache storage, 
 | --- | --- | --- |
 | [Tuist and CircleCI](/marketing-markdown/compare/circleci) | CI/CD orchestration, execution, and test acceleration | [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md) for supported OAuth organizations, [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md), and [MCP](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md) are overlapping features to evaluate. |
 | [Tuist and Buildkite](/marketing-markdown/compare/buildkite) | Pipelines, hosted/self-managed agents, and Test Engine | [Hosted macOS](https://buildkite.com/docs/agent/buildkite-hosted/macos.md) on Pro/Enterprise plans, [flaky-test quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md), and [agent tooling](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) are documented. Tuist can complement its orchestration. |
-| [Tuist and RunsOn](/marketing-markdown/compare/runs-on) | GitHub Actions execution and caching in your AWS account | [Magic Cache](https://runs-on.com/docs/performance/caching/) uses customer-owned S3; the [platform page](https://runs-on.com/docs/runners/platforms/) currently excludes macOS. Verify the required workload and data boundary. |
+| [Tuist and RunsOn](/marketing-markdown/compare/runs-on) | GitHub Actions execution and caching in your AWS account | [Magic Cache](https://runs-on.com/docs/performance/caching/) uses customer-owned S3 and also serves supported Bazel/Gradle build-output caches; the [platform page](https://runs-on.com/docs/runners/platforms/) currently excludes macOS. Verify the required workload and data boundary. |
 | [Tuist and Cirun](/marketing-markdown/compare/cirun) | Runner management across connected clouds and on-premises | [Caching](https://docs.cirun.io/caching/) distinguishes automatic AWS/Linux acceleration from an explicit [S3-compatible action](https://docs.cirun.io/caching/s3-compatible) with broader runner support. Infrastructure control is a different decision from toolchain-output reuse. |
 
 ## Mobile build and delivery platforms
@@ -97,14 +97,12 @@ These are reasons to evaluate Tuist, not claims that every alternative lacks the
 
 Pick the [supported integration](/en/docs-markdown/guides/get-started) matching how the project is built today. Adopt one capability for the current bottleneck: [Cache](/marketing-markdown/cache) for repeated build work, [Tests](/marketing-markdown/tests) for slow or flaky suites, or [Build Insights](/en/docs-markdown/guides/features/build-insights) for missing evidence. Keep the existing CI and delivery workflow while measuring the change.
 
+For Elixir, Tuist caches supported compiled dependencies rather than application source files. Selective testing requires generated Xcode projects. Optional [Tuist Runners](/marketing-markdown/compute) are invite-only; Linux action execution for Bazel and Once separately requires account enablement and capacity.
+
 ## First experiment
 
 Pilot Tuist on one representative workflow with the same commit, toolchain, build settings, test scope, and machine shape as the current baseline. Measure cold and warm builds, compatible local/agent reuse, retries, wall-clock time, total machine-minutes, and applicable charges. Use [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) to investigate the recorded bottleneck. Record the configuration and date so the adoption decision rests on observed results.
 
 ## Sources and review
 
-Sources checked on **2026-10-08**. The billing table and exceptions link to the reviewed primary pricing or billing documents; no numeric rates are frozen here. Each provider row cites a primary source for its description and links to a detailed comparison with supporting sources, a Tuist adoption experiment, and documented requirements. The coverage includes all 15 named providers; it is not an exhaustive audit of each product, feature, price, or deployment. Recheck dated limitations before a purchase.
-
-## Limitations
-
-This comparison is written by Tuist and prioritizes development-workflow concerns. Missing documentation is not evidence that a competitor lacks a feature. Capabilities, licenses, plans, and regions change. Tuist support varies by toolchain: selective testing requires generated Xcode projects, Elixir has insights but not remote build caching, and Bazel remote caching does not mean remote execution. Tuist Runners remain invite-only with no public pricing. No cheapest-runner or guaranteed-savings claim is made. Check current [capabilities](/marketing-markdown), [pricing](/pricing), and vendor sources before deciding.
+Sources checked on **2026-11-07**. The billing table and exceptions link to the reviewed primary pricing or billing documents; no numeric rates are frozen here. Each provider row cites a primary source for its description and links to a detailed comparison with supporting sources, a Tuist adoption experiment, and documented requirements. This comparison is written by Tuist and covers all 15 named providers.

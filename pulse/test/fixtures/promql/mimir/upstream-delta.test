@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for delta().
+load 5m
+	http_requests{path="/foo"}	0 50 100 150 200
+	http_requests{path="/bar"}	200 150 100 50 0
+	http_requests_gauge{path="/foo"} {{schema:0 sum:0 count:0 buckets:[0 0 0] counter_reset_hint:gauge}}+{{schema:0 sum:1 count:2 buckets:[1 1 1] counter_reset_hint:gauge}}x5
+	http_requests_counter{path="/foo"} {{schema:0 sum:0 count:0 buckets:[0 0 0]}}+{{schema:0 sum:1 count:2 buckets:[1 1 1]}}x5
+	http_requests_mix{path="/foo"} 0 50 100 {{schema:0 sum:0 count:0 buckets:[0 0 0] counter_reset_hint:gauge}} {{schema:0 sum:1 count:2 buckets:[1 1 1] counter_reset_hint:gauge}}
+
+eval instant at 20m delta(http_requests[20m])
+	expect no_warn
+	{path="/foo"} 200
+	{path="/bar"} -200
+
+eval instant at 20m delta(http_requests_gauge[20m])
+	expect no_warn
+	{path="/foo"} {{schema:0 sum:4 count:8 buckets:[4 4 4]}}
+
+# delta emits warn annotation for non-gauge histogram types.
+eval instant at 20m delta(http_requests_counter[20m])
+	expect warn msg: PromQL warning: this native histogram metric is not a gauge: "http_requests_counter" (1:7)
+	{path="/foo"} {{schema:0 sum:4 count:8 buckets:[4 4 4]}}
+
+# delta emits warn annotation for mix of histogram and floats.
+eval instant at 20m delta(http_requests_mix[20m])
+	expect warn msg: PromQL warning: encountered a mix of histograms and floats for metric name "http_requests_mix" (1:7)
+	#empty
+
+clear
+

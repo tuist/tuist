@@ -39,6 +39,34 @@ defmodule Tuist.OIDC do
 
   def claims(_, _), do: {:error, :invalid_token}
 
+  @doc """
+  The verified claims of a GitHub Actions token minted for `audience`.
+  Unlike `claims/2`, it accepts no other provider and returns every claim.
+  """
+  def github_actions_claims(token, audience)
+      when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, issuer} <- peek_issuer(token),
+         {:ok, :github_actions} <- provider(issuer),
+         {:ok, claims} <- verify(token, @github_actions_jwks_uri),
+         :ok <- audience_includes(claims, audience) do
+      {:ok, claims}
+    else
+      {:ok, _provider} -> {:error, :unsupported_provider}
+      {:error, reason, _detail} -> {:error, reason}
+      error -> error
+    end
+  end
+
+  def github_actions_claims(_, _), do: {:error, :invalid_token}
+
+  defp audience_includes(%{"aud" => audience}, audience), do: :ok
+
+  defp audience_includes(%{"aud" => audiences}, audience) when is_list(audiences) do
+    if audience in audiences, do: :ok, else: {:error, :invalid_audience}
+  end
+
+  defp audience_includes(_claims, _audience), do: {:error, :invalid_audience}
+
   defp builtin_claims(token, issuer, provider) do
     with {:ok, jwks_uri} <- jwks_uri(provider, issuer),
          {:ok, claims} <- verify(token, jwks_uri),

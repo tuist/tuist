@@ -10,7 +10,7 @@
 
 `tuist.toml` はビルドシステムに依存しない設定ファイルであり、`Tuist.swift` の進化形です。`Tuist.swift` とは異なり Swift を必要としないため、あらゆるプラットフォームやビルドシステムで利用できます。Linux ベースの CI ランナーなど Swift が利用できない環境や、完全な `Tuist.swift` マニフェストなしでサーバー関連の設定のみを行いたい場合に最適です。
 
-Tuist は現在の作業ディレクトリから上位のディレクトリ階層をたどり、最初に見つかった `tuist.toml` を使用します。つまり、プロジェクトのルートに配置すれば、どのサブディレクトリからでも Tuist コマンドを実行できます。
+Tuist は現在の作業ディレクトリから上位のディレクトリ階層をたどり、最初に見つかった `tuist.toml` を検索対象とします。つまり、プロジェクトのルートに配置すれば、どのサブディレクトリからでも Tuist コマンドを実行できます。
 
 ## サポートされているキー {#supported-keys}
 
@@ -21,12 +21,12 @@ Tuist は現在の作業ディレクトリから上位のディレクトリ階�
 
 ### ネットワーク {#network}
 
-`[network]` テーブルは、Tuist が外部への HTTP 接続を行う方法を設定します。
+`[network]` テーブルは、Tuist が外部 HTTP 接続を行う方法を構成します。
 
 | キー | 型 | 必須 | デフォルト | 説明 |
 | --- | --- | --- | --- | --- |
-| `proxy` | `Boolean` | いいえ | `true` | `true` の場合、`HTTPS_PROXY`/`HTTP_PROXY` で定義されたプロキシが設定されていれば Tuist はそれを使用します。詳細は <.localized_link href="/guides/integrations/http-proxy">HTTP プロキシガイド</.localized_link> を参照してください。 |
-| `ca_certificate` | `String` | いいえ | — | システムのルート証明書ストアに加えて信頼する PEM または DER 形式の CA 証明書バンドルへのパス。プライベート CA を使用するセルフホスト型サーバーなどで使用します。`TUIST_CA_CERTIFICATE` 環境変数が優先されます。詳細は <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">カスタム CA 証明書の信頼</.localized_link> を参照してください。 |
+| `proxy` | `Boolean` | いいえ | `true` | `true` の場合、Tuist は存在すれば `HTTPS_PROXY`/`HTTP_PROXY` で定義されたプロキシを使用します。<.localized_link href="/guides/integrations/http-proxy">HTTP プロキシガイド</.localized_link>を参照してください。 |
+| `ca_certificate` | `String` | いいえ | — | システムのルート証明書ストアに加えて信頼する PEM または DER 形式の CA 証明書バンドルへのパス。たとえば、プライベート CA を使用するセルフホスト型サーバー向けです。`TUIST_CA_CERTIFICATE` 環境変数が優先されます。<.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">カスタム CA 証明書を信頼する</.localized_link>を参照してください。 |
 
 ## 例 {#example}
 

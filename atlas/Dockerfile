@@ -62,7 +62,8 @@ COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 
 # Install from the manifest alone so the install layer survives source
 # changes, then copy only what the build reads: the web component generator
-# walks components/ and lib/noora/icons/, and esbuild bundles js/ and css/.
+# walks components/ and lib/noora/icons/, reads the RTL-mirrored icon list
+# from lib/noora/icon.ex, and esbuild bundles js/ and css/.
 # A rebuilt stage hands the builder new bytes even when the bundles are the
 # same, so changes to noora's docs, storybook, or tests must not reach it.
 WORKDIR /noora
@@ -71,6 +72,7 @@ RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 COPY noora/scripts scripts
 COPY noora/components components
 COPY noora/lib/noora/icons lib/noora/icons
+COPY noora/lib/noora/icon.ex lib/noora/icon.ex
 COPY noora/js js
 COPY noora/css css
 RUN aube run build
@@ -100,6 +102,7 @@ ENV MIX_ENV="prod"
 # its source comes in after the Hex dependencies are fetched and compiled.
 # A noora change then recompiles noora alone instead of every dependency.
 COPY noora/mix.exs noora/mix.lock /noora/
+COPY condukt/mix.exs /condukt/mix.exs
 
 # install mix dependencies
 COPY atlas/mix.exs atlas/mix.lock ./
@@ -111,7 +114,7 @@ RUN mix deps.get --only $MIX_ENV
 # a COPY with a variable reads, so it keys it on the whole build context,
 # and that differs between checkouts.
 COPY atlas/config/config.exs atlas/config/prod.exs config/
-RUN mix deps.compile
+RUN mix deps.compile --skip-local-deps
 
 # Noora's modules read README.md and the component contracts at compile
 # time. The aube-built priv/static from the noora-assets stage overlays the
@@ -121,6 +124,10 @@ COPY noora/components /noora/components
 COPY noora/lib /noora/lib
 COPY --from=noora-assets /noora/priv/static /noora/priv/static
 RUN mix deps.compile noora --force
+
+COPY condukt/lib /condukt/lib
+COPY condukt/priv /condukt/priv
+RUN mix deps.compile condukt
 
 # Copied before the code because they rarely change: every instruction after
 # the one an edit invalidates runs again.

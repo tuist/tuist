@@ -40,4 +40,9 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
     details="Detect and investigate flaky Cargo tests using results across CI runs."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
+  <.home_card
+    title="Once"
+    details="Investigate inconsistent test results through reported retry attempts and CI history."
+    link="/guides/features/test-insights/flaky-tests/once"
+/>
 </.home_cards>

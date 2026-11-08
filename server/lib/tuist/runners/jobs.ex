@@ -46,6 +46,8 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
+  alias Tuist.Runners.Bitrise.Build, as: BitriseBuild
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
@@ -135,6 +137,13 @@ defmodule Tuist.Runners.Jobs do
   # `repository` on the job row therefore holds a pipeline slug. The
   # account's projects are the candidates instead, and `ci_project_handle`
   # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %BitriseBuild{}) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
   def projects_for_runner_job(%{id: account_id}, _job, %GitLabJob{}) do
     case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
       [] -> {:error, :not_found}
@@ -165,7 +174,7 @@ defmodule Tuist.Runners.Jobs do
 
   def list_runner_build_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
-    workflow_run_id = Integer.to_string(workflow_run_id)
+    workflow_run_id = ci_run_id(workflow_run_id, buildkite_job)
 
     BuildRun
     |> where([build], build.project_id in ^project_ids)
@@ -178,7 +187,7 @@ defmodule Tuist.Runners.Jobs do
 
   def list_runner_test_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
-    workflow_run_id = Integer.to_string(workflow_run_id)
+    workflow_run_id = ci_run_id(workflow_run_id, buildkite_job)
 
     TestRun.query()
     |> where([test], test.project_id in ^project_ids)
@@ -190,6 +199,14 @@ defmodule Tuist.Runners.Jobs do
     |> latest_runner_runs_by_id()
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
   end
+
+  # The CLI reports a Bitrise run under the build and app slugs, not the
+  # build number the lifecycle row carries.
+  defp ci_run_id(_workflow_run_id, %BitriseBuild{build_slug: build_slug}), do: build_slug
+  defp ci_run_id(workflow_run_id, _ci_job), do: Integer.to_string(workflow_run_id)
+
+  defp ci_scope(query, %BitriseBuild{app_slug: app_slug}),
+    do: where(query, [run], run.ci_provider == "bitrise" and run.ci_project_handle == ^app_slug)
 
   # The CLI reports the project path and instance host separately. Older
   # uploads omit the host, so retain those matches without accepting a known
@@ -440,13 +457,19 @@ defmodule Tuist.Runners.Jobs do
   `{:error, :not_found}` when none does (delivery race where
   `completed` arrives before `queued`).
 
+  With `account_id:`, a row owned by another account is left untouched
+  and `{:error, :account_mismatch}` is returned.
+
   Per-step data lives in `runner_job_steps`; the caller writes it
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
-  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+  def complete(workflow_job_id, conclusion, opts \\ []) when is_integer(workflow_job_id) and is_binary(conclusion) do
+    account_id = Keyword.get(opts, :account_id)
+
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       case Repo.get(WorkflowJob, workflow_job_id) do
         nil -> {:error, :not_found}
+        %WorkflowJob{account_id: owner} when not is_nil(account_id) and owner != account_id -> {:error, :account_mismatch}
         %WorkflowJob{} = row -> complete_locked(row, conclusion)
       end
     end)
@@ -1450,7 +1473,12 @@ defmodule Tuist.Runners.Jobs do
       )
     end
 
-    {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
+    completed = %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}
+
+    # Only the first completion notifies; the terminal guard makes the rest no-ops.
+    if row.status not in ["completed", "cancelled"], do: APIJobs.dispatch_event(completed, "runner_job.completed")
+
+    {:ok, completed}
   end
 
   defp record_completed_locked(attrs, conclusion) do

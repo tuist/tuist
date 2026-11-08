@@ -18,8 +18,9 @@ these schemas persist volume identities and per-job uses.
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
   host gets only the repositories `VolumePlacement` places on it: every volume of
-  an account's repository goes to the same hosts, one more than the repository's
-  jobs ran on at once over the week and at least two, picked by rendezvous
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per
@@ -54,6 +55,11 @@ these schemas persist volume identities and per-job uses.
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
+- A cold report's `cold_reason` records why the host had no copy of a warm use's
+  volume (runner-cache's `Cold*` reasons: `downloading`, `not_on_host`,
+  `evicted_<eviction reason>`). Only a known reason on a `warm: false` report of
+  a use with a base is kept, and the first one stays. `cold_reason_description/1`
+  adds it to the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -84,6 +90,36 @@ these schemas persist volume identities and per-job uses.
   `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
+- The one job-supplied input that may bind a session is a GitHub Actions OIDC
+  token the job minted for the `tuist-runner-cache` audience
+  (`Runners.ExecutionTokens`). The job-started hook requests it when the
+  workflow grants `id-token: write`, before any attach, and the agent forwards it
+  unread to `/runners/cache-volumes/execution`. Its `check_run_id` must be a
+  GitHub job of the session's account in the claimed repository, not yet
+  completed and bound to no other session, and the session must not be bound to
+  another job: a token names no runner, so it never overrides GitHub's report.
+  The check and the bind run under the per-account lock GitHub's reports take. With `FeatureFlags.runner_oidc_execution_enabled?/1`
+  it binds through `Dispatch.record_execution/3`; without it the job is only
+  logged (`execution token names a job (not binding)`) beside the session's
+  binding. Never accept any other claim or variable from the job this way.
+  A token that binds also stores its claims on the session
+  (`execution_identity`, tied to the job it named), which `Identity.resolve/1`
+  reads only while the account has the flag. It takes a
+  push, schedule or workflow_dispatch job's identity from them without reading
+  the run; only the default branch comes from GitHub's repository (cached for
+  five minutes), or from the volumes' recorded `default_branch` when GitHub cannot
+  answer. Only a `refs/heads/` ref saves as the default branch; a tag of the same
+  name never does. A pull request job still reads the run to tell a fork apart, and when
+  GitHub cannot answer it attaches read-only (`same_repository` false, no writer
+  branch), so its custom volumes and checkout still read and its Docker volume
+  stays unavailable. A checkout needs a known default branch.
+- GitLab's identity is captured right after the job is acquired, by
+  `Workers.CaptureGitLabIdentityWorker` (`Identity.capture_gitlab/1`,
+  `runner_gitlab_jobs.cache_volume_identity`), so allocation does not call
+  GitLab; it resolves live only when that capture has not landed, and uses the
+  stored identity only while the assignment holds its payload. The worker is
+  enqueued in the assignment's transaction; keep GitLab calls out of the
+  acquisition itself: a GitLab failure there must never fail the job.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
@@ -108,8 +144,9 @@ these schemas persist volume identities and per-job uses.
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  the capacity chosen for the job (`full?/2`) once a use cloned from that head
-  reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
+  the capacity chosen for the job (`full?/2`) once a use cloned from that head, or
+  from the head's own parent (a sibling that saved replaced the head the others
+  filled), reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
   same generation bump as deletion, then sizes the use as for an empty volume.
   The decision precedes the host-maximum check, so a refused job changes nothing.
   Unknown sizes never clear. The dashboard warns on heads nearly full at the

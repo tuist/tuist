@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/operators.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+clear
+
+# Testing atan2.
+load 5m
+    trigy{} 10
+    trigx{} 20
+    trigNaN{} NaN
+
+eval instant at 1m trigy atan2 trigx
+    {} 0.4636476090008061
+
+eval instant at 1m trigy atan2 trigNaN
+    {} NaN
+
+eval instant at 1m 10 atan2 20
+    0.4636476090008061
+
+eval instant at 1m 10 atan2 NaN
+    NaN
+
+clear

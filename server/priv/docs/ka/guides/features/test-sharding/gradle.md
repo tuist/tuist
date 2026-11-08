@@ -1,27 +1,29 @@
 ---
 {
-  "title": "Gradle ტესტების შარდინგი",
-  "titleTemplate": ":title · ტესტების შარდინგი · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "გაანაწილეთ Gradle ტესტები რამდენიმე CI გამშვებზე Tuist Test Sharding-ის გამოყენებით."
+  "title": "Gradle ტესტების დაყოფა",
+  "titleTemplate": ":title · ტესტების დაყოფა · ფუნქციები · სახელმძღვანელოები · Tuist",
+  "description": "გაანაწილეთ Gradle ტესტები მრავალ CI გამშვებზე Tuist Test Sharding-ის საშუალებით."
 }
 ---
-# Gradle ტესტების დაშლა {#gradle-test-sharding}
+# Gradle ტესტების დაყოფა {#gradle-test-sharding}
 
-Tuist-ის Gradle პლაგინი შეიცავს ჩაშენებულ მხარდაჭერას ტესტების დასალად. ის გეგმავს ტესტების ნაკრებებს, რომლებიც Tuist-მა ჩაწერა თქვენი პროექტების ტესტის ამოცანების წინა CI გაშვებებში, და იყენებს Tuist სერვერს ბალანსირებული დაშლის გეგმების შესაქმნელად ისტორიული დროის მონაცემების საფუძველზე.
+Tuist-ის Gradle პლაგინი შეიცავს ჩაშენებულ მხარდაჭერას ტესტების დაყოფისთვის. ის გეგმავს ტესტების სუიტებს, რომლებიც Tuist-მა ჩაწერა თქვენი პროექტების ტესტების ამოცანების წინა CI გაშვებების დროს, და იყენებს Tuist სერვერს ბალანსირებული დაყოფის გეგმების შესაქმნელად ისტორიული დროის მონაცემების საფუძველზე.
 
-> [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/features/test-insights/gradle">ტესტების ინსაიტები</.localized_link> უნდა იყოს კონფიგურირებული
+> [!IMPORTANT]
+> **მოთხოვნები**
+>
+> - <.localized_link href="/guides/features/test-insights/gradle">ტესტების ანალიტიკა</.localized_link> უნდა იყოს კონფიგურირებული
 
 ## როგორ მუშაობს {#how-it-works}
 
-ტესტების დაშლა მიჰყვება ორეტაპიან სამუშაო პროცესს:
+ტესტების დაყოფა მიჰყვება ორეტაპიან სამუშაო პროცესს:
 
-1. **აგების ეტაპი:** Tuist ქმნის **დაშლის გეგმას** სერვერზე თქვენი პროექტებისთვის ჩაწერილი ტესტების ნაკრებებიდან. სერვერი იყენებს ბოლო 30 დღის ისტორიულ ტესტის დროის მონაცემებს ტესტების დასანაწილებლად დაშლებზე ისე, რომ თითოეულ დაშლას დაახლოებით ერთი და იგივე დრო სჭირდებოდეს. აგების ეტაპი გამოაქვს **დაშლის მატრიცა**, რომელსაც თქვენი CI სისტემა იყენებს პარალელური გამშვებების შესაქმნელად.
-2. **ტესტირების ეტაპი:** თითოეული CI გამშვები იღებს **დაშლის ინდექსს** და ასრულებს მხოლოდ იმ ტესტებს, რომლებიც მინიჭებულია ამ დაშლას. ბოლო დაშლა ასევე ასრულებს ყველა ტესტის ნაკრებს, რომელიც არ არის მინიჭებული სხვა დაშლას.
+1. **აგების ეტაპი:** Tuist ქმნის **დაყოფის გეგმას** სერვერზე თქვენი პროექტებისთვის ჩაწერილი ტესტების სუიტებიდან. სერვერი იყენებს ბოლო 30 დღის ისტორიულ ტესტების დროის მონაცემებს, რათა გაანაწილოს ტესტები დაყოფებში ისე, რომ თითოეულმა დაყოფამ დაახლოებით თანაბარი დრო დახარჯოს. აგების ეტაპი გამოაქვს **დაყოფის მატრიცა**, რომელსაც თქვენი CI სისტემა იყენებს პარალელური გამშვებების შესაქმნელად.
+2. **ტესტირების ეტაპი:** თითოეული CI გამშვები იღებს **დაყოფის ინდექსს** და ასრულებს მხოლოდ იმ ტესტებს, რომლებიც მინიჭებულია ამ დაყოფას. ბოლო დაყოფა ასევე ასრულებს ყველა ტესტების სუიტას, რომელიც არ არის მინიჭებული სხვა დაყოფას.
 
 ## აგების ეტაპი {#build-phase}
 
-მოამზადეთ ტესტების დაშლები `tuistPrepareTestShards` ამოცანის გამოყენებით:
+მოამზადეთ ტესტების დაყოფები `tuistPrepareTestShards` ამოცანის გამოყენებით:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -29,24 +31,24 @@ Tuist-ის Gradle პლაგინი შეიცავს ჩაშენ�
 ```
 
 ეს ამოცანა:
-1. პოულობს პროექტებს, რომლებსაც აქვთ დასალადი ტესტის ამოცანა, მათი კომპილაციის გარეშე
-2. ქმნის დაშლის გეგმას Tuist სერვერზე იმ პროექტებისთვის ჩაწერილი ტესტების ნაკრებებიდან და დროებიდან ბოლო 30 დღის განმავლობაში
-3. გამოაქვს დაშლის მატრიცა თქვენი CI სისტემისთვის
+1. პოულობს პროექტებს, რომლებსაც აქვთ დასაყოფი ტესტების ამოცანა, მათი კომპილაციის გარეშე
+2. ქმნის დაყოფის გეგმას Tuist სერვერზე იმ პროექტებისთვის ჩაწერილი ტესტების სუიტებიდან და დროებიდან ბოლო 30 დღის განმავლობაში
+3. გამოაქვს დაყოფის მატრიცა თქვენი CI სისტემისთვის
 
-როდესაც ჯერ არ არის ჩაწერილი ტესტების ნაკრებები, მაგალითად, პირველ გაშვებაზე, გეგმა შეიცავს ერთ დაშლას, რომელიც ასრულებს ყველა ტესტს.
+როდესაც ჯერ არ არის ჩაწერილი ტესტების სუიტები, მაგალითად პირველ გაშვებაზე, გეგმას აქვს ერთი დაყოფა, რომელიც ასრულებს ყველა ტესტს.
 
 ### აგების პარამეტრები {#build-options}
 
-კონფიგურირება დაშლისთვის Gradle პროექტის თვისებების მეშვეობით:
+კონფიგურირება დაყოფისა Gradle პროექტის თვისებების მეშვეობით:
 
 | თვისება | აღწერა |
 |----------|-------------|
-| `-PtuistShardMax=<N>` | დაშლების მაქსიმალური რაოდენობა (ნაგულისხმები: 2) |
-| `-PtuistShardMin=<N>` | დაშლების მინიმალური რაოდენობა |
-| `-PtuistShardMaxDuration=<MS>` | მიზნობრივი მაქსიმალური ხანგრძლივობა თითოეული დაშლისთვის მილიწამებში |
-| `-PtuistShardTestTask=<NAME>` | ტესტის ამოცანა, რომლის ტესტებიც ნაწილდება, მაგალითად `testDebugUnitTest`. ნაგულისხმევია ყველა ტესტის ამოცანა აგებაში |
+| `-PtuistShardMax=<N>` | დაყოფების მაქსიმალური რაოდენობა (ნაგულისხმები: 2) |
+| `-PtuistShardMin=<N>` | დაყოფების მინიმალური რაოდენობა |
+| `-PtuistShardMaxDuration=<MS>` | მიზნობრივი მაქსიმალური ხანგრძლივობა თითოეული დაყოფისთვის მილიწამებში |
+| `-PtuistShardTestTask=<NAME>` | ტესტების ამოცანა, რომლის ტესტებიც იყოფა, მაგალითად `testDebugUnitTest`. ნაგულისხმევად იყენებს ყველა ტესტების ამოცანას აგებაში |
 
-Android პროექტებს რამდენიმე აგების ვარიანტით აქვთ ერთი ერთეულოვანი ტესტის ამოცანა თითოეული ვარიანტისთვის. დააყენეთ `-PtuistShardTestTask` იმ ვარიანტზე, რომელსაც თქვენი დაშლები ასრულებენ, ისე რომ დაგეგმილი იყოს მხოლოდ ის პროექტები, რომლებსაც ის აქვთ:
+Android პროექტებს მრავალი აგების ვარიანტით აქვთ ერთი ერთეულოვანი ტესტების ამოცანა თითოეული ვარიანტისთვის. დააყენეთ `-PtuistShardTestTask` იმ ვარიანტზე, რომელსაც თქვენი დაყოფები ასრულებენ, რათა დაიგეგმოს მხოლოდ ის პროექტები, რომლებსაც ის აქვთ:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -54,36 +56,29 @@ Android პროექტებს რამდენიმე აგები�
   -PtuistShardTestTask=testDebugUnitTest
 ```
 
-დაშლის მითითება ავტომატურად მიიღება CI გარემოს ცვლადებიდან (`GITHUB_RUN_ID`, `CI_PIPELINE_ID` და ა.შ.) ან შეიძლება პირდაპირ დაყენდეს `TUIST_SHARD_REFERENCE` გარემოს ცვლადის მეშვეობით.
+დაყოფის მითითება ავტომატურად მიიღება CI გარემოს ცვლადებიდან (`GITHUB_RUN_ID`, `CI_PIPELINE_ID` და ა.შ.) ან შეიძლება ცალსახად დაყენდეს `TUIST_SHARD_REFERENCE` გარემოს ცვლადის მეშვეობით.
 
 ## ტესტირების ეტაპი {#test-phase}
 
-თითოეული დაშლის გამშვები ასრულებს მისთვის მინიჭებულ ტესტებს სტანდარტული `test` ამოცანის გამოყენებით. როდესაც `TUIST_SHARD_INDEX` დაყენებულია, პლაგინი ავტომატურად იღებს დაშლის განაწილებას სერვერიდან და ფილტრავს ტესტის შესრულებას ისე, რომ მოიცვას მხოლოდ მინიჭებული ტესტების ნაკრებები. ტესტის ამოცანები პროექტებში, სადაც დაშლისთვის არ არის მინიჭებული ნაკრებები, გამოტოვებულია.
+თითოეული დაყოფის გამშვები ასრულებს მისთვის მინიჭებულ ტესტებს სტანდარტული `test` ამოცანის გამოყენებით. როდესაც `TUIST_SHARD_INDEX` დაყენებულია, პლაგინი ავტომატურად იღებს დაყოფის მინიჭებას სერვერიდან და ფილტრავს ტესტების შესრულებას ისე, რომ მოიცვას მხოლოდ მინიჭებული ტესტების სუიტები. ტესტების ამოცანები პროექტებში, რომლებსაც არ აქვთ დაყოფისთვის მინიჭებული სუიტები, გამოტოვებულია.
 
-ბოლო დაშლა ასრულებს ყველა ტესტის ამოცანას და გამორიცხავს სხვა დაშლებისთვის მინიჭებულ ნაკრებებს, ისე რომ ნაკრებები, რომლებსაც ჯერ არ აქვთ ჩაწერილი გაშვებები, როგორიცაა ახლად დამატებული, მაინც შესრულდება.
+ბოლო დაყოფა ასრულებს ყველა ტესტების ამოცანას და გამორიცხავს სხვა დაყოფებისთვის მინიჭებულ სუიტებს, ასე რომ სუიტები, რომლებსაც ჯერ არ აქვთ ჩაწერილი გაშვებები, როგორიცაა ახლად დამატებული, მაინც სრულდება.
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-თუ აგების ეტაპზე დააყენეთ `-PtuistShardTestTask`, გაუშვით იგივე ამოცანა თითოეულ დაშლაში, მაგალითად `./gradlew testDebugUnitTest`.
+თუ დააყენებთ `-PtuistShardTestTask` აგების ეტაპზე, გაუშვით იგივე ამოცანა თითოეულ დაყოფაში, მაგალითად `./gradlew testDebugUnitTest`.
 
 ## უწყვეტი ინტეგრაცია {#continuous-integration}
 
-Tuist ავტომატურად აღმოაჩენს შემდეგ CI პროვაიდერებს:
+<!-- @snippet: ./_ci-providers -->
 
-- [GitHub Actions](#github-actions)
-- [GitLab CI](#gitlab-ci)
-- [CircleCI](#circleci)
-- [Buildkite](#buildkite)
-- [Codemagic](#codemagic)
-- [Bitrise](#bitrise)
-
-სხვა პროვაიდერებისთვის, მიმართეთ `.tuist-shard-matrix.json` ფაილს პარალელური სამუშაოების დასაყენებლად.
+ყველა აგებისა და დაყოფის სამუშაოს სჭირდება ავთენტიკაცია Gradle-ის გაშვებამდე. ან დააინსტალირეთ Tuist CLI და გაუშვით `tuist auth login` თქვენი CI პროვაიდერის OIDC იდენტობით, ან გახადეთ ხელმისაწვდომი ანგარიშის ტოკენი როგორც `TUIST_TOKEN`. იხილეთ <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle პლაგინის ავთენტიკაცია</.localized_link>. ქვემოთ მოყვანილ მაგალითებში ეს ეტაპი გამოტოვებულია.
 
 ### GitHub Actions {#github-actions}
 
-გამოიყენეთ მატრიცული სტრატეგია დაშლების პარალელურად გასაშვებად:
+გამოიყენეთ მატრიცის სტრატეგია დაყოფების პარალელურად გასაშვებად:
 
 ```yaml
 name: Tests
@@ -102,7 +97,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: tuist auth login
       - id: build
         run: ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
@@ -123,13 +117,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: tuist auth login
       - run: ./gradlew test
 ```
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist ქმნის `.tuist-shard-child-pipeline.yml`, რომელსაც თქვენ იწყებთ როგორც [შვილობილ პაიპლაინს](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). განსაზღვრეთ `.tuist-shard` შაბლონური სამუშაო, რომელსაც გენერირებული დაშლის სამუშაოები გააფართოებენ:
+Tuist წარმოქმნის `.tuist-shard-child-pipeline.yml`-ს, რომელსაც თქვენ იწვევთ როგორც [შვილობილ პაიპლაინს](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). განსაზღვრეთ `.tuist-shard` შაბლონის სამუშაო, რომელსაც წარმოქმნილი დაყოფის სამუშაოები აფართოებენ:
 
 ```yaml
 # .gitlab-ci.yml
@@ -140,7 +133,6 @@ stages:
 build-shards:
   stage: build
   script:
-    - tuist auth login
     - ./gradlew tuistPrepareTestShards -PtuistShardMax=5
   artifacts:
     paths:
@@ -156,19 +148,18 @@ test-shards:
     strategy: depend
 ```
 
-შვილობილ პაიპლაინს სჭირდება `.tuist-shard` სამუშოს შაბლონი:
+შვილობილ პაიპლაინს სჭირდება `.tuist-shard` სამუშაოს შაბლონი:
 
 ```yaml
 # .gitlab/shard-template.yml
 .tuist-shard:
   script:
-    - tuist auth login
     - ./gradlew test
 ```
 
 ### CircleCI {#circleci}
 
-Tuist ქმნის `.tuist-shard-continuation.json`-ს პარამეტრებით [გაგრძელების orb-ისთვის](https://circleci.com/developer/orbs/orb/circleci/continuation):
+Tuist წარმოქმნის `.tuist-shard-continuation.json`-ს პარამეტრებით [გაგრძელების ორბისთვის](https://circleci.com/developer/orbs/orb/circleci/continuation):
 
 ```yaml
 # .circleci/config.yml
@@ -187,7 +178,6 @@ jobs:
       - run:
           name: Build and plan shards
           command: |
-            tuist auth login
             ./gradlew tuistPrepareTestShards -PtuistShardMax=5
       - continuation/continue:
           configuration_path: .circleci/continue-config.yml
@@ -224,7 +214,6 @@ jobs:
           name: Run shard
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
-            tuist auth login
             ./gradlew test
 
 workflows:
@@ -238,30 +227,28 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist ქმნის `.tuist-shard-pipeline.yml`-ს ერთი ნაბიჯით თითოეული დაშლისთვის. ატვირთეთ ის `buildkite-agent pipeline upload`-ის გამოყენებით:
+Tuist წარმოქმნის `.tuist-shard-pipeline.yml`-ს ერთი ნაბიჯით თითოეული დაყოფისთვის. ატვირთეთ ის `buildkite-agent pipeline upload`-ის გამოყენებით:
 
 ```yaml
 # pipeline.yml
 steps:
   - label: "Build test shards"
     command: |
-      tuist auth login
       ./gradlew tuistPrepareTestShards -PtuistShardMax=5
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-თითოეულ გენერირებულ ნაბიჯს გარემოში აქვს დაყენებული `TUIST_SHARD_INDEX`. დაამატეთ ტესტის ბრძანება თითოეულ დაშლის ნაბიჯზე საერთო სკრიპტის გამოყენებით:
+თითოეულ წარმოქმნილ ნაბიჯს გარემოში აქვს მითითებული `TUIST_SHARD_INDEX`. დაამატეთ ტესტის ბრძანება თითოეულ დაყოფის ნაბიჯზე საერთო სკრიპტის გამოყენებით:
 
 ```bash
 # .buildkite/shard-step.sh
 #!/bin/bash
-tuist auth login
 ./gradlew test
 ```
 
 ### Codemagic {#codemagic}
 
-Codemagic არ უჭერს მხარს დინამიურ მატრიცულ სამუშაოებს, ამიტომ განსაზღვრეთ ცალკეული სამუშაო ნაკადი თითოეული დაშლისთვის. Tuist წერს `TUIST_SHARD_MATRIX`-ს და `TUIST_SHARD_COUNT`-ს `CM_ENV` ფაილში თითოეულ სამუშაო ნაკადში გამოსაყენებლად:
+Codemagic არ უჭერს მხარს დინამიურ მატრიცულ სამუშაოებს, ამიტომ განსაზღვრეთ ცალკეული სამუშაო ნაკადი თითოეული დაყოფისთვის. Tuist წერს `TUIST_SHARD_MATRIX`-ს და `TUIST_SHARD_COUNT`-ს `CM_ENV` ფაილში, რათა ისინი გამოიყენოთ თითოეულ სამუშაო ნაკადში:
 
 ```yaml
 # codemagic.yaml
@@ -274,7 +261,6 @@ workflows:
     scripts:
       - name: Build and plan shards
         script: |
-          tuist auth login
           ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
   test-shard-0: &shard-workflow
@@ -287,7 +273,6 @@ workflows:
     scripts:
       - name: Run shard
         script: |
-          tuist auth login
           ./gradlew test
 
   test-shard-1:
@@ -325,7 +310,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise-ზე, Tuist წერს `.tuist-shard-matrix.json`-ს `BITRISE_DEPLOY_DIR`-ში, რაც ხდის მას ხელმისაწვდომს აგების არტიფაქტად შემდგომი პაიპლაინის ეტაპებისთვის. გამოიყენეთ Bitrise Pipelines წინასწარ განსაზღვრული პარალელური სამუშაო ნაკადებით:
+Bitrise-ზე Tuist წერს `.tuist-shard-matrix.json`-ს `BITRISE_DEPLOY_DIR`-ში, რაც ხელმისაწვდომს ხდის მას აგების არტეფაქტად შემდგომი პაიპლაინის ეტაპებისთვის. გამოიყენეთ Bitrise Pipelines წინასწარ განსაზღვრული პარალელური სამუშაო ნაკადებით:
 
 ```yaml
 # bitrise.yml
@@ -354,7 +339,6 @@ workflows:
           title: Build and plan shards
           inputs:
             - content: |
-                tuist auth login
                 ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
   test-shard-0: &shard-workflow
@@ -365,7 +349,6 @@ workflows:
           title: Run shard
           inputs:
             - content: |
-                tuist auth login
                 ./gradlew test
   test-shard-1:
     <<: *shard-workflow
@@ -386,4 +369,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise არ უჭერს მხარს დინამიურ პარალელურ სამუშაოების შექმნას შესრულების დროს. განსაზღვრეთ ფიქსირებული რაოდენობის დაშლის სამუშაო ნაკადები თქვენს პაიპლაინის ეტაპებში — ეტაპის შიგნით არსებული სამუშაო ნაკადები ავტომატურად პარალელურად სრულდება.
+> Bitrise არ უჭერს მხარს დინამიურ პარალელურ სამუშაოების შექმნას შესრულების დროს. განსაზღვრეთ ფიქსირებული რაოდენობის დაყოფის სამუშაო ნაკადები თქვენს პაიპლაინის ეტაპებში — ერთი ეტაპის ფარგლებში სამუშაო ნაკადები ავტომატურად პარალელურად სრულდება.

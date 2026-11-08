@@ -170,6 +170,7 @@ spec:
             # It used to come from the encrypted blob; with the blob gone it must
             # be wired like the server Deployment, or boot crashes "license missing".
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.mailingEnv" . | nindent 12 }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY

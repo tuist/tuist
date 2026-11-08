@@ -1,4 +1,4 @@
-<div id="run-detail">
+<div id="run-detail" phx-hook="PageFavicon" data-favicon-status={@run.status}>
   <.button
     :if={@run.name == "test"}
     label={dgettext("dashboard_builds", "Test Runs")}

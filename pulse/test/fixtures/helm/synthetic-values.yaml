@@ -1,0 +1,8 @@
+# Local chart rendering only, never deployment credentials.
+storage:
+  bucket: synthetic
+  region: auto
+  accessKeyId: synthetic
+  secretAccessKey: synthetic
+tenantTokens:
+  default: "sha256$0000000000000000000000000000000000000000000000000000000000000000"

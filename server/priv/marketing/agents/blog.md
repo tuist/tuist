@@ -13,10 +13,6 @@ The [blog index](/blog) lists dated articles. They explain tradeoffs, architectu
 3. Note the publication date, and separate measured results, illustrative models, and proposed future work.
 4. Confirm current support in the matching product guide before recommending a setup.
 
-## Limitations
-
-An older article is not a current support promise, and numbers from a specific project or an interactive model are not a guarantee for another project.
-
 ## Next steps
 
 Start with the [product overview](/marketing-markdown) for a capability map, or the [changelog](/marketing-markdown/changelog) for dated releases.

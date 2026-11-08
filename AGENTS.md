@@ -14,9 +14,11 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [codebase-search/](codebase-search/AGENTS.md) | Bounded hosted source-code search |
 | [cache/](cache/AGENTS.md) | Cache service |
 | [registry/](registry/AGENTS.md) | Stateless package registry read frontend |
+| [pulse/](pulse/AGENTS.md) | Headless observability, alerting, and reliability backend |
 | [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
 | [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
 | [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |
+| [condukt/](condukt/AGENTS.md) | Elixir agent framework and native sandboxes |
 | [tuist_common/](tuist_common/AGENTS.md) | Shared Elixir utilities |
 | [atlas/](atlas/AGENTS.md) | Internal operations app |
 | [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
@@ -37,8 +39,9 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 ## Guardrails
 
 - Do not edit generated `CHANGELOG.md` files.
-- Edit English source content only. Never edit translation `.po` files; the
-  Glossia GitHub App owns them. Gettext `.pot` templates may be updated.
+- Edit English source content only. Never edit translation `.po` files or the
+  apps' non-English string catalogs; the Glossia GitHub App owns them. Gettext
+  `.pot` templates may be updated.
 - Keep Swift project prefix mapping enabled. Resolve test fixtures and snapshots
   through `TuistTestSupport` and the runtime checkout (`TUIST_CONFIG_SRCROOT`), not
   compiler-remapped `#file` or `#filePath` paths.
@@ -53,7 +56,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
 `android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`,
-`slack`, `kura`, `cli`, `tuist-ex`, `noora`, `skills`, `search`, `status`,
+`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 
 PR descriptions must explain what changed, why, the root cause for fixes, relevant

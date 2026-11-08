@@ -29,8 +29,4 @@ Enable a [supported Tuist cache](/marketing-markdown/cache) on the current machi
 
 Sources checked on **2026-10-08**: [Depot Cache](https://depot.dev/docs/cache/overview.md), [Depot Xcode caching](https://depot.dev/docs/cache/integrations/xcode.md), [Depot GitHub Actions runners](https://depot.dev/docs/github-actions/overview), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and distinguishes general cache support from integration-specific limits.
 
-## Limitations
-
-No provider-wide speed, cost, or observability ranking is established. Local support and cache defaults can change. Toolchain support is feature-specific, and public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only with no public pricing. Tuist's Bazel remote cache is not remote execution.
-
 Related: [Namespace](/marketing-markdown/compare/namespace), [Blacksmith](/marketing-markdown/compare/blacksmith), and [all comparisons](/marketing-markdown/compare).

@@ -29,6 +29,7 @@ Remote caching reuses an action's existing outputs. Remote execution runs a cach
 ## How Tuist augments it
 
 - **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again.
+- **Run eligible Linux actions remotely.** `tuist bazel setup --remote-execution` opts into the separate execution service for accounts with execution enabled and available capacity. Setup discovers the advertised executor and image; unavailable execution leaves cache-only configuration with a warning. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
 - **Investigate recorded build work.** [Build insights](/en/docs-markdown/guides/features/build-insights/bazel) collects build events and recorded profile data. Compare invocations, targets, cache behavior, and operations before changing execution capacity.
 - **Correlate tests over time.** [Test insights](/en/docs-markdown/guides/features/test-insights/bazel) collects outcomes and individual cases from supported reports. Reporting works with normal `bazel test` after setup.
 - **Apply explicit flaky-test policies.** The `tuist bazel test` wrapper retrieves and enforces documented quarantine policies. Muting and skipping have different boundaries; skipping a target also excludes its healthy sibling cases.

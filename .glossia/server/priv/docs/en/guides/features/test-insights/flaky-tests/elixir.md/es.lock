@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bfc57dfa3b65f30c516c05b62915a345e4eae3925b67898449b6b913198b1a3a",
+  "hash": "40bf5f84214f0c3b03b83dde0f73f364559a3cfc9ee326a4b0fc9e01c312d28c",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Elixir flaky tests {#elixir-flaky-tests}": {
-                  "content_hash": "4c0d6f008842fc26a8adffc9512cf203c1589e1db4a3cecce785e9ca9fd60b06"
+                  "content_hash": "4b5ac701efe5bfb28856099574abf277aee279df97fd9c80620467617d29dd88"
                 },
                 "## How flaky detection works {#how-it-works}": {
                   "content_hash": "5f98312f9bc586bd32cb842f08bc11c8d30e8f2e24b09353c1bb0aa8819ec2f9"
-                },
-                "## Managing flaky tests {#managing-flaky-tests}": {
-                  "content_hash": "11d25e392de7f616097c41bd981e80c7ca6dc4bea26bcb5cbc19e63323498f7b"
                 },
                 "## Quarantining flaky tests {#quarantining}": {
                   "content_hash": "a62d39dc21845d50eb5b3d435c995e3a0e62fdfba824164008b8b354883a6c5d"
@@ -25,23 +22,14 @@
                 "## Querying flaky state {#querying}": {
                   "content_hash": "4d6f467ca96f58b8104f897179512d0f0202e10f9788393b9fba27008672a8a3"
                 },
-                "## Slack notifications {#slack-notifications}": {
-                  "content_hash": "935080092bbd6787aaab4211dcff24737f0684a20badd29e06505fcfa3223c4c"
-                },
-                "### Automatic clearing": {
-                  "content_hash": "ca3959c1df8121ec00e7b2e157bf9469aa499d1e7392a0ed608845c8d5de0a61"
-                },
                 "### Cross-run detection {#cross-run-detection}": {
-                  "content_hash": "3acfd10d91936be9b989efb640c22dd43af2a1d1041d90381f18a917a9943943"
+                  "content_hash": "b098190d48ba4c9605d02b98cebdf90bbea5e7de91b753bc6e51931cbea60b0f"
                 },
                 "### How skipping selects tests {#how-skipping-selects-tests}": {
                   "content_hash": "1b66aa407b640ea4618c5c081db47549ce668480285100c8e61c9963b5925655"
                 },
-                "### Manual management": {
-                  "content_hash": "b0a03976838d963ea081edccd9d0467fe309e5834a7830378bbfb072dc1379e4"
-                },
                 "### Running quarantined tests again {#running-quarantined-tests-again}": {
-                  "content_hash": "940565de81c70b5430e4c5cc28562f3531e098c1996ac74a4e4a326418136fa8"
+                  "content_hash": "1c2ce8a74e11d16f39e3717ed819207f01cb9b03bb68122c690a1125b200cf67"
                 },
                 "### Test retries {#test-retries}": {
                   "content_hash": "e05909671c48cf467a42214dba935f0a706c2fe98d6b8a61e7c2677815635df5"
@@ -53,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "46b562311cffd75de74b08cd3473df869358f0a8e631ae0cb67c1526ce838e9e",
+          "hash": "562b763de608ab271c4a3701ba6c51a97ce3bcf96f16077d8a7190d22d4df0d8",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/elixir.md",
           "metadata": {
-            "content_hash": "ae104da5b49f74ac8461cacadeec885dcc3f3968fca7d519ea1a7f719f208b02"
+            "content_hash": "4c19c29ac78c78d82ee00e0bd22f6d9b9c618d7c765a8d36c3c41cd7baf7d17c"
           }
         },
         {
@@ -118,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -137,13 +125,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -156,21 +144,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -274,21 +262,21 @@
             }
           ],
           "details": {},
-          "hash": "56604179788fd450291709faac1f426b2dfed6fc5c350136f76b2057fe2b1f1e",
+          "hash": "ab04212e4df8d1998959cac86d1398b6b317c669a0686ebd5efabb0ad7e926ce",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "bfc57dfa3b65f30c516c05b62915a345e4eae3925b67898449b6b913198b1a3a",
+      "hash": "40bf5f84214f0c3b03b83dde0f73f364559a3cfc9ee326a4b0fc9e01c312d28c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d4ff8e612f9d4a3d589bfc5f4c66ecad4498fafb327e765832ba37eaaf722b7a",
+  "output_hash": "02c1829d385c07080b5a6ebd6691b5ba867da6a08079eb612bc7fe2b411fd92e",
   "output_path": "server/priv/docs/es/guides/features/test-insights/flaky-tests/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -312,8 +300,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/elixir.md",
-  "translated_at": "2026-10-29T15:47:14.633766Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-06T21:25:54.803477Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

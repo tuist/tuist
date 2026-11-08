@@ -1930,10 +1930,15 @@ defmodule Tuist.Tests do
   end
 
   defp list_test_case_runs_via_project_mv(attrs, preloads) do
-    base_query = from(mv in TestCaseRunByProject, hints: ["FINAL"])
+    flop = Tuist.ClickHouseFlop.validate!(attrs, for: TestCaseRunByProject)
 
-    {slim_results, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByProject)
+    slim_results = list_project_mv_page(flop)
+
+    # Counting without FINAL can count re-inserted runs whose versions have
+    # not merged yet more than once. An exact count has to merge every row of
+    # the project, which takes seconds on the largest projects and grows with
+    # them.
+    meta = Tuist.ClickHouseFlop.meta(from(mv in TestCaseRunByProject), flop, for: TestCaseRunByProject)
 
     ids = Enum.map(slim_results, & &1.id)
 
@@ -1949,6 +1954,83 @@ defmodule Tuist.Tests do
 
     {results, meta}
   end
+
+  # FINAL merges row versions in ascending key order, so ClickHouse cannot stop
+  # a `ran_at DESC` read at the LIMIT: it reads every row of the project, which
+  # exceeds the 15s query limit on projects with hundreds of millions of runs.
+  # A read without FINAL streams in key order and stops at the LIMIT, so it
+  # cheaply finds the oldest `ran_at` the requested page can reach. FINAL then
+  # only merges the runs at or after that cutoff.
+  #
+  # Versions of a run share its `ran_at`, so the runs at or after the cutoff are
+  # a prefix of the FINAL ordering, and a full page from that prefix is the
+  # page the unbounded query returns. When the read without FINAL ran out of
+  # rows, the cutoff covers every matching run. Otherwise unmerged duplicates
+  # or older versions that matched the filters can leave the prefix short of a
+  # page; the window then widens, and falls back to the unbounded query.
+  @project_mv_cutoff_multipliers [1, 10]
+
+  defp list_project_mv_page(%Flop{} = flop) do
+    final_query = from(mv in TestCaseRunByProject, hints: ["FINAL"])
+
+    case project_mv_page_end(flop) do
+      nil ->
+        Tuist.ClickHouseFlop.all(final_query, flop, for: TestCaseRunByProject)
+
+      {page_size, page_end} ->
+        list_project_mv_page_from_cutoff(final_query, flop, page_size, page_end, @project_mv_cutoff_multipliers)
+    end
+  end
+
+  defp list_project_mv_page_from_cutoff(final_query, flop, _page_size, _page_end, []) do
+    Tuist.ClickHouseFlop.all(final_query, flop, for: TestCaseRunByProject)
+  end
+
+  defp list_project_mv_page_from_cutoff(final_query, flop, page_size, page_end, [multiplier | multipliers]) do
+    cutoff_limit = page_end * multiplier
+
+    cutoff_rows_query =
+      Tuist.ClickHouseFlop.query(
+        from(mv in TestCaseRunByProject, select: %{ran_at: mv.ran_at}),
+        %{flop | page: nil, page_size: nil, offset: nil, limit: cutoff_limit},
+        for: TestCaseRunByProject
+      )
+
+    case ClickHouseRepo.one(from(row in subquery(cutoff_rows_query), select: {count(), min(row.ran_at)})) do
+      {0, _cutoff} ->
+        []
+
+      {rows, cutoff} ->
+        results =
+          final_query
+          |> where([mv], mv.ran_at >= ^cutoff)
+          |> Tuist.ClickHouseFlop.all(flop, for: TestCaseRunByProject)
+
+        if rows < cutoff_limit or length(results) == page_size do
+          results
+        else
+          list_project_mv_page_from_cutoff(final_query, flop, page_size, page_end, multipliers)
+        end
+    end
+  end
+
+  # Returns the page size and the position after the page's last row, when the
+  # page is sorted by `ran_at` descending and paginated by page or offset.
+  defp project_mv_page_end(%Flop{order_by: [:ran_at | _], order_directions: [direction | _]} = flop)
+       when direction in [:desc, :desc_nulls_first, :desc_nulls_last] do
+    case flop do
+      %Flop{page: page, page_size: page_size} when is_integer(page) and is_integer(page_size) ->
+        {page_size, page * page_size}
+
+      %Flop{limit: limit, offset: offset, first: nil, last: nil} when is_integer(limit) ->
+        {limit, (offset || 0) + limit}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp project_mv_page_end(_flop), do: nil
 
   @doc """
   Loads the arguments of the given test case runs, in batches. Pass it as the
@@ -2736,10 +2818,10 @@ defmodule Tuist.Tests do
         )
       end
 
-    {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
-      Enum.reduce(Enum.with_index(test_cases), {[], [], [], [], []}, fn {case_attrs, occurrence},
-                                                                        {runs_acc, failures_acc, reps_acc,
-                                                                         attachments_acc, args_acc} ->
+    {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments, all_crash_reports} =
+      Enum.reduce(Enum.with_index(test_cases), {[], [], [], [], [], []}, fn {case_attrs, occurrence},
+                                                                            {runs_acc, failures_acc, reps_acc,
+                                                                             attachments_acc, args_acc, crash_reports_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -2797,13 +2879,15 @@ defmodule Tuist.Tests do
         test_case_failures = build_failures(case_attrs, test_case_run_id)
         test_case_repetitions = build_repetitions(case_attrs, test_case_run_id)
         test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
+        test_case_crash_reports = build_crash_reports(case_attrs, test_case_run_id)
 
         {
           [test_case_run | runs_acc],
           arg_failures ++ test_case_failures ++ failures_acc,
           arg_repetitions ++ test_case_repetitions ++ reps_acc,
           test_case_attachments ++ attachments_acc,
-          arg_records ++ args_acc
+          arg_records ++ args_acc,
+          test_case_crash_reports ++ crash_reports_acc
         }
       end)
 
@@ -2825,6 +2909,10 @@ defmodule Tuist.Tests do
 
     if Enum.any?(all_attachments) do
       Batch.insert_all(TestCaseRunAttachment, all_attachments)
+    end
+
+    if Enum.any?(all_crash_reports) do
+      Batch.insert_all(CrashReport, all_crash_reports)
     end
 
     # The audit-log row and the outbound webhook fire on the same set:
@@ -2966,6 +3054,27 @@ defmodule Tuist.Tests do
       }
     end)
   end
+
+  # Only xcresult processing reports a crash inline, already linked to the id
+  # of the `.ips` attachment it was parsed from. Clients post crash reports
+  # separately once they know the attachment ids.
+  defp build_crash_reports(%{crash_report: %{attachment_id: attachment_id} = crash_report}, test_case_run_id)
+       when is_binary(attachment_id) do
+    [
+      %{
+        id: Batch.uuid({:crash_report, test_case_run_id, attachment_id}),
+        exception_type: Map.get(crash_report, :exception_type) || "",
+        signal: Map.get(crash_report, :signal) || "",
+        exception_subtype: Map.get(crash_report, :exception_subtype) || "",
+        triggered_thread_frames: Map.get(crash_report, :triggered_thread_frames) || "",
+        test_case_run_id: test_case_run_id,
+        test_case_run_attachment_id: attachment_id,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    ]
+  end
+
+  defp build_crash_reports(_case_attrs, _test_case_run_id), do: []
 
   # The intersection of "this test case row is brand-new" and "the run
   # is the first one observed on the default branch (in the last 90

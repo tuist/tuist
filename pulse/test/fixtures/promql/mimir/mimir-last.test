@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+load 1m
+  some_metric_count{foo="bar"} 0 1 2 3 _ _ {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+eval range from 0 to 7m step 1m last_over_time(some_metric_count[3m1s])
+  some_metric_count{foo="bar"} 0 1 2 3 3 3 {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+
+eval range from 0 to 7m step 1m last_over_time(some_metric_count[6s])
+  some_metric_count{foo="bar"} 0 1 2 3 _ _ {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+
+clear
+
+load 1m
+  some_metric_count{env="prod", cluster="eu"} _ _ _ 0+1x4
+  some_metric_count{env="prod", cluster="us"} _ _ _ 0+2x4
+  some_metric_count{env="prod", cluster="au"} _ _ _ {{count:5}}+{{count:5}}x4
+
+# Function over range vector with many steps at beginning of range with no samples.
+eval range from 0 to 7m step 1m last_over_time(some_metric_count[3m])
+  some_metric_count{env="prod", cluster="eu"} _ _ _ 0 1 2 3 4
+  some_metric_count{env="prod", cluster="us"} _ _ _ 0 2 4 6 8
+  some_metric_count{env="prod", cluster="au"} _ _ _ {{count:5}} {{count:10}} {{count:15}} {{count:20}} {{count:25}}
+
+clear

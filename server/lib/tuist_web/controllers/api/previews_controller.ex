@@ -465,6 +465,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   defp complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
     AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+    Tuist.Push.notify_new_preview(app_build.preview)
 
     Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 

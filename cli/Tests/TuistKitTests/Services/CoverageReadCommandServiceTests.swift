@@ -18,7 +18,6 @@ struct CoverageReadCommandServiceTests {
     private let serverURL = URL(string: "https://tuist.example.com")!
 
     private func givenProject(fullHandle: String? = "acme/app") async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let config = Tuist.test(fullHandle: fullHandle)
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(config)
@@ -39,19 +38,6 @@ struct CoverageReadCommandServiceTests {
          "partial_schemes":[],"schemes":["App"],"test_run_ids":[],"measured_at":"2026-10-19T10:00:00Z","reported":null,
          "targets":[{"name":"App","files_count":12,"covered_lines":165,"executable_lines":200,"coverage":82.5}]}
         """
-    }
-
-    @Test(.withMockedEnvironment())
-    func refusesWithoutTheCoverageFlag() async throws {
-        let subject = CoverageShowCommandService(
-            coverageService: coverageService,
-            serverEnvironmentService: serverEnvironmentService,
-            configLoader: configLoader
-        )
-
-        await #expect(throws: CoverageReadCommandServiceError.earlyAccess) {
-            try await subject.run(path: nil, fullHandle: "acme/app", branch: nil, commit: nil, json: false)
-        }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)

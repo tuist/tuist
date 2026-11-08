@@ -8,11 +8,11 @@
 
 # პლაგინები
 
-Tuist აგენტის უნარებსა და განთავსებულ MCP სერვერს პლაგინების სახით აერთიანებს, რათა ორივე ერთად დააყენოთ. აირჩიეთ თქვენს კოდირების აგენტთან თავსებადი პაკეტი.
+Tuist თავის აგენტურ უნარებსა და განთავსებულ MCP სერვერს პლაგინებად აფორმებს, რათა ორივე ერთად დააყენოთ. აირჩიეთ პაკეტი, რომელიც თქვენს კოდირების აგენტს შეესაბამება.
 
 ## Claude Code
 
-[Tuist Claude Code-ის ბაზრობა](https://github.com/tuist/claude-plugin) შეიცავს Tuist-ის პლაგინს დასაყენებლად შემდეგი გზით:
+[Tuist Claude Code-ის ბაზრობა](https://github.com/tuist/claude-plugin) Tuist-ის პლაგინს შემდეგი გზით აყენებს:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -29,26 +29,26 @@ claude plugin install tuist@tuist-plugins
 2. მოძებნეთ **Tuist**.
 3. აირჩიეთ **Install**, შემდეგ გადაწყვიტეთ, დააყენოთ ის მიმდინარე პროექტისთვის თუ თქვენი მომხმარებლის ანგარიშისთვის.
 
-ასევე შეგიძლიათ აკრიფოთ `/add-plugin` Cursor-ში იგივე დაყენების პროცესის გასახსნელად. პლაგინი უზრუნველყოფს Tuist-ის უნარებს და აკავშირებს Cursor-ს განთავსებულ MCP სერვერთან.
+ასევე შეგიძლიათ ჩაწეროთ `/add-plugin` Cursor-ში იმავე ინსტალაციის ნაკადის გასახსნელად. პლაგინი უზრუნველყოფს Tuist-ის უნარებს და აკავშირებს Cursor-ს განთავსებულ MCP სერვერთან.
 
-თუ თქვენი ორგანიზაცია მართავს Cursor-ის ბაზრობებს, ჯერ შემოიტანეთ `https://github.com/tuist/cursor-plugin` მისამართიდან **Settings → Plugins → Team Marketplaces → Import Marketplace**.
+თუ თქვენი ორგანიზაცია მართავს Cursor-ის ბაზრობებს, ჯერ შემოიტანეთ `https://github.com/tuist/cursor-plugin` მენიუდან **Settings → Plugins → Team Marketplaces → Import Marketplace**.
 
 ## სხვა კოდირების აგენტები
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) ემორჩილება ღია, ვენდორისგან დამოუკიდებელ [Agent Plugins](https://agent-plugins.org/) სტანდარტს. მიმართეთ თავსებად კლიენტს რეპოზიტორიისკენ, იმ კლიენტის ინსტრუქციების მიხედვით პლაგინების დასაყენებლად ან საქაღალდეებზე მითითებისთვის:
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) ემორჩილება ღია, ვენდორ-ნეიტრალურ [Agent Plugins](https://agent-plugins.org/) სტანდარტს. მიმართეთ თავსებადი კლიენტი რეპოზიტორიზე, ამ კლიენტის ინსტრუქციების შესაბამისად პლაგინების დირექტორიების დასაყენებლად ან მითითებისთვის:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-ის აყენებს Tuist-ის უნარებს და არეგისტრირებს `https://tuist.dev/mcp`-ს როგორც დაშორებულ MCP სერვერს. კლიენტებისთვის, რომლებიც ჯერ არ უჭერენ მხარს Agent Plugins-ს, ცალ-ცალკე დააყენეთ [უნარები](/guides/features/agentic-coding/skills) ან მოაწყოთ [MCP სერვერი](/guides/features/agentic-coding/mcp).
+ის აყენებს Tuist-ის უნარებს და არეგისტრირებს `https://tuist.dev/mcp`-ს როგორც დაშორებულ MCP სერვერს. კლიენტებისთვის, რომლებიც ჯერ არ უჭერენ მხარს Agent Plugins-ს, ცალ-ცალკე დააყენეთ <.localized_link href="/guides/features/agentic-coding/skills">უნარები</.localized_link> ან მოაწყოთ <.localized_link href="/guides/features/agentic-coding/mcp">MCP სერვერი</.localized_link>.
 
-## ავთენტიკაცია
+## ავტორიზაცია
 
-უმეტესი უნარი იყენებს Tuist-ის ბრძანების ხაზის ინტერფეისს, ამიტომ ერთხელ გაიარეთ ავთენტიკაცია, სანამ აგენტს სთხოვთ თქვენს პროექტის მონაცემებზე წვდომას:
+უმეტესი უნარი იყენებს Tuist-ის ბრძანების ხაზის ინტერფეისს, ამიტომ ერთხელ გაიარეთ ავტორიზაცია, სანამ აგენტს სთხოვთ თქვენს პროექტის მონაცემებზე წვდომას:
 
 ```bash
 tuist auth login
 ```
 
-განთავსებული MCP სერვერი საჭიროების შემთხვევაში ითხოვს საკუთარ შესვლას. კლიენტისთვის სპეციფიკური მოწყობისა და ავთენტიკაციის დეტალებისთვის იხილეთ [MCP-ის სახელმძღვანელო](/guides/features/agentic-coding/mcp).
+განთავსებული MCP სერვერი საჭიროების შემთხვევაში ითხოვს საკუთარ შესვლას. კლიენტზე დამოკიდებული მოწყობისა და ავტორიზაციის დეტალებისთვის იხილეთ <.localized_link href="/guides/features/agentic-coding/mcp">MCP-ის სახელმძღვანელო</.localized_link>.

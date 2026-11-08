@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ecb0840ee72c6b50e26af8f1831048a04fa57d27c6748c58701937ff34e47452",
+  "hash": "29dde6b57b194415fccf17ea7ffc429ab9336e821025708ce83d7d9176d6be39",
   "hash_tree": {
     "root": {
       "children": [
@@ -55,8 +55,8 @@
                 "### Generate a node credential {#generate-a-node-credential}": {
                   "content_hash": "cace635c901bafa962dc9406265ea737bd070a8cd9c23be23ba6e0dfcf55b1cd"
                 },
-                "### Match the tenant identifier to your account handle {#match-the-tenant-identifier}": {
-                  "content_hash": "d4ce8d6e49891ce6d9f9f45a52fd9c38568a5c5b92536cc2b3c337ccdb3ee8e8"
+                "### Use the account's permanent tenant identifier {#match-the-tenant-identifier}": {
+                  "content_hash": "b606bf891411a8050a3ca81608d1cecb23b21123a8de2dc200f6521478b23b0a"
                 },
                 "### Verify the node is serving {#verify-the-node-is-serving}": {
                   "content_hash": "40b2b4790f94daea9c42120182eb9ff4298666fac3c1a92f99053e94989d6bfb"
@@ -74,11 +74,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0af627ec51eb1af2a3dbf4a211e0a2e43193250bbea8eae9e408bdef936cb7d2",
+          "hash": "e3a76adc6530178a391342001887dd6a987dbc1277feb26936a1c539b425de8c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/self-hosting.md",
           "metadata": {
-            "content_hash": "a3eb25a9f794d76e18310cee6168a4c2caf81bef2745c011805dbed3d0a37df2"
+            "content_hash": "9c92945d925388d06c104b49fb66f42a009419eb161e7c62be8006664a91c48c"
           }
         },
         {
@@ -139,7 +139,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -158,7 +158,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -187,11 +187,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -261,21 +261,21 @@
             }
           ],
           "details": {},
-          "hash": "ac7e0145fb8e6eef520874b5b1a8e0b33d3d71ab4b55869d8dc86f4684a52322",
+          "hash": "aa7222d6ece2832f61190b26e81508ee6757b9f16338396a0f8eeeacbaff6784",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ecb0840ee72c6b50e26af8f1831048a04fa57d27c6748c58701937ff34e47452",
+      "hash": "29dde6b57b194415fccf17ea7ffc429ab9336e821025708ce83d7d9176d6be39",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/self-hosting.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "319dbb76bc42e10356cea7d612d3fc04ae368ed81443ed54c5404299dd1ce36f",
+  "output_hash": "39ed6d1db77c0c281a40b1cfde0412f537675dfe41756829c8a3dd6f57ee9687",
   "output_path": "server/priv/docs/zh_Hans/guides/features/cache/self-hosting.md",
   "protection_state": "recorded",
   "provider": "",
@@ -293,8 +293,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "224df5a9a809da6fb43951e91d50b2314ac738ba",
+  "source_commit_sha": "744d65dfb3825963232908275fa0210323b8c66b",
   "source_path": "server/priv/docs/en/guides/features/cache/self-hosting.md",
-  "translated_at": "2026-10-30T14:20:58.301228Z",
-  "translation_session_id": "01a18d2a-60c1-763a-9c19-b5a583c68084"
+  "translated_at": "2026-11-06T17:40:09.247435Z",
+  "translation_session_id": "01a1b1ec-616e-7908-8b79-1e5087f3e863"
 }

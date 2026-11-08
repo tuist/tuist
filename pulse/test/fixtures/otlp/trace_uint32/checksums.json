@@ -1,0 +1,15 @@
+{
+  "files": {
+    "canonical.json": "305178e4b3c3eb1641c1bc9b9f6371912300f9208598578f9ad42d5d5376a34f",
+    "cases.json": "08427448c5b349b0b2aeaa28831a3fbcc38437684f602ba943dbccac5b90d916",
+    "google-canonical.json": "26cf7c1cf8579481c0d9d21553dd5fdd66c654f263de0427050683661140a2bd",
+    "google-input.json": "d78f2e110bf46cb139c7cacd1f6da188f93b33e363e59d6dfcac829256d88494",
+    "input.json": "e67d9158958a27d43d55ec11b05d0be0a380eeddda96f79ba4ac26358c643a21",
+    "produce.go.txt": "067e84a16716a09a5f2c2eda90b074abb0e9767b32b57e9ccb2e5f850342689e",
+    "producer.go.mod.txt": "3f3aaf71ef885913707b0bdf97034fa4ef805c0399349db0dc7454b0f1456472",
+    "producer.go.sum.txt": "fc9feb825fa92df99c64dc11b90174b274f2e33de1aa09d357f03d316f1a2db7",
+    "request.protobuf": "d178cc708f35c1beb8555aa529013ce48796d7b72ef7d53429a2da569ebe54e8"
+  },
+  "google_protobuf": "v1.36.11",
+  "otlp": "v1.9.0"
+}

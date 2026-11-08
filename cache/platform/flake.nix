@@ -1,5 +1,7 @@
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/master";
+  # Keep host packages unchanged; this revision provides Alloy 1.15.1.
+  inputs.nixpkgs-alloy.url = "github:NixOS/nixpkgs/369d1a328b403285e12dd3aa597786c7e364843a";
   inputs.disko.url = "github:nix-community/disko";
   inputs.disko.inputs.nixpkgs.follows = "nixpkgs";
   inputs.opnix.url = "github:brizzbuzz/opnix";
@@ -7,6 +9,7 @@
 
   outputs = {
     nixpkgs,
+    nixpkgs-alloy,
     disko,
     opnix,
     ...
@@ -27,6 +30,13 @@
     sharedModules = [
       disko.nixosModules.disko
       opnix.nixosModules.default
+      {
+        nixpkgs.overlays = [
+          (_final: prev: {
+            grafana-alloy = nixpkgs-alloy.legacyPackages.${prev.stdenv.hostPlatform.system}.grafana-alloy;
+          })
+        ];
+      }
       ./configuration.nix
       ./users.nix
     ];

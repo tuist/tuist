@@ -1,57 +1,43 @@
 ---
 {
-  "title": "Use Tuist with a Swift Package",
-  "titleTemplate": ":title · Adoption · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist with a Swift Package."
+  "title": "Tuist'i Swift Package ile Kullanma",
+  "titleTemplate": ":title · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist'in Swift Package ile nasıl kullanılacağını öğrenin."
 }
 ---
-# Tuist'i bir Swift paketi ile Kullanma <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Swift Package ile Tuist Kullanımı <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist, `Package.swift` adresini projeleriniz için bir DSL olarak kullanmayı
-destekler ve paket hedeflerinizi yerel bir Xcode projesine ve hedeflerine
-dönüştürür.
+Tuist, projelerinizde DSL olarak `Package.swift` kullanımını destekler ve paket hedeflerinizi yerel bir Xcode projesine ve hedeflerine dönüştürür.
 
 > [!WARNING]
-> Bu özelliğin amacı, geliştiricilerin Swift paketi içinde Tuist'i benimsemenin
-> etkisini değerlendirmeleri için kolay bir yol sağlamaktır. Bu nedenle, Swift
-> paketi Paket Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
-> <LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
-> getirmeyi planlamıyoruz.
+> Bu özelliğin amacı, geliştiricilerin Swift Paketlerinde Tuist benimsemenin etkisini değerlendirmeleri için kolay bir yol sunmaktır. Bu nedenle, Swift Package Manager özelliklerinin tamamını desteklemeyi veya <.localized_link href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</.localized_link> gibi Tuist'in benzersiz özelliklerini paket dünyasına getirmeyi planlamıyoruz.
 
 
 > [!NOTE]
-> **Root Directory**
+> **Kök dizin**
 >
-> Tuist komutları, kökü bir `Tuist` veya bir `.git` dizini ile tanımlanan belirli
-> bir
-> <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</LocalizedLink> bekler.
+> Tuist komutları, kökü bir `Tuist` veya `.git` diziniyle tanımlanan belirli bir <.localized_link href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</.localized_link> bekler.
 
 
-## Tuist'i bir Swift paketi ile Kullanma {#using-tuist-with-a-swift-package}
+## Swift Package ile Tuist Kullanımı {#using-tuist-with-a-swift-package}
 
-Tuist'in bir Swift paketi içeren [TootSDK
-Package](https://github.com/TootSDK/TootSDK) deposu ile kullanacağız. Yapmamız
-gereken ilk şey depoyu klonlamak:
+Bir Swift Package içeren [TootSDK Paketi](https://github.com/TootSDK/TootSDK) deposuyla Tuist kullanacağız. Yapmamız gereken ilk şey depoyu klonlamak:
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Depo dizinine girdikten sonra, Swift paketi Paket Yöneticisi bağımlılıklarını
-yüklememiz gerekiyor:
+Deponun dizinine girdikten sonra, Swift Package Manager bağımlılıklarını yüklememiz gerekir:
 
 ```bash
 tuist install
 ```
 
-Kaputun altında `tuist install` Swift paketi bağımlılıklarını çözmek ve çekmek
-için Swift paketi Yöneticisini kullanır. Çözümleme tamamlandıktan sonra projeyi
-oluşturabilirsiniz:
+Arka planda `tuist install`, paketin bağımlılıklarını çözmek ve çekmek için Swift Package Manager'ı kullanır. Çözümleme tamamlandıktan sonra projeyi oluşturabilirsiniz:
 
 ```bash
 tuist generate
 ```
 
-İşte bu! Açıp üzerinde çalışmaya başlayabileceğiniz yerel bir Xcode projeniz
-var.
+İşte bu kadar! Açabilir ve üzerinde çalışmaya başlayabileceğiniz yerel bir Xcode projeniz var.

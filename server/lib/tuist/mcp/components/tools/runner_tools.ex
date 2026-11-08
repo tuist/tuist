@@ -119,6 +119,10 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "vcpus" => %{"type" => "integer"},
         "memory_gb" => %{"type" => "integer"},
         "xcode_version" => %{"type" => ["string", "null"]},
+        "os_version" => %{
+          "type" => ["string", "null"],
+          "description" => "The Ubuntu release of a Linux profile, for example ubuntu-24.04. Null on macOS."
+        },
         "protected" => %{"type" => "boolean"},
         "runs_on_label" => %{
           "type" => "string",
@@ -148,6 +152,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "protected",
         "runs_on_label",
         "cache_writer_all_branches",
@@ -266,6 +271,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       vcpus: profile.vcpus,
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
+      os_version: profile.os_version,
       protected: profile.protected,
       runs_on_label: Profile.dispatch_label(profile),
       cache_writer_all_branches: profile.cache_writer_all_branches,
@@ -283,6 +289,11 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       "xcode_version" => %{
         "type" => "string",
         "description" => "An available Xcode version, for example 26.5. Required for macOS profiles."
+      },
+      "os_version" => %{
+        "type" => "string",
+        "description" =>
+          "An available Ubuntu release for Linux profiles, for example ubuntu-24.04. Defaults to the catalog default."
       }
     }
   end
@@ -335,9 +346,22 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
             "required" => ["xcode_version", "default"],
             "additionalProperties" => false
           }
+        },
+        "os_versions" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "os_version" => %{"type" => "string"},
+              "label" => %{"type" => "string"},
+              "default" => %{"type" => "boolean"}
+            },
+            "required" => ["os_version", "label", "default"],
+            "additionalProperties" => false
+          }
         }
       },
-      "required" => ["shapes", "xcode_versions"],
+      "required" => ["shapes", "xcode_versions", "os_versions"],
       "additionalProperties" => false
     }
   end
@@ -723,7 +747,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use get_runner_catalog for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
+      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version, or on Linux an Ubuntu release. Use get_runner_catalog for the available shapes, Xcode versions and Ubuntu releases. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -734,6 +758,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"
@@ -758,6 +783,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
     name: "update_runner_profile",
     title: "Update Runner Profile",
     read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" =>
@@ -786,7 +812,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests, pull_request_target jobs and GitLab merge requests from forks never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+      ~s(Update a runner profile's machine shape, Xcode version, Ubuntu release, or which jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests, pull_request_target jobs and GitLab merge requests from forks never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -795,6 +821,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"

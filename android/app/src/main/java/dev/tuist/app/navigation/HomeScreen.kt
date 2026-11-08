@@ -11,10 +11,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -22,17 +25,41 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
+import dev.tuist.app.data.model.AuthState
+import dev.tuist.app.ui.notifications.NotificationsScreen
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
+import dev.tuist.app.ui.threads.ThreadsScreen
+import dev.tuist.app.ui.threads.ThreadsViewModel
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val threadsViewModel: ThreadsViewModel = hiltViewModel()
+    val threadsState by threadsViewModel.state.collectAsStateWithLifecycle()
+    val pendingUrl by navigation.pendingUrl.collectAsStateWithLifecycle()
 
-    val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true
+    LaunchedEffect(pendingUrl, authState) {
+        val url = pendingUrl ?: return@LaunchedEffect
+        val route = navigation.pendingRoute(authState) ?: return@LaunchedEffect
+        navController.navigateAppRoute(route)
+        navigation.consume(url)
+    }
+
+    LaunchedEffect(threadsState.enabled) {
+        if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
+            navController.navigate(HomeTabs.Previews) {
+                popUpTo(HomeTabs.Previews) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true &&
+        currentDestination?.hasRoute<HomeTabs.Notifications>() != true
 
     Scaffold(
         bottomBar = {
@@ -42,12 +69,7 @@ fun HomeScreen() {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Previews>()
                     } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Previews) {
-                            popUpTo(HomeTabs.Previews) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
+                    onClick = { navigation.open(AppRoute.Previews) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.ic_device_mobile),
@@ -56,16 +78,22 @@ fun HomeScreen() {
                     },
                     label = { Text(stringResource(R.string.previews_title)) },
                 )
-                NavigationBarItem(
-                    selected = currentDestination?.hierarchy?.any {
-                        it.hasRoute<HomeTabs.Profile>()
-                    } == true,
+                if (threadsState.enabled) NavigationBarItem(
+                    selected = currentDestination?.hasRoute<HomeTabs.Threads>() == true,
                     onClick = {
-                        navController.navigate(HomeTabs.Profile) {
+                        navController.navigate(HomeTabs.Threads) {
                             popUpTo(HomeTabs.Previews)
                             launchSingleTop = true
                         }
                     },
+                    icon = { Icon(painterResource(R.drawable.ic_message), contentDescription = null) },
+                    label = { Text(stringResource(R.string.threads_title)) },
+                )
+                NavigationBarItem(
+                    selected = currentDestination?.hierarchy?.any {
+                        it.hasRoute<HomeTabs.Profile>()
+                    } == true,
+                    onClick = { navigation.open(AppRoute.Profile) },
                     icon = {
                         if (currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true) {
                             Icon(Icons.Filled.Person, contentDescription = null)
@@ -87,12 +115,20 @@ fun HomeScreen() {
             composable<HomeTabs.Previews> {
                 PreviewsScreen(
                     onPreviewClick = { previewId, fullHandle ->
-                        navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))
+                        navigation.preview(previewId, fullHandle)
                     },
                 )
             }
             composable<HomeTabs.Profile> {
-                ProfileScreen()
+                ProfileScreen(
+                    onNotificationsClick = { navController.navigate(HomeTabs.Notifications) },
+                )
+            }
+            composable<HomeTabs.Notifications> {
+                NotificationsScreen(onBack = { navController.popBackStack() })
+            }
+            composable<HomeTabs.Threads> {
+                ThreadsScreen(threadsViewModel)
             }
             composable<HomeTabs.PreviewDetail> {
                 PreviewDetailScreen(

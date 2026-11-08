@@ -1489,6 +1489,11 @@ msgstr ""
 msgid "Shared token"
 msgstr ""
 
+#: lib/atlas_web/live/mcp_live.ex:569
+#, elixir-autogen, elixir-format
+msgid "Service account"
+msgstr ""
+
 #: lib/atlas_web/live/mcp_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Token URL"

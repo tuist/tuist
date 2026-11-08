@@ -11,7 +11,8 @@ node only covers what is inside the VM and how the template reaches a node.
 |---|---|
 | `cmd/sbx-init` | PID 1. Mounts proc, sysfs, devtmpfs, devpts, /dev/shm, /run, /tmp and cgroup2; names the guest from the kernel command line; configures `lo` and `eth0` (`10.0.0.2/30`, default route `10.0.0.1`, MAC left to the VMM) with netlink; writes `/etc/resolv.conf`, `/etc/hostname` and `/etc/hosts`; creates `/workspace` and `/mnt/memory`; supervises `sbx-agent` with 1s to 30s backoff; reaps orphans; powers off on SIGTERM (and on SIGINT, which is what Firecracker's ctrl-alt-del becomes). Logs to the console and `/dev/kmsg`. Linux-only; the non-Linux build is a stub. |
 | `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. |
-| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`. |
+| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`, or, with `SBX_CLAUDE_CODE_WORK_ORDER`, one Claude Code session's `claude self-hosted-runner` (see `infra/claude-code-runners/README.md`). |
+| `cmd/sbx-macos` | Darwin-only stdin bridge for Tart guest execution and managed workers. Process-group fencing tests must run on macOS; the provider image workflow gates publication on that suite. |
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
 | `internal/agent` | Op dispatch behind a `System` interface, tested over `net.Pipe`. |
@@ -23,7 +24,13 @@ The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
 Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
 `/etc/profile.d/mise.sh`, shims in non-interactive shells) and the Anthropic
 `ant` CLI 1.30.0 as a fallback worker; its .deb installs a single `/usr/ant`
-binary, symlinked to `/usr/local/bin/ant`.
+binary, symlinked to `/usr/local/bin/ant`. Claude Code is installed at
+`/usr/local/bin/claude`, pinned by `CLAUDE_CODE_VERSION`/`CLAUDE_CODE_SHA256`
+to the version `sbx-worker` expects; keep the two and
+`infra/claude-code-runners/Dockerfile` in step. `agent-browser` (pinned by
+`AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
+globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
+browser's system libraries from apt.
 
 ## Boot contract
 
@@ -70,14 +77,14 @@ tags and the `System` interface. The Dockerfile builds the binaries natively
 and cross-compiles them, assembles the Ubuntu 24.04 guest under emulation when
 the host is not amd64, and formats the rootfs natively with `mkfs.ext4 -d`.
 Build args: `KERNEL_URL` (Firecracker CI 6.1.155 by default), `KERNEL_SHA256`
-(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `ROOTFS_SIZE`,
+(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `AGENT_BROWSER_VERSION`, `ROOTFS_SIZE`,
 `VERSION` (stamped into `sbx-agent`'s `agent_version`), `AMP_VERSION` (pinned
 Linux amd64 CLI, verified against its published SHA-256).
 
 ## Template init container
 
 The final stage is Alpine with GNU coreutils and carries `/template/vmlinux`,
-`/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 8 GiB) and
+`/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 12 GiB) and
 `/template/metadata.json`. sandboxd's DaemonSet runs it as an init container
 with the node's `/data/sandboxes` mounted at `/host` and `TEMPLATE_TAG` set
 (`TEMPLATE_NAME` defaults to `default`, `TEMPLATE_DIR` to
@@ -88,7 +95,7 @@ writes `metadata.json` with `tag` added. sandboxd boots the template, snapshots
 it and writes the `ready` marker itself.
 
 The rootfs travels dense inside the image layer (the registry compresses the
-zeros away, but a pull materialises the full 8 GiB in the node's image store);
+zeros away, but a pull materialises the full 12 GiB in the node's image store);
 the sparse copy keeps the per-template footprint on `/data` at the used size.
 
 ## Deliberately not installed yet
@@ -99,3 +106,7 @@ to come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
 workspace, required egress and rollout. Amp Desktop dependencies are not installed.
+REAPI commands run as UID/GID 1000; preserve explicit command environments,
+`no_new_privs`, and host-only vsock access so actions cannot obtain the root
+worker's scoped CAS credential. See [remote execution](remote-execution.md)
+for the separate gateway, deployment and qualification workflow.

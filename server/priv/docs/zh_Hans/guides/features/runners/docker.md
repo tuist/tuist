@@ -64,7 +64,7 @@ jobs:
 
 ## 私有注册表 {#private-registries}
 
-在拉取或推送之前，使用注册表自带的登录操作进行身份验证，或使用 `docker login`：
+在拉取或推送之前，使用注册表自带的登录操作或 `docker login` 进行身份验证：
 
 ```yaml
       - uses: docker/login-action@v3
@@ -75,7 +75,7 @@ jobs:
       - run: docker pull ghcr.io/my-org/android-ci:latest
 ```
 
-对于作业级别的 `container`，请改为通过 `credentials` 键传递相同的凭据，如上例所示。
+对于作业级别的 `container`，请通过 `credentials` 键传递相同的凭据，如上述示例所示。
 
 ## 镜像拉取 {#image-pulls}
 
@@ -94,4 +94,4 @@ Docker Hub 的拉取请求通过 Tuist 运营的透传缓存提供服务，因�
           cache-to: type=gha,mode=max
 ```
 
-对于原生作业或容器作业中的持久化依赖目录，请参阅 <.localized_link href="/guides/features/runners/cache-volumes">缓存卷指南</.localized_link>。
+对于原生作业或容器作业中的持久化依赖目录，请参阅<.localized_link href="/guides/features/runners/cache-volumes">缓存卷指南</.localized_link>。

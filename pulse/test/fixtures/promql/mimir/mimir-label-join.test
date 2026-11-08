@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# label_join() tests
+load 5m
+  series{label="a", opt="1", this="that"} 1.1  5.0
+  series{label="b", opt="2", this="there"} 2.9 {{sum:4 count:23 buckets:[1 2 4]}}
+  series{label="c", opt="3"} NaN _
+  dup{label="a", this="a"} 1.0
+  dup{label="b", this="a"} 1.0
+
+eval range from 0 to 10m step 5m label_join(series, "export", ",", "opt", "this")
+  series{label="a", opt="1", this="that", export="1,that"} 1.1  5.0
+  series{label="b", opt="2", this="there", export="2,there"} 2.9 {{sum:4 count:23 buckets:[1 2 4]}}
+  series{label="c", opt="3", export="3,"} NaN _
+
+eval range from 0 to 10m step 5m label_join(series, "__name__", "", "label")
+  a{label="a", opt="1", this="that"} 1.1  5.0
+  b{label="b", opt="2", this="there"} 2.9 {{sum:4 count:23 buckets:[1 2 4]}}
+  c{label="c", opt="3"} NaN _
+
+# Make sure label name exists after it was dropped
+eval instant at 0m label_join(floor(series), "__name__", "", "label")
+  a{label="a", opt="1", this="that"} 1
+  b{label="b", opt="2", this="there"} 2
+  c{label="c", opt="3"} NaN
+
+# Label name is dropped by floor after it is set
+eval instant at 0m floor(label_join(series, "__name__", "", "label"))
+  {label="a", opt="1", this="that"} 1
+  {label="b", opt="2", this="there"} 2
+  {label="c", opt="3"} NaN
+
+# Passes due to UTF-8 validation of source labels
+eval range from 0 to 10m step 5m label_join(series, "export", ",", "(opt)", "this")
+  series{export=",", label="c", opt="3"} NaN
+  series{export=",that", label="a", opt="1", this="that"} 1.1 5
+  series{export=",there", label="b", opt="2", this="there"} 2.9 {{sum:4 count:23 buckets:[1 2 4]}}
+
+# Passes due to UTF-8 validation of dest labels
+eval range from 0 to 10m step 5m label_join(series, "(export)", "-", "label", "opt")
+  series{"(export)"="a-1", label="a", opt="1", this="that"} 1.1 5.0
+  series{"(export)"="b-2", label="b", opt="2", this="there"} 2.9 {{sum:4 count:23 buckets:[1 2 4]}}
+  series{"(export)"="c-3", label="c", opt="3"} NaN _
+
+# Empty destination label name
+eval instant at 0m label_join(series, "", "-", "label")
+  expect fail regex:^invalid destination label name in label_join\(\): $
+
+# Empty source label name
+eval instant at 0m label_join(series, "joined", "-", "valid", "")
+  expect fail regex:^invalid source label name in label_join\(\): $
+
+# Invalid UTF-8 in destination label name
+eval instant at 0m label_join(series, "\x80", "-", "label")
+  expect fail regex:^invalid destination label name in label_join\(\): �$
+
+# Invalid UTF-8 in source label name
+eval instant at 0m label_join(series, "joined", "-", "valid", "\x80")
+  expect fail regex:^invalid source label name in label_join\(\): �$
+
+clear
+
+# The following tests pass prometheus' engine when promql-delayed-name-removal is enabled.
+# (As tested in upstream/name_label_dropping.test).
+# Otherwise they fail both engines.
+
+load 5m
+  metric_total{env="1"}		0 60 120
+  another_metric_total{env="1"}	60 120 180
+
+# Allows relabeling (to-be-dropped) __name__  via label_join.
+eval_fail instant at 10m label_join(rate({env="1"}[10m]), "my_name", "_", "__name__")
+  expected_fail_message vector cannot contain metrics with the same labelset
+#	{my_name="metric_total", env="1"} 0.2
+#	{my_name="another_metric_total", env="1"} 0.2
+
+# Allows preserving __name__ via label_join.
+eval_fail instant at 10m label_join(rate({env="1"}[10m]), "__name__", "_", "__name__", "env")
+  expected_fail_message vector cannot contain metrics with the same labelset
+#	metric_total_1{env="1"} 0.2
+#	another_metric_total_1{env="1"} 0.2
+

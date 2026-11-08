@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Basic arithmetic operations, and atan2
+load 6m
+  left_side 11 21 32 42
+  right_side 1 2 3 4
+
+eval range from 0 to 24m step 6m left_side + right_side
+  {} 12 23 35 46
+
+eval range from 0 to 24m step 6m left_side - right_side
+  {} 10 19 29 38
+
+eval range from 0 to 24m step 6m left_side * right_side
+  {} 11 42 96 168
+
+eval range from 0 to 24m step 6m left_side / right_side
+  {} 11 10.5 10.66666 10.5
+
+eval range from 0 to 24m step 6m left_side % right_side
+  {} 0 1 2 2
+
+eval range from 0 to 24m step 6m left_side ^ right_side
+  {} 11 441 32768 3111696
+
+eval range from 0 to 24m step 6m left_side atan2 right_side
+  {} 1.4801364395941514 1.4758446204521403 1.477319545636307 1.4758446204521403
+
+clear
+clear
+
+# Binary operations on native histograms
+load 5m
+  first_histogram{job="test"}    {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  second_histogram{job="test"}   {{schema:0 sum:10 count:6 buckets:[1 2 1]}}
+  third_histogram{job="control"} {{schema:0 sum:15 count:5 buckets:[3 4 2]}}
+  metric{job="test"}             2
+
+eval instant at 0 first_histogram + second_histogram
+  {job="test"} {{schema:0 sum:15 count:10 buckets:[2 4 2]}}
+
+eval instant at 0 second_histogram - first_histogram
+  {job="test"} {{schema:0 sum:5 count:2 buckets:[0 0 0]}}
+
+# Cannot multiply two histograms
+eval instant at 0 first_histogram * second_histogram
+  expect info
+  expect no_warn
+
+# Cannot divide a histogram by a histogram
+eval instant at 0 first_histogram / second_histogram
+  expect info
+  expect no_warn
+
+# Histogram multiplied by float
+eval instant at 0 first_histogram * metric
+  {job="test"} {{schema:0 count:8 sum:10 buckets:[2 4 2]}}
+
+# Works in either order
+eval instant at 0 metric * first_histogram
+  {job="test"} {{schema:0 count:8 sum:10 buckets:[2 4 2]}}
+
+# Histogram divide by float
+eval instant at 0 first_histogram / metric
+  {job="test"} {{schema:0 count:2 sum:2.5 buckets:[0.5 1 0.5]}}
+
+# Cannot divide a float by a histogram
+eval instant at 0 metric / first_histogram
+  expect info
+  expect no_warn
+
+# Cannot add a float to a histogram
+eval instant at 0 first_histogram + metric
+  expect info
+  expect no_warn
+
+# Cannot subtract a float from a histogram
+eval instant at 0 first_histogram - metric
+  expect info
+  expect no_warn
+
+# Cannot perform atan2 on a histogram.
+eval instant at 0 first_histogram atan2 metric
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 first_histogram ^ second_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 first_histogram ^ metric
+  expect info
+  expect no_warn
+
+# Cannot apply ^ to a histogram.
+eval instant at 0 metric ^ first_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 first_histogram % second_histogram
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 first_histogram % metric
+  expect info
+  expect no_warn
+
+# Cannot apply % to a histogram.
+eval instant at 0 metric % first_histogram
+  expect info
+  expect no_warn
+
+clear
+clear
+
+# Scalars on both sides.
+load 6m
+  metric 1 2 _ 3 stale 4 {{schema:3 sum:4 count:4 buckets:[1 2 1]}} 5
+
+eval range from 0m to 3m step 1m 1 + 2
+  {} 3 3 3 3
+
+eval range from 0m to 3m step 1m 1 - 2
+  {} -1 -1 -1 -1
+
+eval range from 0m to 3m step 1m 2 * 3
+  {} 6 6 6 6
+
+eval range from 0m to 3m step 1m 1 / 2
+  {} 0.5 0.5 0.5 0.5
+
+eval range from 0m to 3m step 1m 5 % 2
+  {} 1 1 1 1
+
+eval range from 0m to 3m step 1m 2 ^ 3
+  {} 8 8 8 8
+
+eval range from 0m to 3m step 1m 2 atan2 3
+  {} 0.5880026035475675 0.5880026035475675 0.5880026035475675 0.5880026035475675
+
+eval range from 0m to 42m step 6m scalar(metric) + 2
+  {} 3 4 NaN 5 NaN 6 NaN 7
+
+clear

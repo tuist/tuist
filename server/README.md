@@ -33,6 +33,20 @@ Pass: tuistrocks
 > [!NOTE]
 > First-party developers load dev secrets from 1Password via fnox — `mise run dev` wraps the server in `fnox exec` (see `server/fnox.toml`). External contributors don't need 1Password access; the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
+### Organization Pulse dashboard
+
+Pulse appears in organization navigation only for members of the configured organization with the default-off `pulse` account feature flag enabled. Initial enrollment is limited to Tuist; the flag alone cannot grant another account access to the shared telemetry tenant. Configure every web replica identically, then enable the account through the audited feature-flag operator API:
+
+| Variable | Purpose |
+| --- | --- |
+| `TUIST_PULSE_ACCOUNT_ID` | Stable Tuist organization account ID, not its handle. Leave unset to disable the pages. |
+| `TUIST_PULSE_URL` | Pulse base URL reachable from the server. The managed instance is private to the cluster. |
+| `TUIST_PULSE_TENANT` | Tenant sent as `X-Scope-OrgID`. |
+| `TUIST_PULSE_TOKEN_FILE` | Preferred path to a mounted, rotating bearer token. Read on every request. |
+| `TUIST_PULSE_TOKEN` | Bearer token fallback when no token file is configured. |
+
+The connection needs read access to Prometheus, Loki, Tempo and Pulse's native error MCP queries. Credentials and the tenant are never taken from browser parameters. Public projects do not grant Pulse access. Errors groups retained Sentry events into issues with occurrence and event detail pages. Tables filter and sort bounded complete result sets before pagination (20 rows by default, at most 100 per page); oversized queries fail explicitly rather than presenting partial sorted results. Metric series have at most 361 points; queries cover at most 24 hours. These pages do not ingest or persist a copy of the telemetry. Restart replicas after changing the configuration; a mounted token can rotate without a restart. Flag changes use the existing cross-replica invalidation and bounded evaluation cache, without restarting replicas.
+
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
 1. Go to `tuist/examples/xcode/generated_ios_app_with_frameworks`.

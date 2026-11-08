@@ -162,10 +162,13 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       assert {:error, :not_found} = Accounts.get_invitation_by_token(invitation.token)
     end
 
-    test "does not resume to router-equivalent invitation paths" do
+    test "does not resume to unsafe or router-equivalent invitation paths" do
       return_path_builders = [
         fn token -> "/auth/invitations/#{token}/" end,
-        fn token -> "/auth/invitations//#{token}" end
+        fn token -> "/auth/invitations//#{token}" end,
+        fn _token -> "/\\evil.example" end,
+        fn _token -> "/%09/evil.example" end,
+        fn _token -> "/page\0" end
       ]
 
       Enum.each(Enum.with_index(return_path_builders), fn {return_path_builder, index} ->
@@ -392,7 +395,7 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       {:ok, _invitation} =
         Accounts.resend_invitation(
           invitation,
-          %{url: fn token -> "/auth/invitations/#{token}" end},
+          %{url: fn token -> "/auth/invitations/#{token}" end, inviter: inviter},
           token: "new-token"
         )
 

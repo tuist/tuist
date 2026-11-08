@@ -3,6 +3,7 @@ defmodule Atlas.SupportTest do
   use Mimic
   use Oban.Testing, repo: Atlas.Repo
 
+  alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Inbox
   alias Atlas.Inbox.EmailParser
@@ -139,6 +140,116 @@ defmodule Atlas.SupportTest do
         """)
 
       assert Support.support_address?(email)
+    end
+  end
+
+  describe "receive_agent_feedback/1" do
+    test "opens a conversation for the reporting user, linked to their account" do
+      suffix = System.unique_integer([:positive])
+      account = insert_account!("customer-#{suffix}.example")
+
+      assert {:ok, %{thread: thread, message: message}} =
+               Support.receive_agent_feedback(%{
+                 "name" => "Maya Chen",
+                 "email" => "Maya@Customer-#{suffix}.example",
+                 "body" => "Expected: test runs filtered by branch\n\nActual: the branch was ignored",
+                 "context" => %{
+                   "source" => "Example MCP",
+                   "tool_name" => "list_test_runs",
+                   "category" => "missing_data",
+                   "reporter_id" => "42",
+                   "channel" => "email",
+                   "unexpected" => "dropped"
+                 }
+               })
+
+      assert thread.account_id == account.id
+      assert thread.subject == "Agent feedback: list_test_runs"
+      assert thread.customer_email == "maya@customer-#{suffix}.example"
+
+      assert thread.metadata == %{
+               "channel" => "agent_feedback",
+               "source" => "Example MCP",
+               "tool_name" => "list_test_runs",
+               "category" => "missing_data",
+               "reporter_id" => "42"
+             }
+
+      assert message.kind == "chat"
+      assert message.body =~ "the branch was ignored"
+
+      assert_enqueued(
+        worker: PostNotification,
+        args: %{"event" => "agent_feedback_received", "thread_id" => thread.id, "message_id" => message.id}
+      )
+    end
+
+    test "links the thread to the account the agent reported from, ahead of the email domain" do
+      suffix = System.unique_integer([:positive])
+      _email_account = insert_account!("customer-#{suffix}.example")
+      reported_account = insert_account!("other-#{suffix}.example")
+
+      {:ok, _handle} =
+        Accounts.create_account_handle(reported_account, %{"handle" => "acme-#{suffix}", "source" => "manual"})
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya@customer-#{suffix}.example",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{
+                   "reporter_handle" => "maya",
+                   "account_handle" => "Acme-#{suffix}",
+                   "project_handle" => "ios",
+                   "organization_handles" => ["acme-#{suffix}", "side-project"]
+                 }
+               })
+
+      assert thread.account_id == reported_account.id
+      assert thread.metadata["account_handle"] == "Acme-#{suffix}"
+      assert thread.metadata["project_handle"] == "ios"
+      assert thread.metadata["organization_handles"] == ["acme-#{suffix}", "side-project"]
+    end
+
+    test "falls back to the reporter's organizations when the email matches no account" do
+      suffix = System.unique_integer([:positive])
+      account = insert_account!("acme-#{suffix}.example")
+      {:ok, _handle} = Accounts.create_account_handle(account, %{"handle" => "acme-#{suffix}", "source" => "manual"})
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya-#{suffix}@gmail.com",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{
+                   "reporter_handle" => "maya-#{suffix}",
+                   "organization_handles" => ["acme-#{suffix}"]
+                 }
+               })
+
+      assert thread.account_id == account.id
+    end
+
+    test "leaves the thread unlinked when the user's organizations match several accounts" do
+      suffix = System.unique_integer([:positive])
+
+      for name <- ["acme-#{suffix}", "globex-#{suffix}"] do
+        {:ok, _handle} =
+          Accounts.create_account_handle(insert_account!("#{name}.example"), %{"handle" => name, "source" => "manual"})
+      end
+
+      assert {:ok, %{thread: thread}} =
+               Support.receive_agent_feedback(%{
+                 "email" => "maya-#{suffix}@gmail.com",
+                 "body" => "The branch filter was ignored.",
+                 "context" => %{"organization_handles" => ["acme-#{suffix}", "globex-#{suffix}"]}
+               })
+
+      assert thread.account_id == nil
+      assert Support.agent_feedback_origin(thread).organization_handles == ["acme-#{suffix}", "globex-#{suffix}"]
+    end
+
+    test "rejects reports without an email or body" do
+      assert {:error, :email_required} = Support.receive_agent_feedback(%{"body" => "Something broke."})
+      assert {:error, :body_required} = Support.receive_agent_feedback(%{"email" => "maya@example.com", "body" => " "})
     end
   end
 
@@ -326,6 +437,53 @@ defmodule Atlas.SupportTest do
         worker: PostNotification,
         args: %{"event" => "reply_delivered", "thread_id" => thread.id, "message_id" => message.id}
       )
+    end
+
+    test "keeps replies in an agent-feedback conversation when the provider replaces Message-ID" do
+      suffix = System.unique_integer([:positive])
+      customer = "maya@customer-#{suffix}.example"
+
+      {:ok, %{thread: thread}} =
+        Support.receive_agent_feedback(%{"email" => customer, "body" => "A tool returned the wrong result."})
+
+      actor = insert_user!()
+      {:ok, %{message: message}} = Support.reply(thread, %{"body" => "We are investigating."}, actor)
+      assert message.references == []
+
+      test_pid = self()
+
+      expect(Mailer, :deliver, fn email ->
+        send(test_pid, {:outgoing_email, email})
+        {:ok, %{id: "ses-#{suffix}"}}
+      end)
+
+      assert :ok = Support.deliver_reply(message.id)
+      assert_received {:outgoing_email, outgoing_email}
+      assert outgoing_email.headers["References"] == "<#{message.message_id}>"
+      refute Map.has_key?(outgoing_email.headers, "In-Reply-To")
+
+      delivered_message = Repo.get!(Message, message.id)
+      assert delivered_message.message_id == message.message_id
+      assert delivered_message.provider_message_id == "ses-#{suffix}"
+      assert {:ok, _resolved_thread} = Support.set_status(thread, "resolved", actor)
+
+      raw_reply = """
+      Message-ID: <customer-reply-#{suffix}@customer-#{suffix}.example>
+      In-Reply-To: <ses-#{suffix}@provider.example>
+      References: #{outgoing_email.headers["References"]} <ses-#{suffix}@provider.example>
+      From: Maya <#{customer}>
+      To: contact@tuist.dev
+      Subject: Re: Agent feedback
+
+      Here is more context.
+      """
+
+      {:ok, inbox_email} =
+        Inbox.persist_inbound(raw_reply, envelope: %{"from" => customer, "to" => "contact@tuist.dev"})
+
+      assert {:ok, %{thread: reply_thread}} = Support.ingest_inbound(EmailParser.parse(raw_reply), inbox_email.id)
+      assert reply_thread.id == thread.id
+      assert reply_thread.status == "open"
     end
 
     test "persists reply attachments and includes them in the delivered email" do

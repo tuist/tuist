@@ -4,11 +4,12 @@ defmodule TuistWeb.API.AuthController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserToken
   alias Tuist.Authentication
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
   alias Tuist.OAuth.Apple
-  alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -32,6 +33,44 @@ defmodule TuistWeb.API.AuthController do
           type: :string
         }
       }
+    })
+  end
+
+  operation(:create_device_code,
+    summary: "Start a device sign-in.",
+    description: """
+    Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to \
+    open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every \
+    `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    """,
+    operation_id: "createDeviceCode",
+    responses: %{
+      ok:
+        {"The device sign-in was started", "application/json",
+         %Schema{
+           title: "DeviceAuthorization",
+           type: :object,
+           properties: %{
+             device_code: %Schema{type: :string, description: "The secret code to poll for tokens with."},
+             user_code: %Schema{type: :string, description: "The short code the person enters in the browser."},
+             verification_uri: %Schema{type: :string, description: "The page where the person enters the code."},
+             expires_in: %Schema{type: :integer, description: "Seconds until the codes expire."},
+             interval: %Schema{type: :integer, description: "Seconds to wait between polls."}
+           },
+           required: [:device_code, :user_code, :verification_uri, :expires_in, :interval]
+         }}
+    }
+  )
+
+  def create_device_code(conn, _params) do
+    {:ok, device_code} = Accounts.create_device_authorization()
+
+    json(conn, %{
+      device_code: device_code.code,
+      user_code: Accounts.format_user_code(device_code.user_code),
+      verification_uri: url(~p"/auth/device"),
+      expires_in: Accounts.device_code_ttl_seconds(),
+      interval: 1
     })
   end
 
@@ -84,10 +123,7 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:accepted)
         |> json(%{})
 
-      NaiveDateTime.before?(
-        device_code.created_at,
-        DateTime.to_naive(DateTime.add(Time.utc_now(), -5, :minute))
-      ) ->
+      Accounts.device_code_expired?(device_code) ->
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The device code has expired."})
@@ -97,36 +133,58 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:accepted)
         |> json(%{})
 
-      device_code.authenticated ->
-        user = Accounts.get_user!(device_code.user_id, preload: [:account])
+      Accounts.device_code_used?(device_code) ->
+        device_code_already_used(conn)
 
-        {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{
-              email: user.email,
-              preferred_username: user.account.name
-            },
-            token_type: :access,
-            ttl: @access_token_ttl
-          )
+      true ->
+        issue_device_code_tokens(conn, device_code)
+    end
+  end
 
-        {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(
-            user,
-            %{email: user.email, preferred_username: user.account.name},
-            token_type: :refresh,
-            ttl: @refresh_token_ttl
-          )
+  # Consuming the code first means only one poll receives the tokens. A later
+  # or losing concurrent poll gets a 400, which ends the CLI's polling with a
+  # message instead of waiting forever. The code is consumed and the tokens
+  # signed under the account's credential lock, so a mailbox proof that
+  # revokes the approval either lands first, deleting the code, or after,
+  # revoking the tokens.
+  defp issue_device_code_tokens(conn, device_code) do
+    user = Accounts.get_user!(device_code.user_id, preload: [:account])
 
+    # Refreshing carries the claims over, so the tokens keep the SSO
+    # sign-in that approved the code for `ensure_refresh_satisfies_sso/1`.
+    claims =
+      Map.merge(
+        %{"email" => user.email, "preferred_username" => user.account.name},
+        UserToken.sso_claims(device_code)
+      )
+
+    case Accounts.issue_user_credential(user, fn -> consume_and_sign(device_code, user, claims) end) do
+      {:ok, tokens} ->
         conn
         |> put_status(:ok)
-        |> json(%{
-          token: user.token,
-          access_token: access_token,
-          refresh_token: refresh_token
-        })
+        |> json(tokens)
+
+      {:error, reason} when reason in [:already_used, :credentials_revoked] ->
+        device_code_already_used(conn)
     end
+  end
+
+  defp consume_and_sign(device_code, user, claims) do
+    with {:ok, _device_code} <- Accounts.consume_device_code(device_code) do
+      {:ok, access_token, _opts} =
+        Authentication.encode_and_sign(user, claims, token_type: :access, ttl: @access_token_ttl)
+
+      {:ok, refresh_token, _opts} =
+        Authentication.encode_and_sign(user, claims, token_type: :refresh, ttl: @refresh_token_ttl)
+
+      {:ok, %{token: user.token, access_token: access_token, refresh_token: refresh_token}}
+    end
+  end
+
+  defp device_code_already_used(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "The device code was already used. Sign in again."})
   end
 
   operation(:refresh_token,
@@ -144,7 +202,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:refresh_token]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Succcessfully generated new API tokens.",
@@ -174,11 +232,48 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{
           message: "The refresh token is invalid."
         })
+
+      # 401, which existing clients answer by signing out, so the user signs
+      # in again through the browser, where the organization's SSO applies.
+      {:error, :sso_required} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{
+          message:
+            "Your organization requires single sign-on. Run `tuist auth login` to sign in through your identity provider."
+        })
     end
   end
 
+  # A refresh token acts for the user in every account, as the sign-in that
+  # issued it did, so it is renewed only while its SSO claims (or the user's
+  # linked identities, or the grace period) still satisfy the user's
+  # SSO-enforcing organizations. See `Accounts.refresh_sso_claims/2`. A user's
+  # token is rotated while the account is locked against a mailbox proof
+  # revoking it, and `Authentication.refresh/2` verifies it again under that
+  # lock, so a token revoked meanwhile is refused. Tokens that don't decode to
+  # a user are left to `Authentication.refresh/2` to handle as before.
   defp refresh_tokens(conn, refresh_token) do
-    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
+    case Tuist.Guardian.resource_from_token(refresh_token, %{"typ" => "refresh"}) do
+      {:ok, %User{} = user, claims} ->
+        case Accounts.issue_user_credential(user, fn -> refresh_user_tokens(conn, refresh_token, user, claims) end) do
+          {:error, :credentials_revoked} -> {:error, :invalid_refresh_token}
+          result -> result
+        end
+
+      _ ->
+        rotate_refresh_token(conn, refresh_token, nil)
+    end
+  end
+
+  defp refresh_user_tokens(conn, refresh_token, user, claims) do
+    with {:ok, sso_claims} <- Accounts.refresh_sso_claims(user, claims) do
+      rotate_refresh_token(conn, refresh_token, sso_claims)
+    end
+  end
+
+  defp rotate_refresh_token(conn, refresh_token, sso_claims) do
+    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl, sso_claims: sso_claims) do
       {:error, _} ->
         {:error, :invalid_refresh_token}
 
@@ -217,7 +312,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:email, :password]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Successfully authenticated and returned new API tokens.",
@@ -249,7 +344,7 @@ defmodule TuistWeb.API.AuthController do
            }
          },
          required: [:identity_token, :authorization_code]
-       }},
+       }, required: true},
     responses: %{
       ok: {
         "Successfully authenticated and returned new API tokens.",
@@ -296,6 +391,29 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{message: "Invalid email or password."})
 
       {:ok, user} ->
+        issue_user_tokens(conn, user)
+    end
+  end
+
+  defp issue_user_tokens(conn, user) do
+    # Direct credential endpoints cannot silently skip an enrolled factor.
+    # CLI/device login completes the browser challenge before authorization.
+    # Tokens also act for the user in every account, so members of an
+    # organization that enforces single sign-on have to sign in through its
+    # provider in the browser.
+    cond do
+      Accounts.UserMFA.enabled?(user) ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Two-factor authentication is enabled. Use browser sign-in."})
+
+      # 401 like the MFA refusal above, whose message released clients show.
+      Accounts.sso_requirement(user, nil) != :ok ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
+
+      true ->
         {:ok, access_token, _opts} =
           Authentication.encode_and_sign(
             user,
@@ -325,26 +443,10 @@ defmodule TuistWeb.API.AuthController do
         %{body_params: %{identity_token: identity_token, authorization_code: authorization_code}} = conn,
         _params
       ) do
-    with {:ok, user} <-
-           Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code),
-         {:ok, access_token, _} <-
-           Authentication.encode_and_sign(
-             user,
-             %{email: user.email, preferred_username: user.account.name},
-             token_type: :access,
-             ttl: @access_token_ttl
-           ),
-         {:ok, refresh_token, _} <-
-           Authentication.encode_and_sign(
-             user,
-             %{email: user.email, preferred_username: user.account.name},
-             token_type: :refresh,
-             ttl: @refresh_token_ttl
-           ) do
-      conn
-      |> put_status(:ok)
-      |> json(%{access_token: access_token, refresh_token: refresh_token})
-    else
+    case Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code) do
+      {:ok, user} ->
+        issue_user_tokens(conn, user)
+
       {:error, reason} ->
         conn
         |> put_status(:unauthorized)

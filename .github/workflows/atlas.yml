@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - atlas/**
+      - condukt/**
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
@@ -14,6 +15,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - atlas/**
+      - condukt/**
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml

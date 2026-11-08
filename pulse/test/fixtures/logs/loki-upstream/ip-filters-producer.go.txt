@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test tables: Copyright Grafana Labs contributors.
+// Adapted for Pulse on 2026-10-27; see LICENSE and README.md.
+// Extracts original expected results, not Pulse or a replacement IP algorithm.
+package main
+
+import (
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
+)
+
+type row struct {
+	Suite    string   `json:"suite"`
+	Name     string   `json:"name"`
+	Pattern  string   `json:"pattern"`
+	Input    []string `json:"input,omitempty"`
+	Expected []int    `json:"expected,omitempty"`
+	Operator string   `json:"operator,omitempty"`
+	Match    bool     `json:"match"`
+	Reject   bool     `json:"reject"`
+	Start    int      `json:"source_start"`
+	End      int      `json:"source_end"`
+}
+
+func literal(expr ast.Expr) string {
+	if call, ok := expr.(*ast.CallExpr); ok {
+		expr = call.Args[0] // []byte("...") in operator tables.
+	}
+	value, err := strconv.Unquote(expr.(*ast.BasicLit).Value)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func main() {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, os.Args[1], nil, 0)
+	if err != nil {
+		panic(err)
+	}
+	enc := json.NewEncoder(os.Stdout)
+	count := 0
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || (fn.Name.Name != "Test_IPFilter" && fn.Name.Name != "Test_IPLineFilterTy" && fn.Name.Name != "Test_IPLabelFilterTy") {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			assign, ok := n.(*ast.AssignStmt)
+			if !ok || len(assign.Lhs) != 1 {
+				return true
+			}
+			name, ok := assign.Lhs[0].(*ast.Ident)
+			if !ok || name.Name != "cases" {
+				return true
+			}
+			for _, entry := range assign.Rhs[0].(*ast.CompositeLit).Elts {
+				item := entry.(*ast.CompositeLit)
+				r := row{Suite: fn.Name.Name, Start: fset.Position(item.Pos()).Line, End: fset.Position(item.End()).Line}
+				for _, field := range item.Elts {
+					kv := field.(*ast.KeyValueExpr)
+					switch kv.Key.(*ast.Ident).Name {
+					case "name":
+						r.Name = literal(kv.Value)
+					case "pat":
+						r.Pattern = literal(kv.Value)
+					case "input":
+						for _, value := range kv.Value.(*ast.CompositeLit).Elts {
+							r.Input = append(r.Input, literal(value))
+						}
+					case "expected":
+						for _, value := range kv.Value.(*ast.CompositeLit).Elts {
+							i, err := strconv.Atoi(value.(*ast.BasicLit).Value)
+							if err != nil {
+								panic(err)
+							}
+							r.Expected = append(r.Expected, i)
+						}
+					case "line", "val":
+						r.Input = []string{literal(kv.Value)}
+					case "expectedMatch":
+						r.Match = kv.Value.(*ast.Ident).Name == "true"
+					case "fail":
+						r.Reject = kv.Value.(*ast.Ident).Name == "true"
+					case "ty":
+						r.Operator = map[string]string{"LineMatchEqual": "|=", "LineMatchNotEqual": "!=", "LineMatchRegexp": "|~", "LineMatchNotRegexp": "!~", "LabelFilterEqual": "=", "LabelFilterNotEqual": "!="}[kv.Value.(*ast.Ident).Name]
+					}
+				}
+				if err := enc.Encode(r); err != nil {
+					panic(err)
+				}
+				count++
+			}
+			return false
+		})
+	}
+	if count != 15 {
+		panic("unexpected upstream case count")
+	}
+}

@@ -10,9 +10,11 @@ A local build cache only helps the machine that filled it. Fresh CI machines, ne
 
 Tuist hosts a remote cache keyed by build inputs. On a hit, the build downloads the stored output instead of rebuilding it; on a miss, it builds normally and can upload the result for others. The Tuist server tells clients which cache endpoint to use, normally the closest region. On [Tuist Runners](/marketing-markdown/compute), the cache sits on the runner's private network and is the same cache developer machines use.
 
+Account admins can restrict cache uploads to "CI and account tokens only" so developers consume outputs from trusted producers. Gradle can also disable pushes locally. Enterprise teams can place [self-hosted Kura cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) near CI or offices, connected to hosted or self-hosted Tuist.
+
 ## Choose the integration
 
-These are four separate integrations, one per build system, not interchangeable settings:
+The following integrations have separate, non-interchangeable settings:
 
 | Integration | Toolchain | What is reused | Requirements and setup |
 | --- | --- | --- | --- |
@@ -21,7 +23,7 @@ These are four separate integrations, one per build system, not interchangeable 
 | [Gradle cache](/en/docs-markdown/guides/features/cache/gradle-cache) | Gradle, including Android | Task outputs through Gradle's build cache | [Tuist Gradle plugin](/en/docs-markdown/guides/install-gradle-plugin) plus `org.gradle.caching=true`. |
 | [Bazel cache](/en/docs-markdown/guides/features/cache/bazel-cache) | Bazel | Action outputs through the Remote Execution API cache | Run `tuist bazel setup` on each machine; it writes `.bazelrc.tuist`. |
 
-Generated Xcode projects can combine the module cache and the Xcode cache: the first skips whole modules, the second speeds up what still compiles. Tuist does not provide remote caching for Elixir.
+Generated Xcode projects can combine the module cache and the Xcode cache: the first skips whole modules, the second speeds up what still compiles. Elixir projects can also use [dependency caching](/en/docs-markdown/guides/features/cache/elixir-advanced). [Rust compilation caching](/en/docs-markdown/guides/features/cache/rust) is experimental with toolchain and same-machine restrictions. Once support is in canary.
 
 ## When it fits
 
@@ -37,13 +39,8 @@ It helps less when most builds change most inputs, when local incremental builds
 3. Build once to populate the cache, then build the same inputs from another environment.
 4. Check hit rate and transfer in the project's cache dashboards and [Build Insights](/en/docs-markdown/guides/features/build-insights).
 
-## Limitations
-
-- Changed inputs or different toolchain versions and settings produce misses. A remote cache never guarantees a hit or removes all compilation.
-- Downloads cost latency and bandwidth; the benefit depends on artifact size, distance to the cache, and how expensive the work is to rebuild.
-- Choose trusted producers. Account admins can set cache uploads to "CI and account tokens only" so developers download but do not upload; Gradle can also disable pushes locally.
-- [Self-hosted cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) (Kura) can run near your CI or offices and connect to hosted or self-hosted Tuist. They require the Enterprise plan and add infrastructure to operate.
-
 ## Pricing
 
 Billing depends on the account's model: newer plans meter cache downloads (egress and requests) while uploads and storage are free; older plans meter module cache usage differently. Check the live [pricing table](/pricing) and [pricing guide](/marketing-markdown/pricing); do not estimate cost from team size.
+
+Related: [slow builds](/marketing-markdown/solutions/slow-builds) and [build-system guides](/marketing-markdown/build-systems).

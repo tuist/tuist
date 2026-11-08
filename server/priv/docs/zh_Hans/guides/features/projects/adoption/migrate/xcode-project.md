@@ -7,13 +7,13 @@
 ---
 # 迁移 Xcode 项目 {#migrate-an-xcode-project}
 
-除非你 <.localized_link href="/guides/features/projects/adoption/new-project">使用 Tuist 创建新项目</.localized_link>（这种情况下会自动完成所有配置），否则你需要使用 Tuist 的原语来定义 Xcode 项目。此过程的繁琐程度取决于项目的复杂性。
+除非你 <.localized_link href="/guides/features/projects/adoption/new-project">使用 Tuist 创建新项目</.localized_link>（这种情况下会自动完成所有配置），否则你需要使用 Tuist 的原语来定义你的 Xcode 项目。这个过程的繁琐程度取决于项目的复杂程度。
 
 正如你可能所知，Xcode 项目随着时间的推移会变得混乱和复杂：组与目录结构不匹配、文件在多个 target 之间共享，或者文件引用指向不存在的文件（仅举几例）。所有这些累积的复杂性使得我们难以提供一个能够可靠迁移项目的命令。
 
-此外，手动迁移是清理和简化项目的绝佳练习。不仅项目中的开发人员会对此表示感谢，Xcode 也会受益，因为它处理和索引项目的速度会更快。一旦你完全采用 Tuist，它将确保项目定义的一致性并保持简洁。
+此外，手动迁移是清理和简化项目的绝佳练习。不仅你项目中的开发人员会对此表示感谢，Xcode 也会因为处理和索引速度更快而受益。一旦你完全采用 Tuist，它将确保项目定义的一致性并保持简洁。
 
-为了减轻这项工作，我们根据从用户那里收到的反馈提供了一些指南。
+为了减轻这项工作，我们根据从用户那里收到的反馈，为你提供了一些指南。
 
 ## 创建项目脚手架 {#create-project-scaffold}
 
@@ -58,24 +58,24 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
     ]
 )
 ```
 <!-- -->
 :::
 
-`Project.swift` 是用于定义项目的清单文件，`Package.swift` 是用于定义依赖项的清单文件。`Tuist.swift` 文件用于定义项目范围内的 Tuist 设置。
+`Project.swift` 是用于定义项目的清单文件，`Package.swift` 是用于定义依赖项的清单文件。`Tuist.swift` 文件用于为项目定义项目范围内的 Tuist 设置。
 
 > [!TIP]
-> **项目名称添加 -tuist 后缀**
+> **项目名称添加 -Tuist 后缀**
 >
-> 为了防止与现有的 Xcode 项目发生冲突，我们建议在项目名称中添加 `-Tuist` 后缀。一旦你完全将项目迁移到 Tuist，就可以去掉它。
+> 为了防止与现有的 Xcode 项目发生冲突，我们建议在项目名称中添加 `-Tuist` 后缀。当你将项目完全迁移到 Tuist 后，可以去掉该后缀。
 
 
 ## 在 CI 中构建和测试 Tuist 项目 {#build-and-test-the-tuist-project-in-ci}
 
-为了确保每次更改的迁移都有效，我们建议扩展你的持续集成流程，以构建和测试由 Tuist 从清单文件生成的项目：
+为了确保每次更改的迁移都是有效的，我们建议扩展你的持续集成流程，以构建和测试由 Tuist 从清单文件生成的项目：
 
 ```bash
 tuist install
@@ -101,8 +101,8 @@ import ProjectDescription
 let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
-        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
-        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
+        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
+        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
     ]),
     targets: [
         /** Targets will go here **/
@@ -140,8 +140,8 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
@@ -149,12 +149,12 @@ let package = Package(
 > [!TIP]
 > **产品类型**
 >
-> 你可以通过将其添加到 `PackageSettings` 结构体中的 `productTypes` 字典来覆盖特定包的产品类型。默认情况下，Tuist 假设所有包都是静态框架。
+> 你可以通过将特定包添加到 `PackageSettings` 结构体中的 `productTypes` 字典来覆盖其产品类型。默认情况下，Tuist 假设所有包都是静态框架。
 
 
 ## 确定迁移顺序 {#determine-the-migration-order}
 
-我们建议按照依赖程度从高到低的顺序迁移 target。你可以使用以下命令列出项目的 target，并按依赖数量排序：
+我们建议按照依赖程度从高到低的顺序迁移 target。你可以使用以下命令列出项目的 target，并按依赖项数量排序：
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
@@ -189,30 +189,30 @@ let project = Project(
         .release(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
     ]),
     targets: [
-        .target( // [!code ++]
-            name: "TargetX", // [!code ++]
-            destinations: .iOS, // [!code ++]
-            product: .framework, // [!code ++] // or .staticFramework, .staticLibrary...
-            bundleId: "dev.tuist.targetX", // [!code ++]
-            sources: ["Sources/TargetX/**"], // [!code ++]
-            dependencies: [ // [!code ++]
-                /** Dependencies go here **/ // [!code ++]
-                /** .external(name: "Kingfisher") **/ // [!code ++]
-                /** .target(name: "OtherProjectTarget") **/ // [!code ++]
-            ], // [!code ++]
-            settings: .settings(configurations: [ // [!code ++]
-                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-                .debug(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-            ]) // [!code ++]
-        ), // [!code ++]
+        .target(
+            name: "TargetX",
+            destinations: .iOS,
+            product: .framework, // or .staticFramework, .staticLibrary...
+            bundleId: "dev.tuist.targetX",
+            sources: ["Sources/TargetX/**"],
+            dependencies: [
+                /** Dependencies go here **/
+                /** .external(name: "Kingfisher") **/
+                /** .target(name: "OtherProjectTarget") **/
+            ],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+                .release(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+            ])
+        ),
     ]
 )
 ```
 
 > [!NOTE]
-> **测试 Target**
+> **测试 target**
 >
-> 如果该 target 有关联的测试 target，你也应该在 `Project.swift` 文件中定义它，并重复相同的步骤。
+> 如果 target 有关联的测试 target，你也应该在 `Project.swift` 文件中定义它，并重复相同的步骤。
 
 
 ### 验证 target 迁移 {#validate-the-target-migration}
@@ -221,10 +221,10 @@ let project = Project(
 
 ### 重复 {#repeat}
 
-重复此过程，直到所有 target 完全迁移。完成后，我们建议更新你的 CI 和 CD 流水线，使用 `tuist generate` 生成项目，然后运行 `xcodebuild build` 和 `tuist test` 来构建和测试项目。
+重复此过程，直到所有 target 都完全迁移。完成后，我们建议更新你的 CI 和 CD 流水线，使用 `tuist generate` 生成项目，然后运行 `xcodebuild build` 和 `tuist test` 来构建和测试项目。
 
 ## 故障排除 {#troubleshooting}
 
 ### 由于缺少文件导致的编译错误。{#compilation-errors-due-to-missing-files}
 
-如果你的 Xcode 项目 target 关联的文件并非全部包含在代表该 target 的文件系统目录中，最终可能会导致项目无法编译。请确保使用 Tuist 生成项目后的文件列表与 Xcode 项目中的文件列表匹配，并利用此机会使文件结构与 target 结构保持一致。
+如果你的 Xcode 项目 target 关联的文件并非全部包含在代表该 target 的文件系统目录中，可能会导致项目无法编译。请确保使用 Tuist 生成项目后的文件列表与 Xcode 项目中的文件列表匹配，并利用此机会使文件结构与 target 结构保持一致。

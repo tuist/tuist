@@ -9,6 +9,30 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "pulse_enabled?/1" do
+    test "requires explicit account enrollment in every environment" do
+      account = %Account{id: 42}
+
+      for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :pulse, [for: ^account] -> enabled end)
+        assert FeatureFlags.pulse_enabled?(account) == enabled
+      end
+    end
+  end
+
+  describe "app_flags/1" do
+    test "lists ai only for users with the flag in production" do
+      user = %Tuist.Accounts.User{id: 42}
+      stub(Environment, :env, fn -> :prod end)
+
+      for {enabled, flags} <- [{false, []}, {true, ["ai"]}] do
+        expect(FunWithFlags, :enabled?, fn :ai, [for: ^user] -> enabled end)
+        assert FeatureFlags.app_flags(user) == flags
+      end
+    end
+  end
+
   describe "runner_docker_cache_enabled?/1" do
     test "canary qualification does not depend on a database flag" do
       stub(Environment, :env, fn -> :can end)
@@ -103,6 +127,28 @@ defmodule Tuist.FeatureFlagsTest do
         assert FeatureFlags.coverage_enabled?(account, %Project{build_system: build_system}) ==
                  (flag? or build_system == :mix)
       end
+    end
+  end
+
+  describe "test_impact_analysis_enabled?/2" do
+    test "canary and production require the account flag and coverage for the project" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for flag? <- [true, false], coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :test_impact_analysis, [for: ^account] -> flag?
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) ==
+                 (flag? and coverage?)
+      end
+    end
+
+    test "other environments enable it for projects with coverage" do
+      stub(Environment, :env, fn -> :stag end)
+      assert FeatureFlags.test_impact_analysis_enabled?(%Account{id: 42, name: "tuist"}, %Project{build_system: :xcode})
     end
   end
 

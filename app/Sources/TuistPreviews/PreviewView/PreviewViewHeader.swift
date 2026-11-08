@@ -25,12 +25,12 @@ struct PreviewViewHeader: View {
 
             VStack(alignment: .leading, spacing: Noora.Spacing.spacing4) {
                 VStack(alignment: .leading, spacing: Noora.Spacing.spacing2) {
-                    Text(preview.displayName ?? "App")
+                    Text(preview.displayName ?? String(localized: "App"))
                         .font(.title2.weight(.medium))
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
 
                     if let version = preview.version {
-                        Text("v\(version.description)")
+                        Text(verbatim: "v\(version.description)")
                             .font(.caption)
                             .foregroundColor(Noora.Colors.surfaceLabelSecondary)
                     }

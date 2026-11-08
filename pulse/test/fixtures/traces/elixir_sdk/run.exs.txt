@@ -1,0 +1,163 @@
+# Optional isolated producer: no Tuist app, secrets, deployment or default SDK exporter.
+[protocol, endpoint, tenant, output] = System.argv()
+true = protocol in ["http", "grpc"]
+uri = URI.parse(endpoint)
+true = uri.scheme == "http" and uri.host in ["127.0.0.1", "::1"] and uri.port > 0
+true = tenant =~ ~r/\A[a-z0-9-]+\z/
+
+for {app, version} <- [opentelemetry_api: "1.5.0", opentelemetry: "1.7.0", opentelemetry_exporter: "1.10.0"] do
+  Application.load(app)
+  true = to_string(Application.spec(app, :vsn)) == version
+end
+
+Application.load(:grpcbox)
+true = to_string(Application.spec(:grpcbox, :vsn)) in ["0.18.0", "0.17.1"]
+{:ok, _} = Application.ensure_all_started(:opentelemetry_api)
+{:ok, _} = Application.ensure_all_started(:inets)
+{:ok, _} = Application.ensure_all_started(:ssl)
+{:ok, _} = Application.ensure_all_started(:telemetry)
+if protocol == "grpc", do: Application.ensure_all_started(:grpcbox)
+Code.require_file("capture_exporter.exs", __DIR__)
+Code.require_file("snapshot.exs", __DIR__)
+Code.require_file("repo.exs", __DIR__)
+Code.require_file("ids.exs", __DIR__)
+Code.require_file("fixture_plug.exs", __DIR__)
+Code.require_file("router.exs", __DIR__)
+Code.require_file("completion_processor.exs", __DIR__)
+
+resource =
+  :otel_resource.create(
+    %{
+      "service.name" => "fixture-registry",
+      "service.namespace" => "fixture",
+      "deployment.environment" => "local",
+      "deployment.environment.name" => "local",
+      "fixture.tenant" => tenant,
+      "fixture.bool" => true
+    },
+    "https://example.test/resource/1.0"
+  )
+
+exporter = %{
+  endpoints: [endpoint],
+  protocol: if(protocol == "grpc", do: :grpc, else: :http_protobuf),
+  compression: :gzip,
+  headers: [{"authorization", "Bearer token-#{tenant}"}, {"x-scope-orgid", tenant}]
+}
+
+config =
+  :otel_configuration.merge_with_os(
+    resource_detectors: [],
+    create_application_tracers: false,
+    id_generator: SDKFixtureIds,
+    traces_exporter: {SDKCaptureExporter, %{output: output, owner: self(), exporter: exporter}},
+    processors: [
+      {:otel_batch_processor,
+       %{resource: resource, scheduled_delay_ms: 60_000, exporting_timeout_ms: 15_000, max_queue_size: 64}},
+      {SDKCompletionProcessor, %{owner: self()}}
+    ],
+    attribute_count_limit: 128,
+    event_count_limit: 128,
+    link_count_limit: 128,
+    attribute_per_event_limit: 1,
+    attribute_per_link_limit: 1
+  )
+
+:otel_span_limits.set(config)
+{:ok, span_sup} = :otel_span_sup.start_link(config)
+{:ok, provider} = :otel_tracer_server_sup.start_link(:global, resource, config)
+
+for app <- [
+      :phoenix,
+      :bandit,
+      :req,
+      :finch,
+      :opentelemetry_ecto,
+      :opentelemetry_finch,
+      :opentelemetry_phoenix,
+      :opentelemetry_bandit,
+      :opentelemetry_process_propagator
+    ] do
+  Application.load(app)
+end
+
+:opentelemetry.create_application_tracers(Application.loaded_applications())
+propagator = :otel_propagator_text_map_composite.create([:trace_context, :baggage])
+:opentelemetry.set_text_map_propagator(propagator)
+tracer = :otel_tracer_provider.get_tracer(:global, :elixir_fixture, "1.0", "https://example.test/scope/1.0")
+:ok = OpentelemetryEcto.setup(event_prefix: [:fixture, :repo])
+:ok = OpentelemetryFinch.setup()
+:ok = OpentelemetryBandit.setup()
+:ok = OpentelemetryPhoenix.setup(adapter: :bandit, liveview: false)
+{:ok, _} = Application.ensure_all_started(:bandit)
+{:ok, _} = Application.ensure_all_started(:req)
+{:ok, web} = Bandit.start_link(plug: SDKFixtureRouter, ip: {127, 0, 0, 1}, port: 0)
+{:ok, {_, port}} = ThousandIsland.listener_info(web)
+
+:telemetry.execute([:ecto, :repo, :init], %{}, %{
+  repo: SDKFixtureRepo,
+  opts: [telemetry_prefix: [:fixture, :repo], database: "fixture", hostname: "127.0.0.1", port: 5432]
+})
+
+:otel_tracer.with_span(tracer, "SDK client", %{kind: :client}, fn _ ->
+  carrier = :otel_propagator_text_map.inject([]) ++ [{"tracestate", "vendor=opaque"}]
+  response = Req.get!("http://127.0.0.1:#{port}/fixture", headers: carrier, retry: false)
+  true = response.status == 200 and response.body == "ok"
+end)
+
+# The observer follows the batch processor's synchronous on_end insertion.
+# Wait for all actual SDK completions, not response bytes or a timer/sleep.
+for _ <- 1..5 do
+  receive do
+    :sdk_span_completed -> :ok
+  after
+    10_000 -> raise "five SDK span completions did not arrive"
+  end
+end
+
+Supervisor.stop(web)
+flush = :otel_tracer_provider.force_flush(:global)
+
+result =
+  receive do
+    {:export_complete, count, result} -> %{count: count, result: inspect(result)}
+  after
+    20_000 -> raise "SDK export callback did not complete"
+  end
+
+{records, resource} = :erlang.binary_to_term(File.read!(output <> "-sdk-records.etf"))
+
+:ok =
+  File.write(
+    output <> "-oracle.json",
+    JSON.encode!(
+      Map.merge(SDKSnapshot.document(records, resource), %{
+        sdk: "erlang SDK1.7/API1.5/exporter1.10",
+        elixir: System.version(),
+        otp: to_string(:erlang.system_info(:otp_release)),
+        versions:
+          Map.new(
+            [
+              :grpcbox,
+              :phoenix,
+              :bandit,
+              :req,
+              :finch,
+              :opentelemetry_phoenix,
+              :opentelemetry_bandit,
+              :opentelemetry_ecto,
+              :opentelemetry_finch,
+              :opentelemetry_process_propagator
+            ],
+            fn app -> {app, to_string(Application.spec(app, :vsn))} end
+          ),
+        protocol: protocol,
+        flush: inspect(flush),
+        export: result
+      })
+    )
+  )
+
+Supervisor.stop(provider)
+Supervisor.stop(span_sup)
+IO.puts("local SDK exported #{length(records)} spans: #{result.result}")

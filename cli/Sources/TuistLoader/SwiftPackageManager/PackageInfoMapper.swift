@@ -1058,6 +1058,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
             dependencies = linkerDependencies + dependencies
+            let cxxStandardLibrary = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
+            if !dependencies.contains(cxxStandardLibrary), try await hasCxxSources(target: target, targetPath: targetPath) {
+                dependencies.append(cxxStandardLibrary)
+            }
         }
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
@@ -1152,6 +1156,31 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 usesDirectoryModuleMap: usesDirectoryModuleMap
             )
         )
+    }
+
+    /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
+    /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
+    private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
+        guard target.type.supportsSources else { return false }
+        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
+        let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        for sourcePath in sourcePaths {
+            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
+                    .collect()
+            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
+                [sourcePath]
+            } else {
+                []
+            }
+            if candidates.contains(where: { candidate in
+                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
+            }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func prebuiltDependency(
@@ -2337,19 +2366,30 @@ extension ProjectDescription.Settings {
             .compactMap(\.value.first)
             .sorted { $0.libraryName < $1.libraryName }
         for prebuilt in uniquePrebuilts {
+            // SwiftPM extracts prebuilts into the scratch directory and records absolute paths. Referencing them
+            // through `$(SRCROOT)` keeps the settings, and therefore the binary-cache hashes, independent of where
+            // the checkout lives.
+            //
+            // A macro cached from one checkout is then reused in others and keeps an LC_RPATH to the warming
+            // checkout's `lib` directory. That is harmless only while SwiftPM ships MacroSupport as a static
+            // library (`libMacroSupport.a`), so dyld never resolves anything through it. Revisit this if
+            // MacroSupport becomes dynamic.
+            let librarySearchPath = sourceRootRelativePath(prebuilt.librarySearchPath, packageFolder: packageFolder)
             settingsDictionary.appendArraySetting(
                 key: "OTHER_SWIFT_FLAGS",
-                values: prebuilt.includeSearchPaths.flatMap { ["-I", $0.quotedIfContainsSpaces] },
+                values: prebuilt.includeSearchPaths.flatMap {
+                    ["-I", sourceRootRelativePath($0, packageFolder: packageFolder).quotedIfContainsSpaces]
+                },
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LD_RUNPATH_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
@@ -2534,20 +2574,24 @@ extension [String: XcodeGraph.SettingValue] {
     }
 }
 
+private func sourceRootRelativePath(_ path: AbsolutePath, packageFolder: AbsolutePath) -> String {
+    "$(SRCROOT)/\(path.relative(to: packageFolder).pathString)"
+}
+
 extension SwiftPackageManagerPrebuilt {
-    fileprivate var librarySearchPath: String {
-        path.appending(component: "lib").pathString
+    fileprivate var librarySearchPath: AbsolutePath {
+        path.appending(component: "lib")
     }
 
-    fileprivate var includeSearchPaths: [String] {
+    fileprivate var includeSearchPaths: [AbsolutePath] {
         var result = [
-            path.appending(component: "Modules").pathString,
+            path.appending(component: "Modules"),
         ]
 
         if let checkoutPath, let includePath {
-            result.append(contentsOf: includePath.map { checkoutPath.appending($0).pathString })
+            result.append(contentsOf: includePath.map { checkoutPath.appending($0) })
         } else {
-            result.append(contentsOf: cModules.map { path.appending(components: "include", $0).pathString })
+            result.append(contentsOf: cModules.map { path.appending(components: "include", $0) })
         }
 
         return result

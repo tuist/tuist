@@ -2,25 +2,25 @@
 {
   "title": "Volúmenes de caché",
   "titleTemplate": ":title · Runners · Funcionalidades · Guías · Tuist",
-  "description": "Mantén las cachés de Xcode, de módulos y de Gradle, así como cualquier otro directorio, entre trabajos de runners de Linux o macOS de Tuist con GitHub Actions, Buildkite y GitLab CI."
+  "description": "Mantén las cachés de Xcode, de módulos y de Gradle, así como cualquier otro directorio, entre trabajos de runners Linux o macOS de Tuist con GitHub Actions, Buildkite y GitLab CI."
 }
 ---
 # Volúmenes de caché {#cache-volumes}
 
-Los runners de Tuist pueden mantener las cachés entre trabajos, de modo que un runner nuevo arranca en caliente. Cada trabajo recibe una copia privada y escribible del último contenido guardado.
+Los runners de Tuist pueden mantener las cachés entre trabajos, de modo que un runner nuevo comienza con la caché caliente. Cada trabajo recibe una copia privada y escribible del último contenido guardado.
 
-- **Las cachés gestionadas** mantienen la caché de compilación de Xcode, la caché de módulos de Tuist y las cachés de Gradle con un solo paso cada una. Tuist sabe dónde reside cada caché y la conserva dentro de su almacenamiento.
-- **Los volúmenes personalizados** mantienen cualquier otro directorio, como la caché de descargas de un gestor de paquetes, bajo una clave que tú elijas.
+- Las **cachés gestionadas** mantienen la caché de compilación de Xcode, la caché de módulos de Tuist y las cachés de Gradle con un solo paso cada una. Tuist sabe dónde reside cada caché y la mantiene dentro de su almacenamiento.
+- Los **volúmenes personalizados** mantienen cualquier otro directorio, como la caché de descargas de un gestor de paquetes, bajo una clave que elijas.
 
-Añade los pasos después del checkout y antes de los comandos que usan las cachés. En runners que no son de Tuist no hacen nada, y un problema de caché nunca hace fallar el trabajo: el paso registra una advertencia y el trabajo continúa con una caché vacía.
+Añade los pasos después del checkout y antes de los comandos que usan las cachés. En runners que no son runners de Tuist no hacen nada, y un problema de caché nunca hace fallar el trabajo: el paso registra una advertencia y el trabajo continúa con una caché vacía.
 
 ## Cachés gestionadas {#managed-caches}
 
-Los pasos solo deciden dónde residen las cachés. Mantén tu configuración de caché existente: `tuist setup cache` o los ajustes de compilación que activan la caché de compilación (consulta la <.localized_link href="/guides/features/cache/xcode-cache">guía de la caché de Xcode</.localized_link>), la autenticación para la caché de módulos y el <.localized_link href="/guides/features/cache/gradle-cache">plugin de Gradle de Tuist</.localized_link> para la caché remota de compilación de Gradle. En GitLab CI, combina fragmentos con `!reference`, porque `extends` reemplaza a `before_script`.
+Los pasos solo deciden dónde residen las cachés. Mantén tu configuración de caché existente: `tuist setup cache` o los ajustes de compilación que activan la caché de compilación (consulta la <.localized_link href="/guides/features/cache/xcode-cache">guía de la caché de Xcode</.localized_link>), la autenticación para la caché de módulos y el <.localized_link href="/guides/features/cache/gradle-cache">plugin de Gradle de Tuist</.localized_link> para la caché de compilación remota de Gradle. En GitLab CI, combina fragmentos con `!reference`, porque `extends` reemplaza a `before_script`.
 
 ### Caché de Xcode {#xcode-cache}
 
-Mantiene el almacén de la caché de compilación de Xcode en runners macOS.
+Mantiene el almacén de la caché de compilación de Xcode en runners de macOS.
 
 ::: code-group
 
@@ -60,7 +60,7 @@ build:
 
 ### Caché de módulos {#module-cache}
 
-Mantiene la caché local de Tuist en runners macOS: binarios de la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link>, manifiestos compilados, plugins y resultados de tests selectivos.
+Mantiene la caché local de Tuist en runners de macOS: binarios de la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link>, manifiestos compilados, plugins y resultados de tests selectivos.
 
 ::: code-group
 
@@ -116,7 +116,7 @@ test:
 
 ### Caché de Gradle {#gradle-cache}
 
-Mantiene los directorios `caches` y `wrapper` del home de usuario de Gradle en runners Linux y macOS: dependencias, jars transformados, scripts de compilación compilados y distribuciones de Gradle. Establece `GRADLE_USER_HOME` antes del paso si lo usas, y desactiva otras formas de caché para esos directorios, como `cache: gradle` en `actions/setup-java`.
+Mantiene los directorios `caches` y `wrapper` del directorio de usuario de Gradle en runners de Linux y macOS: dependencias, jars transformados, scripts de compilación compilados y distribuciones de Gradle. Establece `GRADLE_USER_HOME` antes del paso si lo usas, y desactiva otras formas de caché de esos directorios, como `cache: gradle` en `actions/setup-java`.
 
 ::: code-group
 
@@ -160,7 +160,7 @@ test:
 
 ## Volúmenes personalizados {#custom-volumes}
 
-Elige una `key` estable y una `path`, luego adjunta el volumen antes de instalar las dependencias. La ruta debe estar vacía o ausente. Elimina cualquier caché de archivo o restauración de artefactos que escriba en el mismo directorio. Para mantener varios directorios en un solo volumen, consulta [Varios directorios en un volumen](#several-directories-in-one-volume).
+Elige una `key` estable y una `path`, luego adjunta el volumen antes de instalar las dependencias. La ruta debe estar vacía o no existir. Elimina cualquier caché de archivos o restauración de artefactos que escriba en el mismo directorio. Para mantener varios directorios en un solo volumen, consulta [Varios directorios en un volumen](#several-directories-in-one-volume).
 
 ::: code-group
 
@@ -207,7 +207,7 @@ test:
 
 ### Varios directorios en un volumen {#several-directories-in-one-volume}
 
-Un volumen puede contener varios directorios. En GitHub Actions, lista una ruta por línea; en Buildkite, establece `path` como una lista; en GitLab CI, pasa `--path` una vez por directorio. Las líneas en blanco y los espacios circundantes se ignoran.
+Un volumen puede contener varios directorios. En GitHub Actions, indica una ruta por línea; en Buildkite, establece `path` como una lista; en GitLab CI, pasa `--path` una vez por directorio. Las líneas en blanco y los espacios circundantes se ignoran.
 
 ::: code-group
 
@@ -256,22 +256,23 @@ lint:
 <!-- -->
 :::
 
-- **Capacidad compartida.** Todas las rutas comparten la capacidad del volumen y se restauran y guardan juntas.
-- **Agrupa directorios pequeños y relacionados.** Asigna su propio volumen a un directorio grande o que cambia con frecuencia.
-- **Sin anidamiento.** Las rutas de un volumen no deben contenerse entre sí.
-- **Cambiar la lista empieza en frío.** Cada ruta se almacena en su propio directorio dentro del volumen, identificado por cómo está escrita la ruta. Cambiar entre una ruta y varias, o añadir, eliminar o reescribir una ruta, modifica esa disposición: el primer trabajo tras el cambio arranca en frío para las rutas afectadas. El contenido de las rutas que ya no aparecen en la lista permanece en el volumen hasta que lo limpies.
+- **Capacidad compartida.** Todas las rutas comparten la capacidad del volumen y se restauran y guardan conjuntamente.
+- **Agrupa directorios pequeños y relacionados.** Asigna un volumen propio a un directorio grande o que cambia con frecuencia.
+- **Sin anidamiento.** Las rutas de un mismo volumen no deben contenerse entre sí.
+- **Cambiar la lista inicia en frío.** Cada ruta se almacena en su propio directorio dentro del volumen, identificado por cómo está escrita la ruta. Cambiar entre una sola ruta y varias, o añadir, eliminar o reescribir una ruta, modifica esa disposición: el primer trabajo tras el cambio arranca en frío para las rutas afectadas. El contenido de las rutas que ya no aparecen en la lista permanece en el volumen hasta que lo elimines.
 
 ### Cómo funcionan las claves {#how-keys-work}
 
-Una clave nombra un volumen que cambia con el tiempo; no es el nombre de una instantánea fija como una clave de `actions/cache`.
+Una clave identifica un volumen que cambia con el tiempo; no es el nombre de una instantánea fija como una clave de `actions/cache`.
 
-- **Un volumen por clave.** Cada clave tiene alcance al repositorio (en Buildkite, la pipeline; en GitLab CI, el proyecto), plataforma, arquitectura de CPU y usuario. Cada trabajo que la adjunta arranca desde el último contenido guardado, y los trabajos elegibles guardan sus cambios de vuelta en el mismo volumen.
-- **Mantén las claves estables.** No incluyas versiones ni hashes de archivos de bloqueo en una clave. Con `actions/cache`, una clave como `deps-${{ hashFiles('Package.resolved') }}` crea una nueva entrada por cada cambio, y `restore-keys` recurre a una anterior. Aquí, una clave nueva es un volumen nuevo y vacío: el primer trabajo tras cada cambio arranca en frío, y los volúmenes antiguos permanecen hasta que caducan. Mantén la clave y deja que tu herramienta actualice el contenido; los gestores de paquetes reutilizan lo que siga siendo válido.
-- **Sin coincidencias parciales.** No hay claves de restauración. Una clave que aún no se ha guardado arranca vacía.
-- **Reinicia a propósito.** Cambia la clave o limpia el volumen en el dashboard cuando quieras que un trabajo arranque vacío.
-- **Deja las claves `tuist-` a Tuist.** Las cachés gestionadas usan claves que empiezan por `tuist-`, así que elige un nombre distinto para tus propios volúmenes.
+- **Un volumen por clave.** Cada clave tiene alcance para el repositorio (en Buildkite, la canalización; en GitLab CI, el proyecto), la plataforma, la arquitectura de CPU y el usuario. Cada trabajo que la adjunta parte del último contenido guardado y los trabajos elegibles guardan sus cambios de vuelta en el mismo volumen.
+- **Mantén las claves estables.** No incluyas versiones ni hashes del archivo de bloqueo en una clave. Con `actions/cache`, una clave como `deps-${{ hashFiles('Package.resolved') }}` crea una nueva entrada para cada cambio, y `restore-keys` recurre a una anterior. Aquí, una clave nueva es un volumen nuevo y vacío: el primer trabajo tras cada cambio arranca en frío y los volúmenes antiguos permanecen hasta que caducan. Mantén la clave y deja que tu herramienta actualice el contenido; los gestores de paquetes reutilizan lo que siga siendo válido.
+- **Sin coincidencias parciales.** No existen claves de restauración. Una clave que aún no se ha guardado empieza vacía.
+- **Las claves que empiezan por `tuist-` están reservadas** para las cachés propias de Tuist y se rechazan antes de adjuntar el volumen.
+- **Reinicia a propósito.** Cambia la clave o elimina el volumen cuando quieras que un trabajo empiece vacío.
+- **Deja las claves `tuist-` a Tuist.** Las cachés gestionadas usan claves que comienzan por `tuist-`, así que elige un nombre distinto para tus propios volúmenes.
 
-En Linux, las rutas se montan como directorios normales, por lo que las herramientas pueden usar sus ubicaciones habituales como `deps`, `_build` y `node_modules`. Mantén tus reglas normales de `.gitignore`. En macOS, las rutas son enlaces simbólicos: usa cachés de descarga como `~/.npm`; `node_modules` y las herramientas que reemplazan su directorio de caché no son compatibles. Ignora los enlaces de workspace sin barra final en `.gitignore`.
+En Linux, las rutas se montan como directorios normales, por lo que las herramientas pueden usar sus ubicaciones habituales, como `deps`, `_build` y `node_modules`. Mantén tus reglas habituales de `.gitignore`. En macOS, las rutas son enlaces simbólicos: usa cachés de descarga como `~/.npm`; `node_modules` y las herramientas que sustituyen su directorio de caché no son compatibles. Ignora los enlaces de espacio de trabajo sin barra final en `.gitignore`.
 
 ## Guardar cambios {#saving-changes}
 
@@ -279,26 +280,26 @@ Las cachés gestionadas y los volúmenes personalizados guardan los cambios de l
 
 | Proveedor | Trabajos que guardan cambios |
 | --- | --- |
-| GitHub Actions | Trabajos de push, programados, de dispatch manual y de pull request del propio repositorio |
-| Buildkite | Compilaciones por webhook y programadas del repositorio de la pipeline, incluidas sus pull requests |
-| GitLab CI | Pipelines de push, programadas y web del proyecto, y pipelines de sus propias merge requests cuando la conexión tiene un <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">token de acceso a la API</.localized_link> |
+| GitHub Actions | Trabajos de push, programados, de envío manual y de pull request del propio repositorio |
+| Buildkite | Compilaciones por webhook y programadas del repositorio de la canalización, incluidas sus pull requests |
+| GitLab CI | Pipelines de push, programados y web del proyecto, y pipelines de sus propias merge requests cuando la conexión tiene un <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">token de acceso a la API</.localized_link> |
 
-Otros trabajos pueden usar la caché, pero sus cambios se descartan. Esto incluye pull requests de forks, trabajos de `pull_request_target`, compilaciones de Buildkite iniciadas desde la API o el dashboard, merge requests de GitLab desde forks o sin token de acceso a la API, y etiquetas. Un trabajo que no cambia un volumen deja la versión guardada intacta. Puedes restringir qué ramas guardan en el perfil del runner; consulta [Elegir qué ramas guardan](#choose-which-branches-save).
+Otros trabajos pueden usar la caché, pero sus cambios se descartan. Esto incluye pull requests de forks, trabajos de `pull_request_target`, compilaciones de Buildkite iniciadas desde la API o el panel, merge requests de GitLab desde forks o sin un token de acceso a la API, y etiquetas. Un trabajo que no cambia un volumen deja la versión guardada intacta. Puedes restringir qué ramas guardan en el perfil del runner; consulta [Elegir qué ramas guardan](#choose-which-branches-save).
 
 Los trabajos concurrentes funcionan de forma independiente; los cambios de distintos trabajos no se fusionan. Nunca almacenes en caché credenciales ni datos irremplazables.
 
 ### Elegir qué ramas guardan {#choose-which-branches-save}
 
-Puedes cambiar qué ramas guardan las cachés gestionadas y los volúmenes personalizados. Abre **Runners → Profiles**, edita el perfil que usan tus trabajos y expande **Save cache from**. Los trabajos usan el perfil que solicitan: en `runs-on:` en GitHub Actions, como cola en Buildkite o en `tags:` en GitLab CI. La configuración se aplica a todos los volúmenes que usen los trabajos de ese perfil, incluidos los creados posteriormente.
+Puedes cambiar qué ramas guardan las cachés gestionadas y los volúmenes personalizados. Abre **Runners → Profiles**, edita el perfil que usan tus trabajos y expande **Save cache from**. Los trabajos usan el perfil que solicitan: en `runs-on:` en GitHub Actions, como la cola en Buildkite o en `tags:` en GitLab CI. La configuración se aplica a todos los volúmenes usados por los trabajos de ese perfil, incluidos los creados posteriormente.
 
-![El formulario de perfil de runner con la sección Save cache from expandida, con Default branch activada y develop y release/* añadidas como ramas adicionales](/images/guides/features/runners/save-cache-from.png)
+![El formulario de perfil del runner con la sección Save cache from expandida, con Default branch activada y develop y release/* añadidas como ramas adicionales](/images/guides/features/runners/save-cache-from.png)
 
 De forma predeterminada, cada trabajo exitoso del repositorio guarda sus cambios. Para guardar solo desde algunas ramas, activa **Limit to specific branches**:
 
 - **Default branch** permite que los trabajos en la rama predeterminada de cada repositorio guarden. Desactívala para guardar solo desde las ramas adicionales.
 - En **Additional branches**, añade hasta 20 nombres de rama que también guarden. Usa `*` como comodín: `release/*` coincide con `release/1.0`.
 
-Los trabajos listados en [Guardar cambios](#saving-changes) guardan sus cambios cuando su rama coincide. En ejecuciones de push y dispatch manual de GitHub Actions, una etiqueta con un nombre coincidente también coincide.
+Los trabajos listados en [Guardar cambios](#saving-changes) guardan sus cambios cuando su rama coincide. En ejecuciones de push y de envío manual de GitHub Actions, una etiqueta con un nombre coincidente también coincide.
 
 Los trabajos en otras ramas aún pueden usar la caché, pero sus cambios se descartan. Los trabajos que nunca guardan, como las pull requests de forks, tampoco guardan en una rama coincidente. Restringir esta configuración o eliminar el perfil descarta los cambios pendientes que ya no permiten; un perfil eliminado vuelve a guardar desde todas las ramas.
 
@@ -334,12 +335,23 @@ build:
 <!-- -->
 :::
 
-La caché de Gradle y los volúmenes personalizados aceptan la misma entrada `size` (`TUIST_GRADLE_CACHE_SIZE` y `TUIST_VOLUME_SIZE` en GitLab CI, `--size` para `tuist-cache-volume`). Un tamaño mayor aumenta el volumen, conservando su contenido, a partir del siguiente trabajo. Un tamaño menor se aplica después de que el volumen se limpie o caduque la próxima vez. Cuando los trabajos solicitan distintos tamaños para una misma caché, se aplica el mayor, así que declara cada tamaño en un único lugar.
+La caché de Gradle y los volúmenes personalizados aceptan la misma entrada `size` (`TUIST_GRADLE_CACHE_SIZE` y `TUIST_VOLUME_SIZE` en GitLab CI, `--size` para `tuist-cache-volume`). Un tamaño mayor hace crecer el volumen, manteniendo su contenido, a partir del siguiente trabajo. Un tamaño menor se aplica después de que el volumen se elimine o caduque la próxima vez. Cuando los trabajos solicitan diferentes tamaños para una misma caché, se aplica el mayor, así que declara cada tamaño en un solo lugar.
 
-Todas caducan tras **7 días sin montaje por un trabajo**, y el siguiente trabajo comienza con un volumen vacío después de la caducidad. Tuist poda las cachés de Xcode y de módulos para ajustarse a su capacidad, y el paso de la caché de Gradle hace que Gradle elimine las entradas no utilizadas durante siete días después de cada compilación.
+Todas caducan tras **7 días sin montaje por un trabajo**, y el siguiente trabajo comienza con un volumen vacío tras la caducidad. Tuist poda las cachés de Xcode y de módulos para ajustarse a su capacidad, y el paso de caché de Gradle hace que Gradle elimine las entradas no utilizadas durante siete días después de cada compilación.
 
 Los volúmenes personalizados no podan dependencias antiguas: usa la configuración de limpieza de tu herramienta para mantenerlos pequeños. Las escrituras en un volumen lleno pueden hacer fallar el trabajo. Cuando el contenido guardado alcanza el **80%** de la capacidad del volumen y un trabajo se queda sin espacio en él, el siguiente trabajo comienza con un volumen vacío y sus cambios inician un nuevo estado guardado.
 
-## Inspeccionar y limpiar volúmenes {#inspecting-and-clearing-volumes}
+## Inspeccionar y eliminar volúmenes {#inspecting-and-clearing-volumes}
 
-Abre **Runners → Volumes** para inspeccionar el espacio usado, la tasa de aciertos de caché y el historial de trabajos. Los administradores de cuenta pueden seleccionar **Clear volume** para que los futuros trabajos comiencen vacíos. Los trabajos en ejecución conservan sus copias privadas pero no pueden guardarlas de vuelta. Las cachés de Xcode y de módulos también aparecen allí, pero no se pueden limpiar.
+Abre **Runners → Volumes** para inspeccionar el espacio usado, la tasa de aciertos de caché y el historial de trabajos. Las cachés de Xcode, de módulos y de Gradle también aparecen allí.
+
+Los administradores de cuenta pueden seleccionar **Delete volume** para eliminar un volumen y su contenido guardado. Los trabajos en ejecución mantienen sus copias privadas pero no pueden guardarlas de vuelta, y el siguiente trabajo que use la misma clave comienza con un volumen vacío. Los volúmenes eliminados ya no aparecen en la lista.
+
+Para eliminar un volumen desde un terminal o un flujo de trabajo, busca su ID y pásalo a `tuist runner volume delete`:
+
+```bash
+tuist runner volume list --account my-org --name gradle-build-cache --json
+tuist runner volume delete <volume-id> --account my-org --yes
+```
+
+La misma operación está disponible a través de la [API](https://tuist.dev/api/docs#tag/runners) como `DELETE /api/accounts/{account_handle}/runners/volumes/{volume_id}` y a través del [servidor MCP](/guides/features/agentic-coding/mcp) como `delete_runner_volume`. Todas requieren administración de cuenta o un token con el ámbito `account:runners:write`.

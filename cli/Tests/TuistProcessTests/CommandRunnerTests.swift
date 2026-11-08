@@ -39,6 +39,37 @@ import Testing
                 environment: ["CARGO_MAKEFLAGS": "\(flag)=\(read),\(write)"], workingDirectory: nil
             )
         }
+
+        /// A hook server runs probes with a hook's variables, where the jobserver numbers name its own descriptors:
+        /// a kqueue cannot be inherited, and spawning must not fail because of it.
+        @Test func ignoresJobserverDescriptorsThatAreNotPipes() async throws {
+            let queue = kqueue()
+            let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+            defer {
+                close(queue)
+                close(socket)
+            }
+            let output = try await CommandRunner().run(
+                arguments: ["/bin/sh", "-c", "printf %s \"${CARGO_MAKEFLAGS-unset}\""],
+                environment: ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": "--jobserver-fds=\(queue),\(socket)"]
+            ).concatenatedString()
+            #expect(output == "unset")
+        }
+    #else
+        /// Subprocess closes every descriptor above standard error on Linux, so rustc must not be told about Cargo's.
+        @Test func dropsCargoJobserverThatCannotBeInherited() async throws {
+            let pipe = Pipe()
+            defer {
+                try? pipe.fileHandleForReading.close()
+                try? pipe.fileHandleForWriting.close()
+            }
+            let flags = "-j --jobserver-fds=\(pipe.fileHandleForReading.fileDescriptor),\(pipe.fileHandleForWriting.fileDescriptor)"
+            let output = try await CommandRunner().run(
+                arguments: ["/bin/sh", "-c", "printf %s \"${CARGO_MAKEFLAGS-unset}\""],
+                environment: ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": flags]
+            ).concatenatedString()
+            #expect(output == "unset")
+        }
     #endif
 
     @Test func boundedOutputHandlerStreamsLargeFailuresWithoutRetainingStderr() async throws {

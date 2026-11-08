@@ -6,7 +6,7 @@ Choose Tuist when you need supported build-output caching, toolchain insights, a
 
 [Ubicloud's public repository](https://github.com/ubicloud/ubicloud) describes an open-source cloud control plane and deployment on bare-metal infrastructure; the [repository license](https://github.com/ubicloud/ubicloud/blob/main/LICENSE) is AGPL-3.0. Public source and permissive licensing are different questions. Its [GitHub Actions quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md) offers managed runners, while [Ubicloud Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md) accelerates the Actions cache protocol.
 
-The current cache documentation recommends **Transparent Cache**, preserving existing `actions/cache` and compatible setup actions. Older replacement cache actions are deprecated.
+The current cache documentation recommends **Transparent Cache**, preserving existing `actions/cache` and compatible setup actions, instead of the older replacement actions.
 
 ## Compare the layer you need
 
@@ -27,10 +27,6 @@ Keep the current workflow and enable a [supported Tuist build-output cache](/mar
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [Ubicloud repository](https://github.com/ubicloud/ubicloud), [AGPL-3.0 license](https://github.com/ubicloud/ubicloud/blob/main/LICENSE), [runner quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md), [Transparent Cache and deprecated actions](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and explicitly acknowledges Ubicloud's open-source implementation.
-
-## Limitations
-
-Check required operating systems, regions, and hosted versus self-operated terms. Cache protocols, retention, and trust boundaries differ. Public source does not imply identical licenses or maintenance obligations. Tuist support varies by toolchain, and its runners remain invite-only with no public pricing. No universal performance or cost advantage is claimed.
+Sources checked on **2026-11-07**: [Ubicloud repository](https://github.com/ubicloud/ubicloud), [AGPL-3.0 license](https://github.com/ubicloud/ubicloud/blob/main/LICENSE), [runner quickstart](https://www.ubicloud.com/docs/github-actions-integration/quickstart.md), [Transparent Cache](https://www.ubicloud.com/docs/github-actions-integration/ubicloud-cache.md), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and explicitly acknowledges Ubicloud's open-source implementation.
 
 Related: [BuildJet](/marketing-markdown/compare/buildjet), [RunsOn](/marketing-markdown/compare/runs-on), and [all comparisons](/marketing-markdown/compare).

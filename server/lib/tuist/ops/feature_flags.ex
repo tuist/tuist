@@ -21,6 +21,10 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
+    {:pulse, "account",
+     "Opt-in organization Pulse dashboards and APIs; configured tenant ownership and membership still apply."},
+    {:bazel_remote_execution, "account",
+     "Opt-in Linux Bazel execution; configured capacity and project grants still apply."},
     {:immutable_shard_reports, "account",
      "Opt-in immutable shard plans; Mix projects and coverage-enabled accounts remain excluded."},
     {:runner_shard_storage, "account",
@@ -28,6 +32,8 @@ defmodule Tuist.Ops.FeatureFlags do
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},
+    {:kura_thin_volumes, "account",
+     "Opt-in thin encrypted Kura volumes in regions listed in TUIST_KURA_THIN_REGIONS; other regions ignore it."},
     {:kura_stable_hostname, "account", "Stable cache hostname opt-in; canary enables automatically."},
     {:runners, "account", "Managed runners opt-in on canary/production; enabled elsewhere."},
     {:runner_site_cache, "account", "Opt-in site-local runner caches."},
@@ -37,6 +43,8 @@ defmodule Tuist.Ops.FeatureFlags do
      "Tears down an account's site-local runner caches; its jobs still run at the site."},
     {:runner_site, "account", "Opt-in site runners; staging/canary enable automatically."},
     {:xcode_coverage, "account", "Coverage opt-in on canary/production; enabled elsewhere."},
+    {:test_impact_analysis, "account",
+     "Coverage-based test selection opt-in on canary/production; enabled elsewhere. Needs coverage."},
     {:kura_account_endpoint_migration, "account",
      "Opt-in account endpoint migration. Disabling freezes deployed routing, rather than reverting it."},
     {:kura_account_rename, "account",
@@ -54,10 +62,13 @@ defmodule Tuist.Ops.FeatureFlags do
   @fields ~w(operation scope account_id project_id percentage expected_revision reason change_id actor interface)
 
   @evaluators %{
+    pulse: {FeatureFlags, :pulse_enabled?},
+    bazel_remote_execution: {FeatureFlags, :bazel_remote_execution_enabled?},
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
     runner_shard_storage: {FeatureFlags, :runner_shard_storage_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
     kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},
+    kura_thin_volumes: {FeatureFlags, :kura_thin_volumes_enabled?},
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
     runners: {FeatureFlags, :runners_enabled?},
     runner_site_cache: {FeatureFlags, :runner_site_cache_enabled?},
@@ -65,6 +76,7 @@ defmodule Tuist.Ops.FeatureFlags do
     runner_site_cache_excluded: {FeatureFlags, :runner_site_cache_excluded?},
     runner_site: {FeatureFlags, :runner_site_enabled?},
     xcode_coverage: {FeatureFlags, :xcode_coverage_enabled?},
+    test_impact_analysis: {FeatureFlags, :test_impact_analysis_account_enabled?},
     kura_account_endpoint_migration: {Identity, :endpoint_migration_enabled?},
     kura_account_rename: {Identity, :rename_allowed?},
     build_entities: {FeatureFlags, :build_entities_enabled?},

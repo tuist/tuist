@@ -19,7 +19,3 @@ Components are licensed differently. Check the `LICENSE.md` in each directory be
 - Kura (`kura/`): GNU AGPL v3.
 
 Running a self-hosted Tuist server also requires a paid Enterprise license, per the [self-hosting guide](/en/docs-markdown/guides/server/self-host/server). Trademarks are not licensed with the code; see [Brand](/marketing-markdown/brand).
-
-## Limitations
-
-Openness does not mean every hosted capability is free, every internal endpoint is a supported API, or every component can be deployed or redistributed under the same terms. Not all of Tuist's work is open source. Read the component license, [pricing](/marketing-markdown/pricing), and the [longevity commitment](/marketing-markdown/longevity) when assessing dependency risk.

@@ -73,10 +73,11 @@ enum ShardTestSelection {
 
     /// The `-only-testing` identifiers left once every restriction a run is under has been applied.
     ///
-    /// A shard run is restricted from three directions: the shard's own identifiers, what the build
-    /// job was asked to test, and what this runner was asked to test. Each one narrows the last, and
-    /// an empty restriction is no restriction at all. Two identifiers overlap when one is a prefix
-    /// of the other, and the narrower of the two survives.
+    /// A shard run is restricted from four directions: the shard's own identifiers, what the build
+    /// job was asked to test, and what this runner was asked to test through `--test-targets` and a
+    /// passthrough `-only-testing`. Each one narrows the last, and an empty restriction is no
+    /// restriction at all. Two identifiers overlap when one is a prefix of the other, and the
+    /// narrower of the two survives.
     ///
     /// An empty result while any restriction applied means nothing is left to run, which callers
     /// have to tell apart from the unrestricted case: passing no `-only-testing` runs everything.

@@ -2,7 +2,7 @@
 {
   "title": "Red",
   "titleTemplate": ":title | Server | Guías | Tuist",
-  "description": "Configuración de red para Tuist, incluidas las direcciones IP salientes."
+  "description": "Configuración de red para Tuist, incluidas las direcciones IP de salida."
 }
 ---
 # Red {#network}
@@ -28,7 +28,7 @@ Tuist solo se conecta a tu infraestructura a través de HTTPS, por lo que solo n
 
 ### Runners de Tuist {#tuist-runners}
 
-Los trabajos que se ejecutan en <.localized_link href="/guides/features/runners">Runners de Tuist</.localized_link> utilizan las direcciones de salida indicadas a continuación. Si un trabajo necesita acceder a una infraestructura que restringe el tráfico por dirección IP, por ejemplo, para clonar un repositorio de una organización de GitHub con una lista blanca de IP, incluye en la lista blanca las direcciones o rangos de todas las plataformas en las que se ejecuten tus flujos de trabajo.
+Los trabajos que se ejecutan en <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> utilizan las direcciones de salida indicadas a continuación. Si un trabajo necesita acceder a una infraestructura que restringe el tráfico por dirección IP, por ejemplo, para obtener un repositorio de una organización de GitHub con una lista blanca de IP, incluye en la lista blanca las direcciones o rangos para cada plataforma en la que se ejecuten tus flujos de trabajo.
 
 #### macOS {#tuist-runners-macos}
 

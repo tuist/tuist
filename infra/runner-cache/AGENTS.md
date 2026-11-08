@@ -63,6 +63,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
   GitHub to report its job, shared by its checkout and every volume; both the
   Linux and macOS agents use it.
+- A job's GitHub OIDC token reaches the server through the Linux agent's
+  `/execution` endpoint or a macOS `execution_token` mailbox request, with the
+  pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
@@ -112,7 +115,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. It also restores, one at a time, the HEADs the server lists
   for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/4`)
-  through `PrefetchSpare`: free space above `MinFreeBytes` plus
+  through `PrefetchSpare`: free space above the larger of `MinFreeBytes` and
+  `CheckoutCapacity` (a checkout evicts only idle masters for its room) plus
   `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
@@ -126,6 +130,18 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `Slot.PublishCold` for that one seal; the full, unchanged, identical and
   generation checks still apply. Linux checks `.cold` before its unchanged and
   full checks.
+- `.cold` holds why the host had no copy (`ColdReason`, reported as
+  `cold_reason`): `downloading` (a fetch of the lineage was in flight),
+  `evicted_<reason>` (the reason `evictMaster` wrote to the lineage's
+  `masters/<scope>/evicted` file when it removed its latest master) or
+  `not_on_host`. An empty marker (older agents) reports no reason.
+- Linux `verify` trims a branch (`LocalImages.Trim`, `TrimFS`: `FITRIM` through
+  the no-follow descriptor) right after the write-back check and before detach.
+  Branches mount without discard, so otherwise every block a job ever wrote stays
+  in the image, its master, archive and clones. The check's syncfs must come
+  first: it commits the frees FITRIM needs, and TrimFS must never consume the
+  one-shot write-back error the check reads. On a reflinked clone the loop
+  driver punches only the branch's own extents. A failed trim publishes untrimmed.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
@@ -297,7 +313,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   image busy and no build can unmount it again. A Linux checkout slot is
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
-  That check never evicts (`reserveSpare`); the usual reserve admission does.
+  That check (`admit` with `optional`) evicts only custom masters no job holds or
+  is attaching; it never displaces speculative work or reclaims checkouts.
 - Checkout Git commands and their children use one pack/indexing thread, a
   32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
   streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in

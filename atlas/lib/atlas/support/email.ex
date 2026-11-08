@@ -14,6 +14,9 @@ defmodule Atlas.Support.Email do
     from_name = Keyword.fetch!(defaults, :from_name)
     from_email = Keyword.fetch!(defaults, :from_email)
 
+    # SES replaces Message-ID; retain our identifier in the client's reply chain.
+    references = Enum.uniq(message.references ++ [message.message_id])
+
     new()
     |> from({from_name, from_email})
     |> to(recipients(message.to_emails))
@@ -24,7 +27,7 @@ defmodule Atlas.Support.Email do
     |> html_body(html_body(message.body))
     |> header("Message-ID", bracket(message.message_id))
     |> maybe_header("In-Reply-To", bracket(message.in_reply_to))
-    |> maybe_header("References", references_header(message.references))
+    |> maybe_header("References", references_header(references))
     |> add_attachments(message)
   end
 

@@ -9,9 +9,9 @@
 
 当环境中设置了 `HTTPS_PROXY` 或 `HTTP_PROXY` 时，Tuist 会自动将其管理的 HTTP 连接通过该代理进行路由。这适用于 Tuist CLI 和 Tuist Gradle 插件，无需额外配置。
 
-此行为与 `curl`、`git` 以及大多数开发者工具使用的约定一致，因此任何已为其他工具设置这些变量的环境都可以开箱即用地与 Tuist 配合使用。
+此行为与 `curl`、`git` 以及大多数开发者工具使用的约定一致，因此任何已为其他工具设置这些变量的环境都可以直接配合 Tuist 使用。
 
-## 哪些内容会经过代理 {#what-is-proxied}
+## 哪些流量经过代理 {#what-is-proxied}
 
 只有 Tuist 拥有的 HTTP 客户端会通过代理进行路由：
 
@@ -27,4 +27,4 @@ Tuist 按以下顺序读取第一个非空值：
 3. `HTTP_PROXY`
 4. `http_proxy`
 
-该值必须是 URL，例如 `http://proxy.corp:8080`。支持内联凭据（`http://user:password@proxy.corp:8080`）。
+该值必须是类似 `http://proxy.corp:8080` 的 URL。支持内联凭据（`http://user:password@proxy.corp:8080`）。

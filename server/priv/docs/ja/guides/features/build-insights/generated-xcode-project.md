@@ -9,7 +9,6 @@
 
 > [!NOTE]
 > 自動生成されたスキームには、`tuist inspect build` ポストアクションが自動的に含まれます。
-
 >
 > 生成されたスキームでビルドインサイトをトラックしたくない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
 
@@ -63,60 +62,12 @@ buildAction: .buildAction(
 )
 ```
 
-## CIでのビルドインサイト {#continuous-integration}
+<!-- @snippet: ./_xcode-ci -->
 
-CIでビルドインサイトをトラックするには、CIが <.localized_link href="/guides/integrations/continuous-integration#authentication">認証済み</.localized_link> であることを確認してください。
+<!-- @snippet: ./_xcode-network-trusted -->
 
-Xcodebuild主導のCIの場合、次の必要があります：
-- `xcodebuild` アクションを呼び出す際に、<.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> を使用してください。
-- `xcodebuild` コマンドに `-resultBundlePath` を追加してください。
+<!-- @snippet: ./_xcode-machine-metrics -->
 
-`-resultBundlePath` がないと、必要なアクティビティログと結果バンドルが生成されず、`tuist inspect build` でビルドを分析できません。
+<!-- @snippet: ./_xcode-actor-claim -->
 
-## マシンメトリクス {#machine-metrics}
-
-ビルドインサイトには、ビルド中にキャプチャされたマシンレベルのパフォーマンスメトリクス（CPU、メモリ、ネットワーク、ディスク使用量）を含めることができます。これを有効にするには、システムメトリクスを継続的にサンプリングする軽量なバックグラウンドデーモンを設定してください：
-
-```bash
-tuist setup insights
-```
-
-これにより、バックグラウンドでメトリクスをサンプリングするローカルデーモンが実行されます。データは `tuist inspect build` によって自動的に取得され、ビルドレポートと一緒にアップロードされます。
-
-> [!TIP]
-> **Ci**
->
-> ビルド前にCIマシンで `tuist setup insights` を実行し、そこでもマシンメトリクスをキャプチャしてください。
-
-マシンメトリクスの収集を停止するには、次を実行してください：
-
-```bash
-tuist teardown insights
-```
-
-これにより、デーモンのLaunchAgentがアンロードされ、そのplistが削除され、サンプリングされたメトリクスとデーモンログが `~/.local/state` から削除されるため、バックグラウンドで実行されているものは残りません。
-
-
-## カスタムメタデータ {#custom-metadata}
-
-環境変数を使用してビルドにメタデータを添付し、フィルタリングを改善できます。
-
-### 環境変数
-
-| 変数 | 形式 | 説明 |
-|----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | カンマ区切り | 1つの変数に複数のタグ。 |
-| `TUIST_BUILD_VALUE_*` | 単一値 | サフィックスがキーとなるキーと値のペア。 |
-
-### 例
-
-ビルドを呼び出す前に、CIまたはシェルでこれらの値を設定してください：
-
-```sh
-export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-```
-
-```sh
-export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
-export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
-```
+<!-- @snippet: ./_xcode-custom-metadata -->

@@ -7,7 +7,7 @@ defmodule Tuist.Sandboxes.Router do
   Anthropic re-queues it on the session's next event.
 
   The residency that creates a sandbox also stages the repository the
-  agent session asked for under `/workspace` and binds the sandbox to the
+  agent session asked for under the sandbox's workspace and binds the sandbox to the
   `Tuist.Sandboxes.AgentSession` row.
   """
 
@@ -31,9 +31,16 @@ defmodule Tuist.Sandboxes.Router do
 
   def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
-    with {:ok, sandbox} <- find_or_create_sandbox(agent_environment, session_id, item),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
-         {:ok, _data} <- start_worker(sandbox, worker_env(agent_environment, item, session_id)) do
+    agent_environment = session_environment(agent_environment, item)
+
+    with {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
+         :ok <- if(created?, do: prepare_workspace(agent_environment, sandbox, session_id, item), else: :ok),
+         {:ok, _data} <-
+           start_worker(
+             sandbox,
+             worker_environment(agent_environment, item, session_id, sandbox)
+           ) do
       Logger.info("sandboxes: worker started",
         sandbox_id: sandbox.id,
         node: sandbox.node_name,
@@ -63,43 +70,87 @@ defmodule Tuist.Sandboxes.Router do
     {:error, :malformed_work_item}
   end
 
-  defp find_or_create_sandbox(agent_environment, session_id, item) do
+  @doc """
+  The environment as the work item's session runs on it. A session keeps
+  the platform of the sandbox it already has. A new one runs the platform
+  named on its `AgentSession` row, else the `tuist_platform` key of the
+  session metadata (`linux`, `darwin` or `macos`), else the environment's.
+  A platform other than the environment's takes that platform's default
+  template and shape, so one environment serves both Linux and macOS.
+  """
+  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}} = item)
+      when is_binary(session_id) do
+    platform =
+      case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
+        %Sandbox{platform: platform} -> platform
+        nil -> requested_platform(AgentSessions.get_agent_session_by_anthropic_session_id(session_id), item)
+      end
+
+    if is_nil(platform) or platform == agent_environment.platform,
+      do: agent_environment,
+      else: struct(agent_environment, Sandboxes.platform_defaults(%{platform: platform}))
+  end
+
+  def session_environment(%AgentEnvironment{} = agent_environment, _item), do: agent_environment
+
+  defp requested_platform(%AgentSession{platform: platform}, _item) when not is_nil(platform), do: platform
+
+  defp requested_platform(_agent_session, item) do
+    case metadata(item)["tuist_platform"] do
+      "linux" -> :linux
+      platform when platform in ["darwin", "macos"] -> :darwin
+      _none -> nil
+    end
+  end
+
+  defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
+
+  @doc """
+  The session's sandbox, created from the environment when it has none or
+  only one that died, with whether this call created it.
+  """
+  def find_or_create_sandbox(agent_environment, session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
-        {:ok, sandbox}
+        {:ok, sandbox, false}
+
+      %Sandbox{platform: :darwin, state: :error} ->
+        {:error, :sandbox_recovery_required}
 
       # A sandbox that died or was deleted from under us cannot be
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
         with {:ok, _deleted} <- Sandboxes.delete(sandbox) do
-          create_sandbox(agent_environment, session_id, item)
+          create_sandbox(agent_environment, session_id)
         end
 
       nil ->
-        create_sandbox(agent_environment, session_id, item)
+        create_sandbox(agent_environment, session_id)
     end
   end
 
-  defp create_sandbox(agent_environment, session_id, item) do
+  defp create_sandbox(agent_environment, session_id) do
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
            Sandboxes.create_sandbox(account, %{
              agent_environment_id: agent_environment.id,
              anthropic_session_id: session_id,
+             platform: agent_environment.platform,
              template: agent_environment.template,
              vcpus: agent_environment.vcpus,
              memory_mb: agent_environment.memory_mb,
              workspace_gb: agent_environment.workspace_gb
            }) do
-      prepare_workspace(account, sandbox, session_id, item)
-      {:ok, sandbox}
+      {:ok, sandbox, true}
     end
   end
 
-  # Runs once per sandbox, on the residency that created it. A failed
-  # clone is logged and the worker still starts, so the agent can retry
-  # from inside the VM.
-  defp prepare_workspace(account, sandbox, session_id, item) do
+  # Runs once per sandbox, inside the residency that created it, so the
+  # clone needs no admission of its own: on macOS a CI grant that closed
+  # while the VM booted would otherwise refuse it. A failed clone is logged
+  # and the worker still starts, so the agent can retry from inside the VM.
+  defp prepare_workspace(agent_environment, sandbox, session_id, item) do
+    {:ok, account} = Accounts.get_account_by_id(agent_environment.account_id)
     agent_session = AgentSessions.get_agent_session_by_anthropic_session_id(session_id)
 
     if agent_session do
@@ -121,12 +172,12 @@ defmodule Tuist.Sandboxes.Router do
   end
 
   defp repository(_agent_session, item) do
-    metadata = get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
+    metadata = metadata(item)
     {blank_to_nil(metadata["repository_url"]), blank_to_nil(metadata["repository_ref"]), :anonymous}
   end
 
   defp clone_repository(account, sandbox, url, ref, trust) do
-    destination = "/workspace/" <> repository_name(url)
+    destination = Sandboxes.workspace(sandbox) <> "/" <> repository_name(url)
     {git_env, secret} = credentials(account, url, trust)
     sha = if is_binary(ref) and Regex.match?(@commit_sha, ref), do: ref
     branch = if is_binary(ref) and is_nil(sha), do: ["--branch", ref], else: []
@@ -218,7 +269,8 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(value) when is_binary(value) and value != "", do: value
   defp blank_to_nil(_value), do: nil
 
-  defp start_worker(sandbox, env) do
+  @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
+  def start_worker(sandbox, env) do
     case Sandboxes.start_worker(sandbox, env) do
       {:ok, _data} = ok ->
         ok
@@ -243,6 +295,11 @@ defmodule Tuist.Sandboxes.Router do
 
         :ok
     end
+  end
+
+  defp worker_environment(environment, item, session_id, sandbox) do
+    env = worker_env(environment, item, session_id)
+    if sandbox.platform == :darwin, do: Map.put(env, "SBX_WORKDIR", Sandboxes.workspace(sandbox)), else: env
   end
 
   defp worker_env(agent_environment, item, session_id) do

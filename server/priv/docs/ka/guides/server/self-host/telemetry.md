@@ -2,16 +2,16 @@
 {
   "title": "ტელემეტრია",
   "titleTemplate": ":title | საკუთარ სერვერზე განთავსება | სერვერი | სახელმძღვანელოები | Tuist",
-  "description": "აკონტროლეთ თქვენი Tuist სერვერი Prometheus მეტრიკებით, OpenTelemetry ტრეისებით და ლოგების გადამისამართებით."
+  "description": "აწარმოეთ თქვენი Tuist სერვერის მონიტორინგი Prometheus მეტრიკებით, OpenTelemetry ტრეისებით და ლოგების გადამისამართებით."
 }
 ---
 # ტელემეტრია {#telemetry}
 
-Tuist გთავაზობთ დაკვირვების სამ კომპლემენტარულ სიგნალს: **მეტრიკები** (Prometheus), **ტრეისები** (OpenTelemetry) და **ლოგები** (Loki-თან თავსებადი). სამივე არის არასავალდებულო და შეიძლება დამოუკიდებლად ჩართვა.
+Tuist სამ ურთიერთშემავსებელ დაკვირვებადობის სიგნალს გთავაზობთ: **მეტრიკები** (Prometheus), **ტრეისები** (OpenTelemetry) და **ლოგები** (Loki-თან თავსებადი). სამივე არჩევითია და დამოუკიდებლად შეიძლება ჩართვა.
 
 ## განაწილებული ტრეისინგი (OpenTelemetry) {#opentelemetry}
 
-Tuist მხარდაჭერას უწევს [OpenTelemetry](https://opentelemetry.io/)-ს განაწილებული ტრეისინგისთვის. ჩართვისას, სერვერი ასხივებს ტრეისებს HTTP მოთხოვნებისთვის (Phoenix და Bandit), მონაცემთა ბაზის კითხვებისთვის (Ecto), გამომავალი HTTP ზარებისთვის (Finch) და Broadway შეტყობინებების დამუშავებისთვის. ეს ტრეისები გაძლევთ საშუალებას გაიგოთ მოთხოვნების ლატენტურობა, გამოავლინოთ ნელი კითხვები და გააკონტროლოთ მოთხოვნები სერვისებს შორის.
+Tuist მხარს უჭერს [OpenTelemetry](https://opentelemetry.io/)-ს განაწილებული ტრეისინგისთვის. ჩართვისას სერვერი გამოსცემს ტრეისებს HTTP მოთხოვნებისთვის (Phoenix და Bandit), მონაცემთა ბაზის კითხვებისთვის (Ecto), გამავალი HTTP გამოძახებებისთვის (Finch) და Broadway შეტყობინებების დამუშავებისთვის. ეს ტრეისები საშუალებას გაძლევთ გაიგოთ მოთხოვნის ლატენტურობა, იდენტიფიცირება მოახდინოთ ნელი კითხვებისა და მოთხოვნებს მიჰყვეთ სერვისებს შორის.
 
 ### კონფიგურაცია {#opentelemetry-configuration}
 
@@ -21,21 +21,21 @@ Tuist მხარდაჭერას უწევს [OpenTelemetry](https://
 | --- | --- | --- | --- | --- |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry Collector-ის gRPC წერტილი (მაგ., Grafana Alloy, Jaeger ან ნებისმიერი OTLP-თან თავსებადი კოლექტორი) | არა | | `http://localhost:4317` |
 
-როდესაც ეს ცვლადი არ არის დაყენებული, ტრეისინგი გამორთულია და არ ქმნის დამატებით დატვირთვას.
+როცა ეს ცვლადი არ არის დაყენებული, ტრეისინგი გამორთულია და დამატებით დატვირთვას არ ქმნის.
 
 ### ინსტრუმენტირებული ბიბლიოთეკები {#opentelemetry-instrumented-libraries}
 
 ტრეისინგის ჩართვისას შემდეგი ბიბლიოთეკები ავტომატურად ინსტრუმენტირდება:
 
-- **Bandit** — HTTP სერვერის კავშირის სპანები
-- **Phoenix** — მოთხოვნის სიცოცხლის ციკლის სპანები (კონტროლერის ქმედებები, LiveView)
-- **Ecto** — მონაცემთა ბაზის კითხვის სპანები კითხვის მეტამონაცემებით
-- **Finch** — გამომავალი HTTP კლიენტის მოთხოვნის სპანები
-- **Broadway** — შეტყობინებების დამუშავების პაიპლაინის სპანები
+- **Bandit** — HTTP სერვერის კავშირის სპენები
+- **Phoenix** — მოთხოვნის სიცოცხლის ციკლის სპენები (კონტროლერის ქმედებები, LiveView)
+- **Ecto** — მონაცემთა ბაზის კითხვის სპენები კითხვის მეტამონაცემებით
+- **Finch** — გამავალი HTTP კლიენტის მოთხოვნის სპენები
+- **Broadway** — შეტყობინებების დამუშავების პაიპლაინის სპენები
 
-### მაგალითის კონფიგურაცია Grafana Alloy-ით {#opentelemetry-alloy-example}
+### მაგალითი Grafana Alloy-ით {#opentelemetry-alloy-example}
 
-თუ იყენებთ [Grafana Alloy](https://grafana.com/docs/alloy/latest/)-ს როგორც თქვენს კოლექტორს, დააკონფიგურირეთ ის OTLP ტრეისების მიღებისა და მათ თქვენს ტრეისინგის ბექენდზე გადაგზავნისთვის (მაგ., Grafana Cloud Tempo):
+თუ კოლექტორად [Grafana Alloy](https://grafana.com/docs/alloy/latest/)-ს იყენებთ, კონფიგურაციით მიიღეთ OTLP ტრეისები და გადაამისამართეთ ისინი თქვენს ტრეისინგის ბექენდზე (მაგ., Grafana Cloud Tempo):
 
 ```alloy
 otelcol.receiver.otlp "default" {
@@ -52,19 +52,19 @@ otelcol.receiver.otlp "default" {
 
 ## ლოგების გადამისამართება (Loki) {#log-forwarding}
 
-Tuist-ს შეუძლია აპლიკაციის ლოგების გადამისამართება [Loki](https://grafana.com/oss/loki/)-თან თავსებად წერტილზე. ეს საშუალებას გაძლევთ ცენტრალიზებული ლოგები შეინახოთ თქვენს მეტრიკებთან და ტრეისებთან ერთად დაკვირვების სრული სურათისთვის. ლოგები იგზავნება Loki HTTP push API-ის (`/loki/api/v1/push`) მეშვეობით და შეიცავს ლეიბლებს `app`, `env` და `level`-ისთვის.
+Tuist-ს შეუძლია აპლიკაციის ლოგები [Loki](https://grafana.com/oss/loki/)-თან თავსებად წერტილზე გადაამისამართოს. ეს საშუალებას გაძლევთ ლოგები მეტრიკებთან და ტრეისებთან ერთად გააერთიანოთ სრული დაკვირვებადობისთვის. ლოგები იგზავნება Loki HTTP push API-ით (`/loki/api/v1/push`) და შეიცავს ლეიბლებს `app`, `env` და `level`.
 
 ### კონფიგურაცია {#log-forwarding-configuration}
 
 | გარემოს ცვლადი | აღწერა | სავალდებულო | ნაგულისხმები | მაგალითი |
 | --- | --- | --- | --- | --- |
-| `TUIST_LOKI_URL` | Loki-თან თავსებადი push API წერტილის საბაზო URL | არა | | `http://localhost:3100` |
+| `TUIST_LOKI_URL` | Loki-თან თავსებადი push API წერტილის საბაზისო URL | არა | | `http://localhost:3100` |
 
-როდესაც ეს ცვლადი არ არის დაყენებული, ლოგების გადამისამართება გამორთულია.
+როცა ეს ცვლადი არ არის დაყენებული, ლოგების გადამისამართება გამორთულია.
 
-### მაგალითის კონფიგურაცია Grafana Alloy-ით {#log-forwarding-alloy-example}
+### მაგალითი Grafana Alloy-ით {#log-forwarding-alloy-example}
 
-Grafana Alloy-ს შეუძლია იმოქმედოს როგორც ლოკალური ლოგების რელეიმ, მისი [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) კომპონენტის გამოყენებით:
+Grafana Alloy-ს შეუძლია იმოქმედოს როგორც ლოკალური ლოგების რელეიმ მისი [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) კომპონენტის გამოყენებით:
 
 ```alloy
 loki.source.api "default" {
@@ -89,32 +89,32 @@ loki.write "your_backend" {
 
 შემდეგ დააყენეთ `TUIST_LOKI_URL=http://alloy:3100`.
 
-ასევე შეგიძლიათ `TUIST_LOKI_URL` პირდაპირ მიუთითოთ Loki-ის ინსტანციაზე, თუ ის ხელმისაწვდომს ხდის push API-ს.
+`TUIST_LOKI_URL`-ის პირდაპირ Loki-ის ინსტანციაზე მიმართვაც შეგიძლიათ, თუ ის push API-ს ხელმისაწვდომს ხდის.
 
 ## Prometheus მეტრიკები {#prometheus-metrics}
 
-შეგიძლიათ შეიყვანოთ Tuist-ის სერვერის მიერ შეგროვებული მეტრიკები [Prometheus](https://prometheus.io/)-ის და ვიზუალიზაციის ინსტრუმენტის, მაგალითად [Grafana](https://grafana.com/)-ის გამოყენებით, რათა შექმნათ თქვენს საჭიროებებზე მორგებული პერსონალური დაფა. Prometheus-ის მეტრიკები ხელმისაწვდომია `/metrics` წერტილზე 9091 პორტზე. Prometheus-ის [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) უნდა იყოს დაყენებული 10_000 წამზე ნაკლებად (ჩვენ გირჩევთ 30 წამს, რათა დაბალანსდეს დაკვირვება მეტრიკების შეგროვების ხარჯებთან).
+Tuist სერვერის მიერ შეგროვებული მეტრიკების შესანახად შეგიძლიათ გამოიყენოთ [Prometheus](https://prometheus.io/) და ვიზუალიზაციის ინსტრუმენტი, მაგალითად [Grafana](https://grafana.com/), რათა შექმნათ თქვენს საჭიროებებზე მორგებული მორგებული დაშბორდი. Prometheus-ის მეტრიკები ხელმისაწვდომია `/metrics` წერტილში პორტზე 9091. Prometheus-ის [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) უნდა იყოს დაყენებული 10_000 წამზე ნაკლებად (ჩვენ გირჩევთ 30 წამს, რათა დაკვირვებადობა და მეტრიკების შეგროვების ხარჯები დააბალანსოთ).
 
 ## რეალური მომხმარებლის მონიტორინგი {#real-user-monitoring}
 
-Tuist-ს შეუძლია ანგარიში გაუწიოს ბრაუზერის შესრულებას მარკეტინგული საიტიდან, დოკუმენტაციიდან და დაფიდან [Grafana Faro](https://grafana.com/oss/faro/) Web SDK-ის გამოყენებით, რომელიც ჩაშენებულია მიწოდებულ JavaScript-ში. ის აფიქსირებს Core Web Vitals-ს (მათ შორის Largest Contentful Paint-ს), დაუჭერელ შეცდომებს და გვერდის ნახვებს, და აგზავნის მათ თქვენს მიერ გაშვებულ [Faro receiver](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)-ზე — მაგალითად, `faro.receiver` კომპონენტზე Grafana Alloy-ში, რომელიც გადაამისამართებს Loki-სა და Tempo-ზე.
+Tuist-ს შეუძლია ანგარიში გაუწიოს ბრაუზერის მუშაობას მარკეტინგის საიტიდან, დოკუმენტაციიდან და დაშბორდიდან [Grafana Faro](https://grafana.com/oss/faro/) Web SDK-ის გამოყენებით, რომელიც ჩართულია მიწოდებულ JavaScript-ში. ის აღრიცხავს Core Web Vitals-ს (მათ შორის Largest Contentful Paint-ს), დაუჭერელ შეცდომებს და გვერდის ნახვებს, და აგზავნის მათ თქვენს მიერ გაშვებულ [Faro receiver](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)-ზე — მაგალითად, `faro.receiver` კომპონენტზე Grafana Alloy-ში, რომელიც გადაამისამართებს Loki-სა და Tempo-ზე.
 
 ### კონფიგურაცია {#real-user-monitoring-configuration}
 
 | გარემოს ცვლადი | აღწერა | სავალდებულო | ნაგულისხმები | მაგალითი |
 | --- | --- | --- | --- | --- |
-| `TUIST_FARO_COLLECTOR_URL` | URL, რომელზეც ბრაუზერი აგზავნის Faro-ს პეილოადებს | არა | | `/-/faro` |
+| `TUIST_FARO_COLLECTOR_URL` | URL, სადაც ბრაუზერი აგზავნის Faro პეილოადებს | არა | | `/-/faro` |
 
 > [!NOTE]
-> რეალური მომხმარებლის მონიტორინგი ჩართულია მხოლოდ მაშინ, როდესაც დაყენებულია `TUIST_FARO_COLLECTOR_URL`. მის გარეშე არ ხდება ბრაუზერის ტელემეტრიის შეგროვება და არ იტვირთება მესამე მხარის სკრიპტები.
+> რეალური მომხმარებლის მონიტორინგი ჩართულია მხოლოდ მაშინ, როცა `TUIST_FARO_COLLECTOR_URL` დაყენებულია. მის გარეშე ბრაუზერის ტელემეტრია არ გროვდება და მესამე მხარის სკრიპტები არ იტვირთება.
 
-იგივე წყაროს გზა, როგორიცაა `/-/faro`, თავს არიდებს ჯვარედინ წყაროს მოთხოვნებს და ინარჩუნებს ბრაუზერის შინაარსის უსაფრთხოების პოლიტიკას უცვლელად. მიუთითეთ ის თქვენს Faro receiver-ზე თქვენი ingress-ის მეშვეობით.
+იგივე წყაროს მქონე გზა, როგორიცაა `/-/faro`, თავს არიდებს ჯვარედინ წყაროს მოთხოვნებს და ტოვებს ბრაუზერის შინაარსის უსაფრთხოების პოლიტიკას უცვლელად. მიმართეთ ის თქვენს Faro მიმღებთან თქვენი ingress-ის მეშვეობით.
 
 ### რა გროვდება {#real-user-monitoring-collected}
 
-- **Web vitals**: LCP, CLS, INP, FCP და TTFB, რომლებსაც ბრაუზერი ავტომატურად აფიქსირებს
+- **Web vitals**: LCP, CLS, INP, FCP და TTFB, რომლებსაც ბრაუზერი ავტომატურად აღრიცხავს
 - **გვერდის ნახვები**: ფიქსირდება ჩატვირთვისას და Phoenix LiveView ნავიგაციისას
-- **ნახვები**: თითოეული პეილოადი შეიცავს იმ სექციას, რომელმაც ის წარმოქმნა — `marketing`, `docs`, `dashboard` ან `api-docs`
+- **ნახვები**: ყოველი პეილოადი შეიცავს სექციას, რომელმაც ის წარმოქმნა — `marketing`, `docs`, `dashboard` ან `api-docs`
 - **შეცდომები**: დაუჭერელი გამონაკლისები და დაუმუშავებელი promise-ების უარყოფები
 
 ### კონფიდენციალურობის მოსაზრებები {#real-user-monitoring-privacy}
@@ -123,9 +123,9 @@ Tuist-ს შეუძლია ანგარიში გაუწიოს �
 - სესიები არ ინახება ვიზიტებს შორის, ამიტომ ბრაუზერის საცავში არაფერი იწერება
 - კონსოლის ჩაჭრა გამორთულია, ამიტომ აპლიკაციის ლოგების გამოტანა არასდროს იგზავნება ბრაუზერიდან
 
-## Elixir-ის მეტრიკები {#elixir-metrics}
+## Elixir მეტრიკები {#elixir-metrics}
 
-ნაგულისხმევად ჩვენ ვერთავთ Elixir-ის რანთაიმის, BEAM-ის, Elixir-ის და ზოგიერთი ჩვენს მიერ გამოყენებული ბიბლიოთეკის მეტრიკებს. ქვემოთ მოცემულია ზოგიერთი მეტრიკა, რომლის ნახვასაც შეგიძლიათ ელოდეთ:
+ნაგულისხმევად ჩვენ ვრთავთ Elixir რანთაიმის, BEAM-ის, Elixir-ის და ზოგიერთი ჩვენს მიერ გამოყენებული ბიბლიოთეკის მეტრიკებს. ქვემოთ მოცემულია ზოგიერთი მეტრიკა, რომლის ნახვაც შეგიძლიათ:
 
 - [აპლიკაცია](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -134,7 +134,7 @@ Tuist-ს შეუძლია ანგარიში გაუწიოს �
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-ჩვენ გირჩევთ გადახედოთ ამ გვერდებს, რათა გაიგოთ, რომელი მეტრიკებია ხელმისაწვდომი და როგორ გამოიყენოთ ისინი.
+გირჩევთ, გადახედოთ ამ გვერდებს, რათა გაიგოთ, რომელი მეტრიკებია ხელმისაწვდომი და როგორ გამოიყენოთ ისინი.
 
 ## გაშვებების მეტრიკები {#runs-metrics}
 
@@ -149,7 +149,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 | ტეგი | აღწერა |
 |--- | ---- |
 | `name` | `tuist` ბრძანების სახელი, რომელიც გაეშვა, მაგალითად `build`, `test` და ა.შ. |
-| `is_ci` | ბულის მნიშვნელობა, რომელიც მიუთითებს, იყო თუ არა შემსრულებელი CI თუ დეველოპერის მანქანა. |
+| `is_ci` | ბულიანი მნიშვნელობა, რომელიც მიუთითებს, იყო შემსრულებელი CI თუ დეველოპერის მანქანა. |
 | `status` | `0` `success`-ის შემთხვევაში, `1` `failure`-ის შემთხვევაში. |
 
 ### `tuist_runs_duration_milliseconds` (ჰისტოგრამა) {#tuist_runs_duration_milliseconds-histogram}
@@ -161,7 +161,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 | ტეგი | აღწერა |
 |--- | ---- |
 | `name` | `tuist` ბრძანების სახელი, რომელიც გაეშვა, მაგალითად `build`, `test` და ა.შ. |
-| `is_ci` | ბულის მნიშვნელობა, რომელიც მიუთითებს, იყო თუ არა შემსრულებელი CI თუ დეველოპერის მანქანა. |
+| `is_ci` | ბულიანი მნიშვნელობა, რომელიც მიუთითებს, იყო შემსრულებელი CI თუ დეველოპერის მანქანა. |
 | `status` | `0` `success`-ის შემთხვევაში, `1` `failure`-ის შემთხვევაში. |
 
 ## ქეშის მეტრიკები {#cache-metrics}
@@ -196,26 +196,26 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ---
 
-## პრივიუს მეტრიკები {#previews-metrics}
+## პრევიუების მეტრიკები {#previews-metrics}
 
-მეტრიკების ნაკრები, რომელიც დაკავშირებულია previews ფუნქციასთან.
+მეტრიკების ნაკრები, რომელიც დაკავშირებულია პრევიუების ფუნქციასთან.
 
 ### `tuist_previews_uploads_total` (ჯამი) {#tuist_previews_uploads_total-counter}
 
-ატვირთული პრივიუს საერთო რაოდენობა.
+ატვირთული პრევიუების საერთო რაოდენობა.
 
 ### `tuist_previews_downloads_total` (ჯამი) {#tuist_previews_downloads_total-counter}
 
-ჩამოტვირთული პრივიუს საერთო რაოდენობა.
+ჩამოტვირთული პრევიუების საერთო რაოდენობა.
 
 ---
 
 ## საცავის მეტრიკები {#storage-metrics}
 
-მეტრიკების ნაკრები, რომელიც დაკავშირებულია არტიფაქტების შენახვასთან შორეულ საცავში (მაგ. s3).
+მეტრიკების ნაკრები, რომელიც დაკავშირებულია არტიფაქტების შენახვასთან შორეულ საცავში (მაგ., s3).
 
 > [!TIP]
-> ეს მეტრიკები სასარგებლოა საცავის ოპერაციების შესრულების გასაგებად და პოტენციური „ბოთლეკების“ გამოსავლენად.
+> ეს მეტრიკები სასარგებლოა საცავის ოპერაციების წარმადობის გასაგებად და პოტენციური „ბოთლის ყელის“ იდენტიფიცირებისთვის.
 
 
 ### `tuist_storage_get_object_size_size_bytes` (ჰისტოგრამა) {#tuist_storage_get_object_size_size_bytes-histogram}
@@ -242,7 +242,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_get_object_size_count` (მთვლელი) {#tuist_storage_get_object_size_count-counter}
 
-იმ შემთხვევების რაოდენობა, როდესაც ობიექტის ზომა მიიღეს შორეული საცავიდან.
+რაოდენობა, რამდენჯერაც მოხდა ობიექტის ზომის მიღება შორეული საცავიდან.
 
 #### ტეგები {#tuist-storage-get-object-size-count-tags}
 
@@ -263,7 +263,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_delete_all_objects_count` (მთვლელი) {#tuist_storage_delete_all_objects_count-counter}
 
-იმ შემთხვევების რაოდენობა, როდესაც პროექტის ყველა ობიექტი წაიშალა შორეული საცავიდან.
+რაოდენობა, რამდენჯერაც ყველა პროექტის ობიექტი წაიშალა შორეული საცავიდან.
 
 #### ტეგები {#tuist-storage-delete-all-objects-count-tags}
 
@@ -284,7 +284,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_multipart_start_upload_duration_count` (მთვლელი) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-იმ შემთხვევების რაოდენობა, როდესაც ატვირთვა დაიწყო შორეულ საცავში.
+რაოდენობა, რამდენჯერაც დაიწყო ატვირთვა შორეულ საცავში.
 
 #### ტეგები {#tuist-storage-multipart-start-upload-duration-count-tags}
 
@@ -305,7 +305,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_get_object_as_string_count` (მთვლელი) {#tuist_storage_get_object_as_string_count-count}
 
-იმ შემთხვევების რაოდენობა, როდესაც ობიექტი მიიღეს სტრიქონად შორეული საცავიდან.
+რაოდენობა, რამდენჯერაც მოხდა ობიექტის სტრიქონად მიღება შორეული საცავიდან.
 
 #### ტეგები {#tuist-storage-get-object-as-string-count-tags}
 
@@ -316,7 +316,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (ჰისტოგრამა) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-შორეულ საცავში ობიექტის არსებობის შემოწმების ხანგრძლივობა (მილიწამებში).
+ობიექტის არსებობის შემოწმების ხანგრძლივობა (მილიწამებში) შორეულ საცავში.
 
 #### ტეგები {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
@@ -326,7 +326,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_check_object_existence_count` (მთვლელი) {#tuist_storage_check_object_existence_count-count}
 
-იმ შემთხვევების რაოდენობა, როდესაც შორეულ საცავში შეამოწმეს ობიექტის არსებობა.
+რაოდენობა, რამდენჯერაც შემოწმდა ობიექტის არსებობა შორეულ საცავში.
 
 #### ტეგები {#tuist-storage-check-object-existence-count-tags}
 
@@ -336,7 +336,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (ჰისტოგრამა) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-შორეულ საცავში ობიექტისთვის ჩამოტვირთვის წინასწარ ხელმოწერილი URL-ის გენერირების ხანგრძლივობა (მილიწამებში).
+ჩამოტვირთვის წინასწარ ხელმოწერილი URL-ის გენერაციის ხანგრძლივობა (მილიწამებში) შორეული საცავის ობიექტისთვის.
 
 #### ტეგები {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
@@ -347,7 +347,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_generate_download_presigned_url_count` (მთვლელი) {#tuist_storage_generate_download_presigned_url_count-count}
 
-იმ შემთხვევების რაოდენობა, როდესაც შორეულ საცავში ობიექტისთვის ჩამოტვირთვის წინასწარ ხელმოწერილი URL გენერირდა.
+რაოდენობა, რამდენჯერაც გენერირდა ჩამოტვირთვის წინასწარ ხელმოწერილი URL შორეული საცავის ობიექტისთვის.
 
 #### ტეგები {#tuist-storage-generate-download-presigned-url-count-tags}
 
@@ -357,7 +357,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (ჰისტოგრამა) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-შორეულ საცავში ობიექტის ნაწილის ატვირთვის წინასწარ ხელმოწერილი URL-ის გენერირების ხანგრძლივობა (მილიწამებში).
+ნაწილობრივი ატვირთვის წინასწარ ხელმოწერილი URL-ის გენერაციის ხანგრძლივობა (მილიწამებში) შორეული საცავის ობიექტისთვის.
 
 #### ტეგები {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
@@ -365,11 +365,11 @@ Tuist Runs-ის საერთო რაოდენობა.
 |--- | ---- |
 | `object_key` | ობიექტის ძიების გასაღები შორეულ საცავში. |
 | `part_number` | ატვირთვადი ობიექტის ნაწილის ნომერი. |
-| `upload_id` | მრავალნაწილიანი ატვირთვის ID. |
+| `upload_id` | მრავალნაწილიანი ატვირთვის ატვირთვის ID. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (მთვლელი) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-იმ შემთხვევების რაოდენობა, როდესაც შორეულ საცავში ობიექტის ნაწილის ატვირთვის წინასწარ ხელმოწერილი URL გენერირდა.
+რაოდენობა, რამდენჯერაც გენერირდა ნაწილობრივი ატვირთვის წინასწარ ხელმოწერილი URL შორეული საცავის ობიექტისთვის.
 
 #### ტეგები {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
@@ -377,7 +377,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 |--- | ---- |
 | `object_key` | ობიექტის ძიების გასაღები შორეულ საცავში. |
 | `part_number` | ატვირთვადი ობიექტის ნაწილის ნომერი. |
-| `upload_id` | მრავალნაწილიანი ატვირთვის ID. |
+| `upload_id` | მრავალნაწილიანი ატვირთვის ატვირთვის ID. |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (ჰისტოგრამა) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
@@ -388,25 +388,25 @@ Tuist Runs-ის საერთო რაოდენობა.
 | ტეგი | აღწერა |
 |--- | ---- |
 | `object_key` | ობიექტის ძიების გასაღები შორეულ საცავში. |
-| `upload_id` | მრავალნაწილიანი ატვირთვის ID. |
+| `upload_id` | მრავალნაწილიანი ატვირთვის ატვირთვის ID. |
 
 
 ### `tuist_storage_multipart_complete_upload_count` (მთვლელი) {#tuist_storage_multipart_complete_upload_count-count}
 
-იმ შემთხვევების ჯამური რაოდენობა, როდესაც შორეულ საცავში ატვირთვა დასრულდა.
+რაოდენობა, რამდენჯერაც დასრულდა ატვირთვა შორეულ საცავში.
 
 #### ტეგები {#tuist-storage-multipart-complete-upload-count-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
 | `object_key` | ობიექტის ძიების გასაღები შორეულ საცავში. |
-| `upload_id` | მრავალნაწილიანი ატვირთვის ID. |
+| `upload_id` | მრავალნაწილიანი ატვირთვის ატვირთვის ID. |
 
 ---
 
-## ავთენტიკაციის მეტრიკები {#authentication-metrics}
+## ავტორიზაციის მეტრიკები {#authentication-metrics}
 
-ავთენტიკაციასთან დაკავშირებული მეტრიკების ნაკრები.
+ავტორიზაციასთან დაკავშირებული მეტრიკების ნაკრები.
 
 ### `tuist_authentication_token_refresh_error_total` (მთვლელი) {#tuist_authentication_token_refresh_error_total-counter}
 
@@ -416,7 +416,7 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `cli_version` | Tuist CLI-ის ვერსია, რომელმაც შეცდომა აღმოაჩინა. |
+| `cli_version` | Tuist CLI-ის ვერსია, რომელმაც შეცდომა გამოიწვია. |
 | `reason` | ტოკენის განახლების შეცდომის მიზეზი, მაგალითად `invalid_token_type` ან `invalid_token`. |
 
 ---
@@ -448,29 +448,29 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 მონაცემთა ბაზასთან კავშირთან დაკავშირებული მეტრიკების ნაკრები.
 
-რეპოზიტორიის პულის მეტრიკები შიდად იკვლევა ყოველ 100 მწ-ში, შემდეგ კი ექსპორტირდება Prometheus-ზე `/metrics`-ის საშუალებით. ქვემოთ მოცემული `last_value` მეტრიკები აჩვენებს პულის უახლეს მდგომარეობას სკრაპინგის დროს. წნევის მეტრიკები, რომლებიც ქვემოთაა, არის ამ 100 მწ-იანი ნიმუშებიდან მიღებული ჯამები, რაც მოკლე გადატვირთვის ფანჯრების აღმოჩენას ამარტივებს მაშინაც კი, თუ ისინი მომდევნო სკრაპინგამდე აღდგება.
+რეპო-პულის მეტრიკები შიგნით იღებენ სინჯებს ყოველ 100 მწ-ში, შემდეგ კი ხდება Prometheus-ზე გამოქვეყნება `/metrics`-ზე. ქვემოთ მოცემული `last_value` მეტრიკები აჩვენებს პულის უახლეს მდგომარეობას შეგროვების დროს. წნევის მეტრიკები, რომლებიც ქვემოთაა, არის ამ 100 მწ-იანი სინჯებიდან მიღებული ჯამები, რაც მოკლე გაჯერების ფანჯრების აღმოჩენას აადვილებს, მაშინაც კი, თუ ისინი შემდეგ შეგროვებამდე აღდგებიან.
 
 ### `tuist_repo_pool_checkout_queue_length` (ბოლო მნიშვნელობა) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-მონაცემთა ბაზის იმ მოთხოვნების რაოდენობა, რომლებიც ელოდებიან რიგში მონაცემთა ბაზის კავშირის მინიჭებას.
+მონაცემთა ბაზის იმ მოთხოვნების რაოდენობა, რომლებიც რიგში ელოდებიან მონაცემთა ბაზის კავშირზე მიბმას.
 
 #### ტეგები {#tuist_repo_pool_checkout_queue_length-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_ready_conn_count` (ბოლო მნიშვნელობა) {#tuist_repo_pool_ready_conn_count-last_value}
 
-მონაცემთა ბაზის იმ კავშირების რაოდენობა, რომლებიც მზად არიან მონაცემთა ბაზის მოთხოვნისთვის განსაზღვრისთვის.
+მონაცემთა ბაზის იმ კავშირების რაოდენობა, რომლებიც მზად არიან მონაცემთა ბაზის მოთხოვნაზე მიბმისთვის.
 
 #### ტეგები {#tuist_repo_pool_ready_conn_count-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_size` (ბოლო მნიშვნელობა) {#tuist_repo_pool_size-last_value}
 
@@ -480,52 +480,52 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum` (ჯამი) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
-რეპოზიტორიის პულის გამოკითხვების ჯამური რაოდენობა (იზრდება 1-ით ყოველ გამოკითხვაზე). გამოიყენეთ ეს როგორც მნიშვნელი დატვირთულობის ან შიმშილის პროცენტების გამოთვლისას: `rate(busy_samples) / rate(total_samples)` ან `rate(starved_samples) / rate(total_samples)`.
+რეპო-პულის გამოკითხვების ჯამური რაოდენობა (იზრდება 1-ით ყოველ გამოკითხვაზე). გამოიყენეთ ეს როგორც მნიშვნელი დატვირთვის ან შიმშილის პროცენტების გამოთვლისას: `rate(busy_samples) / rate(total_samples)` ან `rate(starved_samples) / rate(total_samples)`.
 
 #### ტეგები {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_observed_sum` (ჯამი) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-რიგში მყოფი checkout მოთხოვნების ჯამი, დაკვირვებული რეპოზიტორიის პულის გამოკითხვების განმავლობაში. ეს სასარგებლოა პულის მოკლე კონკურენციის პიკების აღმოსაჩენად, რომლებიც შეიძლება არ ჩანდეს მხოლოდ რიგის სიგრძის უახლეს ნიმუშში.
+რიგში მყოფი checkout მოთხოვნების ჯამი, რომელიც დაფიქსირდა რეპო-პულის გამოკითხვების დროს. ეს სასარგებლოა პულის მოკლე კონკურენციის პიკების აღმოსაჩენად, რომლებიც შესაძლოა არ ჩანდეს მხოლოდ რიგის სიგრძის უახლეს სინჯში.
 
 #### ტეგები {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_busy_samples_sum` (ჯამი) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
 
-რეპოზიტორიის პულის გამოკითხვების რაოდენობა, როდესაც რიგში ელოდა მინიმუმ ერთი მონაცემთა ბაზის checkout მოთხოვნა.
+რეპო-პულის გამოკითხვების რაოდენობა, როდესაც მინიმუმ ერთი მონაცემთა ბაზის checkout მოთხოვნა ელოდა რიგში.
 
 #### ტეგები {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum` (ჯამი) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-რეპოზიტორიის პულის გამოკითხვების რაოდენობა, როდესაც checkout მოთხოვნები იყო რიგში და არ იყო ხელმისაწვდომი მზა კავშირები. აქ მდგრადი ზრდა ჩვეულებრივ ნიშნავს, რომ პული გაჯერებულია.
+რეპო-პულის გამოკითხვების რაოდენობა, როდესაც checkout მოთხოვნები იყო რიგში და არ იყო ხელმისაწვდომი მზა კავშირები. ამ მაჩვენებლის მდგრადი ზრდა ჩვეულებრივ ნიშნავს, რომ პული გადატვირთულია.
 
 #### ტეგები {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `repo` | რეპოზიტორია, რომელმაც გამოიმუშავა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
-| `database` | მხარდამჭერი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
+| `repo` | რეპოზიტორია, რომელმაც გამოსცა მეტრიკა, მაგალითად `postgres`, `clickhouse_read` ან `clickhouse_write`. |
+| `database` | ძირითადი მონაცემთა ბაზის ტიპი, მაგალითად `postgres` ან `clickhouse`. |
 
 ### `tuist_repo_pool_db_connection_connected` (მთვლელი) {#tuist_repo_pool_db_connection_connected-counter}
 
@@ -539,42 +539,42 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 | ტეგი | აღწერა |
 |--- | ---- |
-| `tag` | DBConnection-ის მსმენელის ტეგი, რომელიც აიდენტიფიცირებს გამომუშავებელ რეპოზიტორიას. |
+| `tag` | DBConnection-ის მსმენელის ტეგი, რომელიც განსაზღვრავს გამომცემ რეპოზიტორიას. |
 
 ## HTTP მეტრიკები {#http-metrics}
 
-მეტრიკების ნაკრები, რომელიც უკავშირდება Tuist-ის HTTP-ით სხვა სერვისებთან ურთიერთქმედებას.
+მეტრიკების ნაკრები, რომელიც უკავშირდება Tuist-ის ურთიერთქმედებას სხვა სერვისებთან HTTP-ის საშუალებით.
 
 ### `tuist_http_request_count` (მთვლელი) {#tuist_http_request_count-last_value}
 
 გამავალი HTTP მოთხოვნების რაოდენობა.
 
-### `tuist_http_request_duration_nanosecond_sum` (ჯამი) {#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanoseconds_sum` (ჯამი) {#tuist_http_request_duration_nanoseconds_sum-last_value}
 
-გამავალი მოთხოვნების ხანგრძლივობის ჯამი (მათ შორის დრო, რომელიც მათ დაჰარჯეს კავშირზე მიბმას ლოდინში).
+გამავალი მოთხოვნების ხანგრძლივობის ჯამი (მათ შორის დრო, რომელიც მათ დაჰარჯეთ კავშირზე მინიჭების მოლოდინში).
 
-### `tuist_http_request_duration_nanosecond_bucket` (განაწილება) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-გამავალი მოთხოვნების ხანგრძლივობის განაწილება (მათ შორის დრო, რომელიც მათ დაჰარჯეს კავშირზე მიბმას ლოდინში).
+### `tuist_http_request_duration_nanoseconds_bucket` (განაწილება) {#tuist_http_request_duration_nanoseconds_bucket-distribution}
+გამავალი მოთხოვნების ხანგრძლივობის განაწილება (მათ შორის დრო, რომელიც მათ დაჰარჯეთ კავშირზე მინიჭების მოლოდინში).
 
 ### `tuist_http_queue_count` (მთვლელი) {#tuist_http_queue_count-counter}
 
-პულიდან ამოღებული მოთხოვნების რაოდენობა.
+პულიდან მიღებული მოთხოვნების რაოდენობა.
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (ჯამი) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-დრო, რომელიც სჭირდება პულიდან კავშირის ამოღებას.
+დრო, რომელიც სჭირდება კავშირის მიღებას პულიდან.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (ჯამი) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-დრო, როდესაც კავშირი იყო უმოქმედო და ელოდა ამოღებას.
+დრო, როდესაც კავშირი იყო თავისუფალი და ელოდა მიღებას.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (განაწილება) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-დრო, რომელიც სჭირდება პულიდან კავშირის ამოღებას.
+დრო, რომელიც სჭირდება კავშირის მიღებას პულიდან.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (განაწილება) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-დრო, როდესაც კავშირი იყო უმოქმედო და ელოდა ამოღებას.
+დრო, როდესაც კავშირი იყო თავისუფალი და ელოდა მიღებას.
 
 ### `tuist_http_connection_count` (მთვლელი) {#tuist_http_connection_count-counter}
 
@@ -590,15 +590,15 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_http_send_count` (მთვლელი) {#tuist_http_send_count-counter}
 
-მოთხოვნების რაოდენობა, რომლებიც გაიგზავნა პულიდან კავშირზე მიბმის შემდეგ.
+მოთხოვნების რაოდენობა, რომლებიც გაიგზავნა პულიდან კავშირზე მინიჭების შემდეგ.
 
 ### `tuist_http_send_duration_nanoseconds_sum` (ჯამი) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-დრო, რომელიც სჭირდება მოთხოვნების დასრულებას პულიდან კავშირზე მიბმის შემდეგ.
+დრო, რომელიც სჭირდება მოთხოვნების დასრულებას პულიდან კავშირზე მინიჭების შემდეგ.
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (განაწილება) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-მოთხოვნების დასრულებისთვის საჭირო დროის განაწილება პულიდან კავშირზე მიბმის შემდეგ.
+მოთხოვნების დასრულებისთვის საჭირო დროის განაწილება პულიდან კავშირზე მინიჭების შემდეგ.
 
 ### `tuist_http_receive_count` (მთვლელი) {#tuist_http_receive_count-counter}
 
@@ -618,4 +618,4 @@ Tuist Runs-ის საერთო რაოდენობა.
 
 ### `tuist_http_queue_in_use_connections` (ბოლო მნიშვნელობა) {#tuist_http_queue_in_use_connections-last_value}
 
-რიგში გამოყენებაში მყოფი კავშირების რაოდენობა.
+გამოყენებაში მყოფი რიგის კავშირების რაოდენობა.

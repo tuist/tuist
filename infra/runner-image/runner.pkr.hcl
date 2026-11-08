@@ -149,6 +149,34 @@ variable "buildkite_agent_version" {
   default = "3.138.0"
 }
 
+variable "bitrise_den_agent_version" {
+  type        = string
+  description = "Bitrise den agent version. https://github.com/bitrise-io/bitrise-den-agent/releases."
+  # Pinned and started without `--fetch-latest-cli`, so the agent never
+  # updates itself or the CLI mid-VM.
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise-den-agent
+  default = "2.69.0"
+}
+
+variable "bitrise_den_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 den agent zip, as pinned by bitrise-io/homebrew-den-agent."
+  default     = "b67c38531a3c6fed6571029fbe0958e828156979e8507ccec6c2404e03894186"
+}
+
+variable "bitrise_cli_version" {
+  type        = string
+  description = "Bitrise CLI version the den agent runs builds with. https://github.com/bitrise-io/bitrise/releases."
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise
+  default = "3.2.1"
+}
+
+variable "bitrise_cli_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the bitrise-Darwin-arm64 binary, from the release's checksums.txt."
+  default     = "33bf12c80ece4bda6168b90481eb3cd021e385851013ef7d922c00d638a44ed5"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -216,13 +244,20 @@ build {
   # plugin only does this after deleting a recovery partition, and the
   # base has none left to delete, so it never does here. The live resize
   # intermittently fails with -69606 while growing the APFS structures and
-  # undoes its changes, so it is retried.
+  # undoes its changes, and a build has passed this step with the container
+  # still at the base's size, so each attempt is judged by the sizes
+  # afterwards rather than by its exit status: the container claimed the
+  # disk once at most 5 GB (the 524 MB ISC partition) is left outside it.
+  # A failed claim would leave the 60 GB `disk_size_gb` added outside it and
+  # fail the disk budget check at the end of the build.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
-      "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
+      "disk=$${store%s*}",
+      "size() { diskutil info -plist \"$1\" | plutil -extract TotalSize raw -; }",
+      "printf 'y\\n' | sudo diskutil repairDisk \"$disk\"",
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 2>&1 || true; unclaimed=$(( $(size \"$disk\") - $(size \"$store\") )); echo \"resizeContainer attempt $attempt: $(size \"$store\") of $(size \"$disk\") bytes in the container\"; [ \"$unclaimed\" -gt 5000000000 ] || break; [ \"$attempt\" -lt 5 ] || { echo \"the APFS container still leaves $unclaimed bytes of $disk unclaimed\" >&2; exit 1; }; echo \"retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
@@ -482,6 +517,31 @@ build {
     ]
   }
 
+  # The Bitrise den agent and CLI, for the same reason the Buildkite agent
+  # is here. `/opt/bitrise` is the layout the agent's own daemon installer
+  # creates, owned by the user the agent runs as.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o bitrise-den-agent.zip https://github.com/bitrise-io/bitrise-den-agent/releases/download/v${var.bitrise_den_agent_version}/bitrise-den-agent-darwin-arm64.zip",
+      "echo '${var.bitrise_den_agent_sha256_darwin_arm64}  bitrise-den-agent.zip' | shasum -a 256 -c -",
+      "mkdir -p /tmp/bitrise-den-agent-dist",
+      "unzip -q bitrise-den-agent.zip -d /tmp/bitrise-den-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/bitrise-den-agent-dist/bitrise-den-agent /opt/tuist/bitrise-den-agent",
+      "curl -sSL -o bitrise https://github.com/bitrise-io/bitrise/releases/download/v${var.bitrise_cli_version}/bitrise-Darwin-arm64",
+      "echo '${var.bitrise_cli_sha256_darwin_arm64}  bitrise' | shasum -a 256 -c -",
+      "echo 'admin' | sudo -S mkdir -p /usr/local/bin",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel bitrise /usr/local/bin/bitrise",
+      "echo 'admin' | sudo -S mkdir -p /opt/bitrise/var/log /opt/bitrise/releases /opt/bitrise/bin",
+      "echo 'admin' | sudo -S touch /opt/bitrise/.env_all.yaml",
+      "echo 'admin' | sudo -S chown -R runner:staff /opt/bitrise",
+      "rm -rf bitrise-den-agent.zip /tmp/bitrise-den-agent-dist bitrise",
+      "/opt/tuist/bitrise-den-agent --version",
+      "/usr/local/bin/bitrise --version"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
@@ -523,8 +583,18 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/bitrise-hooks"
+    destination = "/tmp/bitrise-hooks"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/tuist-gitlab-runner"
     destination = "/tmp/tuist-gitlab-runner"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-job-runner"
+    destination = "/tmp/tuist-job-runner"
   }
 
   provisioner "file" {
@@ -560,6 +630,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-job-runner /opt/tuist/tuist-job-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
@@ -571,7 +642,11 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/dev.tuist.logd-watchdog.plist /tmp/buildkite-hooks"
+      # The Bitrise CLI's agent-mode build start hook, named in the
+      # agent-config.yml dispatch-poll writes.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/bitrise-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/bitrise-hooks/build-start /opt/tuist/bitrise-hooks/build-start",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/dev.tuist.logd-watchdog.plist /tmp/buildkite-hooks /tmp/bitrise-hooks"
     ]
   }
 
@@ -636,6 +711,15 @@ build {
   # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
   # it cannot dispatch from. See AGENTS.md for why each row has the
   # shape it has.
+  #
+  # The reboot fires 2 s after its provisioner returns. Packer reconnects
+  # after `pause_before` and retries until sshd is back, so the first pause
+  # only has to outlast the old session's sshd; each step after a reboot
+  # fails if it still sees the boot time from before it, rather than
+  # checking the approvals on a VM that never rebooted. The second pause
+  # stays at 45 s: with 15 s, a build's VM halted right after the runner
+  # LaunchAgent was installed, most likely because runner's still-starting
+  # login session loaded it and dispatch-poll.sh halted the VM.
   provisioner "file" {
     source      = "${path.root}/tcc-approvals.sh"
     destination = "/tmp/tcc-approvals.sh"
@@ -652,13 +736,18 @@ build {
   provisioner "shell" {
     expect_disconnect = true
     skip_clean        = true
-    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+    inline = [
+      "sysctl -n kern.boottime > /var/tmp/tuist-boottime-before-reboot",
+      "(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"
+    ]
   }
 
   provisioner "shell" {
-    pause_before = "45s"
+    pause_before = "15s"
     inline = [
       "set -euo pipefail",
+      "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
+      "rm -f /var/tmp/tuist-boottime-before-reboot",
       "sudo /opt/tuist/tcc-approvals.sh wait",
       "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
     ]
@@ -667,13 +756,18 @@ build {
   provisioner "shell" {
     expect_disconnect = true
     skip_clean        = true
-    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+    inline = [
+      "sysctl -n kern.boottime > /var/tmp/tuist-boottime-before-reboot",
+      "(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"
+    ]
   }
 
   provisioner "shell" {
     pause_before = "45s"
     inline = [
       "set -euo pipefail",
+      "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
+      "rm -f /var/tmp/tuist-boottime-before-reboot",
       "sudo /opt/tuist/tcc-approvals.sh wait",
       "sudo -u runner /opt/tuist/tcc-approvals.sh check"
     ]
