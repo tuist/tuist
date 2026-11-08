@@ -113,8 +113,8 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
         BackHandler(state.selected != null && state.sheet == null) { onAction(JamAction.Back) }
         if (!state.enabled || state.denied) {
             JamUnavailable(
-                R.string.jams_access_title,
-                R.string.jams_access_description,
+                R.string.threads_access_title,
+                R.string.threads_access_description,
             )
             return@MaterialTheme
         }
@@ -122,7 +122,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
             if (state.sample) {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer) {
                     Text(
-                        stringResource(R.string.jams_sample),
+                        stringResource(R.string.threads_sample),
                         Modifier.fillMaxWidth().padding(12.dp),
                         style = MaterialTheme.typography.labelMedium,
                     )
@@ -130,7 +130,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
             }
             if (state.reconnecting)
                 Text(
-                    stringResource(R.string.jams_reconnecting),
+                    stringResource(R.string.threads_reconnecting),
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -142,7 +142,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                     title = {
                         Column {
                             Text(
-                                stringResource(R.string.jams_title),
+                                stringResource(R.string.threads_title),
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
@@ -157,7 +157,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                             onClick = { onAction(JamAction.Refresh) },
                             enabled = !state.busy,
                         ) {
-                            Icon(Icons.Default.Refresh, stringResource(R.string.jams_refresh))
+                            Icon(Icons.Default.Refresh, stringResource(R.string.threads_refresh))
                         }
                     },
                 )
@@ -168,18 +168,18 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                     FilterChip(
                         selected = !state.showArchived,
                         onClick = { onAction(JamAction.Archived(false)) },
-                        label = { Text(stringResource(R.string.jams_active)) },
+                        label = { Text(stringResource(R.string.threads_active)) },
                     )
                     FilterChip(
                         selected = state.showArchived,
                         onClick = { onAction(JamAction.Archived(true)) },
-                        label = { Text(stringResource(R.string.jams_archived)) },
+                        label = { Text(stringResource(R.string.threads_archived)) },
                     )
                     Spacer(Modifier.weight(1f))
                     FilledTonalIconButton(
                         onClick = { onAction(JamAction.Sheet(JamSheet.NEW)) }
                     ) {
-                        Icon(Icons.Default.Add, stringResource(R.string.jams_new))
+                        Icon(Icons.Default.Add, stringResource(R.string.threads_new))
                     }
                 }
                 val jams =
@@ -194,17 +194,17 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                         }
                     state.error && jams.isEmpty() ->
                         JamUnavailable(
-                            R.string.jams_load_failed,
-                            R.string.jams_retry_description,
+                            R.string.threads_load_failed,
+                            R.string.threads_retry_description,
                             R.string.retry,
                             { onAction(JamAction.Refresh) },
                             Modifier.weight(1f),
                         )
                     jams.isEmpty() ->
                         JamUnavailable(
-                            R.string.jams_empty,
-                            R.string.jams_empty_description,
-                            R.string.jams_new,
+                            R.string.threads_empty,
+                            R.string.threads_empty_description,
+                            R.string.threads_new,
                             { onAction(JamAction.Sheet(JamSheet.NEW)) },
                             Modifier.weight(1f),
                         )
@@ -239,7 +239,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                                             Spacer(Modifier.weight(1f))
                                             Icon(
                                                 Icons.Default.Lock,
-                                                stringResource(R.string.jams_private),
+                                                stringResource(R.string.threads_private),
                                                 modifier = Modifier.size(14.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -258,7 +258,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                                         )
                                         Text(
                                             jam.repository.ifEmpty {
-                                                stringResource(R.string.jams_no_repository)
+                                                stringResource(R.string.threads_no_repository)
                                             },
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
@@ -272,7 +272,7 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
                                         onClick = { onAction(JamAction.LoadMore) },
                                         enabled = !state.busy,
                                     ) {
-                                        Text(stringResource(R.string.jams_load_more))
+                                        Text(stringResource(R.string.threads_load_more))
                                     }
                                 }
                         }
@@ -283,11 +283,11 @@ fun JamsContent(state: JamsState, onAction: (JamAction) -> Unit) {
         if (state.error && (!state.jams.isEmpty() || state.sheet != null)) {
             AlertDialog(
                 onDismissRequest = { onAction(JamAction.DismissError) },
-                title = { Text(stringResource(R.string.jams_action_failed)) },
-                text = { Text(stringResource(R.string.jams_action_failed_description)) },
+                title = { Text(stringResource(R.string.threads_action_failed)) },
+                text = { Text(stringResource(R.string.threads_action_failed_description)) },
                 confirmButton = {
                     TextButton(onClick = { onAction(JamAction.DismissError) }) {
-                        Text(stringResource(R.string.jams_close))
+                        Text(stringResource(R.string.threads_close))
                     }
                 },
             )
@@ -335,13 +335,13 @@ internal fun JamUnavailable(
 internal fun JamStatus(status: String) {
     val label =
         when (status) {
-            "idle" -> R.string.jams_ready
-            "queued" -> R.string.jams_queued
-            "running" -> R.string.jams_running
-            "shipping" -> R.string.jams_shipping
-            "failed" -> R.string.jams_failed
-            "outcome_unknown" -> R.string.jams_blocked
-            else -> R.string.jams_status_unknown
+            "idle" -> R.string.threads_ready
+            "queued" -> R.string.threads_queued
+            "running" -> R.string.threads_running
+            "shipping" -> R.string.threads_shipping
+            "failed" -> R.string.threads_failed
+            "outcome_unknown" -> R.string.threads_blocked
+            else -> R.string.threads_status_unknown
         }
     Text(
         stringResource(label),

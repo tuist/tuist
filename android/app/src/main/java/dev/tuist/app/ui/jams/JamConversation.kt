@@ -43,7 +43,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    jam.repository.ifEmpty { stringResource(R.string.jams_no_repository) },
+                    jam.repository.ifEmpty { stringResource(R.string.threads_no_repository) },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelSmall,
@@ -53,7 +53,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
         },
         navigationIcon = {
             IconButton(onClick = { onAction(JamAction.Back) }, enabled = !state.busy) {
-                Icon(Icons.Default.ArrowBack, stringResource(R.string.jams_back))
+                Icon(Icons.Default.ArrowBack, stringResource(R.string.threads_back))
             }
         },
         actions = {
@@ -62,15 +62,15 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                     onClick = { onAction(JamAction.PreviewShip) },
                     enabled = jam.canMessage() && !state.busy,
                 ) {
-                    Text(stringResource(R.string.jams_ship))
+                    Text(stringResource(R.string.threads_ship))
                 }
             Box {
                 IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Default.MoreVert, stringResource(R.string.jams_actions))
+                    Icon(Icons.Default.MoreVert, stringResource(R.string.threads_actions))
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.jams_details)) },
+                        text = { Text(stringResource(R.string.threads_details)) },
                         onClick = {
                             menu = false
                             onAction(JamAction.Sheet(JamSheet.DETAILS))
@@ -80,8 +80,8 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                         text = {
                             Text(
                                 stringResource(
-                                    if (jam.archiveStatus == "archived") R.string.jams_restore
-                                    else R.string.jams_archive
+                                    if (jam.archiveStatus == "archived") R.string.threads_restore
+                                    else R.string.threads_archive
                                 )
                             )
                         },
@@ -104,7 +104,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
         if (jam.hasMore == true)
             item {
                 TextButton(onClick = { onAction(JamAction.LoadMore) }, enabled = !state.busy) {
-                    Text(stringResource(R.string.jams_earlier))
+                    Text(stringResource(R.string.threads_earlier))
                 }
             }
         items(jam.messages, key = { it.id }) { message ->
@@ -143,14 +143,14 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                             )
                             Spacer(Modifier.width(10.dp))
                             Text(
-                                message.toolName ?: stringResource(R.string.jams_tool),
+                                message.toolName ?: stringResource(R.string.threads_tool),
                                 Modifier.weight(1f),
                                 style = MaterialTheme.typography.labelLarge,
                             )
                             Icon(
                                 if (expanded) Icons.Default.KeyboardArrowUp
                                 else Icons.Default.KeyboardArrowDown,
-                                stringResource(R.string.jams_tool_details),
+                                stringResource(R.string.threads_tool_details),
                             )
                         }
                         if (expanded)
@@ -168,7 +168,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (message.role == "assistant")
                             Text(
-                                stringResource(R.string.jams_assistant),
+                                stringResource(R.string.threads_assistant),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
@@ -190,7 +190,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
     }
     if (jam.archiveStatus == "archived") {
         Text(
-            stringResource(R.string.jams_archived_notice),
+            stringResource(R.string.threads_archived_notice),
             Modifier.padding(20.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -220,7 +220,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
             OutlinedTextField(
                 value = state.reply,
                 onValueChange = { onAction(JamAction.Reply(it)) },
-                placeholder = { Text(stringResource(R.string.jams_message)) },
+                placeholder = { Text(stringResource(R.string.threads_message)) },
                 modifier = Modifier.weight(1f),
                 maxLines = 5,
                 shape = RoundedCornerShape(24.dp),
@@ -231,7 +231,7 @@ internal fun ColumnScope.JamConversation(state: JamsState, onAction: (JamAction)
                 enabled = !state.busy && jam.canMessage() && state.reply.isNotBlank(),
                 modifier = Modifier.size(52.dp),
             ) {
-                Icon(Icons.Default.Send, stringResource(R.string.jams_send))
+                Icon(Icons.Default.Send, stringResource(R.string.threads_send))
             }
         }
     }

@@ -132,7 +132,7 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
                         }
                     },
                     icon = { Icon(painterResource(R.drawable.ic_message), contentDescription = null) },
-                    label = { Text(stringResource(R.string.jams_title)) },
+                    label = { Text(stringResource(R.string.threads_title)) },
                 )
                 NavigationBarItem(
                     selected = currentDestination?.hierarchy?.any {

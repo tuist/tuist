@@ -40,25 +40,25 @@ internal fun JamSheets(
                     JamSheet.NEW -> NewJam(state, onAction)
                     JamSheet.MODELS -> ModelPicker(state, onAction)
                     JamSheet.REPOSITORIES -> {
-                        SheetTitle(R.string.jams_repository)
+                        SheetTitle(R.string.threads_repository)
                         Text(
-                            stringResource(R.string.jams_repository_description),
+                            stringResource(R.string.threads_repository_description),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         ListItem(
                             headlineContent = {
-                                Text(stringResource(R.string.jams_no_repository))
+                                Text(stringResource(R.string.threads_no_repository))
                             },
                             supportingContent = {
-                                Text(stringResource(R.string.jams_no_repository_description))
+                                Text(stringResource(R.string.threads_no_repository_description))
                             },
                             modifier =
                                 Modifier.clickable { onAction(JamAction.Repository(null)) },
                         )
                         if (state.repositoryError)
                             Text(
-                                stringResource(R.string.jams_repositories_error),
+                                stringResource(R.string.threads_repositories_error),
                                 color = MaterialTheme.colorScheme.error,
                             )
                         state.repositories.forEach { repository ->
@@ -74,25 +74,25 @@ internal fun JamSheets(
                     }
                     JamSheet.DETAILS ->
                         state.selected?.let { jam ->
-                            SheetTitle(R.string.jams_details)
-                            Detail(R.string.jams_account, state.account)
+                            SheetTitle(R.string.threads_details)
+                            Detail(R.string.threads_account, state.account)
                             Detail(
-                                R.string.jams_repository,
+                                R.string.threads_repository,
                                 jam.repository.ifBlank {
-                                    stringResource(R.string.jams_no_repository)
+                                    stringResource(R.string.threads_no_repository)
                                 },
                             )
-                            Detail(R.string.jams_branch, jam.branch)
+                            Detail(R.string.threads_branch, jam.branch)
                             Detail(
-                                R.string.jams_provider,
-                                jam.provider ?: stringResource(R.string.jams_not_recorded),
+                                R.string.threads_provider,
+                                jam.provider ?: stringResource(R.string.threads_not_recorded),
                             )
                             Detail(
-                                R.string.jams_model,
-                                jam.model ?: stringResource(R.string.jams_not_recorded),
+                                R.string.threads_model,
+                                jam.model ?: stringResource(R.string.threads_not_recorded),
                             )
                             Text(
-                                stringResource(R.string.jams_model_immutable),
+                                stringResource(R.string.threads_model_immutable),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -118,7 +118,7 @@ internal fun JamSheets(
                 ) {
                     if (state.busy)
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Text(stringResource(R.string.jams_start))
+                    else Text(stringResource(R.string.threads_start))
                 }
             if (sheet == JamSheet.SHIP)
                 Button(
@@ -130,7 +130,7 @@ internal fun JamSheets(
                             .padding(bottom = 16.dp)
                             .height(52.dp),
                 ) {
-                    Text(stringResource(R.string.jams_approve_ship))
+                    Text(stringResource(R.string.threads_approve_ship))
                 }
         }
     }
@@ -138,16 +138,16 @@ internal fun JamSheets(
 
 @Composable
 private fun NewJam(state: JamsState, onAction: (JamAction) -> Unit) {
-    SheetTitle(R.string.jams_new)
+    SheetTitle(R.string.threads_new)
     Text(
-        stringResource(R.string.jams_new_description),
+        stringResource(R.string.threads_new_description),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     OutlinedTextField(
         value = state.draft,
         onValueChange = { onAction(JamAction.Draft(it)) },
-        placeholder = { Text(stringResource(R.string.jams_prompt)) },
+        placeholder = { Text(stringResource(R.string.threads_prompt)) },
         minLines = 3,
         maxLines = 8,
         modifier = Modifier.fillMaxWidth(),
@@ -160,10 +160,10 @@ private fun NewJam(state: JamsState, onAction: (JamAction) -> Unit) {
     ) {
         Column {
             ListItem(
-                headlineContent = { Text(stringResource(R.string.jams_repository)) },
+                headlineContent = { Text(stringResource(R.string.threads_repository)) },
                 supportingContent = {
                     Text(
-                        state.repository?.fullName ?: stringResource(R.string.jams_no_repository)
+                        state.repository?.fullName ?: stringResource(R.string.threads_no_repository)
                     )
                 },
                 leadingContent = { Icon(Icons.Default.Build, null) },
@@ -178,9 +178,9 @@ private fun NewJam(state: JamsState, onAction: (JamAction) -> Unit) {
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
             ListItem(
-                headlineContent = { Text(stringResource(R.string.jams_model)) },
+                headlineContent = { Text(stringResource(R.string.threads_model)) },
                 supportingContent = {
-                    Text(state.model?.name ?: stringResource(R.string.jams_select_model))
+                    Text(state.model?.name ?: stringResource(R.string.threads_select_model))
                 },
                 leadingContent = { Icon(Icons.Default.Star, null) },
                 trailingContent = { Icon(Icons.Default.KeyboardArrowRight, null) },
@@ -193,7 +193,7 @@ private fun NewJam(state: JamsState, onAction: (JamAction) -> Unit) {
     }
     CatalogNotice(state, onAction)
     Text(
-        stringResource(R.string.jams_private_description),
+        stringResource(R.string.threads_private_description),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -201,9 +201,9 @@ private fun NewJam(state: JamsState, onAction: (JamAction) -> Unit) {
 
 @Composable
 private fun ModelPicker(state: JamsState, onAction: (JamAction) -> Unit) {
-    SheetTitle(R.string.jams_choose_model)
+    SheetTitle(R.string.threads_choose_model)
     Text(
-        stringResource(R.string.jams_model_description),
+        stringResource(R.string.threads_model_description),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -226,7 +226,7 @@ private fun ModelPicker(state: JamsState, onAction: (JamAction) -> Unit) {
             }
         }
     TextButton(onClick = { onAction(JamAction.Sheet(JamSheet.NEW)) }) {
-        Text(stringResource(R.string.jams_back))
+        Text(stringResource(R.string.threads_back))
     }
 }
 
@@ -239,7 +239,7 @@ private fun CatalogNotice(state: JamsState, onAction: (JamAction) -> Unit) {
         ) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Text(
-                stringResource(R.string.jams_models_loading),
+                stringResource(R.string.threads_models_loading),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -251,30 +251,30 @@ private fun CatalogNotice(state: JamsState, onAction: (JamAction) -> Unit) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(R.string.jams_models_error_title),
+                        stringResource(R.string.threads_models_error_title),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
-                        stringResource(R.string.jams_models_error_description),
+                        stringResource(R.string.threads_models_error_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = { onAction(JamAction.RetryModels) }) {
-                    Icon(Icons.Default.Refresh, stringResource(R.string.jams_try_again))
+                    Icon(Icons.Default.Refresh, stringResource(R.string.threads_try_again))
                 }
             }
         }
     } else if (state.models.isEmpty()) {
         Text(
-            stringResource(R.string.jams_models_empty),
+            stringResource(R.string.threads_models_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
     if (state.modelErrors.isNotEmpty() && !state.catalogLoading && !state.catalogError) {
         Text(
-            stringResource(R.string.jams_models_partial),
+            stringResource(R.string.threads_models_partial),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -284,17 +284,17 @@ private fun CatalogNotice(state: JamsState, onAction: (JamAction) -> Unit) {
 @Composable
 private fun ShipReview(state: JamsState) {
     val preview = state.preview ?: return
-    SheetTitle(R.string.jams_review_ship)
+    SheetTitle(R.string.threads_review_ship)
     Text(
-        stringResource(R.string.jams_ship_description),
+        stringResource(R.string.threads_ship_description),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Detail(R.string.jams_repository, preview.repository)
-    Detail(R.string.jams_branch, preview.targetBranch)
-    Detail(R.string.jams_ship_mode, preview.mode)
-    Detail(R.string.jams_base, preview.baseSha)
-    Detail(R.string.jams_head, preview.headSha)
+    Detail(R.string.threads_repository, preview.repository)
+    Detail(R.string.threads_branch, preview.targetBranch)
+    Detail(R.string.threads_ship_mode, preview.mode)
+    Detail(R.string.threads_base, preview.baseSha)
+    Detail(R.string.threads_head, preview.headSha)
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -308,7 +308,7 @@ private fun ShipReview(state: JamsState) {
     }
     if (state.sample)
         Text(
-            stringResource(R.string.jams_sample_ship_disabled),
+            stringResource(R.string.threads_sample_ship_disabled),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

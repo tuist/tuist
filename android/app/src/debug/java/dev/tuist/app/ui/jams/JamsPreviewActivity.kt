@@ -38,7 +38,7 @@ class JamsPreviewActivity : ComponentActivity() {
                                     true,
                                     {},
                                     icon = { Icon(painterResource(R.drawable.ic_message), null) },
-                                    label = { Text(stringResource(R.string.jams_title)) },
+                                    label = { Text(stringResource(R.string.threads_title)) },
                                 )
                             NavigationBarItem(
                                 false,
