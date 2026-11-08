@@ -18,11 +18,15 @@ does not build the application. Ubuntu 22.04 has no minisign package; CI uses
 SHA-256 checksum, keeping the Ubuntu 22.04 build baseline. Native CI checkouts
 include only `desktop/` and the shared navigation fixtures to avoid unrelated
 Swift fixture paths exceeding Windows checkout limits.
+The desktop workflows exclude the root `mise.toml` via
+`MISE_IGNORED_CONFIG_PATHS` so monorepo tools and post-install hooks are not
+inherited. Run packaging through `mise exec` so pinned tool paths remain
+available when the build changes into its staging directory outside the checkout.
 From `desktop/`, on native Linux/Windows x86_64:
 
 ```sh
 for test in distribution/test_*.sh; do bash "$test"; done
-ONCE_CACHE_PROVIDER=local bash distribution/release.sh build --output /absolute/new/staging
+ONCE_CACHE_PROVIDER=local mise exec -- bash distribution/release.sh build --output /absolute/new/staging
 bash distribution/smoke.sh /absolute/new/staging
 ```
 
@@ -131,7 +135,7 @@ providers need a separately reviewed integration rather than substituting an
 unapproved custom command.
 
 ```sh
-bash distribution/release.sh build --release --output /absolute/new/staging
+mise exec -- bash distribution/release.sh build --release --output /absolute/new/staging
 # Merge the two native assets/ directories into /absolute/assets first.
 bash distribution/release.sh feed --assets /absolute/assets \
   --output /absolute/feed/latest.json --notes 'Release notes'

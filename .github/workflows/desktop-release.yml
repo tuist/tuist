@@ -8,6 +8,8 @@ on:
         required: true
 permissions:
   contents: read
+env:
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
 concurrency:
   group: desktop-release
   cancel-in-progress: false
@@ -102,7 +104,7 @@ jobs:
           CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.DESKTOP_UPDATE_PRIVATE_KEY_PASSWORD }}
           DESKTOP_WINDOWS_CERTIFICATE_THUMBPRINT: ${{ vars.DESKTOP_WINDOWS_CERTIFICATE_THUMBPRINT }}
           DESKTOP_WINDOWS_TIMESTAMP_URL: ${{ vars.DESKTOP_WINDOWS_TIMESTAMP_URL }}
-        run: bash distribution/release.sh build --release --output "$RUNNER_TEMP/desktop-package"
+        run: mise exec -- bash distribution/release.sh build --release --output "$RUNNER_TEMP/desktop-package"
       - name: Install and uninstall smoke
         run: bash distribution/smoke.sh "$RUNNER_TEMP/desktop-package"
       - uses: actions/upload-artifact@v4
@@ -133,7 +135,7 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           working_directory: desktop
-          tools: jq@1.8.1 yq@4.52.5
+          install_args: jq@1.8.1 yq@4.52.5
           cache: false
       - uses: dtolnay/rust-toolchain@1.96.0
       - name: Install signature verification tool

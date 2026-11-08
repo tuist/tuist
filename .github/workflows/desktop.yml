@@ -7,6 +7,8 @@ on:
     paths: ['desktop/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/desktop*.yml']
 permissions:
   contents: read
+env:
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: true
@@ -82,7 +84,7 @@ jobs:
           for test in distribution/test_*.sh; do bash "$test"; done
           git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json
       - name: Native Once optimized build, tests and unsigned package
-        run: bash distribution/release.sh build --output "$RUNNER_TEMP/desktop-package"
+        run: mise exec -- bash distribution/release.sh build --output "$RUNNER_TEMP/desktop-package"
       - name: Install and uninstall smoke
         run: bash distribution/smoke.sh "$RUNNER_TEMP/desktop-package"
       - uses: actions/upload-artifact@v4
