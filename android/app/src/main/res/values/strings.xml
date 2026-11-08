@@ -193,7 +193,7 @@
     <string name="done">"Done"</string>
     <string name="navigation_link_error">"This link is invalid or belongs to a different server."</string>
     <string name="navigation_browser_unavailable">"No browser is available to open this link."</string>
-    <string name="profiles_title">"Organizations"</string>
+    <string name="profiles_title">"Profiles"</string>
     <string name="organizations_personal">"%1$s (personal account)"</string>
     <string name="organizations_loading">"Loading organizations…"</string>
     <string name="organizations_failed">"Some memberships could not be verified. Retry or choose a personal account."</string>

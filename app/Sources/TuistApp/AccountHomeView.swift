@@ -214,7 +214,7 @@
                     showingSignOut = true
                 },
             ]))
-            return UIMenu(title: String(localized: "Organizations"), children: actions)
+            return UIMenu(title: String(localized: "Profiles"), children: actions)
         }
     }
 
@@ -239,7 +239,6 @@
         final class MenuController: UIViewController, UIContextMenuInteractionDelegate {
             var menu: () -> UIMenu
             var refresh: () async -> Void
-            private weak var tabBar: UITabBar?
             private lazy var interaction = UIContextMenuInteraction(delegate: self)
 
             init(menu: @escaping () -> UIMenu, refresh: @escaping () async -> Void) {
@@ -260,15 +259,15 @@
                 while let parent = root.parent {
                     root = parent
                 }
-                guard let bar = findTabBar(in: root), bar !== tabBar else { return }
+                guard let bar = findTabBar(in: root), let title = bar.items?.last?.title,
+                      let button = profileButton(in: bar, title: title), button !== interaction.view
+                else { return }
                 uninstall()
-                tabBar = bar
-                bar.addInteraction(interaction)
+                button.addInteraction(interaction)
             }
 
             func uninstall() {
-                tabBar?.removeInteraction(interaction)
-                tabBar = nil
+                interaction.view?.removeInteraction(interaction)
             }
 
             private func findTabBar(in controller: UIViewController) -> UITabBar? {
@@ -279,20 +278,43 @@
                 return nil
             }
 
-            private func profileItem(in view: UIView) -> UIView? {
-                if view is UIControl, view.accessibilityLabel == tabBar?.items?.last?.title { return view }
-                for child in view.subviews {
-                    if let item = profileItem(in: child) { return item }
+            private func profileButton(in view: UIView, title: String) -> UIView? {
+                if view is UIControl,
+                   view.accessibilityLabel == title || view.subviews.contains(where: { ($0 as? UILabel)?.text == title })
+                {
+                    return view
+                }
+                for child in view.subviews.reversed() {
+                    if let button = profileButton(in: child, title: title) { return button }
                 }
                 return nil
             }
 
             func contextMenuInteraction(
-                _: UIContextMenuInteraction,
+                _ interaction: UIContextMenuInteraction,
                 previewForHighlightingMenuWithConfiguration _: UIContextMenuConfiguration
             ) -> UITargetedPreview? {
-                guard let tabBar, let item = profileItem(in: tabBar) else { return nil }
-                return UITargetedPreview(view: item)
+                guard let button = interaction.view, let window = button.window else { return nil }
+                // Keep UIKit-managed tab buttons in their glass bar rather than lifting them into the menu preview.
+                let preview = UIView(frame: CGRect(x: 0, y: 0, width: button.bounds.width, height: 1))
+                let parameters = UIPreviewParameters()
+                parameters.backgroundColor = .clear
+                parameters.shadowPath = UIBezierPath()
+                return UITargetedPreview(
+                    view: preview,
+                    parameters: parameters,
+                    target: UIPreviewTarget(
+                        container: window,
+                        center: button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.minY), to: window)
+                    )
+                )
+            }
+
+            func contextMenuInteraction(
+                _ interaction: UIContextMenuInteraction,
+                previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
+            ) -> UITargetedPreview? {
+                contextMenuInteraction(interaction, previewForHighlightingMenuWithConfiguration: configuration)
             }
 
             func contextMenuInteraction(
@@ -308,11 +330,8 @@
 
             func contextMenuInteraction(
                 _: UIContextMenuInteraction,
-                configurationForMenuAtLocation location: CGPoint
+                configurationForMenuAtLocation _: CGPoint
             ) -> UIContextMenuConfiguration? {
-                guard let tabBar, let count = tabBar.items?.count, count > 0,
-                      location.x >= tabBar.bounds.width * CGFloat(count - 1) / CGFloat(count)
-                else { return nil }
                 return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in self.menu() }
             }
         }

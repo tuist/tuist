@@ -373,7 +373,7 @@ class AuthenticationProfilesTest {
     private fun chooser() {
         visible("Profile")
         device.findObject(By.text("Profile")).longClick()
-        visible("Organizations")
+        visible("Profiles")
         device.wait(Until.gone(By.text("Loading organizations…")), 10_000)
     }
     private fun click(text: String) {
