@@ -13335,6 +13335,55 @@ components:
       type: object
       x-struct:
       x-validate:
+    GradleBuildFailure:
+      properties:
+        kind:
+          enum:
+            - task
+            - configuration
+          type: string
+          x-struct:
+          x-validate:
+        message:
+          type: string
+          x-struct:
+          x-validate:
+        project:
+          description: The Gradle build path.
+          type: string
+          x-struct:
+          x-validate:
+        step_id:
+          description: The step ID accepted by getGradleBuildStep.
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          description: The task path or configured project path.
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          description: The task path or configuration phase.
+          type: string
+          x-struct:
+          x-validate:
+        truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - step_id
+        - kind
+        - title
+        - project
+        - target
+        - message
+        - truncated
+      title: GradleBuildFailure
+      type: object
+      x-struct:
+      x-validate:
     TestCase:
       description: The schema for a test case.
       properties:
@@ -40675,7 +40724,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}:
     get:
       callbacks: {}
-      description: Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+      description: Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.
       operationId: getGradleBuildStep
       parameters:
         - description: Account handle.
@@ -50270,6 +50319,12 @@ paths:
                           type: object
                           x-struct:
                           x-validate:
+                        failure_message:
+                          description: Why the task failed, when the plugin reported it.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         id:
                           description: The task ID.
                           format: uuid
@@ -54820,6 +54875,12 @@ paths:
                           type: object
                           x-struct:
                           x-validate:
+                        failure_message:
+                          description: Why the task failed, when the plugin reported it.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         outcome:
                           type: string
                           x-struct:
@@ -54903,6 +54964,33 @@ paths:
                     x-validate:
                   configuration_operations:
                     items:
+                      properties:
+                        build_path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        failure_message:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        phase:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project_path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
                       type: object
                       x-struct:
                       x-validate:
@@ -54918,6 +55006,60 @@ paths:
                   id:
                     format: uuid
                     type: string
+                    x-struct:
+                    x-validate:
+                  failures:
+                    description: Failure messages of the build's failed configuration operations and tasks, in start order. Empty when the build succeeded or the reporting plugin predates failure reporting.
+                    items:
+                      properties:
+                        kind:
+                          enum:
+                            - task
+                            - configuration
+                          type: string
+                          x-struct:
+                          x-validate:
+                        message:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The Gradle build path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        step_id:
+                          description: The step ID accepted by getGradleBuildStep.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The task path or configured project path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          description: The task path or configuration phase.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        truncated:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                      required:
+                        - step_id
+                        - kind
+                        - title
+                        - project
+                        - target
+                        - message
+                        - truncated
+                      title: GradleBuildFailure
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   tasks_failed_count:
@@ -58344,6 +58486,24 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                      failure:
+                        description: 'Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.'
+                        nullable: true
+                        properties:
+                          message:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          truncated:
+                            description: Whether the client shortened the message.
+                            type: boolean
+                            x-struct:
+                            x-validate:
+                        required:
+                          - message
+                        type: object
+                        x-struct:
+                        x-validate:
                       phase:
                         enum:
                           - build
@@ -58627,6 +58787,24 @@ paths:
                           - build_path
                           - task_type
                           - cacheability
+                        type: object
+                        x-struct:
+                        x-validate:
+                      failure:
+                        description: 'Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.'
+                        nullable: true
+                        properties:
+                          message:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          truncated:
+                            description: Whether the client shortened the message.
+                            type: boolean
+                            x-struct:
+                            x-validate:
+                        required:
+                          - message
                         type: object
                         x-struct:
                         x-validate:
