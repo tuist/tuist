@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Local files only: extraction and desktop registration are faked.
 set -euo pipefail
+# Git Bash cannot model Unix executable permissions or icon symlinks reliably.
+# Windows integration is covered by the native NSIS install/uninstall smoke.
+case $(uname -s) in
+    MINGW*|MSYS*) printf 'SKIP: AppImage integration requires a Unix filesystem\n'; exit 0;;
+esac
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck source=desktop/distribution/appimage.sh
 source "$here/appimage.sh"

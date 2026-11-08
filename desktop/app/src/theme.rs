@@ -19,17 +19,12 @@ pub fn init(cx: &mut gpui::App) {
                 .background_executor()
                 .spawn(async { Palette::load_system() })
                 .await;
-            if cx
-                .update(|cx| {
-                    if cx.global::<ThemeState>().0 != palette {
-                        // set_global notifies observe_global subscribers itself.
-                        cx.set_global(ThemeState(palette));
-                    }
-                })
-                .is_err()
-            {
-                break;
-            }
+            cx.update(|cx| {
+                if cx.global::<ThemeState>().0 != palette {
+                    // set_global notifies observe_global subscribers itself.
+                    cx.set_global(ThemeState(palette));
+                }
+            });
             cx.background_executor()
                 .timer(std::time::Duration::from_secs(1))
                 .await;
