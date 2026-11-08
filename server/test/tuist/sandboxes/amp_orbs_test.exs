@@ -23,6 +23,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
+  alias Tuist.Storage
 
   setup do
     account = account_fixture()
@@ -95,7 +97,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert id == sandbox.id
   end
 
-  test "passes a read-only account cache credential and the Node's site-local cache endpoint", %{account: account} do
+  test "passes an account credential that reads the cache and reports builds, and the Node's site-local cache endpoint",
+       %{account: account} do
     project = project_fixture(account: account)
     other_project = project_fixture()
     sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
@@ -123,7 +126,14 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert_in_delta claims["exp"] - claims["iat"], 6 * 3600, 1
     assert {:ok, %AuthenticatedAccount{} = subject} = Guardian.resource_from_claims(claims)
     assert subject.account.id == account.id
-    assert subject.scopes == ["account:cache:read", "project:cache:read"]
+
+    assert subject.scopes == [
+             "account:cache:read",
+             "project:cache:read",
+             "project:builds:write",
+             "project:tests:write",
+             "project:runs:write"
+           ]
 
     assert %{"account" => %{"read" => [account_handle], "write" => []}, "project" => %{"read" => readable, "write" => []}} =
              Cache.cache_grants(subject)
@@ -134,7 +144,15 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert Authorization.authorize(:project_cache_read, subject, project) == :ok
     assert Authorization.authorize(:project_cache_create, subject, project) != :ok
     assert Authorization.authorize(:account_cache_create, subject, account) != :ok
-    assert Authorization.authorize(:run_create, subject, project) != :ok
+
+    for action <- [:build_create, :test_create, :run_create] do
+      assert Authorization.authorize(action, subject, project) == :ok
+      assert Authorization.authorize(action, subject, other_project) != :ok
+    end
+
+    assert Authorization.authorize(:preview_create, subject, project) != :ok
+    assert Authorization.authorize(:bundle_create, subject, project) != :ok
+    assert Authorization.authorize(:project_update, subject, project) != :ok
   end
 
   test "pause is repeatable and only releases residency after a successful snapshot", %{account: account} do
@@ -402,6 +420,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
         sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
 
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
 
       expect_setup_read()
 
@@ -424,6 +443,10 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       assert source == sandbox.id
 
+      # The ready snapshot is queued for upload, so any node can boot from it.
+      assert [%{args: %{"disk_snapshot_id" => queued}}] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert queued == Repo.one!(DiskSnapshot).id
+
       # Amp may replay the pause; the copy of this pause is not saved twice.
       reject(&Nodes.call/4)
       assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", params)
@@ -444,6 +467,35 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       assert {:ok, _} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
       assert [%DiskSnapshot{node_name: "node-a"}] = Repo.all(DiskSnapshot)
+    end
+
+    test "a save under a new ID replaces the snapshot the Orb was spawned from", %{account: account} do
+      base = disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-a")
+      other_project = disk_snapshot_fixture(account: account, amp_snapshot_id: "other-1", node_name: "node-a")
+      other_account = disk_snapshot_fixture(account: account_fixture(), amp_snapshot_id: "proj-1", node_name: "node-a")
+
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", %{from_disk_snapshot: _}, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect_setup_read()
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => true}} end)
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-a", "delete_disks", %{snapshot_id: id}, _opts ->
+        assert id == base.id
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", %{operation: "pause", snapshot_id: "proj-2"})
+
+      refute Repo.get(DiskSnapshot, base.id)
+      assert Repo.get(DiskSnapshot, other_project.id)
+      assert Repo.get(DiskSnapshot, other_account.id)
+      assert Repo.get_by(DiskSnapshot, account_id: account.id, amp_snapshot_id: "proj-2", state: :ready)
     end
 
     test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
@@ -544,6 +596,106 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       assert {:ok, %{node_name: "node-b"}} =
                AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+    end
+
+    defp archived_snapshot(account, opts) do
+      disk_snapshot_fixture(
+        Keyword.merge(
+          [
+            account: account,
+            amp_snapshot_id: "proj-1",
+            node_name: "node-a",
+            archive_key: "snapshot-key",
+            archive_bytes: 2048,
+            archive_sha256: "cafe",
+            archived_at: DateTime.utc_now(),
+            last_used_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+          ],
+          opts
+        )
+      )
+    end
+
+    defp expect_archive_create(node_name) do
+      expect(Storage, :generate_download_url, fn "snapshot-key", _actor, _opts -> "https://s3/snapshot" end)
+
+      expect(Nodes, :call, fn ^node_name, "create", args, opts ->
+        assert args.from_archive == %{url: "https://s3/snapshot", bytes: 2048, sha256: "cafe"}
+        refute Map.has_key?(args, :from_disk_snapshot)
+        assert opts[:timeout] > to_timeout(second: 120)
+        {:ok, %{}}
+      end)
+    end
+
+    test "a snapshot node without room creates the Orb from the snapshot's archive elsewhere", %{account: account} do
+      snapshot = archived_snapshot(account, [])
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:error, :no_capacity} end)
+      expect(Capacity, :place, fn %Sandbox{node_name: nil} -> {:ok, "node-b"} end)
+      expect_archive_create("node-b")
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{state: :running, node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      assert DateTime.after?(Repo.reload!(snapshot).last_used_at, snapshot.last_used_at)
+      sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+      assert [%{boot_source: "disk_snapshot_archive"}] = sandbox_events(sandbox, "started")
+    end
+
+    test "an archived snapshot whose node copy is gone is created from its archive", %{account: account} do
+      archived_snapshot(account, node_name: nil)
+      reject(&Capacity.place_on_node/2)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+      expect_archive_create("node-b")
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+    end
+
+    test "a clone the node lost falls back to the archive and keeps the archived row", %{account: account} do
+      snapshot = archived_snapshot(account, [])
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", %{from_disk_snapshot: _}, _opts ->
+        {:error, "disk snapshot not found: #{snapshot.id}"}
+      end)
+
+      expect(Capacity, :place, fn %Sandbox{node_name: nil} = sandbox ->
+        refute Repo.reload!(sandbox).node_name
+        {:ok, "node-b"}
+      end)
+
+      expect_archive_create("node-b")
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      assert %DiskSnapshot{node_name: nil, archive_key: "snapshot-key"} = Repo.reload!(snapshot)
+    end
+
+    test "a failed create from the archive boots the template on the same node", %{account: account} do
+      archived_snapshot(account, node_name: nil)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+      expect(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3/snapshot" end)
+
+      expect(Nodes, :call, fn "node-b", "create", %{from_archive: _}, _opts ->
+        {:error, "restoring archive: checksum mismatch"}
+      end)
+
+      expect(Nodes, :call, fn "node-b", "create", args, _opts ->
+        refute Map.has_key?(args, :from_archive)
+        {:ok, %{}}
+      end)
+
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+      assert [%{boot_source: "template"}] = sandbox_events(sandbox, "started")
     end
 
     test "snapshots are account-scoped", %{account: account} do

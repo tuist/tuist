@@ -25,23 +25,77 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
+import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.ui.notifications.NotificationsScreen
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
-import dev.tuist.app.ui.threads.ThreadsScreen
-import dev.tuist.app.ui.threads.ThreadsViewModel
+import dev.tuist.app.ui.jams.JamsScreen
+import dev.tuist.app.ui.jams.JamsViewModel
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val threadsViewModel: ThreadsViewModel = hiltViewModel()
-    val threadsState by threadsViewModel.state.collectAsStateWithLifecycle()
+    val jamsViewModel: JamsViewModel = hiltViewModel()
+    val jamsState by jamsViewModel.state.collectAsStateWithLifecycle()
+    val pendingUrl by navigation.pendingUrl.collectAsStateWithLifecycle()
 
-    LaunchedEffect(threadsState.enabled) {
-        if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
+    LaunchedEffect(pendingUrl, authState) {
+        val url = pendingUrl ?: return@LaunchedEffect
+        val route = navigation.pendingRoute(authState) ?: return@LaunchedEffect
+        navController.navigateAppRoute(route)
+        navigation.consume(url)
+    }
+    val profilesViewModel: ProfilesViewModel = hiltViewModel()
+    val profiles by profilesViewModel.auth.profiles.collectAsStateWithLifecycle()
+    val loading by profilesViewModel.loading.collectAsStateWithLifecycle()
+    val failed by profilesViewModel.failed.collectAsStateWithLifecycle()
+    val session by profilesViewModel.auth.session.collectAsStateWithLifecycle()
+    var choosing by remember { mutableStateOf(false) }
+    val chooserLabel = stringResource(R.string.profiles_title)
+
+    if (choosing) AlertDialog(
+        onDismissRequest = { choosing = false; profilesViewModel.cancelSelection() },
+        title = { Text(chooserLabel) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (loading) Text(stringResource(R.string.profiles_switching))
+                if (failed) Text(stringResource(R.string.profiles_switch_failed))
+                profiles.forEach { profile ->
+                    val active = profile.id == session.profileId
+                    TextButton(enabled = !loading, onClick = {
+                        profilesViewModel.select(profile.id) { choosing = false }
+                    }) {
+                        Text((if (active) "✓ " else "") + profile.label + "\n" + profile.server)
+                    }
+                }
+                TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection(); profilesViewModel.auth.beginAddProfile() }) {
+                    Text(stringResource(R.string.profiles_add))
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection() }) { Text(stringResource(R.string.profiles_cancel)) } },
+    )
+
+    LaunchedEffect(jamsState.enabled) {
+        if (!jamsState.enabled && currentDestination?.hasRoute<HomeTabs.Jams>() == true) {
             navController.navigate(HomeTabs.Previews) {
                 popUpTo(HomeTabs.Previews) { inclusive = true }
                 launchSingleTop = true
@@ -60,12 +114,7 @@ fun HomeScreen() {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Previews>()
                     } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Previews) {
-                            popUpTo(HomeTabs.Previews) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
+                    onClick = { navigation.open(AppRoute.Previews) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.ic_device_mobile),
@@ -74,10 +123,10 @@ fun HomeScreen() {
                     },
                     label = { Text(stringResource(R.string.previews_title)) },
                 )
-                if (threadsState.enabled) NavigationBarItem(
-                    selected = currentDestination?.hasRoute<HomeTabs.Threads>() == true,
+                if (jamsState.enabled) NavigationBarItem(
+                    selected = currentDestination?.hasRoute<HomeTabs.Jams>() == true,
                     onClick = {
-                        navController.navigate(HomeTabs.Threads) {
+                        navController.navigate(HomeTabs.Jams) {
                             popUpTo(HomeTabs.Previews)
                             launchSingleTop = true
                         }
@@ -89,12 +138,25 @@ fun HomeScreen() {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Profile>()
                     } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Profile) {
-                            popUpTo(HomeTabs.Previews)
-                            launchSingleTop = true
-                        }
-                    },
+                    modifier = Modifier
+                        .semantics { onLongClick(chooserLabel) { choosing = true; true } }
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                val held = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                    waitForUpOrCancellation(PointerEventPass.Initial)
+                                    false
+                                } ?: true
+                                if (held) {
+                                    choosing = true
+                                    do {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        event.changes.forEach { it.consume() }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                        },
+                    onClick = { navigation.open(AppRoute.Profile) },
                     icon = {
                         if (currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true) {
                             Icon(Icons.Filled.Person, contentDescription = null)
@@ -116,7 +178,7 @@ fun HomeScreen() {
             composable<HomeTabs.Previews> {
                 PreviewsScreen(
                     onPreviewClick = { previewId, fullHandle ->
-                        navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))
+                        navigation.preview(previewId, fullHandle)
                     },
                 )
             }
@@ -128,8 +190,8 @@ fun HomeScreen() {
             composable<HomeTabs.Notifications> {
                 NotificationsScreen(onBack = { navController.popBackStack() })
             }
-            composable<HomeTabs.Threads> {
-                ThreadsScreen(threadsViewModel)
+            composable<HomeTabs.Jams> {
+                JamsScreen(jamsViewModel)
             }
             composable<HomeTabs.PreviewDetail> {
                 PreviewDetailScreen(

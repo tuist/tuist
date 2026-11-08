@@ -5,9 +5,9 @@
   "description": "გამოიყენეთ Tuist Registry XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით გენერირებულ პროექტებში."
 }
 ---
-# გენერირებული პროექტი XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით {#generated-project-with-xcodeproj-based-integration}
+# გენერირებული პროექტი XcodeProj-ზე დაფუძნებული პაკეტების ინტეგრაციით {#generated-project-with-xcodeproj-based-integration}
 
-როდესაც იყენებთ <.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-ზე დაფუძნებულ ინტეგრაციას</.localized_link>, შეგიძლიათ გამოიყენოთ ``--replace-scm-with-registry`` ფლაგი რეპოსიტორიდან დამოკიდებულებების ამოსაცნობად, თუ ისინი ხელმისაწვდომია. დაამატეთ ის `installOptions`-ში თქვენს `Tuist.swift` ფაილში:
+<.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-ზე დაფუძნებული ინტეგრაციის</.localized_link> გამოყენებისას, შეგიძლიათ გამოიყენოთ `--replace-scm-with-registry` ფლაგი დამოკიდებულებების რეესტრიდან ამოსაცნობად, თუ ისინი ხელმისაწვდომია. დაამატეთ ის თქვენს `Tuist.swift` ფაილში, `installOptions`-ში:
 ```swift
 import ProjectDescription
 
@@ -19,10 +19,6 @@ let tuist = Tuist(
 )
 ```
 
-თუ გსურთ უზრუნველყოთ, რომ რეპოსიტორი ყოველ ჯერზე გამოიყენება დამოკიდებულებების ამოცნობისას, მოგიწევთ `dependencies`-ის განახლება თქვენს `Tuist/Package.swift` ფაილში, რათა გამოიყენოთ რეპოსიტორის იდენტიფიკატორი URL-ის ნაცვლად. რეპოსიტორის იდენტიფიკატორი ყოველთვის არის `{organization}.{repository}` ფორმატში. მაგალითად, `swift-composable-architecture` პაკეტისთვის რეპოსიტორის გამოსაყენებლად, გააკეთეთ შემდეგი:
-```diff
-dependencies: [
--   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
-+   .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
-]
-```
+თუ გსურთ უზრუნველყოთ, რომ რეესტრი ყოველ ჯერზე იქნას გამოყენებული დამოკიდებულებების ამოცნობისას, თქვენ უნდა განაახლოთ `dependencies` თქვენს `Tuist/Package.swift` ფაილში, რათა გამოიყენოთ რეესტრის იდენტიფიკატორი URL-ის ნაცვლად.
+
+<!-- @snippet: ./_registry-identifier -->

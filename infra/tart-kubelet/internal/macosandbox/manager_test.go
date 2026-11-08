@@ -21,6 +21,7 @@ type fakeRuntime struct {
 	busy                     bool
 	worker                   WorkerStatus
 	saveErr, errorRecovery   error
+	createErr                error
 	saveStarted, saveRelease chan struct{}
 	creates, warms           int
 	// Warm VMs boot in the background.
@@ -30,6 +31,10 @@ type fakeRuntime struct {
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
 	f.creates++
+	if f.createErr != nil {
+		f.states[r.SandboxID] = "booting" // A VM that never became ready.
+		return f.createErr
+	}
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"
 	return nil
@@ -415,6 +420,39 @@ func TestInterruptedDeleteIsRetriedAfterRestart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(m.Root, a.SandboxID+".json")); !os.IsNotExist(err) {
 		t.Fatal("journal leaked")
+	}
+}
+
+// A host that cannot reach the server never receives a delete for a create
+// that failed there, so recovery must free the slot itself.
+func TestFailedCreateIsDeletedAndReleasedAfterRestart(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := context.Background()
+	r.createErr = errors.New("VM exited before guest readiness")
+	if m.Create(ctx, a) == nil {
+		t.Fatal("expected create failure")
+	}
+	if !c.held[a.SandboxID] {
+		t.Fatal("uncertain start released its reservation before the VM was deleted")
+	}
+	r.createErr = nil
+	r.errorRecovery = errors.New("creation did not finish")
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.held) != 0 || len(r.states) != 0 || len(recovered.Snapshot()) != 0 {
+		t.Fatalf("failed create kept its slot: held=%v vms=%v reported=%v", c.held, r.states, recovered.Snapshot())
+	}
+	if _, err := os.Stat(filepath.Join(m.Root, a.SandboxID+".json")); !os.IsNotExist(err) {
+		t.Fatal("journal leaked")
+	}
+	r.errorRecovery = nil
+	if err := recovered.Create(ctx, a); err != nil {
+		t.Fatalf("retrying the create: %v", err)
 	}
 }
 func TestDispatchFencesOwnerAndKeepsCredentialsOutOfJournal(t *testing.T) {

@@ -50,7 +50,7 @@ msgstr "未找到告警规则。请重试。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "授权请求已过期。请重新开始 Slack 连接流程。"
+msgstr "授权请求已过期。请重新启动 Slack 连接流程。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

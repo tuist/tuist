@@ -1,0 +1,99 @@
+name: Linux Host Kernel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/host-kernel/**
+      - .github/workflows/host-kernel.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/host-kernel/**
+      - .github/workflows/host-kernel.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: host-kernel-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve release
+        id: release
+        run: |
+          . infra/host-kernel/release.env
+          echo "tag=host-kernel@${KERNEL_VERSION}-${REVISION}" >> "$GITHUB_OUTPUT"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential flex bison bc libelf-dev libssl-dev \
+            dwarves cpio kmod rsync debhelper dpkg-dev libdw-dev xz-utils gnupg curl \
+            busybox-static qemu-system-x86 python3
+          # A distribution-wide driver build with BTF needs more space than
+          # the hosted image leaves free alongside unrelated SDKs.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Check scripts
+        run: shellcheck -x -P SCRIPTDIR infra/host-kernel/*.sh
+      - name: Build signed-source kernel packages
+        run: bash infra/host-kernel/build.sh out
+      - name: Check packages
+        run: |
+          set -euo pipefail
+          . infra/host-kernel/release.env
+          (cd out && sha256sum -c SHA256SUMS)
+          for package in out/*.deb; do
+            test "$(dpkg-deb -f "$package" Architecture)" = amd64
+            test "$(dpkg-deb -f "$package" Version)" = "$KERNEL_VERSION-$REVISION"
+          done
+          mkdir extracted
+          dpkg-deb -x out/linux-image-*.deb extracted
+          test -s "extracted/boot/vmlinuz-$KERNEL_VERSION-tuist$REVISION"
+          test -d "extracted/lib/modules/$KERNEL_VERSION-tuist$REVISION"
+          bash infra/host-kernel/check-config.sh "extracted/boot/config-$KERNEL_VERSION-tuist$REVISION"
+      - name: Boot packaged kernel and load host modules
+        run: sudo bash infra/host-kernel/boot-test.sh out/linux-image-*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-kernel
+          path: out/
+          if-no-files-found: error
+
+  # Publishing never installs anything. Physical-host qualification and an
+  # explicit follow-up bootstrap pin must precede any fleet-wide activation.
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: host-kernel
+          path: out
+      - name: Publish immutable revision
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$TAG already exists; bump REVISION to publish changed inputs."
+            exit 0
+          fi
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TAG" --latest=false \
+            --notes 'Unsigned amd64 host kernel candidate. Not fleet-qualified. See infra/host-kernel/README.md for canary gates and rollback.'

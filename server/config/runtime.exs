@@ -20,6 +20,16 @@ import Config
 alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
 
+# Initial Pulse enrollment is one stable organization account ID, never a handle
+# supplied by the browser. Leave unset outside the Tuist deployment.
+config :tuist, :pulse,
+  account_id:
+    if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
+  base_url: System.get_env("TUIST_PULSE_URL"),
+  tenant: System.get_env("TUIST_PULSE_TENANT"),
+  token: System.get_env("TUIST_PULSE_TOKEN"),
+  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
@@ -773,8 +783,10 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # cannot delay either.
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
+# Disk snapshot archive uploads each hold a slot for up to half an hour, so
+# they take turns on their own queue instead of filling :default.
 base_queues = [
-  threads: 10,
+  jams: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -787,7 +799,8 @@ base_queues = [
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,
-  coverage_deltas: 2
+  coverage_deltas: 2,
+  sandbox_archives: 2
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

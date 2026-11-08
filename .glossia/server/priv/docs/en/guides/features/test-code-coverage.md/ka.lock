@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bd727389bdf7aace2733019ee29e09f6dc3f33fec66238dd37ec2951c00691bd",
+  "hash": "840618d18c0284a07d53952f40bf027b5d530c96471063f94a960781c8e29140",
   "hash_tree": {
     "root": {
       "children": [
@@ -85,7 +85,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -104,7 +104,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -133,11 +133,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -232,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "fb203f61af943aa5365f861f840144d3ac8aae383808f4404608a78e9931be2b",
+          "hash": "2f456329f915210dc78bfee458e4fec2220c5d9e7ca6406ddf8726a7d0a9ee11",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "bd727389bdf7aace2733019ee29e09f6dc3f33fec66238dd37ec2951c00691bd",
+      "hash": "840618d18c0284a07d53952f40bf027b5d530c96471063f94a960781c8e29140",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "fbcb53808389bbb30686005405faee9c88ce8dd988e4f9878735704da5b11317",
+  "output_hash": "e2e2fa781735f18be27f5a9ec7f0b4a91fad49213cfb48311bbfab21d5a28e0e",
   "output_path": "server/priv/docs/ka/guides/features/test-code-coverage.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "29c7b162758c78109c190ffa135e1ab46aaeec29",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage.md",
-  "translated_at": "2026-11-03T22:01:37.469245Z",
-  "translation_session_id": "01a1a36d-1b3e-78bf-a433-f40ba82ecdbe"
+  "translated_at": "2026-11-06T21:25:51.663289Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

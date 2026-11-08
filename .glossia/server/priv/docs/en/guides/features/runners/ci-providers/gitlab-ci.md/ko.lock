@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7950d8014d50c566028834f1e771751a5207f690de47acaa8bb67d7303e09f18",
+  "hash": "895281151301bbe0c24407e49d1a6c8dc2907dd646fe9f47a68ab88488f76a33",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# GitLab CI {#gitlab-ci}": {
-                  "content_hash": "9d3c6aaa2538af00f97d5f882609ae68cb0c6335bc05845c825e88755d86d45a"
+                  "content_hash": "c69d87000620d2d7a0d32e3a75404000dde0f7170b2a3f2544cc1ed03babbd48"
                 },
                 "## Cache volumes {#cache-volumes}": {
                   "content_hash": "d79c4855d52fbc6ed9e95a45871bc7780b86cb460a7122c7e8016a3b5604b29d"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "67bbe615389a2c167b6801611a4c29e8bcf54f81cd44d09d003b8b97fc7cde0b",
+          "hash": "c7427b5e6fe9f877a36789e3728be8e7a3505b7a6c87f50e959bfa6b8092f557",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
           "metadata": {
-            "content_hash": "7eb06968b7a11aef6425a4d622092f72df904d43d8f22b4ba9d8ba8519b78240"
+            "content_hash": "1ae934a50e2c09cdefab2681d12f7a75ba95171d4ff25740e656a713fbd3265f"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -232,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "3a88c8888aad6bf09ab4f869eeffb06f2bec8e2493a96bfe48dc08682c4b9c44",
+          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "7950d8014d50c566028834f1e771751a5207f690de47acaa8bb67d7303e09f18",
+      "hash": "895281151301bbe0c24407e49d1a6c8dc2907dd646fe9f47a68ab88488f76a33",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "417aa4414779975dbb063c14b71b4437ad9e2c288cd709980078705fd39745a4",
+  "output_hash": "31f7f2e95bc24224bf90903b3f808d56b44b417d8f39c402add698760b38ec06",
   "output_path": "server/priv/docs/ko/guides/features/runners/ci-providers/gitlab-ci.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7a484041d7b5ba8b1c69eabc1dfec14c4763f258",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/gitlab-ci.md",
-  "translated_at": "2026-11-02T14:32:17.043535Z",
-  "translation_session_id": "01a19cab-55ad-799c-80bc-aed3e71e4bd0"
+  "translated_at": "2026-11-06T19:14:53.113143Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

@@ -1,34 +1,38 @@
 ---
 {
   "title": "დოკუმენტაცია",
-  "titleTemplate": ":title · კოდი · კონტრიბუტორები · Tuist",
+  "titleTemplate": ":title · კოდი · წევრები · Tuist",
   "description": "შეიტანეთ წვლილი Tuist-ის დოკუმენტაციის საიტში."
 }
 ---
 # დოკუმენტაცია {#docs}
 
-წყარო: [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
+წყარო: [github.com/tuist/tuist/tree/main/server/priv/docs](https://github.com/tuist/tuist/tree/main/server/priv/docs)
 
 ## რისთვისაა განკუთვნილი {#what-it-is-for}
 
-დოკუმენტაციის საიტი შეიცავს Tuist-ის პროდუქტისა და კონტრიბუტორების დოკუმენტაციას. ის აგებულია VitePress-ით.
+დოკუმენტაციის საიტი შეიცავს Tuist-ის პროდუქტისა და კონტრიბუტორების დოკუმენტაციას. ის არის Tuist სერვერის ნაწილი, Phoenix აპლიკაცია, რომელიც ასახავს Markdown გვერდებს `server/priv/docs/en` ქვეშ მისამართზე `/docs`.
 
-## როგორ შეგიძლიათ წვლილი შეიტანოთ {#how-to-contribute}
+## როგორ შევიტანოთ წვლილი {#how-to-contribute}
 
-### ლოკალურად გაშვება {#set-up-locally}
+ჩაასწორეთ ინგლისური გვერდები `server/priv/docs/en` ქვეშ. თარგმანები ცალკე იმართება, ამიტომ ნუ შეცვლით სხვა ენის დირექტორიებს. გვერდითი პანელი განისაზღვრება `server/lib/tuist/docs_sidebar.ex`-ში; დაამატეთ ახალი გვერდები იქ, რათა მკითხველებმა იპოვონ ისინი.
+
+როდესაც რამდენიმე გვერდი იზიარებს ერთსა და იმავე ტექსტს, მაგალითად, ერთსა და იმავე სექციას სხვადასხვა ბილდის სისტემებში, მოათავსეთ ის ფაილში, რომლის სახელი იწყება `_`-ით ამ გვერდების გვერდით და ჩართეთ ის `@snippet:` HTML კომენტარით, რომელიც მიუთითებს ფაილზე, როგორც ეს არასტაბილური ტესტების გვერდებზეა გაკეთებული. ფაილები, რომლებიც იწყება `_`-ით, არ გამოქვეყნდება როგორც დამოუკიდებელი გვერდები.
+
+### ლოკალურად გამართვა {#set-up-locally}
+
+გაუშვით სერვერი `server` დირექტორიიდან, მიჰყევით მის [გამართვის ინსტრუქციებს](https://github.com/tuist/tuist/blob/main/server/AGENTS.md):
 
 ```bash
-cd docs
+cd server
 mise install
 mise run dev
 ```
 
-### არჩევითი გენერირებული მონაცემები {#optional-generated-data}
+შემდეგ გახსენით [http://localhost:8080/en/docs](http://localhost:8080/en/docs).
 
-დოკუმენტაციაში ჩართულია ზოგიერთი გენერირებული მონაცემი:
+### გენერირებული შინაარსი {#generated-content}
 
-- CLI-ის ცნობარის მონაცემები: `mise run generate-cli-docs`
+CLI-ის ცნობარი გენერირდება უახლესი CLI ვერსიის ბრძანების სპეციფიკაციიდან, ამიტომ მისი ლოკალურად აგება არ არის საჭირო.
 
-ეს არჩევითია. დოკუმენტაცია მათ გარეშეც გამოისახება, ამიტომ გაუშვით მხოლოდ მაშინ, როცა გენერირებული შინაარსის განახლება გჭირდებათ.
-
-ProjectDescription API-ის ცნობარი ცალკეა განთავსებული DocC საიტზე [projectdescription.tuist.dev](https://projectdescription.tuist.dev). ლოკალურად ასაგებად, რეპოზიტორიის ფესვიდან გაუშვით `mise run docs:project-description`.
+ProjectDescription API-ის ცნობარი ცალკეა განთავსებული როგორც DocC საიტი მისამართზე [projectdescription.tuist.dev](https://projectdescription.tuist.dev). მისი ლოკალურად აგებისთვის, გაუშვით `mise run docs:project-description` რეპოზიტორიის ძირიდან.

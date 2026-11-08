@@ -11,10 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
-      Threads,
-      Threads.Checkpoints,
-      Threads.Thread,
-      Threads.RecoveryWorker,
+      Jams,
+      Jams.Checkpoints,
+      Jams.Jam,
+      Jams.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -23,6 +23,7 @@ defmodule Tuist do
       Marketing.Blog,
       Marketing.Blog.CoverArtwork,
       Marketing.Content,
+      Marketing.MDExConverter,
       Marketing.Pages,
       Docs,
       Docs.OgImage,
@@ -287,6 +288,8 @@ defmodule Tuist do
       Analytics,
       Environment,
       FeatureFlags,
+      Pulse,
+      Pulse.Schemas,
       Ecto.Utils,
       GitHub.InstallationAuthorization,
       GitHub.Installations,
@@ -339,6 +342,7 @@ defmodule Tuist do
       Sandboxes.AgentSession,
       Sandboxes.ClaudeCodeRunners,
       Sandboxes.ClaudeCodeRuntime,
+      Sandboxes.Commands,
       Sandboxes.Anthropic.Client,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,

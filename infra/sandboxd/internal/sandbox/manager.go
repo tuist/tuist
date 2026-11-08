@@ -54,6 +54,9 @@ type Config struct {
 	AllowedShapes []template.Shape
 	// SnapshotDir holds disk snapshots; empty disables them.
 	SnapshotDir string
+	// FirecrackerVersion is the running binary's version, recorded with
+	// every memory image a pause writes.
+	FirecrackerVersion string
 }
 
 type Deps struct {
@@ -349,6 +352,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0
+	sb.meta.FirecrackerVersion = artifacts.Meta.FirecrackerVersion
 	sb.meta.Error = ""
 	err = sb.meta.Save(root)
 	sb.mu.Unlock()
@@ -785,6 +789,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	sb.mu.Lock()
 	sb.meta.State = protocol.StatePaused
 	sb.meta.Generation++
+	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
 	sb.meta.DisksSynced = synced
 	sb.meta.Error = ""
 	err = sb.meta.Save(sb.root)
@@ -1215,7 +1220,12 @@ func (m *Manager) Recover(ctx context.Context) error {
 		}
 		hasDisks := vm.Exists(filepath.Join(root, firecracker.RootfsPath)) && vm.Exists(filepath.Join(root, firecracker.WorkspacePath)) && vm.Exists(filepath.Join(root, firecracker.KernelPath))
 		switch meta.State {
-		case protocol.StatePaused, protocol.StateError:
+		case protocol.StatePaused:
+			if !meta.ColdBoot && meta.FirecrackerVersion != m.cfg.FirecrackerVersion && hasDisks {
+				m.log.Warn("sandbox memory image was written by another Firecracker version; it will cold boot on its next resume", "sandbox", meta.ID, "image_version", meta.FirecrackerVersion, "firecracker", m.cfg.FirecrackerVersion)
+				meta.ColdBoot = true
+			}
+		case protocol.StateError:
 		default:
 			// The VM was running when the daemon stopped, so its disks have
 			// moved on since whatever memory image is on disk; restoring that

@@ -32,6 +32,9 @@ defmodule TuistWeb.ProjectSitemapControllerTest do
     refute xml =~ "<lastmod>"
     assert get_resp_header(conn, "cache-control") == ["no-store"]
     assert get_resp_header(conn, "content-type") == ["application/xml; charset=utf-8"]
+    # Counted by Cloudflare's public-pages rate limit, which bounds the
+    # SBFM-exempt project sitemaps.
+    assert get_resp_header(conn, "x-tuist-public") == ["1"]
   end
 
   test "excludes SSO redirects but includes public accounts with anonymous access", %{conn: conn} do

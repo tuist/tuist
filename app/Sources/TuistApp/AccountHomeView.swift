@@ -1,8 +1,11 @@
 #if os(iOS)
     import SwiftUI
     import TuistAuthentication
+    import TuistErrorHandling
     import TuistFeatureFlags
+    import TuistNavigation
     import TuistNoora
+    import TuistOnboarding
     import TuistPreviews
     import TuistProfile
     import TuistServer
@@ -13,95 +16,75 @@
         var isLayoutPreview = false
 
         @EnvironmentObject private var authenticationService: AuthenticationService
+        @EnvironmentObject private var errorHandler: ErrorHandling
         @Environment(FeatureFlags.self) private var featureFlags
-        @State private var activeTab = "previews"
-        @State private var selectedAccount = "Tuist"
-        @State private var selectedThreadAccount: String?
-        @State private var organizations: [String] = []
-        @State private var accountsError: String?
-        @State private var showingAccounts = false
+        @Environment(AppNavigation.self) private var navigation
         @State private var showingSignOut = false
         @State private var showingPreviewNotice = false
-
-        private var threadAccount: String {
-            isLayoutPreview ? selectedAccount : selectedThreadAccount ?? account.handle
-        }
+        @State private var showingAddProfile = false
+        @State private var pendingProfile: StoredProfile?
 
         var body: some View {
-            TabView(selection: $activeTab) {
+            @Bindable var navigation = navigation
+            TabView(selection: $navigation.tab) {
                 if featureFlags.isEnabled(.ai) {
-                    ThreadsPreview(
-                        accountName: threadAccount,
-                        isLayoutPreview: isLayoutPreview,
-                        switchAccount: { showingAccounts = true }
+                    JamsPreview(
+                        accountName: account.handle,
+                        isLayoutPreview: isLayoutPreview
                     )
-                    .id("\(threadAccount)@\(AppServerEnvironmentService().url().absoluteString)")
-                    .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right.fill") }
-                    .tag("threads")
+                    .tabItem { Label("Jams", systemImage: "bubble.left.and.bubble.right.fill") }
+                    .tag(AppNavigation.Tab.jams)
                 }
 
                 previews
                     .tabItem { Label("Previews", systemImage: "square.stack.3d.up.fill") }
-                    .tag("previews")
+                    .tag(AppNavigation.Tab.previews)
 
                 profile
                     .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
-                    .tag("profile")
+                    .tag(AppNavigation.Tab.profile)
             }
             .background(ProfileTabContextMenu(menu: quickSwitchMenu))
             .tint(Noora.Colors.accent)
             .onAppear {
                 if isLayoutPreview, featureFlags.isEnabled(.ai) {
-                    activeTab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? "previews" : "threads"
+                    navigation.tab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? .previews : .jams
                 }
             }
             .onChange(of: featureFlags.isEnabled(.ai)) { _, enabled in
-                if !enabled, activeTab == "threads" { activeTab = "previews" }
+                if !enabled, navigation.tab == .jams { navigation.tab = .previews }
             }
-            .onOpenURL { _ in activeTab = "previews" }
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in activeTab = "previews" }
-            .sheet(isPresented: $showingAccounts) {
+            .sheet(isPresented: $showingAddProfile, onDismiss: {
+                authenticationService.cancelAddingProfile()
+            }) {
                 NavigationStack {
-                    List {
-                        Section {
-                            if isLayoutPreview {
-                                accountRow("Tuist", subtitle: "Organization", symbol: "building.2.crop.circle.fill")
-                                accountRow("Personal", subtitle: "@\(account.handle)", symbol: "person.crop.circle.fill")
-                            } else {
-                                accountRow(account.handle, subtitle: "@\(account.handle)", symbol: "person.crop.circle.fill")
-                                ForEach(organizations, id: \.self) { name in
-                                    accountRow(
-                                        name,
-                                        subtitle: String(localized: "Organization"),
-                                        symbol: "building.2.crop.circle.fill"
-                                    )
-                                }
+                    LogInView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { showingAddProfile = false }
+                                    .disabled(authenticationService.isSigningIn || authenticationService.isChangingProfile)
                             }
-                        } footer: {
-                            if isLayoutPreview { Text("Design preview · Sample accounts") }
                         }
-                        if let accountsError { Text(verbatim: accountsError).foregroundStyle(.red) }
-                    }
-                    .navigationTitle("Accounts")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Close", systemImage: "xmark") { showingAccounts = false }
-                                .labelStyle(.iconOnly)
+                }
+                .interactiveDismissDisabled(authenticationService.isSigningIn || authenticationService.isChangingProfile)
+                .onChange(of: authenticationService.isAddingProfile) { _, adding in
+                    if !adding { showingAddProfile = false }
+                }
+            }
+            .confirmationDialog("Switch profile?", isPresented: Binding(
+                get: { pendingProfile != nil }, set: { if !$0 { pendingProfile = nil } }
+            ), titleVisibility: .visible) {
+                if let pendingProfile {
+                    Button("Switch profile") {
+                        Task {
+                            do { try await authenticationService.switchProfile(pendingProfile.id) }
+                            catch { errorHandler.handle(error: error) }
+                            self.pendingProfile = nil
                         }
                     }
                 }
-                .presentationDetents([.medium])
-                .task {
-                    guard !isLayoutPreview else { return }
-                    do {
-                        let values = try await ListOrganizationsService()
-                            .listOrganizations(serverURL: AppServerEnvironmentService().url())
-                        guard !Task.isCancelled else { return }
-                        organizations = Array(Set(values)).sorted()
-                        accountsError = nil
-                    } catch { if !Task.isCancelled { accountsError = error.localizedDescription } }
-                }
+            } message: {
+                Text("Open screens and unsent drafts will be closed. Running jams will continue.")
             }
             .confirmationDialog("Sign out of Tuist?", isPresented: $showingSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) {
@@ -112,7 +95,7 @@
                     }
                 }
             } message: {
-                Text("Signing out of this app does not stop running threads.")
+                Text("Signing out of this app does not stop running jams.")
             }
             .alert("Layout preview", isPresented: $showingPreviewNotice) {
                 Button("OK", role: .cancel) {}
@@ -143,21 +126,6 @@
                                 .padding(.vertical, 4)
                             }
                             Section {
-                                Button { showingAccounts = true } label: {
-                                    HStack {
-                                        Label("Account", systemImage: "building.2")
-                                        Spacer()
-                                        Text(selectedAccount).foregroundStyle(Color.secondary)
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
-                                    }
-                                    .foregroundStyle(Color.primary)
-                                }
-                                .accessibilityLabel("Switch account")
-                                .accessibilityValue(selectedAccount)
-                            }
-                            Section {
                                 Link(destination: URL(string: "https://tuist.dev/terms")!) {
                                     Label("Terms of Service", systemImage: "doc.text")
                                         .foregroundStyle(Color.primary)
@@ -186,7 +154,6 @@
             #if DEBUG
                 if isLayoutPreview {
                     PreviewsLayoutPreview()
-                        .id(selectedAccount)
                 } else {
                     PreviewsView()
                 }
@@ -198,55 +165,47 @@
         private func quickSwitchMenu() -> UIMenu {
             var actions: [UIMenuElement] = []
             if isLayoutPreview {
-                actions = ["Tuist", "Personal"].map { name in
+                actions = [UIAction(
+                    title: "Tuist",
+                    subtitle: "tuist.dev",
+                    image: UIImage(systemName: "person.crop.circle"),
+                    state: .on
+                ) { _ in }]
+            } else {
+                actions = authenticationService.profiles.map { profile in
                     UIAction(
-                        title: name,
-                        image: UIImage(systemName: name == "Tuist" ? "building.2" : "person"),
-                        state: selectedAccount == name ? .on : .off
+                        title: profile.account.handle,
+                        subtitle: (profile.server?.url ?? ServerEnvironmentService().url()).absoluteString,
+                        image: UIImage(systemName: "person.crop.circle"),
+                        state: authenticationService.activeProfileID == profile.id ? .on : .off
                     ) { _ in
-                        selectAccount(name)
+                        if profile.id != authenticationService.activeProfileID { pendingProfile = profile }
                     }
                 }
+                actions.append(UIAction(
+                    title: String(localized: "Add profile"), image: UIImage(systemName: "person.badge.plus")
+                ) { _ in
+                    Task {
+                        do {
+                            try await authenticationService.beginAddingProfile()
+                            showingAddProfile = true
+                        } catch { errorHandler.handle(error: error) }
+                    }
+                })
             }
             actions.append(UIMenu(options: .displayInline, children: [
-                UIAction(title: "View profile", image: UIImage(systemName: "person.crop.circle")) { _ in
-                    activeTab = "profile"
+                UIAction(title: String(localized: "View profile"), image: UIImage(systemName: "person.crop.circle")) { _ in
+                    navigation.navigate(to: .profile)
                 },
                 UIAction(
-                    title: "Sign out",
+                    title: String(localized: "Sign out"),
                     image: UIImage(systemName: "rectangle.portrait.and.arrow.right"),
                     attributes: .destructive
                 ) { _ in
                     showingSignOut = true
                 },
             ]))
-            return UIMenu(title: isLayoutPreview ? "Switch account" : "Profile", children: actions)
-        }
-
-        private func selectAccount(_ name: String) {
-            if isLayoutPreview { selectedAccount = name } else { selectedThreadAccount = name }
-            showingAccounts = false
-        }
-
-        private func accountRow(_ name: String, subtitle: String, symbol: String) -> some View {
-            Button {
-                selectAccount(name)
-            } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: symbol)
-                        .foregroundStyle(Noora.Colors.accent)
-                        .frame(width: 24)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(name).foregroundStyle(Noora.Colors.surfaceLabelPrimary)
-                        Text(subtitle).font(.subheadline).foregroundStyle(Color.secondary)
-                    }
-                    Spacer()
-                    if threadAccount == name {
-                        Image(systemName: "checkmark").foregroundStyle(Noora.Colors.accent)
-                    }
-                }
-                .padding(.vertical, 8)
-            }
+            return UIMenu(title: String(localized: "Profiles"), children: actions)
         }
     }
 
@@ -268,7 +227,6 @@
 
         final class MenuController: UIViewController, UIContextMenuInteractionDelegate {
             var menu: () -> UIMenu
-            private weak var tabBar: UITabBar?
             private lazy var interaction = UIContextMenuInteraction(delegate: self)
 
             init(menu: @escaping () -> UIMenu) {
@@ -288,15 +246,15 @@
                 while let parent = root.parent {
                     root = parent
                 }
-                guard let bar = findTabBar(in: root), bar !== tabBar else { return }
+                guard let bar = findTabBar(in: root), let title = bar.items?.last?.title,
+                      let button = profileButton(in: bar, title: title), button !== interaction.view
+                else { return }
                 uninstall()
-                tabBar = bar
-                bar.addInteraction(interaction)
+                button.addInteraction(interaction)
             }
 
             func uninstall() {
-                tabBar?.removeInteraction(interaction)
-                tabBar = nil
+                interaction.view?.removeInteraction(interaction)
             }
 
             private func findTabBar(in controller: UIViewController) -> UITabBar? {
@@ -307,29 +265,49 @@
                 return nil
             }
 
-            private func profileItem(in view: UIView) -> UIView? {
-                if view is UIControl, view.accessibilityLabel == tabBar?.items?.last?.title { return view }
-                for child in view.subviews {
-                    if let item = profileItem(in: child) { return item }
+            private func profileButton(in view: UIView, title: String) -> UIView? {
+                if view is UIControl,
+                   view.accessibilityLabel == title || view.subviews.contains(where: { ($0 as? UILabel)?.text == title })
+                {
+                    return view
+                }
+                for child in view.subviews.reversed() {
+                    if let button = profileButton(in: child, title: title) { return button }
                 }
                 return nil
             }
 
             func contextMenuInteraction(
-                _: UIContextMenuInteraction,
+                _ interaction: UIContextMenuInteraction,
                 previewForHighlightingMenuWithConfiguration _: UIContextMenuConfiguration
             ) -> UITargetedPreview? {
-                guard let tabBar, let item = profileItem(in: tabBar) else { return nil }
-                return UITargetedPreview(view: item)
+                guard let button = interaction.view, let window = button.window else { return nil }
+                // Keep UIKit-managed tab buttons in their glass bar rather than lifting them into the menu preview.
+                let preview = UIView(frame: CGRect(x: 0, y: 0, width: button.bounds.width, height: 1))
+                let parameters = UIPreviewParameters()
+                parameters.backgroundColor = .clear
+                parameters.shadowPath = UIBezierPath()
+                return UITargetedPreview(
+                    view: preview,
+                    parameters: parameters,
+                    target: UIPreviewTarget(
+                        container: window,
+                        center: button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.minY), to: window)
+                    )
+                )
+            }
+
+            func contextMenuInteraction(
+                _ interaction: UIContextMenuInteraction,
+                previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
+            ) -> UITargetedPreview? {
+                contextMenuInteraction(interaction, previewForHighlightingMenuWithConfiguration: configuration)
             }
 
             func contextMenuInteraction(
                 _: UIContextMenuInteraction,
-                configurationForMenuAtLocation location: CGPoint
+                configurationForMenuAtLocation _: CGPoint
             ) -> UIContextMenuConfiguration? {
-                guard let tabBar, let count = tabBar.items?.count, count > 0,
-                      location.x >= tabBar.bounds.width * CGFloat(count - 1) / CGFloat(count)
-                else { return nil }
                 return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in self.menu() }
             }
         }

@@ -35,6 +35,8 @@ defmodule Tuist.Gradle.Task do
     field :remote_cache_miss, Ch, type: "Bool"
     field :remote_cache_stored, Ch, type: "Nullable(Bool)"
     field :started_at, Ch, type: "Nullable(DateTime64(6))"
+    field :failure_message, Ch, type: "String", default: ""
+    field :failure_message_truncated, Ch, type: "Bool", default: false
     field :project_id, Ch, type: "Int64"
     field :inserted_at, Ch, type: "DateTime"
   end

@@ -388,6 +388,70 @@ defmodule Pulse.Traces.SearchExpressionTest do
     assert Enum.map(program, &elem(&1, 2)) == ["=", "=", ">", "&&", "||"]
   end
 
+  test "Grafana Drilldown root, true and nil-existence terms agree natively and in the reference" do
+    span = fn trace, id, parent, attrs ->
+      Map.merge(
+        %{
+          "traceId" => String.duplicate("0", 31) <> trace,
+          "spanId" => String.duplicate("0", 15) <> id,
+          "name" => "op",
+          "kind" => 2,
+          "startTimeUnixNano" => "150000000000",
+          "endTimeUnixNano" => "150000001000",
+          "attributes" => attrs
+        },
+        if(parent, do: %{"parentSpanId" => String.duplicate("0", 15) <> parent}, else: %{})
+      )
+    end
+
+    resource = fn attrs, spans -> %{"resource" => %{"attributes" => attrs}, "scopeSpans" => [%{"spans" => spans}]} end
+    service = fn name -> %{"key" => "service.name", "value" => %{"stringValue" => name}} end
+    method = fn value -> [%{"key" => "http.method", "value" => value}] end
+    region = %{"key" => "region", "value" => %{"stringValue" => "eu"}}
+
+    # Trace 1 (region eu): typed int method on its root, string on its child.
+    # Trace 2 (no region): attribute-free root, method only on its child.
+    payload = %{
+      "resourceSpans" => [
+        resource.([service.("api"), region], [
+          span.("1", "a", nil, method.(%{"intValue" => "1"})),
+          span.("1", "b", "a", method.(%{"stringValue" => "GET"}))
+        ]),
+        resource.([service.("worker")], [
+          span.("2", "c", nil, []),
+          span.("2", "d", "c", method.(%{"stringValue" => "POST"}))
+        ])
+      ]
+    }
+
+    assert {:ok, rows, 0} = Traces.decode(payload)
+
+    for {query, expected} <- [
+          {"{true}", ~w(a b c d)},
+          {"{nestedSetParent<0}", ~w(a c)},
+          {"{nestedSetParent<0 && true && span.http.method != nil}", ~w(a)},
+          {"{span.http.method = nil}", ~w(c)},
+          {"{resource.region != nil}", ~w(a b)},
+          {"{.http.method != nil && resource.region = nil}", ~w(d)}
+        ] do
+      assert {:ok, {:expression, program} = expression} = TempoSearch.parse(query)
+      assert {:ok, actual} = native(rows, program)
+      assert {:ok, reference} = TempoSearch.json(rows, expression, @opts)
+      assert Pulse.JSON.decode!(actual) == Pulse.JSON.decode!(reference), query
+
+      spans =
+        for trace <- Pulse.JSON.decode!(actual)["traces"], span <- trace["spanSet"]["spans"] do
+          String.trim_leading(span["spanID"], "0")
+        end
+
+      assert Enum.sort(spans) == expected, query
+    end
+
+    for query <- ["{event.x != nil}", "{span.x > nil}", "{nil}", "{nestedSetParent > 0}", "{true = span.x}"] do
+      assert {:error, _} = SearchExpression.parse(query), query
+    end
+  end
+
   test "fractional duration parsing uses the public TraceQL literal oracle and integer comparisons" do
     bytes = File.read!(Path.join(@fixture, "durations.json"))
     assert sha(bytes) == "4bf85da17b6a5fc161de716753b68476302bf6a3a745462118ff1b836e722262"

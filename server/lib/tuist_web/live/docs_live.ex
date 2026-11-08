@@ -333,7 +333,7 @@ defmodule TuistWeb.DocsLive do
         </section>
         <%!-- What Tuist offers --%>
         <section data-part="section-intro">
-          <h1 id="learn-more">{dgettext("docs", "Explore Tuist's capabilities")}</h1>
+          <h2 id="learn-more">{dgettext("docs", "Explore Tuist's capabilities")}</h2>
           <p>
             {dgettext(
               "docs",
@@ -520,7 +520,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- See Tuist in action --%>
         <section data-part="section-intro">
-          <h1 id="see-tuist-in-action">{dgettext("docs", "See Tuist in action")}</h1>
+          <h2 id="see-tuist-in-action">{dgettext("docs", "See Tuist in action")}</h2>
           <p>
             {dgettext(
               "docs",
@@ -549,7 +549,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Open source and community --%>
         <section data-part="section-intro">
-          <h1 id="open-source-and-community">{dgettext("docs", "Open source and community")}</h1>
+          <h2 id="open-source-and-community">{dgettext("docs", "Open source and community")}</h2>
           <p>
             {dgettext(
               "docs",

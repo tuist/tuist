@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4bb435f2ae70f0ec7ea2fced260fd07677602f880a143a6550df314187be5640",
+  "hash": "c4d931844bff7d3e2481768bc5416aa48ffcb89203c06e525158d4d6eb973004",
   "hash_tree": {
     "root": {
       "children": [
@@ -13,44 +13,44 @@
                 "# From Tuist v3 to v4 {#from-tuist-v3-to-v4}": {
                   "content_hash": "809d0c725a5ce7562c90b009502b01bb14e8c9d7150f1e3151cf313abca65268"
                 },
-                "### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}": {
-                  "content_hash": "e7728e16855eb837fc46846e02e6ae9b5ec78b79021fa1d0521d820f91bba94e"
+                "## Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}": {
+                  "content_hash": "d15312679eff5f3cf5fc2ea803b1d909c0e93e7a629e66fa3cf71574bfb7b03d"
                 },
-                "### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}": {
-                  "content_hash": "da09d1f00a3f01c200ad0b4c0c3e0c8f0a86c884b9c03e1229d53ec9d642dff4"
+                "## Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}": {
+                  "content_hash": "e48e010dee3e20ac3f40370f56ed346dc1545875ec5b0069e7a6d99c0335e7ec"
                 },
-                "### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}": {
-                  "content_hash": "f890f4ae6bd184c873d869e386b17ed4b9bf62b09da8383e102d97674bbf030b"
+                "## Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}": {
+                  "content_hash": "b9a298c63c437942905f6a5735402e2b4299cdbef968bee20213ea6db2f16a86"
                 },
-                "### Dropped version management through `tuistenv` {#dropped-version-management-through-tuistenv}": {
-                  "content_hash": "35b7901031cda0ad5aa941038006c2bcfcf3dddadde0080f62176aec8be6b6a6"
+                "## Dropped version management through `tuistenv` {#dropped-version-management-through-tuistenv}": {
+                  "content_hash": "11e9d82f2491f0320acf39a276c1bddda140d25665643f212d39dab2148f419b"
                 },
-                "### Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}": {
-                  "content_hash": "9d7fcb5651613803af7e8ec56f1152cf7a9bccfb0c5b0f5770ddb12acddd5a20"
+                "## Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}": {
+                  "content_hash": "868889d057f59a269b97cb47546bf2e1add8d4535f6f017c650ef8e877935d90"
                 },
-                "### Removed caching profiles {#removed-caching-profiles}": {
-                  "content_hash": "1060a1d398baac5f1aa666d8f7d85cf733c4a1a7ed3c99deccaf514ece4c7f6b"
+                "## Removed caching profiles {#removed-caching-profiles}": {
+                  "content_hash": "551ce0fa49b8a042090e74b4a03917b1e3c2e0f19c755797275f211091827837"
                 },
-                "### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}": {
-                  "content_hash": "66b14db7367937552be449626f904d75568289846bf1165ed0c427469177c455"
+                "## Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}": {
+                  "content_hash": "ab87af6f3bf402f5591cb026cd87adfb24b4dca01892a70b0eedd900f04827dd"
                 },
-                "### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}": {
-                  "content_hash": "932c5e5043ee357161096c0a20c5b92983721e186abfe0442f752aa641e51cac"
+                "## Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}": {
+                  "content_hash": "2e27f0e3bd9adb5516a97549fea7395d9008d27eedf8bf602cda7c3d8a7093ef"
                 },
-                "### Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}": {
-                  "content_hash": "ab5127c4e1bbdfc9474badf39ec6d63c1e4e20114343029ee2be9f1b44fa59ae"
+                "## Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}": {
+                  "content_hash": "8720ebf8c8e3c81266b93ec92ffe01ec816fe22aaf2f6308d69b644202ed948b"
                 },
-                "### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}": {
-                  "content_hash": "604e45230b692fcdffcd3e970df876a51e47a992d7e6a61d8a8c8658f777e541"
+                "## Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}": {
+                  "content_hash": "463eba5522778793d86674cc582585998ad1565a642962c978a5b336092058c0"
                 },
-                "### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcom": {
-                  "content_hash": "66d4c3128dafba39946cfffa0af6a40ce3e3df6909abfb6e64b7ae6cf8abbe0b"
+                "## [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomt": {
+                  "content_hash": "4d990bb961c84bb0a01076e75f2355ded8dd928b59b5547e969f597a2a2a7de6"
                 },
-                "### [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}": {
-                  "content_hash": "03f55c19cd585b7588e2e68415f4101c6443aa242c59be5957224835fdb833f7"
+                "## [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}": {
+                  "content_hash": "6db357fad01e0a1e8b806022d0ce9c679f326d5375cf7c7f194417624e5020a4"
                 },
-                "### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}": {
-                  "content_hash": "05834896139f22d432febc84c4defd7b7f8f6b9aa2b819f47ac0d3ce24b84c78"
+                "## [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}": {
+                  "content_hash": "3b0b0a076cfcddf27df33e145f6d1a46350180cfa9d1e5791b4c1ec01875bb0e"
                 },
                 "Preamble": {
                   "content_hash": "f49d937ad89c48f7711ca0c1ceede1f2d7e167d4b2009fc646dca746c11cb540"
@@ -59,11 +59,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2ab8b0ee17b1a0619c0db18a76d0624d216f3f06ce8df70738e4fbaf546152c5",
+          "hash": "e0fb63ae6acd9eaa7b610c5c4aefbf2e2519d56f77994d5a22f3eb4b410a3f03",
           "kind": "source",
           "label": "server/priv/docs/en/references/migrations/from-v3-to-v4.md",
           "metadata": {
-            "content_hash": "95e2096224d32094a975ac015dc7149477ef6a0815c4c5b030b2807287729f9a"
+            "content_hash": "4679a5869dca58aeec118f821bf35791ee41cdaebc448a7e875caacbaed11d2c"
           }
         },
         {
@@ -124,7 +124,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -143,7 +143,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -172,11 +172,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -253,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "400b37f1e2dac28a02151e14801ef1b50392f7a1836e639e6f972e844b9b9bc4",
+          "hash": "86fb7607ec8b391bedbe8b3bb655bbf094da8514355c754315de05e619622043",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "4bb435f2ae70f0ec7ea2fced260fd07677602f880a143a6550df314187be5640",
+      "hash": "c4d931844bff7d3e2481768bc5416aa48ffcb89203c06e525158d4d6eb973004",
       "kind": "translation_input",
       "label": "server/priv/docs/en/references/migrations/from-v3-to-v4.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8f8c1182e344ea5c0858288a21593a40100e2ea72c3d0b67deb770484883fe89",
+  "output_hash": "f189bab2805523d63280e4db2eb56ea358eaf3307340c16d6d05e383a04db9a3",
   "output_path": "server/priv/docs/zh_Hans/references/migrations/from-v3-to-v4.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "54c058a5d7e3a3b42582b13028c373f04370823e",
+  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
   "source_path": "server/priv/docs/en/references/migrations/from-v3-to-v4.md",
-  "translated_at": "2026-11-02T18:47:49.036807Z",
-  "translation_session_id": "01a19d91-e5f0-7129-b49d-3ea55acb63fd"
+  "translated_at": "2026-11-06T23:27:47.943927Z",
+  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
 }

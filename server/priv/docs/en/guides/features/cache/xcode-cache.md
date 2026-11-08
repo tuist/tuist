@@ -352,3 +352,7 @@ If you are not using the Xcode cache, remove the `COMPILATION_CACHE_*` build set
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
 When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so Tuist still receives them, but it does not publish anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+
+## Related {#related}
+
+Explore [Tuist's shared cache](https://tuist.dev/cache) to see how engineering teams and coding agents reuse build artifacts.

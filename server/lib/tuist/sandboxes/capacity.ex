@@ -446,6 +446,8 @@ defmodule Tuist.Sandboxes.Capacity do
     (workspace_gb || 0) * @gib + rootfs_bytes(node, template) + @sandbox_disk_overhead_bytes
   end
 
+  # An archived snapshot whose node copy is gone has no `node_name` and
+  # reserves nothing.
   defp reserved_disk_snapshot_bytes(%{name: node_name} = node) do
     from(s in DiskSnapshot,
       where: s.node_name == ^node_name,
@@ -564,19 +566,29 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   The execution image of the deployment: the `bazel` template tag the most
-  connected execution daemons report ready, the greater tag on a tie, or nil
-  when none does. Workers roll out on delete, so while an operator replaces
-  them the old and new tags are both ready somewhere; the majority wins.
+  connected execution daemons vote for, the greater tag on a tie, or nil
+  when none votes. A daemon votes for the tag it was configured with once
+  that tag is ready. It keeps older tags ready so it can take work during a
+  rollout, so before its tag is ready, or when it does not report one, it
+  votes for every tag it has ready. Workers roll out on delete, so while an
+  operator replaces them the majority wins.
   """
   def execution_image_tag do
     Nodes.connected_nodes()
     |> Enum.filter(&(execution_daemon?(&1) and Map.get(&1, :execution_deadlines, false)))
-    |> Enum.flat_map(fn node ->
-      for %{name: "bazel", ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), uniq: true, do: tag
-    end)
+    |> Enum.flat_map(&execution_image_votes/1)
     |> Enum.frequencies()
     |> Enum.max_by(fn {tag, count} -> {count, tag} end, fn -> {nil, 0} end)
     |> elem(0)
+  end
+
+  defp execution_image_votes(node) do
+    ready =
+      for %{name: "bazel", ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), uniq: true, do: tag
+
+    configured = Map.get(node, :default_template_tag)
+
+    if Map.get(node, :default_template) == "bazel" and configured in ready, do: [configured], else: ready
   end
 
   defp execution_fits?(node, sandbox) do

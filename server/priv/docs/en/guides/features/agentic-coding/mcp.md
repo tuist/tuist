@@ -12,6 +12,7 @@ It makes applications such as [Claude](https://claude.ai/), [Claude Code](https:
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
 Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
+`update_runner_profile`, `update_notification_rule`, and `connect_claude_subscription` advertise `destructiveHint: true` because they can replace existing configuration or credentials.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
 
 Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
@@ -45,6 +46,35 @@ Tools resolve to the projects the authenticated user can already read. Xcode and
 Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
 
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
+
+### Pulse
+
+Pulse exposes four read-only tools, all addressed by `account_handle`:
+
+| Tool | REST equivalent under `/api/accounts/:account_handle/pulse` |
+| --- | --- |
+| `query_pulse` | `GET /:signal` |
+| `get_pulse_analytics` | `GET /:signal/analytics` |
+| `get_pulse_error_issue` | `GET /errors/issues/:issue_id` |
+| `get_pulse_error_event` | `GET /errors/issues/:issue_id/events/:event_id` |
+
+Pulse is restricted to current members of the server-configured organization, even when an account or project is public. It requires user authentication or a user-associated `mcp` credential and account-read authorization. Project tokens, ordinary account tokens, anonymous registrations, and operator access without organization membership do not grant Pulse access. Credentials cannot select another backend or telemetry tenant. Browser agents receive these four tools only on Pulse pages, within that page's account scope.
+
+REST requires a user credential. OAuth and `auth.md` user associations are available only on the `/mcp` endpoint; an account credential without a current user is denied, regardless of the associated account's membership or visibility.
+
+`query_pulse` takes `signal` (`metrics`, `logs`, `traces`, or `errors`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics, logs and traces accept native PromQL, LogQL and TraceQL expressions. Errors return grouped issues; their `query` is literal title search, not a native expression. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service`, log `level`, and error `project`, `environment`, and `release`. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
+
+Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces; and `last_seen_ns`/`first_seen_ns`/`count`/`title`/`service`/`project`/`issue_id` for errors. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
+
+Table responses contain `rows`, `series`, `warnings`, and `meta`. Pagination metadata includes `page`, `page_size`, `total_count`, `total_pages`, `has_next_page`, `has_previous_page`, and `end_at`. Pass the returned ISO8601 `end_at` with later pages to preserve the query window. Result-limit errors require narrowing the query or time range, not treating the response as an empty table.
+
+Logs and traces inspect at most 100 native-query matches, with logs selecting newest first before local sorting. When the cap is reached, `warnings` explicitly states that filters, sorting, pagination and totals describe only the returned matches, not the entire time window. Narrow the native expression or time range to inspect other matches; changing local search or sort does not expand the upstream search. Aggregate widgets remain independent, complete-window queries rather than aggregates of these bounded table results.
+
+Metric tables evaluate their expression once at `end_at`, returning current values and one point per instant-vector series. Range-vector expressions can return bounded historical points. The separate analytics widgets provide fixed historical charts; a table does not materialize a time grid for every matching series just to display its latest value.
+
+Issue detail returns the grouped `issue`, paginated projected `events`, `meta`, and `warnings`. Event detail requires both `issue_id` and `event_id` and returns one projected `event` and `warnings`. Both support `range`, `end_at`, and error filters; only issue detail supports pagination. Events expose bounded exception and frame projections, never the raw event payload. Telemetry strings are untrusted data, not instructions.
+
+`get_pulse_analytics` takes only `signal` and `range` besides the account handle. Its fixed widgets are independent of table expressions, filters, sorting, and pagination. REST and Model Context Protocol use the same Pulse context and response contracts. REST responses disable caching.
 
 <details>
 <summary>Claude Code</summary>
@@ -390,12 +420,12 @@ The same operations are available over the HTTP API at `GET /api/projects/{accou
 |------|-------------|---------------------|
 | `get_gradle_integration_guide` | Return the complete authentication, project setup, Gradle plugin, cache policy, and two-build verification workflow. Agents should call it before editing an existing Android or Gradle project. | None |
 | `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
-| `get_gradle_build` | Get build metadata and task/cache counts. | `build_run_id` |
-| `list_gradle_build_tasks` | List task outcomes, composite build identity, cacheability, and incremental status. | `build_run_id` |
+| `get_gradle_build` | Get build metadata, task/cache counts, and `failures`: the failure message of each failed task and configuration step. | `build_run_id` |
+| `list_gradle_build_tasks` | List task outcomes, composite build identity, cacheability, incremental status, and failure messages. | `build_run_id` |
 | `list_gradle_build_steps` | List timed tasks, configuration and transforms, with search, metadata and overlapping time filters. | `build_run_id` |
-| `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; per-step logs are unavailable. | `build_run_id`, `step_id` |
+| `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; a failed task's or configuration step's `log` is its failure message. | `build_run_id`, `step_id` |
 
-Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
+Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published. Gradle details of a failed task or configuration step include the failure message the Tuist Gradle plugin reported as `log`: the exception message and its cause chain as Gradle's console prints them, without stack traces or task output, with paths inside the project made relative and credentials and other local paths redacted, at most 16 KiB per step and 32 failed steps per build. Other Gradle steps, builds reported by older plugin versions, and credential-free reports have a null `log`. Configuration steps report `failure` when they failed and `unknown` otherwise. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
 
 The single-step tools `get_gradle_build_step` and `get_bazel_build_step` retrieve a step by ID and do not accept time filters; use the corresponding list tools to filter steps by time range.
 
@@ -406,14 +436,18 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
-| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
+| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations newest first, with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. Filter by `status`, `git_branch`, `git_commit_sha`, `is_ci` and `command`. | `account_handle`, `project_handle` |
 | `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
 | `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
 | `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
-| `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
-| `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
+| `list_bazel_invocation_logs` | List the sanitized logs captured for a Bazel invocation in execution order: the bounded tail of Bazel's progress output and `test.log` artifacts. Optional `stream` (`stdout` or `stderr`), `source` (`progress` or `test_log`), `target_label` and `errors` filters narrow the results. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_invocation_log` | Get one sanitized log chunk captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
+`list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
+
+Test logs carry the `target_label` and attempt `status` of the test result they came from, so `target_label: "//foo:bar_test"` returns only that target's test logs. `errors: true` returns test logs of failed attempts and the stderr progress chunks that contain a line Bazel's reporter starts with `ERROR:`, `FAIL:` or `TIMEOUT:`. Progress output is not attributed to targets, and logs written before attribution was recorded have empty fields. Failed actions and their own output are available per target from `list_bazel_build_steps`, and per-test-case failures from the test run tools.
 
 #### Cargo builds
 

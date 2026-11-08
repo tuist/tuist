@@ -260,6 +260,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateNotificationRule do
     name: "update_notification_rule",
     title: "Update Notification Rule",
     read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" =>

@@ -58,11 +58,13 @@ object NetworkModule {
     fun provideOkHttpClient(
         requestIdInterceptor: RequestIdInterceptor,
         authInterceptor: AuthInterceptor,
+        sessionGuardInterceptor: SessionGuardInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
         val builder = CertificateTrust.clientBuilder()
             .addInterceptor(requestIdInterceptor)
             .addInterceptor(authInterceptor)
+            .addNetworkInterceptor(sessionGuardInterceptor)
             .authenticator(tokenRefreshAuthenticator)
 
         if (BuildConfig.DEBUG) {

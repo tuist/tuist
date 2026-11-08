@@ -1159,7 +1159,10 @@ Write (`send_exemplars: true`) and OTLP metrics, where each point exemplar
 becomes a Prometheus exemplar with `trace_id`, `span_id` and its filtered
 attributes, on the `_bucket` series whose bound holds its value for
 histograms. Exemplars are stored with their series' samples and expire with
-them. As in Prometheus, label sets over 128 characters are dropped.
+them. As in Prometheus, label sets over 128 characters are dropped. Like
+Prometheus, `start` and `end` accept any finite number of seconds: Grafana sends
+milliseconds here, and bounds beyond the representable range match nothing
+instead of failing.
 
 `/api/v1/metadata` returns the type, help and unit that remote-write senders
 report for each metric family (Remote Write 1.0 metadata messages, or the
@@ -2412,6 +2415,11 @@ natively over stored segments when the query is a selector with optional
 `|=`, `!=`, `|~` or `!~` filters. Patterns are a heuristic summary: Pulse
 groups lines with its own Drain-based miner and returns at most 500 patterns,
 which need not match the patterns Loki would report for the same logs.
+
+`/loki/api/v1/drilldown-limits` tells Logs Drilldown which features to show,
+as Loki does: volume and patterns are enabled, `max_entries_limit_per_query`
+is `0` (no fixed cap; query budgets apply instead) and `retention_period` is the
+enforced log retention in hours, or `0s` when retention is not enforced.
 
 ### Detected labels and fields
 

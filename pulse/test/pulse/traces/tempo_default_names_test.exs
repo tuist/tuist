@@ -94,7 +94,10 @@ defmodule Pulse.Traces.TempoDefaultNamesTest do
     end
 
     assert {:ok, _} = TempoDiscovery.query("promoted", "none", "shared")
-    assert {:error, :unsupported_trace_discovery} = TempoDiscovery.query("promoted", "none", "", 2, "json", "{true}")
+
+    assert {:error, :unsupported_trace_discovery} =
+             TempoDiscovery.query("promoted", "none", "", 2, "json", "{nestedSetParent > 0}")
+
     assert {:ok, unscoped} = NIF.tempo_discovery_new(0, "none", "shared")
     assert {:ok, ~s'{"tagValues":[]}'} = NIF.tempo_discovery_finish(unscoped)
   end

@@ -34,7 +34,22 @@ defmodule Atlas.Connections.Provider do
     }
   }
 
+  # Each Gmail consent is a separate opt-in on top of the base Google grant.
+  # Nothing here sends mail on its own: gmail.compose sends only drafts the
+  # mailbox owner approved in Atlas.
+  @gmail_consents %{
+    "read" => "https://www.googleapis.com/auth/gmail.readonly",
+    "compose" => "https://www.googleapis.com/auth/gmail.compose"
+  }
+
   def providers, do: ~w(github slack google)
+
+  @doc "Scopes for the requested Gmail consents (`read`, `compose`); unknown names request nothing."
+  def gmail_scopes(consents) when is_list(consents) do
+    for {name, scope} <- Enum.sort(@gmail_consents), name in consents, do: scope
+  end
+
+  def gmail_scopes(_consents), do: []
 
   def config(provider) do
     case Map.fetch(@providers, provider) do
@@ -56,8 +71,8 @@ defmodule Atlas.Connections.Provider do
   def authorization_url(provider, redirect_uri, state, verifier, opts \\ []) do
     with {:ok, config} <- configured(provider) do
       scopes =
-        if provider == "google" and Keyword.get(opts, :gmail, false),
-          do: config.scopes ++ ["https://www.googleapis.com/auth/gmail.readonly"],
+        if provider == "google",
+          do: config.scopes ++ gmail_scopes(Keyword.get(opts, :gmail, [])),
           else: config.scopes
 
       params = %{

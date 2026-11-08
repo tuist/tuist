@@ -337,15 +337,12 @@ public struct CommandRunner: CommandRunning {
     ) async throws {
         try await processLimiter.withPermit {
             guard let name = arguments.first else { throw CommandError.executableNotFound("") }
-            var options = Self.platformOptions(environment: environment)
+            var (options, subprocessEnvironment) = Self.spawnSettings(environment: environment)
             options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
             let configuration = Configuration(
                 executable: name.contains("/") ? .path(FilePath(name)) : .name(name),
                 arguments: Arguments(Array(arguments.dropFirst())),
-                environment: .custom(Dictionary(uniqueKeysWithValues: environment.map { (
-                    Environment.Key(rawValue: $0.key)!,
-                    $0.value
-                ) })),
+                environment: subprocessEnvironment,
                 workingDirectory: workingDirectory.map { FilePath($0.pathString) }, platformOptions: options
             )
             let stdout = try FileDescriptor.pipe()
@@ -405,16 +402,12 @@ public struct CommandRunner: CommandRunning {
         try await processLimiter.withPermit {
             guard let name = arguments.first else { throw CommandError.executableNotFound("") }
             let executable: Executable = name.contains("/") ? .path(FilePath(name)) : .name(name)
-            let subprocessEnvironment = Dictionary(uniqueKeysWithValues: environment.map { (
-                Environment.Key(rawValue: $0.key)!,
-                $0.value
-            ) })
-            var options = Self.platformOptions(environment: environment)
+            var (options, subprocessEnvironment) = Self.spawnSettings(environment: environment)
             options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
             let configuration = Configuration(
                 executable: executable,
                 arguments: Arguments(Array(arguments.dropFirst())),
-                environment: .custom(subprocessEnvironment),
+                environment: subprocessEnvironment,
                 workingDirectory: workingDirectory.map { FilePath($0.pathString) },
                 platformOptions: options
             )
@@ -443,31 +436,44 @@ public struct CommandRunner: CommandRunning {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: true)
     }
 
-    private static func platformOptions(environment: [String: String]) -> PlatformOptions {
+    /// Inside a Cargo session, the jobserver pipes named by `CARGO_MAKEFLAGS` are passed to the child. Where they
+    /// cannot be (Linux, where Subprocess closes every descriptor above standard error, or numbers that do not name a
+    /// pipe in this process), the variable is dropped: rustc would warn that it cannot open them and run without
+    /// Cargo's jobserver anyway.
+    private static func spawnSettings(environment: [String: String]) -> (PlatformOptions, Environment) {
         var options = PlatformOptions()
-        #if os(macOS)
-            guard environment["TUIST_CARGO_SESSION"] != nil,
-                  let flags = environment["CARGO_MAKEFLAGS"],
-                  let authentication = flags.split(whereSeparator: \.isWhitespace).last(where: {
-                      $0.hasPrefix("--jobserver-auth=") || $0.hasPrefix("--jobserver-fds=")
-                  }),
-                  let value = authentication.split(separator: "=").last else { return options }
-            let descriptors = value.split(separator: ",").compactMap { Int32($0) }
-            guard descriptors.count == 2, Set(descriptors).count == 2,
-                  // Only a jobserver pipe is inherited: a hook server runs probes with the hook's variables, and in
-                  // that process the same numbers can be any descriptor (a socket, a kqueue that cannot be inherited).
-                  descriptors.allSatisfy({ descriptor in
-                      var info = stat()
-                      return descriptor > 2 && fstat(descriptor, &info) == 0 && (info.st_mode & S_IFMT) == S_IFIFO
-                  }) else { return options }
-            options.preSpawnProcessConfigurator = { _, actions in
-                for descriptor in descriptors {
-                    let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)
-                    if result != 0 { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+        var environment = environment
+        if environment["TUIST_CARGO_SESSION"] != nil,
+           let authentication = environment["CARGO_MAKEFLAGS"]?.split(whereSeparator: \.isWhitespace).last(where: {
+               $0.hasPrefix("--jobserver-auth=") || $0.hasPrefix("--jobserver-fds=")
+           }),
+           let value = authentication.split(separator: "=").last,
+           case let descriptors = value.split(separator: ",").compactMap({ Int32($0) }),
+           descriptors.count == 2
+        {
+            #if os(macOS)
+                // A hook server runs probes with the hook's variables, and in that process the same numbers can be
+                // any descriptor (a socket, a kqueue that cannot be inherited).
+                if Set(descriptors).count == 2, descriptors.allSatisfy({ descriptor in
+                    var info = stat()
+                    return descriptor > 2 && fstat(descriptor, &info) == 0 && (info.st_mode & S_IFMT) == S_IFIFO
+                }) {
+                    options.preSpawnProcessConfigurator = { _, actions in
+                        for descriptor in descriptors {
+                            let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)
+                            if result != 0 { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+                        }
+                    }
+                } else {
+                    environment["CARGO_MAKEFLAGS"] = nil
                 }
-            }
-        #endif
-        return options
+            #else
+                environment["CARGO_MAKEFLAGS"] = nil
+            #endif
+        }
+        return (options, .custom(Dictionary(uniqueKeysWithValues: environment.map {
+            (Environment.Key(rawValue: $0.key)!, $0.value)
+        })))
     }
 
     private func run(
@@ -487,10 +493,7 @@ public struct CommandRunner: CommandRunning {
                         let executable: Executable = executableName.contains("/")
                             ? .path(FilePath(executableName))
                             : .name(executableName)
-                        let subprocessEnvironment = Dictionary(
-                            uniqueKeysWithValues: environment.map { (Environment.Key(rawValue: $0.key)!, $0.value) }
-                        )
-                        var platformOptions = Self.platformOptions(environment: environment)
+                        var (platformOptions, subprocessEnvironment) = Self.spawnSettings(environment: environment)
                         platformOptions.teardownSequence = [
                             .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
                         ]
@@ -502,7 +505,7 @@ public struct CommandRunner: CommandRunning {
                         let configuration = Configuration(
                             executable: executable,
                             arguments: Arguments(Array(arguments.dropFirst())),
-                            environment: .custom(subprocessEnvironment),
+                            environment: subprocessEnvironment,
                             workingDirectory: workingDirectory.map { FilePath($0.pathString) },
                             platformOptions: platformOptions
                         )

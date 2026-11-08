@@ -64,6 +64,12 @@ for env in staging canary production; do
       .metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"] == "true");
       all(.rules[]; ((.apiGroups | includes("")) and (.resources | includes("secrets"))) | not))) and
 
+    # The aggregation controller owns the rules of an aggregated role. Rendering
+    # them, even as [], makes every upgrade after the first fail with a
+    # server-side apply conflict.
+    (all(.[] | select(.kind == "ClusterRole" and .aggregationRule != null);
+      has("rules") | not)) and
+
     # Both ordinary identity groups bind only to view, plus the built-in
     # read-only role for the public issuer discovery document and JWKS.
     (all("tuist-admins", "tuist-eng";
@@ -87,7 +93,7 @@ for env in staging canary production; do
     # The write tier aggregates everything edit does except the bootstrap
     # system:aggregate-to-edit, whose Secret and ServiceAccount-identity rules
     # tuist-write-core leaves out.
-    (role("tuist-write") | .rules == [] and .aggregationRule.clusterRoleSelectors == [
+    (role("tuist-write") | (has("rules") | not) and .aggregationRule.clusterRoleSelectors == [
       {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-view": "true"}},
       {matchLabels: {"rbac.authorization.k8s.io/aggregate-to-edit": "true"},
        matchExpressions: [

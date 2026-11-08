@@ -363,6 +363,14 @@ func (b *LocalImages) reserveSpare(ctx context.Context, minimum uint64) error {
 }
 
 func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
+	return b.admit(ctx, minimum, false)
+}
+
+// admit makes minimum free, evicting masters least likely to be cloned soon. An
+// optional admission (a checkout's room) evicts only masters no job holds or is
+// attaching, and neither cancels speculative work nor reclaims checkouts: a job
+// runs without a checkout, but not without the volume another job is using.
+func (b *LocalImages) admit(ctx context.Context, minimum uint64, optional bool) error {
 	if err := b.admission.LockContext(ctx); err != nil {
 		return err
 	}
@@ -374,7 +382,7 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	if err != nil {
 		return err
 	}
-	if free < minimum && b.Displace != nil && b.Displace(ctx) {
+	if free < minimum && !optional && b.Displace != nil && b.Displace(ctx) {
 		if free, err = b.freeBytes(ctx); err != nil {
 			return err
 		}
@@ -393,6 +401,9 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 			return err
 		}
 		reason := candidate.reason
+		if optional && reason == "in_use" {
+			continue
+		}
 		if free >= minimum {
 			if time.Since(info.ModTime()) < 7*24*time.Hour {
 				continue
@@ -410,7 +421,7 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 			return err
 		}
 	}
-	if free < minimum && b.Reclaim != nil {
+	if free < minimum && !optional && b.Reclaim != nil {
 		if err := b.Reclaim(ctx, minimum); err != nil {
 			return err
 		}
@@ -598,10 +609,11 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 			return err
 		}
 		// A checkout clone holds the job's whole workspace, so free space must cover
-		// what it can grow to, as the reserve covers one custom volume. A checkout is
-		// optional, so it never evicts anything for that room.
+		// what it can grow to, as the reserve covers one custom volume. Attach
+		// eviction keeps only the reserve free, so a checkout evicts idle masters for
+		// the rest; being optional, it never takes one a job holds.
 		if slot.Kind == KindCheckout {
-			if err = b.operation(slot, "admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
+			if err = b.operation(slot, "admission", "none", func() error { return b.admit(ctx, CheckoutCapacity, true) }); err != nil {
 				return err
 			}
 		}

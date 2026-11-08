@@ -197,7 +197,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
       # Without a baseline the modules are kept, with no counts.
-      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0} = run}} =
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0, reason: "no_baseline"} = run}} =
                Runs.create(project, params(%{modules: modules, baseline_sha: nil, fallback_reason: "no_baseline"}))
 
       assert run.skipped_modules == %{"AppTests" => 0, "CoreTests" => 0}
@@ -214,8 +214,10 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: %{outcome: "selected", dirty: true}}} = Runs.create(project, params(%{dirty: true}))
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
-      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_unavailable"}}} =
+      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_unavailable"} = run}} =
                Runs.create(project, %{dirty: true} |> params() |> Map.delete(:changed_files))
+
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 5, 0}
     end
 
     test "records the client's reason when there's no baseline", %{project: project} do
@@ -230,9 +232,19 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params(%{git_branch: project.default_branch}))
     end
 
-    test "falls back when the diff is over 5,000 files", %{project: project} do
-      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_too_large"}}} =
-               Runs.create(project, params(%{changed_files_count: 5_001}))
+    test "falls back when the diff is over 5,000 files, counting the baseline's tests", %{project: project} do
+      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{modules: modules, changed_files_count: 5_001}))
+
+      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "diff_too_large", "c1"}
+      assert run.skipped_modules == %{"CoreTests" => 1}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 4, 1}
+
+      # A baseline the server can't confirm isn't stored.
+      assert {:ok, %{run: %{reason: "diff_too_large", baseline_sha: nil, requested_count: 0}}} =
+               Runs.create(project, params(%{head_sha: "unknown", changed_files_count: 5_001}))
     end
 
     test "falls back when a tracked file changed, with the rule's trace", %{project: project} do
@@ -245,8 +257,13 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "falls back with history_unknown when the history doesn't have the checkout", %{project: project} do
-      assert {:ok, %{run: %{outcome: "fallback", reason: "history_unknown"}}} =
+      assert {:ok, %{run: %{outcome: "fallback", reason: "history_unknown", baseline_sha: nil}}} =
                Runs.create(project, params(%{head_sha: "unknown"}))
+
+      modules = [%{name: "AppTests", skipped: true}, %{name: "CoreTests", skipped: true}]
+
+      assert {:ok, %{run: %{outcome: "selected", reason: "history_unknown", baseline_sha: nil}}} =
+               Runs.create(project, params(%{head_sha: "unknown", modules: modules}))
     end
 
     test "resolves the baseline from the ancestors sent when the history doesn't have the checkout", %{

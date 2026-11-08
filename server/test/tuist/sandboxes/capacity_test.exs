@@ -765,6 +765,34 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Capacity.execution_image_tag() == nil
     end
 
+    test "execution daemons vote for their configured tag over the older tags they keep" do
+      # The older tag sorts greater, so a tie between everything ready would pick it.
+      old = "sha-" <> String.duplicate("b", 40)
+      new = "sha-" <> String.duplicate("a", 40)
+      ready = &%{name: "bazel", tag: &1, ready: true}
+
+      daemon = fn configured, templates ->
+        %{
+          execution_slots: 4,
+          execution_deadlines: true,
+          default_template: "bazel",
+          default_template_tag: configured,
+          templates: templates
+        }
+      end
+
+      rolled = daemon.(new, [ready.(old), ready.(new)])
+      stub(Nodes, :connected_nodes, fn -> [rolled, rolled] end)
+      assert Capacity.execution_image_tag() == new
+
+      # Until its tag is ready, and when it reports none, a daemon votes for every tag it has ready:
+      # two votes each, a tie the older tag wins, where a daemon voting for nothing would hand it to the new one.
+      building = daemon.(new, [ready.(old), %{name: "bazel", tag: new, ready: false}])
+      unconfigured = %{execution_slots: 4, execution_deadlines: true, templates: [ready.(old)]}
+      stub(Nodes, :connected_nodes, fn -> [rolled, rolled, building, unconfigured] end)
+      assert Capacity.execution_image_tag() == old
+    end
+
     defp insert_row(node, pod_name, limit, grown_at) do
       %SandboxNode{}
       |> SandboxNode.changeset(%{

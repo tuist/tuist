@@ -128,13 +128,14 @@ defmodule Pulse.Traces.TempoIntrinsicsTest do
 
   test "static dictionaries still consume query admission and release it normally" do
     Runtime.put_env(:pulse, TempoSearch, enabled: true)
+    Runtime.put_env(:pulse, QueryRunner, class_limits: %{traces: 1})
     parent = self()
     sup = start_supervised!({Task.Supervisor, name: __MODULE__.Callers})
 
     {:ok, _} =
       Task.Supervisor.start_child(sup, fn ->
         result =
-          QueryRunner.run("static", :raw, fn _ ->
+          QueryRunner.run("static", :traces, fn _ ->
             send(parent, {:started, self()})
             receive do: (:release -> {:ok, :released})
           end)

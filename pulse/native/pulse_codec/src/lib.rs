@@ -27,6 +27,7 @@ mod log_metric;
 mod log_rollup;
 mod log_tiers;
 mod loki;
+mod metric_catalog;
 mod metric_discovery;
 mod metric_footer;
 mod metric_json;

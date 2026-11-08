@@ -26,16 +26,18 @@ defmodule TuistWeb.EndpointTest do
     assert request.headers == %{"accept" => "application/json"}
   end
 
-  test "keeps private thread request bodies out of Sentry" do
-    conn = %{
-      Plug.Test.conn(:post, "/api/accounts/account/threads/thread/messages")
-      | params: %{"content" => "Private conversation", "request_id" => "private-approval"}
-    }
+  test "keeps private jam request bodies out of Sentry" do
+    for collection <- ["jams", "threads"] do
+      conn = %{
+        Plug.Test.conn(:post, "/api/accounts/account/#{collection}/jam/messages")
+        | params: %{"content" => "Private conversation", "request_id" => "private-approval"}
+      }
 
-    request =
-      Sentry.PlugContext.build_request_interface_data(conn, body_scrubber: {TuistWeb.Endpoint, :scrub_sentry_body})
+      request =
+        Sentry.PlugContext.build_request_interface_data(conn, body_scrubber: {TuistWeb.Endpoint, :scrub_sentry_body})
 
-    assert request.data == %{}
+      assert request.data == %{}
+    end
   end
 
   test "keeps second-factor codes out of Sentry request bodies" do

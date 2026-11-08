@@ -154,14 +154,23 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
   with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
   spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
-  and is created with `from_disk_snapshot`; when that node cannot take it or
-  the clone fails, it boots the template instead. Each snapshot reserves its
+  and is created with `from_disk_snapshot`. While the archive tier is on, a
+  ready snapshot is also uploaded (`archive_disks`, `ArchiveDiskSnapshotWorker`
+  on the `sandbox_archives` queue, retried by `Archives.run/0` every six
+  hours, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
+  node copy; when the node cannot take the Orb, lost the copy or the clone
+  fails, an archived snapshot is created `from_archive` on any node with room
+  (boot source `disk_snapshot_archive`), else the template boots. A copy the
+  node loses keeps an archived row with `node_name` nil; a delete removes the
+  object too. Each snapshot with a node reserves its
   rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
   save itself is admitted under the node's lock
   (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
-  of the same id. Node reports reconcile them like sandboxes: copies no row
-  knows are deleted from the node, rows whose copy the node no longer lists
-  are dropped after a two-minute grace. A daemon that reports no
+  of the same id, and of the id the saving Orb was spawned from
+  (`sandboxes.amp_base_snapshot_id`), since Amp refreshes a project snapshot
+  under a new id. Node reports reconcile them like sandboxes: copies no row
+  places on the node are deleted from it, rows whose copy the node no longer
+  lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
@@ -189,7 +198,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
-  node reservation and both limits; accounts stop archiving at 100 GiB of
+  node reservation and both limits; accounts stop archiving at 500 GiB of
   archives. There is no count of paused Orbs per account.
   `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
@@ -311,6 +320,21 @@ socket, the poller and the caller share a replica:
   redacted before it is logged.
 - Exec output is capped at 1 MiB per stream as frames arrive (the node
   stops streaming past 2 MiB) and returned with invalid UTF-8 replaced.
+- `Tuist.Sandboxes.Commands` (`/:sandbox_id/commands`) runs commands that
+  outlive a request: one exec launches the command detached under
+  `setsid`, outside the node's exec process-group fence, with its output,
+  stdin, pid and exit code in `$HOME/.cache/tuist/commands/<id>` in the
+  guest. A `sandbox_commands` row records each command (never its env).
+  All commands share the residency `commands` (`begin_shared_residency/2`,
+  plus a macOS host hold of the same name), so a sandbox runs several at
+  once but an agent turn refuses them with `:busy`. `release_if_idle/1`
+  ends it under the sandbox row lock once no row is `running`; `start/2`
+  inserts its row before holding, which closes the race with a release.
+  `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
+  kills each command at its deadline and records commands no client reads.
+  The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
+  under proxy idle timeouts. Never end the residency with
+  `end_residency/1`; use `end_residency/2`, which leaves a newer one alone.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when
   the model or the system prompt changes.
@@ -330,10 +354,13 @@ socket, the poller and the caller share a replica:
   canary and production), and the poller manager only runs pollers for
   flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
   workspaces up to 100 GB.
-- `TuistWeb.API.SandboxesController`: account-admin API under
+- `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
-  system prompt; sandboxes, exec/pause/resume/delete).
+  system prompt; sandboxes, exec, commands, pause/resume/delete). Members
+  (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
+  sandboxes without an agent environment, Amp integration, provider
+  environment or remote-execution purpose; everything else is admin-only.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and

@@ -117,11 +117,19 @@ net.mptcp.enabled                   = 0
 	// full availability, times out the observability chart's `helm --wait`, and
 	// wedges every deploy. The soft/hard lockup detectors panic on a stuck CPU;
 	// panic_on_oops promotes an oops to a panic; kernel.panic=10 reboots 10s after
-	// any panic. Applied to /etc/sysctl.d/99-tuist-hardening.conf.
+	// any panic. io_uring_disabled=1 limits io_uring to processes with
+	// CAP_SYS_ADMIN: io_uring operations bypass seccomp, and Firecracker's
+	// filter allows io_uring_setup, so a hijacked jailed VMM (an unprivileged
+	// slot uid) could otherwise reach files and syscalls its filter denies.
+	// sandboxd's VMs use the Sync block engine, and Kata's QEMU runs as root.
+	// Applied to kernelHardeningSysctlPath by the self-join, and on running
+	// hosts by the kubelet config re-push, whose hash covers it.
+	kernelHardeningSysctlPath    = "/etc/sysctl.d/99-tuist-hardening.conf"
 	kernelHardeningSysctlContent = `kernel.softlockup_panic = 1
 kernel.hardlockup_panic = 1
 kernel.panic_on_oops = 1
 kernel.panic = 10
+kernel.io_uring_disabled = 1
 `
 
 	// watchdogDropInContent arms systemd's hardware watchdog: systemd pings
@@ -443,7 +451,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 	)
 	hardeningSysctl := writeFile(
 		"printf '%s' "+shellSingleQuote(kernelHardeningSysctlContent),
-		"/etc/sysctl.d/99-tuist-hardening.conf",
+		kernelHardeningSysctlPath,
 	)
 	watchdogDropIn := writeFile(
 		"printf '%s' "+shellSingleQuote(watchdogDropInContent),

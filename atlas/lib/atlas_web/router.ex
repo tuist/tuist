@@ -23,7 +23,19 @@ defmodule AtlasWeb.Router do
     plug :put_root_layout, html: {AtlasWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :label_security_headers
     plug FetchCurrentUser
+  end
+
+  defp label_security_headers(conn, _opts) do
+    if String.starts_with?(conn.request_path, "/operations/labels") do
+      conn
+      |> put_resp_header("cache-control", "no-store")
+      |> put_resp_header("referrer-policy", "no-referrer")
+      |> put_resp_header("permissions-policy", "bluetooth=(self)")
+    else
+      conn
+    end
   end
 
   pipeline :docs do
@@ -268,6 +280,15 @@ defmodule AtlasWeb.Router do
     delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
   end
 
+  scope "/api/labels/relay/sessions", AtlasWeb do
+    pipe_through :api
+    get "/:id", LabelRelayController, :status, log: false
+    get "/:id/jobs/:image", LabelRelayController, :image, log: false
+    post "/:id/relay", LabelRelayController, :relay, log: false
+    post "/:id/jobs/:jobId/claim", LabelRelayController, :claim, log: false
+    post "/:id/jobs/:jobId/result", LabelRelayController, :result, log: false
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
@@ -384,6 +405,7 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/operations/labels/:id/jobs/:jobId/preview", LabelsController, :image, log: false
     get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
     get "/connections/:provider/callback", ConnectionController, :callback, log: false
 
@@ -406,6 +428,8 @@ defmodule AtlasWeb.Router do
       live "/orbit", OrbitLive, :index
       live "/orbit/:id", OrbitLive, :show
       live "/tasks", TasksLive, :index
+      live "/approvals", ApprovalsLive, :index
+      live "/approvals/:id", ApprovalsLive, :show
       live "/people", PeopleLive, :index
       live "/people/time-off", TimeOffLive, :index
       live "/people/time-off/settings", TimeOffLive, :settings
@@ -495,6 +519,8 @@ defmodule AtlasWeb.Router do
     live_session :scoped_assets,
       on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/operations/labels/:id", LabelsLive, :relay
+      live "/operations/labels/:id/jobs/:jobId/approval", LabelsLive, :approval
       live "/operations/hardware", HardwareLive, :index
       live "/operations/hardware/financings", FinancingsLive, :index
       live "/operations/hardware/financings/:id", FinancingShowLive, :show

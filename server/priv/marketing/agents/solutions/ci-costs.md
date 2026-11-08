@@ -17,9 +17,9 @@ Compare equivalent periods and separate more activity from a more expensive job.
 
 ## Project first, environment second
 
-Improve task inputs, dependency boundaries, and costly retries before buying more execution capacity. For Gradle and Bazel, test compatible output reuse; for Elixir, investigate reported compilation and tests because Tuist has no remote build cache there. Keep Xcode-specific selection requirements separate from those integrations.
+Improve task inputs, dependency boundaries, and costly retries before buying more execution capacity. For Gradle and Bazel, test compatible output reuse; for Elixir, investigate reported compilation and tests and try [remote dependency caching](/en/docs-markdown/guides/features/cache/elixir) for supported compiled dependencies, not application source files. Keep Xcode-specific selection requirements separate from those integrations.
 
-The [comparison billing table](/marketing-markdown/compare#billing-and-incentives) cites minute-, resource-, credit-, and build-based charges and their exceptions. Reducing work does not necessarily reduce a fixed subscription or per-build charge. Tuist also meters feature usage; include its charges rather than assuming all interests or savings automatically align.
+The [comparison billing table](/marketing-markdown/compare#compare-total-costs) cites minute-, resource-, credit-, and build-based charges and their exceptions. Reducing work does not necessarily reduce a fixed subscription or per-build charge. Tuist also meters feature usage; include its charges rather than assuming all interests or savings automatically align.
 
 ## Evaluate total cost, not just runtime
 
@@ -38,7 +38,7 @@ Tuist Cache is independent of Tuist Runners. Clients normally receive a nearby r
 
 ## Investigate with an agent
 
-Use the authorized [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to compare build operations, cache behavior, and test attempts. On Tuist Runners, `list_runner_jobs`, `list_runner_job_steps`, and `list_runner_job_metrics` add execution evidence. Give the agent your actual invoice rates and allowances separately; it should not infer prices or a complete bill from Tuist timing data.
+Use the authorized [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to compare build operations, cache behavior, and test attempts. On Tuist Runners, `list_runner_jobs`, `list_runner_job_steps`, and `list_runner_job_metrics` add execution evidence. Provide your actual invoice rates and allowances separately; Tuist timing data alone does not establish prices or a complete bill.
 
 Ask for the largest observed source of avoidable work, one intervention, and the evidence needed to validate it. Reading insights is not automatic cost optimization or authorization to resize machines.
 
@@ -48,9 +48,5 @@ Ask for the largest observed source of avoidable work, one intervention, and the
 2. Reduce one source of duplicate work or retries using [Cache](/marketing-markdown/cache) or [Tests](/marketing-markdown/tests).
 3. Rerun equivalent workloads and include the new cache and service charges.
 4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/compute) against your required platforms and concurrency; access is invite-only, and per-minute rates are on the [pricing page](/pricing).
-
-## Limitations
-
-The bill may rise because the team ships more or runs more verification, even if each job improves. Caching can cost more than rebuilding small outputs. Quarantine can hide regressions; sharding is not inherently cheaper. Toolchain support and billing models differ, so use current [pricing guidance](/marketing-markdown/pricing). Tuist Runners are invite-only, and yearly commitments and volume carry discounts, so a listed rate is not a quote. This page does not claim they are cheaper than another provider or guarantee savings.
 
 Related: [slow builds](/marketing-markdown/solutions/slow-builds), [slow tests](/marketing-markdown/solutions/slow-tests), and [flaky tests](/marketing-markdown/solutions/flaky-tests).
