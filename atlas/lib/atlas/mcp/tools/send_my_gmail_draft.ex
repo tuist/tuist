@@ -71,7 +71,7 @@ defmodule Atlas.MCP.Tools.SendMyGmailDraft do
     prefix <>
       "Sending this draft needs the mailbox owner's approval of its current content. Ask the person you are " <>
       "working for to review request #{approval.id} at " <>
-      "#{AtlasWeb.Endpoint.url()}/settings/connections#gmail-approval-#{approval.id} " <>
+      "#{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
       "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call without editing the draft. " <>
       "Never approve it yourself."
   end

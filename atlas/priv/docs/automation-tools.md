@@ -109,8 +109,9 @@ when you reconnect. MCP clients then get four caller-only tools:
 - `update_my_gmail_draft` replaces a draft's recipients, subject and body. It
   keeps the draft's thread unless you pass a new `reply_to_message_id`.
 - `send_my_gmail_draft` sends a draft once you approve it. The first call files
-  a request and returns a link to Settings → Connections, which shows the
-  draft's current recipients, subject, body and attachments as Gmail holds them.
+  a request and returns a link to that request under My approvals
+  (`/approvals`), which shows the draft's current recipients, subject, body and
+  attachments as Gmail holds them. Only you can see your requests there.
   **Approve send** pins a digest of that content. Repeating the call then sends
   the draft once. The approval expires after an hour and is spent by one send.
   Choose **Edit** to change the recipients, subject or body first: **Save and

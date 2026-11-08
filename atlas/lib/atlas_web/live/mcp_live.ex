@@ -9,7 +9,7 @@ defmodule AtlasWeb.MCPLive do
   alias Atlas.MCP.ServerConfiguration
   alias Atlas.Users
 
-  # Gmail sends are decided at /settings/connections, which shows the pinned
+  # Gmail sends are decided at /approvals, which shows the pinned
   # draft; here they would only show its digest.
   @approval_scope [except_server_names: ["gmail"]]
 

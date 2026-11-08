@@ -131,7 +131,7 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
     # The first call only files a request; nothing is sent.
     assert {:error, message} = SendMyGmailDraft.execute(agent_conn(user), %{"draft_id" => "draft-1"})
     assert [%ToolApproval{id: id} = approval] = MCP.list_pending_tool_approvals(user, server_names: ["gmail"])
-    assert message =~ "/settings/connections#gmail-approval-#{id}"
+    assert message =~ "/approvals/#{id}"
     refute message =~ "changed"
     refute_received :sent
 

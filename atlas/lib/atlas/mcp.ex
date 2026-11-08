@@ -565,8 +565,8 @@ defmodule Atlas.MCP do
       target_id: approval.id,
       target_label: "#{approval.server_name}/#{approval.tool_name}",
       metadata: %{
-        # Gmail sends are reviewed next to the Google connection, which shows the draft.
-        "path" => if(approval.server_name == "gmail", do: "/settings/connections", else: "/admin/mcps"),
+        # Gmail sends are reviewed on the owner's approvals page, which shows the draft.
+        "path" => if(approval.server_name == "gmail", do: "/approvals/#{approval.id}", else: "/admin/mcps"),
         "server_name" => approval.server_name,
         "tool_name" => approval.tool_name,
         "arguments" => approval.arguments,
