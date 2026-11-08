@@ -517,8 +517,8 @@ defmodule TuistWeb.API.BazelController do
       cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,
       exit_code: invocation.exit_code,
-      started_at: invocation.started_at,
-      finished_at: invocation.finished_at,
+      started_at: utc_datetime(invocation.started_at),
+      finished_at: utc_datetime(invocation.finished_at),
       duration_ms: invocation.duration_ms,
       build_metrics: build_metrics_json(invocation),
       build_timeline: build_timeline_json(invocation),
@@ -536,9 +536,14 @@ defmodule TuistWeb.API.BazelController do
       message: log.message,
       target_label: log.target_label,
       status: log.status,
-      observed_at: log.observed_at
+      observed_at: utc_datetime(log.observed_at)
     }
   end
+
+  # ClickHouse `DateTime` columns load as naive UTC values; the schema promises
+  # RFC 3339 `date-time` strings, which require an offset.
+  defp utc_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
+  defp utc_datetime(datetime), do: datetime
 
   defp build_metrics_json(invocation) do
     %{

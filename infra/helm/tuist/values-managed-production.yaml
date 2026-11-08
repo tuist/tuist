@@ -566,9 +566,10 @@ kuraVolumesCSI:
   # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
   # Thin-ready nodes: eu-west qvv7x-ndgzl (lvm-v1 since 2026-11-05) and
-  # sa-west gnbzx-gmn2k (lvm-v1 since 2026-11-06). Only accounts on the
-  # kura_thin_volumes flag move; listing a region changes no other manifest.
-  thinRegions: [eu-west, sa-west]
+  # sa-west gnbzx-gmn2k (lvm-v1 since 2026-11-06) and us-central 9bg76-s2kpr
+  # (lvm-v1 since 2026-11-08). Only accounts on the kura_thin_volumes flag
+  # move; listing a region changes no other manifest.
+  thinRegions: [eu-west, sa-west, us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming

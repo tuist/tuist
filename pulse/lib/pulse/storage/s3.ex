@@ -2017,14 +2017,15 @@ defmodule Pulse.Storage.S3 do
   # context complete for every trace shorter than it, without reading the
   # whole retained catalog for each search.
   defp tempo_context_plan(%Manifest{version: 4} = root, start_ts, opts, tenant, config) do
-    fn hashes, window ->
+    fn hashes, window, native ->
       {from, to} = context_bounds(window, start_ts, config)
-      query_segments(root, :traces, from, to, Keyword.put(opts, :context_hashes, hashes), tenant, config)
+      opts = opts |> Keyword.put(:context_hashes, hashes) |> Keyword.put(:tempo_context, native)
+      query_segments(root, :traces, from, to, opts, tenant, config)
     end
   end
 
   defp tempo_context_plan(manifest, start_ts, opts, tenant, config) do
-    fn _hashes, window ->
+    fn _hashes, window, _native ->
       {from, to} = context_bounds(window, start_ts, config)
       query_segments(manifest, :traces, from, to, opts, tenant, config)
     end
@@ -2081,7 +2082,7 @@ defmodule Pulse.Storage.S3 do
     fetched = MapSet.new(ctx.segments, & &1.key)
 
     with {:ok, true} <- native_result(NIF.tempo_search_plan_hashes(ctx.native, hashes)),
-         {:ok, segments} <- plan.context.(for(<<hash::64 <- hashes>>, do: hash), ctx.segments),
+         {:ok, segments} <- plan.context.(for(<<hash::64 <- hashes>>, do: hash), ctx.segments, ctx.native),
          :ok <- check_catalog(segments),
          {:ok, hits} <- context_hits(Enum.reject(segments, &MapSet.member?(fetched, &1.key)), ctx.native) do
       # Pruned sources prove they hold no potential match; unread candidates

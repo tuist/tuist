@@ -155,7 +155,7 @@
       "tag_regex": "^gradle@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "gradle/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": []
+      "include_paths": ["gradle/**/*"]
     },
     {
       "name": "skills",

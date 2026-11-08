@@ -185,6 +185,33 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
     assert Enum.sum_by(root.paging["refs"], & &1["l"]) > 16
   end
 
+  test "limited plans order nested subtrees and inline candidates in both directions, including ties", ctx do
+    segments =
+      for i <- 1..20_000 do
+        min = div(i, 700) * 10_000 + rem(i, 3)
+        max = min + 100 + rem(i, 5)
+        key = S3.object_key(ctx.tenant, "logs", min, max, Integer.to_string(i, 16), nil)
+        %{Segment.build(key, min, max, 1, 100) | log_services: [if(rem(i, 3) == 0, do: "api", else: "web")]}
+      end
+
+    assert {:ok, root} =
+             JournalManifest.convert(%Manifest{version: 2, segments: segments}, ctx.tenant, "logs", ctx.config)
+
+    inline = Enum.at(segments, 2)
+    inline = %{inline | key: String.replace_suffix(inline.key, ".parquet", "-inline.parquet")}
+    # An inline entry competes with index and leaf bounds at a tied time.
+    root = %{root | segments: [inline]}
+    all = [inline | segments]
+
+    for order <- [:backward, :forward], n <- [1, 17, 700] do
+      rank = if order == :backward, do: &{-&1.max_ts, &1.key}, else: &{&1.min_ts, &1.key}
+      expected = all |> Enum.filter(&("api" in &1.log_services)) |> Enum.sort_by(rank) |> Enum.take(n)
+      opts = [service: "api", log_window: {order, n}, max_scan_segments: n]
+      assert {:ok, actual} = JournalManifest.query(root, ctx.tenant, "logs", opts, ctx.config)
+      assert actual == expected
+    end
+  end
+
   test "appends spill into pages, keyed retries stay idempotent and every root stays bounded", ctx do
     keyed =
       for i <- 1..1500 do

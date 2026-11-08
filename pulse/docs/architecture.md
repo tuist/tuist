@@ -1748,9 +1748,21 @@ An unkeyed append rewrites only the tail and, every 512 entries, writes one
 leaf plus at most one index page per completed height. Its cost does not depend
 on history. A keyed append also checks the pages whose key range covers its
 deterministic key, so its first lookup can read O(log n) pages, which are then
-cached. Queries prune by reference time ranges before reading pages and read at
-most eight pages concurrently; `max_scan_segments` is enforced while pages are
-read. Compaction selects candidates from the tail, the four newest leaves and
+cached. Queries prune by reference time ranges before reading pages.
+Limited log and trace candidate plans traverse index and leaf references together
+in subtree-bound order, expanding only subtrees that can precede the held window.
+They do not first materialize every historical leaf reference. Equal bounds still
+expand so key tie-breaking is exact; overlapping or unknown summaries can still
+require broad reads. Leaf-fetch tasks return verified encoded bytes, not decoded
+catalogs; the caller decodes and filters each page before retaining matches.
+Tempo context applies the sealed native trace-ID filter at that point, before
+unrelated full summaries enter the catalog or cross process messages. Native
+probes remain serialized and share the existing work bound; unknown summaries
+and exhausted optional probes still read conservatively. Complete-context trace
+recovery and its existing horizon, catalog, scan and heap limits are unchanged.
+Metadata reads run up to 32 at a time;
+`max_scan_segments` is enforced while candidate pages are read for full scans.
+Compaction selects candidates from the tail, the four newest leaves and
 four leaves picked by a rotating cursor. It rewrites the path from one leaf to
 the root and records the pages it supersedes. Cleanup deletes retired segments
 and superseded pages after the compaction grace (default one hour).
