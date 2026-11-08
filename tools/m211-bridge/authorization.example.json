@@ -1,0 +1,8 @@
+{
+  "id": "replace-with-new-reviewed-approval-id",
+  "sessionId": "replace-with-cli-session-id",
+  "text": "RACK-02-TEST",
+  "printer": "replace-with-reported-printer-name",
+  "supply": "replace-with-reported-supply-part",
+  "allowCut": false
+}

@@ -1,0 +1,42 @@
+name: M211 bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/m211-bridge/**
+      - .github/workflows/m211-bridge.yml
+  pull_request:
+    paths:
+      - tools/m211-bridge/**
+      - .github/workflows/m211-bridge.yml
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m211-bridge-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: tools/m211-bridge
+
+jobs:
+  test:
+    name: Test and format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/m211-bridge/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: npm test

@@ -1,0 +1,5 @@
+/node_modules/
+/state/
+/authorization.json
+/session.json
+/dispatch-*.json*
