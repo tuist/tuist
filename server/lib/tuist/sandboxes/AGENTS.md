@@ -154,16 +154,23 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
   with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
   spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
-  and is created with `from_disk_snapshot`; when that node cannot take it or
-  the clone fails, it boots the template instead. Each snapshot reserves its
+  and is created with `from_disk_snapshot`. While the archive tier is on, a
+  ready snapshot is also uploaded (`archive_disks`, `ArchiveDiskSnapshotWorker`
+  on the `sandbox_archives` queue, retried by `Archives.run/0` every six
+  hours, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
+  node copy; when the node cannot take the Orb, lost the copy or the clone
+  fails, an archived snapshot is created `from_archive` on any node with room
+  (boot source `disk_snapshot_archive`), else the template boots. A copy the
+  node loses keeps an archived row with `node_name` nil; a delete removes the
+  object too. Each snapshot with a node reserves its
   rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
   save itself is admitted under the node's lock
   (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
   of the same id, and of the id the saving Orb was spawned from
   (`sandboxes.amp_base_snapshot_id`), since Amp refreshes a project snapshot
   under a new id. Node reports reconcile them like sandboxes: copies no row
-  knows are deleted from the node, rows whose copy the node no longer lists
-  are dropped after a two-minute grace. A daemon that reports no
+  places on the node are deleted from it, rows whose copy the node no longer
+  lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.

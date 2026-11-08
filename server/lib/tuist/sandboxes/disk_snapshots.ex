@@ -2,16 +2,24 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @moduledoc """
   Disk snapshots of paused sandboxes (`Tuist.Sandboxes.DiskSnapshot`).
 
-  A snapshot lives only on the node that held its source sandbox: saving
-  is a copy-on-write clone there, and a sandbox created from it must be
-  placed on that node. Each snapshot reserves its full ceiling against the
-  node's disk budget. Snapshots unused for longer than Amp reuses one are
-  deleted, and the node's reports reconcile copies the database no longer
+  Saving a snapshot is a copy-on-write clone on the node that held its
+  source sandbox, and a sandbox created from it on that node clones it
+  again. Each snapshot reserves its full ceiling against that node's disk
+  budget. While the archive tier is on, a ready snapshot is also uploaded
+  to object storage (`Tuist.Sandboxes.Archives.archive_disk_snapshot/1`),
+  so a sandbox created where its node has no room, or after the node lost
+  the copy, boots from the archive on any node instead of the template. An
+  archived snapshot whose node copy is gone keeps its row with no
+  `node_name`; one that was never archived is dropped.
+
+  Snapshots unused for longer than Amp reuses one are deleted with their
+  archive, and the node's reports reconcile copies the database no longer
   knows and rows whose copy the node lost.
   """
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Nodes
@@ -47,9 +55,10 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   @doc """
   Saves a paused sandbox's disks under `amp_snapshot_id` on its node and
-  replaces the older snapshots saved under that identifier. The sandbox's
-  last pause must have synced its disks. A repeated save of the same pause
-  does nothing.
+  replaces the older snapshots saved under that identifier, then queues its
+  upload to object storage (`Archives.queue_disk_snapshot/1`). The
+  sandbox's last pause must have synced its disks. A repeated save of the
+  same pause does nothing.
   """
   def save(%Sandbox{state: :paused, node_name: node_name} = sandbox, amp_snapshot_id)
       when is_binary(node_name) and is_binary(amp_snapshot_id) do
@@ -93,6 +102,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
           )
 
           delete_superseded(ready, sandbox)
+          Archives.queue_disk_snapshot(ready)
           {:ok, ready}
 
         {:error, reason} ->
@@ -140,21 +150,68 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   @doc """
-  Drops the row when the node answered that it no longer holds the copy.
+  Forgets the node copy when the node answered that it no longer holds it:
+  an archived snapshot keeps its row without a node, any other is dropped.
   """
   def forget_if_missing(%DiskSnapshot{} = snapshot, reason) when is_binary(reason) do
-    if String.contains?(reason, "disk snapshot not found"), do: delete(snapshot)
+    cond do
+      not String.contains?(reason, "disk snapshot not found") -> :ok
+      snapshot.archived_at -> forget_node_copy(snapshot)
+      true -> delete(snapshot)
+    end
+
     :ok
   end
 
   def forget_if_missing(_snapshot, _reason), do: :ok
 
+  # The node lost its copy (it answered so, or stopped listing it). Only the
+  # archive is left of an archived snapshot.
+  defp forget_node_copy(%DiskSnapshot{archived_at: %DateTime{}} = snapshot) do
+    Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id), set: [node_name: nil, updated_at: now()])
+  end
+
+  defp forget_node_copy(%DiskSnapshot{} = snapshot) do
+    Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id))
+    # An upload in flight fails without the copy; abort it in case its caller died.
+    if snapshot.archive_key, do: Tasks.run_async(fn -> Archives.delete_disk_snapshot_archive(snapshot) end)
+  end
+
   @doc """
-  Removes the copy from its node and the row. A node that is not connected
-  removes the copy when its next report lists one the database no longer
-  knows.
+  Removes the copy from its node, the archive and the row. A node that is
+  not connected removes the copy when its next report lists one the
+  database no longer knows. When storage refuses to delete a completed
+  archive, the row stays without a node, so a later expiry or supersede
+  deletes the archive again.
   """
   def delete(%DiskSnapshot{} = snapshot) do
+    if snapshot.node_name, do: delete_node_copy(snapshot)
+
+    case Archives.delete_disk_snapshot_archive(snapshot) do
+      :ok ->
+        Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id))
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: failed to delete a disk snapshot's archive",
+          disk_snapshot_id: snapshot.id,
+          reason: inspect(reason)
+        )
+
+        # Only a completed archive is worth another try; an upload in flight
+        # left nothing readable behind.
+        if snapshot.archived_at,
+          do:
+            Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id),
+              set: [node_name: nil, updated_at: now()]
+            ),
+          else: Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id))
+
+        {:error, reason}
+    end
+  end
+
+  defp delete_node_copy(%DiskSnapshot{} = snapshot) do
     case Nodes.call(snapshot.node_name, "delete_disks", %{snapshot_id: snapshot.id}, []) do
       {:ok, _data} ->
         :ok
@@ -166,9 +223,6 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
           reason: inspect(reason)
         )
     end
-
-    Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id))
-    :ok
   end
 
   @doc """
@@ -199,13 +253,18 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   @doc """
   Aligns the database with the disk snapshots a node lists in its `hello`
-  or `report`: copies no row knows are deleted from the node, and rows
-  whose copy the node no longer lists are dropped. A daemon that does not
+  or `report`: copies no row places on the node are deleted from it, and
+  rows whose copy the node no longer lists lose it: an archived one keeps
+  its row without a node, any other is dropped. A daemon that does not
   report disk snapshots is left alone.
   """
   def reconcile_node_report(node_name, %{"disk_snapshots" => reported}) when is_binary(node_name) and is_list(reported) do
     reported_ids = for %{"id" => id} <- reported, {:ok, uuid} <- [Ecto.UUID.cast(id)], do: uuid
-    known = Repo.all(from(s in DiskSnapshot, where: s.id in ^reported_ids, select: s.id))
+
+    # A row that no longer names this node (its copy was given up for lost)
+    # does not reserve the node's disk, so the copy goes too.
+    known =
+      Repo.all(from(s in DiskSnapshot, where: s.id in ^reported_ids and s.node_name == ^node_name, select: s.id))
 
     reported_ids
     |> Kernel.--(known)
@@ -220,8 +279,12 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     )
     |> Repo.all()
     |> Enum.each(fn snapshot ->
-      Logger.warning("sandboxes: disk snapshot missing on node", disk_snapshot_id: snapshot.id, node: node_name)
-      Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id))
+      Logger.warning("sandboxes: disk snapshot missing on node",
+        disk_snapshot_id: snapshot.id,
+        node: node_name
+      )
+
+      forget_node_copy(snapshot)
     end)
 
     :ok

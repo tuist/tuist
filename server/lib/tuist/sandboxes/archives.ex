@@ -30,6 +30,15 @@ defmodule Tuist.Sandboxes.Archives do
   restore and a delete read it from there even after the target stops
   taking new archives, and a restore is placed on a node at its site.
   Accounts with their own S3 storage keep their archives there.
+
+  Ready disk snapshots (`Tuist.Sandboxes.DiskSnapshot`) are archived the
+  same way while the tier is on (`archive_disk_snapshot/1`, queued after
+  each save and retried by `run/0`), with `archive_disks`, under
+  `sandbox-archives/<account_id>/disk-snapshots/<snapshot_id>/`, so any
+  node can create a sandbox from them (`create` with `from_archive`). The
+  node copy stays: it is the fast path on its node. A snapshot archive is
+  not the only copy of anything, so it is deleted with its snapshot row.
+  Both kinds count against the account's archive storage cap.
   """
   import Ecto.Query
 
@@ -39,9 +48,11 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
@@ -73,12 +84,16 @@ defmodule Tuist.Sandboxes.Archives do
   def object_prefix(account_id), do: "sandbox-archives/#{account_id}/"
 
   @doc """
-  The bytes an account keeps in sandbox archives, counting archives of
-  restored Orbs whose deletion is still pending.
+  The bytes an account keeps in sandbox and disk snapshot archives,
+  counting archives of restored Orbs whose deletion is still pending.
   """
   def archived_bytes(account_id) do
+    archived_bytes(Sandbox, account_id) + archived_bytes(DiskSnapshot, account_id)
+  end
+
+  defp archived_bytes(schema, account_id) do
     Repo.one(
-      from s in Sandbox,
+      from s in schema,
         where: s.account_id == ^account_id and not is_nil(s.archived_at),
         select: type(coalesce(sum(s.archive_bytes), 0), :integer)
     )
@@ -87,7 +102,8 @@ defmodule Tuist.Sandboxes.Archives do
   @doc """
   One pass of the archive tier: deletes the archives of restored Orbs,
   aborts uploads and restores whose caller died, then archives Orbs paused
-  for longer than the configured threshold. Archiving is off while no
+  for longer than the configured threshold and queues the archives of
+  ready disk snapshots not archived yet. Archiving is off while no
   threshold is configured; the cleanups always run.
   """
   def run do
@@ -96,8 +112,12 @@ defmodule Tuist.Sandboxes.Archives do
     revert_stuck_restores()
 
     case Environment.sandbox_archive_after_hours() do
-      nil -> :ok
-      hours -> hours |> candidates() |> Enum.each(&archive/1)
+      nil ->
+        :ok
+
+      hours ->
+        hours |> candidates() |> Enum.each(&archive/1)
+        queue_disk_snapshot_archives()
     end
   end
 
@@ -231,53 +251,62 @@ defmodule Tuist.Sandboxes.Archives do
          } = sandbox
          when is_binary(node_name) <- Sandboxes.get_sandbox_by_id(id),
          %Account{} = account <- Repo.get(Account, sandbox.account_id),
-         {:ok, node} <- connected_node(node_name),
-         {store, actor} = select_store(account, node_name),
-         true <- Storage.supports_signed_upload_headers?(actor) do
+         {:ok, node} <- connected_node(node_name) do
       key = object_prefix(account.id) <> "#{sandbox.id}/#{Ecto.UUID.generate()}.sbxa"
-      {part_size, parts} = parts(sandbox, node)
 
-      case Storage.multipart_start(key, actor) do
-        {:ok, upload_id} ->
-          urls =
-            for part <- 1..parts,
-                do: Storage.multipart_generate_url(key, upload_id, part, actor, expires_in: @url_ttl_seconds)
-
+      case start_upload(account, node, sandbox, key) do
+        {:ok, upload} ->
           {:ok, _} =
             sandbox
             |> Sandbox.update_changeset(%{
               archive_key: key,
-              archive_store: store,
-              archive_upload_id: upload_id,
+              archive_store: upload.store,
+              archive_upload_id: upload.upload_id,
               archive_attempted_at: now()
             })
             |> Repo.update()
 
-          {:ok,
-           %{
-             sandbox: sandbox,
-             actor: actor,
-             key: key,
-             upload_id: upload_id,
-             part_size: part_size,
-             urls: urls
-           }}
+          {:ok, Map.put(upload, :sandbox, sandbox)}
 
         {:error, reason} ->
-          mark_attempted(sandbox)
+          mark_attempted(Sandbox, sandbox.id)
           {:error, reason}
+
+        :unsupported ->
+          {:ok, :skipped}
       end
     else
       _ -> {:ok, :skipped}
     end
   end
 
+  # Starts the multipart upload of the disks of `subject` (a sandbox or a
+  # disk snapshot) on `node` into the store `select_store/2` picks, and
+  # presigns its part URLs for the node.
+  defp start_upload(account, %{name: node_name} = node, subject, key) do
+    {store, actor} = select_store(account, node_name)
+
+    if Storage.supports_signed_upload_headers?(actor) do
+      {part_size, parts} = parts(subject, node)
+
+      with {:ok, upload_id} <- Storage.multipart_start(key, actor) do
+        urls =
+          for part <- 1..parts,
+              do: Storage.multipart_generate_url(key, upload_id, part, actor, expires_in: @url_ttl_seconds)
+
+        {:ok, %{store: store, actor: actor, key: key, upload_id: upload_id, part_size: part_size, urls: urls}}
+      end
+    else
+      :unsupported
+    end
+  end
+
   # The archive is at most the files' sizes plus a small framing and
   # compression overhead; parts grow past the minimum so no archive needs
   # more than @max_parts presigned URLs.
-  defp parts(sandbox, node) do
+  defp parts(subject, node) do
     max_bytes =
-      Capacity.disk_snapshot_ceiling_bytes(sandbox, node) + @kernel_allowance_bytes
+      Capacity.disk_snapshot_ceiling_bytes(subject, node) + @kernel_allowance_bytes
 
     max_bytes = max_bytes + div(max_bytes, 100)
     part_size = max(@min_part_size, div(max_bytes + @max_parts - 1, @max_parts))
@@ -333,18 +362,18 @@ defmodule Tuist.Sandboxes.Archives do
             {:ok, archived}
 
           {:error, reason} ->
-            discard(upload)
+            discard(Sandbox, upload)
             {:error, reason}
         end
       else
-        discard(upload)
+        discard(Sandbox, upload)
         {:ok, :skipped}
       end
     end)
   end
 
   defp finish({:ok, _data}, upload) do
-    discard(upload)
+    discard(Sandbox, upload)
     {:error, :invalid_archive_result}
   end
 
@@ -355,7 +384,7 @@ defmodule Tuist.Sandboxes.Archives do
       reason: inspect(reason)
     )
 
-    discard(upload)
+    discard(Sandbox, upload)
     {:error, reason}
   end
 
@@ -395,21 +424,27 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  defp discard(%{actor: actor, key: key, upload_id: upload_id}) do
-    case Storage.multipart_abort(key, upload_id, actor) do
-      :ok -> :ok
-      other -> Logger.warning("sandboxes: could not abort an archive upload", archive_key: key, reason: inspect(other))
-    end
+  # Aborts the upload and clears it from the row of `schema` (a sandbox or
+  # a disk snapshot) that still records it.
+  defp discard(schema, %{upload_id: upload_id} = upload) do
+    abort(upload)
 
-    Repo.update_all(from(s in Sandbox, where: s.archive_upload_id == ^upload_id and is_nil(s.archived_at)),
+    Repo.update_all(from(s in schema, where: s.archive_upload_id == ^upload_id and is_nil(s.archived_at)),
       set: [archive_key: nil, archive_store: nil, archive_upload_id: nil, updated_at: now()]
     )
 
     :ok
   end
 
-  defp mark_attempted(%Sandbox{id: id}) do
-    Repo.update_all(from(s in Sandbox, where: s.id == ^id), set: [archive_attempted_at: now()])
+  defp abort(%{actor: actor, key: key, upload_id: upload_id}) do
+    case Storage.multipart_abort(key, upload_id, actor) do
+      :ok -> :ok
+      other -> Logger.warning("sandboxes: could not abort an archive upload", archive_key: key, reason: inspect(other))
+    end
+  end
+
+  defp mark_attempted(schema, id) do
+    Repo.update_all(from(s in schema, where: s.id == ^id), set: [archive_attempted_at: now()])
   end
 
   # The row is archived already, so a node that is away removes the jail
@@ -429,27 +464,209 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
-  What a node needs to restore the archive: a presigned GET URL and the
-  size and checksum it was uploaded with.
+  Queues the upload of a ready disk snapshot when the archive tier is on
+  and the account is under its archive storage cap. Answers whether it
+  queued one.
   """
-  def restore_source(%Sandbox{state: :archived, archive_key: key, archive_bytes: bytes, archive_sha256: sha256} = sandbox)
-      when is_binary(key) and is_integer(bytes) and is_binary(sha256) do
-    with {:ok, actor} <- actor(sandbox) do
+  def queue_disk_snapshot(%DiskSnapshot{} = snapshot) do
+    if disk_snapshot_archivable?(snapshot) do
+      {:ok, _job} = %{disk_snapshot_id: snapshot.id} |> ArchiveDiskSnapshotWorker.new() |> Oban.insert()
+      true
+    else
+      false
+    end
+  end
+
+  defp disk_snapshot_archivable?(%DiskSnapshot{state: :ready, node_name: node_name, archived_at: nil} = snapshot)
+       when is_binary(node_name) do
+    Environment.sandbox_archive_after_hours() != nil and
+      archived_bytes(snapshot.account_id) < @max_archived_bytes_per_account
+  end
+
+  defp disk_snapshot_archivable?(%DiskSnapshot{}), do: false
+
+  # Ready snapshots still only on their node whose last upload failed long
+  # enough ago, or that were never tried (a save while the tier was off, or
+  # a job lost with its replica).
+  defp queue_disk_snapshot_archives do
+    retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
+
+    from(s in DiskSnapshot,
+      where:
+        s.state == :ready and not is_nil(s.node_name) and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+          (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before),
+      order_by: [desc: s.last_used_at],
+      limit: @per_run
+    )
+    |> Repo.all()
+    |> Enum.each(&queue_disk_snapshot/1)
+  end
+
+  @doc """
+  Uploads a ready disk snapshot from its node (`archive_disks`), which
+  keeps its copy. Answers `{:ok, %DiskSnapshot{}}` once the archive is
+  readable, `{:ok, :skipped}` when the snapshot is not archivable right now
+  (already archived or uploading, archiving off, storage full, node away)
+  or changed while uploading, or `{:error, reason}` when the upload failed;
+  the next try waits six hours then.
+
+  No lock is held during the upload. The row is claimed by recording the
+  upload on it only while it has none, and the archive is recorded only
+  while the row still names that upload: a snapshot deleted or superseded
+  meanwhile has its upload aborted, or its object deleted.
+  """
+  def archive_disk_snapshot(%DiskSnapshot{id: id}) do
+    with %DiskSnapshot{node_name: node_name, archive_upload_id: nil} = snapshot when is_binary(node_name) <-
+           Repo.get(DiskSnapshot, id),
+         true <- disk_snapshot_archivable?(snapshot),
+         %Account{} = account <- Repo.get(Account, snapshot.account_id),
+         {:ok, node} <- connected_node(node_name) do
+      key = object_prefix(account.id) <> "disk-snapshots/#{snapshot.id}/#{Ecto.UUID.generate()}.sbxa"
+
+      case start_upload(account, node, snapshot, key) do
+        {:ok, upload} ->
+          upload = Map.put(upload, :snapshot, snapshot)
+          if claim(upload), do: upload |> transfer_disks() |> finish_disks(upload), else: skip(upload)
+
+        {:error, reason} ->
+          mark_attempted(DiskSnapshot, snapshot.id)
+          {:error, reason}
+
+        :unsupported ->
+          {:ok, :skipped}
+      end
+    else
+      _ -> {:ok, :skipped}
+    end
+  end
+
+  defp claim(%{snapshot: snapshot, key: key, store: store, upload_id: upload_id}) do
+    {count, _} =
+      Repo.update_all(
+        from(s in DiskSnapshot, where: s.id == ^snapshot.id and is_nil(s.archive_upload_id) and is_nil(s.archived_at)),
+        set: [archive_key: key, archive_store: store, archive_upload_id: upload_id, archive_attempted_at: now()]
+      )
+
+    count == 1
+  end
+
+  defp skip(upload) do
+    abort(upload)
+    {:ok, :skipped}
+  end
+
+  defp transfer_disks(%{snapshot: snapshot} = upload) do
+    Nodes.call(
+      snapshot.node_name,
+      "archive_disks",
+      %{snapshot_id: snapshot.id, part_size: upload.part_size, part_urls: upload.urls},
+      timeout: @archive_timeout
+    )
+  end
+
+  defp finish_disks({:ok, %{"parts" => [_ | _] = parts, "bytes" => bytes, "sha256" => sha256} = data}, upload)
+       when is_integer(bytes) and is_binary(sha256) do
+    %{snapshot: snapshot, actor: actor, key: key, upload_id: upload_id} = upload
+    parts = for %{"part_number" => number, "etag" => etag} <- parts, do: {number, etag}
+    uploading = from(s in DiskSnapshot, where: s.id == ^snapshot.id and s.archive_upload_id == ^upload_id)
+
+    with true <- Repo.exists?(uploading),
+         :ok <- complete(key, upload_id, parts, actor) do
+      now = now()
+
+      case Repo.update_all(uploading,
+             set: [
+               archive_upload_id: nil,
+               archive_bytes: bytes,
+               archive_sha256: sha256,
+               archived_at: now,
+               updated_at: now
+             ]
+           ) do
+        {1, _} ->
+          Logger.info("sandboxes: disk snapshot archived",
+            disk_snapshot_id: snapshot.id,
+            node: snapshot.node_name,
+            archive_bytes: bytes,
+            stored_bytes: data["stored_bytes"],
+            duration_ms: data["duration_ms"]
+          )
+
+          {:ok, Repo.get(DiskSnapshot, snapshot.id)}
+
+        # Deleted while the upload completed: nothing would ever delete it.
+        {0, _} ->
+          Storage.delete_object(key, actor)
+          {:ok, :skipped}
+      end
+    else
+      false ->
+        abort(upload)
+        {:ok, :skipped}
+
+      {:error, reason} ->
+        discard(DiskSnapshot, upload)
+        {:error, reason}
+    end
+  end
+
+  defp finish_disks({:ok, _data}, upload) do
+    discard(DiskSnapshot, upload)
+    {:error, :invalid_archive_result}
+  end
+
+  # An older daemon answers `unknown op "archive_disks"`; like any other
+  # failure, the snapshot stays on its node and is tried again later.
+  defp finish_disks({:error, reason}, %{snapshot: snapshot} = upload) do
+    Logger.warning("sandboxes: archiving a disk snapshot failed",
+      disk_snapshot_id: snapshot.id,
+      node: snapshot.node_name,
+      reason: inspect(reason)
+    )
+
+    discard(DiskSnapshot, upload)
+    {:error, reason}
+  end
+
+  @doc """
+  Deletes the archive of a disk snapshot, aborting an upload in flight.
+  Answers `:ok` when there is none.
+  """
+  def delete_disk_snapshot_archive(%DiskSnapshot{archive_upload_id: upload_id, archive_key: key} = snapshot)
+      when is_binary(upload_id) do
+    with {:ok, actor} <- actor(snapshot), do: abort(%{actor: actor, key: key, upload_id: upload_id})
+    delete_object(snapshot)
+  end
+
+  def delete_disk_snapshot_archive(%DiskSnapshot{} = snapshot), do: delete_object(snapshot)
+
+  @doc """
+  What a node needs to restore the archive of an archived sandbox or of an
+  archived disk snapshot: a presigned GET URL and the size and checksum it
+  was uploaded with.
+  """
+  def restore_source(%Sandbox{state: :archived} = sandbox), do: download_source(sandbox)
+  def restore_source(%DiskSnapshot{archived_at: %DateTime{}} = snapshot), do: download_source(snapshot)
+  def restore_source(_subject), do: {:error, :archive_missing}
+
+  defp download_source(%{archive_key: key, archive_bytes: bytes, archive_sha256: sha256} = subject)
+       when is_binary(key) and is_integer(bytes) and is_binary(sha256) do
+    with {:ok, actor} <- actor(subject) do
       url = Storage.generate_download_url(key, actor, expires_in: @url_ttl_seconds)
       {:ok, %{url: url, bytes: bytes, sha256: sha256}}
     end
   end
 
-  def restore_source(%Sandbox{}), do: {:error, :archive_missing}
+  defp download_source(_subject), do: {:error, :archive_missing}
 
   @doc """
-  Deletes the archive object of a sandbox. Answers `:ok` when there is
-  none.
+  Deletes the archive object of a sandbox or a disk snapshot. Answers `:ok`
+  when there is none.
   """
-  def delete_object(%Sandbox{archive_key: nil}), do: :ok
+  def delete_object(%{archive_key: nil}), do: :ok
 
-  def delete_object(%Sandbox{archive_key: key} = sandbox) do
-    case actor(sandbox) do
+  def delete_object(%{archive_key: key} = subject) do
+    case actor(subject) do
       {:ok, actor} -> Storage.delete_object(key, actor)
       {:error, :not_found} -> :ok
       {:error, reason} -> {:error, reason}
@@ -495,16 +712,20 @@ defmodule Tuist.Sandboxes.Archives do
   defp abandon_stuck_uploads do
     before = DateTime.add(now(), -@abandoned_after_minutes, :minute)
 
-    from(s in Sandbox, where: not is_nil(s.archive_upload_id) and s.archive_attempted_at < ^before)
-    |> Repo.all()
-    |> Enum.each(fn sandbox ->
-      Logger.warning("sandboxes: aborting an abandoned archive upload", sandbox_id: sandbox.id)
+    for {schema, id_key} <- [{Sandbox, :sandbox_id}, {DiskSnapshot, :disk_snapshot_id}] do
+      from(s in schema, where: not is_nil(s.archive_upload_id) and s.archive_attempted_at < ^before)
+      |> Repo.all()
+      |> Enum.each(fn row ->
+        Logger.warning("sandboxes: aborting an abandoned archive upload", [{id_key, row.id}])
 
-      case actor(sandbox) do
-        {:ok, actor} -> discard(%{actor: actor, key: sandbox.archive_key, upload_id: sandbox.archive_upload_id})
-        {:error, _reason} -> :ok
-      end
-    end)
+        case actor(row) do
+          {:ok, actor} -> discard(schema, %{actor: actor, key: row.archive_key, upload_id: row.archive_upload_id})
+          {:error, _reason} -> :ok
+        end
+      end)
+    end
+
+    :ok
   end
 
   @doc """
@@ -537,12 +758,13 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
-  The site of the in-rack store holding a sandbox's archive, whose nodes
-  alone can restore it, or `nil` when it is in the account's storage.
+  The site of the in-rack store holding the archive of a sandbox or a disk
+  snapshot, whose nodes alone can restore it, or `nil` when it is in the
+  account's storage.
   """
-  def restore_site(%Sandbox{archive_store: nil}), do: nil
+  def restore_site(%{archive_store: nil}), do: nil
 
-  def restore_site(%Sandbox{archive_store: store}) do
+  def restore_site(%{archive_store: store}) do
     case Map.fetch(stores(), store) do
       {:ok, {config, _target}} -> config["site"]
       :error -> nil
@@ -576,14 +798,14 @@ defmodule Tuist.Sandboxes.Archives do
     end)
   end
 
-  defp actor(%Sandbox{archive_store: nil, account_id: account_id}) do
+  defp actor(%{archive_store: nil, account_id: account_id}) do
     case Repo.get(Account, account_id) do
       %Account{} = account -> {:ok, account}
       nil -> {:error, :not_found}
     end
   end
 
-  defp actor(%Sandbox{archive_store: store}) do
+  defp actor(%{archive_store: store}) do
     case Map.fetch(stores(), store) do
       {:ok, {_config, target}} -> {:ok, target}
       :error -> {:error, :archive_store_unavailable}

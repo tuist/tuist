@@ -743,6 +743,10 @@ func (f *fakeOps) Archive(ctx context.Context, args protocol.ArchiveArgs) (proto
 	f.calls = append(f.calls, fmt.Sprintf("archive %s parts=%d", args.SandboxID, len(args.PartURLs)))
 	return protocol.ArchiveResult{Bytes: 3}, nil
 }
+func (f *fakeOps) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
+	f.calls = append(f.calls, fmt.Sprintf("archive_disks %s parts=%d", args.SnapshotID, len(args.PartURLs)))
+	return protocol.ArchiveResult{Bytes: 3}, nil
+}
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete "+id)
 	return nil
