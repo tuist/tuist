@@ -9,6 +9,10 @@ defmodule AtlasWeb.MCPLive do
   alias Atlas.MCP.ServerConfiguration
   alias Atlas.Users
 
+  # Gmail sends are decided at /settings/connections, which shows the pinned
+  # draft; here they would only show its digest.
+  @approval_scope [except_server_names: ["gmail"]]
+
   def mount(_params, _session, socket) do
     {:ok,
      socket
@@ -30,13 +34,13 @@ defmodule AtlasWeb.MCPLive do
     socket
     |> assign(:servers, MCP.list_servers(socket.assigns.current_user))
     |> assign(:configuration_ids, Map.new(configurations, &{&1.name, &1.id}))
-    |> assign(:approvals, MCP.list_pending_tool_approvals(socket.assigns.current_user))
+    |> assign(:approvals, MCP.list_pending_tool_approvals(socket.assigns.current_user, @approval_scope))
   end
 
   def handle_event("decide_approval", %{"id" => id, "decision" => decision}, socket)
       when decision in ["approved", "rejected"] do
     socket =
-      case MCP.decide_tool_approval(socket.assigns.current_user, id, decision) do
+      case MCP.decide_tool_approval(socket.assigns.current_user, id, decision, @approval_scope) do
         {:ok, %{status: "approved"}} ->
           put_flash(socket, :info, gettext("Approved. The agent can now repeat the call once."))
 

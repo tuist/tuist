@@ -62,6 +62,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateManualFinanceInvoice
   alias Atlas.MCP.Tools.CreateMCPServer
   alias Atlas.MCP.Tools.CreateMoodboardResource
+  alias Atlas.MCP.Tools.CreateMyGmailDraft
   alias Atlas.MCP.Tools.CreateNote
   alias Atlas.MCP.Tools.CreatePOC
   alias Atlas.MCP.Tools.CreatePostmortem
@@ -156,6 +157,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
   alias Atlas.MCP.Tools.GetMoodboardResource
   alias Atlas.MCP.Tools.GetMyBusinessProfile
+  alias Atlas.MCP.Tools.GetMyGmailDraft
   alias Atlas.MCP.Tools.GetMyGmailMessage
   alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
@@ -300,6 +302,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SearchWeb
   alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
+  alias Atlas.MCP.Tools.SendMyGmailDraft
   alias Atlas.MCP.Tools.SendNudge
   alias Atlas.MCP.Tools.SendTestPushNotification
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
@@ -328,6 +331,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
   alias Atlas.MCP.Tools.UpdateMoodboardResource
   alias Atlas.MCP.Tools.UpdateMyBusinessProfile
+  alias Atlas.MCP.Tools.UpdateMyGmailDraft
   alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
@@ -579,6 +583,10 @@ defmodule Atlas.MCP.Server do
     ManageAccountConnections,
     SearchMyGmail,
     GetMyGmailMessage,
+    GetMyGmailDraft,
+    CreateMyGmailDraft,
+    UpdateMyGmailDraft,
+    SendMyGmailDraft,
     SearchMySlack,
     SetOVHServerDisplayName,
     RequestClusterElevation,
@@ -1031,8 +1039,16 @@ defmodule Atlas.MCP.Server do
   end
 
   defp personal_connection_tool_allowed?(conn, module)
-       when module in [ManageAccountConnections, SearchMyGmail, GetMyGmailMessage, SearchMySlack],
-       do: ManageAccountConnections.allowed_context?(conn)
+       when module in [
+              ManageAccountConnections,
+              SearchMyGmail,
+              GetMyGmailMessage,
+              GetMyGmailDraft,
+              CreateMyGmailDraft,
+              UpdateMyGmailDraft,
+              SendMyGmailDraft,
+              SearchMySlack
+            ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
        when module in [ListCodingRepositories, UpdateCodingRepositorySettings],
@@ -1155,7 +1171,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message search_my_slack),
+       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments
