@@ -1484,7 +1484,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
-    /// List Bazel invocations for a project.
+    /// List Bazel invocations for a project, newest first.
+    ///
+    /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/get(listBazelInvocations)`.
@@ -5126,7 +5128,9 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// List Bazel invocations for a project.
+    /// List Bazel invocations for a project, newest first.
+    ///
+    /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/get(listBazelInvocations)`.
@@ -149731,7 +149735,9 @@ public enum Operations {
             }
         }
     }
-    /// List Bazel invocations for a project.
+    /// List Bazel invocations for a project, newest first.
+    ///
+    /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/get(listBazelInvocations)`.
@@ -149781,20 +149787,48 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/query/status`.
                 public var status: Operations.listBazelInvocations.Input.Query.statusPayload?
+                /// Filter by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Filter by full git commit SHA.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/query/git_commit_sha`.
+                public var git_commit_sha: Swift.String?
+                /// Filter by whether the invocation ran on CI.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Filter by Bazel command, for example build or test.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/query/command`.
+                public var command: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page_size: The maximum number of results to return.
                 ///   - page: The page number to return.
                 ///   - status: Filter by invocation status.
+                ///   - git_branch: Filter by git branch.
+                ///   - git_commit_sha: Filter by full git commit SHA.
+                ///   - is_ci: Filter by whether the invocation ran on CI.
+                ///   - command: Filter by Bazel command, for example build or test.
                 public init(
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
-                    status: Operations.listBazelInvocations.Input.Query.statusPayload? = nil
+                    status: Operations.listBazelInvocations.Input.Query.statusPayload? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    command: Swift.String? = nil
                 ) {
                     self.page_size = page_size
                     self.page = page
                     self.status = status
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.is_ci = is_ci
+                    self.command = command
                 }
             }
             public var query: Operations.listBazelInvocations.Input.Query

@@ -59108,6 +59108,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/bazel/invocations:
     get:
       callbacks: {}
+      description: Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
       operationId: listBazelInvocations
       parameters:
         - description: The handle of the account.
@@ -59155,6 +59156,38 @@ paths:
             enum:
               - success
               - failure
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by full git commit SHA.
+          in: query
+          name: git_commit_sha
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by whether the invocation ran on CI.
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by Bazel command, for example build or test.
+          in: query
+          name: command
+          required: false
+          schema:
             type: string
             x-struct:
             x-validate:
@@ -59456,7 +59489,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
-      summary: List Bazel invocations for a project.
+      summary: List Bazel invocations for a project, newest first.
       tags:
         - Bazel
   /api/projects/{account_handle}/{project_handle}/mix/files:

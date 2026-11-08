@@ -457,14 +457,78 @@ defmodule Tuist.Bazel do
 
   def list_invocations(project_id, flop_params \\ %{}, opts \\ []) do
     {commands, flop_params} = Map.pop(flop_params, :commands)
+    failure_category? = Keyword.get(opts, :failure_category, false)
 
-    {invocations, meta} =
+    # Two steps. `FINAL` keeps ClickHouse from moving filters to `PREWHERE`,
+    # and the table is sorted by project and random invocation ID, so a query
+    # that selects whole rows reads every column of the project's history to
+    # sort and filter it. The page is chosen from the narrow key, filter and
+    # sort columns instead, and only its rows are then loaded by primary key.
+    {page, meta} =
       project_id
       |> invocation_query(Keyword.put(opts, :commands, commands))
       |> maybe_with_failure_category(project_id, opts)
+      |> select_page_key(failure_category?)
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
-    with_cache_summaries(project_id, invocations, meta)
+    with_cache_summaries(project_id, load_page(project_id, page, failure_category?), meta)
+  end
+
+  defp select_page_key(query, true),
+    do:
+      select(query, [invocation], %{
+        invocation_id: invocation.invocation_id,
+        inserted_at: invocation.inserted_at,
+        failure_category: invocation.failure_category
+      })
+
+  defp select_page_key(query, false),
+    do: select(query, [invocation], %{invocation_id: invocation.invocation_id, inserted_at: invocation.inserted_at})
+
+  defp load_page(_project_id, [], _failure_category?), do: []
+
+  defp load_page(project_id, page, failure_category?) do
+    {first_inserted_at, last_inserted_at} = page |> Enum.map(& &1.inserted_at) |> Enum.min_max_by(& &1, NaiveDateTime)
+    invocation_ids = Enum.map(page, & &1.invocation_id)
+
+    # The page holds the latest version of each row, so bounding by its
+    # insertion times only prunes partitions that cannot hold that version.
+    invocations =
+      from(invocation in Invocation,
+        hints: ["FINAL"],
+        where:
+          invocation.project_id == ^project_id and invocation.invocation_id in ^invocation_ids and
+            invocation.inserted_at >= ^first_inserted_at and invocation.inserted_at <= ^last_inserted_at
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.invocation_id, &1})
+
+    # A row that expired between the two queries is left out of the page.
+    for key <- page, invocation <- List.wrap(invocations[key.invocation_id]) do
+      if failure_category?, do: %{invocation | failure_category: key.failure_category}, else: invocation
+    end
+  end
+
+  @doc """
+  Lists a project's invocations newest first for the REST API and MCP. Each
+  filter in `params` is an exact match, and a `nil` or `""` value leaves it out,
+  so the latest failure on a branch is one page of size one.
+  """
+  def list_project_invocations(project_id, params) do
+    filters =
+      for field <- [:status, :git_branch, :git_commit_sha, :is_ci, :command],
+          value <- [Map.get(params, field)],
+          value not in [nil, ""],
+          do: %{field: field, op: :==, value: value}
+
+    list_invocations(project_id, %{
+      filters: [%{field: :project_id, op: :==, value: project_id} | filters],
+      # Invocations finishing in the same second keep a stable page order.
+      order_by: [:finished_at, :invocation_id],
+      order_directions: [:desc, :desc],
+      page: Map.get(params, :page, 1),
+      page_size: Map.get(params, :page_size, 20)
+    })
   end
 
   defp maybe_with_failure_category(query, project_id, opts) do
@@ -655,14 +719,16 @@ defmodule Tuist.Bazel do
   def recent_invocations(project_id, opts) when is_list(opts) do
     limit = Keyword.get(opts, :limit, 30)
 
-    invocations =
+    # Picks the rows from narrow columns before loading them, as `list_invocations/3` does.
+    page =
       project_id
       |> invocation_query(opts)
       |> order_by([invocation], desc: invocation.finished_at)
       |> limit(^limit)
+      |> select_page_key(false)
       |> ClickHouseRepo.all()
 
-    {invocations, _meta} = with_cache_summaries(project_id, invocations, %{})
+    {invocations, _meta} = with_cache_summaries(project_id, load_page(project_id, page, false), %{})
     invocations
   end
 

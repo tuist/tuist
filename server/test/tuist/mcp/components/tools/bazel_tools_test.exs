@@ -65,6 +65,43 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert invocation["cache"]["invocation_id"] == nil
   end
 
+  test "returns the latest failing invocation on a branch", %{conn: conn, user: user, project: project} do
+    create_invocation(project, "main-older-failure",
+      git_branch: "main",
+      status: "failure",
+      finished_at: ~N[2026-11-01 10:00:00]
+    )
+
+    create_invocation(project, "main-latest-failure",
+      git_branch: "main",
+      status: "failure",
+      is_ci: false,
+      finished_at: ~N[2026-11-02 10:00:00]
+    )
+
+    create_invocation(project, "main-latest-success", git_branch: "main", finished_at: ~N[2026-11-03 10:00:00])
+
+    create_invocation(project, "other-branch-failure",
+      git_branch: "feature/other",
+      status: "failure",
+      finished_at: ~N[2026-11-04 10:00:00]
+    )
+
+    list = fn filters ->
+      %{"content" => [%{"type" => "text", "text" => text}]} =
+        ListBazelInvocations.call(
+          conn,
+          Map.merge(%{"account_handle" => user.account.name, "project_handle" => project.name}, filters)
+        )
+
+      %{"invocations" => invocations, "pagination_metadata" => pagination} = JSON.decode!(text)
+      {Enum.map(invocations, & &1["invocation_id"]), pagination["total_count"]}
+    end
+
+    assert list.(%{"status" => "failure", "git_branch" => "main", "page_size" => 1}) == {["main-latest-failure"], 2}
+    assert list.(%{"is_ci" => false}) == {["main-latest-failure"], 1}
+  end
+
   test "gets a Bazel invocation", %{conn: conn, user: user, project: project} do
     create_invocation(project, "invocation-1")
 
@@ -193,9 +230,9 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         invocation_id: invocation_id,
         command: "test",
         target_patterns: ["//..."],
-        git_branch: "feature/bazel",
+        git_branch: Keyword.get(options, :git_branch, "feature/bazel"),
         git_commit_sha: "abcdef",
-        is_ci: true,
+        is_ci: Keyword.get(options, :is_ci, true),
         custom_values: %{"environment" => "local", "runner" => "linux-arm64"},
         bazel_version: "9.1.0",
         cpu_time_ms: 1_250,
@@ -214,10 +251,10 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         critical_path_action_descriptions:
           if(Keyword.get(options, :critical_path_actions, true), do: ["Compile //app:app"], else: []),
         critical_path_action_durations_ms: if(Keyword.get(options, :critical_path_actions, true), do: [1_000], else: []),
-        status: "success",
-        exit_code: 0,
+        status: Keyword.get(options, :status, "success"),
+        exit_code: if(Keyword.get(options, :status) == "failure", do: 1, else: 0),
         started_at: ~N[2023-11-14 22:13:20],
-        finished_at: ~N[2023-11-14 22:13:35],
+        finished_at: Keyword.get(options, :finished_at, ~N[2023-11-14 22:13:35]),
         duration_ms: 15_000,
         project_id: project.id,
         account_handle: project.account.name,

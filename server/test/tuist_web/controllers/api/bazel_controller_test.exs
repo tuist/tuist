@@ -72,6 +72,50 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert %{"invocations" => [%{"invocation_id" => "failed"}]} = json_response(conn, 200)
     end
 
+    test "returns the latest failure on a branch and filters by commit, environment and command", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_invocation(project, "main-older-failure",
+        git_branch: "main",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-01 10:00:00]
+      )
+
+      create_invocation(project, "main-latest-failure",
+        git_branch: "main",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-02 10:00:00],
+        git_commit_sha: "c0ffee",
+        is_ci: false
+      )
+
+      create_invocation(project, "main-latest-success", git_branch: "main", finished_at: ~N[2026-11-03 10:00:00])
+
+      create_invocation(project, "other-branch-failure",
+        git_branch: "feature/other",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-04 10:00:00],
+        command: "build"
+      )
+
+      path = "/api/projects/#{user.account.name}/#{project.name}/bazel/invocations"
+
+      ids = fn query ->
+        conn |> get(path, query) |> json_response(200) |> Map.fetch!("invocations") |> Enum.map(& &1["invocation_id"])
+      end
+
+      assert ids.(%{status: "failure", git_branch: "main", page_size: 1}) == ["main-latest-failure"]
+      assert ids.(%{git_branch: "main"}) == ["main-latest-success", "main-latest-failure", "main-older-failure"]
+      assert ids.(%{git_commit_sha: "c0ffee"}) == ["main-latest-failure"]
+      assert ids.(%{is_ci: false}) == ["main-latest-failure"]
+      assert ids.(%{command: "build"}) == ["other-branch-failure"]
+    end
+
     test "keeps a critical-path duration when Bazel reports no component actions", %{
       conn: conn,
       user: user,
@@ -223,17 +267,17 @@ defmodule TuistWeb.API.BazelControllerTest do
   end
 
   defp create_invocation(project, invocation_id, options \\ []) do
-    started_at = ~N[2023-11-14 22:13:20]
-    finished_at = ~N[2023-11-14 22:13:35]
+    finished_at = Keyword.get(options, :finished_at, ~N[2023-11-14 22:13:35])
+    started_at = NaiveDateTime.add(finished_at, -15)
 
     Bazel.create_invocations([
       %{
         invocation_id: invocation_id,
         command: Keyword.get(options, :command, "test"),
         target_patterns: ["//..."],
-        git_branch: "feature/bazel",
-        git_commit_sha: "abcdef",
-        is_ci: true,
+        git_branch: Keyword.get(options, :git_branch, "feature/bazel"),
+        git_commit_sha: Keyword.get(options, :git_commit_sha, "abcdef"),
+        is_ci: Keyword.get(options, :is_ci, true),
         custom_values: %{"environment" => "local", "runner" => "linux-arm64"},
         bazel_version: "9.1.0",
         cpu_time_ms: 1_250,
