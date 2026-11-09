@@ -2166,6 +2166,8 @@ extension ProjectDescription.TargetDependency {
             return .xcframework(path: path, expectedSignature: expectedSignature, status: status, condition: condition)
         case let .external(name, _):
             return .external(name: name, condition: condition)
+        case let .externalWithStatus(name, status, _):
+            return .externalWithStatus(name: name, status: status, condition: condition)
         }
     }
 
