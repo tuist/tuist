@@ -379,6 +379,16 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandb
 | `archive_sandbox` | Queue moving a paused sandbox's disks to object storage. | `account_handle`, `sandbox_id` |
 | `delete_sandbox` | Delete a sandbox and its disks, after user confirmation. | `account_handle`, `sandbox_id` |
 
+#### Amp workspaces
+
+These tools manage the <.localized_link href="/guides/server/authentication#amp-orbs">Amp workspace connections</.localized_link> that let orbs sign in with `tuist auth login`. They use the same administrator-only permission as the dashboard's Integrations page. An agent in an orb can read its own IDs from `$AMP_WORKSPACE_ID` and `$AMP_PROJECT_ID`. Every orb a connection admits gets CI access to all projects in the account, so agents should confirm with the user before connecting.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_amp_workspace_connections` | List the account's connected Amp workspaces and the project each one is limited to, if any. | `account_handle` |
+| `connect_amp_workspace` | Connect an Amp workspace. Optional `project_id` limits sign-in to the orbs of one Amp project. | `account_handle`, `workspace_id` |
+| `disconnect_amp_workspace` | Disconnect a workspace. Sessions its orbs already have stay valid until they expire. | `account_handle`, `connection_id` |
+
 #### Webhooks
 
 Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.

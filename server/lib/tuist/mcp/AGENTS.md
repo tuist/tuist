@@ -63,6 +63,11 @@
   authorize project `:update`, and linking only accepts repositories in the
   account's GitHub App installation list, never a repository an installation
   token merely can read.
+- Amp workspace tools (`list_amp_workspace_connections`, `connect_amp_workspace`,
+  `disconnect_amp_workspace`) share `Accounts.*_amp_workspace_connection*` with the
+  Integrations page and require account `:update` for every call, reads included,
+  as the dashboard does. A connection grants every admitted orb account-wide CI
+  access, so keep them out of WebMCP and keep the confirm-with-the-user wording.
 - Code coverage tools (`get_coverage`, `list_coverage_files`,
   `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
   derive their output schemas from `Tests.Coverage.Schemas` through

@@ -122,7 +122,9 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             return
         }
 
-        if Environment.current.isCI, let _ = try? await authenticateWithOIDC(serverURL: serverURL) {
+        if Environment.current.isCI || Environment.current.isAmpOrb,
+           let _ = try? await authenticateWithOIDC(serverURL: serverURL)
+        {
             return
         }
 
