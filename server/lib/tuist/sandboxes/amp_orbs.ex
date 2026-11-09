@@ -23,7 +23,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   """
 
   alias Tuist.Environment
-  alias Tuist.Guardian
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Sites
@@ -33,15 +32,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes.Sandbox
 
   require Logger
-
-  @tuist_scopes [
-    "account:cache:read",
-    "project:cache:read",
-    "project:builds:write",
-    "project:tests:write",
-    "project:runs:write"
-  ]
-  @tuist_token_ttl_hours 6
 
   # The orb types a managed provider offers. An account administrator adds
   # these names under Orb types in Amp's provider settings; Amp passes the
@@ -314,20 +304,14 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp bootstrap_timeout(%Sandbox{platform: :darwin}), do: 120_000
   defp bootstrap_timeout(_sandbox), do: 15_000
 
-  # Agents run arbitrary code in the guest, so its account credential reads
-  # the cache but cannot write it, publish previews or bundles, or administer
-  # anything. Like CI, it reports builds, tests and runs, so an agent's builds
-  # show up in Tuist; those write scopes also read the account's builds, tests
-  # and runs. The token is stateless and expires on its own; each spawn mints
-  # a fresh one. The endpoint is the in-cluster cache a Linux runner on the
-  # same Node would use, absent when the account has none.
+  # The guest gets no Tuist credential. The Tuist clients in it sign in by
+  # exchanging the Orb's Amp identity token, which works only for an Amp
+  # workspace an account connected (`Tuist.Accounts.AmpWorkspaceConnections`),
+  # so what an agent can do in Tuist is the account's explicit choice. The
+  # endpoint is the in-cluster cache a Linux runner on the same Node would use,
+  # absent when the account has none.
   defp tuist_env(account, sandbox) do
-    {:ok, token, _claims} =
-      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @tuist_scopes, "all_projects" => true},
-        ttl: {@tuist_token_ttl_hours, :hour}
-      )
-
-    env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
+    env = %{"TUIST_URL" => Environment.app_url()}
 
     platform = if sandbox.platform == :darwin, do: :macos, else: :linux
 
