@@ -418,9 +418,7 @@ extension SimulatorDevice {
         do {
             try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "boot", udid])
         } catch {
-            if forced,
-               String(describing: error).contains("Unable to boot device in current state: Booted")
-            {
+            if String(describing: error).contains("Unable to boot device in current state: Booted") {
                 // noop
             } else {
                 throw error
