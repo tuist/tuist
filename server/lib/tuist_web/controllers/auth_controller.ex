@@ -24,6 +24,16 @@ defmodule TuistWeb.AuthController do
 
   @google_one_tap_max_age 3600
   @google_one_tap_max_challenges 10
+  # Pending challenges live in their own cookie rather than the session.
+  # Plugs rewrite the session cookie on every browser request, so a request
+  # running alongside the start fetch (such as the login page's passkey
+  # options) can respond last and drop the challenge from the session.
+  @google_one_tap_cookie "_tuist_google_one_tap"
+  @google_one_tap_cookie_options [
+    path: "/auth/google/one-tap",
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
+  ]
 
   defp log(level, message) do
     if not Tuist.Environment.test?() do
@@ -44,7 +54,7 @@ defmodule TuistWeb.AuthController do
 
       conn
       |> put_resp_header("cache-control", "private, no-store")
-      |> put_session(:google_one_tap, challenges)
+      |> put_google_one_tap_challenges(challenges)
       |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce, csrf_token: get_csrf_token()})
     else
       send_resp(conn, :no_content, "")
@@ -73,7 +83,9 @@ defmodule TuistWeb.AuthController do
         redirect(conn, to: ~p"/users/auth/google")
       end
     else
-      _ ->
+      failure ->
+        log(:warning, "Google One Tap sign-in failed: #{inspect(failure)}")
+
         conn
         |> put_flash(
           :error,
@@ -87,7 +99,9 @@ defmodule TuistWeb.AuthController do
     now = DateTime.to_unix(DateTime.utc_now())
 
     conn
-    |> get_session(:google_one_tap)
+    |> fetch_cookies(signed: [@google_one_tap_cookie])
+    |> Map.fetch!(:cookies)
+    |> Map.get(@google_one_tap_cookie)
     |> List.wrap()
     |> Enum.filter(fn
       %{nonce: nonce, issued_at: issued_at} when is_binary(nonce) and is_integer(issued_at) ->
@@ -99,8 +113,17 @@ defmodule TuistWeb.AuthController do
     end)
   end
 
-  defp put_google_one_tap_challenges(conn, []), do: delete_session(conn, :google_one_tap)
-  defp put_google_one_tap_challenges(conn, challenges), do: put_session(conn, :google_one_tap, challenges)
+  defp put_google_one_tap_challenges(conn, []),
+    do: delete_resp_cookie(conn, @google_one_tap_cookie, @google_one_tap_cookie_options)
+
+  defp put_google_one_tap_challenges(conn, challenges) do
+    put_resp_cookie(
+      conn,
+      @google_one_tap_cookie,
+      challenges,
+      [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
+    )
+  end
 
   def okta_request(conn, params), do: sso_request(conn, params, :okta)
   def oauth2_request(conn, params), do: sso_request(conn, params, :oauth2)
