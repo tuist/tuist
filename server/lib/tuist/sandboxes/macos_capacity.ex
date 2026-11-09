@@ -8,6 +8,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
   alias Tuist.Repo
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -63,14 +64,14 @@ defmodule Tuist.Sandboxes.MacosCapacity do
         with :ok <- quota(sandbox), do: host_admission(sandbox)
 
       nil ->
-        with :ok <- Concurrency.check(environment.account_id, environment), do: placement(environment)
+        with :ok <- Capacity.quota(environment.account_id, environment), do: placement(environment)
     end
   end
 
   def admissible?(environment, session_id), do: admission(environment, session_id) == :ok
 
   defp quota(%Sandbox{state: state}) when state in @charged, do: :ok
-  defp quota(sandbox), do: Concurrency.check(sandbox.account_id, sandbox)
+  defp quota(sandbox), do: Capacity.quota(sandbox.account_id, sandbox)
 
   defp host_admission(%Sandbox{node_name: node_name, node_uid: node_uid}) do
     status =

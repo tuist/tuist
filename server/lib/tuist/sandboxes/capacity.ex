@@ -57,6 +57,7 @@ defmodule Tuist.Sandboxes.Capacity do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.MacosCapacity
@@ -780,12 +781,12 @@ defmodule Tuist.Sandboxes.Capacity do
         charged_admission(name)
 
       %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) ->
-        with :ok <- Concurrency.check(sandbox.account_id, sandbox) do
+        with :ok <- quota(sandbox.account_id, sandbox) do
           if resumable?(sandbox), do: :ok, else: {:error, {node_name, :no_room}}
         end
 
       _new ->
-        with :ok <- Concurrency.check(agent_environment.account_id, agent_environment) do
+        with :ok <- quota(agent_environment.account_id, agent_environment) do
           if placeable?(agent_environment), do: :ok, else: {:error, :no_room}
         end
     end
@@ -793,6 +794,23 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc "Whether `admission/2` lets the session's work item through."
   def admissible?(agent_environment, session_id), do: admission(agent_environment, session_id) == :ok
+
+  @doc """
+  The account's quota check for a work item's sandbox. Past its disk limit,
+  archiving its oldest paused Orb makes room, as for a create
+  (`Tuist.Sandboxes.Archives.make_room/1`): `:sandbox_disk_limit` while one
+  is on its way, so waiting helps, and `:sandbox_limit` when nothing can be
+  archived, so it does not.
+  """
+  def quota(account_id, requested) do
+    case Concurrency.check(account_id, requested) do
+      {:error, :sandbox_disk_limit} ->
+        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
+
+      result ->
+        result
+    end
+  end
 
   defp charged_admission(name) do
     case Nodes.lookup(name) do
