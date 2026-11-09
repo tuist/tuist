@@ -2,7 +2,7 @@
 
 Tuist helps engineering teams and coding agents investigate slow builds and reuse compatible outputs without replacing CI. Improve the project first, then its execution environment: start with recorded build evidence and remove unnecessary work before buying more compute.
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. It provides build evidence and capabilities, not a coding agent or automatic project repair.
+Tuist is build infrastructure for engineering teams and coding agents. It provides build evidence and capabilities, not a coding agent or automatic project repair.
 
 ## Choose an approach
 
@@ -43,7 +43,7 @@ Ask for an evidence-backed bottleneck, one proposed change, and a before/after m
 
 ### What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. For slow builds, start with evidence and reuse rather than a CI migration.
+Tuist is build infrastructure for engineering teams and coding agents. For slow builds, start with evidence and reuse rather than a CI migration.
 
 ### Does this replace CI?
 

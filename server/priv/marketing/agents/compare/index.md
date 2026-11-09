@@ -4,7 +4,7 @@ Choose build infrastructure by the work your team needs to do. Compare Tuist wit
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
 
 ## Start with the decision, not a feature checklist
 

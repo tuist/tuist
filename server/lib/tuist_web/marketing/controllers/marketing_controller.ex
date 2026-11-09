@@ -36,7 +36,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+        "Tuist is build infrastructure for engineering teams and coding agents."
       )
     )
     |> assign(
@@ -484,7 +484,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         :head_description,
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+          "Tuist is build infrastructure for engineering teams and coding agents."
         )
       )
       |> assign(:head_title, dgettext("marketing", "About Tuist: build infrastructure"))

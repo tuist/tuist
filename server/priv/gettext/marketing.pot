@@ -2966,30 +2966,9 @@ msgstr ""
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
-#: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
-#: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
-#: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:229
-#: lib/tuist_web/marketing/structured_markup.ex:270
-#, elixir-autogen, elixir-format
-msgid "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:8
-#, elixir-autogen, elixir-format
-msgid "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared infrastructure connects building, testing, and review so people and agents can work together with reliable feedback."
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:61
-#, elixir-autogen, elixir-format
-msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that work brings people and coding agents into the same coding environment."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
@@ -3015,4 +2994,25 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "build work."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
+#: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
+#: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
+#: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
+#: lib/tuist_web/marketing/structured_markup.ex:229
+#: lib/tuist_web/marketing/structured_markup.ex:270
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. Shared infrastructure connects building, testing, and review so people and agents can work together with reliable feedback."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr ""

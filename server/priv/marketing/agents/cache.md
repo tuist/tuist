@@ -2,7 +2,7 @@
 
 For engineering teams and coding agents repeating the same build work, Tuist Cache shares compatible outputs across development and CI without moving jobs. A cache hit reuses an output; a miss builds normally. It does not repair an inefficient build graph.
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Cache is part of that infrastructure, not a replacement for CI or a coding agent. Improve the project first, then its execution environment: remove unnecessary work and reuse what remains.
+Tuist is build infrastructure for engineering teams and coding agents. Cache is part of that infrastructure, not a replacement for CI or a coding agent. Improve the project first, then its execution environment: remove unnecessary work and reuse what remains.
 
 ## Choose an approach
 
@@ -23,7 +23,7 @@ Use [Build Insights](/en/docs-markdown/guides/features/build-insights) and the c
 
 ### What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Cache shares compatible build outputs within that environment.
+Tuist is build infrastructure for engineering teams and coding agents. Cache shares compatible build outputs across development and CI.
 
 ### Does this replace CI?
 

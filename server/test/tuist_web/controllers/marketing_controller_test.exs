@@ -135,7 +135,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
         assert entry["description"] ==
-                 "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+                 "Tuist is build infrastructure for engineering teams and coding agents."
       end
 
       document = Floki.parse_document!(html)
@@ -147,7 +147,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
           ] do
         assert Floki.attribute(document, selector, "content") ==
                  [
-                   "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+                   "Tuist is build infrastructure for engineering teams and coding agents."
                  ]
       end
     end
@@ -549,7 +549,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       title = "About Tuist: build infrastructure"
 
       description =
-        "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+        "Tuist is build infrastructure for engineering teams and coding agents."
 
       assert document |> Floki.find("title") |> Floki.text() |> String.trim() == title
       assert Floki.attribute(document, ~s(meta[property="og:title"]), "content") == [title]

@@ -2,7 +2,7 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
   @comparisons [{"develocity", "Develocity"}, {"namespace", "Namespace"}, {"buildkite", "Buildkite"}]
-  @definition "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+  @definition "Tuist is build infrastructure for engineering teams and coding agents."
 
   test "featured comparisons render sourced decisions and distinct sharing metadata", %{conn: conn} do
     metadata =

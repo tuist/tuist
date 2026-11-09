@@ -2,7 +2,7 @@
 
 For engineering teams and coding agents waiting on slow or unreliable tests, Tuist provides shared test history and supported ways to distribute or reduce work without replacing CI. Start by reporting results, then choose an intervention from actual failures and timings.
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. It is not a coding agent or an automatic fix for broken tests.
+Tuist is build infrastructure for engineering teams and coding agents. It is not a coding agent or an automatic fix for broken tests.
 
 ## Choose an approach
 
@@ -24,7 +24,7 @@ Tuist is build infrastructure for engineering teams and coding agents: a coding 
 
 ### What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Tests adds shared evidence and supported test execution capabilities.
+Tuist is build infrastructure for engineering teams and coding agents. Tests adds shared evidence and supported test execution capabilities.
 
 ### Does this replace CI?
 

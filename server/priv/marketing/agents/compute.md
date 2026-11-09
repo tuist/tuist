@@ -2,7 +2,7 @@
 
 For engineering teams and coding agents constrained by build environments, Compute runs existing CI jobs next to the shared cache without replacing CI workflows. It is a managed, invite-only service. [Request an invitation](mailto:contact@tuist.dev); creating an account does not enable access.
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Compute is an optional execution environment within that infrastructure, not the definition of Tuist or a coding agent.
+Tuist is build infrastructure for engineering teams and coding agents. Compute is an optional execution environment within that infrastructure, not the definition of Tuist or a coding agent.
 
 ## Choose an approach
 
@@ -25,7 +25,7 @@ Available job records and reported build and machine metrics help investigate wo
 
 ### What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Compute is an optional part, not a new CI or coding agent.
+Tuist is build infrastructure for engineering teams and coding agents. Compute is an optional part, not a new CI or coding agent.
 
 ### Does this replace CI?
 

@@ -8,7 +8,7 @@ Buildkite is a CI/CD platform with pipeline orchestration, hosted and self-hoste
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. [Caching](/marketing-markdown/cache), [tests](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) serve work shared by developers, agents, and CI. Tuist is not CI orchestration. An existing pipeline can keep scheduling jobs while supported Tuist integrations provide reuse and build/test evidence.
+Tuist is build infrastructure for engineering teams and coding agents. [Caching](/marketing-markdown/cache), [tests](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) serve work shared by developers, agents, and CI. Tuist is not CI orchestration. An existing pipeline can keep scheduling jobs while supported Tuist integrations provide reuse and build/test evidence.
 
 ## Compare the responsibilities
 

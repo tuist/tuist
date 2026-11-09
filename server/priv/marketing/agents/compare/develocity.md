@@ -8,7 +8,7 @@ Develocity is a software delivery platform built around instrumented build recor
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not a CI replacement or just another coding agent. Teams can retain their existing CI and use their preferred agents with authorized build and test context.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not a CI replacement or just another coding agent. Teams can retain their existing CI and use their preferred agents with authorized build and test context.
 
 ## Compare the responsibilities
 
