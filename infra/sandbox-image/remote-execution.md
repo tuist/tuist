@@ -188,6 +188,25 @@ failure is an `ExecuteResponse` status. Only the small result protobuf crosses
 the control channel; sources, outputs and logs go directly between the guest and
 Kura. Empty logs have neither inline bytes nor a CAS digest.
 
+### Node blob cache
+
+An action's inputs repeat across actions: every Rust action of one build reads
+the same toolchain libraries, several hundred megabytes, so one Kura replica's
+egress limited how many could start. Workers with `workers.blobCacheGiB` (20 GiB
+by default) keep a node copy of the inputs the guest streams (anything not read
+in a batch). The guest asks sandboxd for each such blob over vsock; sandboxd
+downloads it once per node with the action's own scope and credential, verifies
+it and serves it, and the guest verifies it again while writing it to the
+workspace. A blob is kept per project CAS scope and is never served to another
+project. Any failure falls back to reading that blob, and the rest of the
+action's inputs, from Kura.
+
+The host serves only while the action exec runs, only VMs of the template the
+worker is configured with, and only until the executor seals the channel
+before the command starts, so the build cannot read the project's CAS through
+the host. The protocol, with ranged reads for a later lazily mounted input
+tree, is in `infra/sandboxd/AGENTS.md` ("Guest to host: blob cache").
+
 Supported execution properties are exactly `OSFamily=Linux`, `Arch=amd64` and
 `tuist-image=sha-<commit>`. The image property participates in the action digest
 and must match the template tag of the VM that runs it; actions pinned to a
@@ -341,7 +360,7 @@ reads three sources, none labelled by account or project:
   `cas_reads` summary. The executor carries it in the result's
   `auxiliary_metadata`, and the gateway removes it before answering the client
   or publishing to the action cache, so it is never stored. It has input reads
-  per RPC (`batch`, `stream`, `seeded`) with
+  per RPC (`batch`, `stream`, `host` for the node blob cache, `seeded`) with
   calls, blobs, bytes and summed milliseconds, the five slowest reads with
   size, duration, time to first byte for streams, gRPC code and serving peer
   address, the CAS endpoint and whether the prepared connection was used. It

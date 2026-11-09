@@ -105,6 +105,10 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if err = w.materialize(ctx, root, ".", &input, 0); err != nil {
 		return nil, false, err
 	}
+	// Never start the command with the host's blob channel open.
+	if err = w.CAS.SealHost(ctx); err != nil {
+		return nil, false, status.Error(codes.Unavailable, "sealing host blob access")
+	}
 	metadata.InputFetchCompletedTimestamp = timestamppb.Now()
 	outputs := command.OutputPaths
 	if len(outputs) == 0 {

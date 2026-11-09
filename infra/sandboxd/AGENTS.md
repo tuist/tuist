@@ -1,3 +1,4 @@
+| `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup and counted in `disk.templates_bytes`; see "Guest to host: blob cache". `0` disables it. |
 # sandboxd
 
 Per-node daemon that runs Firecracker microVM sandboxes for coding-agent
@@ -60,6 +61,8 @@ reflink, so rootfs clones are instant copy-on-write):
   rootfs.ext4         reflink clone of the source sandbox's rootfs
   workspace.ext4      reflink clone of the source sandbox's workspace
   disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
+/data/sandboxes/blobs/<scope>/<sha256>-<size>
+                      remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
 ```
 
 The jail directory is the jailer's chroot, so every sandbox sees the same
@@ -249,6 +252,34 @@ because the guest clock is stale by exactly the pause length until then.
 mounts the disk only if nothing is mounted there yet. The flush matters
 because the template VM saw an empty disk at the same path and the block
 layer may have cached its first sectors.
+
+## Guest to host: blob cache
+
+With `BLOB_CACHE_GIB` set, a remote-execution guest reads its large inputs
+from the node (`internal/blobcache`), so the CAS sends each blob to a node once
+instead of once per action. The guest connects to vsock port 5001 on the host
+(CID 2), which Firecracker forwards to `<jail root>/v.sock_5001`. The daemon
+listens there only while an action exec runs: `/usr/local/bin/sbx-executor`
+with no arguments, `SBX_EXECUTION_TOKEN` and `SBX_EXECUTION_REQUEST` (its
+`endpoint`, `account` and `instance`), on a VM of the template tag the daemon
+is configured with. The scope comes from that exec, never from the guest.
+
+One request per connection, a JSON line:
+
+```
+{"op":"read","hash":"<sha256>","size":N,"offset":O,"length":L}
+{"op":"seal"}
+```
+
+A read answers `{"ok":true}` and exactly `L` bytes of the blob from `O`, or
+`{"error":"..."}`, and the guest then reads that blob from the CAS. A miss
+downloads the whole blob with the exec's credential, verifies its digest, and
+serves every concurrent request for it from that one download. Blobs are kept
+per CAS scope (endpoint, account, instance), so a hit never serves another
+project's blob, and the least recently used are evicted to stay within the
+budget. `seal` ends serving for the exec; the executor sends it before the
+action's command starts, so the build cannot read the project's CAS through
+the host.
 
 ## Node to server: WebSocket
 
@@ -599,7 +630,7 @@ inside an error.
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
-sandbox IDs are never labels. Delete overlaps process exit and network teardown,
+`sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.
 
 ### Development

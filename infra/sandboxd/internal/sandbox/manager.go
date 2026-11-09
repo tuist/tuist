@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
@@ -71,6 +72,9 @@ type Deps struct {
 	// HTTPClient moves archives to and from object storage.
 	HTTPClient *http.Client
 	Metrics    *Metrics
+	// Blobs, when set, serves execution guests large input blobs from the
+	// node; see serveBlobs.
+	Blobs *blobcache.Cache
 	Events     func(protocol.Event)
 	Log        *slog.Logger
 }
@@ -89,6 +93,7 @@ type Manager struct {
 	events    func(protocol.Event)
 	log       *slog.Logger
 	claims    *Claims
+	blobs     *blobcache.Cache
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -171,6 +176,7 @@ func New(cfg Config, deps Deps) *Manager {
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
+		blobs:     deps.Blobs,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -960,6 +966,7 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 		return res, err
 	}
 	defer sb.releaseAgent()
+	defer m.serveBlobs(sb, args)()
 	if args.TimeoutMs > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(args.TimeoutMs)*time.Millisecond+10*time.Second)

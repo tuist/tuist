@@ -185,6 +185,7 @@ spec:
             - {name: ALLOWED_SHAPES, value: "2x4096"}
             - {name: PREBUILD_SHAPES, value: "2x4096"}
             - {name: DISK_BUDGET_GIB, value: {{ .Values.workers.diskGiB | quote }}}
+            - {name: BLOB_CACHE_GIB, value: {{ .Values.workers.blobCacheGiB | quote }}}
             - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
             - {name: DIRECT_EXEC_ADDR, value: "$(POD_IP):7071"}
           {{- if $shared.enabled }}

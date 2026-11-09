@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
@@ -84,6 +85,11 @@ func main() {
 		logger.Error("DISK_BUDGET_GIB must not be negative", "value", diskBudgetGiB)
 		os.Exit(1)
 	}
+	blobCacheGiB := intEnv(logger, "BLOB_CACHE_GIB", 0)
+	if blobCacheGiB < 0 {
+		logger.Error("BLOB_CACHE_GIB must not be negative", "value", blobCacheGiB)
+		os.Exit(1)
+	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
@@ -137,6 +143,13 @@ func main() {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	metrics := sandbox.NewMetrics(registry)
+	var blobs *blobcache.Cache
+	if blobCacheGiB > 0 {
+		if blobs, err = blobcache.New(filepath.Join(dataDir, "blobs"), int64(blobCacheGiB)<<30, logger, blobcache.NewMetrics(registry)); err != nil {
+			logger.Error("creating the blob cache", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
@@ -229,6 +242,7 @@ func main() {
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
+		Blobs: blobs,
 	})
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)
@@ -308,7 +322,7 @@ func main() {
 
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
-		BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+		BlobCacheDir: filepath.Join(dataDir, "blobs"), BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
 	}
 	diskReport := func() protocol.DiskReport {
 		report, err := disk.Report()

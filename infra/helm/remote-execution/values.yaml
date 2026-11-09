@@ -31,6 +31,9 @@ workers:
   # Both backends retain fresh namespaces and the same firewall/teardown path.
   networkBackend: iproute2
   diskGiB: 160
+  # Node cache of large action inputs, inside diskGiB: each blob is read from
+  # the CAS once per node instead of once per action. 0 disables it.
+  blobCacheGiB: 20
   # These hosts must be excluded from every CI RunnerPool. The dedicated
   # NoSchedule taint and this label are provisioned with the host pool.
   nodeSelector:
