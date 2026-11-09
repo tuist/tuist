@@ -12,6 +12,9 @@
 {{- if or (lt $slots 1) (gt $slots 128) }}
 {{- fail "workers.perNodeConcurrency and workers.sharedHosts.ceilingSlots must be between 1 and 128" }}
 {{- end }}
+{{- if ge (int .Values.workers.blobCacheGiB) (int .Values.workers.diskGiB) }}
+{{- fail "workers.blobCacheGiB comes out of workers.diskGiB and must be below it" }}
+{{- end }}
 {{- range $tag := list .Values.gateway.tag .Values.workers.tag .Values.workers.templateTag }}
 {{- if not (regexMatch "^sha-[a-f0-9]{12,40}$" $tag) }}
 {{- fail "gateway, daemon and template images must have immutable sha-<commit> tags" }}
@@ -185,6 +188,7 @@ spec:
             - {name: ALLOWED_SHAPES, value: "2x4096"}
             - {name: PREBUILD_SHAPES, value: "2x4096"}
             - {name: DISK_BUDGET_GIB, value: {{ .Values.workers.diskGiB | quote }}}
+            - {name: BLOB_CACHE_GIB, value: {{ .Values.workers.blobCacheGiB | quote }}}
             - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
             - {name: DIRECT_EXEC_ADDR, value: "$(POD_IP):7071"}
           {{- if $shared.enabled }}

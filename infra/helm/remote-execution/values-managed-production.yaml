@@ -10,8 +10,9 @@ gateway:
     enabled: true
     host: execution.tuist.dev
 workers:
-  # Six slots' rootfs clones, workspaces and memory images plus the template.
-  diskGiB: 180
+  # Six slots' rootfs clones, workspaces and memory images (156 GiB of
+  # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
+  diskGiB: 200
   # Two runners-linux hosts: 2 VMs each always (9 GiB, 4 CPUs), up to 6 each
   # (25 GiB) ahead of queued CI.
   sharedHosts:
