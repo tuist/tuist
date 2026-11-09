@@ -1829,8 +1829,10 @@ public class GraphTraverser: GraphTraversing {
 
         let externalTargetSupportedPlatforms = externalTargetSupportedPlatforms()
 
+        // A target reached through an `.optional` or `.none` edge is still built, so the targets it depends on are not orphans.
         let allTargetExternalDependendedUponTargets = filterDependencies(
-            from: graphDependenciesWithExternalDependencies
+            from: graphDependenciesWithExternalDependencies,
+            lookingUpTargetsByIdentity: true
         )
         .compactMap { graphDependency -> GraphTarget? in
             if case let GraphDependency.target(name, path, _) = graphDependency {
@@ -1937,10 +1939,14 @@ public class GraphTraverser: GraphTraversing {
     ///   - from: Dependencies from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
     ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - lookingUpTargetsByIdentity: Whether a target's dependencies are looked up by the target alone. The graph keys
+    ///     them by the target with the default `.required` status, while an edge keeps the status its dependent declared,
+    ///     so without this the traversal stops at a target reached through an `.optional` or `.none` edge.
     func filterDependencies(
         from rootDependencies: Set<GraphDependency>,
         test: (GraphDependency) -> Bool = { _ in true },
-        skip: (GraphDependency) -> Bool = { _ in false }
+        skip: (GraphDependency) -> Bool = { _ in false },
+        lookingUpTargetsByIdentity: Bool = false
     ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
@@ -1968,7 +1974,13 @@ public class GraphTraverser: GraphTraversing {
                 continue
             }
 
-            graph.dependencies[node]?.forEach { nodeDependency in
+            let key: GraphDependency
+            if lookingUpTargetsByIdentity, case let .target(name, path, _) = node {
+                key = .target(name: name, path: path)
+            } else {
+                key = node
+            }
+            graph.dependencies[key]?.forEach { nodeDependency in
                 if !visited.contains(nodeDependency) {
                     stack.push(nodeDependency)
                 }
