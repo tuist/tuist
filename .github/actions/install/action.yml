@@ -54,6 +54,7 @@ runs:
       shell: bash
       env:
         TUIST_INSTALL_MATERIALIZATION: ${{ steps.prepare.outputs.materialization }}
+        TUIST_INSTALL_BACKEND: ${{ steps.prepare.outputs.backend }}
         TUIST_INSTALL_PROJECT_PATH: ${{ steps.prepare.outputs.project-path }}
         TUIST_INSTALL_SCRATCH_PATH: ${{ steps.prepare.outputs.scratch-path }}
         TUIST_INSTALL_CACHE_PATH: ${{ steps.prepare.outputs.cache-path }}
