@@ -252,7 +252,10 @@ func dispatch(req request) error {
 		if err != nil {
 			return err
 		}
-		if prior.ID == req.ID {
+		// A retried start finds its own worker running. Managed Agents reuse
+		// the session ID as the work ID on every turn, so a finished worker
+		// with the same ID is an earlier turn, and this turn starts a new one.
+		if prior.ID == req.ID && prior.Running {
 			emit(prior)
 			return nil
 		}
