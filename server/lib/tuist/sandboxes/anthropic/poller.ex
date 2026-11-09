@@ -147,10 +147,9 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   # seconds apart, then stops, and the turn hangs.
   defp handle_item(%{"id" => work_id, "data" => %{"type" => "session", "id" => session_id}} = item, agent_environment)
        when is_binary(session_id) do
-    if Capacity.admissible?(Router.session_environment(agent_environment, item), session_id) do
-      ack_and_dispatch(work_id, item, agent_environment)
-    else
-      ack_and_defer(work_id, item, agent_environment)
+    case Capacity.admission(Router.session_environment(agent_environment, item), session_id) do
+      :ok -> ack_and_dispatch(work_id, item, agent_environment)
+      {:error, reason} -> ack_and_defer(work_id, item, agent_environment, reason)
     end
   end
 
@@ -193,7 +192,7 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   # considers taken is never only in this process's memory. A failed
   # acknowledgement cancels the job and leaves the item to the queue's
   # next offer.
-  defp ack_and_defer(work_id, item, agent_environment) do
+  defp ack_and_defer(work_id, item, agent_environment, reason) do
     {:ok, job} = agent_environment |> DispatchWorkItemWorker.new_for(item) |> Oban.insert()
 
     case Client.ack(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id) do
@@ -201,7 +200,8 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
         Logger.info("sandboxes: no capacity for work item, holding it until a node has room",
           agent_environment_id: agent_environment.id,
           work_id: work_id,
-          session_id: get_in(item, ["data", "id"])
+          session_id: get_in(item, ["data", "id"]),
+          reason: inspect(reason)
         )
 
         :ok
