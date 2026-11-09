@@ -138,8 +138,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Settings → Integrations) is one form: the customer creates the
   self-hosted environment and its key in the Console (only the Console
   generates environment keys) and pastes them with an API key (the
-  default) or the four federation ids. `Sandboxes.fetch_anthropic_environment/3`
-  fetches the environment with that credential before the row is written,
+  default) or the four federation ids. The `connect_claude_environment` MCP
+  tool takes the same inputs, and both go through
+  `Sandboxes.connect_managed_agents_environment/3`, which fetches the
+  environment with that credential (`fetch_anthropic_environment/3`) before
+  the row is written,
   so a federated check signs with the setup subject `account:<id>:setup`
   (admitted by the recommended `account:<id>:*` prefix). The secrets go
   from the submitted form straight into the row and never into socket
