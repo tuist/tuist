@@ -34,6 +34,9 @@ defmodule Tuist.Sandboxes.Commands do
   @max_wait_seconds 50
   @chunk_bytes 512 * 1024
   @max_stdin_bytes 256 * 1024
+  # Linux caps each environment string at 128 KiB (MAX_ARG_STRLEN), so the
+  # base64 of a stdin write travels in parts of at most this many bytes.
+  @stdin_env_part_bytes 64 * 1024
   @missing_exit_code 44
   @stdin_closed_exit_code 45
   @list_limit 100
@@ -127,7 +130,7 @@ defmodule Tuist.Sandboxes.Commands do
                   [ -e "$d/stdin_closed" ] && exit #{@stdin_closed_exit_code}
                   """ <>
                   ~S"""
-                  perl -MMIME::Base64 -e 'open(my $f, ">>", $ARGV[0]) or die "$!\n"; binmode $f; print $f decode_base64($ENV{TUIST_STDIN_DATA}); close $f or die "$!\n"' "$d/stdin"
+                  perl -MMIME::Base64 -e 'open(my $f, ">>", $ARGV[0]) or die "$!\n"; binmode $f; print $f decode_base64(join "", map { $ENV{"TUIST_STDIN_DATA_$_"} } 0 .. $ENV{TUIST_STDIN_PARTS} - 1); close $f or die "$!\n"' "$d/stdin"
                   [ "$TUIST_STDIN_CLOSE" = 1 ] && : > "$d/stdin_closed"
                   exit 0
                   """
@@ -335,11 +338,22 @@ defmodule Tuist.Sandboxes.Commands do
   def write_stdin(%Sandbox{} = sandbox, id, data, close?) when is_binary(data) do
     with {:ok, command} <- get(sandbox, id),
          :ok <- writable(command, data) do
-      env = %{
-        "TUIST_COMMAND_ID" => command.id,
-        "TUIST_STDIN_DATA" => Base.encode64(data),
-        "TUIST_STDIN_CLOSE" => if(close?, do: "1", else: "0")
-      }
+      encoded = Base.encode64(data)
+
+      parts =
+        for offset <- 0..(byte_size(encoded) - 1)//@stdin_env_part_bytes do
+          binary_part(encoded, offset, min(@stdin_env_part_bytes, byte_size(encoded) - offset))
+        end
+
+      env =
+        parts
+        |> Enum.with_index(fn part, index -> {"TUIST_STDIN_DATA_#{index}", part} end)
+        |> Map.new()
+        |> Map.merge(%{
+          "TUIST_COMMAND_ID" => command.id,
+          "TUIST_STDIN_PARTS" => Integer.to_string(length(parts)),
+          "TUIST_STDIN_CLOSE" => if(close?, do: "1", else: "0")
+        })
 
       case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @stdin_script], env: env, timeout_ms: 30_000) do
         {:ok, %{exit_code: 0}} -> {:ok, serialize(command)}
