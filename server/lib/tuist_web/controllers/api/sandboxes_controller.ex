@@ -780,12 +780,12 @@ defmodule TuistWeb.API.SandboxesController do
           conn,
         _params
       ) do
+    # CastAndValidate has already decoded `data` (`format: :byte`) and answered 400 when it is not base64.
+    data = Map.get(body_params, :data) || ""
+
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      with {:ok, data} <- Base.decode64(Map.get(body_params, :data) || ""),
-           {:ok, command} <- Commands.write_stdin(sandbox, params.command_id, data, Map.get(body_params, :close) == true) do
-        json(conn, command)
-      else
-        :error -> sandbox_error(conn, :invalid_command)
+      case Commands.write_stdin(sandbox, params.command_id, data, Map.get(body_params, :close) == true) do
+        {:ok, command} -> json(conn, command)
         {:error, :not_found} -> not_found(conn, "Command not found.")
         {:error, reason} -> sandbox_error(conn, reason)
       end
