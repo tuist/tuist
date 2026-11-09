@@ -367,9 +367,9 @@ defmodule AtlasWeb.SupportChatEmbedController do
                 }
 
                 [data-part="trigger"]:focus-visible {
-                  box-shadow: var(--noora-button-border-primary-focus,
-                    0 0 0 1px oklch(99.4% 0 0),
-                    0 0 0 2.5px oklch(53.2% 0.276 286.9),
+                  box-shadow: var(--noora-button-border-focus,
+                    0 0 0 1.5px oklch(99.4% 0 0),
+                    0 0 0 3px oklch(53.2% 0.276 286.9),
                     0 1px 0 0 oklch(100% 0 0 / .2) inset,
                     0 1px 1px 0 oklch(31.8% 0.011 248.2 / .12),
                     0 0 0 1px oklch(46.9% 0.27 286.9 / .9),
