@@ -542,6 +542,13 @@ spec:
             - name: TUIST_KURA_THIN_REGIONS
               value: {{ join "," . | quote }}
             {{- end }}
+            {{- with .Values.kuraVolumesCSI.thinEnrolledRegions }}
+            {{- if not $.Values.kuraVolumesCSI.enabled }}
+            {{- fail "kuraVolumesCSI.thinEnrolledRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
+            {{- end }}
+            - name: TUIST_KURA_THIN_ENROLLED_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}
             - name: TUIST_KURA_ENDPOINTS
               value: {{ join "," . | quote }}
