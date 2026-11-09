@@ -515,6 +515,21 @@ func orbBootstrap() error {
 			cmd.Env = append(cmd.Env, name+"="+value)
 		}
 	}
+	// The CLI does not log what a bootstrap request runs, even at debug. Until
+	// macOS Orbs are qualified, record every exec and exit for ten minutes,
+	// which covers the first setup and Amp's restart attempts. Arguments may
+	// hold credentials, so the file is root-only. Best effort: a missing trace
+	// must not fail the spawn, and a running trace is kept.
+	trace := exec.Command("/usr/bin/sudo", "-n", "/bin/sh", "-c",
+		`/usr/bin/pgrep -x eslogger >/dev/null && exit 0
+umask 077
+/usr/bin/eslogger exec exit >"$1" 2>&1 &
+sleep 600
+kill $!`, "sh", filepath.Join(home, ".amp-exec-trace.jsonl"))
+	trace.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if trace.Start() == nil {
+		_ = trace.Process.Release()
+	}
 	if err = cmd.Start(); err != nil {
 		return err
 	}
