@@ -1510,6 +1510,26 @@ the queued workflow ran as UID 1000 with KVM acceleration. The committed
 [`android-smoke` fixture](../kata-kvm-kernel/android-smoke/AGENTS.md) passed
 both Gradle Managed Device instrumentation and all 15 Macrobenchmark cold starts.
 
+## Exclusive CPUs
+
+A Linux `kata-qemu` pool with `spec.exclusiveCPUs: true` gets whole cores per
+Pod: `podtemplate.Build` puts the pool's CPU and memory on the Pod
+(`.spec.resources`, requests equal to limits) instead of the runner container,
+gives no container CPU or memory of its own, and adds the
+`tuist.dev/pod-level-resource-managers=true` node selector, which the CAPI
+provider sets on Kata hosts running kubelet v1.36's pod-level resource
+managers. `fleetNodeSelector` adds the same label. Build refuses an odd or
+fractional CPU count, since the hosts allocate whole two-thread cores.
+
+Keep every container free of its own CPU and memory: a container with its own
+Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
+on an empty shared pool, which the kubelet rejects. Device resources such as
+`devices.tuist.dev/kvm` stay on the runner container. Code that sizes a Pod
+(`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
+budget when it is set, or a running job looks nearly free.
+`isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
+Why and how to roll it out: `infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`.
+
 ## Linux cache volumes
 
 Local reflink image clones are implemented in

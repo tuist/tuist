@@ -3234,6 +3234,19 @@ runnersFleetLinux:
     # Internal rollout/rollback switch. Requires enabled above. Applies to
     # every Linux pool; pools may explicitly override nestedVirtualization.
     defaultEnabled: false
+  # Whole physical cores per runner Pod, shared by the runner and its
+  # sidecars, so a job does not share cores with another job or an Orb.
+  # A pool with `exclusiveCPUs: true` gives its Pods one Guaranteed
+  # Pod-level budget and lands only on the hosts the CAPI provider labels
+  # `tuist.dev/pod-level-resource-managers=true` (Kata hosts on kubelet
+  # v1.36 or newer); with no such host in the fleet its Pods stay Pending.
+  # Needs kata-qemu and an even vCPU count. See
+  # infra/runners-controller/AGENTS.md "Exclusive CPUs".
+  exclusiveCPUs:
+    # Rollout switch for every Linux pool and shape with an even vCPU
+    # count; odd shapes keep shared cores. A pool or shape may set
+    # `exclusiveCPUs` itself to override it.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -3275,6 +3288,9 @@ runnersFleetLinux:
     #   # such as Android emulators. Needs kata-qemu and
     #   # `runnersFleetLinux.nestedVirtualization.enabled`.
     #   nestedVirtualization: false
+    #   # Optional. Whole cores for each Pod; needs an even pod.cpuMilli.
+    #   # Defaults to `runnersFleetLinux.exclusiveCPUs.defaultEnabled`.
+    #   exclusiveCPUs: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300

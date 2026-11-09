@@ -80,6 +80,15 @@ const (
 	// separate modules, so they are coupled by this convention.
 	KVMNodeLabel = "tuist.dev/kata-kvm"
 
+	// PodLevelResourceManagersNodeLabel marks a Kata host whose kubelet runs
+	// the pod-level resource managers and whose Kata sizes VMs from the
+	// Pod-level budget. Only there may a runner Pod carry one: elsewhere
+	// Kata would boot a VM from every container's copy of the budget.
+	//
+	// CONTRACT: the provider (`PodLevelResourceManagersLabel` in
+	// infra/cluster-api-provider-tuist/controllers/linux) writes it.
+	PodLevelResourceManagersNodeLabel = "tuist.dev/pod-level-resource-managers"
+
 	// KVMResourceName is the extended resource kvm-device-plugin
 	// advertises. Allocating it is what puts /dev/kvm into the runner
 	// container's OCI spec; the Kata agent then creates the node inside
@@ -183,6 +192,17 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 	}
 
+	if pool.Spec.ExclusiveCPUs {
+		if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu" {
+			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
+		}
+		// The static CPU manager pins only whole CPUs, and full-pcpus-only
+		// rejects a count that does not fill whole two-thread cores.
+		if pool.Spec.PodCPUMilli <= 0 || pool.Spec.PodCPUMilli%2000 != 0 {
+			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q asks for %dm CPU, want a whole, even number of CPUs", pool.Name, pool.Spec.PodCPUMilli)
+		}
+	}
+
 	nodeSelector, tolerations := schedulingFor(pool)
 
 	effectiveDispatchURL := dispatchURL
@@ -246,6 +266,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.ResourceCPU:    *cpu,
 			corev1.ResourceMemory: *mem,
 		},
+	}
+	// With exclusive CPUs the budget moves to the Pod, so every container
+	// shares the one exclusive CPU set and dind's Docker containers count
+	// against the job's budget. A container keeping its own CPU and memory
+	// would get an exclusive slice of its own and leave the sidecars none.
+	var podResources *corev1.ResourceRequirements
+	if pool.Spec.ExclusiveCPUs {
+		podResources = &corev1.ResourceRequirements{Requests: resources.Requests, Limits: resources.Limits}
+		resources = corev1.ResourceRequirements{Requests: corev1.ResourceList{}, Limits: corev1.ResourceList{}}
 	}
 	if pool.Spec.NestedVirtualization {
 		resources.Requests[KVMResourceName] = resource.MustParse("1")
@@ -717,6 +746,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		},
 		Spec: corev1.PodSpec{
 			ServiceAccountName: saName,
+			Resources:          podResources,
 			// macOS: default automount (tart-kubelet projects the
 			// audience-scoped token separately into the VM).
 			// Linux: disable automount and project the
@@ -935,6 +965,9 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 		}
 		if pool.Spec.NestedVirtualization {
 			selector[KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			selector[PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return selector, []corev1.Toleration{
 			{

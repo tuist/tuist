@@ -73,7 +73,7 @@ Do this on one staging box before canary:
 A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
 and the shell bridge. On v1.34 the static policy can only pin a container whose
 own requests equal its limits, so the Pod stays Burstable on the shared pool
-("Runner Pods are not Guaranteed yet" below). Kubelet v1.36's pod-level resource managers (alpha)
+("Runner Pods with exclusive CPUs" below). Kubelet v1.36's pod-level resource managers (alpha)
 pin a Pod's `.spec.resources` budget instead: with the Topology Manager in pod
 scope, a Guaranteed Pod-level budget gets one exclusive set of whole cores, and
 every container without its own Guaranteed resources shares that set. It is
@@ -131,19 +131,32 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
   is still sized from its runner container's limit.
 - A CI job next to a busy Orb takes as long as with the Orb idle.
 
-## Runner Pods are not Guaranteed yet
+## Runner Pods with exclusive CPUs
 
-Until every container of a runner Pod has CPU and memory requests equal to
-limits, runner Pods stay Burstable. Burstable Pods run on the shared pool, so
-the host config pins nothing for them.
+A runner Pod is Burstable unless its pool sets `exclusiveCPUs`; Burstable Pods
+run on the shared pool, so the host config pins nothing for them.
 
-The open question is the `dind` sidecar. The Kata agent applies each
+On v1.34 the blocker was the `dind` sidecar. The Kata agent applies each
 container's CPU quota and memory limit inside the guest (`constrainGRPCSpec`
 strips only cpusets). The guest runs cgroup v2 and gives every container its
 own cgroup namespace. dockerd uses the `cgroupfs` driver, so every Docker
-container a job starts nests under `dind`'s cgroup. A Guaranteed Pod therefore
-caps `container:` jobs, `services:` and `docker build` at whatever `dind`
-requests, and that request is also charged to the node. On Kubernetes 1.34
-two containers cannot share one budget. The pod-level resource managers above
-let them, so the runners-controller can give runner Pods a Pod-level budget on
-labelled nodes.
+container a job starts nests under `dind`'s cgroup. Making every container
+Guaranteed would cap `container:` jobs, `services:` and `docker build` at
+whatever `dind` requests, and charge that request to the node as well.
+
+A pool with `spec.exclusiveCPUs: true` avoids that with one Pod-level budget.
+The runners-controller moves the pool's CPU and memory from the runner
+container to `.spec.resources` (requests equal to limits), leaves every
+container without CPU or memory of its own, and adds the
+`tuist.dev/pod-level-resource-managers=true` node selector. All containers,
+and every Docker container `dind` starts, then share the Pod's exclusive cores
+and its memory. The pool needs `kata-qemu` and an even number of CPUs: with
+`full-pcpus-only` the CPU manager allocates whole two-thread cores, and an odd
+count fails admission. Turning the flag on or off rolls idle Pods; claimed
+jobs finish on the Pod they started on.
+
+The chart switch is `runnersFleetLinux.exclusiveCPUs.defaultEnabled`, which
+turns it on for every Linux pool and shape with an even vCPU count (odd
+shapes such as 1 vCPU keep shared cores). A pool or shape can set
+`exclusiveCPUs` itself. Turn it on only once every box in the fleet carries
+the label, or the opted-in pools only fit on the boxes that do.
