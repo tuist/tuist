@@ -4,7 +4,8 @@
 # Ecto only rejects duplicate versions among pending migrations. A database
 # that already recorded the version treats both files as applied and never
 # runs the second one, so the deploy must stop before it reaches one.
-# Mirrors server/test/tuist/migration_versions_test.exs without booting Mix.
+# Same version rule as server/test/tuist/migration_versions_test.exs, without
+# booting Mix.
 
 set -euo pipefail
 
