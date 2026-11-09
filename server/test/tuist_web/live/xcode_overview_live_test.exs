@@ -17,7 +17,7 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
   } do
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "Qonto",
+      name: "ExampleApp",
       install_size: 500_000_000,
       supported_platforms: [:ios],
       inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
@@ -25,7 +25,7 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
 
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "Qonto-debug",
+      name: "ExampleApp-debug",
       install_size: 2_000_000_000,
       supported_platforms: [:macos],
       inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
@@ -37,12 +37,12 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
 
     assert lv |> bundle_chart_values() |> Enum.reject(&(&1 == 0)) |> Enum.uniq() == [500_000_000]
 
-    render_patch(lv, path <> "?bundle-size-app=Qonto-debug")
+    render_patch(lv, path <> "?bundle-size-app=ExampleApp-debug")
     render_async(lv, @render_async_timeout)
 
     assert lv |> bundle_chart_values() |> Enum.reject(&(&1 == 0)) |> Enum.uniq() == [2_000_000_000]
 
-    {:ok, selected_lv, _html} = live(conn, path <> "?bundle-size-app=Qonto")
+    {:ok, selected_lv, _html} = live(conn, path <> "?bundle-size-app=ExampleApp")
     render_async(selected_lv, @render_async_timeout)
 
     assert selected_lv |> bundle_chart_values() |> Enum.reject(&(&1 == 0)) |> Enum.uniq() == [500_000_000]
