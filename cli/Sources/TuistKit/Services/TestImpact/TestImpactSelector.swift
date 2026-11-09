@@ -34,17 +34,6 @@ enum TestImpactOutcome: Equatable {
     }
 }
 
-/// How the generated graph changes after selection.
-enum TestImpactGraphDecision: Equatable {
-    /// Default selective testing: the targets hashing left run.
-    case unchanged
-    /// Every test target in scope runs, those whose hash matched included, so the commit can serve
-    /// as a baseline.
-    case runAll
-    /// The modules to prune: none of their tests was selected.
-    case prune(Set<String>)
-}
-
 /// Decides which tests of the targets left after hash pruning run, through the server's
 /// coverage-based test selection, and keeps the outcome for the run. It's consulted by
 /// `TestImpactGraphMapper` while the project is generated, so that modules with no selected test are
@@ -72,10 +61,6 @@ actor TestImpactSelector {
     /// How many of the checkout's ancestors the server accepts.
     static let ancestorLimit = 200
 
-    /// The reasons after which every test target in scope runs, so that the commit becomes a
-    /// baseline for later runs.
-    static let runAllReasons: Set<TestImpactFallbackReason> = [.noBaseline, .baselineTooOld, .diffTooLarge]
-
     let invocation: Invocation
     private(set) var outcome: TestImpactOutcome?
 
@@ -97,9 +82,10 @@ actor TestImpactSelector {
 
     // swiftlint:disable function_body_length
 
-    /// Selects the tests of `modules`, the test targets hashing left. When hashing left none, the run
-    /// is still recorded, so the server counts what hashing skipped, and the graph stays unchanged
-    /// whatever the server answers: coverage never runs more than hashing alone.
+    /// Selects the tests of `modules`, the test targets hashing left, and returns the modules to prune
+    /// because none of their tests was selected. Whatever the server answers, what runs is what hashing
+    /// left minus what the run skips: a fallback prunes nothing. When hashing left no module, the run
+    /// is still recorded, so the server counts what hashing skipped.
     /// - Parameters:
     ///   - modules: The test modules left to decide; empty when every target's hash matched.
     ///   - skippedModules: The test modules hashing skipped.
@@ -111,11 +97,11 @@ actor TestImpactSelector {
         skippedModules: [String],
         platform: String?,
         affectedModules: @Sendable (AbsolutePath) -> [String]?
-    ) async -> TestImpactGraphDecision {
+    ) async -> Set<String> {
         guard outcome == nil, !modules.isEmpty || !skippedModules.isEmpty,
               await gitController.isInGitRepository(workingDirectory: invocation.path)
         else {
-            return .unchanged
+            return []
         }
         let repository: AbsolutePath
         let gitInfo: GitInfo
@@ -126,7 +112,7 @@ actor TestImpactSelector {
             checkout = try await gitController.checkedOutCommit(workingDirectory: repository)
         } catch {
             warn("the checkout couldn't be read: \(error.localizedDescription)")
-            return .unchanged
+            return []
         }
 
         let refs = Self.deepeningRefs(gitInfo: gitInfo)
@@ -146,10 +132,10 @@ actor TestImpactSelector {
         let basis: TestImpactRunRequest.Basis
         switch baseline {
         case .notEnabled:
-            return .unchanged
+            return []
         case let .failed(message):
             warn(message)
-            return .unchanged
+            return []
         case let .unavailable(reason):
             basis = .fallback(reason)
         case let .baseline(sha, _) where modules.isEmpty:
@@ -184,22 +170,17 @@ actor TestImpactSelector {
             serverURL: invocation.serverURL,
             request: request
         )
-        // The run only records what hashing skipped: no outcome, so nothing plans shards from it.
-        if modules.isEmpty {
-            if case let .failed(message) = result { warn(message) }
-            return .unchanged
-        }
         switch result {
         case let .selected(selection):
             let unselectedModules = Set(TestImpactSkipList(selection.skippedTests).modules).intersection(modules)
             outcome = .selected(selection, skippedModules: unselectedModules.sorted())
-            return .prune(unselectedModules)
+            return unselectedModules
         case let .fallback(runID, reason, matchedPath):
             outcome = .fallback(runID: runID, reason: reason, matchedPath: matchedPath)
-            return reason.map(Self.runAllReasons.contains) == true ? .runAll : .unchanged
+            return []
         case let .failed(message):
             warn(message)
-            return .unchanged
+            return []
         }
     }
 

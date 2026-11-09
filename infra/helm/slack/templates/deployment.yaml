@@ -79,9 +79,13 @@ spec:
               value: {{ .Values.mailer.fromEmail | quote }}
             - name: SLACK_MAILER_PROVIDER
               value: {{ .Values.mailer.provider | quote }}
-            {{- if eq .Values.mailer.provider "ses" }}
+            {{- if or (eq .Values.mailer.provider "ses") .Values.mailer.sesStartsAt }}
             - name: SLACK_SES_REGION
               value: {{ required "mailer.sesRegion is required for SES" .Values.mailer.sesRegion | quote }}
+            {{- with .Values.mailer.sesStartsAt }}
+            - name: SLACK_SES_STARTS_AT
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             - name: MAILGUN_DOMAIN
               value: {{ .Values.mailer.mailgunDomain | quote }}

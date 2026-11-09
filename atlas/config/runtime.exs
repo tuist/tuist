@@ -265,6 +265,21 @@ case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
     raise "unsupported mailing provider: #{inspect(provider)}"
 end
 
+# Atlas.Mailer sends through SES from this instant on, without a restart.
+if ses_starts_at = System.get_env("ATLAS_SES_STARTS_AT") do
+  {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+  config :atlas, Atlas.Mailer,
+    ses_cutover:
+      {ses_starts_at,
+       [
+         adapter: AmazonSES,
+         region: System.fetch_env!("ATLAS_SES_REGION"),
+         access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+         secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+       ]}
+end
+
 allowed_email_domain =
   case System.get_env("ATLAS_ALLOWED_EMAIL_DOMAIN") do
     nil ->
@@ -734,6 +749,28 @@ case System.get_env("MCP_PROXY_SERVERS") do
               scopes: ["all"],
               tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
             },
+            # Vultr's hosted MCP server, compute area only: Cloud Compute and
+            # Bare Metal, where the Kura hosts in ord and scl live. Each person
+            # connects their own Vultr login, one organization per sign-in,
+            # after an org admin enables MCP and attaches the "Use MCP" policy.
+            # The server has no write tools at all and marks every tool with
+            # readOnlyHint, so read_only is enough on its own; it also withholds
+            # VNC URLs, userdata and startup-script bodies.
+            #
+            # There is no write here. Tagging a box `tuist-kura-vultr-production`
+            # makes the fleet adopt it and convert its disks, but the token this
+            # session holds is the MCP server's own JWT, which it swaps for the
+            # real Vultr token server-side, so it cannot call api.vultr.com.
+            # Tagging and ordering stay in the Vultr console.
+            %{
+              name: "vultr-compute",
+              url: "https://mcp.vultr.com/mcp/compute",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.vultr.com/authorize",
+              token_url: "https://mcp.vultr.com/token",
+              registration_url: "https://mcp.vultr.com/register",
+              read_only: true
+            },
             # Stripe's hosted MCP server, reached with each person's own Stripe
             # login: Stripe's consent screen picks the accounts and sandboxes
             # the session covers, so Atlas holds no Stripe key. Reserved for the
@@ -955,6 +992,14 @@ end
 
 clickhouse_enabled? =
   parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
+# tuist-ops, which grants orb thread cluster elevations a person approved in
+# Atlas (`request_cluster_elevation`). Atlas authenticates with a projected
+# ServiceAccount token (audience `ops.tuist.dev`); without the token file the
+# tool reports elevations as unavailable.
+config :atlas, :tuist_ops,
+  base_url: System.get_env("TUIST_OPS_URL") || "https://ops.tuist.dev",
+  token_path: System.get_env("TUIST_OPS_TOKEN_PATH") || "/var/run/secrets/tuist-ops/token"
 
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount

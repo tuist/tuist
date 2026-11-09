@@ -598,6 +598,12 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- GitHub occasionally never delivers a probe job's `workflow_job.queued`
+  webhook, so dispatch never enqueues it and an idle runner never takes it.
+  When `Dispatch` is the run's only titled failure and no probe job failed,
+  `gate.sh` reports it as a warning and dispatches the probe run once more
+  within the same `GATE_MINUTES`; a second failure blocks the deploy. Any other
+  failing layer is never retried.
 - Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
   setup-beam, process file limits, and Kura) and a
   real job-container probe (workspace/actions/externals mounts and environment
@@ -606,9 +612,14 @@ covered only by the production schedule.
   conclusion is successful. Validate this contract with
   `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
   `npm ci --ignore-scripts` at the repository root.
-- Canary also runs five sequential Docker-cache phases through
-  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
-  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+- Canary also runs three sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes: cold (which
+  also builds the changed source in-job), same-size write and final reuse. Each
+  publication wait costs the deploy about 2.5 minutes, so the gate keeps only the
+  cross-job transitions: the next job reads the cold job's mutable marker, and
+  final reuse hits the same-size write's compile layer. The Docker e2e test in
+  `linux-runner-image.yml` runs every phase as its own job. Count the
+  three `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
   GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
   including final reuse, and pass the deploy's intended Linux image digest
   before staging holds. A mounted cache, correct compile output and actual

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c0b395c165538877e1477fd572350a815912d5173d6ad2cd6d791ebd13735234",
+  "hash": "16a159d1b43ea1b4a3524221c3e68b9d350c164f1492a31c6efaa1d25f35d8b5",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "415f533d890238ad5d07d97803dc9fa11bd82c457057ff701addae3f830650e5"
+                  "content_hash": "a7493e87bd8a9c56be70ca6140e2da2a852d03c6d9019fbe5b4f8809d4d4d4bb"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "169fb043a23351d1c7314944e73b3d23f0eca985a810a51ddc2748f7cff3e30e",
+          "hash": "994e95c4b6bac4628622698f45a0ba71d5b7133f5bffcc1529c8511e690a49e2",
           "kind": "source",
           "label": "android/app/src/main/res/values/strings.xml",
           "metadata": {
-            "content_hash": "91c565bb3a6cd3cad4c589e4d3e9d0e0ab4b154d2addf7b9e0f6416b10812bad"
+            "content_hash": "b4ad9a6c9734cab35cb63e25382bfd9a000b71c6845a5546b4d1c738680a522e"
           }
         },
         {
@@ -164,14 +164,14 @@
         }
       ],
       "details": {},
-      "hash": "c0b395c165538877e1477fd572350a815912d5173d6ad2cd6d791ebd13735234",
+      "hash": "16a159d1b43ea1b4a3524221c3e68b9d350c164f1492a31c6efaa1d25f35d8b5",
       "kind": "translation_input",
       "label": "android/app/src/main/res/values/strings.xml",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d7df3925253aeeb3f0da1cf5d558cd0590b4298976bbf611079efbdc84434e9f",
+  "output_hash": "9cea80b60b002badb53b62cb0ad0050d3db3a4e1bc20bb8062d6f92af57e45cb",
   "output_path": "android/app/src/main/res/values-es/strings.xml",
   "protection_state": "recorded",
   "provider": "",
@@ -189,8 +189,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "fcb773cb8b07cd2f372e3cdc6b36efbf7ceb9975",
+  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
   "source_path": "android/app/src/main/res/values/strings.xml",
-  "translated_at": "2026-11-04T15:55:45.765742Z",
-  "translation_session_id": "01a1a744-5d58-74c0-a6e0-fb4f905dd7fc"
+  "translated_at": "2026-11-06T23:17:47.242968Z",
+  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
 }

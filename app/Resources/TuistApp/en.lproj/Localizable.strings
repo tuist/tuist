@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ simulator";
 
+/* TuistProfile/ProfileView.swift */
+"AI" = "AI";
+
 /* TuistProfile/AISubscriptionsSection.swift */
 "AI subscriptions" = "AI subscriptions";
 
@@ -354,3 +357,153 @@
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "or";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/JamsPreview.swift, TuistApp/JamConversationView.swift */
+"Account" = "Account";
+"Accounts" = "Accounts";
+"Active" = "Active";
+"Archived" = "Archived";
+"Archive jam" = "Archive jam";
+"Archive this jam?" = "Archive this jam?";
+"Base branch" = "Base branch";
+"Changes" = "Changes";
+"Close" = "Close";
+"Close new jam" = "Close new jam";
+"Conversation actions" = "Conversation actions";
+"Copy message" = "Copy message";
+"Create preview jam" = "Create preview jam";
+"Design preview · Sample accounts" = "Design preview · Sample accounts";
+"Design preview · Sample builds" = "Design preview · Sample builds";
+"Design preview · Sample conversation" = "Design preview · Sample conversation";
+"Design preview · Sample data" = "Design preview · Sample data";
+"Design preview · Starting creates a sample jam, not a running environment." = "Design preview · Starting creates a sample jam, not a running environment.";
+"Done" = "Done";
+"Each repository jam gets its own worktree and branch. The original checkout is not edited." = "Each repository jam gets its own worktree and branch. The original checkout is not edited.";
+"Environment" = "Environment";
+"Goal" = "Goal";
+"Hide keyboard" = "Hide keyboard";
+"Illustrative diff · Not a live repository change" = "Illustrative diff · Not a live repository change";
+"In progress" = "In progress";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications.";
+"Latest builds" = "Latest builds";
+"Latest message" = "Latest message";
+"Layout preview" = "Layout preview";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only.";
+"Message…" = "Message…";
+"Message Tuist…" = "Message Tuist…";
+"Message, or ask @Tuist…" = "Message, or ask @Tuist…";
+"New jam" = "New jam";
+"No account is signed in. These screens use sample data." = "No account is signed in. These screens use sample data.";
+"Only you" = "Only you";
+"Original response" = "Original response";
+"People" = "People";
+"Previous builds" = "Previous builds";
+"Private jam" = "Private jam";
+"Private · Design preview · No work runs" = "Private · Design preview · No work runs";
+"Private · Saved to your account" = "Private · Saved to your account";
+"Prompt" = "Prompt";
+"Prompts" = "Prompts";
+"Provider" = "Provider";
+"Recent" = "Recent";
+"Reconnect" = "Reconnect";
+"Repositories" = "Repositories";
+"Repository" = "Repository";
+"Resources" = "Resources";
+"Restore jam" = "Restore jam";
+"Review changes" = "Review changes";
+"Repositories available to this account." = "Repositories available to this account.";
+"Sample repositories · Design preview" = "Sample repositories · Design preview";
+"Search projects" = "Search projects";
+"Search repositories" = "Search repositories";
+"Select project" = "Select project";
+"Send" = "Send";
+"Share preview and send" = "Share preview and send";
+"Share the conversation history?" = "Share the conversation history?";
+"Shared conversation" = "Shared conversation";
+"Shared with 2 people" = "Shared with 2 people";
+"Sign out of Tuist?" = "Sign out of Tuist?";
+"Signing out of this app does not stop running jams." = "Signing out of this app does not stop running jams.";
+"Start privately. Inviting someone would share the existing conversation with them." = "Start privately. Inviting someone would share the existing conversation with them.";
+"Start jam" = "Start jam";
+"Switch account" = "Switch account";
+"The conversation stays available in Archived." = "The conversation stays available in Archived.";
+"The server owns the jam; only tools run in the environment. Repository jams have their own worktrees." = "The server owns the jam; only tools run in the environment. Repository jams have their own worktrees.";
+"Jam details" = "Jam details";
+"Jam settings" = "Jam settings";
+"Jams" = "Jams";
+"Tool actions" = "Tool actions";
+"Tool environment" = "Tool environment";
+"Tool outcome unknown. Nothing will be retried automatically." = "Tool outcome unknown. Nothing will be retried automatically.";
+"Tool provider" = "Tool provider";
+"Tool result" = "Tool result";
+"Try again" = "Try again";
+"Tuist is working…" = "Tuist is working…";
+"What would you like Tuist to do?" = "What would you like Tuist to do?";
+"Worktree branch" = "Worktree branch";
+"You" = "You";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "Adds this suggestion to your draft without sending.";
+"Connection lost. Reconnecting…" = "Connection lost. Reconnecting…";
+"Needs attention" = "Needs attention";
+"Outcome unknown" = "Outcome unknown";
+"Preview" = "Preview";
+"Queued" = "Queued";
+"Ready to review" = "Ready to review";
+"Running" = "Running";
+"Load earlier messages" = "Load earlier messages";
+"Load more jams" = "Load more jams";
+"No repository" = "No repository";
+"Private jams only" = "Private jams only";
+"Ship" = "Ship";
+"Approve and ship" = "Approve and ship";
+"Target branch" = "Target branch";
+"Mode" = "Mode";
+"Base" = "Base";
+"Head" = "Head";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "Shipping follows repository policy. Approving queues this exact reviewed change.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "Shipping requires a separate review and explicit approval. Repository policy determines the target.";
+"Design preview · Ship requires a live account and repository policy." = "Design preview · Ship requires a live account and repository policy.";
+"Review again" = "Review again";
+"Organization" = "Organization";
+"Model" = "Model";
+"Choose model" = "Choose model";
+"Loading models…" = "Loading models…";
+"Couldn’t load models" = "Couldn’t load models";
+"Check your connection or try again in a moment." = "Check your connection or try again in a moment.";
+"No models available" = "No models available";
+"Connect an AI subscription in your profile, then try again." = "Connect an AI subscription in your profile, then try again.";
+"Models unavailable. Try again later." = "Models unavailable. Try again later.";
+"Refresh models" = "Refresh models";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "Models available through your profile’s AI subscriptions. The model cannot be changed after creation.";
+"Sample model catalog · Design preview · No subscription access implied" = "Sample model catalog · Design preview · No subscription access implied";
+"AI model" = "AI model";
+"AI provider" = "AI provider";
+"Not recorded" = "Not recorded";
+"The provider and model are fixed for this jam. Start a new jam to choose another model." = "The provider and model are fixed for this jam. Start a new jam to choose another model.";
+"This subscription is not supported for Jams." = "This subscription is not supported for Jams.";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";
+
+/* TuistApp/TuistApp.swift */
+"OK" = "OK";
+"Unable to open link" = "Unable to open link";
+"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "This link belongs to a different Tuist server. Sign in to that server and open the link again.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "This link belongs to a different organization. Switch organizations and open the link again.";
+"This navigation link is invalid or unsupported." = "This navigation link is invalid or unsupported.";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Open on web" = "Open on web";
+"Profiles" = "Profiles";
+"Add profile" = "Add profile";
+"Switch profile" = "Switch profile";
+"Switch profile?" = "Switch profile?";
+"View profile" = "View profile";
+"Open screens and unsent drafts will be closed. Running jams will continue." = "Open screens and unsent drafts will be closed. Running jams will continue.";
+"Your saved profiles could not be updated. Please try again." = "Your saved profiles could not be updated. Please try again.";
+
+/* TuistApp/JamEmptyStateView.swift */
+"Big things start here" = "Big things start here";
+"Ask a question, explore an idea, or solve a problem with Tuist." = "Ask a question, explore an idea, or solve a problem with Tuist.";
+"All clear, nothing archived" = "All clear, nothing archived";
+"Archived jams will live here. You can come back to them anytime." = "Archived jams will live here. You can come back to them anytime.";

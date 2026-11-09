@@ -4,6 +4,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TuistApplication"
         android:allowBackup="true"
@@ -29,6 +35,20 @@
                 <data
                     android:host="oauth-callback"
                     android:scheme="tuist" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tuist" android:host="app" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tuist.dev" android:pathPattern="/.*/.*/previews/.*" />
+                <data android:scheme="https" android:host="staging.tuist.dev" android:pathPattern="/.*/.*/previews/.*" />
+                <data android:scheme="https" android:host="canary.tuist.dev" android:pathPattern="/.*/.*/previews/.*" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />

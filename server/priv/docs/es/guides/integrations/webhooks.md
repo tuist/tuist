@@ -7,23 +7,23 @@
 ---
 # Webhooks {#webhooks}
 
-Los webhooks permiten que tus sistemas reaccionen a los cambios dentro de Tuist en el momento en que ocurren. Cada vez que se produce un evento relevante —se observa un nuevo caso de test, una vista previa termina de subirse, un test inestable se corrige— Tuist realiza una petición HTTP POST a cada endpoint suscrito a ese tipo de evento. El cuerpo de la petición es un sobre JSON y cada entrega incluye una cabecera de firma que puedes verificar con el secreto de firma del endpoint.
+Los webhooks permiten que tus sistemas reaccionen a los cambios dentro de Tuist en el momento en que ocurren. Cada vez que se produce un evento relevante —se observa un nuevo caso de test, finaliza la carga de una vista previa o se remedia un test intermitente—, Tuist realiza una petición HTTP POST a cada endpoint suscrito a ese tipo de evento. El cuerpo de la petición es un envoltorio JSON y cada entrega incluye una cabecera de firma que puedes verificar con el secreto de firma del endpoint.
 
 Registras una URL de destino, eliges los eventos que deseas y Tuist se encarga de la firma, los reintentos y el registro de auditoría de las entregas.
 
 ## Pasos para recibir webhooks {#steps}
 
-Puedes empezar a recibir notificaciones de eventos en tu aplicación con estos pasos:
+Puedes empezar a recibir notificaciones de eventos en tu aplicación siguiendo estos pasos:
 
-1. [Identifica los eventos](#event-types) que tu aplicación desea recibir.
+1. [Identifica los eventos](#event-types) que tu aplicación quiere recibir.
 2. [Crea un endpoint de webhook](#create-an-endpoint) como un endpoint HTTP (URL) en tu servidor local.
-3. Gestiona las peticiones de Tuist [analizando la carga útil](#payload) y devolviendo [un estado 2xx](#responding) para que Tuist marque la entrega como exitosa.
+3. Gestiona las peticiones de Tuist [analizando la carga útil](#payload) y devolviendo [un código de estado 2xx](#responding) para que Tuist marque la entrega como exitosa.
 4. [Verifica la firma](#verify-signature) en cada petición para demostrar que proviene de Tuist.
-5. Utiliza el [registro de eventos](#inspect-deliveries) en el panel de Tuist para depurar mientras desarrollas.
+5. Usa el [registro de eventos](#inspect-deliveries) del panel de Tuist para depurar mientras desarrollas.
 
 ## Tipos de evento {#event-types}
 
-Tuist agrupa los eventos según el recurso que describen. El campo `type` del sobre utiliza notación punteada (`{resource}.{action}`), igual que el valor al que te suscribirías en el panel.
+Tuist agrupa los eventos según el recurso que describen. El campo `type` del envoltorio usa notación punteada (`{resource}.{action}`) —igual que el valor al que te suscribirías en el panel—.
 
 {{webhook_events_table}}
 
@@ -35,23 +35,23 @@ Los endpoints se configuran por cuenta. Abre **Webhooks** desde la configuració
 
 - **Nombre**: cómo aparece el endpoint en el listado.
 - **URL del endpoint**: debe usar `https://`.
-- **Eventos a escuchar**: elige los eventos específicos o usa **Seleccionar todo** a nivel de grupo. Tuist solo envía peticiones POST al endpoint cuando se dispara uno de los eventos suscritos.
+- **Eventos a escuchar**: elige los eventos específicos o usa **Seleccionar todo** a nivel de grupo. Tuist solo enviará peticiones POST al endpoint cuando se dispare uno de los eventos suscritos.
 
 ![Listado de endpoints con dos endpoints de webhook suscritos a dos eventos cada uno](/images/guides/integrations/webhooks/endpoints.png)
 
-Al guardar, Tuist genera un nuevo secreto de firma y lo muestra una sola vez. Cópialo en la configuración de tu aplicación de inmediato; no podrás recuperarlo de nuevo desde el panel. Si lo pierdes, usa **Rotar secreto** en el menú de acciones del endpoint para generar uno nuevo.
+Al guardar, Tuist genera un nuevo secreto de firma y lo muestra una sola vez. Cópialo inmediatamente en la configuración de tu aplicación; no podrás recuperarlo de nuevo desde el panel. Si lo pierdes, usa **Rotar secreto** en el menú de acciones del endpoint para generar uno nuevo.
 
-<img src="/images/guides/integrations/webhooks/create-endpoint.png" alt="Modal de creación de endpoint de webhook con nombre, URL y casillas de verificación de tipos de evento agrupados" style="max-width: 500px;" />
+<img src="/images/guides/integrations/webhooks/create-endpoint.png" alt="Modal de creación de endpoint de webhook con nombre, URL y casillas agrupadas por tipo de evento" style="max-width: 500px;" />
 
 ## La carga útil {#payload}
 
-Cada entrega es un único objeto JSON. El sobre envuelve una instantánea del recurso específica del evento con metadatos que puedes usar para deduplicar, enrutar y auditar las entregas:
+Cada entrega es un único objeto JSON. El envoltorio incluye una instantánea del recurso específica del evento dentro de metadatos que puedes usar para deduplicar, enrutar y auditar las entregas:
 
 | Campo     | Descripción                                                              |
 | --------- | ------------------------------------------------------------------------ |
 | `id`      | Un UUID único para esta entrega. Úsalo para deduplicar cuando se produzcan reintentos. |
 | `type`    | El tipo de evento en notación punteada, por ejemplo `test_case.updated`.                         |
-| `created` | Marca de tiempo Unix (segundos) en la que Tuist puso la entrega en cola.           |
+| `created` | Marca de tiempo Unix (segundos) en la que Tuist puso en cola la entrega.           |
 | `object`  | La instantánea del recurso. La estructura depende del tipo de evento.              |
 
 El esquema exacto de la carga útil para cada tipo de evento está documentado en la [referencia de la API de Tuist](https://tuist.dev/api/docs#section/Webhook-events) bajo **Eventos de webhook**; cada evento tiene un esquema `WebhookXxxEvent` correspondiente bajo `components.schemas` al que puedes hacer `$ref` desde un generador de código.
@@ -70,13 +70,13 @@ Cada petición también incluye estas cabeceras HTTP:
 
 ## Responder a un webhook {#responding}
 
-Para confirmar una entrega, tu endpoint debe devolver cualquier código de estado `2xx`. Cualquier respuesta fuera del rango `2xx`, junto con fallos de conexión y tiempos de espera agotados, se trata como un fallo de entrega y se reintenta. Tuist no sigue respuestas `3xx`, así que responde directamente en la URL canónica en lugar de redirigir.
+Para confirmar una entrega, tu endpoint debe devolver cualquier código de estado `2xx`. Cualquier respuesta fuera del rango `2xx` —junto con fallos de conexión y tiempos de espera agotados— se considera un fallo de entrega y se reintenta. Tuist no sigue respuestas `3xx`, así que responde directamente en la URL canónica en lugar de redirigir.
 
-Mantén tu gestor **rápido**: Tuist espera hasta **10 segundos** por la respuesta. Si tienes tareas pesadas que realizar (llamar a otra API, actualizar una base de datos, enviar notificaciones), acepta la petición y procésala de forma asíncrona. Responder pronto también te hace resistente a lentitudes transitorias en tus servicios downstream.
+Mantén tu gestor **rápido**: Tuist espera hasta **10 segundos** por la respuesta. Si tienes tareas pesadas que realizar (llamar a otra API, actualizar una base de datos, enviar notificaciones), acepta la petición y procésala de forma asíncrona. Responder rápidamente también te hace resistente a la lentitud transitoria en tus servicios downstream.
 
 ## Verificar la firma {#verify-signature}
 
-Cualquiera que conozca la URL de tu endpoint puede hacerle POST. El secreto de firma permite que tu servidor rechace cualquier cosa que no provenga de Tuist.
+Cualquiera que conozca la URL de tu endpoint puede hacerle un POST. El secreto de firma permite a tu servidor rechazar cualquier cosa que no provenga de Tuist.
 
 Para cada petición, Tuist calcula:
 
@@ -89,14 +89,14 @@ header         = "t={timestamp},v1={hex(signature)}"
 Para verificar en tu lado:
 
 1. Lee la cabecera `Tuist-Signature` y divídela en las partes `t=` (marca de tiempo) y `v1=` (resumen hexadecimal).
-2. Rechaza la petición si la marca de tiempo difiere más de **5 minutos** de la hora actual de tu servidor. Esto *acota* la ventana de repetición pero no la cierra; combínalo con la idempotencia que se explica más abajo.
+2. Rechaza la petición si la marca de tiempo difiere más de **5 minutos** de la hora actual de tu servidor. Esto *acota* la ventana de repetición, pero no la cierra; combínalo con la idempotencia que se describe más abajo.
 3. Vuelve a calcular `HMAC-SHA256(signing_secret, "{timestamp}.{raw_body}")` y compáralo con el resumen en **tiempo constante**.
-4. Deduplica las entregas usando el `id` de la carga útil (también disponible como cabecera `Tuist-Event-Id`). Es estable entre reintentos, así que persistir los IDs que ya has procesado evita que una petición capturada se reproduzca dentro de la ventana de tolerancia y te protege del doble procesamiento en un reintento.
+4. Deduplica las entregas usando el `id` de la carga útil (también disponible como cabecera `Tuist-Event-Id`). Es estable entre reintentos, así que persistir los IDs que ya has procesado evita que una petición capturada se repita dentro de la ventana de tolerancia y te protege del doble procesamiento en un reintento.
 
 > [!IMPORTANT] USE THE RAW BODY
 > La firma se calcula sobre los bytes que envió Tuist. Si tu framework web vuelve a analizar y serializar el JSON antes de que verifiques, el resumen no coincidirá. Captura el cuerpo sin procesar (por ejemplo, `request.body.read` en Rack, el `Buffer` sin procesar en Express) y pásalo a tu verificador.
 
-Un verificador de referencia en Node.js: adapta los mismos cuatro pasos (analizar la cabecera, comprobar la desviación de la marca de tiempo, volver a calcular el HMAC, comparar en tiempo constante) al lenguaje en el que esté escrito tu receptor:
+Un verificador de referencia en Node.js — adapta los mismos cuatro pasos (analizar la cabecera, comprobar la desviación de la marca de tiempo, volver a calcular el HMAC, comparar en tiempo constante) al lenguaje en el que esté escrito tu receptor:
 
 ```javascript
 import crypto from "node:crypto";
@@ -137,7 +137,7 @@ Tuist reintenta cualquier entrega que devuelva un estado distinto de `2xx`, agot
 | 6       | 8 horas             |
 | 7       | 24 horas            |
 
-Tras fallar el séptimo intento, la entrega se marca permanentemente como fallida. Dado que cada intento se firma con la marca de tiempo en la que se envió, tu ventana de protección contra repeticiones sigue aplicándose en los reintentos; no necesitas ampliarla.
+Tras fallar el séptimo intento, la entrega se marca permanentemente como fallida. Dado que cada intento está firmado con la marca de tiempo en la que se envió, tu ventana de protección contra repeticiones sigue aplicándose en los reintentos; no necesitas ampliarla.
 
 ## Inspeccionar entregas {#inspect-deliveries}
 
@@ -153,13 +153,13 @@ Haz clic en un evento para ver la petición y la respuesta completas de ese inte
 
 ![Página de detalles de un evento de webhook que muestra el resumen, las cabeceras y el cuerpo de la petición, y la respuesta upstream](/images/guides/integrations/webhooks/event-detail.png)
 
-Los registros de entregas se conservan indefinidamente para que puedas consultarlos al depurar una integración. Si tu sistema downstream necesita copias duraderas (por ejemplo, para cumplimiento normativo), captura las entregas en tu propia infraestructura a medida que lleguen.
+Los registros de entregas se conservan indefinidamente para que puedas revisar el historial al depurar una integración. Si tu sistema downstream necesita copias duraderas (por ejemplo, para cumplimiento normativo), captura las entregas en tu propia infraestructura a medida que llegan.
 
 ## Rotar o eliminar un endpoint {#rotate-or-delete}
 
 Ambas acciones están en el menú de tres puntos de la fila del endpoint y en la página de detalles del endpoint:
 
-- **Rotar secreto**: genera un nuevo secreto de firma y lo muestra una vez. Los consumidores existentes fallarán la verificación hasta que los actualices, así que planifica la rotación junto con un despliegue.
+- **Rotar secreto**: genera un nuevo secreto de firma y lo muestra una vez. Los consumidores existentes fallarán en la verificación hasta que los actualices, así que planifica la rotación junto con un despliegue.
 - **Eliminar endpoint**: elimina el endpoint y detiene las entregas. Los intentos de entrega ya registrados se conservan hasta que expire la ventana de retención estándar.
 
 ## Notas de seguridad {#security}

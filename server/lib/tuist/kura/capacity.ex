@@ -224,7 +224,7 @@ defmodule Tuist.Kura.Capacity do
          {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
       items
       |> Enum.filter(&ready?/1)
-      |> Enum.map(&allocatable_bytes(&1, Regions.disk_resource(region)))
+      |> Enum.flat_map(fn node -> Enum.map(region_disks(region), &allocatable_bytes(node, &1)) end)
       |> Enum.sum()
       |> to_gib()
     else
@@ -454,6 +454,21 @@ defmodule Tuist.Kura.Capacity do
     parse_quantity(get_in(node, ["status", "allocatable", disk])) || 0
   end
 
+  # The disks the region's caches are held on. A thin-capable region converts
+  # host by host: a host not converted yet holds caches on the region's disk,
+  # a converted one in the thin pool it advertises as `tuist.dev/kura-disk`
+  # (its region disk is then only its root filesystem). A thin replica requests
+  # only `tuist.dev/kura-disk` and any other replica only the region's disk, so
+  # summing both counts no byte twice, and reading only the region's disk would
+  # drop every converted host's pool while its thin replicas still count.
+  defp region_disks(region) do
+    if Regions.thin_volumes?(region),
+      do: Enum.uniq([Regions.disk_resource(region), @kura_disk]),
+      else: [Regions.disk_resource(region)]
+  end
+
+  defp pod_disk_requested(pod, region), do: region |> region_disks() |> Enum.map(&pod_requested(pod, &1)) |> Enum.sum()
+
   defp parse_quantity(quantity, scale \\ 1), do: Quantity.parse(quantity, scale)
 
   @doc """
@@ -482,7 +497,7 @@ defmodule Tuist.Kura.Capacity do
          retained when is_map(retained) <- retained_volume_bytes_by_node(region_id) do
       pods
       |> Enum.reject(&terminal?/1)
-      |> Enum.map(&pod_requested(&1, Regions.disk_resource(region)))
+      |> Enum.map(&pod_disk_requested(&1, region))
       |> Enum.concat(Map.values(retained))
       |> Enum.sum()
       |> div(@gib)
@@ -519,7 +534,7 @@ defmodule Tuist.Kura.Capacity do
       |> Enum.reject(&terminal?/1)
       |> Enum.group_by(
         &get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]),
-        &pod_requested(&1, Regions.disk_resource(region))
+        &pod_disk_requested(&1, region)
       )
       |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
       |> Map.merge(Map.new(volumes, fn volume -> {"persistentvolume/" <> volume.name, div(volume.bytes, @gib)} end))

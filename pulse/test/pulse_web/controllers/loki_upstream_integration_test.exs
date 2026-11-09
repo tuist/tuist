@@ -1869,6 +1869,10 @@ defmodule PulseWeb.LokiUpstreamIntegrationTest do
     fixture = File.read!("test/fixtures/logs/loki-upstream/syntax-admission.json") |> Pulse.JSON.decode!()
     assert length(fixture["rows"]) == 206
 
+    # Invalid UTF-8 makes Phoenix render a 400 and re-raise, then Bandit closes
+    # the socket. Do not pool it between cases before that close is observed.
+    ctx = Map.put(ctx, :extra_headers, [{"connection", "close"}])
+
     # Empty owned storage isolates admission from runtime data-dependent errors.
     # Neither these success statuses nor the symbolic source ASTs are value oracles.
     for row <- fixture["rows"], path <- ["/query", "/query_range"], method <- [&request/4, &request_form/4] do

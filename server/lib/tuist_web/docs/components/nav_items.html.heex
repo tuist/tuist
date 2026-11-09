@@ -54,6 +54,7 @@
             </div>
           <% else %>
             <.tab_menu_vertical
+              id={"collapsible:docs-nav-#{slugify(item.label)}:trigger"}
               label={item.label}
               data-part="trigger"
               data-selected={Sidebar.item_active?(item, @current_slug)}

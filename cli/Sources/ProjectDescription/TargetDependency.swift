@@ -163,6 +163,43 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case external(name: String, condition: PlatformCondition? = nil)
 
+    /// Dependency on an external dependency imported through `Package.swift`, with a linking status.
+    ///
+    /// Create it with ``external(name:status:condition:)``, which returns ``external(name:condition:)`` for `.required`.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the external dependency
+    ///   - status: The linking status applied to every target and framework the external dependency maps to
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
+    case externalWithStatus(name: String, status: LinkingStatus, condition: PlatformCondition? = nil)
+
+    /// Dependency on an external dependency imported through `Package.swift`, with a linking status.
+    ///
+    /// The status applies to every target and framework the external dependency maps to, as `status` does for
+    /// ``target(name:status:condition:)``: `.optional` links them weakly, and `.none` builds them without linking them.
+    /// A target that embeds frameworks, such as an app, still embeds the dynamic ones, for example a framework the app
+    /// loads at runtime with `dlopen`. With `.none`, the target that declares the dependency links none of the external
+    /// dependency's products, static ones included.
+    ///
+    /// `.required` gives the same dependency as ``external(name:condition:)``.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the external dependency
+    ///   - status: The linking status: `.required`, `.optional` (weakly linked) or `.none` (not linked)
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
+    public static func external(
+        name: String,
+        status: LinkingStatus,
+        condition: PlatformCondition? = nil
+    ) -> TargetDependency {
+        switch status {
+        case .required:
+            return .external(name: name, condition: condition)
+        case .optional, .none:
+            return .externalWithStatus(name: name, status: status, condition: condition)
+        }
+    }
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -203,7 +240,7 @@ public enum TargetDependency: Codable, Hashable, Sendable {
             return "xcframework"
         case .xctest:
             return "xctest"
-        case .external:
+        case .external, .externalWithStatus:
             return "external"
         }
     }

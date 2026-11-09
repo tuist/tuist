@@ -194,6 +194,97 @@ struct CachedModuleDebuggingMetadataTests {
         }
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        arguments: [
+            "objc", "simulator-objc", "version-c", "version-objc", "excluded", "extra-code", "extra-data", "extra-bss",
+            "common", "wrong-module", "extra-version-symbol", "version-code", "wrong-version-number",
+            "fat-mixed", "fat64-mixed", "unknown-member", "same-filename",
+        ]
+    )
+    func staticMetadataOnlyProductsStillRejectUnexpectedStorage(kind: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let source = root.appending(component: kind == "version-c" ? "dummy.c" : "dummy.m")
+        let contents = switch kind {
+        case "extra-code", "excluded": "int hidden(void) { return 37; }"
+        case "extra-data": "int hidden = 37;"
+        case "extra-bss", "common": "int hidden;"
+        default: "// intentionally empty"
+        }
+        try await fileSystem.writeText(contents, at: source)
+        let object = root.appending(component: "dummy.o")
+        var objects: [String] = []
+        if kind != "excluded" {
+            _ = try runTool([
+                "clang", "-g", "-arch", "arm64", "-c", source.pathString, "-o", object.pathString,
+            ] + (kind.hasPrefix("extra-") || kind == "common" ? ["-g0"] : [])
+                + (kind == "common" ? ["-fcommon"] : [])
+                + (kind == "simulator-objc" ? ["-target", "arm64-apple-ios16.0-simulator"] : []))
+            objects.append(object.pathString)
+        }
+        if !["objc", "simulator-objc"].contains(kind) {
+            let version = root.appending(component: "Feature_vers.c")
+            let module = kind == "wrong-module" ? "Unrelated" : "Feature"
+            // Xcode's generated source contains exactly these two constants, even for a code-less target.
+            let extra = switch kind {
+            case "extra-version-symbol": "const int hidden = 19;"
+            case "version-code": "int hidden(void) { return 19; }"
+            default: ""
+            }
+            try await fileSystem.writeText("""
+            extern const unsigned char \(module)VersionString[];
+            extern const double \(module)VersionNumber;
+            const unsigned char \(module)VersionString[] __attribute__((used)) =
+                "@(#)PROGRAM:\(module)  PROJECT:Example-3.2\\n";
+            const double \(module)VersionNumber __attribute__((used)) = \(kind == "wrong-version-number" ? "9.7" : "3.2");
+            \(extra)
+            """, at: version)
+            let versionObject = root.appending(component: "Feature_vers.o")
+            _ = try runTool(["clang", "-g", "-arch", "arm64", "-c", version.pathString, "-o", versionObject.pathString])
+            objects.append(versionObject.pathString)
+        }
+        let binary = root.appending(component: "libFeature.a")
+        _ = try runTool(["libtool", "-static", "-o", binary.pathString] + objects)
+        let target = Target.test(name: "Feature", product: .staticFramework, sources: [SourceFile(path: source)])
+        let graphTarget = GraphTarget(
+            path: root, target: target, project: .test(path: root, sourceRootPath: root, targets: [target])
+        )
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: graphTarget)
+        let output = try runTool(["dwarfdump", "--show-sources", binary.pathString])
+        var debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init).filter { $0.hasPrefix("/") })
+        if kind.hasPrefix("fat") {
+            let other = root.appending(component: "other.c")
+            try await fileSystem.writeText("int hidden(void) { return 91; }", at: other)
+            let otherObject = root.appending(component: "other.o")
+            _ = try runTool(["clang", "-g0", "-arch", "x86_64", "-c", other.pathString, "-o", otherObject.pathString])
+            let otherArchive = root.appending(component: "other.a")
+            _ = try runTool(["libtool", "-static", "-o", otherArchive.pathString, otherObject.pathString])
+            _ = try runTool([
+                "lipo", "-create", binary.pathString, otherArchive.pathString, "-output", binary.pathString,
+            ] + (kind == "fat64-mixed" ? ["-fat64"] : []))
+        } else if kind == "unknown-member" {
+            let unknown = root.appending(component: "unknown.o")
+            try await fileSystem.writeText("not a Mach-O object", at: unknown)
+            // Apple's ranlib silently drops unknown members when rebuilding the index.
+            _ = try runTool(["ar", "-qS", binary.pathString, unknown.pathString])
+            #expect(try runTool(["ar", "-t", binary.pathString]).contains("unknown.o"))
+        } else if kind == "same-filename" {
+            debugSources.insert("/^unrelated/dummy.m")
+        }
+        if ["objc", "simulator-objc", "version-c", "version-objc", "excluded"].contains(kind) {
+            let recorded = try await metadata.recording(debugSources: debugSources, staticBinary: binary, fileSystem: fileSystem)
+            #expect(recorded.debugPaths.isEmpty)
+            let artifact = root.appending(component: "Feature.xcframework")
+            try await write(recorded, at: artifact)
+            #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: graphTarget) == [])
+        } else {
+            await #expect(throws: (any Error).self) {
+                try await metadata.recording(debugSources: debugSources, staticBinary: binary, fileSystem: fileSystem)
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func admitsSourcesWithoutLinkedCodeWithNothingToRelocate() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
@@ -420,6 +511,98 @@ struct CachedModuleDebuggingMetadataTests {
         #expect(try await CachedModuleDebuggingMetadata.sourceMappings(
             at: artifact, for: GraphTarget(path: root, target: target, project: base.project)
         ) != nil)
+    }
+
+    /// Package targets such as svgnative declare every header under their root (thousands, for a vendored boost) while
+    /// DWARF observes only the few that contribute code. Admission revalidates only observed files, so publishing the
+    /// others only grows the slice metadata, past its size limit for such targets.
+    @Test(.inTemporaryDirectory)
+    func publishesOnlyObservedSources() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let producer = try await target(at: root.appending(component: "producer"))
+        let consumer = try await target(at: root.appending(component: "consumer"))
+        func withHeaders(_ base: GraphTarget) async throws -> GraphTarget {
+            let directory = base.project.sourceRootPath.appending(components: "include", "vendor")
+            try await FileSystem().makeDirectory(at: directory)
+            let headers = (0 ..< 3).map { directory.appending(component: "Header\($0).hpp") }
+            for header in headers {
+                try await FileSystem().writeText("#pragma once\n", at: header)
+            }
+            var target = base.target
+            target.headers = .test(public: headers)
+            return GraphTarget(path: base.path, target: target, project: base.project)
+        }
+        let producerWithHeaders = try await withHeaders(producer)
+        let consumerWithHeaders = try await withHeaders(consumer)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: producerWithHeaders)
+        #expect(metadata.sources.count == 4)
+        let debugPath = "/^root/Feature/Feature.swift"
+        let recorded = try metadata.recording(
+            debugSources: [debugPath],
+            prefixMappings: [["/^root": producer.project.sourceRootPath.pathString]]
+        )
+        #expect(Set(recorded.sources.keys) == ["Feature/Feature.swift"])
+        #expect(Set(recorded.sourcePaths.keys) == ["Feature/Feature.swift"])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumerWithHeaders) == [
+            DebuggerSourceMapping(
+                original: try AbsolutePath(validating: debugPath),
+                current: consumer.project.sourceRootPath.appending(components: "Feature", "Feature.swift")
+            ),
+        ])
+    }
+
+    /// A header-only package target such as svgnative's boost compiles a source without code, so DWARF observes nothing
+    /// and admission compares the declared set instead. Its thousands of headers are not compiled on their own, so only
+    /// the compiled sources are recorded and compared.
+    @Test(.inTemporaryDirectory)
+    func comparesCompiledSourcesOfTargetsWithoutObservedSources() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        func target(at directory: AbsolutePath, headers: Int, extraSource: Bool = false) async throws -> GraphTarget {
+            let base = try await self.target(at: directory)
+            let include = directory.appending(components: "include", "vendor")
+            try await FileSystem().makeDirectory(at: include)
+            let paths = (0 ..< headers).map { include.appending(component: "Header\($0).hpp") }
+            for path in paths {
+                try await FileSystem().writeText("#pragma once\n", at: path)
+            }
+            var target = base.target
+            target.headers = .test(public: paths)
+            if extraSource {
+                let source = directory.appending(components: "Feature", "Extra.cpp")
+                try await FileSystem().writeText("int extra() { return 1; }\n", at: source)
+                target.sources.append(SourceFile(path: source))
+            }
+            return GraphTarget(path: base.path, target: target, project: base.project)
+        }
+        let producer = try await target(at: root.appending(component: "producer"), headers: 3)
+        let recorded = try await CachedModuleDebuggingMetadata.capture(target: producer)
+            .recording(debugSources: ["/^spm/checkouts/Dependency/Dependency.swift"], linkedDebugSymbols: true)
+        #expect(recorded.debugPaths.isEmpty)
+        #expect(Set(recorded.sources.keys) == ["Feature/Feature.swift"])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+
+        let sameSources = try await target(at: root.appending(component: "consumer"), headers: 5)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: sameSources) == [])
+        let extraSource = try await target(at: root.appending(component: "other"), headers: 3, extraSource: true)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: extraSource) == nil)
+
+        // Earlier CLIs recorded headers too. Their artifacts keep their hash, so warming never replaces them.
+        let legacyProducer = try await target(at: root.appending(component: "legacy-producer"), headers: 3)
+        let captured = try await CachedModuleDebuggingMetadata.capture(target: legacyProducer)
+        let legacy = CachedModuleDebuggingMetadata(
+            version: captured.version, moduleName: captured.moduleName, sourceRoot: captured.sourceRoot,
+            sources: captured.sources, sourcePaths: captured.sourcePaths, debugPaths: [:]
+        )
+        let legacyArtifact = root.appending(component: "Legacy.xcframework")
+        try await write(legacy, at: legacyArtifact)
+        let legacyConsumer = try await target(at: root.appending(component: "legacy-consumer"), headers: 3)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: legacyArtifact, for: legacyConsumer) == [])
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: legacyArtifact, for: sameSources) == nil)
     }
 
     @Test(.inTemporaryDirectory)

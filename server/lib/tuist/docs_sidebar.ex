@@ -441,6 +441,14 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_once"
               }
             ]
+          },
+          %Item{
+            label: "Sandboxes",
+            slug: "/en/guides/features/sandboxes",
+            items: [
+              %Item{label: "Amp", slug: "/en/guides/features/sandboxes/amp"},
+              %Item{label: "Claude", slug: "/en/guides/features/sandboxes/claude"}
+            ]
           }
         ]
       },
@@ -646,7 +654,8 @@ defmodule Tuist.Docs.Sidebar do
             label: "Git forges",
             items: [
               %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"},
-              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"}
+              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"},
+              %Item{label: "Entire", slug: "/en/guides/integrations/gitforge/entire"}
             ]
           }
         ]
@@ -665,7 +674,13 @@ defmodule Tuist.Docs.Sidebar do
             label: "Self-hosting",
             items: [
               %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
-              %Item{label: "Release channels", slug: "/en/guides/server/self-host/release-channels"},
+              %Item{
+                label: "Release",
+                items: [
+                  %Item{label: "Channels", slug: "/en/guides/server/self-host/release/channels"},
+                  %Item{label: "Calendar", slug: "/en/guides/server/self-host/release/calendar"}
+                ]
+              },
               %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]
@@ -778,7 +793,13 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
-          %Item{label: "Release channels", slug: "/en/cli/release-channels"},
+          %Item{
+            label: "Release",
+            items: [
+              %Item{label: "Channels", slug: "/en/cli/release/channels"},
+              %Item{label: "Calendar", slug: "/en/cli/release/calendar"}
+            ]
+          },
           %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},

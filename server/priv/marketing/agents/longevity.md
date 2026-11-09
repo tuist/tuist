@@ -13,7 +13,3 @@ The server license itself also grants an MIT license for each released version t
 - Current component licenses in the [source repository](https://github.com/tuist/tuist) (see [Openness](/marketing-markdown/openness)).
 - Whether you need control over hosting: [self-hosting the server](/en/docs-markdown/guides/server/self-host/server) is an Enterprise option.
 - Your hosted agreement, support level, and data retention needs.
-
-## Limitations
-
-The manifesto is a statement of intent. It is not an uptime SLA, a source-code escrow, or a guarantee of indefinite hosted service. Contractual obligations come from your agreement, and present licensing from the repository's license files.

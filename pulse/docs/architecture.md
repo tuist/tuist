@@ -687,7 +687,7 @@ The read-only `query_promql` tool accepts a tenant, expression, and optional eva
 
 Before evaluation, the evaluator plans every selector's storage request (matchers and time bounds after lookback, range windows, offsets, `@` anchors and subquery grids) and loads them in one `Storage.query_metric_selectors/3` call. On S3 that call takes the union of the selectors' candidate segments, fetches each once (with prefetch) and decodes it natively per selector that needs it, folding each decoded batch straight into per-series time/value points so the decoded records never accumulate. Scan budgets charge the distinct segments, bytes and footer rows read. The plan is only an optimization: a selector it did not predict is read on its own under the query's remaining scan budget. Adapters without the callback get one query per selector, each with an equal share of the scan budget. The query runner answers the caller at the deadline without waiting for the worker to exit, so a native call that cannot be preempted delays only its own slot. Limit failures record which limit and value applied (`Pulse.QueryLimit`); MCP and HTTP report it.
 
-Expressions are limited to 16,384 bytes, 64 matchers per selector, and 1,024 bytes per regular expression. Native regular-expression programs and their deterministic-automaton caches each have a one-mebibyte limit. Public Prometheus Query Language, LogQL, raw tool, and Loki label-discovery queries run under supervised tasks with a ten-second timeout and a 16-million-word heap limit. A node admits at most four tasks, of which interactive requests can occupy three; each tenant can hold two. Raw tools and label discovery each have one class slot by default. Busy requests return a retryable capacity error. `Pulse.QueryRunner` configures `max_global` at startup and `max_per_tenant`, `max_interactive`, `class_limits`, `timeout_ms`, `max_heap_words`, `max_scan_segments`, `max_scan_bytes`, and `max_scan_rows` for new requests. These scan budgets default to 1,024 candidate objects, 128 mebibytes of object data, and one million manifest-reported rows. A native call still occupies its task and slots until it actually exits, even after a request timeout.
+Expressions are limited to 16,384 bytes, 64 matchers per selector, and 1,024 bytes per regular expression. Native regular-expression programs and their deterministic-automaton caches each have a one-mebibyte limit. Public Prometheus Query Language, LogQL, raw tool, and Loki label-discovery queries run under supervised tasks with a ten-second timeout and a 16-million-word heap limit. A node admits at most four tasks, of which interactive requests can occupy three; each tenant can hold two. Raw tools and label discovery each have one class slot by default; Tempo HTTP queries (search, trace lookup, tag discovery and TraceQL metrics) share a separate traces class with three, since Grafana's trace views send several at once. Busy requests return a retryable capacity error. `Pulse.QueryRunner` configures `max_global` at startup and `max_per_tenant`, `max_interactive`, `class_limits`, `timeout_ms`, `max_heap_words`, `max_scan_segments`, `max_scan_bytes`, and `max_scan_rows` for new requests. These scan budgets default to 1,024 candidate objects, 128 mebibytes of object data, and one million manifest-reported rows. A native call still occupies its task and slots until it actually exits, even after a request timeout.
 
 The metrics evaluator additionally bounds selected samples at 100,000, work at five million units, result points at 100,000, and evaluation steps at 11,000. Selected samples and work accumulate across selectors and operations in an expression. The result-point budget counts only returned points; intermediate results are bounded by the points held at once (`max_materialized_samples`, 250,000 by default, Prometheus `query.max-samples` semantics): each operation's result counts until its parent returns. Metric sample scans charge `max_scan_rows` with the rows selectors match, not whole candidate segments: the decoder skips other series by their dictionary-encoded labels, and segment and byte budgets bound that reading. Discovery still charges footer rows. Binary/function inputs are indexed by evaluation timestamp once, avoiding repeated full-series scans. Query-local native regex resources provide `label_replace` captures with the same bounded engine and ASCII class semantics as selectors, and Elixir implements Go-style replacement expansion without creating atoms. Explicit-resolution subqueries evaluate one shared epoch-aligned grid of at most 11,000 points per level. Materialized subquery samples are intermediate results under the same held-points budget (`query_intermediate_limit`). Absence-label inference follows the observable Prometheus engine, including TSDB's intersecting-before-subtracting matcher ordering. Millisecond-aligned timestamp conversions avoid double rounding. Equal-label range series merge only when their evaluation times do not overlap. Operators can tune its `max_heap_words`, `max_samples`, `max_work`, `max_result_points`, `max_materialized_samples`, `max_scan_segments`, `max_scan_bytes`, and `max_scan_rows`; the shared runner's heap setting applies unless the evaluator overrides it. Sample decoding stops at the budget, while sliding windows avoid rescanning every sample at every step. Log queries use scan and heap budgets rather than a selected-record cap because Loki applies its result limit after matching. Raw tools cap unbounded responses at 5,000 records; an explicit result limit retains its requested semantics. Label discovery fails explicitly when more than 5,000 matching log records would be needed to produce a complete list. Narrow its time range until posting indexes become available. Resource exhaustion returns an error without partial results. These are independent ceilings, not guaranteed query capacity. Unexpected task crashes are reported as server execution failures. Scans preflight manifest counts and known sizes, check actual downloaded bytes, and check deadlines between objects. Conflicting values at the same timestamp resolve to the largest value deterministically and add a response warning. This policy preserves repeatable results across segment ordering; it does not claim ingest-time duplicate rejection.
 
@@ -751,6 +751,53 @@ old pooled nodes are fenced. Omitted times scan retained history; no external
 postings/range reads or representative client/provider capacity acceptance.
 HTTP transport bounds query/forms to 32KiB each and checks raw duplicate scalars
 before any silent form normalization. See [operator contract](metric-discovery.md).
+
+#### Hourly series catalogs
+
+Sample-backed discovery charges every stored sample, and a remote-write
+tenant exceeds the one-million-row cap within half an hour of four local
+scrape targets (production is ~32x that). Every system we compared answers
+label APIs from a per-period series index instead: Prometheus TSDB blocks and
+Mimir/Thanos store-gateways read a block's symbol table and postings offset
+table (Mimir rounds `start`/`end` to 2 h–24 h blocks), VictoriaMetrics keeps a
+per-day inverted index in `indexdb`, and Loki ships per-period TSDB indexes.
+Their recent data comes from stateful ingesters, which Pulse deliberately does
+not have.
+
+`Pulse.Storage.S3.MetricCatalog` (native `metric_catalog.rs`, catalog API 1)
+writes immutable `-rollup-catalog-<lineage>-` objects per tenant and UTC hour,
+registered in the metrics manifest like rollups. Each lists the hour's distinct canonical series
+plus label-name, label-pair and metric-to-label-name sections in their own row
+groups with exact `kind`/`name` statistics, and names in its footer the sample
+segment keys it covers. Discovery picks the smallest section that answers the
+request, reads only the row groups that can hold it, then continues the same
+native accumulator and budgets over the sample segments no catalog covers;
+edge hours with a catalog widen to the whole hour. Releases that predate
+catalogs see a rollup key spanning the hour: sample reads and rollup planning
+skip it and finalization retires it unread, so a rolling deploy or rollback
+only costs those hours their catalogs (checked against pulse@1.42.0).
+
+The catalog is log-structured so maintenance writes stay proportional to new
+series, not to all series per pass: a delta lists only series the hour's
+active catalogs lack, and the eighth catalog (or a settled hour) merges them,
+retiring the merged objects in one conditional manifest transition. The union
+of an hour's active catalogs therefore never shrinks, which lets consolidation
+and finalization stamp outputs with the catalogs' lineage (manifest `cg`) when
+every source was covered, without coupling them to the catalog writer. An
+hour's first catalog starts the lineage and its deltas and merges keep it; a
+stamp counts only while a catalog of its lineage is active, so an older
+release retiring the hour's catalogs voids the stamps instead of leaving
+segments wrongly covered. Writers that drop the stamp only cause another
+read. The grouping lane catalogs the current and
+previous hour before grouping; the historical lane catalogs older hours after
+finalization, so stalled historical reads never block recent grouping. No new
+mutable authority, lock or node-local state is introduced: concurrent deltas
+only duplicate series, and racing merges conflict on their sources.
+
+Remaining costs: catalogs are fetched whole (no range reads yet), merged hour
+catalogs are rewritten up to every eighth pass, and a series-section read still
+grows with the window's hourly series. Uncatalogued data is at most about one
+compaction interval of samples.
 
 ### Remote Write 2.0 source starts
 
@@ -1373,6 +1420,7 @@ change. Default arm64 Go FMA results are not the bit-level arithmetic profile.
 - Trace segments have typed `timestamp_ns`, `end_timestamp_ns`, `kind`, and `status_code` Int64 columns; nullable `service` and nonnullable `trace_id`, `span_id`, `name` Utf8 search columns; and a lossless JSON `payload` Utf8 column containing the complete normalized span. This initial schema duplicates promoted values in the payload to preserve nested metadata without a complex Arrow nested schema. Rows sort by `(service, timestamp_ns, trace_id, span_id)`; row groups cap at 8,192, timestamps use delta encoding, low-cardinality columns use dictionaries and chunks use zstd. Native time statistics and typed predicates filter before materializing payload terms; attribute predicates inspect only requested JSON fields. Trace readers retain immutable Erlang binaries through `OwnedEnv` and `Bytes::from_owner` instead of copying blobs for `ChunkReader`. Writers use a binary-backed output sink without a final blob copy. Public S3 MCP queries hold bounded top-k state in a disposable Rustler resource and finish JSON/projection natively; individual span maps never expand into the query process. The record/reference decoder remains available.
 - `query_traces` shares raw query authorization/admission/deadline/heap/scan/result budgets. Exact IDs, service/name/kind/status, and typed span/resource attribute predicates are ANDed. Raw results sort newest-start first with deterministic tie breaking and preserve duplicates. No-limit responses over 5,000 fail explicitly; explicit limits can return incomplete traces. `get_trace` forbids time windows/projection/limits and either assembles every stored span in the chosen snapshot or errors. Roots, missing parents and duplicate/conflicting span IDs are reconciled natively without constructing a cyclic tree or silently deduplicating. `metadata_unknown_span_ids` identifies any legacy copies. Projected differences or disagreement between known typed copies prove conflicts; equal projected legacy/rich copies do not. Reconciliation retains at most 16 MiB of projected comparison keys in addition to bounded selected payload/full keys; missing metadata is never guessed. More than 5,000 stored spans or exhausted scan/result budgets never produce partial assembly; exporter completeness is not implied.
 - Default-on native Arrow compaction shares manifest-CAS publication/retirement/cleanup and backup-held deletion with metrics and logs, without expanding spans into BEAM. On flat/format-4 prefixes each pass splits an hour's flushes into objects of one service, one error/event class and a bounded set of trace IDs whose summaries list exact ID hashes, attribute value sets, status codes and event presence, so search candidates, context and TraceQL metrics read only objects that can match. Source sets are bounded; normalized payload and decoded column ceilings constrain merges independently from compressed object sizes. Over-budget source sets shrink before any upload, without truncating rows. Separate eligibility groups prevent trace-only workers from becoming expected metrics owners. `PULSE_TRACE_COMPACTION_ENABLED` is independent of metrics compaction. Active-object reduction alone does not bound permanent tombstones or replace retention.
+- Trace batch selection prefers fresh sources, skips sources that do not fit the source-count/row/compressed-byte bounds, and uses a metadata-only pair search when a singleton or previously failed fresh batch would block progress. Independent minimum-row/minimum-byte lower bounds first exclude sources that cannot fit with any partner, avoiding quadratic scans through whole-budget singletons. The remaining pair fallback is quadratic in the candidate pool in the worst case; the ordinary greedy path remains linear after sorting. Native overflow tries both halves and an oldest/new-partner cross-pair, never quarantining an entire hour or declaring either source of a failing pair individually invalid. A call admits at most 16 builds and cumulative source reads/encoded input bytes of three times its initial batch, including failed attempts; provider-internal retries and publication/metadata requests are separate. Exact failed batches receive disposable, bounded node-local one-hour hints keyed by immutable source keys and output limits. Cache loss can repeat work but cannot lose data. Once fresh inputs are exhausted, partial-only finishing publishes only when output count decreases, and a deferred partial-only batch is not searched repeatedly for alternative no-op combinations. Omitted sources remain active; only successfully published inputs retire. These are bounded progress opportunities, not a globally minimal fragmentation or exhaustive native-pair search guarantee. Decoded native limits remain independent of compressed admission bounds.
 - `PULSE_TRACES_RETENTION_DAYS` (zero by default) uses the same immutable paged catalog, irreversible event-time floor, staged bucket teardown, bounded deletion admission and orphan/catch-up sweeps as logs and metrics. The floor concerns span starts. Mixed-age segments may stay physically present, but their expired rows are hidden from queries and assembly. Whole expired requests return permanent OTLP 400, without rewriting keyed fingerprints; migration and storage errors remain retryable. Admission cannot freeze an earlier wall-clock cutoff through publication: every CAS checks the freshest root floor, including queued flushes and retries. Trace compaction honors paged source eligibility, bucket grouping and grace. The shared retention worker discovers idle trace scopes independently of merge workers. This replaces the unreleased trace-only retention/receipt design; format 3 means only the shared checksummed paged root.
 - **Not implemented:** full TraceQL, zero/partial windows, exact name-iterator omission/dynamic dedicated-column parity, deployed Tempo/Grafana client parity, representative indexed planning, bounded historical catalogs without finite retention, and per-segment trace-ID bloom sidecars. Trace-ID point lookup still scans time-pruned manifest candidates. Parquet codecs have no Elixir fallback; invalid encode/decode is a hard error, not a JSON-storage alternative.
 
@@ -1574,7 +1622,8 @@ Before an hour settles, each remote-write batch holds a slice of every metric,
 so name summaries cannot prune it and a 1-hour panel reads every batch (a
 production hour is ~1,800 segments, ~48M rows). `MetricTiers.consolidate/3`
 regroups settled raw segments of the newest eligible hour, oldest segments
-first within that hour, in 0.5–1M-row batches into metric-sorted `-group-`
+first within that hour, once a bounded batch reaches 32 sources or 500k rows,
+with at most 512 sources and 1M rows, into metric-sorted `-group-`
 segments (tier `:grouped`, read and finalized
 like raw), using the same native builder without rollups. Finalization of an
 hour above 3/4 of `max_rows` runs in passes over equal ranges of a 64-bit
@@ -1585,11 +1634,25 @@ an uneven pass restarts the hour with twice the passes. Tier API 2.
 Each enabled signal has its own maintenance worker and task supervisor
 (`CompactionSupervision` lanes, per-signal ownership groups). Metrics with
 finalization enabled have an additional grouping lane with independent
-eligibility, timeout/backoff and supervised tasks. A slow historical merge or
-finalization cannot withhold recent grouping; historical work stays oldest
-first. Each lane runs its own bounded discovery pass. A timed-out task still
+eligibility, timeout/backoff and supervised tasks. On flat/format-4 prefixes
+the supervised historical lane skips small raw merges when finalization is
+enabled: grouping and finalization already replace those rows, and a fast
+small merge otherwise retires sources while a larger grouping build is in
+flight. Replanning page rewrites cannot recover a source already retired by
+that merge. Explicit merges, disabled finalization and format-3 prefixes keep
+the legacy merger. The historical lane still advances the paged compaction
+cursor, so raw sources between already-grouped oldest and newest leaves are
+eventually visited. A slow historical finalization cannot withhold recent
+grouping; historical work stays oldest first. Trace maintenance likewise has
+an independent lane for the current and previous hour on flat/format-4
+prefixes; its historical lane handles older hours and backup-held cleanup for
+both. A failed historical payload cannot prevent recent traces compacting.
+Bucketed trace prefixes retain the legacy merge path. Each lane runs its own
+bounded discovery pass; only the historical lane advances the shared paged
+compaction cursor, so recent-only passes cannot skip historical leaves.
+A timed-out task still
 withdraws its own lane until it actually finishes, never bypassing admission.
-The extra lane admits one more bounded native batch per instance, up to eight
+Each extra lane admits one more bounded native batch per instance, up to eight
 source GETs concurrently. All lanes publish through the same manifest owner
 and CAS; overlapping source rewrites conflict and retry on later passes,
 never duplicate or drop samples. Formats, scan budgets, backup-held cleanup
@@ -1685,11 +1748,27 @@ An unkeyed append rewrites only the tail and, every 512 entries, writes one
 leaf plus at most one index page per completed height. Its cost does not depend
 on history. A keyed append also checks the pages whose key range covers its
 deterministic key, so its first lookup can read O(log n) pages, which are then
-cached. Queries prune by reference time ranges before reading pages and read at
-most eight pages concurrently; `max_scan_segments` is enforced while pages are
-read. Compaction selects candidates from the tail, the four newest leaves and
-four leaves picked by a rotating cursor. It rewrites the path from one leaf to
-the root and records the pages it supersedes. Cleanup deletes retired segments
+cached. Queries prune by reference time ranges before reading pages.
+Limited log and trace candidate plans traverse index and leaf references together
+in subtree-bound order, expanding only subtrees that can precede the held window.
+They do not first materialize every historical leaf reference. Equal bounds still
+expand so key tie-breaking is exact; overlapping or unknown summaries can still
+require broad reads. Leaf-fetch tasks return verified encoded bytes, not decoded
+catalogs; the caller decodes and filters each page before retaining matches.
+Tempo context applies the sealed native trace-ID filter at that point, before
+unrelated full summaries enter the catalog or cross process messages. Native
+probes remain serialized and share the existing work bound; unknown summaries
+and exhausted optional probes still read conservatively. Complete-context trace
+recovery and its existing horizon, catalog, scan and heap limits are unchanged.
+Metadata reads run up to 32 at a time;
+`max_scan_segments` is enforced while candidate pages are read for full scans.
+Compaction selects candidates from the tail, the four leaves with the newest
+active timestamps and four leaves picked by a rotating cursor. It descends index
+bounds newest first to find those leaves; publication order cannot identify
+recent data because historical maintenance also appends pages. Overlapping
+timestamp bounds can require broader index reads, but at most eight distinct
+candidate leaves are read. It rewrites the path from one leaf to the root and
+records the pages it supersedes. Cleanup deletes retired segments
 and superseded pages after the compaction grace (default one hour).
 
 A node converts a flat root on its next publication: small histories stay

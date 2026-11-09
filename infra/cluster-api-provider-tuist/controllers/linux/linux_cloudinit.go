@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,15 +44,10 @@ type linuxCloudInitOptions struct {
 	// certificate-authority-data; the kubelet needs them as an on-disk file.
 	ClusterCAPEM []byte
 
-	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
-	//
-	// Moving this to v1.36 or later silently drops the memory-floor protection
-	// in kubeletMemoryGovernanceBlock: v1.36 gates it behind a new
-	// memoryReservationPolicy field that defaults to None, so MemoryQoS becomes
-	// a no-op here (memoryThrottlingFactor is already pinned to 1.0, which
-	// disables the other half). Add `memoryReservationPolicy: TieredReservation`
-	// in the same change — and not before, since an unknown field fails
-	// KubeletConfiguration's strict decode and the kubelet refuses to start.
+	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34"). The kubelet config
+	// is rendered for it: from v1.36 it carries `memoryReservationPolicy:
+	// TieredReservation` (kubeletMemoryGovernanceBlock), and Kata runner hosts
+	// also run the pod-level resource managers (podLevelResourceManagers).
 	K8sMinor string
 
 	// Taints are rendered into kubelet's --register-with-taints.
@@ -117,11 +114,19 @@ net.mptcp.enabled                   = 0
 	// full availability, times out the observability chart's `helm --wait`, and
 	// wedges every deploy. The soft/hard lockup detectors panic on a stuck CPU;
 	// panic_on_oops promotes an oops to a panic; kernel.panic=10 reboots 10s after
-	// any panic. Applied to /etc/sysctl.d/99-tuist-hardening.conf.
+	// any panic. io_uring_disabled=1 limits io_uring to processes with
+	// CAP_SYS_ADMIN: io_uring operations bypass seccomp, and Firecracker's
+	// filter allows io_uring_setup, so a hijacked jailed VMM (an unprivileged
+	// slot uid) could otherwise reach files and syscalls its filter denies.
+	// sandboxd's VMs use the Sync block engine, and Kata's QEMU runs as root.
+	// Applied to kernelHardeningSysctlPath by the self-join, and on running
+	// hosts by the kubelet config re-push, whose hash covers it.
+	kernelHardeningSysctlPath    = "/etc/sysctl.d/99-tuist-hardening.conf"
 	kernelHardeningSysctlContent = `kernel.softlockup_panic = 1
 kernel.hardlockup_panic = 1
 kernel.panic_on_oops = 1
 kernel.panic = 10
+kernel.io_uring_disabled = 1
 `
 
 	// watchdogDropInContent arms systemd's hardware watchdog: systemd pings
@@ -222,7 +227,18 @@ const kubeletImageGCBlock = `imageMaximumGCAge: 24h
 //
 // The reservations themselves are written just before this block, from
 // kubeletReservationBlock, because their CPU half differs on Kata runner hosts.
-const kubeletMemoryGovernanceBlock = `evictionHard:
+//
+// v1.36 splits the protection out into memoryReservationPolicy, which defaults
+// to None: without TieredReservation MemoryQoS sets no memory.min or
+// memory.low at all there. TieredReservation gives Guaranteed Pods memory.min
+// and Burstable Pods the softer memory.low. The field is only rendered for
+// v1.36 and later, so older nodes keep their config byte for byte.
+//
+// podLevelResourceManagers adds its feature gate here because featureGates is
+// one map. A kubelet that does not know a gate panics at startup (v1.34 does
+// on PodLevelResourceManagers), so the gate is never rendered below v1.36.
+func kubeletMemoryGovernanceBlock(k8sMinor string, podLevelResourceManagers bool) string {
+	block := `evictionHard:
   memory.available: 5%
   nodefs.available: 10%
   nodefs.inodesFree: 5%
@@ -230,8 +246,47 @@ const kubeletMemoryGovernanceBlock = `evictionHard:
   imagefs.inodesFree: 5%
 featureGates:
   MemoryQoS: true
-memoryThrottlingFactor: 1.0
 `
+	if podLevelResourceManagers {
+		block += "  PodLevelResourceManagers: true\n"
+	}
+	block += "memoryThrottlingFactor: 1.0\n"
+	if kubeletMinorAtLeast(k8sMinor, 36) {
+		block += "memoryReservationPolicy: TieredReservation\n"
+	}
+	return block
+}
+
+// kubeletMinorAtLeast reports whether a pkgs.k8s.io channel or kubelet version
+// ("v1.36", "v1.36.6") is v1.<minor> or newer. Anything it cannot parse counts
+// as older, so a missing version renders the config every node has today.
+func kubeletMinorAtLeast(version string, minor int) bool {
+	m := kubeletMinorPattern.FindStringSubmatch(version)
+	if m == nil {
+		return false
+	}
+	got, err := strconv.Atoi(m[1])
+	return err == nil && got >= minor
+}
+
+var kubeletMinorPattern = regexp.MustCompile(`^v1\.(\d+)(\.|$)`)
+
+// kubeletMinor turns a kubelet or Machine version ("v1.36.6") into its
+// pkgs.k8s.io channel ("v1.36"), or returns fallback when it cannot.
+func kubeletMinor(version, fallback string) string {
+	if _, minor, ok := parseControlPlaneVersion(version); ok {
+		return minor
+	}
+	return fallback
+}
+
+// podLevelResourceManagers reports whether a host runs the kubelet's pod-level
+// resource managers: Kata runner hosts on v1.36 or later. There a Guaranteed
+// Pod's `.spec.resources` budget gets one exclusive set of whole cores that the
+// runner and its dind sidecar share (docs/exclusive-runner-cpus.md).
+func podLevelResourceManagers(k8sMinor string, kata bool) bool {
+	return kata && kubeletMinorAtLeast(k8sMinor, 36)
+}
 
 // reservedSystemCPUsPlaceholder stands in for the reserved CPU list in the
 // rendered config. Which logical CPUs share a physical core depends on the box
@@ -252,7 +307,15 @@ const reservedSystemCPUsPlaceholder = "__TUIST_RESERVED_SYSTEM_CPUS__"
 // kubeletCPUManagerSetup pins system.slice to that core so kubelet, containerd
 // and sshd stay off the cores Pods get. Allocatable CPU drops by one on a box
 // with two threads per core.
-func kubeletReservationBlock(exclusiveCPUs bool) string {
+//
+// podLevelResourceManagers adds the Topology Manager with pod scope, which is
+// what makes the CPU manager allocate a Pod's `.spec.resources` as one set
+// shared by its containers rather than per container. best-effort never
+// rejects a Pod for NUMA alignment, and these runner boxes have one NUMA node.
+// The Memory Manager stays at None: with one NUMA node it has nothing to
+// align, and its Static policy would need reservedMemory to match the
+// percentage eviction threshold to the byte on every box.
+func kubeletReservationBlock(exclusiveCPUs, podLevelResourceManagers bool) string {
 	if !exclusiveCPUs {
 		return `systemReserved:
   cpu: 500m
@@ -262,7 +325,7 @@ kubeReserved:
   memory: 1Gi
 `
 	}
-	return `systemReserved:
+	block := `systemReserved:
   memory: 1Gi
 kubeReserved:
   memory: 1Gi
@@ -271,6 +334,12 @@ cpuManagerPolicy: static
 cpuManagerPolicyOptions:
   full-pcpus-only: "true"
 `
+	if podLevelResourceManagers {
+		block += `topologyManagerPolicy: best-effort
+topologyManagerScope: pod
+`
+	}
+	return block
 }
 
 // kubeletCPUStatePath is the CPU manager checkpoint. The kubelet refuses to
@@ -318,7 +387,7 @@ func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
 	if !opts.KataRuntime {
 		return ""
 	}
-	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), false))
+	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, false))
 }
 
 // kubeletConfigContent renders the KubeletConfiguration for the self-join
@@ -351,7 +420,10 @@ func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
 //
 // exclusiveCPUs selects the static CPU manager (kubeletReservationBlock). Kata
 // runner hosts pass true; every other fleet renders byte-identically to before.
-func kubeletConfigContent(clusterDNS, clientCAFile string, exclusiveCPUs bool) string {
+// k8sMinor is the kubelet's minor ("v1.36"); the settings that only a newer
+// kubelet accepts are rendered from it (kubeletMemoryGovernanceBlock).
+func kubeletConfigContent(clusterDNS, clientCAFile, k8sMinor string, exclusiveCPUs bool) string {
+	podLevel := podLevelResourceManagers(k8sMinor, exclusiveCPUs)
 	x509Block := ""
 	if clientCAFile != "" {
 		x509Block = fmt.Sprintf("  x509:\n    clientCAFile: %s\n", clientCAFile)
@@ -368,7 +440,7 @@ authentication:
   mode: Webhook
 clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
-` + kubeletImageGCBlock + kubeletReservationBlock(exclusiveCPUs) + kubeletMemoryGovernanceBlock
+` + kubeletImageGCBlock + kubeletReservationBlock(exclusiveCPUs, podLevel) + kubeletMemoryGovernanceBlock(k8sMinor, podLevel)
 	if clusterDNS != "" {
 		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
 	}
@@ -443,7 +515,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 	)
 	hardeningSysctl := writeFile(
 		"printf '%s' "+shellSingleQuote(kernelHardeningSysctlContent),
-		"/etc/sysctl.d/99-tuist-hardening.conf",
+		kernelHardeningSysctlPath,
 	)
 	watchdogDropIn := writeFile(
 		"printf '%s' "+shellSingleQuote(watchdogDropInContent),
@@ -656,7 +728,8 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
+	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -704,8 +777,8 @@ runcmd:
 		kubelet,
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
-		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime)), "      "),
-		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime), "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel)), "      "),
+		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime), "      "),
 		body,
 		caEntry,
 	)
@@ -721,7 +794,8 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
+	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -761,8 +835,8 @@ set -euxo pipefail
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
-		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime))),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime)),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel))),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime)),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
@@ -1048,9 +1122,16 @@ const kataVersionStampPath = "/opt/kata/.tuist-kata-version"
 // Ordering matters: this runs after the config is generated and after the
 // SystemdCgroup rewrite, but before containerd restarts, so the handler is
 // registered by the time kubelet first talks to it.
-func kataSetup(sudo, sudoE string, enabled bool) string {
+//
+// staticSandboxSizing adds the static-sizing drop-in that hosts running the
+// pod-level resource managers need (kataStaticSandboxSetup).
+func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
+	}
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo)
+	if staticSandboxSizing {
+		dropIns += kataStaticSandboxSetup(sudo)
 	}
 	return fmt.Sprintf(`# ---- Kata Containers %[3]s (runner fleets only) ----
 # Fail loud if containerd predates the v3 config syntax the handler below is
@@ -1087,7 +1168,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, dropIns)
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
@@ -1106,13 +1187,22 @@ var kataNodeLabels = []struct{ Key, Value string }{
 	{"tuist.dev/kata-runtime", "true"},
 }
 
-func kataNodeLabelsArg(enabled bool) string {
+// PodLevelResourceManagersLabel marks a Kata runner node that runs the
+// pod-level resource managers and sizes VMs statically. Only there may a runner
+// Pod carry a Pod-level budget: elsewhere Kata would size its VM from every
+// container's copy of that budget.
+const PodLevelResourceManagersLabel = "tuist.dev/pod-level-resource-managers"
+
+func kataNodeLabelsArg(enabled, podLevelResourceManagers bool) string {
 	if !enabled {
 		return ""
 	}
 	var arg strings.Builder
 	for _, label := range kataNodeLabels {
 		arg.WriteString("," + label.Key + "=" + label.Value)
+	}
+	if podLevelResourceManagers {
+		arg.WriteString("," + PodLevelResourceManagersLabel + "=true")
 	}
 	return arg.String()
 }

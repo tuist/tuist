@@ -25,6 +25,7 @@ defmodule Pulse.Storage.S3.JournalManifest do
   Leaf pages are flat (format-2) manifest documents.
   """
 
+  alias Pulse.Codec.NIF
   alias Pulse.ObjectStore
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.Manifest.Retirement
@@ -432,14 +433,27 @@ defmodule Pulse.Storage.S3.JournalManifest do
       ref["n"] > 0 and intersects?(ref, start_ts, end_ts) and (ref["h"] > 0 or leaf_matches?(ref, signal, opts))
     end
 
-    leaves = collect_leaves(root.paging["refs"], select, tenant, signal, config, deadline)
     found = Enum.filter(root.segments, match)
-
     read = &stream_leaves(&1, tenant, signal, config, deadline, fn leaf -> Enum.filter(leaf.segments, match) end)
 
     case plan_window(signal, opts) do
-      nil -> all_candidates(leaves, found, maximum, read)
-      window -> window(leaves, found, window, read)
+      nil ->
+        leaves = collect_leaves(root.paging["refs"], select, tenant, signal, config, deadline)
+        all_candidates(leaves, found, maximum, read)
+
+      window ->
+        expand = fn refs ->
+          {leaves, indexes} = Enum.split_with(refs, &(&1["h"] == 0))
+
+          children =
+            indexes
+            |> concurrently(&read_index(&1, tenant, signal, config, deadline), @leaf_reads)
+            |> Enum.concat()
+
+          {Enum.concat(read.(leaves)), Enum.filter(children, select)}
+        end
+
+        window(Enum.filter(root.paging["refs"], select), found, window, expand)
     end
   end
 
@@ -476,35 +490,35 @@ defmodule Pulse.Storage.S3.JournalManifest do
     fail(:query_scan_limit)
   end
 
-  # The first `n` candidates in a limited log query's scan order: newest
-  # `max_ts` first (backward) or oldest `min_ts` first (forward). Leaves are
-  # read in the order of their bound on that key, eight at first and twice as
-  # many each round up to @leaf_reads, and reading stops once `n` candidates
-  # are held and no unread leaf can order before the last of them. Candidates
-  # beyond `n` are never visited by the scan.
-  defp window(leaves, found, {order, n}, read) do
+  # Order index and leaf references together by their subtree bounds. Do not
+  # expand the retained tree into all its leaf references first: even a tiny
+  # recent search would then hold metadata proportional to the whole history.
+  # Equal bounds must still be read to preserve candidate key tie-breaking.
+  defp window(refs, found, {order, n}, expand) do
     {bound, rank} =
       case order do
         :backward -> {&(-&1["mx"]), &{-&1.max_ts, &1.key}}
         :forward -> {& &1["mn"], &{&1.min_ts, &1.key}}
       end
 
-    leaves
+    refs
     |> Enum.sort_by(bound)
-    |> window_rounds(8, found |> Enum.sort_by(rank) |> Enum.take(n), n, bound, rank, read)
+    |> window_rounds(8, found |> Enum.sort_by(rank) |> Enum.take(n), n, bound, rank, expand)
   end
 
-  defp window_rounds([], _size, held, _n, _bound, _rank, _read), do: held
+  defp window_rounds([], _size, held, _n, _bound, _rank, _expand), do: held
 
-  defp window_rounds(leaves, size, held, n, bound, rank, read) do
-    {chunk, rest} = Enum.split(leaves, size)
+  defp window_rounds(refs, size, held, n, bound, rank, expand) do
+    {chunk, rest} = Enum.split(refs, size)
     chunk = if length(held) < n, do: chunk, else: Enum.filter(chunk, &(bound.(&1) <= elem(rank.(List.last(held)), 0)))
 
     if chunk == [] do
       held
     else
-      held = (held ++ Enum.concat(read.(chunk))) |> Enum.sort_by(rank) |> Enum.take(n)
-      window_rounds(rest, min(2 * size, @leaf_reads), held, n, bound, rank, read)
+      {found, children} = expand.(chunk)
+      held = (held ++ found) |> Enum.sort_by(rank) |> Enum.take(n)
+      refs = Enum.sort_by(rest ++ children, bound)
+      window_rounds(refs, min(2 * size, @leaf_reads), held, n, bound, rank, expand)
     end
   end
 
@@ -532,7 +546,22 @@ defmodule Pulse.Storage.S3.JournalManifest do
 
   defp matches?(s, "metrics", opts), do: Segment.matches_metrics?(s, opts[:metrics_filter] || opts[:matchers] || [])
   defp matches?(s, "logs", opts), do: Segment.matches_log_service?(s, opts)
-  defp matches?(s, "traces", opts), do: TraceSummary.matches?(s.trace_summary, opts)
+
+  defp matches?(s, "traces", opts),
+    do: TraceSummary.matches?(s.trace_summary, opts) and context_matches?(s.trace_summary, opts[:tempo_context])
+
+  defp context_matches?(_summary, nil), do: true
+
+  defp context_matches?(summary, native) do
+    {hashes, bits} = TraceSummary.context_filter(summary)
+
+    case NIF.tempo_search_plan_may_match(native, hashes, bits) do
+      {:ok, matches?} -> matches?
+      {:error, reason} -> fail(reason)
+      :fallback -> fail({:decode_failed, :parquet_decoder_rejected_input})
+    end
+  end
+
   defp leaf_matches?(ref, "traces", opts), do: TraceSummary.page_matches?(ref["q"], opts)
   defp leaf_matches?(ref, "logs", opts), do: Segment.log_page_matches?(ref["q"], opts)
   defp leaf_matches?(_ref, _signal, _opts), do: true
@@ -543,9 +572,11 @@ defmodule Pulse.Storage.S3.JournalManifest do
   # ---- compaction ------------------------------------------------------------
 
   @doc """
-  A bounded candidate set: the tail, the four newest leaves and four older
-  leaves from a rotating cursor, so compaction also reaches history. The
-  returned root is for selection only and must never be published.
+  A bounded candidate set: the tail, the four leaves with the newest active
+  timestamps and four leaves from a rotating cursor, so compaction also
+  reaches history. Publication order is not event-time order: historical
+  maintenance can append old data after current ingestion. The returned
+  root is for selection only and must never be published.
   """
   def candidates(%Manifest{version: @version} = root, tenant, signal, config),
     do: with_ops(fn -> do_candidates(root, tenant, signal, config) end)
@@ -554,10 +585,14 @@ defmodule Pulse.Storage.S3.JournalManifest do
     refs = root.paging["refs"]
     total = Enum.sum_by(refs, & &1["l"])
     cursor = if root.paging["cc"] < total, do: root.paging["cc"], else: 0
-    recent = Enum.to_list(max(0, total - 4)..(total - 1)//1)
     sweep = Enum.to_list(cursor..min(total - 1, cursor + 3)//1)
-    wanted = MapSet.new(recent ++ sweep)
-    leaves = leaves_at(refs, 0, wanted, tenant, signal, config)
+    recent = recent_leaves(refs, tenant, signal, config)
+
+    leaves =
+      (recent ++ leaves_at(refs, 0, MapSet.new(sweep), tenant, signal, config))
+      |> Enum.uniq_by(& &1["k"])
+      |> concurrently(&read_leaf(&1, tenant, signal, config, deadline()))
+
     next = if cursor + 4 >= total, do: 0, else: cursor + 4
 
     %{
@@ -565,6 +600,20 @@ defmodule Pulse.Storage.S3.JournalManifest do
       | segments: root.segments ++ Enum.flat_map(leaves, & &1.segments),
         paging: Map.put(root.paging, "compaction_candidate", next)
     }
+  end
+
+  defp recent_leaves(refs, tenant, signal, config) do
+    bound = &(-&1["mx"])
+    rank = &{-&1["mx"], &1["k"]}
+
+    expand = fn refs ->
+      {leaves, indexes} = Enum.split_with(refs, &(&1["h"] == 0))
+      children = indexes |> concurrently(&read_index(&1, tenant, signal, config, deadline())) |> Enum.concat()
+      {leaves, Enum.filter(children, &(&1["n"] > 0))}
+    end
+
+    refs = refs |> Enum.filter(&(&1["n"] > 0)) |> Enum.sort_by(bound)
+    window_rounds(refs, 8, [], 4, bound, rank, expand)
   end
 
   defp leaves_at(refs, offset, wanted, tenant, signal, config) do
@@ -578,7 +627,7 @@ defmodule Pulse.Storage.S3.JournalManifest do
               []
 
             ref["h"] == 0 ->
-              [read_leaf(ref, tenant, signal, config, deadline())]
+              [ref]
 
             true ->
               leaves_at(read_index(ref, tenant, signal, config, deadline()), start, wanted, tenant, signal, config)
@@ -1448,8 +1497,9 @@ defmodule Pulse.Storage.S3.JournalManifest do
     do: refs |> stream_leaves(tenant, signal, config, deadline, fun) |> Enum.to_list()
 
   # Leaf reads run @leaf_reads at a time: planning a long range reads one
-  # page per few hundred segments, at object-store latency each. Each task
-  # returns only what `fun` keeps.
+  # page per few hundred segments, at object-store latency each. Transfer only
+  # encoded bytes: decoded terms lose sharing across process messages. Decode
+  # and filter in the caller, including serialized native context-ID probes.
   defp stream_leaves(refs, tenant, signal, config, deadline, fun) when length(refs) <= 1,
     do: Enum.map(refs, &fun.(read_leaf(&1, tenant, signal, config, deadline)))
 
@@ -1458,7 +1508,7 @@ defmodule Pulse.Storage.S3.JournalManifest do
     |> Pulse.Runtime.Task.async_stream(
       fn ref ->
         try do
-          {:ok, fun.(read_leaf(ref, tenant, signal, config, deadline))}
+          {:ok, fetch(ref, config, deadline)}
         catch
           {:journal_manifest, reason} -> {:error, reason}
         end
@@ -1466,9 +1516,10 @@ defmodule Pulse.Storage.S3.JournalManifest do
       max_concurrency: @leaf_reads,
       timeout: :infinity
     )
+    |> Stream.zip(refs)
     |> Stream.map(fn
-      {:ok, {:ok, value}} -> value
-      {:ok, {:error, reason}} -> fail(reason)
+      {{:ok, {:ok, body}}, ref} -> fun.(decode_page!(body, "m", ref, tenant, signal))
+      {{:ok, {:error, reason}}, _ref} -> fail(reason)
     end)
   end
 

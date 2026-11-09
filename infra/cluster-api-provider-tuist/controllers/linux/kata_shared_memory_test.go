@@ -105,7 +105,7 @@ func TestKataSharedMemoryRepairFailureNeverRecordsProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := reconcileLinuxKataRuntimeDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err == nil {
 		t.Fatal("expected repair to fail against an unreachable host")
 	}

@@ -154,7 +154,7 @@ WantedBy=multi-user.target
 // resolvConf is systemd-resolved's stub, the resolver that answers tailnet
 // names for host-network pods. Static pods run from rackStaticPodPath.
 func rackKubeletConfig(o rackConvergeOptions) string {
-	return kubeletConfigContent(o.ClusterDNS, kubeletClientCAPath, false) + fmt.Sprintf(`providerID: %s
+	return kubeletConfigContent(o.ClusterDNS, kubeletClientCAPath, o.K8sMinor, false) + fmt.Sprintf(`providerID: %s
 rotateCertificates: true
 resolvConf: /etc/resolv.conf
 staticPodPath: %s

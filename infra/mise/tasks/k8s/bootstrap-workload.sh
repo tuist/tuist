@@ -357,7 +357,12 @@ log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
 # cert-issued certs). Platform install in step 7 brought it
 # up, so we're good to install here.
 
-CAPI_CORE_VERSION="v1.10.4"
+# Keep in step with CAPI_VERSION in
+# .github/workflows/capi-in-cluster-upgrade.yml, which upgrades existing
+# clusters. The kubeadm bootstrap and control-plane providers are pinned to the
+# same version below: KCP needs the bootstrap provider at its own version, and
+# unpinned they would follow clusterctl's latest release.
+CAPI_CORE_VERSION="v1.13.8"
 CLUSTERCTL_BIN="$RUNNER_TEMP/clusterctl"
 
 if [ -z "${RUNNER_TEMP:-}" ]; then
@@ -383,7 +388,9 @@ fi
 # present at the same version. We swallow the exit and verify
 # the deployment is Available afterwards rather than parsing
 # the error text.
-KUBECONFIG="$WL_KUBECONFIG" "$CLUSTERCTL_BIN" init --core "cluster-api:${CAPI_CORE_VERSION}" 2>/dev/null || true
+KUBECONFIG="$WL_KUBECONFIG" "$CLUSTERCTL_BIN" init --core "cluster-api:${CAPI_CORE_VERSION}" \
+  --bootstrap "kubeadm:${CAPI_CORE_VERSION}" \
+  --control-plane "kubeadm:${CAPI_CORE_VERSION}" 2>/dev/null || true
 
 # 10 min budget: cert-manager has to issue the webhook serving
 # cert, the controller image pulls from registry.k8s.io. A cold

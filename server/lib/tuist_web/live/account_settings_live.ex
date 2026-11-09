@@ -9,10 +9,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.Accounts.UserMFA
-  alias Tuist.Accounts.UserPasskey
   alias Tuist.Authorization
-  alias Tuist.Environment
   alias Tuist.Locale, as: SharedLocale
 
   @impl true
@@ -43,9 +40,6 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(cache_endpoints: cache_endpoints)
       |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
       |> assign(preferred_locale_form: preferred_locale_form)
-      |> assign(:passkeys_enabled?, Environment.email_auth_enabled?())
-      |> assign(:mfa_enabled?, selected_account.user_id == current_user.id and UserMFA.enabled?(current_user))
-      |> assign(:passkeys, if(selected_account.user_id == current_user.id, do: UserPasskey.list(current_user), else: []))
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}

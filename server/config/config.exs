@@ -311,6 +311,7 @@ config :logger, :console,
     :archive_bytes,
     :stored_bytes,
     :disk_snapshot_id,
+    :amp_snapshot_id,
     :last_used_at,
     :freed_bytes,
     :memory_bytes,
@@ -432,6 +433,9 @@ config :tuist, :blocked_handles, [
   "blog",
   "news",
   "newsletter",
+  "compare",
+  "solutions",
+  "build-systems",
   "announcements",
   "features",
   "pricing",
@@ -566,11 +570,11 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
-# environments whose fleet is M2-L only.
+# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true},
-  %{vcpus: 12, memory_gb: 28}
+  %{vcpus: 8, memory_gb: 24, default: true},
+  %{vcpus: 16, memory_gb: 48}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
@@ -610,8 +614,7 @@ config :tuist, :urls,
   feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
   feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
-  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
-  shop: "https://shop.tuist.dev"
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights"
 
 config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 

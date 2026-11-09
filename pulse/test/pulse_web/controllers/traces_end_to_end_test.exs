@@ -158,7 +158,7 @@ defmodule PulseWeb.TracesEndToEndTest do
     for params <- [
           %{scope: "unknown"},
           %{scope: "span", start: "10"},
-          %{scope: "span", q: "{true}"}
+          %{scope: "span", q: "{nestedSetParent > 0}"}
         ] do
       assert Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: params).status == 400
     end
@@ -229,7 +229,12 @@ defmodule PulseWeb.TracesEndToEndTest do
              params: %{q: c["query"]}
            ).status == 401
 
-    for params <- [%{q: "{"}, %{q: c["query"], start: "10"}, %{q: "{true}"}, %{q: c["query"], limit: "-1"}] do
+    for params <- [
+          %{q: "{"},
+          %{q: c["query"], start: "10"},
+          %{q: "{nestedSetParent > 0}"},
+          %{q: c["query"], limit: "-1"}
+        ] do
       assert Req.get!(ctx.url <> path, headers: headers, params: params).status == 400
     end
 
@@ -298,7 +303,7 @@ defmodule PulseWeb.TracesEndToEndTest do
 
     for {target, q} <- [
           {".value", ~s'{resource.value="literal"}'},
-          {"name", "{true}"}
+          {"name", "{nestedSetParent > 0}"}
         ] do
       assert Req.get!(ctx.url <> "/api/v2/search/tag/" <> target <> "/values", headers: headers, params: %{q: q}).status ==
                400
@@ -364,7 +369,7 @@ defmodule PulseWeb.TracesEndToEndTest do
     assert Pulse.JSON.decode!(hd(response.body["result"]["content"])["text"]) == c["complete"]
     assert Req.get!(ctx.url <> "/api/v2/search/tags", headers: [{"authorization", "Bearer wrong"}]).status == 401
 
-    for params <- [%{start: "10"}, %{scope: "all"}, %{q: "{true}"}, %{q: "{} with (most_recent=true)"}] do
+    for params <- [%{start: "10"}, %{scope: "all"}, %{q: "{nestedSetParent > 0}"}, %{q: "{} with (most_recent=true)"}] do
       assert Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: params).status == 400
     end
 

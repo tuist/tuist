@@ -2733,7 +2733,7 @@ with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socke
 ## Node memory governance
 
 `kubeletMemoryGovernanceBlock` in `controllers/linux/linux_cloudinit.go` carries
-three settings that only make sense together. Read that constant's comment for
+three settings that only make sense together. Read that function's comment for
 the per-setting reasoning; what matters here is the ordering between them and
 how they reach a running node.
 
@@ -2762,16 +2762,12 @@ than reclaims once the protected total approaches capacity. The
 `sum(requests) <= allocatable` invariant with allocatable properly reserved is
 what keeps the protected total clear of the box.
 
-**Upgrading to v1.36+ silently disables it.** v1.36 splits protection out into a
-new `memoryReservationPolicy` field defaulting to `None`, and retiers it so
-`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods the
-softer `memory.low`. With this config unchanged on v1.36 the result is no
-protection at all and no throttling either (the factor is pinned to 1.0) — a
-silent no-op, not a visible failure. Set `memoryReservationPolicy:
-TieredReservation` as part of the version bump, never before it: an unknown
-field fails KubeletConfiguration's strict decode and the kubelet will not start.
-The same warning sits on `linuxCloudInitOptions.K8sMinor`, which is what an
-upgrade actually edits.
+**v1.36 moves the protection behind `memoryReservationPolicy`**, which defaults
+to `None`, and retiers it so `TieredReservation` gives Guaranteed pods
+`memory.min` and Burstable pods the softer `memory.low`. Without it MemoryQoS
+is a silent no-op there. The config is rendered for the kubelet's minor
+(`kubeletConfigContent`'s `k8sMinor`): from v1.36 it carries
+`TieredReservation`, and below it renders byte for byte as before.
 
 **Propagation.** `desiredKubeletConfigHash` fingerprints the rendered config, so
 any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
@@ -2793,8 +2789,16 @@ renders and hashes exactly as before. A kubelet does not start when its
 checkpoint names another policy, so the re-push keeps a node whose
 `cpu_manager_state` predates the static policy on its old shared-CPU config.
 Moving it over is a drained, human, one-box-at-a-time step. Keep that guard
-whenever the CPU manager config changes. Rollout, validation, and why runner
-Pods are not Guaranteed yet:
+whenever the CPU manager config changes.
+
+From kubelet v1.36 Kata hosts also run the pod-level resource managers
+(`podLevelResourceManagers`): the `PodLevelResourceManagers` gate, the
+Topology Manager in pod scope, Kata's static sandbox sizing and the
+`tuist.dev/pod-level-resource-managers` node label. A kubelet that does not know
+the gate panics, so the config is always rendered for the kubelet a node runs:
+the drift loop reads the Node's kubelet version, and a fresh OVH join installs
+the minor of its CAPI Machine's `spec.version`. Rollout, validation, and runner
+Pods' Pod-level budget:
 [`docs/exclusive-runner-cpus.md`](docs/exclusive-runner-cpus.md).
 
 ## Operator UX: one Secret in 1Password
@@ -3529,6 +3533,12 @@ populated filesystems and a populated unmounted `/data` directory are refused.
 `prjquota`; the remaining extents back CSI volumes. It journals the source
 before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
 filesystem or an already-joined legacy host. Existing nodes require a reinstall.
+Before any destructive step it also installs `thin-provisioning-tools` (LVM
+needs `thin_check` to activate thin pools after reboot), persists `dm_thin_pool`
+in `/etc/modules-load.d/kura-thin-pool.conf`, loads it, and fails unless
+`dmsetup targets` lists `thin-pool`
+([thin contract](../kura-volumes-csi/thin/interface.md)). Rack curtin layouts
+do not run this script.
 The Vultr conversion uses the same function for its detached non-ESP RAID leg;
 the root still loses its mirror, and conversion gates require the VG. Existing
 successful Vultr conversion records are not invalidated by this change.

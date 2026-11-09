@@ -7,6 +7,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   alias Ecto.Changeset
   alias Tuist.Accounts
+  alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserPasskey
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.SCIM
@@ -26,12 +28,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @sso_default_roles Accounts.organization_role_names() -- ["admin"]
 
   @impl true
-  def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
+  def mount(
+        _params,
+        _uri,
+        %{assigns: %{selected_account: %{organization_id: nil} = account, current_user: current_user}} = socket
+      ) do
     :ok = authorize_account_update!(socket)
 
     {:ok,
      socket
      |> assign(organization: nil, flash_message: nil, passkeys_enabled?: TuistWeb.UserPasskeyController.enabled?())
+     |> assign(:mfa_enabled?, account.user_id == current_user.id and UserMFA.enabled?(current_user))
+     |> assign(:passkeys, if(account.user_id == current_user.id, do: UserPasskey.list(current_user), else: []))
      |> WorkloadIdentities.initialize()
      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
   end

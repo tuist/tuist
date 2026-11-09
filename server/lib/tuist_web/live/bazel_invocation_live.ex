@@ -156,7 +156,12 @@ defmodule TuistWeb.BazelInvocationLive do
 
   def render(assigns) do
     ~H"""
-    <div id="bazel-invocation" class="bazel-invocation">
+    <div
+      id="bazel-invocation"
+      class="bazel-invocation"
+      phx-hook="PageFavicon"
+      data-favicon-status={@invocation.status}
+    >
       <.button
         label={@bazel_back_label}
         data-part="back-button"

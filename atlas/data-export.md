@@ -2,6 +2,48 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Label printing
+
+`label_sessions` belongs to an Atlas `users.id` through `owner_id` (cascade
+deletion), storing session expiry, a SHA-256 relay capability hash and latest
+relay report: browser client ID, heartbeat, connection claim, printer model/name,
+cartridge, printable zones/dimensions and bounded status/message. `label_jobs`
+belongs to a session (cascade deletion), storing the exact preview PNG in
+PostgreSQL, title/text, preview dimensions, action/state, batch ID/position/size,
+cut choice, whether review was requested, queued printer/supply/zones, approval
+expiry and start deadline, dispatch client/time, separate print and cut outcomes,
+result time, bounded SDK result and a note explaining why a label returned to
+preview unprinted. Unclaimed standalone cut rows are deleted when they lapse. These may
+contain rack/asset identifiers and text supplied by the owner. No object storage
+or Tuist Server account data is added. PNGs are not encrypted separately from
+the existing database/backups.
+
+Sessions expire after eight hours, approvals after ten minutes and unstarted
+queued batches after their start deadline, but rows are
+not swept on expiry: jobs, images and consumed dispatch history remain until
+owner deletion and follow existing backup retention. An expired session cannot
+read or dispatch. `label.created`, `.submitted`, `.queued`, `.approval_requested`,
+`.approved`, `.dispatched`, `.result` and `.halted` audit events keep
+actor/interface, session/job or batch IDs, label counts and dashboard path, not
+text/images/capabilities. They follow existing audit retention
+and may outlive the owner/session. `mcp.tool_called` omits label tool arguments.
+
+For a verified subject export, select all `label_sessions` by `owner_id`, all
+`label_jobs` by those session IDs, and related `audit_activities` by actor/session
+target (including `manage_label_session` calls). Export metadata as JSON and the
+exact `png` binaries as files; exclude `relay_token_hash` and live credentials.
+MCP session status is not a complete export (expired rows are excluded).
+
+Browser localStorage holds the relay capability per session and Brady SDK
+ownership ID; sessionStorage holds a browser client ID. They remain until browser
+storage is cleared; expired capabilities grant no access. These are device-local
+credentials, not server-exportable personal-data collections. There is no CLI or
+new local credential file. Legacy prototype CLI files/dispatch markers are not
+read, modified or replayed. Operators must handle authorized device-file export
+separately, excluding active credentials.
+SDK analytics are disabled; label images are delivered to the trusted Chrome
+relay and printer over local BLE, not an Atlas-host Bluetooth connection.
+
 ## Managed outbound email delivery
 
 Atlas's managed deployment sends email through SES in Ireland, including support
@@ -50,13 +92,13 @@ Credentials remain until reconnect/replacement, disconnect or user deletion. Rec
 
 `user_connection_authorizations` stores only a SHA-256 provider nonce hash, user foreign key (cascade delete), provider and expiry for atomic, cross-replica callback replay prevention. Authorizations expire after ten minutes, are deleted on validated callback before token exchange (including denied consent), and expired rows are swept when another authorization begins. Abandoned expired rows can remain until that sweep or user deletion. Browser signed-cookie pending data contains user/provider, provider nonce/PKCE verifier and, for native handoff, the native user/provider/client ID/state context. It contains no provider credentials. Native prepare tickets are signed, expire after ten minutes, and cannot authenticate a browser; the existing browser user must match. The fixed `dev.tuist.atlas://connections-callback` returns only native state, provider and connected/error status. OAuth redirects exchange grant codes with the selected provider; that provider receives the requested scopes, callback and ordinary OAuth request metadata under its own retention policy.
 
-`connection.connected`, `.disconnected`, `.refreshed` and `.needs_authorization` audit events retain actor/interface, connection target, provider and `/settings/connections` dashboard path, never tokens or raw provider bodies. They follow existing audit retention and may outlive a disconnected grant. MCP `manage_account_connections` permits metadata listing and caller-only disconnect; it accepts no credentials. MCP `search_my_gmail`, `get_my_gmail_message` and `search_my_slack` read the caller's own mailbox or Slack search results on demand without storing them; they record `connection.gmail_searched`, `.gmail_message_read` (message id only) and `.slack_searched` audit events with result counts, and their `mcp.tool_called` events omit arguments so queries are never retained. HTTP, browser and MCP metadata expose only provider/name/configured/account_name/scopes/status. Provider tokens never appear in native returns, agent prompts or tool responses.
+`connection.connected`, `.disconnected`, `.refreshed` and `.needs_authorization` audit events retain actor/interface, connection target, provider and `/settings/connections` dashboard path, never tokens or raw provider bodies. They follow existing audit retention and may outlive a disconnected grant. MCP `manage_account_connections` permits metadata listing and caller-only disconnect; it accepts no credentials. MCP `search_my_gmail`, `get_my_gmail_message` and `search_my_slack` read the caller's own mailbox or Slack search results on demand without storing them; they record `connection.gmail_searched`, `.gmail_message_read` (message id only) and `.slack_searched` audit events with result counts, and their `mcp.tool_called` events omit arguments so queries are never retained. With the separate opt-in `gmail.compose` consent, `get_my_gmail_draft`, `create_my_gmail_draft`, `update_my_gmail_draft` and `send_my_gmail_draft` read and write drafts in the caller's own mailbox. Recipients, subjects and bodies go to Gmail and are not stored in Atlas; the tools record `connection.gmail_draft_read`, `.gmail_draft_created` (draft id, whether it is a reply), `.gmail_draft_updated` (draft id) and `.gmail_draft_sent` (draft id, Gmail message id, recipient count) events, and their `mcp.tool_called` events omit arguments. A Gmail request that Google refuses records `connection.gmail_failed` with the operation, HTTP status and Google's machine-readable error reason (for example `SERVICE_DISABLED`), never Google's error message or mailbox content. HTTP, browser and MCP metadata expose only provider/name/configured/account_name/scopes/status. Provider tokens never appear in native returns, agent prompts or tool responses.
 
 For a verified export, select **all** `user_connections` and `user_connection_authorizations` by `user_id`, with related `audit_activities` by actor/connection target and `mcp.tool_called` records for `manage_account_connections`. Export non-secret identity, scope, lifecycle metadata and authorization expiry, never live tokens, PKCE verifiers, tickets or native handoff secrets through dashboard/API/MCP/email. Offer disconnect/reconnect instead of copying credentials. No object-storage paths or Tuist Server customer tables are added; Atlas's separate database and encrypted backups retain these records under the existing backup policy. The three-row settings/API metadata listing is not a complete legal export.
 
 ## Upstream MCP tool approvals
 
-`mcp_tool_approvals` stores one row per request to run an approval-gated MCP tool (today OVHcloud's `reinstall-dedicated-server` and Atlas's `ovh_set_server_display_name`, recorded as `ovh-services`/`set-server-display-name`): the requesting `user_id` (cascade deletion), upstream server and tool names, the exact call arguments as JSON, a SHA-256 digest of those arguments, status (`pending`, `approved`, `rejected`), decision, consumption and expiry timestamps (one hour after the request). Arguments can include a server name, displayName, hostname, OS template, disk layout and a public SSH key; they hold no upstream credentials. `mcp_tool_approval.requested`, `.approved`, `.rejected` and `.consumed` audit events keep the actor, target, server, tool and arguments under existing audit retention, and may outlive the row. Rows are not swept on expiry; they remain until user deletion and follow the existing backup policy. For a verified export, select `mcp_tool_approvals` and `audit_activities` with `target_type = "mcp_tool_approval"` by `user_id`/actor. No object-storage paths or Tuist Server customer tables are added.
+`mcp_tool_approvals` stores one row per request to run an approval-gated MCP tool (today OVHcloud's `reinstall-dedicated-server`, Atlas's `ovh_set_server_display_name`, recorded as `ovh-services`/`set-server-display-name`, `request_cluster_elevation`, recorded as `tuist-ops`/`request-cluster-elevation`, and `send_my_gmail_draft`, recorded as `gmail`/`send-draft`): the requesting `user_id` (cascade deletion), upstream server and tool names, the exact call arguments as JSON, a SHA-256 digest of those arguments, status (`pending`, `approved`, `rejected`), decision, consumption and expiry timestamps (one hour after the request). Arguments can include a server name, displayName, hostname, OS template, disk layout, a public SSH key, or a cluster environment, Amp thread ID, intent and duration; they hold no upstream credentials. Gmail send arguments hold only the Gmail draft id and a SHA-256 digest of the draft's recipients, subject, body and attachment names/types/sizes, never the content itself; the owner reviews the content read live from Gmail at `/approvals/<id>` (listed at `/approvals`), where they can also edit the draft (written straight to Gmail) and approve the edited version, which replaces the request's digest. An approved cluster elevation also sends the caller's email and the approval ID to tuist-ops, which keeps them with the elevation it grants. `mcp_tool_approval.requested`, `.approved`, `.rejected` and `.consumed` audit events keep the actor, target, server, tool and arguments under existing audit retention, and may outlive the row. Rows are not swept on expiry; they remain until user deletion and follow the existing backup policy. For a verified export, select `mcp_tool_approvals` and `audit_activities` with `target_type = "mcp_tool_approval"` by `user_id`/actor. No object-storage paths or Tuist Server customer tables are added.
 
 ## Optional parallel error copies in Pulse
 
@@ -192,7 +234,8 @@ fixed in-progress query window and pagination token/page. Public source metadata
 includes interval seconds, next-poll timestamp and a bounded `poll_error` category;
 API/MCP serializers omit both encrypted polling fields. Monitoring requires an
 explicit source audience and activation. Gmail separately requires read-only email
-consent; ordinary Google connections still request no Gmail scope. Slack uses the
+consent; ordinary Google connections still request no Gmail scope, and monitors
+never use the separate drafts consent. Slack uses the
 owner's personal search grant, never the shared operator/bot identity.
 
 The provider receives the query, date window, pagination parameters and personal

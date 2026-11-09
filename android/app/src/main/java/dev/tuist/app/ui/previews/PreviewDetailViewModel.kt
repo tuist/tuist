@@ -8,7 +8,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.tuist.app.R
 import dev.tuist.app.api.model.Preview
-import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.previews.PreviewsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +25,6 @@ sealed interface PreviewDetailUiState {
 class PreviewDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val previewsRepository: PreviewsRepository,
-    environmentConfig: EnvironmentConfig,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -39,7 +37,7 @@ class PreviewDetailViewModel @Inject constructor(
     private val _isDeleting = MutableStateFlow(false)
     val isDeleting: StateFlow<Boolean> = _isDeleting.asStateFlow()
 
-    val serverUrl: String = environmentConfig.serverUrl
+    val serverUrl: String = previewsRepository.serverUrl
 
     private val accountHandle: String
     private val projectHandle: String

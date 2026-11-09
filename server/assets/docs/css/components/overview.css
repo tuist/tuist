@@ -487,7 +487,7 @@
     gap: var(--noora-spacing-6);
     padding-top: var(--noora-spacing-8);
 
-    & h1 {
+    & h2 {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
     }

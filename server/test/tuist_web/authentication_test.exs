@@ -156,19 +156,19 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     test "redirects to the configured path", %{conn: conn, user: user} do
-      path = "/hello?next=https://example.com/a#section"
+      path = "/hello?next=https://authn-example.com/a#section"
       conn = conn |> put_session(:user_return_to, path) |> Authentication.log_in_user(user)
       assert redirected_to(conn) == path
     end
 
     test "unsafe stored return destinations fall back without interrupting sign-in", %{conn: conn, user: user} do
       for path <- [
-            "https://evil.example",
-            "//evil.example",
-            "/\\evil.example",
-            "/\t/evil.example",
-            "/%09/evil.example",
-            "/\n/evil.example",
+            "https://authn-evil.example",
+            "//authn-evil.example",
+            "/\\authn-evil.example",
+            "/\t/authn-evil.example",
+            "/%09/authn-evil.example",
+            "/\n/authn-evil.example",
             %{"path" => "/hello"}
           ] do
         completed = conn |> put_session(:user_return_to, path) |> Authentication.log_in_user(user)
@@ -712,7 +712,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
@@ -743,7 +743,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
@@ -772,7 +772,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
@@ -801,7 +801,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
@@ -828,7 +828,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :okta,
-          sso_organization_id: "company.okta.com",
+          sso_organization_id: "authn-company.okta.com",
           existing_sso_configuration: true,
           oauth2_client_id: "client_id",
           oauth2_client_secret: "client_secret",
@@ -857,12 +857,14 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
       Accounts.update_organization(organization, %{sso_enforced: true})
-      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+      token =
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "authn-example.com"})
 
       conn =
         conn
@@ -880,7 +882,7 @@ defmodule TuistWeb.AuthenticationTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com",
+          sso_organization_id: "authn-example.com",
           preload: [:account]
         )
 
@@ -901,7 +903,7 @@ defmodule TuistWeb.AuthenticationTest do
 
   describe "organization SSO on connected navigation" do
     test "the correct Workspace proof does not grant membership to a nonmember", %{conn: conn} do
-      organization = organization_fixture(sso_provider: :google, sso_organization_id: "customer.example")
+      organization = organization_fixture(sso_provider: :google, sso_organization_id: "authn-customer.example")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       outsider = user_fixture()
       refute Accounts.belongs_to_organization?(outsider, organization)
@@ -909,7 +911,7 @@ defmodule TuistWeb.AuthenticationTest do
       token =
         Accounts.generate_user_session_token(outsider, %{
           auth_method: :google,
-          provider_organization_id: "customer.example"
+          provider_organization_id: "authn-customer.example"
         })
 
       conn = put_session(conn, :user_token, token)
@@ -918,7 +920,7 @@ defmodule TuistWeb.AuthenticationTest do
 
     test "an authorized account-bound support grant retains its HTTP and connected exception", %{conn: conn} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      organization = organization_fixture(sso_provider: :google, sso_organization_id: "customer.example")
+      organization = organization_fixture(sso_provider: :google, sso_organization_id: "authn-customer.example")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       operator = user_fixture(email: "operator-proof@tuist.dev")
       oauth2_identity_fixture(user: operator, provider: :google, provider_organization_id: "tuist.dev")
@@ -943,7 +945,7 @@ defmodule TuistWeb.AuthenticationTest do
       @tag :sso_boundary
       test "enforces the HTTP SSO requirement in the #{scope} live session", %{conn: conn, user: user} do
         organization =
-          organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+          organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
 
         {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
         personal_project = ProjectsFixtures.project_fixture(account: user.account)
@@ -977,7 +979,10 @@ defmodule TuistWeb.AuthenticationTest do
           put_session(
             conn,
             :user_token,
-            Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+            Accounts.generate_user_session_token(user, %{
+              auth_method: :google,
+              provider_organization_id: "authn-example.com"
+            })
           )
 
         assert {:ok, _, _} = live(sso_conn, protected_path)
@@ -989,7 +994,7 @@ defmodule TuistWeb.AuthenticationTest do
       conn: conn,
       user: user
     } do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       private_project = ProjectsFixtures.project_fixture(account: organization.account, visibility: :private)
       public_project = ProjectsFixtures.project_fixture(account: organization.account, visibility: :public)
@@ -1006,7 +1011,10 @@ defmodule TuistWeb.AuthenticationTest do
         put_session(
           conn,
           :user_token,
-          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authn-example.com"
+          })
         )
 
       assert {:ok, _, _} = live(sso_member, private_path)
@@ -1022,14 +1030,16 @@ defmodule TuistWeb.AuthenticationTest do
         conn: conn,
         user: user
       } do
-        organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+        organization =
+          organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
+
         {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
 
         oauth2_identity_fixture(
           user: user,
           provider: :google,
           id_in_provider: "preview-member",
-          provider_organization_id: "example.com"
+          provider_organization_id: "authn-example.com"
         )
 
         project = ProjectsFixtures.project_fixture(account: organization.account)
@@ -1047,7 +1057,10 @@ defmodule TuistWeb.AuthenticationTest do
           end
 
         token =
-          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authn-example.com"
+          })
 
         rendered =
           conn
@@ -1077,7 +1090,7 @@ defmodule TuistWeb.AuthenticationTest do
             provider: :google,
             uid: "preview-member",
             info: %Ueberauth.Auth.Info{email: user.email},
-            extra: %{raw_info: %{user: %{"hd" => "example.com"}}}
+            extra: %{raw_info: %{user: %{"hd" => "authn-example.com"}}}
           })
           |> TuistWeb.AuthController.callback(%{})
 
@@ -1089,9 +1102,12 @@ defmodule TuistWeb.AuthenticationTest do
 
     @tag :sso_boundary
     test "a connected join rechecks proof after its initial HTTP render", %{conn: conn, user: user} do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
-      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+      token =
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "authn-example.com"})
+
       protected_path = ~p"/#{organization.account.name}/projects"
       rendered = conn |> put_session(:user_token, token) |> get(protected_path)
       assert html_response(rendered, 200)
@@ -1106,11 +1122,14 @@ defmodule TuistWeb.AuthenticationTest do
       conn: conn,
       user: user
     } do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       project = ProjectsFixtures.project_fixture(account: organization.account)
       other_project = ProjectsFixtures.project_fixture(account: organization.account)
-      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+      token =
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "authn-example.com"})
+
       path = ~p"/#{organization.account.name}/#{project.name}/settings"
       fallback = ~p"/#{organization.account.name}/projects"
 
@@ -1120,9 +1139,9 @@ defmodule TuistWeb.AuthenticationTest do
 
       for hint <- [
             nil,
-            "https://evil.example",
-            "//evil.example",
-            "/\\evil.example",
+            "https://authn-evil.example",
+            "//authn-evil.example",
+            "/\\authn-evil.example",
             "/users/log_in",
             ~p"/#{organization.account.name}/#{other_project.name}/settings",
             "/%"
@@ -1154,9 +1173,9 @@ defmodule TuistWeb.AuthenticationTest do
 
     @tag :sso_boundary
     test "a provider cookie and historical identity do not upgrade a legacy session", %{conn: conn, user: user} do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
-      oauth2_identity_fixture(user: user, provider_organization_id: "example.com")
+      oauth2_identity_fixture(user: user, provider_organization_id: "authn-example.com")
 
       conn = conn |> log_in_user(user) |> put_session(:auth_method, :google)
       Repo.update_all(UserToken, set: [auth_provider: nil, auth_provider_organization_id: nil, last_active_at: nil])
@@ -1170,7 +1189,7 @@ defmodule TuistWeb.AuthenticationTest do
 
     @tag :sso_boundary
     test "checks changed SSO configuration before an already-open socket mutates a project", %{conn: conn, user: user} do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       project = ProjectsFixtures.project_fixture(account: organization.account)
 
@@ -1178,12 +1197,15 @@ defmodule TuistWeb.AuthenticationTest do
         put_session(
           conn,
           :user_token,
-          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authn-example.com"
+          })
         )
 
       path = ~p"/#{organization.account.name}/#{project.name}/settings"
       {:ok, view, _} = live(conn, path)
-      {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.example.com"})
+      {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.authn-example.com"})
 
       render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
       assert_redirect(view, path)
@@ -1198,7 +1220,7 @@ defmodule TuistWeb.AuthenticationTest do
       conn: conn,
       user: user
     } do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
 
       logged_in =
@@ -1207,7 +1229,7 @@ defmodule TuistWeb.AuthenticationTest do
         |> Authentication.log_in_user(user, %{
           "remember_me" => "true",
           :auth_method => :google,
-          :provider_organization_id => "example.com"
+          :provider_organization_id => "authn-example.com"
         })
 
       %{value: cookie} = logged_in.resp_cookies[@remember_me_cookie]

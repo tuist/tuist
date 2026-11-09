@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · კოდი · მომხსენებლები · Tuist",
+  "titleTemplate": ":title · კოდი · მომხმარებლები · Tuist",
   "description": "შეიტანეთ წვლილი Tuist CLI-ში."
 }
 ---
@@ -11,9 +11,9 @@
 
 ## რისთვისაა განკუთვნილი {#what-it-is-for}
 
-CLI არის Tuist-ის გული. ის მართავს პროექტის გენერაციას, ავტომატიზაციის სამუშაო ნაკადებს (ტესტირება, გაშვება, გრაფი და ინსპექცია) და უზრუნველყოფს ინტერფეისს Tuist სერვერთან ისეთი ფუნქციებისთვის, როგორიცაა ავთენტიკაცია, კეში, ინსაიტები, პრივიუები, რეესტრი და შერჩევითი ტესტირება.
+CLI არის Tuist-ის გული. ის მართავს პროექტების გენერაციას, ავტომატიზაციის სამუშაო ნაკადებს (ტესტი, გაშვება, გრაფი და ინსპექცია) და უზრუნველყოფს ინტერფეისს Tuist სერვერთან ისეთი ფუნქციებისთვის, როგორიცაა ავთენტიკაცია, ქეში, ანალიტიკა, პრივიუები, რეესტრი და შერჩევითი ტესტირება.
 
-## როგორ შევუწყოთ ხელი {#how-to-contribute}
+## როგორ შეიტანოთ წვლილი {#how-to-contribute}
 
 ### მოთხოვნები {#requirements}
 
@@ -22,40 +22,40 @@ CLI არის Tuist-ის გული. ის მართავს პრ�
 
 ### ლოკალური გამართვა {#set-up-locally}
 
-- კლონირება რეპოზიტორიის: `git clone git@github.com:tuist/tuist.git`
-- დააინსტალირეთ Mise [მათი ოფიციალური ინსტალაციის სკრიპტის](https://mise.jdx.dev/getting-started.html) გამოყენებით (არა Homebrew) და გაუშვით `mise install`
+- დააკლონეთ რეპოზიტორია: `git clone git@github.com:tuist/tuist.git`
+- დააინსტალირეთ Mise [მათი ოფიციალური ინსტალაციის სკრიპტის](https://mise.jdx.dev/getting-started.html) გამოყენებით (და არა Homebrew) და გაუშვით `mise install`
 - დააინსტალირეთ Tuist-ის დამოკიდებულებები: `tuist install`
-- გენერირება ვორკსპეისის: `tuist generate`
+- გააგენერირეთ სამუშაო სივრცე: `tuist generate`
 
 გენერირებული პროექტი ავტომატურად იხსნება. თუ მოგვიანებით ხელახლა გახსნა დაგჭირდებათ, გაუშვით `open Tuist.xcworkspace`.
 
 > [!NOTE]
-> **Xed .**
+> **`xed .`**
 >
-> თუ ცდილობთ პროექტის გახსნას `xed .`-ის გამოყენებით, ის გახსნის პაკეტს და არა Tuist-ის მიერ გენერირებულ ვორკსპეისს. გამოიყენეთ `Tuist.xcworkspace`.
+> თუ ცდილობთ პროექტის გახსნას `xed .`-ის გამოყენებით, ის გახსნის პაკეტს და არა Tuist-ის მიერ გენერირებულ სამუშაო სივრცეს. გამოიყენეთ `Tuist.xcworkspace`.
 
 
 ### Tuist-ის გაშვება {#run-tuist}
 
 #### Xcode-დან {#from-xcode}
 
-ჩაასწორეთ `tuist` სქემა და დააყენეთ არგუმენტები, მაგალითად `generate --no-open`. დააყენეთ სამუშაო დირექტორია პროექტის ფესვზე (ან გამოიყენეთ `--path`).
+ჩაასწორეთ `tuist` სქემა და დააყენეთ არგუმენტები, მაგალითად `generate --no-open`. დააყენეთ სამუშაო დირექტორია პროექტის ძირში (ან გამოიყენეთ `--path`).
 
 > [!WARNING]
-> **Projectdescription-ის კომპილაცია**
+> **ProjectDescription-ის კომპილაცია**
 >
-> CLI დამოკიდებულია `ProjectDescription`-ის აგებაზე. თუ გაშვება ვერ ხერხდება, ჯერ ააგეთ `Tuist-Workspace` სქემა.
+> CLI დამოკიდებულია `ProjectDescription`-ის აგებაზე. თუ გაშვება ვერ ხერხდება, ჯერ ააწყვეთ `Tuist-Workspace` სქემა.
 
 
 #### ტერმინალიდან {#from-the-terminal}
 
-ჯერ გააგენერირეთ ვორკსპეისი:
+ჯერ გააგენერირეთ სამუშაო სივრცე:
 
 ```bash
 tuist generate --no-open
 ```
 
-შემდეგ ააგეთ `tuist` შესრულებადი ფაილი Xcode-ით და გაუშვით DerivedData-დან:
+შემდეგ ააწყვეთ `tuist` შესრულებადი ფაილი Xcode-ით და გაუშვით ის DerivedData-დან:
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"

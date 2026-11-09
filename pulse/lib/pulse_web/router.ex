@@ -39,6 +39,7 @@ defmodule PulseWeb.Router do
     get "/api/v1/format_query", CompatController, :format_query
     post "/api/v1/format_query", CompatController, :format_query
     get "/loki/api/v1/status/buildinfo", LokiQueryController, :buildinfo
+    get "/loki/api/v1/drilldown-limits", LokiQueryController, :drilldown_limits
     get "/loki/api/v1/tail", LokiQueryController, :tail
     post "/mcp", MCPController, :rpc
     match :*, "/mcp", MCPController, :method_not_allowed

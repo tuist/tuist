@@ -3,7 +3,11 @@
 macOS sandboxes use the existing account API and Managed Agents session router.
 macOS sandboxes share the `sandboxes` account feature flag with Linux sandboxes;
 there is no separate macOS flag. Select `platform: "darwin"` when creating a sandbox
-or agent environment. Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
+or agent environment, or per Managed Agents session with `platform` on Tuist's
+agent-sessions API or the `tuist_platform` session metadata key (`macos` or
+`darwin`) on any agent environment. Claude Code (desktop, web, CLI) selects
+the OS by environment: connect a `claude_code` environment with
+`platform: "darwin"` (`infra/claude-code-runners/README.md`). Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
 
@@ -19,20 +23,27 @@ Deploy all of the following before enabling an account:
    Pods, preventing an older kubelet from booting a control Pod as a CI VM.
 3. A **new runner image containing the `TUIST_SANDBOX` boot guard** from this
    change. An older image can halt when it finds no CI dispatch token. The chart
-   uses the configured, versioned Xcode 26.6 runner image by default: the
-   stacked image when the rack pools run stacked images, since a release only
-   re-tags an unchanged standalone image, and then only on rack hosts.
-   `sandboxes.macos.image` can pin an explicit compatible digest.
-4. Wait for the `tuist-macos-sandboxd` control Pod to become Ready, its host to
-   appear in sandbox node presence with the `macos` template, and a fresh
-   `tuist.dev/macos-sandbox-grant` Node annotation. Preparation compiles the
+   uses the configured, versioned Xcode 26.6 runner image by default, and on a
+   rack with `rackFleet.runners.stackedImages` the rack hosts boot its stacked
+   build, as their CI pools do. Releases carry an unchanged standalone build
+   forward, so it can predate the guard; the stacked build is rebuilt every
+   release. Each fleet gets its own control DaemonSet because the image comes
+   from the control Pod's config annotation. `sandboxes.macos.image` pins one
+   explicit compatible digest for every fleet.
+4. Wait for each host to appear in sandbox node presence with the `macos`
+   template and a fresh `tuist.dev/macos-sandbox-grant` Node annotation. The
+   control Pod turns Ready as soon as tart-kubelet accepts its configuration,
+   before preparation, so a chart rollout that waits on the DaemonSet never
+   waits on an image pull or for disk room; readiness does not mean the host
+   can place sandboxes. Only a host that has prepared its template connects to
+   the server, so placement never reaches an unprepared host. Preparation compiles the
    isolated runtime once and downloads the base image at background priority.
    Cold template preparation has a one-hour deadline: staging's first Xcode
    image pull exceeded the normal twenty-minute CI deadline. Removal or
    replacement of the control Pod cancels preparation within one polling
    interval plus the bounded API probe. Transient API failures are retried
    without discarding a healthy download; a fresh control identity check is
-   required after the pull before readiness. Ownership recovery and eviction keep
+   required after the pull before the host connects. Ownership recovery and eviction keep
    running independently. Prewarm the image before enabling an account;
    this one-time transfer is not part of resident resume latency.
 5. Run the acceptance checks below on staging, then enable `sandboxes`
@@ -66,6 +77,8 @@ Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
 CI can revoke admission between server placement and the host's final check.
+A command into a running VM needs no grant, since the VM already holds its
+charge; a command that has to resume a paused VM does.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.

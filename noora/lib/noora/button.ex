@@ -5,44 +5,27 @@ defmodule Noora.Button do
 
   use Phoenix.Component
 
-  @button_contract_path Path.expand("../../components/button.json", __DIR__)
-  @external_resource @button_contract_path
-  @button_contract @button_contract_path |> File.read!() |> Jason.decode!()
-  @button_attributes Map.new(@button_contract["attributes"], &{&1["name"], &1})
-  @variant_contract Map.fetch!(@button_attributes, "variant")
-  @size_contract Map.fetch!(@button_attributes, "size")
-  @label_contract Map.fetch!(@button_attributes, "label")
-  @icon_only_contract Map.fetch!(@button_attributes, "icon-only")
-  @button_variants @variant_contract["values"]
-  @button_sizes @size_contract["values"]
-  @default_variant @variant_contract["default"]
-  @default_size @size_contract["default"]
-  @button_class @button_contract["className"]
+  @button_variants ~w(primary secondary destructive)
+  @button_sizes ~w(small medium large)
+  @variant_doc "Controls the visual emphasis and semantic intent."
+  @size_doc "Controls the button dimensions and text size."
 
   def button_variants, do: @button_variants
   def button_sizes, do: @button_sizes
 
-  attr(:label, :string, default: @label_contract["default"], doc: @label_contract["description"])
+  attr(:label, :string, default: "", doc: "Provides fallback text when the default slot is empty.")
 
-  attr(:variant, :string,
-    values: @button_variants,
-    default: @default_variant,
-    doc: @variant_contract["description"]
-  )
+  attr(:variant, :string, values: @button_variants, default: "primary", doc: @variant_doc)
 
-  attr(:size, :string,
-    values: @button_sizes,
-    default: @default_size,
-    doc: @size_contract["description"]
-  )
+  attr(:size, :string, values: @button_sizes, default: "large", doc: @size_doc)
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
 
   attr(:icon_only, :boolean,
-    default: @icon_only_contract["default"],
-    doc: @icon_only_contract["description"]
+    default: false,
+    doc: "Uses the default slot as the entire button content. An accessible label is required."
   )
 
   slot(:icon_left, doc: "Icon displayed on the left of an item")
@@ -55,7 +38,7 @@ defmodule Noora.Button do
     ~H"""
     <%= if (@href || @navigate || @patch) && !@rest[:disabled] do %>
       <.link
-        class={button_class()}
+        class="noora-button"
         href={@href}
         navigate={@navigate}
         patch={@patch}
@@ -77,7 +60,7 @@ defmodule Noora.Button do
       </.link>
     <% else %>
       <button
-        class={button_class()}
+        class="noora-button"
         data-variant={@variant}
         data-size={@size}
         data-icon-only={@icon_only}
@@ -98,17 +81,9 @@ defmodule Noora.Button do
     """
   end
 
-  attr(:variant, :string,
-    values: @button_variants,
-    default: @default_variant,
-    doc: @variant_contract["description"]
-  )
+  attr(:variant, :string, values: @button_variants, default: "primary", doc: @variant_doc)
 
-  attr(:size, :string,
-    values: @button_sizes,
-    default: @default_size,
-    doc: @size_contract["description"]
-  )
+  attr(:size, :string, values: @button_sizes, default: "large", doc: @size_doc)
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
@@ -172,17 +147,9 @@ defmodule Noora.Button do
 
   attr(:label, :string, required: true, doc: "The label of the button")
 
-  attr(:variant, :string,
-    values: @button_variants,
-    default: @default_variant,
-    doc: @variant_contract["description"]
-  )
+  attr(:variant, :string, values: @button_variants, default: "primary", doc: @variant_doc)
 
-  attr(:size, :string,
-    values: @button_sizes,
-    default: @default_size,
-    doc: @size_contract["description"]
-  )
+  attr(:size, :string, values: @button_sizes, default: "large", doc: @size_doc)
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
@@ -217,6 +184,4 @@ defmodule Noora.Button do
     </.link>
     """
   end
-
-  defp button_class, do: @button_class
 end

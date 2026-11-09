@@ -2,6 +2,7 @@ package dev.tuist.app.data.featureflags
 
 import dev.tuist.app.api.FeatureFlagsApi
 import dev.tuist.app.api.model.FeatureFlags1
+import dev.tuist.app.data.auth.TokenStorage
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
 import io.mockk.coEvery
@@ -21,6 +22,31 @@ class FeatureFlagsRepositoryTest {
     private val bob = AuthState.LoggedIn(Account(email = "bob@tuist.dev", handle = "bob"))
 
     private fun failure() = Response.error<FeatureFlags1>(500, "".toResponseBody())
+
+    @Test
+    fun `offline foreground retains flags for unchanged login and organization changes`() = runTest {
+        val session = TokenStorage.Session("alice-login", 1, origin = "https://tuist.dev")
+        coEvery { api.listFeatureFlags() } returns Response.success(FeatureFlags1(listOf("ai")))
+        repository.refresh(alice, session)
+
+        coEvery { api.listFeatureFlags() } throws java.io.IOException("offline")
+        repository.refresh(alice, session)
+        assertEquals(setOf(FeatureFlag.AI), repository.enabled.value)
+        repository.refresh(alice, session.copy(generation = 2, organization = "tuist"))
+        assertEquals(setOf(FeatureFlag.AI), repository.enabled.value)
+    }
+
+    @Test
+    fun `offline refresh clears flags for a different saved login or origin with identical account data`() = runTest {
+        val session = TokenStorage.Session("alice-login", 1, origin = "https://tuist.dev")
+        listOf(session.copy(profileId = "other-login"), session.copy(origin = "https://staging.tuist.dev")).forEach { next ->
+            coEvery { api.listFeatureFlags() } returns Response.success(FeatureFlags1(listOf("ai")))
+            repository.refresh(alice, session)
+            coEvery { api.listFeatureFlags() } throws java.io.IOException("offline")
+            repository.refresh(alice, next)
+            assertEquals(emptySet<FeatureFlag>(), repository.enabled.value)
+        }
+    }
 
     @Test
     fun `enables the flags the server returns and ignores unknown ones`() = runTest {

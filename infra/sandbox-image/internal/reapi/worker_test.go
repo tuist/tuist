@@ -1,6 +1,7 @@
 package reapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -430,6 +431,42 @@ func TestInputDownloadsAreBoundedAndCompleteBeforeExecution(t *testing.T) {
 	}
 	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != expected.String() {
 		t.Fatal("command ran before inputs were completely materialized")
+	}
+}
+
+func TestRepeatedInputBlobIsReadOnce(t *testing.T) {
+	w, m := harness(t)
+	shared := m.put(bytes.Repeat([]byte("libLLVM"), 100_000))
+	other := m.put([]byte("other\n"))
+	var reads sync.Map
+	m.beforeRead = func(_ context.Context, hash string) error {
+		n, _ := reads.LoadOrStore(hash, new(atomic.Int32))
+		n.(*atomic.Int32).Add(1)
+		return nil
+	}
+	lib := &re.Directory{Files: []*re.FileNode{{Name: "lib.so", Digest: shared, IsExecutable: true}}}
+	libDigest := m.message(t, lib)
+	// Two copies beside each other download concurrently; two more sit in sibling directories.
+	inputs := &re.Directory{
+		Files:       []*re.FileNode{{Name: "a.so", Digest: shared}, {Name: "b.so", Digest: shared, IsExecutable: true}, {Name: "other", Digest: other}},
+		Directories: []*re.DirectoryNode{{Name: "exec", Digest: libDigest}, {Name: "target", Digest: libDigest}},
+	}
+	response, _ := w.Execute(context.Background(), action(t, m, "cat a.so b.so exec/lib.so target/lib.so other > output", inputs, []string{"output"}))
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execution: %v", response)
+	}
+	if n, _ := reads.Load(shared.Hash); n.(*atomic.Int32).Load() != 1 {
+		t.Fatalf("shared blob read %d times, want 1", n.(*atomic.Int32).Load())
+	}
+	want := strings.Repeat(string(m.blobs[shared.Hash]), 4) + "other\n"
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != want {
+		t.Fatal("copied inputs differ from the blob")
+	}
+	for p, executable := range map[string]bool{"a.so": false, "b.so": true, "exec/lib.so": true, "target/lib.so": true} {
+		info, err := os.Stat(filepath.Join(w.Root, p))
+		if err != nil || (info.Mode()&0111 != 0) != executable {
+			t.Fatalf("mode of %s: %v %v", p, info, err)
+		}
 	}
 }
 

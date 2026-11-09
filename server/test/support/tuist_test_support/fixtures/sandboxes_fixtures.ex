@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
 
     attrs = %{
       account_id: account.id,
+      kind: Keyword.get(opts, :kind, :managed_agents),
       anthropic_environment_id:
         Keyword.get(opts, :anthropic_environment_id, "env_#{TuistTestSupport.Utilities.unique_integer()}"),
       environment_key: Keyword.get(opts, :environment_key, "sk-ant-env-#{TuistTestSupport.Utilities.unique_integer()}"),
@@ -57,6 +58,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       repository_ref: Keyword.get(opts, :repository_ref),
       model: Keyword.get(opts, :model, "claude-sonnet-5"),
       budget_cents: Keyword.get(opts, :budget_cents),
+      platform: Keyword.get(opts, :platform),
       last_status: Keyword.get(opts, :last_status, "running"),
       last_stop_reason: Keyword.get(opts, :last_stop_reason),
       created_by_user_id: Keyword.get(opts, :created_by_user_id)
@@ -112,7 +114,14 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
       state: Keyword.get(opts, :state, :ready),
-      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate()
+      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate(),
+      archive_store: Keyword.get(opts, :archive_store),
+      archive_key: Keyword.get(opts, :archive_key),
+      archive_upload_id: Keyword.get(opts, :archive_upload_id),
+      archive_bytes: Keyword.get(opts, :archive_bytes),
+      archive_sha256: Keyword.get(opts, :archive_sha256),
+      archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate()
     })
   end
 

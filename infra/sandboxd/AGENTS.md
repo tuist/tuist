@@ -54,7 +54,7 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, disks_synced}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced}
 /data/sandboxes/snapshots/<snapshot_id>/
   vmlinux             hard link to the kernel the source sandbox booted
   rootfs.ext4         reflink clone of the source sandbox's rootfs
@@ -88,6 +88,11 @@ Boot args: `console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw
 rootfstype=ext4 init=/sbin/sbx-init sbx.dns=<ip,ip> sbx.hostname=sandbox`.
 The DNS list is the daemon Pod's own resolvers (cluster DNS), so guests
 resolve both cluster Services and public names through the pod's NAT.
+
+A shape snapshot records the Firecracker version that took it, and startup
+removes shapes another version took, since that version cannot load them; the
+next create rebuilds them. Restored guests keep the boot args baked into their
+memory image until they cold boot.
 
 ## Sandbox lifecycle on the node
 
@@ -142,6 +147,14 @@ resolve both cluster Services and public names through the pod's NAT.
   the server deletes it once the upload is complete. A `resume` or `delete`
   cancels an archive in flight instead of waiting for it. Transport errors
   never carry the signed URL.
+- `archive_disks {snapshot_id, part_size, part_urls}`: upload a disk
+  snapshot's kernel, rootfs and workspace in the same archive format and
+  answer the same fields as `archive`. The files are opened under the
+  snapshot lock and streamed after it is released, so a delete or a newer
+  save meanwhile only unlinks them; the server discards an upload whose
+  snapshot changed. The snapshot stays on the node. Any node can then
+  `create` from the object with `from_archive`, which is how a project
+  snapshot reaches a node other than the one that saved it.
 - `create {..., from_archive: {url, bytes, sha256}}`: download the archive
   (three attempts), check its size and SHA-256, extract it into a fresh
   jail (the template name and workspace size must match), then cold boot
@@ -185,6 +198,19 @@ pod namespace drops everything the slot network sends to local processes
 172.31.0.0/16 -d 172.31.0.0/16 -j DROP`), both inserted ahead of the
 forwarding accepts. A guest can only reach what lies beyond the pod, under
 the pod's NetworkPolicy; its control channel is vsock, never the network.
+
+Every guest shares the daemon Pod's Cilium identity, so the NetworkPolicy
+cannot tell the daemon's traffic from a guest's. What only the daemon needs
+is fenced in the pod namespace instead, again ahead of the forwarding
+accepts: guest traffic to `DAEMON_ONLY_TCP_PORTS` on any address, and to
+each address `SERVER_URL` resolves to (its Service IP and port), is
+dropped. The pod namespace sees guest packets before Cilium translates a
+Service address, so the chart lists both the server Pods' target port and
+the archive store's port, and the daemon resolves `SERVER_URL` at startup.
+Guests reach the Tuist API through its public URL like any client
+(`TUIST_URL` is the app URL); `GUESTS_REACH_SERVER=true`
+(`sandboxes.networkPolicy.guestServerAccess`) lifts the server fence for a
+deployment whose public URL is the in-cluster Service.
 
 ## Host to guest: vsock
 
@@ -266,6 +292,7 @@ Server to node:
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
 {"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
+{"type":"command","id":"c12","op":"archive_disks","args":{"snapshot_id":"...","part_size":N,"part_urls":["https://..."]}}
 ```
 
 A running sandbox's `cpu_ms` is its Firecracker process's user and system
@@ -305,6 +332,13 @@ reads `ANTHROPIC_SESSION_ID`, `ANTHROPIC_WORK_ID`, `ANTHROPIC_ENVIRONMENT_ID`,
 attaches to the session's event stream, executes tool calls and exits after
 `MaxIdle` following an `end_turn` idle. The work item was already claimed and
 acknowledged by the server's poller; the worker never polls.
+
+With `SBX_CLAUDE_CODE_WORK_ORDER` set, `sbx-worker` instead runs `claude
+self-hosted-runner` for one Claude Code session (capacity 1, Anthropic's git
+proxy, release after `SBX_CLAUDE_CODE_RELEASE_IDLE_MIN` idle minutes) under
+`<workdir>/claude-code`. The work order reaches the runner only as
+`SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET`. On Linux it drops from root to `user`;
+a guest without the pinned binary downloads and checksums it first.
 
 ## Server side
 
@@ -360,13 +394,40 @@ acknowledged by the server's poller; the worker never polls.
   environment id + environment key, stored encrypted with `Tuist.Vault`),
   list and delete sandboxes, and run commands in a sandbox for validation.
 
+## Measured latency
+
+Production, 7 days to 2026-11-08, from the server's `sandboxes: sandbox
+created` and `sandboxes: sandbox resumed` log lines (default 2 vCPU / 4 GiB
+shape on the shared OVH Linux fleet):
+
+| Path | n | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|---|
+| create from the template snapshot (`boot_ms`) | 79 | 147 ms | 200 ms | 208 ms | 264 ms | 264 ms |
+| create from a node-local disk snapshot (cold boot) | 32 | 745 ms | 788 ms | 800 ms | 3.6 s | 3.6 s |
+| create from an archive (cold boot, after download) | 6 | 724 ms | 772 ms | | | 772 ms |
+| resume on the node (`node_call_ms`) | 266 | 144 ms | 319 ms | 438 ms | 788 ms | 1.3 s |
+| resume admission before the node call (`admit_ms`) | 265 | 866 ms | 1.6 s | 1.9 s | 3.1 s | 12.7 s |
+
+The VM is not the bottleneck: half of all resumes spend longer in
+`Capacity.admit/1` (grant check, node lock, carve-out growth) than the
+node takes to restore. A pause shrinks the carve-out, so nearly every
+resume grows it again and waits for the daemon to report the new limit.
+The daemon notices within 250 ms, but these numbers predate the change
+that cut `Tuist.Sandboxes.NodePresence`'s `broadcast_period` from 1.5 s,
+when another replica took up to that long to see the report.
+`boot_ms` and `node_call_ms` exclude the API request and Amp's
+bootstrap; `admit_ms` is logged only by servers since the field was
+added, hence the smaller sample. Reproduce with LogQL quantiles over those
+lines (`regexp "admit_ms=(?P<v>\\d+)" | unwrap v`) on
+`{namespace="tuist", container="server"}`.
+
 ## Not yet
 
 Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
 
 Diff snapshots, userfaultfd restore from object storage, cross-node resume
-with memory (archived sandboxes restore on any node, but cold),
-per-account egress policy, non-root agent execution in the guest, Claude Code
+with memory (archived sandboxes and archived disk snapshots restore on any
+node, but cold), per-account egress allowlists, non-root agent execution in the guest, Claude Code
 self-hosted runners.
 
 ## Operations
@@ -416,7 +477,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node, since older versions stay on disk across template upgrades. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set and no `EXECUTION_SLOTS`, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
@@ -432,7 +493,8 @@ agent so the manager runs end to end without KVM).
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
-| `DAEMON_ONLY_TCP_PORT` | `0` | TCP port the daemon reaches through the pod and the guests may not: forwarded guest traffic to it is dropped. The chart sets the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `0` blocks nothing. |
+| `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
+| `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
 
 ### Validation scripts
@@ -466,9 +528,14 @@ existing socket and the jailer's `mknod` fails on an existing node.
 
 Template artifacts are hard-linked into jails (`vmlinux`, `mem`,
 `snapshot`) and must stay world-readable; the daemon never chowns a hard
-link. Firecracker opens the `File` memory backend read-only, so sharing the
-template memfile across sandboxes is safe; the first pause replaces the
-link with the sandbox's own memory file.
+link. The build hands every shape file to root before marking it ready: a
+jail uid is a reused slot, so a template file it owned could be rewritten
+by a later sandbox in that slot for every sandbox restored after it.
+Startup deletes a shape holding any file the daemon does not own, and the
+next create rebuilds it instead of trusting its contents. Firecracker
+opens the `File` memory backend read-only, so sharing the template memfile
+across sandboxes is safe; the first pause replaces the link with the
+sandbox's own memory file.
 
 ### Startup and recovery
 
@@ -486,15 +553,20 @@ journals replayed on mount, and writes still in its page cache (up to ext4's
 5 s commit interval) are lost;
 the next pause writes a fresh pair. A cleanly paused sandbox keeps its
 memory image, because the pause path pauses the VM, snapshots, then kills
-it, so nothing touches the disks afterwards. Jail directories without
+it, so nothing touches the disks afterwards, unless another Firecracker
+version wrote that image (`firecracker_version` in its metadata, empty
+before it was recorded): it is set to `cold_boot` too, because this version
+cannot load it. The daemon exits at startup when it cannot read its own
+Firecracker version. Jail directories without
 `metadata.json` (an interrupted create or template build), `*.building`
-shape directories and every `sbx-*` netns are removed.
+shape directories, shapes another Firecracker version took and every
+`sbx-*` netns are removed.
 
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
 Anthropic re-queues the session on its next event) and pauses every running
 sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
-cold booting. Whatever is still running at the deadline takes the cold-boot
+cold booting, except one that changes the Firecracker version. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
 
 Server deployments publish the daemon image as `sha-<commit>` of the last

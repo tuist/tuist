@@ -12,7 +12,7 @@ defmodule TuistWeb.SSOLinkHTML do
 
   def security_settings_frame(assigns) do
     ~H"""
-    <.link_frame title={@title} subtitle={@subtitle}>
+    <.link_frame title={@title} subtitle={@subtitle} show_terms={false}>
       <div id="user-security-settings">
         {render_slot(@inner_block)}
       </div>
@@ -22,6 +22,7 @@ defmodule TuistWeb.SSOLinkHTML do
 
   attr :title, :string, required: true
   attr :subtitle, :string, required: true
+  attr :show_terms, :boolean, default: true
   slot :inner_block
 
   def link_frame(assigns) do
@@ -49,8 +50,34 @@ defmodule TuistWeb.SSOLinkHTML do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
-      <.terms_and_privacy />
+      <.terms_and_privacy :if={@show_terms} />
     </div>
+    """
+  end
+
+  attr :return_to, :string, required: true
+
+  def reauthentication_notice(assigns) do
+    ~H"""
+    <p>
+      {dgettext(
+        "dashboard_auth",
+        "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
+      )}
+    </p>
+    <.form
+      for={%{}}
+      action={~p"/users/log_out?#{%{return_to: @return_to}}"}
+      method="delete"
+      data-part="form"
+    >
+      <.button
+        type="submit"
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Sign in again")}
+      />
+    </.form>
     """
   end
 end

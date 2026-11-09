@@ -9,6 +9,23 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   alias Tuist.Docs.Paths
 
+  attr :status, :any, required: true
+  attr :components, :string, required: true
+  attr :calendar_path, :string, default: nil
+  attr :locale, :string, default: "en"
+
+  def release_status(assigns) do
+    components =
+      assigns.components
+      |> String.split(",", trim: true)
+      |> Enum.map(&Map.fetch!(%{"cli" => :cli, "server" => :server, "kura" => :kura}, &1))
+
+    assigns
+    |> assign(:components, components)
+    |> assign(:calendar_url, if(assigns.calendar_path, do: Paths.public_path(assigns.locale, assigns.calendar_path)))
+    |> TuistWeb.Docs.ReleaseStatus.panel()
+  end
+
   attr :locale, :string, default: "en"
   slot :inner_block, required: true
 

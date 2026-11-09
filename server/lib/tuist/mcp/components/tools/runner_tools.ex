@@ -783,6 +783,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
     name: "update_runner_profile",
     title: "Update Runner Profile",
     read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" =>

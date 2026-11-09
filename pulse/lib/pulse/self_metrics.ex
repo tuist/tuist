@@ -24,6 +24,7 @@ defmodule Pulse.SelfMetrics do
       :worker_discovery,
       :worker_finalize,
       :worker_consolidate,
+      :worker_catalog,
       :worker_log_rollup,
       :worker_log_finalize,
       :worker_log_consolidate,

@@ -30,7 +30,16 @@
       )}
     </p>
   </div>
-  <form method="post" action={~p"/users/settings/passkeys/#{@passkey.id}/delete"} data-part="form">
+  <.reauthentication_notice
+    :if={!@fresh_session?}
+    return_to={~p"/users/settings/passkeys/#{@passkey.id}/delete"}
+  />
+  <form
+    :if={@fresh_session?}
+    method="post"
+    action={~p"/users/settings/passkeys/#{@passkey.id}/delete"}
+    data-part="form"
+  >
     <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
     <input type="hidden" name="confirm" value="true" />
     <div data-part="actions">

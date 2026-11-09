@@ -74,12 +74,29 @@ defmodule Tuist.Sandboxes do
   # ----- Agent environments -----
 
   def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do
-    %AgentEnvironment{}
-    |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
-    |> Repo.insert()
+    attrs = attrs |> platform_defaults() |> kind_defaults() |> Map.put(:account_id, account_id)
+
+    with {:ok, agent_environment} <- %AgentEnvironment{} |> AgentEnvironment.create_changeset(attrs) |> Repo.insert() do
+      reconcile_claude_code(agent_environment)
+      {:ok, agent_environment}
+    end
   end
 
-  defp platform_defaults(attrs) do
+  # A Claude Code session keeps its runner, and its sandbox running, for half
+  # an hour of idleness unless the environment says otherwise.
+  defp kind_defaults(attrs) do
+    if Map.get(attrs, :kind) in [:claude_code, "claude_code"],
+      do: Map.put_new(attrs, :max_idle_seconds, 1800),
+      else: attrs
+  end
+
+  defp reconcile_claude_code(%AgentEnvironment{kind: :claude_code}),
+    do: {:ok, _job} = Oban.insert(Tuist.Sandboxes.ClaudeCodeReconciler.new(%{}))
+
+  defp reconcile_claude_code(_agent_environment), do: :ok
+
+  @doc "Fills the shape and template `attrs` leave out with the defaults of their platform."
+  def platform_defaults(attrs) do
     defaults =
       if Map.get(attrs, :platform) in [:darwin, "darwin"] do
         %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: "macos"}
@@ -97,8 +114,13 @@ defmodule Tuist.Sandboxes do
     Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id, order_by: [asc: e.id])
   end
 
-  def list_enabled_agent_environments do
-    Repo.all(from e in AgentEnvironment, where: e.enabled == true, order_by: [asc: e.id], preload: [:account])
+  def list_enabled_agent_environments(kind) do
+    Repo.all(
+      from e in AgentEnvironment,
+        where: e.enabled == true and e.kind == ^kind,
+        order_by: [asc: e.id],
+        preload: [:account]
+    )
   end
 
   def get_agent_environment(%Account{id: account_id}, id) do
@@ -156,7 +178,10 @@ defmodule Tuist.Sandboxes do
       end
     end)
 
-    Repo.delete(agent_environment)
+    with {:ok, deleted} <- Repo.delete(agent_environment) do
+      reconcile_claude_code(deleted)
+      {:ok, deleted}
+    end
   end
 
   # ----- Sandboxes -----
@@ -325,7 +350,9 @@ defmodule Tuist.Sandboxes do
 
   `from_disk_snapshot: %DiskSnapshot{}` clones the snapshot's disks on its
   node instead of booting the template. When that node cannot take the
-  sandbox or the clone fails, the sandbox boots from the template instead.
+  sandbox, no longer holds the copy, or the clone fails, an archived
+  snapshot is restored from object storage on any node with room; the
+  sandbox boots from the template when there is no archive or that fails.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -431,8 +458,9 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  # A disk snapshot clone that failed fell back to the template.
+  # A disk snapshot clone that failed fell back to its archive or the template.
   defp boot_source({:archive, _source}, _data), do: "archive"
+  defp boot_source(_source, %{"disk_snapshot_archive" => true}), do: "disk_snapshot_archive"
   defp boot_source(_source, %{"disk_snapshot_id" => id}) when is_binary(id), do: "disk_snapshot"
   defp boot_source(_source, %{"warm" => true}), do: "warm"
   defp boot_source(_source, _data), do: "template"
@@ -453,10 +481,15 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  # The snapshot only exists on its node. A failed clone leaves the node's
-  # reservation in place, so the template boot retries on the same node.
-  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot) do
-    case Capacity.place_on_node(sandbox, disk_snapshot.node_name) do
+  # The snapshot's node clones it fastest, so it goes first. When that node
+  # cannot take the sandbox or the clone fails, an archived snapshot boots
+  # from its archive on any node with room, without holding the snapshot
+  # node's reservation; otherwise, or when that fails too, the template
+  # boots. A failed clone of a snapshot without an archive keeps the node's
+  # reservation, so the template boot retries on the same node.
+  defp place_and_create(sandbox, args, %DiskSnapshot{node_name: snapshot_node} = disk_snapshot)
+       when is_binary(snapshot_node) do
+    case Capacity.place_on_node(sandbox, snapshot_node) do
       {:ok, node_name} ->
         clone_args = Map.put(args, :from_disk_snapshot, disk_snapshot.id)
 
@@ -466,7 +499,7 @@ defmodule Tuist.Sandboxes do
             {:ok, node_name, Map.put(data, "disk_snapshot_id", disk_snapshot.id)}
 
           {:error, reason} ->
-            Logger.warning("sandboxes: create from disk snapshot failed, booting the template",
+            Logger.warning("sandboxes: create from disk snapshot failed",
               sandbox_id: sandbox.id,
               disk_snapshot_id: disk_snapshot.id,
               node: node_name,
@@ -474,17 +507,61 @@ defmodule Tuist.Sandboxes do
             )
 
             DiskSnapshots.forget_if_missing(disk_snapshot, reason)
-
-            with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
-              {:ok, node_name, data}
-            end
+            create_after_failed_clone(sandbox, args, node_name, disk_snapshot)
         end
 
       {:error, reason} ->
-        Logger.info("sandboxes: disk snapshot node cannot take the sandbox, booting the template elsewhere",
+        Logger.info("sandboxes: disk snapshot node cannot take the sandbox, booting elsewhere",
           sandbox_id: sandbox.id,
           disk_snapshot_id: disk_snapshot.id,
-          node: disk_snapshot.node_name,
+          node: snapshot_node,
+          reason: inspect(reason)
+        )
+
+        create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
+    end
+  end
+
+  # An archived snapshot whose node copy is gone.
+  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot),
+    do: create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
+
+  defp create_after_failed_clone(sandbox, args, _node_name, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
+    sandbox |> release_node() |> create_from_disk_snapshot_archive(args, disk_snapshot)
+  end
+
+  defp create_after_failed_clone(_sandbox, args, node_name, %DiskSnapshot{}) do
+    with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+      {:ok, node_name, data}
+    end
+  end
+
+  defp create_from_disk_snapshot_archive(sandbox, args, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
+    with {:ok, source} <- Archives.restore_source(disk_snapshot),
+         {:ok, node_name} <- place_restore(sandbox, disk_snapshot) do
+      case Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
+        {:ok, data} ->
+          DiskSnapshots.touch(disk_snapshot)
+          {:ok, node_name, Map.merge(data, %{"disk_snapshot_id" => disk_snapshot.id, "disk_snapshot_archive" => true})}
+
+        # The node holds the reservation already, so the template boots there.
+        {:error, reason} ->
+          Logger.warning("sandboxes: create from a disk snapshot archive failed, booting the template",
+            sandbox_id: sandbox.id,
+            disk_snapshot_id: disk_snapshot.id,
+            node: node_name,
+            reason: inspect(reason)
+          )
+
+          with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+            {:ok, node_name, data}
+          end
+      end
+    else
+      {:error, reason} ->
+        Logger.info("sandboxes: no node can create the sandbox from the disk snapshot archive, booting the template",
+          sandbox_id: sandbox.id,
+          disk_snapshot_id: disk_snapshot.id,
           reason: inspect(reason)
         )
 
@@ -492,10 +569,20 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  defp create_from_disk_snapshot_archive(sandbox, args, %DiskSnapshot{}), do: place_and_create(sandbox, args, nil)
+
+  # Gives back the node `Capacity.place_on_node/2` reserved, so the sandbox
+  # can be placed anew: the reservation is the row's `node_name`.
+  defp release_node(%Sandbox{id: id} = sandbox) do
+    Repo.update_all(from(s in Sandbox, where: s.id == ^id), set: [node_name: nil])
+    %{sandbox | node_name: nil}
+  end
+
   # An archive in an in-rack store is served over its site's private
-  # network, so only nodes at that site can download it.
-  defp place_restore(sandbox) do
-    case Archives.restore_site(sandbox) do
+  # network, so only nodes at that site can download it. `archive` is the
+  # sandbox itself, or the disk snapshot it is created from.
+  defp place_restore(sandbox, archive \\ nil) do
+    case Archives.restore_site(archive || sandbox) do
       nil -> Capacity.place(sandbox)
       site -> Capacity.place(sandbox, &(Sites.shard_storage_site(&1.name) == site))
     end
@@ -655,7 +742,9 @@ defmodule Tuist.Sandboxes do
         with_fresh(sandbox_id, fn
           %Sandbox{state: :running, residency_work_id: nil} = sandbox
           when is_nil(epoch) or sandbox.residency_epoch == epoch ->
-            do_pause(sandbox)
+            # An agent turn can take over the residency of running commands;
+            # the commands still keep the sandbox up when that turn ends.
+            if commands_running?(sandbox), do: {:ok, :skipped}, else: do_pause(sandbox)
 
           %Sandbox{} ->
             {:ok, :skipped}
@@ -663,6 +752,10 @@ defmodule Tuist.Sandboxes do
       end,
       wait: Keyword.get(opts, :wait, true)
     )
+  end
+
+  defp commands_running?(%Sandbox{id: id}) do
+    Repo.exists?(from(c in Tuist.Sandboxes.SandboxCommand, where: c.sandbox_id == ^id and c.status == :running))
   end
 
   # Every pause flushes the guest's page cache first: an archive or disk
@@ -774,13 +867,20 @@ defmodule Tuist.Sandboxes do
   # is done, so an exec can reach the node mid-pause. The pause holds the
   # sandbox's lock: wait for it, resume the sandbox and run the command once
   # more.
-  defp exec_after_pause(%Sandbox{id: id}, cmd, opts) do
-    case with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end) do
+  defp exec_after_pause(%Sandbox{} = sandbox, cmd, opts) do
+    case await_pause(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) -> run_exec(sandbox, cmd, opts)
       {:ok, %Sandbox{}} -> {:error, :no_node}
       {:error, reason} -> {:error, reason}
     end
   end
+
+  @doc """
+  Waits for a pause the node has started while the row still says running
+  (the pause holds the sandbox's lock), then answers the sandbox running,
+  resuming it when the pause went through.
+  """
+  def await_pause(%Sandbox{id: id}), do: with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end)
 
   @doc """
   Runs `cmd` in a sandbox that is already running, without resuming it,
@@ -815,6 +915,7 @@ defmodule Tuist.Sandboxes do
       node_call(sandbox, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
 
     {stdout, stderr} = drain_output(ref)
+    {stdout, stderr} = if Keyword.get(opts, :raw_output), do: {stdout, stderr}, else: {utf8(stdout), utf8(stderr)}
     Process.delete({ref, :stdout})
     Process.delete({ref, :stderr})
 
@@ -851,18 +952,18 @@ defmodule Tuist.Sandboxes do
 
   # Everything for `ref` is already queued once the call returns, so a
   # non-blocking drain collects it all. Output is bytes; the API returns
-  # strings, so invalid UTF-8 (binary output, or a cut through a
-  # multi-byte character) is replaced.
+  # strings, so unless the caller asks for `raw_output`, invalid UTF-8
+  # (binary output, or a cut through a multi-byte character) is replaced.
   defp drain_output(ref, stdout \\ [], stderr \\ []) do
     receive do
       {^ref, :stdout, data} -> drain_output(ref, [stdout, data], stderr)
       {^ref, :stderr, data} -> drain_output(ref, stdout, [stderr, data])
     after
-      0 ->
-        {stdout |> IO.iodata_to_binary() |> String.replace_invalid(),
-         stderr |> IO.iodata_to_binary() |> String.replace_invalid()}
+      0 -> {IO.iodata_to_binary(stdout), IO.iodata_to_binary(stderr)}
     end
   end
+
+  defp utf8(output), do: String.replace_invalid(output)
 
   def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env)
       when is_binary(node_name) and is_map(env) do
@@ -904,6 +1005,74 @@ defmodule Tuist.Sandboxes do
          ) do
       {1, [sandbox]} -> {:ok, sandbox}
       {0, []} -> {:error, :not_running}
+    end
+  end
+
+  @doc """
+  Records `work_id` as the residency of a running sandbox, under the same
+  admission as a turn, when the sandbox has none; answers the sandbox as is
+  when `work_id` already holds it, so several users can share one residency
+  (`Tuist.Sandboxes.Commands`). Answers `{:error, :busy}` when another
+  residency, such as an agent turn or an Orb, holds the sandbox.
+  """
+  def begin_shared_residency(%Sandbox{id: id} = sandbox, work_id) when is_binary(work_id) do
+    timestamp = now()
+    held = from(s in Sandbox, where: s.id == ^id and s.state == :running and s.residency_work_id == ^work_id, select: s)
+
+    # Joining a residency that already holds the sandbox needs no admission:
+    # the sandbox's memory is already counted.
+    case Repo.update_all(held, set: [last_active_at: timestamp, updated_at: timestamp]) do
+      {1, [sandbox]} -> {:ok, sandbox}
+      {0, []} -> admit_shared_residency(sandbox, work_id)
+    end
+  end
+
+  defp admit_shared_residency(%Sandbox{id: id} = sandbox, work_id) do
+    Capacity.admit_turn(sandbox, fn ->
+      timestamp = now()
+
+      query =
+        from(s in Sandbox, where: s.id == ^id and s.state == :running and is_nil(s.residency_work_id), select: s)
+
+      case Repo.update_all(query,
+             set: [residency_work_id: work_id, last_active_at: timestamp, updated_at: timestamp],
+             inc: [residency_epoch: 1]
+           ) do
+        {1, [sandbox]} ->
+          {:ok, sandbox}
+
+        {0, []} ->
+          case Repo.get(Sandbox, id) do
+            %Sandbox{state: :running, residency_work_id: ^work_id} = sandbox -> {:ok, sandbox}
+            %Sandbox{state: :running} -> {:error, :busy}
+            %Sandbox{state: state} -> {:error, {:invalid_state, state}}
+            nil -> {:error, :not_found}
+          end
+      end
+    end)
+  end
+
+  @doc """
+  Ends the residency only while `work_id` still holds it, then schedules the
+  idle pause as `end_residency/1` does. A late call for an earlier residency
+  leaves a newer one alone.
+  """
+  def end_residency(sandbox_id, work_id) when is_binary(sandbox_id) and is_binary(work_id) do
+    timestamp = now()
+    query = from(s in Sandbox, where: s.id == ^sandbox_id and s.residency_work_id == ^work_id, select: s)
+
+    case Repo.update_all(query,
+           set: [residency_work_id: nil, last_active_at: timestamp, updated_at: timestamp],
+           inc: [residency_epoch: 1]
+         ) do
+      {1, [%Sandbox{state: :running} = updated]} ->
+        with {:ok, _job} <- schedule_pause(updated), do: {:ok, updated}
+
+      {1, [updated]} ->
+        {:ok, updated}
+
+      {0, []} ->
+        :ok
     end
   end
 

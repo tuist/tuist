@@ -63,6 +63,7 @@ type Driver struct {
 	mounts       MountTable
 	host         Host
 	logger       *slog.Logger
+	metrics      *thinMetrics
 }
 
 func New(cfg Config) (*Driver, error) {
@@ -88,7 +89,12 @@ func New(cfg Config) (*Driver, error) {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
+	var metrics *thinMetrics
+	if cfg.Thin.Pool != "" {
+		metrics = newThinMetrics()
+	}
 	return &Driver{
+		metrics:      metrics,
 		thin:         cfg.Thin,
 		nodeID:       cfg.NodeID,
 		stateDir:     cfg.StateDir,

@@ -2,81 +2,35 @@
 {
   "title": "Bazel 不穩定測試",
   "titleTemplate": ":title · 不穩定測試 · 測試洞察 · 功能 · 指南 · Tuist",
-  "description": "偵測 Bazel 中的不穩定測試，將其失敗設為靜默，並跳過已隔離的目標。"
+  "description": "偵測 Bazel 不穩定測試、靜默其失敗，並跳過已隔離的目標。"
 }
 ---
-
 # Bazel 不穩定測試 {#bazel-flaky-tests}
 
-`tuist bazel test` 會在每次執行前擷取 Tuist 的隔離政策，並將其應用於底層的 `bazel test` 執行。
+> [!IMPORTANT]
+> **必要條件**
+>
+> - 透過 `tuist bazel setup` 設定 <.localized_link href="/guides/features/test-insights/bazel">Bazel 測試洞察</.localized_link>。
 
-## 套用隔離 {#applying-quarantine}
+<!-- @snippet: ./_intro -->
 
-在測試頁面中，將其狀態改為 **靜音**，然後執行：
+## 不穩定偵測運作方式 {#how-it-works}
 
-```sh
-tuist bazel test -- //app:tests
-```
+Tuist 會使用 Bazel `test.xml` 報告中的個別測試案例，以偵測在重試之間，以及在持續整合中相同提交與目標選擇的多個執行之間的不一致結果。本機執行仍然可見，但不會自動將測試案例標記為不穩定。
 
-`--` 之後的引數會轉發給 `bazel test`。使用 `--path` 來選擇專案與工作目錄，並使用 `--bazel` 來選擇不同的可執行檔，例如 `bazelisk`。一般的 `bazel test` 仍會回報測試結果，但不會擷取或強制執行 Tuist 隔離政策。
+### 測試重試 {#test-retries}
 
-隔離不需要具名的 Bazel 設定或重試。**不穩定測試**、**已隔離測試** 以及個別測試頁面支援與其他建置系統相同的手動狀態變更。使用 **設定 → 自動化** 來設定不穩定閾值、隔離動作與復原動作。
-
-### 靜音 {#mute}
-
-將 **靜音** 作為主要的隔離工作流程。被靜音的測試案例仍會繼續執行，其失敗結果依然可見，而健康的同層案例仍會影響結果。新的執行可提供復原證據，同時不會從目標中排除任何案例。
-
-Tuist 會讀取暫存的本地建置事件檔案及所參照的 `test.xml` 報告。只有當完整報告將每個失敗目標中的所有已回報失敗歸因於被靜音的案例時，它才會將 Bazel 的測試失敗結束碼改為成功。
-
-建置錯誤、逾時、中斷的執行、遺失或格式錯誤的報告、不完整的事件串流，以及不在靜音集合內的失敗，都會保留 Bazel 的失敗狀態。本地事件檔案上限為 64 MiB，個別報告上限為 5 MiB。Tuist 需要自己的本地建置事件檔案來驗證靜音失敗並從過時的已跳過目標中復原，因此明確的 `--build_event_json_file` 不能與作用中的靜音或已跳過案例合併使用。遠端建置事件回報仍透過 `tuist bazel setup` 進行設定。
-
-原始的 Bazel 呼叫與報告會保留其實際結果。Tuist 伺服器會記錄案例在呼叫開始時是否已被隔離，即使其狀態在報告處理前發生變更亦然。
-
-### 跳過 {#skip}
-
-僅在你打算排除 **整個 Bazel 目標**（包括該目標內的健康案例）時，才使用 **跳過**。將單一案例標記為 **已跳過** 會對整個目標產生此影響。Bazel 的個別案例過濾語法取決於測試框架，並非普遍支援。因此，Tuist 使用啟用了測試套件展開的原生負向目標模式。明確目標、萬用字元選擇，以及 `test_suite` 規則內的測試會保留 Bazel 的正常選擇行為。
-
-指令會擷取每個隔離頁面並對目標去重。如果 Bazel 的完整事件記錄在目標設定或執行前識別出遺漏的已跳過目標，Tuist 會在警告中指出該目標，並在不含該過時排除的情況下重試。原始請求的模式與所有其他排除項目都會保留。復原最多重試五次；其他載入失敗與證據不完整的情況會保留 Bazel 的錯誤。將過時案例恢復為 **啟用** 以永久移除其政策。直接傳遞目標模式；`--target_pattern_file` 不能與隔離排除合併使用。如果沒有剩餘的測試目標，Bazel 會保留其正常的「找不到測試」結束狀態，這也能捕捉意外產生的空測試選擇。
-
-指令會列印每個被排除的目標標籤，以便在建置日誌中顯示隔離政策排除了哪些目標（包括其健康案例）。
-
-### 再次執行已隔離的測試 {#running-quarantined-tests-again}
-
-若要調查或驗證修復，請繞過兩項隔離政策：
-
-```sh
-tuist bazel test --no-quarantine -- --nocache_test_results //app:tests
-```
-
-將案例恢復為 **啟用**，以便在後續的正常執行中包含其目標。已跳過的案例在被明確包含之前不會產生新的執行，因此基於成功新執行的自動化需要先進行驗證執行才能復原它們。
-
-隔離擷取錯誤會在執行測試前中止指令。指令也會拒絕超過 20,000 個案例的政策或超過其大小限制的目标引數；它永遠不會套用部分政策。當你故意想在不套用政策的情況下執行時，請使用 `--no-quarantine`。
-
-## 選用設定與重試 {#optional-configuration-and-retries}
-
-如果你的儲存庫在 `.bazelrc` 中定義了具名的 `ci` 設定，你可以使用 `--config=ci` 來選取它：
-
-```sh
-tuist bazel test -- --config=ci //app:tests
-```
-
-這是儲存庫定義的設定，並非 Tuist 的必要條件。如果你的儲存庫未定義此設定，請省略該選項。
-
-重試也是選用的，且獨立於隔離。`--flaky_test_attempts=3` 會為每個測試啟用最多 **三次 Bazel 總嘗試次數**，而非額外三次重試。團隊可以保留其在 `.bazelrc` 中的現有重試設定，或明確傳遞：
+重試為選用項目，且與隔離無關。`--flaky_test_attempts=3` 可啟用每個測試最多 **三次 Bazel 總嘗試次數**，而非額外三次重試。請將現有的重試設定保留在 `.bazelrc`，或明確傳入：
 
 ```sh
 tuist bazel test -- --flaky_test_attempts=3 //app:tests
 ```
 
-對於定義了 `ci` 的儲存庫，這些選項可以合併使用：
+必須實際執行重試，Tuist 才能觀察其結果。僅憑 Bazel 目標的不穩定摘要，無法識別哪個個別案例不穩定。
 
-```sh
-tuist bazel test -- --config=ci --flaky_test_attempts=3 //app:tests
-```
+### 跨執行偵測 {#cross-run-detection}
 
-## 偵測不穩定性 {#detecting-flakiness}
-
-Tuist 使用 Bazel `test.xml` 報告中的個別案例，來偵測在持續整合中跨重試以及跨相同提交與目標選擇的執行之間的不一致結果。本地執行仍然可見，但不會自動將測試案例標記為不穩定。當你的建置環境尚未發布提交與分支中繼資料時，請提供這些資訊：
+比較執行需要提交與分支的中繼資料。當你的建構環境尚未發布這些資料時，請提供：
 
 ```sh
 tuist bazel test -- \
@@ -85,8 +39,52 @@ tuist bazel test -- \
   --build_metadata=GIT_BRANCH="$GIT_BRANCH" //app:tests
 ```
 
-重試必須實際執行，Tuist 才能觀察其結果。僅憑 Bazel 目標的不穩定摘要無法識別哪個個別案例不穩定。無法取得或無法解析的報告無法提供案例層級的證據。
+案例會依據目標標籤、類別名稱（若無則退回使用套件名稱）以及測試名稱來識別，詳情請參閱 <.localized_link href="/guides/features/test-insights/bazel">Bazel 測試洞察</.localized_link>。
 
-案例由目標標籤、類別名稱（若無則退回至套件名稱）與測試名稱來識別。這能將不同類別中同名方法分開。使用不同外層套件名稱的舊報告會在其舊身分下保留歷史記錄；其隔離狀態必須套用到新身分上。當失敗符合基於舊套件的靜音而非目前的類別身分時，指令會警告需要重新套用哪項政策，並保持該失敗為阻擋狀態。政策不會自動轉移，因為多個類別可能曾共用舊身分。
+<!-- @snippet: ./_managing -->
 
-請參閱 Bazel 的 [測試過濾器](https://bazel.build/docs/user-manual#test-filter)、[命令選項](https://bazel.build/reference/command-line-reference) 與 [建置事件說明](https://bazel.build/remote/bep-glossary) 以了解底層行為。
+## 隔離不穩定測試 {#quarantining}
+
+<!-- @snippet: ./_quarantine-intro -->
+
+`tuist bazel test` 會在每次呼叫前取得隔離政策，並將其套用至底層的 `bazel test` 執行。一般的 `bazel test` 仍會回報測試結果，但不會套用隔離：
+
+```sh
+tuist bazel test -- //app:tests
+```
+
+`--` 之後的引數會轉發至 `bazel test`。使用 `--path` 選取專案與工作目錄，並使用 `--bazel` 選取其他可執行檔（例如 `bazelisk`）。命名的 Bazel 設定（例如 `--config=ci`）為選用項目，運作方式相同。
+
+### 靜音 {#mute}
+
+使用 **靜音** 作為主要隔離工作流程。靜音的案例會繼續執行，其失敗仍然可見，而健康的同層案例仍會影響結果。只有當報告將每個失敗目標中的所有失敗歸因於靜音案例時，Tuist 才會將 Bazel 的測試失敗結束狀態改為成功。建構錯誤、逾時、中斷的執行、遺失或不完整的報告，以及不在靜音集合內的失敗，都會保留 Bazel 的失敗狀態。
+
+### 略過 {#skip}
+
+略過以 Bazel 目標為單位運作：略過一個案例會排除其整個目標（包括健康的案例），因為 Bazel 無法針對每個測試框架過濾個別案例。除非你打算排除整個目標，否則請優先使用 **靜音**。指令會列印每個被排除的目標標籤，讓建構記錄顯示隔離政策排除了哪些項目。
+
+如果被略過的目標已不存在，Tuist 會在警告中指明該目標，並在沒有該排除的情況下執行。將過時的案例恢復為 **啟用**，以永久移除其政策。如果沒有剩餘的測試目標，Bazel 會維持其正常的「找不到測試」結束狀態。
+
+<!-- @snippet: ./_quarantined-passing -->
+
+### 再次執行已隔離的測試 {#running-quarantined-tests-again}
+
+若要調查或驗證修復，請繞過隔離政策：
+
+```sh
+tuist bazel test --no-quarantine -- --nocache_test_results //app:tests
+```
+
+將案例恢復為 **啟用**，以便在後續的一般執行中包含其目標。被略過的案例在明確包含之前不會產生新的執行，因此基於成功新執行的自動化需要在能夠恢復它們之前先進行驗證執行。
+
+### 限制 {#limitations}
+
+- 明確的 `--build_event_json_file` 或 `--target_pattern_file` 無法與作用中的隔離同時使用。請直接傳遞目標模式。
+- 如果 Tuist 無法取得隔離政策，指令會在執行測試前停止。它永遠不會套用部分政策。當你刻意想要在不使用隔離的情況下執行時，請使用 `--no-quarantine`。
+- 與較舊的套件型身份下記錄的靜音相符的失敗仍會阻擋執行，指令會指出要重新套用的政策。
+
+如需了解底層行為，請參閱 Bazel 的 [測試過濾器](https://bazel.build/docs/user-manual#test-filter)、[指令選項](https://bazel.build/reference/command-line-reference) 及 [建構事件描述](https://bazel.build/remote/bep-glossary)。
+
+<!-- @snippet: ./_slack -->
+
+<!-- @snippet: ./_querying -->

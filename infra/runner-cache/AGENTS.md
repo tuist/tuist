@@ -115,7 +115,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. It also restores, one at a time, the HEADs the server lists
   for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/4`)
-  through `PrefetchSpare`: free space above `MinFreeBytes` plus
+  through `PrefetchSpare`: free space above the larger of `MinFreeBytes` and
+  `CheckoutCapacity` (a checkout evicts only idle masters for its room) plus
   `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
@@ -312,7 +313,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   image busy and no build can unmount it again. A Linux checkout slot is
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
-  That check never evicts (`reserveSpare`); the usual reserve admission does.
+  That check (`admit` with `optional`) evicts only custom masters no job holds or
+  is attaching; it never displaces speculative work or reclaims checkouts.
 - Checkout Git commands and their children use one pack/indexing thread, a
   32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
   streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in

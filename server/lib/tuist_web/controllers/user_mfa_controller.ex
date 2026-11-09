@@ -173,6 +173,17 @@ defmodule TuistWeb.UserMFAController do
   end
 
   defp render_page(conn, template, assigns) do
+    assigns =
+      if template == :settings do
+        Keyword.put(
+          assigns,
+          :fresh_session?,
+          UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user)
+        )
+      else
+        assigns
+      end
+
     conn
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
@@ -183,8 +194,7 @@ defmodule TuistWeb.UserMFAController do
     )
   end
 
-  defp reauthenticate,
-    do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")
+  defp reauthenticate, do: dgettext("dashboard_auth", "Sign in again to continue changing two-factor authentication.")
 
   defp passkey_failed, do: dgettext("dashboard_auth", "The passkey could not be verified. Try again.")
 

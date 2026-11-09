@@ -120,7 +120,6 @@ jobs:
       stacked-build-count: ${{ steps.plan.outputs.stacked-build-count }}
       stacked-matrix: ${{ steps.plan.outputs.stacked-matrix }}
       stacked-carry: ${{ steps.plan.outputs.stacked-carry }}
-      stacked-bases: ${{ steps.plan.outputs.stacked-bases }}
       manifest: ${{ steps.plan.outputs.manifest }}
     steps:
       - uses: actions/checkout@v4
@@ -227,12 +226,16 @@ jobs:
   # The same runner layer as a stacked image: an overlay on the base, which
   # rack hosts keep once in Tart's content store, so a release on an unchanged
   # base costs them the overlay instead of the changed half of the disk. Only
-  # macOS 27 can create one, so it builds on the `macos-27` builder.
+  # macOS 27 can create one, so it builds on the `macos-27` builders, each
+  # profile on the one whose `runner-image-builder-<n>` label
+  # infra/runner-image/stacked-builders.json gives it, which keeps that
+  # profile's base cached. A build waits while no online builder carries its
+  # label (infra/vm-image-builder.md, "Stacked build labels").
   build-stacked:
     name: Build stacked runner image (Xcode ${{ matrix.xcode }})
     needs: plan
     if: needs.plan.outputs.release == 'true' && needs.plan.outputs.stacked-build-count != '0'
-    runs-on: [self-hosted, macos, bare-metal, macos-27]
+    runs-on: [self-hosted, macos, bare-metal, macos-27, "${{ matrix.builder }}"]
     timeout-minutes: 150
     strategy:
       fail-fast: true
@@ -255,16 +258,14 @@ jobs:
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl
 
-      # Pulling a base is most of a stacked bake (about 11 of 16 minutes for
-      # 62 GB), and a stacked VM is an overlay on its base rather than a copy,
-      # so the floor leaves room for one more base and keeps the release's
-      # other bases cached for the bakes after this one.
+      # Pulling a base costs about 7 of a stacked bake's 16 minutes (62 GB),
+      # and a stacked VM is an overlay on its base rather than a copy,
+      # so the floor leaves room for one more base and keeps the bases of the
+      # builder's other profiles cached for its next bakes and releases.
       - uses: ./.github/actions/reclaim-tart-disk
         with:
           free-floor-gb: "120"
-          keep: |
-            ${{ matrix.base }}
-            ${{ needs.plan.outputs.stacked-bases }}
+          keep: ${{ matrix.keep }}
 
       - uses: ./.github/actions/build-runner-image-binaries
         with:

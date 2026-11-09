@@ -61,7 +61,8 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
                 %{
                   "cache_egress_megabytes" => "price_tuist_cache_egress_megabytes",
                   "cache_requests" => "price_tuist_cache_requests",
-                  "passing_test_cases" => "price_tuist_passing_test_cases"
+                  "passing_test_cases" => "price_tuist_passing_test_cases",
+                  "runner_cache_volume_megabyte_months" => "price_tuist_runner_cache_volume_megabyte_months"
                 }}
 
       posted_prices =
@@ -81,7 +82,11 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
                # $2 per million passing test cases
                {"tuist_passing_test_cases",
                 [%{up_to: 5_000_000, unit_amount: 0}, %{up_to: "inf", unit_amount_decimal: "0.0002"}],
-                "mtr_passing_test_cases"}
+                "mtr_passing_test_cases"},
+               # $0.10 per GB-month is 0.01 cents per reported megabyte-month
+               {"tuist_runner_cache_volume_megabyte_months",
+                [%{up_to: 100_000, unit_amount: 0}, %{up_to: "inf", unit_amount_decimal: "0.01"}],
+                "mtr_runner_cache_volume_megabyte_months"}
              ]
     end
 
@@ -101,12 +106,14 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
         meters: [
           %{id: "mtr_egress", event_name: "cache_egress_megabytes"},
           %{id: "mtr_requests", event_name: "cache_requests"},
-          %{id: "mtr_tests", event_name: "passing_test_cases"}
+          %{id: "mtr_tests", event_name: "passing_test_cases"},
+          %{id: "mtr_storage", event_name: "runner_cache_volume_megabyte_months"}
         ],
         prices: %{
           "tuist_cache_egress_megabytes" => [price("price_egress", 100_000, "0.01")],
           "tuist_cache_requests" => [price("price_requests", 1_000_000, "0.001")],
-          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")]
+          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")],
+          "tuist_runner_cache_volume_megabyte_months" => [price("price_storage", 100_000, "0.01")]
         }
       })
 
@@ -115,7 +122,8 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
                 %{
                   "cache_egress_megabytes" => "price_egress",
                   "cache_requests" => "price_requests",
-                  "passing_test_cases" => "price_tests"
+                  "passing_test_cases" => "price_tests",
+                  "runner_cache_volume_megabyte_months" => "price_storage"
                 }}
 
       assert Enum.all?(requests(), &match?({:get, _, _}, &1))
@@ -126,12 +134,14 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
         meters: [
           %{id: "mtr_egress", event_name: "cache_egress_megabytes"},
           %{id: "mtr_requests", event_name: "cache_requests"},
-          %{id: "mtr_tests", event_name: "passing_test_cases"}
+          %{id: "mtr_tests", event_name: "passing_test_cases"},
+          %{id: "mtr_storage", event_name: "runner_cache_volume_megabyte_months"}
         ],
         prices: %{
           "tuist_cache_egress_megabytes" => [price("price_egress_old", 100_000, "0.035")],
           "tuist_cache_requests" => [price("price_requests", 1_000_000, "0.001")],
-          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")]
+          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")],
+          "tuist_runner_cache_volume_megabyte_months" => [price("price_storage", 100_000, "0.01")]
         }
       })
 

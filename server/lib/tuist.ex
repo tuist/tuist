@@ -11,6 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
+      Jams,
+      Jams.Checkpoints,
+      Jams.Jam,
+      Jams.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -19,12 +23,14 @@ defmodule Tuist do
       Marketing.Blog,
       Marketing.Blog.CoverArtwork,
       Marketing.Content,
+      Marketing.MDExConverter,
       Marketing.Pages,
       Docs,
       Docs.OgImage,
       Docs.Page,
       Docs.Paths,
       Docs.Redirects,
+      Docs.ReleaseStatus,
       Locale,
       # Single source of truth for the oldest supported CLI version, referenced by
       # the deprecation warning plug (TuistWeb), the docs, and the gate.
@@ -252,6 +258,9 @@ defmodule Tuist do
       Origin.Client,
       Origin.Signatures,
       Origin.WebhookWorker,
+      Entire,
+      Entire.Client,
+      EntireTrails,
       VCS.RemoteURL,
       Alerts,
       Alerts.Alert,
@@ -279,6 +288,8 @@ defmodule Tuist do
       Analytics,
       Environment,
       FeatureFlags,
+      Pulse,
+      Pulse.Schemas,
       Ecto.Utils,
       GitHub.InstallationAuthorization,
       GitHub.Installations,
@@ -329,6 +340,9 @@ defmodule Tuist do
       Sandboxes.AmpRuntime,
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
+      Sandboxes.ClaudeCodeRunners,
+      Sandboxes.ClaudeCodeRuntime,
+      Sandboxes.Commands,
       Sandboxes.Anthropic.Client,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
@@ -353,6 +367,7 @@ defmodule Tuist do
       Runners.Billing,
       Runners.Catalog,
       Runners.Allowance,
+      Runners.CacheVolumeBilling,
       Runners.Prepaid,
       Runners.Trials,
       Runners.Concurrency,

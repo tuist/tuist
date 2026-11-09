@@ -24,7 +24,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   # template build and a memory image on every node that serves it, so the
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
   # `sandboxes.allowedShapes`).
-  @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @shapes [{1, 2048}, {2, 4096}, {4, 8192}, {8, 16_384}, {16, 32_768}, {16, 45_056}]
   @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -34,6 +34,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :execution_lease_expires_at, :utc_datetime
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
+    field :amp_base_snapshot_id, :string
     field :template, :string
     field :template_tag, :string
     field :vcpus, :integer
@@ -102,6 +103,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :agent_environment_id,
       :anthropic_session_id,
       :amp_orb_id,
+      :amp_base_snapshot_id,
       :amp_integration_id,
       :provider_environment_id,
       :template,

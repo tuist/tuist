@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e600b82b2e21813f9a09fb1fc2c5068049544a8dc4a607ba5135e3eac5d9bc4c",
+  "hash": "0a2d0cd763e525ae1c85e1eeeba1998c1e6652fabd7294fd908bae01738d20b4",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Generated Xcode project {#generated-xcode-project-code-coverage}": {
-                  "content_hash": "320ed5681fe5ea2df8993c4acdafd986b84b4cfd3e8422b51fb7362052080e0f"
+                  "content_hash": "e96599339edbf46041b984e9abe0a00be51f12c2464fb8ce375bb3a3f3921581"
                 },
                 "## How it works {#how-it-works}": {
                   "content_hash": "d0214dad642d345e69668ff4eb8a4a26756cf93f45b1bc0786d029a651cade8d"
@@ -71,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ad96cd29d0b81ece92e395f6f405ff3fee9d3e3fa39dfd715b408aa9b14ffb6f",
+          "hash": "1c658b87f02abe9e4cd0360af1ec93a774e72ac1f1e5dc3872e05853bc3c9df5",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
           "metadata": {
-            "content_hash": "77f8f7d61c9f0ec9ab37af1ffb4fcd5acb28abdeed02ee5b3c80c466a109d559"
+            "content_hash": "26de89b0f8f45f7271febb2c8a7663909c8ddba15b3855288c41f1141859429b"
           }
         },
         {
@@ -136,7 +136,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,7 +155,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -184,11 +184,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -289,21 +289,21 @@
             }
           ],
           "details": {},
-          "hash": "c386b1e13e9bee05fafaf028cb092c647a900753cf694f7a6d0c852f57248e2d",
+          "hash": "6891d1dcdf0cdf5bdd091671ba357d6463f27069f56b20a09cf1de75c8e0b0ff",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "e600b82b2e21813f9a09fb1fc2c5068049544a8dc4a607ba5135e3eac5d9bc4c",
+      "hash": "0a2d0cd763e525ae1c85e1eeeba1998c1e6652fabd7294fd908bae01738d20b4",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "fc18f1b890b2f38a373bcdb848000ff3b9499600fcd61b5a7921b86977284e08",
+  "output_hash": "2484720903d7e313c790248364c077b297de3c4bb181bdf1b24035d272c213a1",
   "output_path": "server/priv/docs/ko/guides/features/test-code-coverage/generated-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -326,8 +326,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "29c7b162758c78109c190ffa135e1ab46aaeec29",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
-  "translated_at": "2026-11-03T22:01:49.086350Z",
-  "translation_session_id": "01a1a36d-1b3e-78bf-a433-f40ba82ecdbe"
+  "translated_at": "2026-11-06T21:25:52.192499Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

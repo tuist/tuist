@@ -1037,17 +1037,28 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   Whether `account`'s instance in the region is built on
-  `kura-thin-encrypted-nvme`: the region is thin-capable and the account is on
-  the `kura_thin_volumes` flag. The flag is read only in thin-capable regions.
+  `kura-thin-encrypted-nvme`: the region is thin-capable and either every
+  account in it is enrolled (`TUIST_KURA_THIN_ENROLLED_REGIONS`) or the account
+  is on the `kura_thin_volumes` flag. The flag is read only in thin-capable
+  regions that are not enrolled as a whole.
   """
-  def thin_volumes?(%__MODULE__{} = region, account) do
-    thin_volumes?(region) and Tuist.FeatureFlags.kura_thin_volumes_enabled?(account)
+  def thin_volumes?(%__MODULE__{provisioner_config: config} = region, account) do
+    thin_volumes?(region) and
+      (config[:thin_enrolled] == true or Tuist.FeatureFlags.kura_thin_volumes_enabled?(account))
   end
 
+  # A region enrolled as a whole is thin-capable too, so listing it in
+  # `TUIST_KURA_THIN_ENROLLED_REGIONS` alone is enough. `:thin_enrolled` is only
+  # ever added, so a thin-capable region's config is unchanged when no region is
+  # enrolled.
   defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
-    if region.id in Tuist.Environment.kura_thin_region_ids() and
+    enrolled? = region.id in Tuist.Environment.kura_thin_enrolled_region_ids()
+
+    if (enrolled? or region.id in Tuist.Environment.kura_thin_region_ids()) and
          config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
-      %{region | provisioner_config: Map.put(config, :thin_volumes, true)}
+      config = Map.put(config, :thin_volumes, true)
+      config = if enrolled?, do: Map.put(config, :thin_enrolled, true), else: config
+      %{region | provisioner_config: config}
     else
       region
     end

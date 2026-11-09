@@ -81,7 +81,7 @@ struct TestImpactGraphMapperTests {
         ).called(1)
     }
 
-    @Test func keeps_the_targets_hashing_skipped_when_every_test_runs() async throws {
+    @Test func leaves_the_graph_as_hashing_left_it_on_a_fallback() async throws {
         let (graph, environment) = graphs(hashMatched: ["AppTests"])
         given(resolveBaselineService).resolveTestImpactBaseline(
             fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
@@ -94,9 +94,9 @@ struct TestImpactGraphMapperTests {
             try await subject.map(graph: graph, environment: environment)
         }
 
-        // `UITests` was prunable before hashing (`--skip-ui-tests`) and stays so.
-        #expect(prunableTargetNames(gotGraph) == ["UITests"])
-        #expect(gotEnvironment.targetTestCacheItems[path]?["AppTests"] == nil)
+        #expect(gotGraph == graph)
+        #expect(prunableTargetNames(gotGraph) == ["AppTests", "UITests"])
+        #expect(gotEnvironment.targetTestCacheItems == environment.targetTestCacheItems)
     }
 
     @Test func records_what_hashing_skipped_and_keeps_the_graph_when_every_target_matched() async throws {
@@ -112,7 +112,6 @@ struct TestImpactGraphMapperTests {
             try await subject.map(graph: graph, environment: environment)
         }
 
-        // A fallback that would run every test leaves the hash hits pruned.
         #expect(gotGraph == graph)
         #expect(gotEnvironment.targetTestCacheItems == environment.targetTestCacheItems)
         verify(createRunService).createTestImpactRun(

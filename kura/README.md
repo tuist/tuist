@@ -1009,7 +1009,9 @@ REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain mo
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
 
 Planned legacy thin-storage moves use a destination-bound write bridge before
-changing endpoints. It verifies retained content and live mutation completion;
-closing old connections alone does not synchronize asynchronous replicas. See
+changing endpoints. It verifies on the destination every write acknowledged
+since the bridge pinned the feed; records retained from before the pin are
+best-effort cache content either replica may evict. Closing old connections
+alone does not synchronize asynchronous replicas. See
 [thin storage handoff](../infra/kura-controller/thin-migration.md) for protocol
 bounds, pause behavior, safe preparation retry and qualification limits.

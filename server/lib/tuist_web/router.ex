@@ -291,6 +291,9 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing_feed do
     plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
+    # Feeds and project sitemaps skip Cloudflare's bot challenge, so the
+    # public-pages rate limit has to count them through this header.
+    plug :mark_public_marketing_page
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
@@ -381,6 +384,10 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :jams_no_store do
+    plug :put_jams_no_store
+  end
+
   pipeline :report_publishing_api do
     plug :put_request_kind, "api"
     plug :accepts, ["json"]
@@ -458,6 +465,32 @@ defmodule TuistWeb.Router do
     # The flaky-tests and test-insights pages folded into the tests page.
     redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
+
+    # Keep the raw query; Redirect's preserve_query_string re-encodes decoded params.
+    match(:*, "/es/build-insights", LegacyRedirectsPlug, to: "/es/docs/guides/features/build-insights")
+    match(:*, "/ko/flaky-tests", LegacyRedirectsPlug, to: "/ko/tests")
+    match(:*, "/zh_Hant/selective-testing", LegacyRedirectsPlug, to: "/zh_Hant/docs/guides/features/selective-testing")
+
+    match(:*, "/blog/2025/11/27/teaching-ai-to-r", LegacyRedirectsPlug,
+      to: "/blog/2025/11/27/teaching-ai-to-read-xcode-builds"
+    )
+
+    # Portuguese is retired; only map audited pages with verified English sources.
+    for {old_path, new_path} <- [
+          {"guides/features/projects/dependencies", "guides/features/projects/dependencies"},
+          {"guides/features/projects/synthesized-files", "guides/features/projects/synthesized-files"},
+          {"guides/develop/projects/adoption/migrate/swift-package",
+           "guides/features/projects/adoption/migrate/swift-package"}
+        ] do
+      match(:*, "/pt/docs/#{old_path}", LegacyRedirectsPlug, to: "/en/docs/#{new_path}")
+    end
+
+    match(
+      :*,
+      "/ar/docs/references/examples/generated_app_with_build_rules",
+      LegacyRedirectsPlug,
+      to: "/en/docs/references/examples/generated-projects/generated_app_with_build_rules"
+    )
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
@@ -614,6 +647,14 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
     end
+
+    # Problem, comparison, and build-system guides are authored in English only,
+    # so they have no localized routes.
+    for guide_path <- TuistWeb.Utilities.MarketingMarkdown.guide_page_paths() do
+      get guide_path, MarketingController, :guide,
+        metadata: @marketing_route_metadata,
+        private: %{locale: "en"}
+    end
   end
 
   # The newsletter forms are submitted from cached marketing pages whose
@@ -722,6 +763,8 @@ defmodule TuistWeb.Router do
   scope "/integrations", TuistWeb do
     pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
+    get "/entire/start", EntirePluginController, :start
+    get "/entire/callback", EntirePluginController, :callback
     get "/github/setup", GitHubAppSetupController, :setup
     get "/github/authorize", GitHubAppSetupController, :authorize
     get "/installation", IntegrationInstallationController, :show
@@ -822,6 +865,24 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
+  for collection <- [:jams, :threads] do
+    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{jams_collection: collection} do
+      pipe_through [:jams_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+      # Phoenix's dispatch logs include request params, including private prompts.
+      get "/", JamsController, :index, log: false
+      post "/", JamsController, :create, log: false
+      get "/repositories", JamsController, :repositories, log: false
+      get "/models", JamsController, :models, log: false
+      get "/:id", JamsController, :show, log: false
+      post "/:id/messages", JamsController, :message, log: false
+      patch "/:id", JamsController, :update, log: false
+      post "/:id/ship-preview", JamsController, :ship_preview, log: false
+      post "/:id/ship", JamsController, :ship, log: false
+      post "/:id/ship-reconcile", JamsController, :reconcile_ship, log: false
+    end
+  end
+
   scope path: "/api",
         alias: TuistWeb.API,
         assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
@@ -830,6 +891,13 @@ defmodule TuistWeb.Router do
     scope "/accounts/:account_handle" do
       patch "/", AccountController, :update_account
       delete "/", AccountController, :delete_account
+
+      scope "/pulse" do
+        get "/errors/issues/:issue_id/events/:event_id", PulseController, :event
+        get "/errors/issues/:issue_id", PulseController, :issue
+        get "/:signal/analytics", PulseController, :analytics
+        get "/:signal", PulseController, :query
+      end
 
       scope "/tokens" do
         post "/", AccountTokensController, :create
@@ -890,6 +958,12 @@ defmodule TuistWeb.Router do
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
+        post "/:sandbox_id/commands", SandboxesController, :start_command
+        get "/:sandbox_id/commands", SandboxesController, :index_commands
+        get "/:sandbox_id/commands/:command_id", SandboxesController, :show_command
+        get "/:sandbox_id/commands/:command_id/logs", SandboxesController, :stream_command_logs
+        post "/:sandbox_id/commands/:command_id/stdin", SandboxesController, :write_command_stdin
+        post "/:sandbox_id/commands/:command_id/cancel", SandboxesController, :cancel_command
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
         post "/:sandbox_id/archive", SandboxesController, :archive
@@ -1197,15 +1271,14 @@ defmodule TuistWeb.Router do
     put "/me/push-devices/:installation_id", PushDevicesController, :update
     delete "/me/push-devices/:installation_id", PushDevicesController, :delete
     delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
-    get "/me/notification-preferences/:kind", NotificationPreferencesController, :show
+    get "/me/notification-events", NotificationRulesController, :events
 
-    put "/me/notification-preferences/:kind/accounts/:account_handle",
-        NotificationPreferencesController,
-        :update_account
+    get "/me/notification-events/:event/projects/:account_handle/:project_handle/condition-options",
+        NotificationRulesController,
+        :condition_options
 
-    put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
-        NotificationPreferencesController,
-        :update_project
+    resources "/me/notification-rules", NotificationRulesController, only: [:index, :show, :create, :delete]
+    patch "/me/notification-rules/:id", NotificationRulesController, :update
 
     get "/me/feature-flags", FeatureFlagsController, :index
     get "/me/ai-subscriptions", AISubscriptionsController, :index
@@ -1289,6 +1362,7 @@ defmodule TuistWeb.Router do
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
     post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
+    post "/claude-code-runners/spawn", ClaudeCodeRunnersController, :spawn
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
   end
@@ -1755,6 +1829,12 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
+      live "/~/pulse/errors/issues/:issue_id/events/:event_id", PulseErrorLive, :event
+      live "/~/pulse/errors/issues/:issue_id", PulseErrorLive, :issue
+      live "/~/pulse/metrics", PulseLive, :metrics
+      live "/~/pulse/logs", PulseLive, :logs
+      live "/~/pulse/traces", PulseLive, :traces
+      live "/~/pulse/errors", PulseLive, :errors
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
@@ -1907,6 +1987,8 @@ defmodule TuistWeb.Router do
   def assign_current_path(conn, _params) do
     assign(conn, :current_path, conn.request_path)
   end
+
+  defp put_jams_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
 
   defp put_request_kind(conn, kind) when is_binary(kind) do
     assign(conn, :request_kind, kind)

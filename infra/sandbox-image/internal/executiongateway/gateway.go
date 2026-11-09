@@ -211,7 +211,7 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
 	if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
 		path = "lease"
-		code, err = g.stream(s, account, r.InstanceName, auth, op)
+		code, err = g.stream(s, account, r.InstanceName, auth, op, true)
 		return err
 	}
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
@@ -223,7 +223,7 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 		return err
 	}
 	g.rememberAuthorization(auth, account, r.InstanceName)
-	code, err = g.stream(s, account, r.InstanceName, auth, op)
+	code, err = g.stream(s, account, r.InstanceName, auth, op, true)
 	return err
 }
 
@@ -248,11 +248,13 @@ func (g *Gateway) WaitExecution(r *re.WaitExecutionRequest, s grpc.ServerStreami
 	if err != nil {
 		return err
 	}
-	_, err = g.stream(s, account, parts[3], auth, op)
+	_, err = g.stream(s, account, parts[3], auth, op, false)
 	return err
 }
 
-func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation) (codes.Code, error) {
+// observe records the executed action's phases; WaitExecution passes false so a
+// reconnecting client does not count the same action twice.
+func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, project, auth string, op operation, observe bool) (codes.Code, error) {
 	if !uuid.MatchString(op.ID) {
 		return codes.Unknown, status.Error(codes.Internal, "invalid operation id")
 	}
@@ -298,6 +300,11 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 						response.Result.ExecutionMetadata.QueuedTimestamp = queued
 					}
 				}
+				if observe && !response.CachedResult && response.Result != nil {
+					g.metrics.observePhases(response.Result.ExecutionMetadata)
+				}
+				// Diagnostics only: neither the client nor the action cache keeps them.
+				stripCASReads(response.GetResult().GetExecutionMetadata())
 				payload, _ := anypb.New(response)
 				message.Result = &lro.Operation_Response{Response: payload}
 			}

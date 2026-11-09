@@ -449,7 +449,7 @@
   & [data-part="passkey"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-3);
+    gap: var(--noora-spacing-9);
     width: 100%;
 
     &[hidden] {

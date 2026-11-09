@@ -21,6 +21,7 @@ defmodule Tuist.Gradle do
   alias Tuist.IngestRepo
   alias Tuist.MCP.Events.Publisher
   alias Tuist.Repo
+  alias Tuist.Tests.Sanitizer
 
   require Tuist.BuildMetrics
 
@@ -57,8 +58,17 @@ defmodule Tuist.Gradle do
 
       Build.Buffer.insert(build_entry)
 
+      # Configuration fails before any task runs, so its failures take the first slots.
+      failure_count =
+        create_configuration_operations(
+          build_id,
+          attrs.project_id,
+          Map.get(attrs, :configuration_operations, []),
+          now
+        )
+
       if !Enum.empty?(tasks) do
-        task_entries = create_tasks(build_id, attrs.project_id, tasks, now)
+        task_entries = create_tasks(build_id, attrs.project_id, tasks, now, failure_count)
 
         if BuildEntities.enabled?(build_entry.project_id) do
           BuildEntities.Producers.gradle_build(build_entry, Enum.zip(tasks, task_entries))
@@ -68,7 +78,6 @@ defmodule Tuist.Gradle do
       machine_metrics = Map.get(attrs, :machine_metrics, [])
 
       create_machine_metrics(build_id, attrs.project_id, machine_metrics, now)
-      create_configuration_operations(build_id, attrs.project_id, Map.get(attrs, :configuration_operations, []), now)
       create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
 
       if attrs.status == "failure" and Map.get(attrs, :submission_auth) != "network_trusted",
@@ -180,13 +189,14 @@ defmodule Tuist.Gradle do
     IngestRepo.insert_all(BuildMachineMetric, entries)
   end
 
-  defp create_tasks(build_id, project_id, tasks, now) do
-    task_entries =
-      Enum.map(tasks, fn task ->
+  defp create_tasks(build_id, project_id, tasks, now, failure_count) do
+    {task_entries, _failure_count} =
+      Enum.map_reduce(tasks, failure_count, fn task, failure_count ->
         execution = Map.get(task, :execution) || %{}
         build_path = value_or(execution, :build_path, "")
+        {failure, failure_count} = failure_fields(Map.get(task, :failure), failure_count)
 
-        %{
+        task_entry = %{
           build_path: build_path,
           cacheability: value_or(execution, :cacheability, ""),
           incremental: Map.get(execution, :incremental),
@@ -208,10 +218,37 @@ defmodule Tuist.Gradle do
           project_id: project_id,
           inserted_at: now
         }
+
+        {Map.merge(task_entry, failure), failure_count}
       end)
 
     Enum.each(task_entries, &Task.Buffer.insert/1)
     task_entries
+  end
+
+  @max_failures 32
+  @max_failure_message_bytes 16_384
+
+  # Clients bound failure messages already; the server keeps the same bounds, and redacts
+  # credentials and local paths, whatever a client sends.
+  defp failure_fields(%{message: message} = failure, count)
+       when is_binary(message) and message != "" and count < @max_failures do
+    sanitized = Sanitizer.sanitize(message)
+    {bounded, truncated} = truncate_utf8(sanitized, @max_failure_message_bytes)
+
+    {%{failure_message: bounded, failure_message_truncated: truncated or Map.get(failure, :truncated) == true}, count + 1}
+  end
+
+  defp failure_fields(_failure, count), do: {%{failure_message: "", failure_message_truncated: false}, count}
+
+  defp truncate_utf8(text, max_bytes) when byte_size(text) <= max_bytes, do: {text, false}
+
+  defp truncate_utf8(text, max_bytes) do
+    # Never split a multi-byte character: drop the incomplete one at the cut.
+    case :unicode.characters_to_binary(binary_part(text, 0, max_bytes)) do
+      {_, valid, _rest} -> {valid, true}
+      valid -> {valid, true}
+    end
   end
 
   defp value_or(map, key, default), do: Map.get(map, key) || default
@@ -229,9 +266,11 @@ defmodule Tuist.Gradle do
   end
 
   defp create_configuration_operations(build_id, project_id, operations, now) do
-    entries =
-      Enum.map(operations, fn operation ->
-        %{
+    {entries, failure_count} =
+      Enum.map_reduce(operations, 0, fn operation, failure_count ->
+        {failure, failure_count} = failure_fields(Map.get(operation, :failure), failure_count)
+
+        entry = %{
           id: UUIDv7.generate(),
           gradle_build_id: build_id,
           project_id: project_id,
@@ -242,9 +281,12 @@ defmodule Tuist.Gradle do
           started_at: to_naive_datetime(operation.started_at),
           inserted_at: now
         }
+
+        {Map.merge(entry, failure), failure_count}
       end)
 
     Enum.each(entries, &ConfigurationOperation.Buffer.insert/1)
+    failure_count
   end
 
   defp create_artifact_transforms(build_id, project_id, transforms, now) do
@@ -416,6 +458,85 @@ defmodule Tuist.Gradle do
     project_id = project_id || build_project_id(build_id)
     base_query = from(t in Task, where: t.project_id == ^project_id and t.gradle_build_id == ^build_id)
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Task)
+  end
+
+  @doc """
+  Lists the recorded failures of a Gradle build: the bounded, sanitized failure messages of its
+  failed configuration operations and tasks, in the order they started. `step_id` is the ID the
+  build step tools accept. Callers must authorize the build first.
+  """
+  def list_failures(%Build{id: build_id, project_id: project_id}) do
+    configuration =
+      from(operation in ConfigurationOperation,
+        where:
+          operation.project_id == ^project_id and operation.gradle_build_id == ^build_id and
+            operation.failure_message != "",
+        select: %{
+          step_id: fragment("concat('configuration:', toString(?))", operation.id),
+          kind: "configuration",
+          title: operation.phase,
+          project: operation.build_path,
+          target: operation.project_path,
+          message: operation.failure_message,
+          truncated: operation.failure_message_truncated,
+          started_at: operation.started_at
+        }
+      )
+
+    tasks =
+      from(task in Task,
+        where: task.project_id == ^project_id and task.gradle_build_id == ^build_id and task.failure_message != "",
+        select: %{
+          step_id: fragment("concat('task:', toString(?))", task.id),
+          kind: "task",
+          title: task.task_path,
+          project: task.build_path,
+          target: task.task_path,
+          message: task.failure_message,
+          truncated: task.failure_message_truncated,
+          started_at: task.started_at
+        }
+      )
+
+    # Ingestion keeps at most 32 failures per build.
+    from(failure in subquery(union_all(configuration, ^tasks)),
+      order_by: [asc: failure.started_at, asc: failure.step_id],
+      limit: 64
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Map.delete(&1, :started_at))
+  end
+
+  @doc """
+  Returns the failure message of one recorded step as its log, or a null log for steps
+  without one.
+  """
+  def step_failure(%Build{id: build_id, project_id: project_id}, step_id) do
+    query =
+      case String.split(step_id, ":", parts: 2) do
+        ["task", id] -> step_failure_query(Task, id)
+        ["configuration", id] -> step_failure_query(ConfigurationOperation, id)
+        _ -> nil
+      end
+
+    row =
+      query &&
+        ClickHouseRepo.one(
+          from(row in query,
+            where: row.project_id == ^project_id and row.gradle_build_id == ^build_id and row.failure_message != "",
+            limit: 1,
+            select: %{log: row.failure_message, log_truncated: row.failure_message_truncated}
+          )
+        )
+
+    row || %{log: nil, log_truncated: false}
+  end
+
+  defp step_failure_query(schema, id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> from(row in schema, where: row.id == ^uuid)
+      :error -> nil
+    end
   end
 
   @doc """

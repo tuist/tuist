@@ -93,6 +93,10 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_coverage" in tool_names
       assert "list_coverage_files" in tool_names
       assert "get_coverage_file" in tool_names
+      assert "query_pulse" in tool_names
+      assert "get_pulse_analytics" in tool_names
+      assert "get_pulse_error_issue" in tool_names
+      assert "get_pulse_error_event" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
       assert "get_bundle_artifact_tree" in tool_names
@@ -114,7 +118,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.50.0"
+      assert server.version == "1.56.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."

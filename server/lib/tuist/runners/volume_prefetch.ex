@@ -28,7 +28,9 @@ defmodule Tuist.Runners.VolumePrefetch do
   alias Tuist.Runners.VolumeAffinities
 
   @host_service_account_prefix "tart-kubelet-"
-  @fleet_label "tuist.dev/fleet"
+  # The Node label a platform's RunnerPools select their fleet by, as their Pods
+  # do: macOS hosts carry their CAPI fleet, Linux hosts their CAPI node pool.
+  @fleet_labels %{macos: "tuist.dev/fleet", linux: "node.cluster.x-k8s.io/pool"}
 
   @doc """
   The Node a runner host's ServiceAccount identifies, or `:error` for any other
@@ -53,7 +55,7 @@ defmodule Tuist.Runners.VolumePrefetch do
   def for_node(node_name, platform) when platform in [:macos, :linux] do
     with {:ok, node} <- K8sClient.get_node(node_name),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
-         fleet when is_binary(fleet) <- labels[@fleet_label],
+         fleet when is_binary(fleet) <- labels[@fleet_labels[platform]],
          true <- platform_fleet?(fleet, platform),
          {:ok, peers} <- peers(node, fleet, platform),
          true <- Map.has_key?(peers, node_name) do
@@ -66,10 +68,11 @@ defmodule Tuist.Runners.VolumePrefetch do
     end
   end
 
-  # The Node's `tuist.dev/fleet` label is its CAPI fleet (for example
-  # `tuist-tuist-runners-fleet`), shared by every SKU group in it. It is a fleet
-  # of a platform when a RunnerPool of that platform has it as its
-  # `fleetSelector`, the same match the scheduler makes.
+  # The Node's fleet label is its CAPI fleet on macOS (`tuist.dev/fleet`, for
+  # example `tuist-tuist-runners-fleet`, shared by every SKU group in it) and its
+  # CAPI node pool on Linux (`node.cluster.x-k8s.io/pool`, for example
+  # `runners-linux`). It is a fleet of a platform when a RunnerPool of that
+  # platform has it as its `fleetSelector`, the same match the scheduler makes.
   defp platform_fleet?(fleet, platform) do
     case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, pools} ->
@@ -92,7 +95,7 @@ defmodule Tuist.Runners.VolumePrefetch do
   defp peers(node, fleet, platform) do
     class = node_class(node)
 
-    case K8sClient.list_nodes("#{@fleet_label}=#{fleet}") do
+    case K8sClient.list_nodes("#{@fleet_labels[platform]}=#{fleet}") do
       {:ok, %{"items" => items}} ->
         peers =
           for peer <- items,

@@ -2,7 +2,7 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Tuist RunnerでDockerを使用：コンテナのビルドと実行、コンテナジョブ、サービスコンテナ、プライベートレジストリの利用。"
+  "description": "Tuist Runners で Docker を使用: コンテナのビルドと実行、コンテナジョブ、サービスコンテナ、プライベートレジストリ。"
 }
 ---
 # Docker {#docker}
@@ -24,7 +24,7 @@ jobs:
 >
 > macOSランナーはDockerデーモンを提供しません。Dockerデーモンが必要なジョブには、Linuxの<.localized_link href="/guides/features/runners/profiles">プロファイル</.localized_link>を使用してください。
 
-## コンテナ内でのジョブ実行 {#running-a-job-in-a-container}
+## コンテナ内でジョブを実行する {#running-a-job-in-a-container}
 
 ジョブを実行するイメージを`container`で指定します。Tuistがそのイメージをプルし、すべてのステップをその中で実行します。
 
@@ -44,7 +44,7 @@ jobs:
 
 ## サービスコンテナ {#service-containers}
 
-`services`はGitHubホスト型ランナーと同様に動作します。サービスはマッピングされたポートで`localhost`からアクセス可能です。
+`services`はGitHubホスト型ランナーと同じ動作をします。サービスはマップされたポートで`localhost`からアクセス可能です。
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## プライベートレジストリ {#private-registries}
 
-プルまたはプッシュを行う前に、レジストリ固有のログインアクションまたは`docker login`を使用して認証してください。
+プルまたはプッシュを行う前に、レジストリ固有のログインアクションまたは`docker login`で認証してください。
 
 ```yaml
       - uses: docker/login-action@v3
@@ -81,7 +81,7 @@ jobs:
 
 Docker Hubからのプルは、Tuistが運用するプルスルーキャッシュ経由で提供されるため、ジョブはDocker Hubの匿名レート制限を消費しません。他のレジストリのイメージは直接プルされます。
 
-すべてのジョブは空のイメージストアから開始されるため、ワークフローで使用されるイメージはジョブ間で再利用されず、ジョブごとに1回プルされます。ジョブが大きなカスタムイメージをプルする場合は、イメージを小さく保つか、キャッシュされたBuildxビルダーを使用してワークフロー内でビルドしてください。
+すべてのジョブは空のイメージストアから開始されるため、ワークフローで使用するイメージはジョブ間で再利用されず、ジョブごとに1回プルされます。ジョブが大きなカスタムイメージをプルする場合は、イメージを小さくするか、キャッシュされたBuildxビルダーを使用してワークフロー内でビルドしてください。
 
 ```yaml
       - uses: docker/setup-buildx-action@v3

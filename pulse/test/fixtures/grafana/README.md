@@ -2,23 +2,43 @@
 
 ## Dashboard query contracts
 
-`dashboard-queries.json` is a read-only snapshot of panel query expressions from
-Tuist's nine provisioned dashboards. It contains 301 PromQL contracts, one Loki
-selector and one TraceQL selector. Only expressions, datasource references,
-query type and source basename are exported; no credentials, webhook settings,
-Grafana tokens or complete dashboards are included.
+`dashboard-queries.json` is the historical schema-v1 panel-expression snapshot
+used by `provisioned_dashboard_contract_test.exs`: 301 PromQL contracts, one Loki
+selector and one TraceQL selector from seven dashboards. It is not a complete
+inventory of the current dashboard directory.
 
-Regenerate from an explicitly supplied dashboard checkout:
+Export a current inventory from an explicitly supplied dashboard checkout:
 
 ```sh
-mix run --no-start scripts/grafana_inventory.exs /path/to/grafana-dashboards test/fixtures/grafana/dashboard-queries.json
+mix run --no-start scripts/grafana_inventory.exs /path/to/grafana-dashboards /tmp/dashboard-queries.json
 ```
 
-Unlike the normalized PromQL fixture, this snapshot preserves dashboard variables
-and TraceQL hints. Parser acceptance with representative variable substitutions
-is a grammar regression test, not independent numerical conformance or proof of
-live Grafana datasource compatibility. Live-only queries, dashboard variables,
-recording rules and alert rules must be inventoried separately.
+The exporter handles schema-v1 targets (including inherited panel datasources),
+schema-v2 `DataQuery` specs, SQL `rawSql`, Grafana expressions, and query-variable
+discovery expressions. It preserves variables/macros verbatim, datasource
+references separately from plugin types, context, and explicit instant/range and
+query modes, even when the saved flags conflict. Datasource variables resolve
+plugin types; TraceQL query type overrides a misleading v2 group. Unresolvable
+datasource names remain `language: unknown`, not guessed from query text.
+Contracts are deduplicated only when all exported fields match and sorted
+deterministically. Neither credentials nor complete dashboards are exported.
+
+The checked-in directory currently yields 927 distinct contracts from all 19
+dashboards (nine v1 and ten v2): 809 PromQL, 22 LogQL, six TraceQL, 50 SQL,
+eight Grafana expressions and 32 unknown-language contracts. The latter all use
+Oban's legacy `grafanacloud-tuist-prom` name without a declared plugin type.
+There are 900 panel contracts and 27 variable/discovery contracts. SQL and
+Grafana expressions are included, not evidence of Pulse language support.
+
+Excluded: empty expressions (including ten built-in v2 Grafana annotation
+queries with empty specs), datasource selectors and custom/constant/interval
+variable option lists, and duplicate contracts. Live-only queries, generated
+client discovery requests, recording rules and alert rules still require
+separate inventories. No Grafana API or shared-state access is performed.
+`grafana_inventory_exporter_test.exs` exercises the actual exporter CLI against
+the checked-in dashboards and small v1 controls. Parser acceptance with
+representative substitutions in the historical snapshot remains only a grammar
+regression test, not numerical conformance or live Grafana compatibility.
 
 ## Tuist Grafana query corpus
 

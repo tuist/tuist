@@ -39,7 +39,7 @@
 
 - Bounded source-code service: [codebase-search/AGENTS.md](../../../../codebase-search/AGENTS.md).
 
-- Gradle/Bazel step list/detail tools share `Builds.RecordedSteps` with their APIs. They enforce build-read access, preserve opaque IDs, and expose coverage and timestamp-origin metadata; Bazel action logs are fetched separately for details while Gradle logs remain unavailable.
+- Gradle/Bazel step list/detail tools share `Builds.RecordedSteps` with their APIs. They enforce build-read access, preserve opaque IDs, and expose coverage and timestamp-origin metadata; Bazel action logs are fetched separately for details; a failed Gradle task's or configuration operation's reported failure message is its detail `log`, and `get_gradle_build` lists every recorded failure through `Gradle.list_failures/1`.
 
 - `Tools.BuildStep` owns shared step input/output schemas. Bazel keeps the same account/project/invocation addressing and project authorization as other Bazel tools because invocation IDs are caller-supplied and project-scoped. Gradle/Xcode retain their Tuist build UUID/dashboard-URL addressing. Do not add an unscoped Bazel invocation lookup merely to match those signatures.
 
@@ -63,6 +63,11 @@
   authorize project `:update`, and linking only accepts repositories in the
   account's GitHub App installation list, never a repository an installation
   token merely can read.
+- Amp workspace tools (`list_amp_workspace_connections`, `connect_amp_workspace`,
+  `disconnect_amp_workspace`) share `Accounts.*_amp_workspace_connection*` with the
+  Integrations page and require account `:update` for every call, reads included,
+  as the dashboard does. A connection grants every admitted orb account-wide CI
+  access, so keep them out of WebMCP and keep the confirm-with-the-user wording.
 - Code coverage tools (`get_coverage`, `list_coverage_files`,
   `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
   derive their output schemas from `Tests.Coverage.Schemas` through

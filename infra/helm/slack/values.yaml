@@ -43,6 +43,8 @@ database:
 
 mailer:
   provider: mailgun
+  # RFC 3339 instant from which a mailgun install sends through SES instead.
+  sesStartsAt: ""
   sesRegion: ""
   fromName: Tuist
   fromEmail: hello@tuist.dev

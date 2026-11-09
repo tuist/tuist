@@ -323,7 +323,7 @@ destinations = [
   "My Mac · macOS 26.1"
 ]
 
-fallbacks = %{0 => "baseline_too_old", 1 => "history_unavailable", 2 => "no_baseline_evidence"}
+fallbacks = %{0 => "baseline_too_old", 1 => "history_unavailable", 2 => "diff_unavailable"}
 
 # The baseline run's tests of a scheme: what a run that selects against it
 # could skip.
@@ -470,7 +470,7 @@ seeded =
           project_id: project.id,
           head_sha: commit.sha,
           commit_sha: commit.sha,
-          baseline_sha: if(baseline && reason in ["", "tracked_file_changed", "no_baseline_evidence"], do: baseline.sha),
+          baseline_sha: if(baseline && reason in ["", "tracked_file_changed"], do: baseline.sha),
           git_branch: commit.branch,
           dirty: false,
           strategy: "coverage",

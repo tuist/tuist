@@ -12,6 +12,7 @@
 @import "./css/components/overview.css";
 @import "./css/components/search.css";
 @import "./css/components/page-footer.css";
+@import "./css/components/release-status.css";
 
 :root {
   --docs-nav-height: 73px;

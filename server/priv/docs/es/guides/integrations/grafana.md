@@ -2,17 +2,17 @@
 {
   "title": "Grafana",
   "titleTemplate": ":title | Integraciones | Guías | Tuist",
-  "description": "Supervisa la salud, las duraciones y el ahorro de caché de las compilaciones de Tuist en Grafana, y configura alertas para tu equipo."
+  "description": "Supervisa la salud, las duraciones y los ahorros de caché de las compilaciones de Tuist en Grafana, y configura alertas para tu equipo."
 }
 ---
 
 # Integración con Grafana {#grafana}
 
-La fuente de datos de Tuist te permite usar métricas de compilación, pruebas y caché en Grafana, incluidas duraciones, recuentos de fallos y el tiempo ahorrado reportado gracias a la caché. Crea paneles centrados en los proyectos y las métricas que le importan a tu equipo, o combina las métricas de Tuist con otras fuentes de datos en los paneles existentes de tu empresa. Usa las reglas de alerta y los canales de notificación de Grafana para avisar a tu equipo cuando las compilaciones se vuelvan más lentas o aumenten los fallos.
+La fuente de datos de Tuist te permite usar métricas de compilación, tests y caché en Grafana, incluidas duraciones, recuentos de fallos y el tiempo ahorrado reportado gracias a la caché. Crea paneles en torno a los proyectos y métricas que importan a tu equipo, o combina las métricas de Tuist con otras fuentes de datos en los paneles existentes de tu empresa. Usa las reglas de alerta y los canales de notificación de Grafana para avisar a tu equipo cuando las compilaciones se vuelvan más lentas o aumenten los fallos.
 
 ## Métricas disponibles {#metric-definitions}
 
-Las tablas muestran etiquetas legibles y sus identificadores de consulta. Las consultas de salud de compilación usan el identificador del campo `metric`; las consultas de duración de compilación y pruebas seleccionan `average`, `p50`, `p90` o `p99` en el campo `series`.
+Las tablas muestran etiquetas legibles y sus identificadores de consulta. Las consultas de salud de compilación usan el identificador del campo `metric`; las consultas de duración de compilación y test seleccionan `average`, `p50`, `p90` o `p99` en el campo `series`.
 
 ### Recuentos de compilación y fiabilidad
 
@@ -25,7 +25,7 @@ Las tablas muestran etiquetas legibles y sus identificadores de consulta. Las co
 | Tasa de éxito de compilación | `success_rate` | Exitosas ÷ (exitosas + fallidas), como porcentaje. |
 | Compilaciones fallidas o lentas | `builds_needing_attention` | Compilaciones fallidas o lentas, contadas una vez por compilación. |
 
-### Duraciones de compilación y pruebas
+### Duraciones de compilación y test
 
 | Métrica | Identificador | Qué mide |
 | --- | --- | --- |
@@ -35,24 +35,24 @@ Las tablas muestran etiquetas legibles y sus identificadores de consulta. Las co
 | Duración del percentil 99 | `p99` | Duración por debajo de la cual se encuentra el 99 % de las ejecuciones. |
 | Umbral de compilación lenta | `slow_build_threshold` | Duración del percentil 90, o tu límite fijo en milisegundos. |
 
-Las métricas de duración de pruebas usan las ejecuciones de pruebas registradas en Tuist. El umbral de compilación lenta solo se aplica a las compilaciones: una compilación es lenta cuando su duración supera ese umbral. Las compilaciones canceladas se cuentan por separado y se excluyen de la tasa de éxito de compilación.
+Las métricas de duración de test usan las ejecuciones de test registradas en Tuist. El umbral de compilación lenta solo se aplica a las compilaciones: una compilación es lenta cuando su duración supera ese umbral. Las compilaciones canceladas se cuentan por separado y se excluyen de la tasa de éxito de compilación.
 
-### Ahorros de caché
+### Ahorro de caché
 
 | Métrica | Identificador | Qué mide |
 | --- | --- | --- |
-| Tiempo acumulado de tareas ahorrado (Gradle) | `cache_work_avoided` | Suma del tiempo estimado de ejecución de tareas evitado gracias a los aciertos de caché. |
-| Compilaciones que informan el tiempo acumulado de tareas | `cache_work_avoided_samples` | Compilaciones con una estimación completa. |
-| Tiempo de caché ahorrado reportado | `cache_time_saved` | Suma de los ahorros de tiempo transcurrido reportados. |
+| Tiempo acumulado de tareas ahorrado (Gradle) | `cache_work_avoided` | Suma del tiempo de ejecución de tareas estimado evitado por aciertos de caché. |
+| Compilaciones que informan tiempo acumulado de tareas | `cache_work_avoided_samples` | Compilaciones con una estimación completa. |
+| Tiempo de caché ahorrado informado | `cache_time_saved` | Suma de los ahorros de tiempo transcurrido informados. |
 | Compilaciones que informan tiempo de caché ahorrado | `cache_time_saved_samples` | Compilaciones con un valor de ahorro válido. |
 
 El plugin de Gradle informa automáticamente el trabajo estimado evitado para los aciertos de caché de tareas locales y remotas. Para cada tarea en caché, resta la duración de restauración de la tarea del tiempo de ejecución original almacenado por Gradle, con un mínimo de cero. La estimación de la compilación suma estos valores. Las tareas paralelas pueden superponerse, por lo que se trata de tiempo acumulado de tareas, no de tiempo de compilación transcurrido ahorrado. Las tareas actualizadas y omitidas se excluyen.
 
-Una compilación sin aciertos de caché de tareas reporta cero. Si alguna tarea en caché carece de su temporización original, la telemetría está incompleta o el mapa de metadatos personalizados no tiene espacio, el plugin omite la estimación. Las versiones anteriores del plugin y otros sistemas de compilación no la reportan. Compara el recuento de reportes con el total de compilaciones para verificar la cobertura.
+Una compilación sin aciertos de caché de tareas informa cero. Si alguna tarea en caché carece de su temporización original, la telemetría está incompleta o el mapa de metadatos personalizados no tiene espacio, el plugin omite la estimación. Las versiones anteriores del plugin y otros sistemas de compilación no lo informan. Compara el recuento de informes con el total de compilaciones para verificar la cobertura.
 
-Los ahorros de tiempo transcurrido reportados provienen de los metadatos `tuist.cache_time_saved_ms`. Esta métrica permanece separada de la estimación automática.
+Los ahorros de tiempo transcurrido informados provienen de los metadatos `tuist.cache_time_saved_ms`. Esta métrica permanece separada de la estimación automática.
 
-Los ahorros de caché no tienen valor cuando ninguna compilación los reporta. Once no registra actualmente esta medición. Las tasas de aciertos y fallos de caché no están disponibles a través de esta fuente de datos.
+El ahorro de caché no tiene valor cuando ninguna compilación lo informa. Once no registra actualmente esta medición. Las tasas de aciertos y fallos de caché no están disponibles a través de esta fuente de datos.
 
 ### Tablas
 
@@ -66,45 +66,45 @@ Estos identificadores son valores del campo `queryType` de la consulta.
 
 Los fallos recientes incluyen hora de inicio, duración, usuario, rama y tareas solicitadas. Las categorías de fallo son `verification`, `infrastructure_tooling` y `unknown`.
 
-Los resúmenes de carga de trabajo y las listas de valores de rama/carga de trabajo devuelven hasta 1000 valores. Las consultas de variables de salud de compilación usan los últimos 90 días; las consultas de variables heredadas de Gradle mantienen su ventana de historial existente. Bazel muestra el usuario de compilación reportado por la herramienta. Otras integraciones muestran la cuenta asociada a la credencial de reporte. Las ejecuciones históricas de Bazel y Once, y las ejecuciones de Once reportadas con credenciales de proyecto, aparecen como Desconocido cuando no se registró ningún usuario.
+Los resúmenes de carga de trabajo y las listas de valores de rama/carga de trabajo devuelven hasta 1000 valores. Las consultas de variables de salud de compilación usan los últimos 90 días; las consultas de variables heredadas de Gradle mantienen su ventana de historial existente. Bazel muestra el usuario de compilación informado por la herramienta. Otras integraciones muestran la cuenta asociada con la credencial de informe. Las ejecuciones históricas de Bazel y Once, y las ejecuciones de Once informadas con credenciales de proyecto, aparecen como Desconocido cuando no se registró ningún usuario.
 
-Usa el filtro de Categoría de fallo en Ejecuciones de compilación para encontrar fallos coincidentes. La categoría aparece en los detalles de la compilación, con una pista informativa que explica su significado; la vista general predeterminada y las tablas de Ejecuciones de compilación mantienen sus columnas existentes. Las compilaciones exitosas, canceladas e inacabadas no tienen categoría de fallo. La tarjeta de Análisis de caché de Gradle y los detalles de compilación muestran el Tiempo acumulado de tareas ahorrado; la información emergente explica la estimación y el efecto de las tareas paralelas. El widget de caché compara el rango seleccionado con el período inmediatamente anterior de igual duración usando los mismos filtros. Las comparaciones son neutrales: un total mayor puede reflejar más compilaciones. Las estimaciones anteriores faltantes no muestran comparación; una línea base cero registrada muestra el aumento absoluto en lugar de un porcentaje.
+Usa el filtro Categoría de fallo en Ejecuciones de compilación para encontrar fallos coincidentes. La categoría aparece en los detalles de la compilación, con una sugerencia informativa que explica su significado; las tablas de vista general predeterminada y Ejecuciones de compilación mantienen sus columnas existentes. Las compilaciones exitosas, canceladas e inacabadas no tienen categoría de fallo. La tarjeta de Analítica de caché de Gradle y los detalles de compilación muestran Tiempo acumulado de tareas ahorrado; la información emergente explica la estimación y el efecto de las tareas paralelas. El widget de caché compara el rango seleccionado con el período inmediatamente anterior de igual longitud usando los mismos filtros. Las comparaciones son neutrales: un total mayor puede reflejar más compilaciones. Las estimaciones anteriores faltantes no muestran comparación; una línea base cero registrada muestra el aumento absoluto en lugar de un porcentaje.
 
 ## Panel estándar {#what-you-can-query}
 
-Importa [el panel de salud de compilación](https://github.com/tuist/tuist/blob/main/grafana-datasource/src/dashboards/build-health.json), luego selecciona tu fuente de datos y proyecto. Incluye recuento de compilaciones, tasa de éxito, duraciones mediana y del percentil 90, el umbral de compilación lenta, un recuento neutral de compilaciones fallidas o lentas, ahorros de caché agrupados y cobertura de reportes, y las tres tablas de fallos y carga de trabajo. Añade paneles para otras métricas disponibles según sea necesario. El umbral lento automático es el propio percentil 90 del período seleccionado; las compilaciones por encima de él no indican necesariamente una regresión. Establece un umbral fijo para las alertas de objetivo de duración. Los paneles de caché priorizan la estimación automática acumulada de tiempo de tareas de Gradle junto a su cobertura, seguidos de los ahorros de tiempo transcurrido reportados explícitamente junto a su propia cobertura.
+Importa [el panel de salud de compilación](https://github.com/tuist/tuist/blob/main/grafana-datasource/src/dashboards/build-health.json), luego selecciona tu fuente de datos y proyecto. Incluye recuento de compilaciones, tasa de éxito, duraciones mediana y del percentil 90, el umbral de compilación lenta, un recuento neutral de compilaciones fallidas o lentas, ahorro de caché agrupado y cobertura de informes, y las tres tablas de fallos y carga de trabajo. Añade paneles para otras métricas disponibles según sea necesario. El umbral lento automático es el propio percentil 90 del período seleccionado; las compilaciones por encima de él no indican necesariamente una regresión. Establece un umbral fijo para las alertas de objetivo de duración. Los paneles de caché priorizan la estimación automática de tiempo acumulado de tareas de Gradle junto con su cobertura, seguida de los ahorros de tiempo transcurrido informados explícitamente junto con su propia cobertura.
 
 ## Sistemas de compilación {#build-systems}
 
 Las consultas de salud de compilación y el panel estándar admiten Bazel, Cargo, Once, Gradle y Xcode. Tuist selecciona el sistema de compilación desde tu proyecto. Los proyectos mixtos no son compatibles actualmente con las consultas de salud de compilación ni con el panel estándar.
 
-| Sistema de compilación | Carga de trabajo | Reporte de cancelación | Ahorros de caché |
+| Sistema de compilación | Carga de trabajo | Informe de cancelación | Ahorro de caché |
 | --- | --- | --- | --- |
 | Bazel | Comando | Código de salida 8, excepto `run` | Requiere metadatos personalizados |
-| Cargo | Comando | No se distingue; el recuento es cero | Los ahorros de tiempo transcurrido requieren metadatos personalizados; el trabajo del compilador evitado no son ahorros de tiempo transcurrido |
+| Cargo | Comando | No se distingue; el recuento es cero | Los ahorros de tiempo transcurrido requieren metadatos personalizados; el trabajo del compilador evitado no es ahorro de tiempo transcurrido |
 | Once | Tipo de comando | Motivo de cancelación registrado | No registrado |
 | Gradle | Grupo de tareas | Cancelaciones reportadas | Estimación automática de trabajo evitado; los ahorros de tiempo transcurrido requieren metadatos personalizados |
 | Xcode | Esquema | No se distingue; el recuento es cero | Requiere metadatos personalizados |
 
-Se excluyen los registros en procesamiento y las ejecuciones sin finalizar. Bazel incluye comandos de compilación, prueba, ejecución y cobertura. Once incluye ejecuciones de compilación, prueba y genéricas finalizadas. Cargo incluye comandos de compilación como `build`, `check` y `test-build`; los informes heredados de ejecución de pruebas se excluyen de la salud de compilación. Las fallas recientes de Cargo usan la hora de inicio registrada cuando está disponible, recurriendo a la hora de inserción; las duraciones faltantes permanecen no disponibles en lugar de ser cero.
+Se excluyen los registros en procesamiento y las ejecuciones sin finalizar. Bazel incluye comandos de compilación, prueba, ejecución y cobertura. Once incluye ejecuciones de compilación, prueba y genéricas finalizadas. Cargo incluye comandos de compilación como `build`, `check` y `test-build`; los informes heredados de ejecución de pruebas se excluyen de la salud de compilación. Los fallos recientes de Cargo usan la hora de inicio registrada cuando está disponible, recurriendo a la hora de inserción; las duraciones faltantes permanecen no disponibles en lugar de ser cero.
 
-Gradle agrupa las tareas como pruebas instrumentadas, pruebas unitarias, lint/verificaciones, ensamblado/paquete u Otros, en ese orden de precedencia. Cada compilación pertenece a una carga de trabajo. Los metadatos personalizados pueden anular las cargas de trabajo para Xcode, Bazel, Cargo y Gradle.
+Gradle agrupa las tareas como pruebas instrumentadas, pruebas unitarias, lint/comprobaciones, ensamblado/paquete u Otros, en ese orden de precedencia. Cada compilación pertenece a una carga de trabajo. Los metadatos personalizados pueden anular las cargas de trabajo para Xcode, Bazel, Cargo y Gradle.
 
 ### Categorías de fallo
 
 | Categoría | Significado | Evidencia registrada |
 | --- | --- | --- |
-| `verification` | El código falló en compilación, enlace, pruebas o verificaciones. | Excepciones de verificación o compilación de Gradle y tipos de tareas fallidas conocidas; problemas de compilador y enlazador de Xcode; resultados estructurados no nulos de acciones de compilador/prueba de Bazel; compilaciones rustc fallidas registradas de Cargo; fallos de prueba de Once o acciones fallidas declaradas explícitamente como compilar, enlazar, probar, lint o verificar. |
-| `infrastructure_tooling` | La compilación no pudo ejecutarse normalmente porque fallaron sus herramientas, dependencias o entorno. | Fallos de configuración, resolución de dependencias, entrada/salida o memoria de Gradle; fallos de infraestructura estructurados de Bazel y [códigos de salida documentados](https://bazel.build/run/scripts); errores de acción de infraestructura de Once. |
+| `verification` | El código falló en la compilación, el enlazado, las pruebas o las comprobaciones. | Excepciones de verificación o compilación de Gradle y tipos de tareas fallidas conocidas; problemas del compilador y enlazador de Xcode; resultados estructurados no nulos de acciones de compilador/prueba de Bazel; compilaciones rustc fallidas registradas por Cargo; fallos de prueba de Once o acciones fallidas declaradas explícitamente como compilar, enlazar, probar, lint o comprobar. |
+| `infrastructure_tooling` | La compilación no pudo ejecutarse normalmente porque sus herramientas, dependencias o entorno fallaron. | Fallos de configuración, resolución de dependencias, entrada/salida o memoria de Gradle; fallos de infraestructura estructurados de Bazel y [códigos de salida documentados](https://bazel.build/run/scripts); errores de acción de infraestructura de Once. |
 | `unknown` | El informe no contiene suficiente evidencia para clasificar el fallo. | Comandos arbitrarios, diagnósticos faltantes e informes antiguos sin evidencia estructurada. |
 
 Los fallos de la fase de configuración de Gradle, incluidos los errores en los scripts de compilación, se agrupan bajo infraestructura/herramientas porque la ejecución de tareas no pudo continuar.
 
-Los fallos de Cargo sin metadatos de categoría explícitos o una compilación rustc fallida registrada permanecen como `unknown`; un comando `check` o `test-build` fallido por sí solo no establece un fallo de verificación. Los contadores de reutilización de tareas de Cargo y el trabajo estimado del compilador evitado nunca proporcionan ni ahorros de caché de tiempo transcurrido ni la métrica acumulada de tiempo de tarea de Gradle.
+Los fallos de Cargo sin metadatos de categoría explícitos o una compilación rustc fallida registrada permanecen como `unknown`; un comando `check` o `test-build` fallido por sí solo no establece un fallo de verificación. Los contadores de reutilización de tareas de Cargo y el trabajo estimado del compilador evitado nunca proporcionan ni ahorros de caché de tiempo transcurrido ni la métrica de tiempo acumulado de tareas de Gradle.
 
-Los metadatos explícitos de `tuist.failure_category` anulan la clasificación automática. De lo contrario, la evidencia de infraestructura tiene prioridad sobre la verificación cuando ambas ocurren en una compilación. No se asume que un script arbitrario fallido sea un fallo de compilador o de prueba. Los informes históricos pueden usar la evidencia que Tuist ya almacena, pero los nuevos campos del reportero no retroalimentan la información faltante. Los metadatos automáticos del reportero utilizan el espacio disponible dentro del límite existente de 20 entradas de metadatos personalizados.
+Los metadatos explícitos de `tuist.failure_category` anulan la clasificación automática. De lo contrario, la evidencia de infraestructura tiene prioridad sobre la verificación cuando ambas ocurren en una compilación. No se asume que un script arbitrario fallido sea un fallo del compilador o de prueba. Los informes históricos pueden usar la evidencia que Tuist ya almacena, pero los nuevos campos del informante no rellenan la información faltante. Los metadatos automáticos del informante usan el espacio disponible dentro del límite existente de 20 entradas de metadatos personalizados.
 
-La respuesta de `buildFailureReasons` conserva su fila `all` por compatibilidad. El panel estándar filtra ese total del gráfico de Categorías de fallo y muestra los fallos totales por separado. La consulta heredada `gradleFailureReasons` conserva sus tres filas de categoría originales.
+La respuesta de `buildFailureReasons` conserva su fila `all` por compatibilidad. El panel estándar filtra ese total del gráfico de Categorías de fallo y muestra los fallos totales por separado. La consulta heredada de `gradleFailureReasons` conserva sus tres filas de categoría originales.
 
 ## Opciones de consulta {#query-options}
 
@@ -121,7 +121,7 @@ El campo `resultMode` controla cómo se devuelven los resultados:
 | Resultado | Valor | Comportamiento |
 | --- | --- | --- |
 | Serie temporal | `series` | Un valor por cada intervalo. |
-| Periodo completo | `total` | Un único valor calculado a partir de todas las ejecuciones del rango. |
+| Período completo | `total` | Un único valor calculado a partir de todas las ejecuciones del rango. |
 
 Las etiquetas de filtro se asignan a estos campos de consulta:
 
@@ -135,33 +135,33 @@ Las etiquetas de filtro se asignan a estos campos de consulta:
 | Configuración | `configuration` | Duraciones de compilación de Xcode |
 | Tipo de compilación | `category` | Duraciones de compilación de Xcode |
 
-Los valores de entorno son `any`, `ci` (compilaciones automatizadas) y `local`. Los valores de estado son `success`, `failure` y, para las consultas de salud de compilación, `cancelled`; omite el valor para incluir todos los estados. Los valores de tipo de compilación son `clean` y `incremental`; omite el valor para incluir ambos.
+Los valores de entorno son `any`, `ci` (compilaciones automatizadas) y `local`. Los valores de estado son `success`, `failure` y, para consultas de salud de compilación, `cancelled`; omite el valor para incluir todos los estados. Los valores de tipo de compilación son `clean` e `incremental`; omite el valor para incluir ambos.
 
-Los intervalos vacíos de salud de compilación tienen recuentos cero y ningún valor de duración media, percentil de duración o tasa de éxito. El umbral de compilación lenta sigue utilizando el rango seleccionado completo. La consulta separada de duración de prueba devuelve cero para los intervalos vacíos de la serie temporal. Los percentiles de periodo completo se calculan a partir de las ejecuciones, no a partir de los percentiles de intervalo. Los percentiles de salud de compilación utilizan agregación exacta; las consultas separadas de duración de Xcode y de prueba utilizan percentiles aproximados.
+Los intervalos vacíos de salud de compilación tienen recuentos cero y carecen de duración media, percentil de duración o valor de tasa de éxito. El umbral de compilación lenta sigue usando el rango completo seleccionado. La consulta separada de duración de pruebas devuelve cero para los intervalos vacíos de la serie temporal. Los percentiles de período completo se calculan a partir de las ejecuciones, no a partir de los percentiles de intervalo. Los percentiles de salud de compilación usan agregación exacta; las consultas separadas de duración de Xcode y de prueba usan percentiles aproximados.
 
 Las series temporales de salud de compilación colocan un primer bucket parcial al inicio del rango seleccionado para que siga siendo visible. Las consultas heredadas de Gradle conservan sus marcas de tiempo de bucket originales.
 
 Todas las consultas aceptan rangos de fechas de hasta 366 días. Sus límites y marcas de tiempo difieren:
 
-| Consulta | Marca de tiempo utilizada | Límites del rango |
+| Consulta | Marca de tiempo usada | Límites del rango |
 | --- | --- | --- |
 | Salud de compilación: Xcode, Bazel, Cargo, Gradle | Hora de inserción del registro | Incluye el inicio, excluye el final |
 | Salud de compilación: Once | Hora de inicio de la ejecución | Incluye el inicio, excluye el final |
 | Duraciones de compilación de Xcode | Hora de inserción del registro | Excluye el inicio y el final |
-| Duraciones de prueba | Tiempo de ejecución registrado | Incluye el inicio y el final |
+| Duraciones de prueba | Hora de ejecución registrada | Incluye el inicio y el final |
 
 ### Variables del panel
 
-Usa variables del panel para proyectos y filtros compatibles. Las variables de rama y carga de trabajo utilizan estas consultas:
+Usa variables del panel para proyectos y filtros compatibles. Las variables de rama y carga de trabajo usan estas consultas:
 
 | Variable | Consulta |
 | --- | --- |
 | Rama | `buildBranches account/project` |
 | Carga de trabajo | `buildWorkloads account/project` |
 
-Los filtros aceptan un único valor exacto. Para las variables de rama y carga de trabajo, establece el valor personalizado de la opción Todo en `__tuist_all__`. Otros filtros utilizan su opción integrada Cualquiera o un valor vacío. No se admiten selecciones múltiples ni expresiones regulares.
+Los filtros aceptan un único valor exacto. Para las variables de rama y carga de trabajo, establece el valor personalizado de la opción Todo a `__tuist_all__`. Otros filtros usan su opción incorporada Cualquiera o un valor vacío. No se admiten selecciones múltiples ni expresiones regulares.
 
-## Informes de metadatos personalizados {#custom-metadata}
+## Reportar metadatos personalizados {#custom-metadata}
 
 Las compilaciones de Xcode, Bazel, Cargo y Gradle aceptan estos valores opcionales de metadatos:
 
@@ -169,7 +169,7 @@ Las compilaciones de Xcode, Bazel, Cargo y Gradle aceptan estos valores opcional
 | --- | --- |
 | `tuist.workload` | Un nombre de carga de trabajo que reemplaza la agrupación predeterminada. |
 | `tuist.failure_category` | `verification` o `infrastructure_tooling`. |
-| `tuist.cache_work_avoided_ms` | Solo Gradle. Estimación de trabajo evitado informada automáticamente, en milisegundos enteros de hasta 365 días. |
+| `tuist.cache_work_avoided_ms` | Solo Gradle. Estimación de trabajo evitado reportada automáticamente, en milisegundos enteros de hasta 365 días. |
 | `tuist.cache_time_saved_ms` | Milisegundos enteros de 0 a 31.536.000.000 (365 días). |
 
 Proporciónalos a través de la configuración de metadatos personalizados de tu integración de compilación:
@@ -186,7 +186,7 @@ Proporciónalos a través de la configuración de metadatos personalizados de tu
 }
 ```
 
-Informa los ahorros de caché solo cuando tengas una medición del tiempo transcurrido o una estimación documentada para esa compilación. Los aciertos de caché y las duraciones acumuladas de tareas por sí solas no pueden determinar los ahorros de tiempo transcurrido cuando las tareas se ejecutan simultáneamente. Los ahorros de caché faltantes permanecen desconocidos. Los metadatos de categoría de fallo faltantes recurren a la evidencia registrada, como se describe en [Sistemas de compilación](#build-systems). La retención de datos no cambia.
+Reporta los ahorros de caché solo cuando tengas una medición de tiempo transcurrido o una estimación documentada para esa compilación. Los aciertos de caché y las duraciones acumuladas de tareas por sí solas no pueden determinar los ahorros de tiempo transcurrido cuando las tareas se ejecutan concurrentemente. Los ahorros de caché faltantes permanecen desconocidos. Los metadatos de categoría de fallo faltantes recurren a la evidencia registrada, como se describe en [Sistemas de compilación](#build-systems). La retención de datos no cambia.
 
 ## Alertas y Slack {#alerts-and-slack}
 
@@ -198,11 +198,11 @@ Crea una regla de alerta gestionada por Grafana con una métrica numérica. Por 
 | Compilaciones fallidas | `failed_builds` | Por encima de cero |
 | Duración del percentil 90 | `p90` | Por encima del límite de duración de tu equipo |
 
-Usa **Periodo completo** para un único valor durante la ventana de evaluación, o reduce una serie temporal a un único valor. Para las consultas de duración en modo Periodo completo, selecciona una serie.
+Usa **Período completo** para un único valor durante la ventana de evaluación, o reduce una serie temporal a un único valor. Para consultas de duración en modo Período completo, selecciona una serie.
 
 - Usa valores fijos de proyecto y filtro. Las variables del panel no están disponibles durante la evaluación de alertas en segundo plano.
 - Usa consultas numéricas para las alertas. Para monitorizar una carga de trabajo, filtra una consulta de salud de compilación a esa carga de trabajo.
-- Configura el comportamiento sin datos de la regla para intervalos sin compilaciones o ahorros de caché informados.
+- Configura el comportamiento de ausencia de datos de la regla para intervalos sin compilaciones o ahorros de caché reportados.
 
 Configura un [punto de contacto de Slack](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/configure-slack/) y enruta la regla hacia él a través de la política de notificaciones de Grafana. Grafana envía las notificaciones y almacena las credenciales de Slack.
 
@@ -219,9 +219,9 @@ Importa el panel estándar por separado para usar las consultas compartidas de s
 
 ## Autenticación {#authentication}
 
-Usa un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> para paneles y evaluación de alertas en segundo plano. Concede `project:builds:read` para métricas de compilación y `project:tests:read` para duraciones de tests, y restringe el acceso a los proyectos que deseas graficar. Solo se requieren los ámbitos de las métricas que utilices. Sigue las <.localized_link href="/guides/server/authentication#creating-an-account-token">instrucciones para crear un token</.localized_link> para generar uno.
+Usa un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> para paneles y evaluación de alertas en segundo plano. Otorga `project:builds:read` para métricas de compilación y `project:tests:read` para duraciones de tests, y restringe el acceso a los proyectos que deseas graficar. Solo se requieren los ámbitos de las métricas que utilices. Sigue las <.localized_link href="/guides/server/authentication#creating-an-account-token">instrucciones para crear un token</.localized_link> para generar uno.
 
-La integración también acepta tokens de proyecto existentes para su propio proyecto y <.localized_link href="/guides/server/authentication#as-a-user">tokens de acceso de usuario</.localized_link> con los permisos de lectura del usuario. Los tokens de acceso de usuario tienen una vida corta. Grafana almacena el token que proporcionas y no lo actualiza ni reutiliza tu inicio de sesión local de Tuist; sustitúyelo cuando caduque. Los tokens de cuenta te permiten controlar el acceso a proyectos, los permisos y la caducidad independientemente de la sesión de inicio de sesión de un usuario.
+La integración también acepta tokens de proyecto existentes para su propio proyecto y <.localized_link href="/guides/server/authentication#as-a-user">tokens de acceso de usuario</.localized_link> con los permisos de lectura del usuario. Los tokens de acceso de usuario tienen una vida corta. Grafana almacena el token que proporcionas y no lo actualiza ni reutiliza tu sesión local de Tuist; reemplázalo cuando caduque. Los tokens de cuenta te permiten controlar el acceso a proyectos, los permisos y la caducidad independientemente de la sesión de inicio de sesión de un usuario.
 
 ## Configuración {#configuration}
 
@@ -232,7 +232,7 @@ Añade la fuente de datos y configura:
 | URL del servidor | `jsonData.url` | Por defecto es `https://tuist.dev`. |
 | Token | `secureJsonData.apiToken` | Token bearer de Tuist, almacenado cifrado. |
 
-Selecciona **Guardar y probar** para comprobar la conexión. Grafana enumera los proyectos accesibles y luego comprueba los permisos de lectura de compilación y test frente al primer proyecto.
+Selecciona **Guardar y probar** para comprobar la conexión. Grafana enumera los proyectos accesibles y luego comprueba los permisos de lectura de compilación y test contra el primer proyecto.
 
 ## Instalación {#installation}
 
@@ -242,9 +242,9 @@ Una vez publicado, instálalo como cualquier otra fuente de datos desde **Conexi
 
 ### Antes de su publicación (Grafana autoalojado) {#before-it-is-published-self-hosted-grafana}
 
-El plugin no está firmado hasta que se aprueba para el catálogo. En una instancia autoalojada puedes:
+El plugin no está firmado hasta que sea aprobado para el catálogo. En una instancia autoalojada puedes:
 
-- **Permitirlo sin firmar**: añade `tuist-metrics-datasource` a `allow_loading_unsigned_plugins` (o `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-metrics-datasource`) y coloca el plugin compilado en tu directorio de plugins.
-- **Firmarlo privadamente** para tus instancias: `npm run sign -- --rootUrls https://grafana.example.com` (la URL debe coincidir con la `root_url` de la instancia) y distribuye el archivo zip.
+- **Permitirlo sin firmar** — añade `tuist-metrics-datasource` a `allow_loading_unsigned_plugins` (o `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-metrics-datasource`) y coloca el plugin compilado en tu directorio de plugins.
+- **Firmarlo privadamente** para tus instancias — `npm run sign -- --rootUrls https://grafana.example.com` (la URL debe coincidir con la `root_url` de la instancia), luego distribuye el zip.
 
-[Grafana Cloud requiere plugins del catálogo](https://grafana.com/docs/grafana-cloud/learn-and-build/get-started/learn/find-and-use-plugins/) y no admite plugins sin firmar o cargados manualmente.
+[Grafana Cloud requiere plugins del catálogo](https://grafana.com/docs/grafana-cloud/learn-and-build/get-started/learn/find-and-use-plugins/) y no admite plugins sin firmar o subidos manualmente.

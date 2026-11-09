@@ -332,8 +332,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   defp discovery_lines do
     [
       "",
-      "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}",
-      "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
+      "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"
     ]
   end
 

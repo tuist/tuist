@@ -153,6 +153,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
     private let coverageBuildSourcesService: CoverageBuildSourcesService
+    private let resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing
+    private let createTestImpactRunService: CreateTestImpactRunServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -200,9 +202,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
         stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+        resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
+        createTestImpactRunService: CreateTestImpactRunServicing = CreateTestImpactRunService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
+        self.resolveTestImpactBaselineService = resolveTestImpactBaselineService
+        self.createTestImpactRunService = createTestImpactRunService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -450,7 +456,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
-            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            excludedTargets: Set(skipTestTargets.filter { $0.class == nil && $0.method == nil }.map(\.target)),
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
@@ -557,7 +563,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         mapperEnvironment: mapperEnvironment,
                         schemes: [scheme],
                         testPlanConfiguration: testPlanConfiguration,
-                        action: action
+                        action: action,
+                        testTargets: testTargets,
+                        skipTestTargets: skipTestTargets,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                     )
                     try await finishSkippedTests(
                         schemes: [scheme],
@@ -581,7 +590,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mapperEnvironment: mapperEnvironment,
                 schemes: [scheme],
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
 
             switch (
@@ -634,7 +646,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     buildGraphInspector.workspaceSchemes(graphTraverser: GraphTraverser(graph: $0))
                 } ?? schemes,
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         }
 
@@ -869,7 +884,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
                     ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
-            )
+            ),
+            gitController: gitController,
+            resolveBaselineService: resolveTestImpactBaselineService,
+            createRunService: createTestImpactRunService
         )
     }
 
@@ -883,6 +901,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case nil:
             return
         case let .selected(selection, skippedModules):
+            // A run that counted nothing (hashing skipped every module before the baseline was confirmed) has
+            // nothing to add to the selective testing line.
+            guard selection.requested != 0 else { return }
             // The server's counts include the tests in the modules hashing skipped.
             let counts = [
                 selection.selected
@@ -894,10 +915,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let skipped = skippedModules.isEmpty ? "" : " No test selected in: \(skippedModules.joined(separator: ", "))."
             Logger.current.notice("Coverage-based test selection: \(counts.isEmpty ? "tests selected" : counts).\(skipped)")
         case let .fallback(_, reason, matchedPath):
-            let action = reason.map(TestImpactSelector.runAllReasons.contains) == true
-                ? "runs every test" : "fell back to selective testing"
             let path = matchedPath.map { " (\($0))" } ?? ""
-            Logger.current.notice("Coverage-based test selection \(action): \(reason?.rawValue ?? "unknown reason")\(path).")
+            Logger.current.notice(
+                "Coverage-based test selection not applied: \(reason?.rawValue ?? "unknown reason")\(path). Every test of the targets selective testing left runs."
+            )
         }
     }
 
@@ -1144,6 +1165,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
             let passingNames = await passingTargetNames(
                 resultBundlePath: resultBundlePath,
+                runInFull: testError == nil
+                    ? testTargetNamesRunInFull(
+                        xcodebuildArguments: xcodebuildArguments,
+                        selectiveTestingGraph: selectiveTestingGraph
+                    )
+                    : [],
                 withholding: stressResult
             )
             try await storeSuccessfulTestHashesFromGraph(
@@ -1494,6 +1521,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let passingNames = await passingTargetNames(
             resultBundlePath: resultBundlePath,
+            runInFull: testError == nil
+                ? testTargetNamesRunInFull(
+                    xcodebuildArguments: xcodebuildArguments,
+                    selectiveTestingGraph: selectiveTestingGraph
+                )
+                : [],
             withholding: stressResult
         )
         try await storeSuccessfulTestHashesFromGraph(
@@ -1650,7 +1683,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             if let destination {
                 arguments += [
                     "-destination",
-                    "platform=iOS Simulator,id=\(destination.device.udid)",
+                    platformDestination("id=\(destination.device.udid)", simulator: destination),
                 ]
             } else if let platform {
                 let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
@@ -1877,11 +1910,43 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// with the warning gone after one run.
     private func passingTargetNames(
         resultBundlePath: AbsolutePath?,
+        runInFull: Set<String> = [],
         withholding stressResult: StressNewTestsResult?
     ) async -> Set<String> {
-        let passing = await passingTargetNames(resultBundlePath: resultBundlePath)
+        let passing = await passingTargetNames(resultBundlePath: resultBundlePath).union(runInFull)
         guard let stressResult else { return passing }
         return passing.subtracting(stressResult.withheldTargetNames)
+    }
+
+    /// The test targets a `test-without-building` invocation runs whole: the ones its `-only-testing`
+    /// names whole or, without any, every test target the products hold, minus any `-skip-testing`
+    /// reaches into. Once the run passes, these passed too, including targets without tests, which
+    /// report no test cases for the result bundle to vouch for them; leaving those out would make
+    /// them miss selective testing on every run and keep a run with nothing to test from ending early.
+    private func testTargetNamesRunInFull(
+        xcodebuildArguments: [String],
+        selectiveTestingGraph: SelectiveTestingGraph
+    ) -> Set<String> {
+        let onlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: xcodebuildArguments
+        )
+        let skippedTargetNames = Set(
+            XcodeBuildTestCommandService.testIdentifiers(for: "-skip-testing", in: xcodebuildArguments)
+                .map(Self.testTargetName(of:))
+        )
+        let runTargetNames: Set<String>
+        if !onlyTestIdentifiers.isEmpty {
+            runTargetNames = Self.fullyRunTestTargetNames(onlyTestIdentifiers)
+        } else if let testPlan = passedValue(for: "-testPlan", arguments: xcodebuildArguments),
+                  selectiveTestingGraph.attemptedTestPlans != [testPlan]
+        {
+            // The products may hold the targets of other plans, which this one doesn't run.
+            runTargetNames = []
+        } else {
+            runTargetNames = Set(selectiveTestingGraph.builtTestTargetNames ?? [])
+        }
+        return runTargetNames.subtracting(skippedTargetNames)
     }
 
     private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
@@ -2158,14 +2223,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        passthroughXcodeBuildArguments: [String]
     ) async {
+        // Targets the invocation filtered out never run, so reporting them would record them as misses.
+        let requestedTargetNames = Set(
+            testTargets.map(\.target)
+                + XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
+                .compactMap { try? TestIdentifier(string: $0).target }
+        )
+        let skippedTargetNames = Self.wholeTargetNames(skipTestTargets)
+            .union(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
             action: action
         )
+        .filter {
+            (requestedTargetNames.isEmpty || requestedTargetNames.contains($0.target.name))
+                && !skippedTargetNames.contains($0.target.name)
+        }
 
         await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
@@ -2397,11 +2477,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
-        passthroughSkipTestingValues(arguments)
-            .compactMap { try? TestIdentifier(string: $0) }
-            // Only whole-target skips (no `/Class` or `/Class/Method`) remove a target entirely.
-            .filter { $0.class == nil && $0.method == nil }
-            .reduce(into: Set<String>()) { $0.insert($1.target) }
+        Self.wholeTargetNames(passthroughSkipTestingValues(arguments).compactMap { try? TestIdentifier(string: $0) })
+    }
+
+    /// Only whole-target identifiers (no `/Class` or `/Class/Method`) name a target entirely. A quarantined
+    /// Swift Testing function outside a suite has a method but no class, and its target still runs.
+    private static func wholeTargetNames(_ identifiers: [TestIdentifier]) -> Set<String> {
+        Set(identifiers.filter { $0.class == nil && $0.method == nil }.map(\.target))
     }
 
     private func passthroughSkipTestingValues(_ arguments: [String]) -> [String] {
