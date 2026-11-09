@@ -135,6 +135,7 @@ RUN mkdir config
 COPY tuist_common/mix.exs /tuist_common/mix.exs
 COPY tuist_ex/mix.exs /tuist_ex/mix.exs
 COPY noora/mix.exs /noora/mix.exs
+COPY condukt/mix.exs /condukt/mix.exs
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -188,6 +189,8 @@ FROM deps-builder AS compiled
 COPY tuist_common /tuist_common
 COPY tuist_ex /tuist_ex
 COPY noora /noora
+COPY condukt/lib /condukt/lib
+COPY condukt/priv /condukt/priv
 COPY server/priv priv
 COPY skills/skills priv/static/skills
 COPY server/assets assets

@@ -184,8 +184,10 @@ dashboard presentation belong in `server/`.
   `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
   VM's code path) are the places where it is expected.
 - `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
-  an OpenID Connect exchange on GitHub Actions, CircleCI, Bitrise, or a supplied
-  `TUIST_OIDC_TOKEN`, so CI needs no login step. The explicit workload token
+  an OpenID Connect exchange on GitHub Actions, CircleCI, Bitrise, an Amp orb
+  (`AMP_ORB`, through `amp orb id-token --audience https://tuist.dev`, the
+  audience the command line tool uses), or a supplied `TUIST_OIDC_TOKEN`, so CI
+  and connected Amp workspaces need no login step. The explicit workload token
   takes precedence over provider detection, is trimmed, and empty values fail
   without browser fallback. `mix tuist.login` also accepts it outside CI. Fly.io
   callers mint it through the Machine's local socket with audience `tuist`; the

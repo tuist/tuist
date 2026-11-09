@@ -9,18 +9,24 @@
     },
     "items": {
       "agentic-coding": { "text": "Агентная разработка" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Кэш Bazel" },
       "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "Сборка и публикация" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Тома кэша" },
+      "calendar": { "text": "Календарь" },
+      "channels": { "text": "Каналы" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "Совместимость" },
       "coverage": { "text": "Покрытие кода" },
       "data-retention": { "text": "Хранение данных" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
+      "entire": { "text": "Весь проект" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -29,16 +35,23 @@
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
+      "once": { "text": "Один раз" },
+      "once-cache": { "text": "Кэш Once" },
+      "once-project": { "text": "Проект Once" },
+      "once-remote-execution": { "text": "Удалённое выполнение Once" },
       "origin": { "text": "Источник" },
       "profiles": { "text": "Профили" },
       "project-description": { "text": "Описание проекта" },
+      "release": { "text": "Релиз" },
+      "release-calendar": { "text": "Календарь релизов" },
       "release-channels": { "text": "Каналы релизов" },
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
       "rust-project": { "text": "Проект на Rust" },
+      "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "API сервера" },
+      "server-api": { "text": "Server API" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -53,7 +66,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить рекомендации по языку для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по локализации для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -64,8 +77,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Поиск в документации",
-        "button-aria-label": "Поиск в документации"
+        "button-text": "Искать в документации",
+        "button-aria-label": "Искать в документации"
       },
       "modal": {
         "search-box": {
@@ -84,7 +97,7 @@
         },
         "error-screen": {
           "title-text": "Не удалось получить результаты",
-          "help-text": "Возможно, вам нужно проверить подключение к сети"
+          "help-text": "Возможно, стоит проверить подключение к сети"
         },
         "footer": {
           "select-text": "Выбрать",
@@ -94,7 +107,7 @@
         },
         "no-results-screen": {
           "no-results-text": "Релевантные результаты не найдены",
-          "suggested-query-text": "Попробуйте запрос",
+          "suggested-query-text": "Попробуйте другой запрос",
           "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
@@ -254,7 +267,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное развертывание",
+          "text": "Локальное размещение",
           "items": {
             "install": {
               "text": "Установка"
@@ -500,7 +513,7 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика тестов",
+              "text": "Аналитика",
               "items": {
                 "flaky-tests": {
                   "text": "Нестабильность",
@@ -513,7 +526,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика бандлов",
+              "text": "Аналитика",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -560,7 +573,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-форжи",
+              "text": "Git-хостинги",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -582,7 +595,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельный хостинг",
+              "text": "Самостоятельное размещение",
               "items": {
                 "server": {
                   "text": "Сервер"
@@ -598,7 +611,7 @@
           }
         },
         "share": {
-          "text": "Публикация",
+          "text": "Обмен",
           "items": {
             "previews": {
               "text": "Превью"

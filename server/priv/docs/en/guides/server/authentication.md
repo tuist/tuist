@@ -36,6 +36,8 @@ Tuist recognizes these CI providers and maps their tokens to projects through yo
 - CircleCI
 - Bitrise
 
+[Amp](#amp-orbs) orbs authenticate through Amp workspaces you connect to your Tuist account.
+
 Any other identity provider that issues OpenID Connect tokens can authenticate through a [workload identity trust policy](#workload-identity-trust-policies) that you configure once for all current and future projects in your account, for example [Fly.io Machines](#flyio-machines).
 
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
@@ -44,9 +46,23 @@ For GitHub Actions, CircleCI, and Bitrise:
 
 1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
-2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login` before any commands that require authentication. The CLI will automatically detect the CI environment and authenticate using OIDC.
+2. **Grant the identity token**: on GitHub Actions, give the job `permissions: id-token: write`; on CircleCI and Bitrise, enable OIDC for the project. When the CLI isn't signed in and no `TUIST_TOKEN` is set, it detects the CI environment and exchanges the identity token on its first request, so no login step is needed. You can still run `tuist auth login` to sign in explicitly and fail early when the exchange is refused.
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
+
+### Amp orbs {#amp-orbs}
+
+[Amp](https://ampcode.com) orbs can mint OIDC tokens that identify their Amp workspace. Connect a workspace to your Tuist account once, and the Tuist CLI and the `tuist_ex` Mix tasks in any orb of that workspace sign in on their own, without a stored token or a login step:
+
+1. Find the IDs: in a thread of the workspace that runs in an orb, run `echo $AMP_WORKSPACE_ID $AMP_PROJECT_ID`.
+2. In your Tuist account, open **Settings → Integrations**, select **Connect workspace** on the Amp card, and paste the workspace ID. To admit only the orbs of one Amp project, also paste its project ID. You need to be an account admin or owner.
+3. Use Tuist in orbs of the workspace. When it isn't signed in, the CLI or Mix task detects the orb, mints a token with `amp orb id-token --audience https://tuist.dev`, and exchanges it for a Tuist session. `tuist auth login` and `mix tuist.login` do the same exchange explicitly.
+
+Like the trust configurations in [Amp's OIDC guide](https://ampcode.com/manual/orbs/oidc), Tuist verifies Amp's signature on every token and accepts it only when its audience is `https://tuist.dev`, its `token_use` is `exchanged`, its `workspace_id` matches a connected workspace, and, for a connection limited to a project, its `project_id` matches that project. Its `sub` must name the same workspace, and for a project connection the same project, as those claims: `workspace:<workspace-id>:project:<project-id>:…`, which `amp orb id-token` mints by default.
+
+Every orb a connection admits gets CI access to all current and future projects owned by the account, including cache uploads, so connect only workspaces whose members you trust with that access. Check the ID carefully: Tuist can't confirm that you belong to the workspace you connect. If a workspace is connected to several Tuist accounts, orbs must set `TUIST_OIDC_ACCOUNT` to the account to sign in to; setting it in the Amp project's environment also keeps sign-in pinned to your account. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Sessions don't need a refresh token: when one is about to expire, the CLI in the orb mints a new Amp token and exchanges it again, so long-running orbs stay signed in while the workspace is connected.
+
+Trust policies for the Amp issuer that you created before connecting a workspace keep working when you set `TUIST_OIDC_ACCOUNT`.
 
 ### Workload identity trust policies {#workload-identity-trust-policies}
 
@@ -91,7 +107,7 @@ Tuist grants access only for policies whose own JWKS URL holds the key that sign
 
 1. Request an identity token from your provider with the policy's audience.
 2. Set `TUIST_OIDC_TOKEN` to that token and `TUIST_OIDC_ACCOUNT` to the handle of the Tuist account that owns the project. The account is required for every trust policy exchange. It only selects where to look and grants nothing by itself.
-3. Run `tuist auth login`. For Elixir projects, you can use `mix tuist.login` instead, or let the Elixir integration exchange the token automatically when no `TUIST_TOKEN` or valid stored credentials are available.
+3. Run Tuist. When no `TUIST_TOKEN` or valid stored credentials are available, the CLI and the Elixir integration exchange the token automatically. `tuist auth login` and `mix tuist.login` do the same exchange explicitly.
 
 The resulting Tuist access token has only the `ci` scope group and covers all current and future projects owned by the selected account. Exchanges fail if more than 20 policies in the account match the same token or if they use more than two different JWKS URLs.
 
@@ -150,7 +166,7 @@ Do not print or commit the token itself. Every Machine in the authorized Fly app
 
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For connected Amp workspaces and workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security benefits**

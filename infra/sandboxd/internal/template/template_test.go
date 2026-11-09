@@ -15,9 +15,9 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 func TestShapeParsing(t *testing.T) {
@@ -397,19 +397,27 @@ func TestCleanPartialBuilds(t *testing.T) {
 	ready := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 4096})
 	partial := tmpl.ShapeDir(Shape{VCPUs: 4, MemoryMB: 8192})
 	staging := partial + buildSuffix
-	for _, d := range []string{ready, partial, staging} {
+	// Built by an older Firecracker, whose snapshot format the current one
+	// cannot load.
+	stale := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 16384})
+	for _, d := range []string{ready, partial, staging, stale} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(ready, ReadyFile), nil, 0o644); err != nil {
-		t.Fatal(err)
+	for dir, version := range map[string]string{ready: "v1.16.2", stale: "v1.16.1"} {
+		if err := os.WriteFile(filepath.Join(dir, ReadyFile), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, MetadataFile), []byte(`{"firecracker_version":"`+version+`"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	store := &Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(); err != nil {
+	if err := store.CleanPartialBuilds("v1.16.2"); err != nil {
 		t.Fatal(err)
 	}
-	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) {
+	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) {
 		t.Fatal("clean removed the wrong directories")
 	}
 }

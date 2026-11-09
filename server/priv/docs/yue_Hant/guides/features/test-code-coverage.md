@@ -2,12 +2,12 @@
 {
   "title": "程式碼覆蓋率",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "追蹤每次測試運行中每個檔案及提交嘅行覆蓋率。"
+  "description": "追蹤每次測試執行中每個檔案及提交嘅行覆蓋率。"
 }
 ---
 # 代碼覆蓋率 {#code-coverage}
 
-代碼覆蓋率告訴你測試執行咗邊啲代碼行。Tuist 會上傳每次測試執行的覆蓋率，並將同一個 commit 嘅多次執行合併成一個數字，按每個檔案同整個項目計算，讓你可以喺儀表板逐個 commit 追蹤。
+代碼覆蓋率顯示你嘅測試執行咗邊啲代碼行。Tuist 會上傳每次\<gN\>測試執行\</gN\>嘅覆蓋率，並將同一個 commit 嘅多次執行合併為單一數值，按每個檔案同整個項目計算，讓你可以喺儀表板逐個 commit 追蹤。
 
 <.home_cards>
   <.home_card
@@ -16,8 +16,8 @@
     link="/guides/features/test-code-coverage/xcode"
 />
   <.home_card
-    title="生成嘅項目"
-    details="透過 tuist test、二進制緩存同選擇性測試，測量 Tuist 生成項目中嘅代碼覆蓋率。"
+    title="生成項目"
+    details="使用 tuist test、<gN>Binary Caching</gN> 同 <gN>選擇性測試</gN> 量度 Tuist 生成項目中嘅代碼覆蓋率。"
     link="/guides/features/test-code-coverage/generated-xcode-project"
 />
   <.home_card

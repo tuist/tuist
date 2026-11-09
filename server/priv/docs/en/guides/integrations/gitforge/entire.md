@@ -7,12 +7,12 @@
 ---
 # Entire integration {#entire}
 
-Tuist maintains a summary discussion on each connected repository's open or draft [Trail](https://docs.entire.com/guides/trails/overview). The summary includes available build results, test failures and flaky tests, bundle sizes, and app previews, with links to the full reports on Tuist.
+Tuist publishes an informational Check and a Findings review on each connected repository's open or draft [Trail](https://docs.entire.com/guides/trails/overview). The report includes available build results, test failures and flaky tests, bundle sizes, and app previews, with links to the full reports on Tuist. Failed tests and flaky tests appear as whole-change findings, rather than discussions or speculative line-level diagnoses.
 
 > [!IMPORTANT]
 > **Early access**
 >
-> Entire plugins require partner registration, and its Trail discussions and webhook contracts are experimental. Your Tuist administrator can enable the integration for all accounts or selected accounts. Your Entire project must also be allowed to install the registered plugin.
+> Entire plugins require partner registration, and its Findings and webhook contracts are experimental. Your Tuist administrator can enable the integration for all accounts or selected accounts. Your Entire project must also be allowed to install the registered plugin.
 
 ## Setup {#setup}
 
@@ -31,13 +31,17 @@ The installation follows the same flow as the GitHub integration: install the pl
 
 A Tuist project can retain its GitHub connection while also publishing summaries to Entire. This is useful for GitHub mirrors. Trail summaries do not require Tuist's CI executor or change your existing CI provider.
 
-Tuist updates the same discussion as insights arrive. Opening or reopening a Trail also picks up previously uploaded insights for its head commit. Closed and merged Trails are not updated. Results from older commits are never presented as results for the current head. If no insights exist for the current commit, Tuist leaves any existing summary unchanged; each result includes its commit hash.
+Tuist publishes a new report attempt as insights arrive, pinning its review to the analyzed head commit and resolving findings superseded by the updated report. Unchanged retries reuse the same attempt and do not create duplicate reviews or findings. If a publication response is lost, Tuist recovers the started attempt before replacing it, even after the head advances or before the new head has insights. Recovered results remain pinned to the analyzed commit. Opening or reopening a Trail also picks up previously uploaded insights for its head commit. Closed and merged Trails are not updated. If no insights exist for the current commit, Tuist starts no new report; an older commit's Check cannot satisfy requirements for the new head.
 
-To remove a project connection, open its **Manage** menu and select **Remove connection**, just as with GitHub. This stops future updates and deletes Tuist's local discussion pointers. Comments already published remain on Entire. Reconnecting recovers the existing summary when it is still accessible. To change the plugin's repository access or uninstall it, use the project's **Plugins** settings in Entire.
+The Check appears in the Tuist plugin's gate under **Gates**, not the GitHub mirror's separate **Checks** gate. It completes with a `neutral` conclusion: this integration reports uploaded observations and does not know whether every expected CI job has finished. It does not block merging, even when the report contains findings. Keep your CI provider's required checks for pass/fail enforcement. Findings do not contribute to Entire's Agent review gate.
+
+To remove a project connection, open its **Manage** menu and select **Remove connection**, just as with GitHub. This stops future updates and deletes Tuist's local report snapshot and publication pointers. Reports already published remain on Entire. Reconnecting starts new report attempts. To change the plugin's repository access or uninstall it, use the project's **Plugins** settings in Entire.
 
 ## Server configuration {#server-configuration}
 
-This section is for Tuist server operators. Register the plugin with Entire using the [plugin registration guide](https://docs.entire.com/guides/api/plugins/register). Request `contents:read` and `discussions:write`. The read permission is needed for Trail events and discussion discovery; repository write access is not required.
+This section is for Tuist server operators. Register the plugin with Entire using the [plugin registration guide](https://docs.entire.com/guides/api/plugins/register). Request `contents:read`, `checks:write`, and `findings:write`; `discussions:write` is no longer used. The read permission is needed for Trail events and discovery; repository write access is not required. For existing registrations, ask Entire to add the new permissions and confirm that installations grant them before enabling this version. Apply the server migrations before rolling out the application. See Entire's [Checks](https://docs.entire.com/guides/api/plugins/report-checks) and [Findings](https://docs.entire.com/guides/api/plugins/trail-findings) contracts.
+
+Checks/Findings state uses the separate `entire_trail_reports` table. The legacy discussion table and its required pointers stay unchanged, so older replicas never read Checks-only rows. During a mixed-version rollout, older publishers may still update discussions; retain their `discussions:write` permission until those publishers have stopped. For application rollback, leave the reports table in place so a later upgrade can recover unfinished attempts. Roll back its migration only after stopping all Checks/Findings publishers and deliberately accepting the loss of their local recovery state; legacy discussion pointers are unaffected.
 
 Configure these server environment variables:
 

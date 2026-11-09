@@ -135,7 +135,6 @@ func TestBatchResponseValidation(t *testing.T) {
 }
 func TestBatchFallbackReservesOnce(t *testing.T) {
 	w, m := harness(t)
-	d := m.put([]byte("abc"))
 	var calls atomic.Int32
 	m.batchRead = func(context.Context, *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
 		calls.Add(1)
@@ -147,7 +146,9 @@ func TestBatchFallbackReservesOnce(t *testing.T) {
 	}
 	defer root.Close()
 	for i := 0; i < 2; i++ {
-		if err := w.materializeFiles(context.Background(), root, "", []*re.FileNode{{Name: fmt.Sprintf("a%d", i), Digest: d}, {Name: fmt.Sprintf("b%d", i), Digest: d}}); err != nil {
+		// Distinct blobs: repeated digests are streamed once per action.
+		a, b := m.put(fmt.Appendf(nil, "a%02d", i)), m.put(fmt.Appendf(nil, "b%02d", i))
+		if err := w.materializeFiles(context.Background(), root, "", []*re.FileNode{{Name: fmt.Sprintf("a%d", i), Digest: a}, {Name: fmt.Sprintf("b%d", i), Digest: b}}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -151,6 +151,12 @@ spec:
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
             {{- end }}
+            {{- if .Values.tuistOps.enabled }}
+            - name: TUIST_OPS_URL
+              value: {{ .Values.tuistOps.url | quote }}
+            - name: TUIST_OPS_TOKEN_PATH
+              value: {{ printf "%s/token" .Values.tuistOps.tokenMountPath | quote }}
+            {{- end }}
             {{- with .Values.pulse.upstreams }}
             # One proxied MCP upstream per Pulse, each reading its own
             # audience-scoped token from the pulse-token volume below.
@@ -220,11 +226,16 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
+          {{- if or .Values.tuistServer.enabled .Values.tuistOps.enabled .Values.pulse.upstreams }}
           volumeMounts:
             {{- if .Values.tuistServer.enabled }}
             - name: tuist-server-token
               mountPath: {{ .Values.tuistServer.tokenMountPath }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.tuistOps.enabled }}
+            - name: tuist-ops-token
+              mountPath: {{ .Values.tuistOps.tokenMountPath }}
               readOnly: true
             {{- end }}
             {{- if .Values.pulse.upstreams }}
@@ -233,7 +244,7 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
+      {{- if or .Values.tuistServer.enabled .Values.tuistOps.enabled .Values.pulse.upstreams }}
       volumes:
         {{- if .Values.tuistServer.enabled }}
         # Projected ServiceAccount token scoped to the Tuist server audience.
@@ -246,6 +257,17 @@ spec:
                   path: token
                   audience: {{ .Values.tuistServer.tokenAudience | quote }}
                   expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
+        {{- end }}
+        {{- if .Values.tuistOps.enabled }}
+        # Same mechanism for tuist-ops, with its own audience so a token sent
+        # there is never accepted by the Tuist server or Pulse (and vice versa).
+        - name: tuist-ops-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: {{ .Values.tuistOps.tokenAudience | quote }}
+                  expirationSeconds: {{ .Values.tuistOps.tokenExpirationSeconds }}
         {{- end }}
         {{- with .Values.pulse.upstreams }}
         # Same mechanism for Pulse's MCP endpoints: one token per Pulse, each

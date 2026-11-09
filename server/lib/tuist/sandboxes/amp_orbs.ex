@@ -12,17 +12,17 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   Project snapshots: a pause carrying Amp's `snapshot_id` syncs the guest's
   disks and saves them as a `Tuist.Sandboxes.DiskSnapshot` on the Orb's
   node; a spawn of a new Orb carrying a `snapshot_id` the account has saved
-  is cloned from it, so Amp skips the project's setup. Saving is best
-  effort: a failed save never fails the pause, and Amp then reruns setup
-  in the next new Orb.
+  is cloned from it, so Amp skips the project's setup. Amp records the
+  snapshot when the pause succeeds, so a failed save fails the pause (the
+  Orb still pauses) instead of leaving Amp a snapshot Tuist never saved.
 
   An Orb paused long enough is archived to object storage by
   `Tuist.Sandboxes.Archives`; a spawn restores it and a pause leaves it
-  archived.
+  archived. A pause of an archived Orb that asks for a snapshot fails,
+  since a snapshot needs the disks on a node.
   """
 
   alias Tuist.Environment
-  alias Tuist.Guardian
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Sites
@@ -32,9 +32,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes.Sandbox
 
   require Logger
-
-  @cache_scopes ["account:cache:read", "project:cache:read"]
-  @cache_token_ttl_hours 6
 
   # The orb types a managed provider offers. An account administrator adds
   # these names under Orb types in Amp's provider settings; Amp passes the
@@ -99,9 +96,16 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   end
 
   # Pausing an archived Orb has nothing left to do: its disks are in object
-  # storage and a disk snapshot needs them on a node.
-  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :archived} = sandbox, %{operation: "pause"}),
-    do: {:ok, sandbox}
+  # storage. A disk snapshot needs them on a node, so a pause that asks for
+  # one fails rather than let Amp record a snapshot that was never saved.
+  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :archived} = sandbox, %{operation: "pause"} = params) do
+    if snapshot_id(params) do
+      Logger.warning("sandboxes: cannot save an Orb project snapshot from an archived Orb", sandbox_id: sandbox.id)
+      {:error, :snapshot_not_saved}
+    else
+      {:ok, sandbox}
+    end
+  end
 
   defp dispatch_operation(_account, _orb_id, %Sandbox{state: :paused} = sandbox, %{operation: "pause"} = params) do
     with {:ok, paused} <- Sandboxes.end_residency(sandbox) do
@@ -173,17 +177,30 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # macOS hosts keep no disk snapshots, so a macOS thread always runs setup.
   defp save_snapshot(%Sandbox{platform: :darwin} = sandbox, _params), do: {:ok, sandbox}
 
+  # Amp records the snapshot once the pause succeeds and boots later Orbs
+  # from it, so a save that failed must fail the pause. The Orb stays paused;
+  # a replayed pause tries the save again.
   defp save_snapshot(sandbox, params) do
-    with amp_snapshot_id when is_binary(amp_snapshot_id) <- snapshot_id(params),
-         {:error, reason} <- DiskSnapshots.save(sandbox, amp_snapshot_id) do
-      Logger.warning("sandboxes: saving an Orb project snapshot failed",
-        sandbox_id: sandbox.id,
-        node: sandbox.node_name,
-        reason: inspect(reason)
-      )
-    end
+    case snapshot_id(params) do
+      nil ->
+        {:ok, sandbox}
 
-    {:ok, sandbox}
+      amp_snapshot_id ->
+        case DiskSnapshots.save(sandbox, amp_snapshot_id) do
+          {:ok, _snapshot} ->
+            {:ok, sandbox}
+
+          {:error, reason} ->
+            Logger.warning("sandboxes: saving an Orb project snapshot failed",
+              sandbox_id: sandbox.id,
+              node: sandbox.node_name,
+              amp_snapshot_id: amp_snapshot_id,
+              reason: inspect(reason)
+            )
+
+            {:error, :snapshot_not_saved}
+        end
+    end
   end
 
   defp snapshot_id(params), do: Map.get(params, :snapshot_id)
@@ -259,7 +276,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     env =
       Map.merge(
         %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")},
-        cache_env(account, sandbox)
+        tuist_env(account, sandbox)
       )
 
     # Credentials travel in the exec environment, never in shell source,
@@ -287,18 +304,14 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp bootstrap_timeout(%Sandbox{platform: :darwin}), do: 120_000
   defp bootstrap_timeout(_sandbox), do: 15_000
 
-  # Agents run arbitrary code in the guest, so it gets a read-only cache
-  # credential for its own account and nothing else the API would accept.
-  # The token is stateless and expires on its own; each spawn mints a fresh
-  # one. The endpoint is the in-cluster cache a Linux runner on the same Node
-  # would use, absent when the account has none.
-  defp cache_env(account, sandbox) do
-    {:ok, token, _claims} =
-      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @cache_scopes, "all_projects" => true},
-        ttl: {@cache_token_ttl_hours, :hour}
-      )
-
-    env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
+  # The guest gets no Tuist credential. The Tuist clients in it sign in by
+  # exchanging the Orb's Amp identity token, which works only for an Amp
+  # workspace an account connected (`Tuist.Accounts.AmpWorkspaceConnections`),
+  # so what an agent can do in Tuist is the account's explicit choice. The
+  # endpoint is the in-cluster cache a Linux runner on the same Node would use,
+  # absent when the account has none.
+  defp tuist_env(account, sandbox) do
+    env = %{"TUIST_URL" => Environment.app_url()}
 
     platform = if sandbox.platform == :darwin, do: :macos, else: :linux
 

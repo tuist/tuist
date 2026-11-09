@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5f4b0d7c5ddd972d20f7e6c1752bb7d0fdb27a62c310122176890c6c69c6c82f",
+  "hash": "6d098b123165e1348d710dc4fdecdda8e053cca9313e9c67f31e040122d884d8",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "## Continuous integration {#continuous-integration}": {
-                  "content_hash": "f687ea2a750215d218799480b82c9eedb00fcdd382c3b14b4c24242bbe64fa84"
+                  "content_hash": "e73c1beba59eaa924236ce5bedf6f2a1a8fe36862373c494829d0f359d9dc1a0"
                 },
                 "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "8d90e597fed54ab4c92b6747c60b6ca8b7992ab4526a88e1a0b371f3e4899fa7"
+                  "content_hash": "1c99ba14f5569a7b6a138160ca9f44292ef76b6bdb52adb362d9b25c0b42a6e4"
                 },
                 "## Size thresholds {#size-thresholds}": {
-                  "content_hash": "d61b6d34f8200c0b07553fe574e531b836f622476797ceb223d251cdf51e5f03"
+                  "content_hash": "8d66eac03a05e0ab8838e41771495a5752615c22178a43486b9f2237f369e3ca"
                 },
                 "## Tags {#tags}": {
                   "content_hash": "d9d7d09d262191988a5e5c3b2506674b6d209c1c78cb03e63cbadc33b4f6b4b2"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9ea149bd3ffcc25c3b4318f3d255cd3ab8e0281a71f06c38e0c6afef25683e84",
+          "hash": "058c1a0478552afdacf74eb7fa8307fb59d4a67b7aca55587fc2f17fdd1c7c5d",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
           "metadata": {
-            "content_hash": "64c8ad199178ee66e79a77967ad2ce5f13437c8664953eea1f166b8750b8b48c"
+            "content_hash": "4f1841d713647db8a55ec2b444cda008865a39397e0996f4ef28e63474768f23"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "5f4b0d7c5ddd972d20f7e6c1752bb7d0fdb27a62c310122176890c6c69c6c82f",
+      "hash": "6d098b123165e1348d710dc4fdecdda8e053cca9313e9c67f31e040122d884d8",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7d5154abf6e964634291894ab990ad49d3ac69d466c2fbad8988fa8add01cbd1",
+  "output_hash": "d57888aaa767f8172d1f1d5082d4bb4174fd7a27d47f07c61f3f5c6ef06d306e",
   "output_path": "server/priv/docs/ru/guides/features/bundle-insights/_shared.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
-  "translated_at": "2026-11-04T18:45:29.495328Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:45:23.377417Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

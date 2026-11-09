@@ -83,7 +83,17 @@ defmodule PulseWeb.CompatController do
 
   defp exemplar_time(nil, default), do: {:ok, default}
   defp exemplar_time("", default), do: {:ok, default}
-  defp exemplar_time(value, _default), do: Pulse.PromQL.Time.parse_timestamp(value)
+  # Prometheus accepts any finite float second. Grafana sends exemplar bounds
+  # in milliseconds, which overflow int64 nanoseconds; nothing is stored there.
+  defp exemplar_time(value, _default) do
+    with {:error, :invalid_timestamp} = error <- Pulse.PromQL.Time.parse_timestamp(value) do
+      case is_binary(value) && Float.parse(value) do
+        {seconds, ""} when seconds > 0 -> {:ok, 9_223_372_036_854_775_807}
+        {seconds, ""} when seconds < 0 -> {:ok, -9_223_372_036_854_775_808}
+        _ -> error
+      end
+    end
+  end
 
   @doc "Formats a query in Pulse's supported PromQL grammar without executing it."
   def format_query(conn, %{"query" => query}) when is_binary(query) do

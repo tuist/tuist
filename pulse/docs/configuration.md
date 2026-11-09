@@ -756,9 +756,15 @@ finalized, ranges over it read its grouped segments (below).
 Remote-write batches hold samples of every metric, so a metric-name filter
 cannot skip any of them. With finalization enabled, an independent worker
 groups the settled raw segments (older than 15 seconds) of an unfinished hour by
-metric name in batches of 500,000 to 1,000,000 rows, up to eight per pass.
+metric name once a batch reaches 32 sources or 500,000 rows, up to eight
+batches per pass, each bounded to 512 sources and 1,000,000 rows.
+The source-count trigger also consolidates low-volume hours.
 It prioritizes the newest eligible hour, oldest segments first within that hour.
-A slow historical merge or finalization does not stop this worker. A 1-hour panel then reads its metric's rows from each
+A slow historical finalization does not stop this worker. Small raw merges
+are skipped by the background metrics worker on flat/paged manifests when
+finalization is enabled, avoiding competing rewrites of grouping's sources.
+Bucketed manifests and deployments with finalization disabled retain small
+raw merges. A 1-hour panel then reads its metric's rows from each
 group plus the last few unsettled batches, instead of every batch of the hour.
 Grouping can run alongside historical finalization, so size maintenance memory
 and object-store concurrency for one additional bounded batch per instance.

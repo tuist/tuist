@@ -13,7 +13,7 @@ defmodule Pulse.Traces.TempoSearch do
   def query(tenant, query, opts, format \\ "json") do
     with :ok <- available(),
          {:ok, predicates} <- parse(query) do
-      QueryRunner.run(tenant, :raw, fn deadline ->
+      QueryRunner.run(tenant, :traces, fn deadline ->
         run_query(tenant, predicates, opts ++ QueryRunner.storage_opts(deadline), format)
       end)
     end

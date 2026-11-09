@@ -155,6 +155,7 @@ defmodule Tuist.MCP.WebMCP do
 
   defp account_page([]), do: "projects"
   defp account_page(["projects"]), do: "projects"
+  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces errors), do: "pulse"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
   defp account_page(["sandboxes" | _]), do: "sandboxes"
@@ -198,6 +199,10 @@ defmodule Tuist.MCP.WebMCP do
   defp page_tools("connect", :bazel), do: [Tools.GetBazelIntegrationGuide]
 
   defp page_tools("projects", _build_system), do: [Tools.ListAccounts]
+
+  defp page_tools("pulse", _build_system),
+    do: [Tools.QueryPulse, Tools.GetPulseAnalytics, Tools.GetPulseErrorIssue, Tools.GetPulseErrorEvent]
+
   defp page_tools("runners", _build_system), do: @runner_tools
   defp page_tools("webhooks", _build_system), do: @webhook_tools
 

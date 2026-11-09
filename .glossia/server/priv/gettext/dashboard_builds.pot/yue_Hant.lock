@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0922f43f77ac055e03d4ed9f6b5965ef63b73504d6977f657a1c9cf0bd92da65",
+  "hash": "973680010dedca4b9502d8aabcf2fe6d8686d9f591bfc1ca3b10cc0337d25428",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "68f319a3b7c27568f034ddfab5e80fbbcdb0c192d19a18a09f3a25112831fb33"
+                  "content_hash": "a8e932024e0a234ebbf417b068e945bf567dc9c3dbf56c31e4bad12fcd25d761"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,18 +119,18 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "293df82c434ab8c15ea40d68dcdceb96fe887f53d9e64f006aa6248fe08889a0",
+              "hash": "c58cccd6bd647392b2ace4f19dfca189bdaa5c5ad8eadaa191ad52ea2540f30b",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "ef99d79203262e719f50d8f921dc666b5d11e73fbc4a17dd73331879b156d9a1"
+                "content_hash": "8a0153f81a5743cfadb937e7cc5c722f2b8dbdd73edb7ece8b75ed68cd28243c"
               }
             },
             {
@@ -213,21 +213,21 @@
             }
           ],
           "details": {},
-          "hash": "4039abbd388e294fa1b290864e066374915b69fdaaf4582744ec7b8045f0eab5",
+          "hash": "13420934a59f713104e15cf27eb1b4e7e7b8314e735cca930b7922d7a8252c03",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "0922f43f77ac055e03d4ed9f6b5965ef63b73504d6977f657a1c9cf0bd92da65",
+      "hash": "973680010dedca4b9502d8aabcf2fe6d8686d9f591bfc1ca3b10cc0337d25428",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_builds.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ad260a4ffa1fc243a8bd26723fa5d616e13e65d39c3876ecd8fb417d42b191df",
+  "output_hash": "65aa60c7eccc0de4fe42a872222929e8bf33a4a94cebbdf1253b62c6ebfaab8a",
   "output_path": "server/priv/gettext/yue_Hant/LC_MESSAGES/dashboard_builds.po",
   "po_units": {
     "0021abb985784122cdc25f3c6ab1525ce21802d50a293dad7a25f192ed67ed7d": "6d3ceea13c050bbb4d95b101f8b8291d21a9b95a5f0db49a900f58b1237f4b2f",
@@ -769,8 +769,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "dc7cd7545827eeae03540e8d0b8140d315ffb78e",
+  "source_commit_sha": "14f76aad4328165c570066fba81bb1dbd0ec7292",
   "source_path": "server/priv/gettext/dashboard_builds.pot",
-  "translated_at": "2026-11-03T10:52:30.524696Z",
-  "translation_session_id": "01a1a108-32e4-77b3-8369-be769bc986bf"
+  "translated_at": "2026-11-07T00:33:27.233536Z",
+  "translation_session_id": "01a1b362-2585-7d10-9c8f-ab1290485006"
 }

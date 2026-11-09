@@ -19,7 +19,7 @@ defmodule Pulse.Traces.Tempo do
   defguardp timestamp?(value) when is_integer(value) and value >= 0 and value <= 9_223_372_036_854_775_807
 
   def lookup(tenant, trace_id, format, filter \\ nil) do
-    QueryRunner.run(tenant, :raw, fn deadline ->
+    QueryRunner.run(tenant, :traces, fn deadline ->
       with {:ok, assembly} <- Storage.get_trace_json(tenant, trace_id, QueryRunner.storage_opts(deadline)) do
         export(assembly, format, filter)
       end

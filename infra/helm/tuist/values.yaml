@@ -396,6 +396,12 @@ kuraVolumesCSI:
   # Opt in only after at least one of its nodes is labelled
   # tuist.dev/kura-thin-ready=true.
   thinRegions: []
+  # Regions where every account's instance uses kura-thin-encrypted-nvme,
+  # without the :kura_thin_volumes flag; implies thinRegions for them. Existing
+  # instances still move only through the controller's source-node gate, and new
+  # ones are placed only on thin-ready nodes. Enroll a region only once it has
+  # enough thin-ready capacity, or is being converted host by host.
+  thinEnrolledRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
@@ -822,6 +828,12 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Organization Pulse queries. Enable only after this item exists in the
+    # environment's vault; non-secret connection settings use server.extraEnv.
+    pulse:
+      enabled: false
+      item: PULSE_TOKEN
+      field: password
     # Public OAuth client ID for linking ChatGPT subscriptions
     # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
     # Enable only after the item exists in the environment's vault: a missing
@@ -2781,8 +2793,15 @@ sandboxes:
     # Let the daemon reach the in-rack archive store (the shard-storage
     # release in the kura namespace) on :3900 to upload and restore Amp Orb
     # archives. The daemon drops the guests' traffic to that port
-    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    # (DAEMON_ONLY_TCP_PORTS), so only the daemon uses this rule.
     archiveStoreEgress: false
+    # Let guests reach the in-cluster server directly. The NetworkPolicy
+    # admits the daemon Pod, and so its guests, to the server for the node
+    # connection; without this the daemon drops guest traffic to the
+    # server's Service address and its Pods' port, so guests use the
+    # public Tuist URL like any client. Set it only for a deployment whose
+    # public URL resolves to the in-cluster Service.
+    guestServerAccess: false
 
 runnersFleet:
   customCacheVolumes:

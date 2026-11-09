@@ -5,19 +5,19 @@
   "description": "Bazel から Tuist へプロジェクトを移行する方法を学びます。"
 }
 ---
-# Bazelプロジェクトの移行 {#migrate-a-bazel-project}
+# Bazel プロジェクトの移行 {#migrate-a-bazel-project}
 
-[Bazel](https://bazel.build)は、Googleが2015年にオープンソース化したビルドシステムです。あらゆる規模のソフトウェアを迅速かつ確実にビルドおよびテストできる強力なツールです。[Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/)、[Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae)、[Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)などの大企業でも利用されていますが、導入と維持には初期投資（技術の習得）と継続的な投資（Xcodeのアップデートへの対応）が必要です。これを横断的な課題として扱える組織では機能しますが、プロダクト開発に集中したい組織にとっては最適な選択肢ではない場合があります。例えば、iOSプラットフォームチームがBazelを導入したが、主導していたエンジニアが退職した後に断念せざるを得なくなった組織を目にしました。また、AppleがXcodeとビルドシステムの強い結合を重視していることも、Bazelプロジェクトを長期的に維持することを難しくする要因の一つです。
+[Bazel](https://bazel.build) は、Google が 2015 年にオープンソース化したビルドシステムです。あらゆる規模のソフトウェアを迅速かつ確実にビルド・テストできる強力なツールです。[Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/) や [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae)、[Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) といった大企業でも採用されていますが、導入と維持には初期投資（技術の習得）と継続的な投資（Xcode のアップデートへの対応）が必要です。これを横断的な課題として扱う組織ではうまく機能することもありますが、製品開発に集中したい組織には必ずしも適しているとは限りません。実際、iOS プラットフォームチームが Bazel を導入したが、主導していたエンジニアの退職後に廃止せざるを得なくなった事例もあります。また、Apple が Xcode とビルドシステムの強い結合を重視していることも、Bazel プロジェクトを長期的に維持することを難しくする要因の一つです。
 
 > [!TIP]
-> **Tuistの独自性は、その繊細さにある**
+> **Tuist の独自性は、その繊細さにあります**
 >
-> TuistはXcodeやXcodeプロジェクトと戦うのではなく、それらを受け入れます。同じ概念（ターゲット、スキーム、ビルド設定など）、馴染みのある言語（Swift）、そしてシンプルで楽しい体験を提供し、プロジェクトの維持とスケーリングをiOSプラットフォームチームだけでなく、すべてのメンバーの役割にします。
+> Tuist は Xcode や Xcode プロジェクトと対立するのではなく、それらを受け入れます。同じ概念（ターゲット、スキーム、ビルド設定など）、馴染みのある言語（Swift）、そしてシンプルで快適な体験を提供し、プロジェクトの維持とスケーリングを iOS プラットフォームチームだけでなく、すべてのメンバーの役割にします。
 
 
 ## ルール {#rules}
 
-Bazelはルールを使用してソフトウェアのビルドとテスト方法を定義します。ルールはPythonのような言語である[Starlark](https://github.com/bazelbuild/starlark)で記述されます。Tuistは設定言語としてSwiftを使用しており、開発者はXcodeの自動補完、型チェック、検証機能の利便性を享受できます。例えば、以下のルールはBazelでSwiftライブラリをビルドする方法を示しています。
+Bazel では、ソフトウェアのビルド方法やテスト方法を定義するためにルールを使用します。ルールは Python に似た言語である [Starlark](https://github.com/bazelbuild/starlark) で記述されます。一方、Tuist は設定言語として Swift を使用しており、開発者は Xcode の自動補完、型チェック、検証機能を便利に利用できます。例えば、以下のルールは Bazel で Swift ライブラリをビルドする方法を示しています。
 
 ::: code-group
 ```txt [BUILD (Bazel)]
@@ -32,14 +32,20 @@ swift_library(
 let project = Project(
     // ...
     targets: [
-        .target(name: "MyLibrary", product: .staticLibrary, sources: ["**/*.swift"])
+        .target(
+            name: "MyLibrary",
+            destinations: .iOS,
+            product: .staticLibrary,
+            bundleId: "dev.tuist.MyLibrary",
+            sources: ["**/*.swift"]
+        )
     ]
 )
 ```
 <!-- -->
 :::
 
-次に、BazelとTuistでユニットテストを定義する方法を比較した例を示します。
+次に、Bazel と Tuist でユニットテストを定義する方法を比較した例を示します。
 
 ::: code-group
 ```txt [BUILD (Bazel)]
@@ -73,9 +79,9 @@ let project = Project(
 :::
 
 
-## Swift Package Managerの依存関係 {#swift-package-manager-dependencies}
+## Swift Package Manager の依存関係 {#swift-package-manager-dependencies}
 
-Bazelでは、[`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager) [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md)プラグインを使用してSwift Packagesを依存関係として利用できます。このプラグインでは、依存関係の信頼できる情報源として`Package.swift`が必要です。Tuistのインターフェースもその点ではBazelと似ています。`tuist install`コマンドを使用してパッケージの依存関係を解決および取得できます。解決が完了したら、`tuist generate`コマンドでプロジェクトを生成できます。
+Bazel では、[`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager) の [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md) プラグインを使用して Swift Packages を依存関係として利用できます。このプラグインでは、依存関係の信頼できる情報源として `Package.swift` が必要です。この点において、Tuist のインターフェースは Bazel と類似しています。`tuist install` コマンドを使用してパッケージの依存関係を解決および取得できます。解決が完了したら、`tuist generate` コマンドでプロジェクトを生成できます。
 
 ```bash
 tuist install # Fetch dependencies defined in Tuist/Package.swift
@@ -84,4 +90,4 @@ tuist generate # Generate an Xcode project
 
 ## プロジェクトの生成 {#project-generation}
 
-コミュニティは、Bazelで宣言されたプロジェクトからXcodeプロジェクトを生成するためのルールセット[rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)を提供しています。Bazelでは`BUILD`ファイルに何らかの設定を追加する必要がありますが、Tuistでは設定は一切不要です。プロジェクトのルートディレクトリで`tuist generate`を実行すると、TuistがXcodeプロジェクトを生成します。
+コミュニティは、Bazel で宣言されたプロジェクトから Xcode プロジェクトを生成するためのルールセット [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj) を提供しています。Bazel では `BUILD` ファイルに何らかの設定を追加する必要がありますが、Tuist では設定が一切不要です。プロジェクトのルートディレクトリで `tuist generate` を実行するだけで、Tuist が Xcode プロジェクトを生成します。

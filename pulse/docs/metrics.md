@@ -229,9 +229,10 @@ the separate all-participant rich-metadata upgrade requirements below still appl
 `/api/v1/label/<name>/values` and `/api/v1/series` routes return bounded complete
 retained-sample dictionaries. Empty-valued labels project as absent; raw records
 remain unchanged. See [metric discovery](metric-discovery.md) for selector OR,
-exact time bounds, form POSTs, resource limits, errors and TSDB differences.
-These are whole-object S3 scans with native label projection, not indexed range
-reads or full Grafana datasource acceptance.
+time bounds, form POSTs, resource limits, errors and TSDB differences. With
+metrics compaction enabled, discovery reads hourly series catalogs, so its cost
+grows with series rather than samples; data newer than about one compaction
+interval is read from samples.
 
 ## Exponential histograms
 

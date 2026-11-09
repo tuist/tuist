@@ -137,6 +137,7 @@ enum ManifestLoader {
         if let inputs {
             shared = await ManifestCache.sharedEntry(packageDir: packageDir, disableSandbox: disableSandbox)
             if let shared, let cached = await ManifestCache.read(at: shared.file, inputs: shared.inputs) {
+                await Cache.markUsed(shared.file.deletingLastPathComponent())
                 try? await ManifestCache.write(cached, at: cache, inputs: inputs)
                 return (cached, inputs)
             }

@@ -1,5 +1,6 @@
 //! Sample-backed metadata discovery. One disposable state unions all selectors
 //! and sources, retaining labels only, never values/OTLP records or input blobs.
+use crate::metric_catalog as catalog;
 use crate::metric_segment_parquet::{self as metrics, MatcherOp};
 use crate::out::Sink;
 use arrow::array::{Array, BinaryArray, DictionaryArray, Int64Array};
@@ -237,6 +238,27 @@ fn metric_discovery_add<'a>(
     };
     result(env, add())
 }
+/// Add an hourly series catalog (`metric_catalog`). `{:ok, {rows, covers}}`
+/// with the rows read and the newline-separated keys of the segments it
+/// covers; the caller still scans every other segment.
+#[rustler::nif(schedule = "DirtyCpu")]
+fn metric_discovery_add_catalog<'a>(
+    env: Env<'a>,
+    resource: ResourceArc<Discovery>,
+    blob: Binary<'a>,
+) -> Term<'a> {
+    let add = || {
+        let mut guard = resource.0.lock().map_err(|_| Error::Invalid)?;
+        let mut state = guard.take().ok_or(Error::Invalid)?;
+        if blob.len() > 128 * 1_048_576 {
+            return Err(Error::Budget);
+        }
+        let read = state.scan_catalog(crate::erlang_bytes::from_binary(blob))?;
+        *guard = Some(state);
+        Ok(read)
+    };
+    result(env, add())
+}
 #[rustler::nif(schedule = "DirtyCpu")]
 fn metric_discovery_finish<'a>(env: Env<'a>, resource: ResourceArc<Discovery>) -> Term<'a> {
     let finish = || {
@@ -434,6 +456,106 @@ impl State {
         Ok(rows)
     }
 }
+impl From<catalog::CatalogError> for Error {
+    fn from(_: catalog::CatalogError) -> Self {
+        Error::Stored
+    }
+}
+impl State {
+    // The smallest catalog section that answers this request, and the metric
+    // names a row must have when every selector requires one exact name.
+    fn catalog_plan(&self) -> (i8, Option<Vec<Vec<u8>>>) {
+        let only = |label: &str| {
+            self.selectors
+                .iter()
+                .all(|selector| selector.iter().all(|m| m.name == label))
+        };
+        let names = || -> Option<Vec<Vec<u8>>> {
+            if self.selectors.is_empty() {
+                return None;
+            }
+            self.selectors
+                .iter()
+                .map(|selector| {
+                    selector
+                        .iter()
+                        .find(|m| m.name == "__name__" && matches!(m.op, MatcherOp::Eq))
+                        .map(|m| m.value.as_bytes().to_vec())
+                })
+                .collect()
+        };
+        match self.mode {
+            Mode::Names if self.selectors.is_empty() => (catalog::NAMES, None),
+            Mode::Names if only("__name__") => (catalog::METRIC_LABELS, names()),
+            Mode::Values if only(&self.key) => {
+                (catalog::VALUES, Some(vec![self.key.as_bytes().to_vec()]))
+            }
+            _ => (catalog::SERIES, names()),
+        }
+    }
+    fn any_selector(&self, value: &[u8]) -> Res<bool> {
+        let value = std::str::from_utf8(value).map_err(|_| Error::Stored)?;
+        Ok(self
+            .selectors
+            .iter()
+            .any(|selector| selector.iter().all(|m| m.matches(value))))
+    }
+    fn charge(&mut self, work: usize) -> Res<()> {
+        self.work += work;
+        if self.work > WORK {
+            return Err(Error::Work);
+        }
+        Ok(())
+    }
+    fn scan_catalog(&mut self, bytes: Bytes) -> Res<(usize, String)> {
+        self.sources += 1;
+        self.input += bytes.len();
+        if self.sources > 1024 || self.input > 128 * 1_048_576 {
+            return Err(Error::Rows);
+        }
+        let catalog = catalog::Catalog::open(bytes)?;
+        let (kind, names) = self.catalog_plan();
+        let (groups, rows) = catalog.groups(kind, names.as_deref());
+        self.rows += rows;
+        if self.rows > ROWS {
+            return Err(Error::Rows);
+        }
+        catalog.read(groups, kind, |name, value| match kind {
+            catalog::NAMES => {
+                self.charge(1)?;
+                self.insert(name, quoted(name))
+            }
+            // Selectors here only constrain the requested label.
+            catalog::VALUES => {
+                self.charge(1 + self.matcher_count)?;
+                if name != self.key.as_bytes()
+                    || (!self.selectors.is_empty() && !self.any_selector(value)?)
+                {
+                    return Ok(());
+                }
+                self.insert(value, quoted(value))
+            }
+            // Selectors here only constrain the metric name `name`.
+            catalog::METRIC_LABELS => {
+                self.charge(1 + self.matcher_count)?;
+                std::str::from_utf8(value).map_err(|_| Error::Stored)?;
+                if self.any_selector(name)? {
+                    self.insert(value, quoted(value))?;
+                }
+                Ok(())
+            }
+            _ => {
+                if let Some(names) = &names {
+                    if !names.iter().any(|n| n == name) {
+                        return self.charge(1);
+                    }
+                }
+                self.observe(value)
+            }
+        })?;
+        Ok((rows, catalog.covers().to_owned()))
+    }
+}
 // Order-preserving tuple encoding: NUL escapes sort after terminators, so
 // shorter names/values and equal-prefix label sets sort first, like Go.
 fn series_key(pairs: &[(&[u8], &[u8])]) -> Vec<u8> {
@@ -625,6 +747,114 @@ mod tests {
         s.observe(&canonical(&[("a", "1")])).unwrap();
         assert_eq!(s.entries.len(), 1);
         assert_eq!(s.entries.values().next().unwrap(), br#"{"a":"1"}"#);
+    }
+    #[test]
+    fn catalogs_answer_like_the_samples_they_list() {
+        use crate::metric_catalog::{tests as samples, Builder};
+        let rows = vec![
+            (
+                1,
+                canonical(&[("__name__", "up"), ("job", "api"), ("zone", "")]),
+            ),
+            (2, canonical(&[("__name__", "up"), ("job", "web")])),
+            (
+                3,
+                canonical(&[("__name__", "requests"), ("job", "api"), ("path", "/a")]),
+            ),
+            (
+                4,
+                canonical(&[("__name__", "requests"), ("job", "api"), ("path", "/b")]),
+            ),
+            (5, canonical(&[("__name__", "errors"), ("path", "/a")])),
+        ];
+        let segment = samples::segment(&rows);
+        let mut builder = Builder::new(0, 10);
+        builder.add_segment(segment.clone()).unwrap();
+        let catalog = samples::encoded(&builder, "a\nb");
+        let with = |mode, key: &str, selectors: &[&[(&str, MatcherOp, &str)]]| {
+            let mut s = state(mode);
+            s.key = key.into();
+            s.selectors = selectors
+                .iter()
+                .map(|selector| {
+                    selector
+                        .iter()
+                        .map(|(name, op, value)| Matcher {
+                            name: (*name).into(),
+                            value: (*value).into(),
+                            op: *op,
+                            regex: matches!(op, MatcherOp::Re | MatcherOp::Nre)
+                                .then(|| crate::query_regex::anchored(value).unwrap()),
+                        })
+                        .collect()
+                })
+                .collect();
+            s.matcher_count = s.selectors.iter().map(Vec::len).sum();
+            s
+        };
+        type Selector<'a> = &'a [(&'a str, MatcherOp, &'a str)];
+        let cases: Vec<(Mode, &str, Vec<Selector>, i8)> = vec![
+            (Mode::Names, "", vec![], catalog::NAMES),
+            (
+                Mode::Names,
+                "",
+                vec![&[("__name__", MatcherOp::Re, ".+")]],
+                catalog::METRIC_LABELS,
+            ),
+            (
+                Mode::Names,
+                "",
+                vec![&[("__name__", MatcherOp::Eq, "errors")]],
+                catalog::METRIC_LABELS,
+            ),
+            (
+                Mode::Names,
+                "",
+                vec![&[("job", MatcherOp::Eq, "web")]],
+                catalog::SERIES,
+            ),
+            (Mode::Values, "job", vec![], catalog::VALUES),
+            (
+                Mode::Values,
+                "job",
+                vec![&[("job", MatcherOp::Re, "a.*")]],
+                catalog::VALUES,
+            ),
+            (
+                Mode::Values,
+                "path",
+                vec![&[("__name__", MatcherOp::Eq, "requests")]],
+                catalog::SERIES,
+            ),
+            (Mode::Values, "zone", vec![], catalog::VALUES),
+            (
+                Mode::Series,
+                "",
+                vec![
+                    &[("__name__", MatcherOp::Eq, "requests")],
+                    &[
+                        ("__name__", MatcherOp::Eq, "up"),
+                        ("job", MatcherOp::Neq, "api"),
+                    ],
+                ],
+                catalog::SERIES,
+            ),
+            (
+                Mode::Series,
+                "",
+                vec![&[("path", MatcherOp::Eq, "/a")]],
+                catalog::SERIES,
+            ),
+        ];
+        for (mode, key, selectors, section) in cases {
+            let mut scanned = with(mode, key, &selectors);
+            scanned.scan(segment.clone()).unwrap();
+            let mut listed = with(mode, key, &selectors);
+            assert_eq!(listed.catalog_plan().0, section);
+            let (_, covers) = listed.scan_catalog(catalog.clone()).unwrap();
+            assert_eq!(covers, "a\nb");
+            assert_eq!(listed.entries, scanned.entries, "{key} {selectors:?}");
+        }
     }
     #[test]
     fn work_probe_and_encoded_output_budgets_are_independent() {

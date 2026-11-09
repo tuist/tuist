@@ -3,24 +3,30 @@
     "groups": {
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
-      "compute": { "text": "计算资源" },
+      "compute": { "text": "计算" },
       "bundles": { "text": "应用包" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
       "agentic-coding": { "text": "智能体编程" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 缓存" },
       "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "构建与发布" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "缓存卷" },
+      "calendar": { "text": "日历" },
+      "channels": { "text": "渠道" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "兼容性" },
       "coverage": { "text": "覆盖率" },
       "data-retention": { "text": "数据保留" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 缓存" },
+      "entire": { "text": "全部" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -28,20 +34,27 @@
       "implicit-dependencies": { "text": "隐式依赖" },
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
-      "new-project": { "text": "新建项目" },
+      "new-project": { "text": "新项目" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Once 缓存" },
+      "once-project": { "text": "Once 项目" },
+      "once-remote-execution": { "text": "Once 远程执行" },
       "origin": { "text": "源" },
-      "profiles": { "text": "配置文件" },
+      "profiles": { "text": "配置" },
       "project-description": { "text": "项目描述" },
+      "release": { "text": "发布" },
+      "release-calendar": { "text": "发布日历" },
       "release-channels": { "text": "发布渠道" },
       "run-previews": { "text": "运行预览" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 缓存" },
       "rust-project": { "text": "Rust 项目" },
+      "sandboxes": { "text": "沙盒" },
       "scim-provisioning": { "text": "SCIM 配置" },
       "server-api": { "text": "服务器 API" },
       "single-sign-on": { "text": "单点登录" },
       "supported-types": { "text": "支持的类型" },
-      "webhooks": { "text": "Webhooks" },
+      "webhooks": { "text": "Webhook" },
       "xcodegen-project": { "text": "XcodeGen 项目" },
       "xcodeproj-integration": { "text": "Xcodeproj 集成" },
       "ufeatures-architecture": { "text": "uFeatures 架构" }
@@ -94,8 +107,8 @@
         },
         "no-results-screen": {
           "no-results-text": "未找到相关结果",
-          "suggested-query-text": "你可以尝试搜索",
-          "report-missing-results-text": "你认为此查询应该有结果吗？",
+          "suggested-query-text": "你可以尝试查询",
+          "report-missing-results-text": "你认为此查询应有结果？",
           "report-missing-results-link-text": "点击提供反馈"
         }
       }
@@ -142,7 +155,7 @@
               "text": "目录"
             },
             "shell-completions": {
-              "text": "Shell 自动补全"
+              "text": "Shell 补全"
             }
           }
         },
@@ -228,7 +241,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日志记录"
+              "text": "日志"
             }
           }
         }
@@ -369,7 +382,7 @@
                           "text": "Xcode 项目"
                         },
                         "swift-package": {
-                          "text": "Swift package"
+                          "text": "Swift 包"
                         },
                         "xcodegen-project": {
                           "text": "XcodeGen 项目"
@@ -382,7 +395,7 @@
                   }
                 },
                 "manifests": {
-                  "text": "清单文件"
+                  "text": "清单"
                 },
                 "directory-structure": {
                   "text": "目录结构"
@@ -468,7 +481,7 @@
                   "text": "基于 XcodeProj 的集成"
                 },
                 "swift-package": {
-                  "text": "Swift package"
+                  "text": "Swift 包"
                 },
                 "continuous-integration": {
                   "text": "持续集成"
@@ -476,7 +489,7 @@
               }
             },
             "selective-testing": {
-              "text": "选择性测试",
+              "text": "选择",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -484,7 +497,7 @@
               }
             },
             "test-sharding": {
-              "text": "测试分片",
+              "text": "分片",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -500,10 +513,10 @@
               }
             },
             "test-insights": {
-              "text": "测试洞察",
+              "text": "洞察",
               "items": {
                 "flaky-tests": {
-                  "text": "不稳定测试",
+                  "text": "不稳定性",
                   "items": {
                     "generated-xcode-project": {
                       "text": "生成的 Xcode 项目"
@@ -513,7 +526,7 @@
               }
             },
             "bundle-insights": {
-              "text": "应用包洞察",
+              "text": "洞察",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -560,7 +573,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git 托管平台",
+              "text": "Git 平台",
               "items": {
                 "github": {
                   "text": "GitHub"

@@ -2,6 +2,7 @@ package dev.tuist.app.data.featureflags
 
 import android.util.Log
 import dev.tuist.app.api.FeatureFlagsApi
+import dev.tuist.app.data.auth.TokenStorage
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
 import kotlinx.coroutines.CancellationException
@@ -29,32 +30,33 @@ class FeatureFlagsRepository @Inject constructor(
     private val _enabled = MutableStateFlow<Set<FeatureFlag>>(emptySet())
     val enabled: StateFlow<Set<FeatureFlag>> = _enabled.asStateFlow()
 
-    /** The account [enabled] belongs to. */
-    private var account: Account? = null
+    private data class Owner(val account: Account, val profileId: String?, val origin: String?)
+    private var owner: Owner? = null
 
     /**
      * Fetches the flags for [state]. Call on launch, when the session changes, and when the app returns
      * to the foreground. Signing out or switching accounts turns every flag off. A failed fetch keeps the
      * account's last flags, so features don't disappear while offline.
      */
-    suspend fun refresh(state: AuthState) {
+    suspend fun refresh(state: AuthState, session: TokenStorage.Session? = null) {
         val loggedIn = state as? AuthState.LoggedIn
         if (loggedIn == null) {
             if (state is AuthState.LoggedOut) {
-                account = null
+                owner = null
                 _enabled.value = emptySet()
             }
             return
         }
-        if (account != loggedIn.account) {
-            account = loggedIn.account
+        val requestedOwner = Owner(loggedIn.account, session?.profileId, session?.origin)
+        if (owner != requestedOwner) {
+            owner = requestedOwner
             _enabled.value = emptySet()
         }
         try {
             val response = featureFlagsApi.listFeatureFlags()
             val body = response.body()
             // The account can change while the request is in flight.
-            if (account != loggedIn.account) return
+            if (owner != requestedOwner) return
             when {
                 response.isSuccessful && body != null ->
                     _enabled.value = FeatureFlag.entries.filter { it.key in body.enabled }.toSet()

@@ -24,6 +24,31 @@ defmodule Mix.Tasks.Pulse.Backfill.Loki do
 
   @impl true
   def run(args) do
+    %{start_ns: start_ns, end_ns: end_ns, tenant: tenant} = opts = parse_options!(args)
+    source = read_source!(opts.input)
+    push_streams = source |> decode_response!() |> response_streams!() |> Enum.map(&push_stream!(&1, opts))
+
+    rows = Enum.reduce(push_streams, 0, &(length(&1["values"]) + &2))
+    if !(rows < opts.limit), do: Mix.raise("Source response reached its limit; completeness is unknown")
+
+    body = %{"streams" => push_streams}
+    encoded = validate_push_body!(body, rows)
+
+    Mix.shell().info(
+      JSON.encode!(%{
+        "format" => 1,
+        "tenant" => tenant,
+        "start_ns" => Integer.to_string(start_ns),
+        "end_ns" => Integer.to_string(end_ns),
+        "rows" => rows,
+        "source_sha256" => digest(source),
+        "idempotency_key" => "loki-backfill-" <> digest(encoded),
+        "body" => body
+      })
+    )
+  end
+
+  defp parse_options!(args) do
     {opts, rest, invalid} =
       OptionParser.parse(args,
         strict: [
@@ -40,19 +65,23 @@ defmodule Mix.Tasks.Pulse.Backfill.Loki do
       Mix.raise("Required exactly once: --input --tenant --start-ns --end-ns --limit")
     end
 
-    start_ns = opts[:start_ns]
-    end_ns = opts[:end_ns]
-    limit = opts[:limit]
-    tenant = opts[:tenant]
+    opts = Map.new(opts)
 
-    if !(start_ns >= 0 and end_ns > start_ns and end_ns <= 9_223_372_036_854_775_807 and
-           limit in 1..10_000 and Regex.match?(~r/\A[A-Za-z0-9_.\-]{1,128}\z/, tenant)) do
+    if !(opts.start_ns >= 0 and opts.end_ns > opts.start_ns and opts.end_ns <= 9_223_372_036_854_775_807 and
+           opts.limit in 1..10_000 and Regex.match?(~r/\A[A-Za-z0-9_.\-]{1,128}\z/, opts.tenant)) do
       Mix.raise("Invalid tenant, nanosecond bounds or source limit (1..10000)")
     end
 
-    source = File.open!(opts[:input], [:read, :binary], &IO.binread(&1, @max_bytes + 1))
-    if !(is_binary(source) and byte_size(source) <= @max_bytes), do: Mix.raise("Export exceeds 4 MiB or is empty")
+    opts
+  end
 
+  defp read_source!(path) do
+    source = File.open!(path, [:read, :binary], &IO.binread(&1, @max_bytes + 1))
+    if !(is_binary(source) and byte_size(source) <= @max_bytes), do: Mix.raise("Export exceeds 4 MiB or is empty")
+    source
+  end
+
+  defp decode_response!(source) do
     {response, nil, rest} =
       JSON.decode(source, nil,
         object_start: fn _ -> %{} end,
@@ -64,52 +93,44 @@ defmodule Mix.Tasks.Pulse.Backfill.Loki do
       )
 
     if rest != "", do: Mix.raise("Expected one complete JSON export")
+    response
+  end
 
-    streams =
-      case response do
-        %{"status" => "success", "data" => %{"resultType" => "streams", "result" => streams}}
-        when is_list(streams) ->
-          streams
-
-        _ ->
-          Mix.raise("Expected a successful Loki streams response, not samples or a push body")
-      end
-
+  defp response_streams!(
+         %{"status" => "success", "data" => %{"resultType" => "streams", "result" => streams}} = response
+       )
+       when is_list(streams) do
     if Map.get(response, "warnings", []) != [], do: Mix.raise("Source warnings require investigation")
+    streams
+  end
 
-    push_streams =
-      Enum.map(streams, fn
-        %{"stream" => labels, "values" => values} when is_map(labels) and is_list(values) ->
-          if !string_map?(labels), do: Mix.raise("Stream labels must be strings")
+  defp response_streams!(_), do: Mix.raise("Expected a successful Loki streams response, not samples or a push body")
 
-          Enum.each(values, fn value ->
-            {timestamp, line, metadata} =
-              case value do
-                [timestamp, line] -> {timestamp, line, %{}}
-                [timestamp, line, metadata] -> {timestamp, line, metadata}
-                _ -> Mix.raise("Invalid Loki entry")
-              end
+  defp push_stream!(%{"stream" => labels, "values" => values}, opts) when is_map(labels) and is_list(values) do
+    if !string_map?(labels), do: Mix.raise("Stream labels must be strings")
+    Enum.each(values, &validate_entry!(&1, opts))
+    %{"stream" => labels, "values" => values}
+  end
 
-            if !(is_binary(timestamp) and Regex.match?(~r/\A(0|[1-9][0-9]{0,18})\z/, timestamp) and
-                   is_binary(line) and string_map?(metadata)) do
-              Mix.raise("Entries require exact decimal nanoseconds, string lines and string metadata")
-            end
+  defp push_stream!(_, _opts), do: Mix.raise("Invalid Loki stream")
 
-            ns = String.to_integer(timestamp)
-            if !(ns >= start_ns and ns < end_ns), do: Mix.raise("Entry outside [start-ns, end-ns)")
-          end)
+  defp validate_entry!(value, %{start_ns: start_ns, end_ns: end_ns}) do
+    {timestamp, line, metadata} = entry_parts!(value)
 
-          %{"stream" => labels, "values" => values}
+    if !(is_binary(timestamp) and Regex.match?(~r/\A(0|[1-9][0-9]{0,18})\z/, timestamp) and
+           is_binary(line) and string_map?(metadata)) do
+      Mix.raise("Entries require exact decimal nanoseconds, string lines and string metadata")
+    end
 
-        _ ->
-          Mix.raise("Invalid Loki stream")
-      end)
+    ns = String.to_integer(timestamp)
+    if !(ns >= start_ns and ns < end_ns), do: Mix.raise("Entry outside [start-ns, end-ns)")
+  end
 
-    rows = Enum.reduce(push_streams, 0, &(length(&1["values"]) + &2))
-    if !(rows < limit), do: Mix.raise("Source response reached its limit; completeness is unknown")
+  defp entry_parts!([timestamp, line]), do: {timestamp, line, %{}}
+  defp entry_parts!([timestamp, line, metadata]), do: {timestamp, line, metadata}
+  defp entry_parts!(_), do: Mix.raise("Invalid Loki entry")
 
-    body = %{"streams" => push_streams}
-
+  defp validate_push_body!(body, rows) do
     case Pulse.IngestLimits.validate(:loki, body) do
       :ok -> :ok
       {:error, reason} -> Mix.raise("Pulse ingest limit: #{inspect(reason)}")
@@ -119,19 +140,7 @@ defmodule Mix.Tasks.Pulse.Backfill.Loki do
     if !(rejected == 0 and length(records) == rows), do: Mix.raise("Pulse would reject source entries")
     encoded = JSON.encode!(body)
     if !(byte_size(encoded) <= @max_bytes), do: Mix.raise("Push body exceeds 4 MiB")
-
-    Mix.shell().info(
-      JSON.encode!(%{
-        "format" => 1,
-        "tenant" => tenant,
-        "start_ns" => Integer.to_string(start_ns),
-        "end_ns" => Integer.to_string(end_ns),
-        "rows" => rows,
-        "source_sha256" => digest(source),
-        "idempotency_key" => "loki-backfill-" <> digest(encoded),
-        "body" => body
-      })
-    )
+    encoded
   end
 
   defp string_map?(map) when is_map(map), do: Enum.all?(map, fn {key, value} -> is_binary(key) and is_binary(value) end)

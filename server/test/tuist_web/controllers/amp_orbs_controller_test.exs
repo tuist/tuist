@@ -83,6 +83,28 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert get_resp_header(result, "x-tuist-orb-retry") == []
   end
 
+  test "fails a pause whose snapshot cannot be saved, so Amp records none", %{
+    conn: conn,
+    integration: integration,
+    user: user
+  } do
+    identity(integration)
+
+    SandboxesFixtures.sandbox_fixture(
+      account: user.account,
+      amp_orb_id: "amp-thread",
+      amp_integration_id: integration.id,
+      state: :archived,
+      node_name: nil
+    )
+
+    result = request(conn, %{"operation" => "pause", "snapshot_id" => "proj-1"})
+
+    assert response(result, 503)
+    assert get_resp_header(result, "x-tuist-orb-refusal") == ["snapshot-not-saved"]
+    assert get_resp_header(result, "x-tuist-orb-retry") == []
+  end
+
   test "requires workload authentication", %{conn: conn} do
     stub(Client, :create_amp_provider_token_review, fn _ -> {:error, :unauthenticated} end)
     assert response(request(conn), 401)

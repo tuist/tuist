@@ -1,0 +1,1 @@
+Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni zedeler ve geliştiricilerin yanlış hataları araştırması için zaman kaybına neden olur. Tuist, kararsız testleri otomatik olarak algılar ve zaman içinde bunları takip etmenize yardımcı olur.

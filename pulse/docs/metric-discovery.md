@@ -80,11 +80,19 @@ same success envelope. The schema rejects unsupported properties such as `limit`
 
 This API describes **retained samples**, not instant-vector lookback results or a
 catalog of every historically observed series. A label set needs at least one
-stored sample inside the requested interval. Stale/NaN/infinite sample values do
-not remove its labels from discovery. Expired records never supply suggestions.
-Prometheus TSDB metadata APIs may include inactive series with no samples in the
-requested interval because of block/tombstone metadata; that behavior is not
-reproduced. This is not full Grafana datasource/browser or deployed-client parity.
+stored sample inside the requested interval, at the time granularity below.
+Stale/NaN/infinite sample values do not remove its labels from discovery.
+Expired records never supply suggestions. This is not full Grafana
+datasource/browser or deployed-client parity.
+
+**Time granularity.** With metrics compaction enabled, Pulse keeps a series
+catalog per UTC hour (see [series catalogs](#series-catalogs)). A UTC hour that
+has one is answered as a whole: a series with a sample anywhere in that hour is
+reported for any interval overlapping the hour. Hours without a catalog use
+exact sample times. Grafana Mimir behaves alike, rounding `start` and `end` to
+its 2 h (recent) to 24 h (compacted) block boundaries, so Pulse is never coarser
+than Mimir. Prometheus TSDB can additionally report series without samples in
+the interval from block or tombstone metadata; Pulse does not.
 
 Empty-valued labels project as absent, following Prometheus identity semantics.
 Thus a stored `host=""` supplies neither a `host` name nor an empty value, and
@@ -94,6 +102,45 @@ still treats both as empty. This is a read-only discovery projection: raw
 Names/values use byte order; series use pairwise label name/value order. JSON
 object key order is not a contract; native/reference results are semantically,
 not byte-for-byte, equivalent.
+
+## Series catalogs
+
+Scanning samples costs one row per stored sample, so a busy tenant exceeds the
+scan budgets within minutes of history. With metrics compaction and hour
+finalization enabled (`PULSE_METRICS_COMPACTION_ENABLED=true`, and
+`PULSE_METRICS_FINALIZE_ENABLED` left at its default `true`), Pulse therefore writes immutable
+**series catalogs**: one or more objects per tenant and UTC hour listing that
+hour's distinct series, plus three small sections derived from them: label
+names, label name/value pairs, and the label names of each metric. Discovery
+reads an hour's catalogs and only the sample segments no catalog covers yet,
+so its cost grows with the number of series and label values, not samples:
+
+| Request | Section read |
+| --- | --- |
+| `labels` without `match[]` | label names |
+| `labels` with selectors on `__name__` only, such as `{__name__=~".+"}` | label names per metric |
+| `label/<name>/values` without `match[]`, or with selectors on `<name>` only | label values of `<name>` |
+| Everything else, including `series` | series, skipping metrics an exact `__name__` matcher excludes |
+
+The background maintenance worker builds them. Recent hours are handled on
+the metrics grouping lane (every compaction interval, 60 s by default) before
+grouping, so data newer than about one interval is read from samples. Older
+hours are handled on the historical lane after finalization. Each pass adds
+a small delta catalog listing only series the hour's catalogs do not have yet.
+After eight catalogs, or once the hour has settled, they are merged into one.
+Grouped and finalized segments made from covered segments stay covered without
+another read. Catalogs are written to the metrics manifest under keys
+containing `-rollup-catalog-`, retired and deleted like other replaced
+segments, and expire with retention. Retention-managed format-3 prefixes are not catalogued
+yet; their discovery reads samples.
+
+Catalogs need no configuration and no migration: existing history is
+catalogued newest first, up to 2 million sample rows per pass. They are safe
+during a rolling deploy and after a rollback: earlier releases read the
+`-rollup-` in a catalog key as an hourly rollup, so they never read it as
+samples, never use it for rollup reads (it spans the hour rather than one
+instant), and retire it when they finalize its hour. That hour is then
+answered from samples until it is catalogued again.
 
 ## Resource limits and storage costs
 
@@ -105,9 +152,11 @@ success-envelope headroom). Outer JSON-RPC/MCP wrapping adds bytes outside that
 payload limit. Narrow queries when these bind; no `limit` parameter bypasses them.
 
 S3 discovery shares one scan across every OR selector: at most 1024 objects,
-128 MiB downloaded segment bytes and one million actual Parquet footer rows,
-further reduced by configured query limits. Every fetched source's full header
-rows count, even if its samples are outside the requested interval. Missing-source
+128 MiB downloaded segment bytes and one million rows, further reduced by
+configured query limits. A catalog charges the rows of the section row groups
+it reads; an uncovered sample segment charges all its actual Parquet footer
+rows, even if its samples are outside the requested interval. Catalogs are
+downloaded whole, so their bytes count in full. Missing-source
 retries retain spent scan budgets and restart dictionary state, not mix snapshots.
 Metadata/page/deadline budgets remain independent. Whole-retention scans are the
 default when times are omitted; a small result is not a small scan.
@@ -136,6 +185,8 @@ query timeout. Errors have no partial `data` result.
 
 Serving applications require matching metric codec API `{2,2,1,1,1}` (metadata/start timestamps,
 OTLP, postings, discovery, footer planning). Upgrade every serving app/native pair before using
-these routes with pooled routing. No file format changes or metadata migration
-are introduced by this read-only API; existing rich-data/keyed-publication writer
-upgrade rules still apply. Local startup cannot fence older serving pools.
+these routes with pooled routing. Series catalogs additionally require metric catalog
+API 1 on every instance that serves discovery or runs metrics maintenance; they add
+an object type but change no existing segment format, and need no metadata migration.
+Existing rich-data/keyed-publication writer upgrade rules still apply. Local startup
+cannot fence older serving pools.

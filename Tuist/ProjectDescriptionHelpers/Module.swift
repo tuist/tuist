@@ -1072,6 +1072,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.oidc.targetName, condition: .when([.macos])),
                     .target(name: Module.git.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),

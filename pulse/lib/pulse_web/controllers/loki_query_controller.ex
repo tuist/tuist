@@ -49,6 +49,8 @@ defmodule PulseWeb.LokiQueryController do
   alias Pulse.QueryLimit
   alias Pulse.QueryRunner
   alias Pulse.Storage
+  alias Pulse.Storage.S3
+  alias Pulse.Storage.S3.Retention
 
   @default_tenant "default"
   # ---------------------------------------------------------------------------
@@ -656,6 +658,32 @@ defmodule PulseWeb.LokiQueryController do
   end
 
   defp pulse_version, do: :pulse |> Application.spec(:vsn) |> to_string()
+
+  @doc """
+  Loki's `drilldown-limits`, which Grafana's Logs Drilldown reads to enable
+  volume and patterns and to bound its time picker. Only limits Pulse applies
+  are reported: no fixed entry cap (0) and the enforced log retention.
+  """
+  def drilldown_limits(conn, _params) do
+    case Auth.verify(conn, tenant_from(conn), :read) do
+      :ok ->
+        config = Map.new(Pulse.Runtime.get_env(:pulse, S3) || %{})
+
+        retention =
+          if Retention.enforcing?(config, "logs"),
+            do: "#{Retention.days(config, "logs") * 24}h",
+            else: "0s"
+
+        json(conn, %{
+          "limits" => %{"volume_enabled" => true, "max_entries_limit_per_query" => 0, "retention_period" => retention},
+          "pattern_ingester_enabled" => true,
+          "version" => "3.5.0"
+        })
+
+      err ->
+        render_error(conn, err)
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Helpers

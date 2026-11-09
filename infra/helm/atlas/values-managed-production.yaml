@@ -33,6 +33,18 @@ tuistServer:
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
 
+# tuist-ops grants orb thread canary/production elevations once the person an
+# agent works for approves the exact `request_cluster_elevation` call in
+# Atlas. tuist-ops pins this cluster's JWKS (ATLAS_TOKEN_JWKS in
+# infra/helm/tuist-ops) and accepts only `atlas-production:atlas` tokens for
+# the `ops.tuist.dev` audience.
+tuistOps:
+  enabled: true
+  url: https://ops.tuist.dev
+  tokenAudience: ops.tuist.dev
+  tokenMountPath: /var/run/secrets/tuist-ops
+  tokenExpirationSeconds: 3600
+
 # Pulse (observability backends in the Tuist clusters), proxied over MCP as
 # one upstream per environment; tools surface as `<name>__<tool>`, so
 # production reads are `pulse__query_promql` and canary's

@@ -4,7 +4,7 @@ import Observation
 @Observable
 public final class AppNavigation {
     public enum Tab: Hashable {
-        case threads, previews, profile
+        case jams, previews, profile
     }
 
     public var tab = Tab.previews
@@ -23,11 +23,17 @@ public final class AppNavigation {
         pendingURL = url
     }
 
-    public func openPendingURL(serverURL: URL) {
+    public func openPendingURL(serverURL: URL, organization: String? = nil) {
         guard let pendingURL else { return }
         self.pendingURL = nil
         do {
-            navigate(to: try AppRoute(url: pendingURL, serverURL: serverURL))
+            let route = try AppRoute(url: pendingURL, serverURL: serverURL)
+            if let organization, case let .preview(account, _, _) = route, account != organization {
+                throw AppRouteError.differentOrganization
+            }
+            navigate(to: route)
+        } catch AppRouteError.differentOrganization {
+            error = .differentOrganization
         } catch {
             if AppRoute.isWebURL(pendingURL, serverURL: serverURL) {
                 openWeb(pendingURL)
@@ -57,7 +63,8 @@ public final class AppNavigation {
         }
     }
 
-    public func reset() {
+    public func reset(clearPending: Bool = false) {
+        if clearPending { pendingURL = nil }
         tab = .previews
         previewPath = []
         webURL = nil

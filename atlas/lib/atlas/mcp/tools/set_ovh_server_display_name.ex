@@ -109,7 +109,7 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
 
   defp approve(%{assigns: %{current_user: %User{} = user, audit_interface: "mcp"}}, args) do
     case MCPContext.authorize_tool_call(user, @server, @approval_tool, args) do
-      :ok ->
+      {:ok, _approval} ->
         :ok
 
       {:approval_required, approval} ->

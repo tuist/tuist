@@ -29,7 +29,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
     :metric_labels,
     :trace_summary,
     :log_labels,
-    :log_minutes
+    :log_minutes,
+    :catalog
   ]
 
   @type t :: %__MODULE__{
@@ -44,7 +45,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
           metric_labels: %{String.t() => [String.t()]} | nil,
           trace_summary: TraceSummary.t() | nil,
           log_labels: %{String.t() => [String.t()]} | nil,
-          log_minutes: %{integer() => pos_integer()} | nil
+          log_minutes: %{integer() => pos_integer()} | nil,
+          catalog: String.t() | nil
         }
 
   @doc """
@@ -97,12 +99,24 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
       "r" => segment.row_count
     }
 
-    base = if segment.byte_size, do: Map.put(base, "b", segment.byte_size), else: base
-    base = if segment.metric_names, do: Map.put(base, "n", segment.metric_names), else: base
+    base =
+      Enum.reduce(
+        [
+          {"b", segment.byte_size},
+          {"n", segment.metric_names},
+          {"ls", segment.log_services},
+          {"l", segment.metric_labels},
+          {"el", segment.log_labels},
+          {"cg", segment.catalog}
+        ],
+        base,
+        fn
+          {_key, value}, acc when value in [nil, false] -> acc
+          {key, value}, acc -> Map.put(acc, key, value)
+        end
+      )
+
     base = if segment.metric_name_bloom, do: Map.put(base, "nb", Base.encode64(segment.metric_name_bloom)), else: base
-    base = if segment.log_services, do: Map.put(base, "ls", segment.log_services), else: base
-    base = if segment.metric_labels, do: Map.put(base, "l", segment.metric_labels), else: base
-    base = if segment.log_labels, do: Map.put(base, "el", segment.log_labels), else: base
     base = if segment.log_minutes, do: Map.put(base, "lm", minutes_to_wire(segment.log_minutes)), else: base
     if segment.trace_summary, do: Map.put(base, "t", TraceSummary.to_wire(segment.trace_summary)), else: base
   end
@@ -131,7 +145,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
        metric_labels: MetricLabelSummary.parse(wire["l"]),
        trace_summary: TraceSummary.parse(wire["t"]),
        log_labels: MetricLabelSummary.parse(wire["el"]),
-       log_minutes: valid_minutes(wire["lm"])
+       log_minutes: valid_minutes(wire["lm"]),
+       catalog: valid_lineage(wire["cg"])
      }}
   end
 
@@ -280,6 +295,9 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
 
   defp valid_name_bloom(_), do: nil
 
+  defp valid_lineage(lineage) when is_binary(lineage) and byte_size(lineage) in 1..64, do: lineage
+  defp valid_lineage(_), do: nil
+
   @doc "Keep unknown summaries and segments whose name set could satisfy every name matcher."
   def matches_metric_name?(segment, matchers) do
     matchers = Enum.filter(matchers, &match?({"__name__", _, _}, &1))
@@ -291,6 +309,10 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
   rollup objects, `:final` for segments of a finalized hour, `:grouped` for
   name-grouped consolidations of part of an unfinished hour, else `:raw`
   (ingested, compacted, or the out-of-hour `-edge-` rows of a finalization).
+  `:catalog` objects list an hour's series for discovery
+  (`Pulse.Storage.S3.MetricCatalog`) and hold no samples. Their keys also
+  contain `-rollup-`, so releases that predate them treat them as rollups:
+  never read as samples, only retired by an hour's finalization.
   Readers before `:grouped` existed treat those segments as raw, which they
   read correctly.
   """
@@ -300,6 +322,7 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
     base = Path.basename(key)
 
     cond do
+      String.contains?(base, "-catalog-") -> :catalog
       String.contains?(base, "-rollup-") -> :rollup
       String.contains?(base, "-final-") -> :final
       String.contains?(base, "-group-") -> :grouped
@@ -309,7 +332,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
 
   @doc """
   Compile storage matchers once per query for `matches_metrics?/2`. Sample
-  queries never see rollup objects; `tier: :rollup` selects only them.
+  queries never see rollup or catalog objects; `tier: :rollup` and
+  `tier: :catalog` select only those.
   """
   def metrics_filter(matchers, tier \\ :samples)
   def metrics_filter({:metric_plan, _, _, _} = plan, _tier), do: plan
@@ -343,10 +367,13 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
   is present.
   """
   def matches_metrics?(segment, {:metric_plan, plan, names, tier}) do
-    metric_tier(segment) == :rollup == (tier == :rollup) and matches_plan?(segment, plan, names)
+    in_tier?(metric_tier(segment), tier) and matches_plan?(segment, plan, names)
   end
 
   def matches_metrics?(segment, matchers), do: matches_metrics?(segment, metrics_filter(matchers))
+
+  defp in_tier?(actual, :samples), do: actual not in [:rollup, :catalog]
+  defp in_tier?(actual, tier), do: actual == tier
 
   defp matches_plan?(segment, plan, names) do
     MetricLabelSummary.satisfiable?(plan, fn

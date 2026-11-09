@@ -548,6 +548,14 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_thin_enrolled_region_ids do
+    "TUIST_KURA_THIN_ENROLLED_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_available_region_ids do
     "TUIST_KURA_AVAILABLE_REGIONS"
     |> System.get_env("")
@@ -2097,6 +2105,8 @@ defmodule Tuist.Environment do
   def atlas_url(secrets \\ secrets()) do
     get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
   end
+
+  def pulse_config, do: Application.get_env(:tuist, :pulse, [])
 
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)

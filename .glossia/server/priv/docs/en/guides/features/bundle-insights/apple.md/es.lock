@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7d4b6d7cb357f6d9df157d8132afb98087b1fb4d3f22816059c5c4d98189c88f",
+  "hash": "fd37863dbdcf06513cbb457182a5762d9b76e223f2f16d10b2631cc2ec70f125",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Apple {#bundle-insights-apple}": {
-                  "content_hash": "cff34a7ec1e7d16225c0b80f815facf6558a3a0d945e3ed820d0d8ad8cfdbe14"
+                  "content_hash": "b1e4770fc8e3c2796f2cb512eee4035ec83056554b75fac82120d270cda1080e"
                 },
                 "## Comparing with App Store Connect {#app-store-connect}": {
                   "content_hash": "5e35ce036e151d06bf9f44a3838c694ee0c6763320f16f732432017d2861ab85"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "bdf44df6b177eb4d951550b02e0367a58e42818c9e44db89e6836c01b558e918",
+          "hash": "9ce322c07c28d28166b78b3cd799b02173000fbd661feae5768b993c103f104f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/apple.md",
           "metadata": {
-            "content_hash": "f26ef8b8c18dde60e62bb3c6b3337c4eeca8cbaa293f0d40fbd0cd020b770da1"
+            "content_hash": "ea06429eb6b9568ea4530605be806d8b30e76c02e67ed64ac9a2cb07d51230f8"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "7d4b6d7cb357f6d9df157d8132afb98087b1fb4d3f22816059c5c4d98189c88f",
+      "hash": "fd37863dbdcf06513cbb457182a5762d9b76e223f2f16d10b2631cc2ec70f125",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/apple.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a7dae5e0ad67df6a0325d43e9797381cea5b695357165f32fec850a9b2c23fea",
+  "output_hash": "bb7f4ec702d6c998b4877bc56eb97d79ff51fd87ebdf1d1cd96d5a37cb770043",
   "output_path": "server/priv/docs/es/guides/features/bundle-insights/apple.md",
   "protection_state": "recorded",
   "provider": "",
@@ -261,8 +261,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/apple.md",
-  "translated_at": "2026-11-04T18:46:29.797996Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:46:25.388652Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

@@ -23,7 +23,7 @@ defmodule Pulse.Traces.TempoDiscovery do
          :ok <- validate_window(window),
          true <- is_integer(limit) and limit in 0..4_294_967_295,
          {:ok, _} <- filter(scope, key, query) do
-      QueryRunner.run(tenant, :raw, fn deadline ->
+      QueryRunner.run(tenant, :traces, fn deadline ->
         opts =
           QueryRunner.storage_opts(deadline)
           |> Keyword.put(:discovery_query, query)

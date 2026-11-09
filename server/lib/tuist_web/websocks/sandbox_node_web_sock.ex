@@ -41,6 +41,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
       memory: %{},
       disk: %{},
       templates: [],
+      default_template: nil,
+      default_template_tag: nil,
       sandboxes: [],
       daemon_version: nil,
       execution_deadlines: false,
@@ -216,6 +218,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:memory, frame["memory"], &memory/1)
     |> maybe_merge(:disk, frame["disk"], &disk/1)
     |> maybe_merge(:templates, frame["templates"], &templates/1)
+    |> maybe_merge(:default_template, frame["default_template"], &string/1)
+    |> maybe_merge(:default_template_tag, frame["default_template_tag"], &string/1)
     |> maybe_merge(:sandboxes, frame["sandboxes"], &sandboxes/1)
     |> maybe_merge(:daemon_version, frame["daemon_version"], & &1)
     |> maybe_merge(:execution_deadlines, frame["execution_deadlines"], &(&1 == true))
@@ -228,6 +232,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp direct_exec_endpoint("http://" <> _ = endpoint), do: endpoint
   defp direct_exec_endpoint(_endpoint), do: nil
+
+  defp string(value) when is_binary(value), do: value
+  defp string(_value), do: nil
 
   defp maybe_merge(info, _key, nil, _normalize), do: info
   defp maybe_merge(info, key, value, normalize), do: Map.put(info, key, normalize.(value))

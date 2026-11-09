@@ -77,6 +77,8 @@ Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
 CI can revoke admission between server placement and the host's final check.
+A command into a running VM needs no grant, since the VM already holds its
+charge; a command that has to resume a paused VM does.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.

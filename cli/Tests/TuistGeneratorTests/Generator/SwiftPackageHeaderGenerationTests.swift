@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import Testing
@@ -89,6 +91,62 @@ struct SwiftPackageHeaderGenerationTests {
         #expect(!pbx.groups.contains { $0.children.contains(reference) })
         #expect(!pbx.groups.contains { $0.path == "CLib" })
         #expect(files.folderReferences[root] != nil)
+    }
+
+    /// Xcode resolves a referenced folder that directly contains `Package.swift` as a local package, along with its
+    /// dependencies. A target declared with `path: "."` has its package directory as root, so the root's contents are
+    /// referenced instead, still keeping its sources compile-only and its header tree out of build planning.
+    @Test(.inTemporaryDirectory) func packageRootIsNotReferencedAsAFolder() throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let classes = root.appending(component: "Classes")
+        let source = classes.appending(component: "CLib.m")
+        let rootSource = root.appending(component: "Root.c")
+        let readme = root.appending(component: "README.md")
+        let nestedPackage = root.appending(component: "Example")
+        let nestedSources = nestedPackage.appending(component: "Sources")
+        let hidden = root.appending(component: ".git")
+        let wrapper = root.appending(component: "_Pods.xcodeproj")
+        for directory in [classes, nestedSources, hidden, wrapper] {
+            try FileManager.default.createDirectory(at: directory.url, withIntermediateDirectories: true)
+        }
+        for file in [
+            root.appending(component: "Package.swift"), root.appending(component: "Package@swift-5.9.swift"),
+            nestedPackage.appending(component: "Package.swift"), source, classes.appending(component: "CLib.h"),
+            rootSource, readme,
+        ] {
+            try "".write(to: file.url, atomically: true, encoding: .utf8)
+        }
+        let target = Target.test(
+            name: "CLib",
+            sources: [.init(path: source), .init(path: rootSource)],
+            headers: .test(sourceLayout: .init(
+                root: root, publicHeaders: classes, moduleMap: classes.appending(component: "module.modulemap"),
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            ))
+        )
+        let project = Project.test(
+            path: root,
+            sourceRootPath: root,
+            xcodeProjPath: "/Derived/CLib/CLib.xcodeproj",
+            targets: [target]
+        )
+        let files = ProjectFileElements()
+        let elements = try files.targetFiles(target: target, project: project)
+        #expect(elements == [
+            .folder(path: classes, group: target.filesGroup),
+            .folder(path: nestedSources, group: target.filesGroup),
+            .buildFile(path: source, group: target.filesGroup, sourceRoot: "/Derived/CLib"),
+            .file(path: rootSource, group: target.filesGroup),
+            .file(path: readme, group: target.filesGroup),
+        ])
+
+        let pbx = PBXProj()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbx)
+        try files.generate(files: Array(elements), groups: groups, pbxproj: pbx, sourceRootPath: project.sourceRootPath)
+        #expect(Set(files.folderReferences.keys) == [classes, nestedSources])
+        let reference = try #require(files.elements[source] as? PBXFileReference)
+        #expect(reference.sourceTree == .sourceRoot)
+        #expect(!pbx.groups.contains { $0.children.contains(reference) })
     }
 
     @Test func compileOnlyReferencesHaveStableIDs() throws {

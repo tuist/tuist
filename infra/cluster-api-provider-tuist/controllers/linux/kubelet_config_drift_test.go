@@ -56,6 +56,10 @@ func TestRenderKubeletConfigRepushScript(t *testing.T) {
 		"tee /var/lib/kubelet/config.yaml > /dev/null <<'TUIST_EOF'",
 		"clientCAFile: /var/lib/kubelet/ca.crt",
 		"clusterDNS:\n  - 10.96.0.10",
+		"tee /etc/sysctl.d/99-tuist-hardening.conf > /dev/null <<'TUIST_EOF'",
+		"kernel.io_uring_disabled = 1",
+		"sysctl -p /etc/sysctl.d/99-tuist-hardening.conf",
+		`[ "$(cat /proc/sys/kernel/io_uring_disabled)" -ge 1 ]`,
 		"systemctl restart kubelet",
 	} {
 		if !strings.Contains(s, want) {

@@ -1,7 +1,0 @@
-{
-  "name": "Tuist thread cards",
-  "id": "dev.tuist.threads.cards",
-  "version": "1.0.0",
-  "build": 1,
-  "capabilities": { "host": ["layout.height"] }
-}

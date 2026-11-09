@@ -40,9 +40,10 @@
 # Path list justification (see server/lib/tuist_web/router.ex):
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
-#   GET /threads/socket/websocket  Native iOS/Android thread updates.
+#   GET /jams/socket/websocket  Native iOS/Android Jam updates.
+#   GET /threads/socket/websocket  Compatibility for older native clients.
 #                      Phoenix authenticates the bearer subprotocol and
-#                      authorizes each account/private-thread subscription.
+#                      authorizes each account/private-Jam subscription.
 #   /open-graph-images/* Signed social-preview images; crawlers cannot
 #                      solve JavaScript challenges. The application
 #                      verifies signatures and current project visibility.
@@ -106,7 +107,7 @@ spec:
   expression: |-
     (http.host ne "tuist.dev") or
     starts_with(http.request.uri.path, "/api/") or
-    (http.request.method eq "GET" and http.request.uri.path eq "/threads/socket/websocket") or
+    (http.request.method eq "GET" and http.request.uri.path in {"/jams/socket/websocket" "/threads/socket/websocket"}) or
     starts_with(http.request.uri.path, "/open-graph-images/") or
     (
       http.request.method in {"GET" "HEAD"} and
@@ -128,6 +129,8 @@ spec:
         http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml" "/geofeed.csv"} or
         starts_with(http.request.uri.path, "/docs/") or
         starts_with(http.request.uri.path, "/marketing-markdown/") or
+        starts_with(http.request.uri.path, "/ar/docs/") or
+        starts_with(http.request.uri.path, "/ar/docs-markdown/") or
         starts_with(http.request.uri.path, "/en/docs/") or
         starts_with(http.request.uri.path, "/en/docs-markdown/") or
         starts_with(http.request.uri.path, "/es/docs/") or
@@ -140,6 +143,8 @@ spec:
         starts_with(http.request.uri.path, "/ko/docs-markdown/") or
         starts_with(http.request.uri.path, "/ru/docs/") or
         starts_with(http.request.uri.path, "/ru/docs-markdown/") or
+        starts_with(http.request.uri.path, "/tr/docs/") or
+        starts_with(http.request.uri.path, "/tr/docs-markdown/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs-markdown/") or
         starts_with(http.request.uri.path, "/zh_Hans/docs/") or

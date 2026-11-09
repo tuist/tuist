@@ -6,8 +6,8 @@
 # as the FICLONE fallback. Root user: it drives the jailer, mknods device
 # nodes into chroots and chowns files to per-sandbox uids.
 ARG ALPINE_VERSION=3.22
-ARG FIRECRACKER_VERSION=v1.16.1
-ARG FIRECRACKER_SHA256=382a02a869e4d6d5cb14c40577f9545e8458021ea8b0b2d3fc10ec14d9c242e6
+ARG FIRECRACKER_VERSION=v1.16.2
+ARG FIRECRACKER_SHA256=32e3cdcd4081f91fe2b024a266f57dcb3b4e5fec5033e0cb22467ad7f7820bda
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 

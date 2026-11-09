@@ -35,6 +35,9 @@ This is not full TraceQL or deployed Grafana compatibility.
 | `trace:id`, `span:id`, `span:parentID`, `link:traceID`, `link:spanID` | `=`, `!=` with a string | ID string predicates; regex/ordering reject, and the pinned Parquet ID caveats below apply |
 | `event:name`, `instrumentation:name`, `instrumentation:version` | `=`, `!=`, `=~`, `!~` with a string | Original event name or instrumentation metadata |
 | `event:timeSinceStart` | All six duration comparisons | Event timestamp minus that span's start, not trace start |
+| `resource.<key>`, `span.<key>`, `.<key>`, `instrumentation.<key>` with `nil` | `!=` (present with any type), `=` (absent) | Attribute existence, as Grafana's Traces Drilldown sends for grouped attributes; event and link scopes reject |
+| `nestedSetParent<0`, `span:nestedSetParent<0` | Only `< 0` | Root spans, those without a parent span ID; other nested-set comparisons reject |
+| `true` | As a term combined with `&&`/`||` | Every span, as in `{nestedSetParent<0 && true}` |
 
 Empty `{}` spansets select all spans, including as structural operands such as
 `{name = "request"} >> {}` or `{} > {}`. They still require known valid stored

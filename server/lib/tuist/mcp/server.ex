@@ -21,6 +21,10 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.GetBazelIntegrationGuide,
+    Tools.QueryPulse,
+    Tools.GetPulseAnalytics,
+    Tools.GetPulseErrorIssue,
+    Tools.GetPulseErrorEvent,
     Tools.ListAccounts,
     Tools.GetOrganization,
     Tools.ListAccountTokens,
@@ -67,6 +71,9 @@ defmodule Tuist.MCP.Server do
     Tools.ResumeSandbox,
     Tools.ArchiveSandbox,
     Tools.DeleteSandbox,
+    Tools.ListAmpWorkspaceConnections,
+    Tools.ConnectAmpWorkspace,
+    Tools.DisconnectAmpWorkspace,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -171,7 +178,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.51.0",
+      version: "1.56.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

@@ -4473,6 +4473,64 @@ struct PackageInfoMapperTests {
         )
     }
 
+    /// SwiftPM links the C++ standard library into every client of a module with C++ sources, so a Swift-only app that links
+    /// such a static package target needs it too.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetHasCxxSources_linksCxxStandardLibrary() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources"))
+        for file in [
+            "Cxx/src/nested/Impl.cpp", "Cxx/Header.h",
+            "ObjCxx/Bridge.mm",
+            "C/Impl.c", "C/windows/Impl.cpp",
+            "Selected/Impl.c", "Selected/unused/Impl.cc",
+            "Linked/Impl.cpp",
+        ] {
+            let path = sourcesPath.appending(try RelativePath(validating: file))
+            try await fileSystem.makeDirectory(at: path.parentDirectory)
+            try await fileSystem.writeText("", at: path)
+        }
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(
+                            name: "Product1",
+                            type: .library(.automatic),
+                            targets: ["Cxx", "ObjCxx", "C", "Selected", "Linked"]
+                        ),
+                    ],
+                    targets: [
+                        .test(name: "Cxx"),
+                        .test(name: "ObjCxx"),
+                        .test(name: "C", exclude: ["windows"]),
+                        .test(name: "Selected", sources: ["Impl.c"]),
+                        .test(name: "Linked", settings: [
+                            .init(tool: .linker, name: .linkedLibrary, condition: nil, value: ["c++"]),
+                        ]),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        let dependencies = Dictionary(uniqueKeysWithValues: try #require(project).targets.map { ($0.name, $0.dependencies) })
+        let cxxStandardLibrary = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
+        #expect(dependencies["Cxx"] == [cxxStandardLibrary])
+        #expect(dependencies["ObjCxx"] == [cxxStandardLibrary])
+        #expect(dependencies["C"] == [])
+        #expect(dependencies["Selected"] == [])
+        #expect(dependencies["Linked"] == [cxxStandardLibrary])
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider

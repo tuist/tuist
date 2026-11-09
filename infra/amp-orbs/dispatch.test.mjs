@@ -121,6 +121,16 @@ test('explains the account on-node Orb limit without retrying', async () => {
   assert.doesNotMatch(output, /private-response-body/);
 });
 
+test('fails a pause whose project snapshot was not saved, without retrying', async () => {
+  const { code, output, requests } = await dispatch(
+    { ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_SNAPSHOT_ID: 'proj-1' },
+    () => ({ status: 503, headers: { 'X-Tuist-Orb-Refusal': 'snapshot-not-saved' } }),
+  );
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert.match(output, /could not save its project snapshot/);
+});
+
 test('supports an explicitly installed template and allowed shape', async () => {
   const { code, requests } = await dispatch({ ORB_IMAGE: 'amp', TUIST_ORB_TEMPLATE: 'amp', TUIST_ORB_VCPUS: '4', TUIST_ORB_MEMORY_MB: '8192', TUIST_ORB_WORKSPACE_GB: '30' });
   assert.equal(code, 0);

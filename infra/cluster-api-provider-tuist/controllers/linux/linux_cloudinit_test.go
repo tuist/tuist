@@ -187,6 +187,7 @@ func TestRenderLinux_LockupHardening(t *testing.T) {
 			"/etc/sysctl.d/99-tuist-hardening.conf",
 			"kernel.softlockup_panic = 1",
 			"kernel.panic = 10",
+			"kernel.io_uring_disabled = 1",
 			"/etc/systemd/system.conf.d/10-tuist-watchdog.conf",
 			"RuntimeWatchdogSec=30s",
 			"systemctl daemon-reexec",

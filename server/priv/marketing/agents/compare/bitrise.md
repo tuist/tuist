@@ -6,7 +6,7 @@ Choose Tuist when you want separately adoptable, toolchain-aware caching and ins
 
 Bitrise's [Build Cache](https://bitrise.io/platform/build-cache) supports Gradle, Bazel, Xcode, and React Native build outputs. It explicitly supports other CI providers and local development, with local usage subject to plan terms. The currently cited page lists local invocations under Enterprise+; verify the applicable plan rather than assuming local use is included everywhere. Its page also describes cache analytics and AI-assisted invocation comparisons. It would be wrong to say Bitrise caching requires Bitrise CI or only accelerates CI.
 
-The Build Cache page also documents Bazel remote execution, which executes actions on remote workers rather than merely reusing cached outputs. Tuist's Bazel cache does not provide remote execution.
+The Build Cache page also documents Bazel remote execution, which executes actions on remote workers rather than merely reusing cached outputs. Tuist's cache and its separate account-enabled Linux execution integration are distinct choices; the latter is opt-in via `tuist bazel setup --remote-execution` and requires available capacity.
 
 Bitrise also publishes [build and test Insights](https://bitrise.io/platform/bitrise-insights) and an [MCP integration](https://docs.bitrise.io/en/bitrise-platform/ai/bitrise-mcp). Agent access and insights are not unique to Tuist. Compare the actual data, integration requirements, and workflows rather than whether a product advertises AI.
 
@@ -34,9 +34,5 @@ Enable one [Tuist Cache integration](/marketing-markdown/cache) in the existing 
 ## Sources and review
 
 Sources checked on **2026-10-08**: [Bitrise Build Cache](https://bitrise.io/platform/build-cache), [Bitrise Insights](https://bitrise.io/platform/bitrise-insights), [Bitrise MCP](https://docs.bitrise.io/en/bitrise-platform/ai/bitrise-mcp), [Tuist Cache](/marketing-markdown/cache), [Tuist Tests](/marketing-markdown/tests), and [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp). This comparison is written by Tuist; it acknowledges overlapping capabilities rather than claiming feature exclusivity.
-
-## Limitations
-
-This is not a benchmark, a complete feature audit, or a cheapest-provider claim. Bitrise and Tuist plans and capabilities can change. Public source and self-hosting rights differ by component; verify current license and commercial terms. Tuist's support varies by toolchain, and its runners remain invite-only. Runner rates are listed per minute on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No speedup, saving, or autonomous optimization is guaranteed.
 
 Related: [comparison overview](/marketing-markdown/compare), [Tuist and Namespace](/marketing-markdown/compare/namespace), and [rising CI costs](/marketing-markdown/solutions/ci-costs).
