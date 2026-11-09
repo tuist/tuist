@@ -498,8 +498,12 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       assert Repo.get_by(DiskSnapshot, account_id: account.id, amp_snapshot_id: "proj-2", state: :ready)
     end
 
-    test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
-      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+    # Amp records a snapshot whenever the pause succeeds, so a save that
+    # failed must fail the pause or later Orbs name a snapshot that is not there.
+    test "a failed save pauses the Orb but fails the pause, and a replay retries the save", %{account: account} do
+      sandbox =
+        sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
+
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
       expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => false}} end)
@@ -510,14 +514,19 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
 
-      assert {:ok, %{state: :paused}} =
-               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+      params = %{operation: "pause", snapshot_id: "proj-1"}
+      assert {:error, :snapshot_not_saved} = AmpOrbs.dispatch(account, "amp-thread", params)
 
+      assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
       assert Repo.all(DiskSnapshot) == []
+
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", params)
+      assert [%DiskSnapshot{state: :ready, amp_snapshot_id: "proj-1"}] = Repo.all(DiskSnapshot)
     end
 
-    test "a full node disk budget skips the save", %{account: account} do
-      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+    test "a full node disk budget fails the pause without saving", %{account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
 
       stub(Nodes, :connected_nodes, fn ->
         [%{sandbox_node("node-a") | disk: %{budget_bytes: 1, available_bytes: 1}}]
@@ -526,7 +535,20 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
 
-      assert {:ok, %{state: :paused}} =
+      assert {:error, :snapshot_not_saved} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+
+      assert Repo.reload!(sandbox).state == :paused
+      assert Repo.all(DiskSnapshot) == []
+    end
+
+    test "a pause of an archived Orb succeeds unless it asks for a snapshot", %{account: account} do
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", state: :archived, node_name: nil)
+      reject(&Nodes.call/4)
+
+      assert {:ok, %{state: :archived}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+
+      assert {:error, :snapshot_not_saved} =
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
 
       assert Repo.all(DiskSnapshot) == []
