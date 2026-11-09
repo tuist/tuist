@@ -287,7 +287,10 @@ Shared-fleet admission requires a fresh controller allocation on `sandbox_nodes`
 CI reservation revocation, zero extra warm memory, timestamp ordering and resize
 serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/fleet-sharing.md).
 `ReclaimCapacityWorker` applies pressure after the allocation is committed.
-Shared-node idle pauses have zero grace and enqueue shrink work; active
+Shared-node idle pauses (all macOS hosts too) have zero grace and enqueue
+shrink work, except 20 s after the last command ends (`Commands` residency),
+so a command run such as a sync then a build does not wait out a pause and a
+resume; CI pressure still pauses that idle sandbox at once. Active
 residencies and daemon worker/exec guards remain authoritative.
 
 Account compute admission is independent of CI: `Tuist.Sandboxes.Concurrency`
