@@ -6,7 +6,6 @@ import TuistOpener
 import TuistSupport
 import TuistUniqueIDGenerator
 import XCTest
-
 @testable import TuistServer
 @testable import TuistTesting
 
@@ -277,10 +276,76 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             )
 
         // When
+        let got = try await subject.authenticatedHandle(serverURL: serverURL)
+
+        // Then
+        XCTAssertEqual(got, "tuist")
+    }
+
+    func test_whoami_when_account_token() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .account(
+                    .test(
+                        email: "tuist@tuist.dev",
+                        preferredUsername: "tuist"
+                    )
+                )
+            )
+
+        // When
         let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
         XCTAssertEqual(got, "tuist")
+    }
+
+    func test_whoami_when_project_token() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(.project("token"))
+
+        // When
+        let got = try await subject.whoami(serverURL: serverURL)
+
+        // Then
+        XCTAssertNil(got)
+    }
+
+    func test_get_authenticated_handle_when_account_token() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .account(
+                    .test(
+                        email: "tuist@tuist.dev",
+                        preferredUsername: "tuist"
+                    )
+                )
+            )
+
+        // When
+        let got = try await subject.authenticatedHandle(serverURL: serverURL)
+
+        // Then
+        XCTAssertEqual(got, "tuist")
+    }
+
+    func test_get_authenticated_handle_when_project_token() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(.project("token"))
+
+        // Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticatedHandle(serverURL: serverURL),
+            ServerSessionControllerError.unauthenticated
+        )
     }
 
     func test_get_authenticated_handle_when_logged_out() async throws {

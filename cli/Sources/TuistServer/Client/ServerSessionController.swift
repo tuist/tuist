@@ -171,7 +171,9 @@ public struct ServerSessionController: ServerSessionControlling {
         switch token {
         case let .user(accessToken: accessToken, refreshToken: _):
             return accessToken.preferredUsername
-        case .project, .account:
+        case let .account(accessToken):
+            return accessToken.preferredUsername
+        case .project:
             return nil
         }
     }
@@ -189,7 +191,12 @@ public struct ServerSessionController: ServerSessionControlling {
                 throw ServerSessionControllerError.unauthenticated
             }
             return username
-        case .project, .account:
+        case let .account(accessToken):
+            guard let username = accessToken.preferredUsername else {
+                throw ServerSessionControllerError.unauthenticated
+            }
+            return username
+        case .project:
             throw ServerSessionControllerError.unauthenticated
         }
     }
