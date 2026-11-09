@@ -352,6 +352,7 @@ defmodule Tuist do
       Sandboxes.Router,
       Sandboxes.Sandbox,
       Sandboxes.Schemas,
+      Sandboxes.Uploads,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
