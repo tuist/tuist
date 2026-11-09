@@ -300,7 +300,8 @@ defmodule Pulse.Storage.S3.Manifest do
 
   # Exact name sets repeat across ingest batches. One dictionary entry per set
   # keeps that repetition off the hot manifest, with a hard byte budget for
-  # distinct sets. Omitted sets remain unknown, so budget exhaustion is safe.
+  # distinct sets. Overflow keeps a bounded name bloom rather than losing
+  # the pruning that grouping/finalization rely on. False positives only scan.
   #
   # Log segments reference each promoted service name ("si") and their error
   # label set ("ei") through two more dictionaries, which cuts a staging-shaped
@@ -349,7 +350,12 @@ defmodule Pulse.Storage.S3.Manifest do
       {fragment, state} ->
         {name_id, state} = dictionary_id(segment.metric_names, state)
         {label_id, state} = label_dictionary_id(segment.metric_labels, state)
-        {:cont, %{state | segments: [with_dictionary_ids(fragment, name_id, label_id) | state.segments]}}
+
+        name_bloom =
+          if is_nil(name_id) and is_list(segment.metric_names) and is_nil(segment.metric_name_bloom),
+            do: segment.metric_names |> MapSet.new() |> Segment.name_bloom() |> Base.encode64()
+
+        {:cont, %{state | segments: [with_dictionary_ids(fragment, name_id, label_id, name_bloom) | state.segments]}}
     end
   end
 
@@ -428,13 +434,14 @@ defmodule Pulse.Storage.S3.Manifest do
     end
   end
 
-  defp with_dictionary_ids(fragment, nil, nil), do: fragment
+  defp with_dictionary_ids(fragment, nil, nil, nil), do: fragment
 
-  defp with_dictionary_ids(fragment, name_id, label_id) do
+  defp with_dictionary_ids(fragment, name_id, label_id, name_bloom) do
     [
       binary_part(fragment, 0, byte_size(fragment) - 1),
       dictionary_member("ni", name_id),
       dictionary_member("li", label_id),
+      if(name_bloom, do: [",\"nb\":\"", name_bloom, ?"], else: []),
       ?}
     ]
   end

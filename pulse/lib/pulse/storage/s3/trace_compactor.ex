@@ -267,15 +267,8 @@ defmodule Pulse.Storage.S3.TraceCompactor do
       # unmergeable. All retries share the operation's remaining budget.
       {:error, :payload_too_large} = error ->
         defer_batch(sources, opts)
-        half = div(length(sources), 2)
-
-        alternatives =
-          if length(sources) > 2,
-            do: [Enum.take(sources, max(2, half)), [hd(sources), List.last(sources)], Enum.drop(sources, half)],
-            else: []
-
         result = if partial_batch?(sources, opts), do: {:ok, %{merged: 0}}, else: error
-        merge_batches(alternatives ++ rest, tenant, config, opts, remaining, result)
+        merge_batches(overflow_batches(sources, rest, opts), tenant, config, opts, remaining, result)
 
       {:error, reason} = error
       when reason in [:trace_projection_invalid, :segment_summary_mismatch, :invalid_segment] ->
@@ -288,6 +281,20 @@ defmodule Pulse.Storage.S3.TraceCompactor do
         error
     end
   end
+
+  defp overflow_batches(sources, rest, _opts) when length(sources) > 2 do
+    half = div(length(sources), 2)
+    [Enum.take(sources, max(2, half)), [hd(sources), List.last(sources)], Enum.drop(sources, half)] ++ rest
+  end
+
+  defp overflow_batches([_, _] = sources, rest, opts) do
+    # Each fresh source may fit alone even when no pair fits the decoded
+    # limit. Normalize it once through the same budget and CAS publication,
+    # after queued multi-source alternatives. Summarized outputs never churn.
+    rest ++ (sources |> Enum.filter(&(class(&1, opts) == :fresh)) |> Enum.map(&[&1]))
+  end
+
+  defp overflow_batches(_sources, rest, _opts), do: rest
 
   defp build(sources, tenant, config, opts) do
     with :ok <- validate_sources(tenant, sources),

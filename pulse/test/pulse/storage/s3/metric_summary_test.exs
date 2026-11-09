@@ -137,9 +137,24 @@ defmodule Pulse.Storage.S3.MetricSummaryTest do
     wire = unique |> then(&%Manifest{segments: &1}) |> Manifest.encode() |> IO.iodata_to_binary() |> JSON.decode!()
     assert byte_size(JSON.encode!(wire["names"])) <= 65_536
     assert {:ok, decoded} = Manifest.decode(JSON.encode!(wire))
-    unknown = Enum.filter(decoded.segments, &is_nil(&1.metric_names))
-    assert unknown != []
-    assert Enum.all?(unknown, &Segment.matches_metric_name?(&1, [{"__name__", :eq, "not-present"}]))
+    fallback = Enum.filter(decoded.segments, &is_nil(&1.metric_names))
+    assert fallback != []
+    assert Enum.all?(fallback, &(byte_size(&1.metric_name_bloom) <= 256))
+    assert Enum.count(fallback, &Segment.matches_metric_name?(&1, [{"__name__", :eq, "not-present"}])) < 30
+
+    by_key = Map.new(decoded.segments, &{&1.key, &1})
+
+    for source <- unique, name <- source.metric_names do
+      assert Segment.matches_metric_name?(by_key[source.key], [{"__name__", :eq, name}])
+    end
+
+    {cached, cache} = Manifest.encode(%Manifest{segments: unique}, %{})
+    assert Manifest.decode(IO.iodata_to_binary(cached)) == {:ok, decoded}
+    trimmed = %Manifest{segments: Enum.take(unique, -3)}
+    {cached, _} = Manifest.encode(trimmed, cache)
+
+    assert Manifest.decode(IO.iodata_to_binary(cached)) ==
+             Manifest.decode(IO.iodata_to_binary(Manifest.encode(trimmed)))
   end
 
   test "older inline sets and invalid dictionary references remain safe" do

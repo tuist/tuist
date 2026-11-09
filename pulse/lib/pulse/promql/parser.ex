@@ -13,6 +13,8 @@ defmodule Pulse.PromQL.Parser do
   alias Pulse.PromQL.FloatParser
   alias Pulse.PromQL.Time
 
+  @max_query_bytes Pulse.QueryLimits.max_promql_query_bytes()
+
   comment = string("#") |> repeat(utf8_char(not: ?\n))
   ws = ignore(repeat(choice([ascii_char([?\s, ?\t, ?\r, ?\n]), comment])))
   defcombinatorp(:ws, ws)
@@ -514,7 +516,9 @@ defmodule Pulse.PromQL.Parser do
     "y" => 31_536_000_000_000_000
   }
 
-  def parse(input) when is_binary(input) and byte_size(input) <= 16_384 do
+  # Grafana expands All selections into literal alternations, commonly tens
+  # of KiB on fleet dashboards. Text size is independent of AST complexity.
+  def parse(input) when is_binary(input) and byte_size(input) <= @max_query_bytes do
     case do_parse(input) do
       {:ok, [expr], "", _, _, _} ->
         if bounded?(expr), do: validate(expr), else: {:error, :query_expression_limit}
@@ -1033,7 +1037,9 @@ defmodule Pulse.PromQL.Parser do
   end
 
   defp valid_regex?(value) do
-    byte_size(value) <= 1024 and NIF.validate_metric_regex(value) == :ok and
+    # The native compiler still caps both its program and DFA at 1 MiB;
+    # admitting longer text does not admit unbounded regex execution state.
+    byte_size(value) <= 65_536 and NIF.validate_metric_regex(value) == :ok and
       NIF.validate_metric_regex(Pulse.QueryRegex.anchor(value)) == :ok
   end
 

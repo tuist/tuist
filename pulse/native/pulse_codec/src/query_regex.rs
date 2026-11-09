@@ -66,11 +66,21 @@ fn compile_string(
     capture_names: bool,
 ) -> Result<(regex::Regex, CaptureMetadata), regex::Error> {
     let (pattern, metadata) = translate(pattern, anchored, capture_names)?;
-    regex::RegexBuilder::new(&pattern)
+    let compiled = regex::RegexBuilder::new(&pattern)
         .size_limit(PROGRAM_BYTES)
         .dfa_size_limit(PROGRAM_BYTES)
-        .build()
-        .map(|regex| (regex, metadata))
+        .build();
+    let compiled = match compiled {
+        Err(regex::Error::CompiledTooBig(_)) if pattern.len() <= 65_536 => {
+            let compact = compact_literal_pattern(&pattern)?;
+            regex::RegexBuilder::new(&compact)
+                .size_limit(PROGRAM_BYTES)
+                .dfa_size_limit(PROGRAM_BYTES)
+                .build()
+        }
+        result => result,
+    };
+    compiled.map(|regex| (regex, metadata))
 }
 
 pub fn bytes(pattern: &str) -> Result<regex::bytes::Regex, regex::Error> {
@@ -88,11 +98,142 @@ fn compile_bytes(
     capture_names: bool,
 ) -> Result<(regex::bytes::Regex, CaptureMetadata), regex::Error> {
     let (pattern, metadata) = translate(pattern, false, capture_names)?;
-    regex::bytes::RegexBuilder::new(&pattern)
+    let compiled = regex::bytes::RegexBuilder::new(&pattern)
         .size_limit(PROGRAM_BYTES)
         .dfa_size_limit(PROGRAM_BYTES)
-        .build()
-        .map(|regex| (regex, metadata))
+        .build();
+    let compiled = match compiled {
+        Err(regex::Error::CompiledTooBig(_)) if pattern.len() <= 65_536 => {
+            let compact = compact_literal_pattern(&pattern)?;
+            regex::bytes::RegexBuilder::new(&compact)
+                .size_limit(PROGRAM_BYTES)
+                .dfa_size_limit(PROGRAM_BYTES)
+                .build()
+        }
+        result => result,
+    };
+    compiled.map(|regex| (regex, metadata))
+}
+
+// Only overflow pays for this bounded pass over already-validated syntax.
+// Factor adjacent literal prefixes/suffixes, never sort choices: leftmost-first matches,
+// captures and replacements must retain the original branch priority.
+fn compact_literal_pattern(pattern: &str) -> Result<String, regex::Error> {
+    let mut ast = regex_syntax::ast::parse::Parser::new()
+        .parse(pattern)
+        .map_err(|error| regex::Error::Syntax(error.to_string()))?;
+    compact_literal_ast(&mut ast)?;
+    let compact = ast.to_string();
+    if compact.len() >= pattern.len() {
+        return Err(regex::Error::CompiledTooBig(PROGRAM_BYTES));
+    }
+    Ok(compact)
+}
+
+fn compact_literal_ast(ast: &mut regex_syntax::ast::Ast) -> Result<(), regex::Error> {
+    use regex_syntax::ast::Ast;
+    // Keep the source AST, not optimized HIR: printing HIR can erase a
+    // zero-repeat capture and renumber every subsequent capture on reparse.
+    match ast {
+        Ast::Alternation(alternation) => {
+            for sub in &mut alternation.asts {
+                compact_literal_ast(sub)?;
+            }
+            if let Some(literals) = alternation
+                .asts
+                .iter()
+                .map(literal_value)
+                .collect::<Option<Vec<_>>>()
+            {
+                let values: Vec<_> = literals.iter().map(String::as_str).collect();
+                *ast = regex_syntax::ast::parse::Parser::new()
+                    .parse(&literal_choices(&values).to_string())
+                    .map_err(|error| regex::Error::Syntax(error.to_string()))?;
+            }
+        }
+        Ast::Concat(concat) => {
+            for sub in &mut concat.asts {
+                compact_literal_ast(sub)?;
+            }
+        }
+        Ast::Group(group) => compact_literal_ast(&mut group.ast)?,
+        Ast::Repetition(repetition) => compact_literal_ast(&mut repetition.ast)?,
+        _ => {}
+    }
+    Ok(())
+}
+
+fn literal_value(ast: &regex_syntax::ast::Ast) -> Option<String> {
+    use regex_syntax::ast::Ast;
+    match ast {
+        Ast::Empty(_) => Some(String::new()),
+        Ast::Literal(literal) => Some(literal.c.to_string()),
+        Ast::Concat(concat) => concat.asts.iter().map(literal_value).collect(),
+        _ => None,
+    }
+}
+
+fn literal_choices(values: &[&str]) -> regex_syntax::hir::Hir {
+    use regex_syntax::hir::Hir;
+    let first = values[0];
+    if values.len() == 1 {
+        return Hir::literal(first.as_bytes());
+    }
+    let mut common = first.len();
+    for value in &values[1..] {
+        common = first
+            .bytes()
+            .zip(value.bytes())
+            .take(common)
+            .take_while(|(a, b)| a == b)
+            .count();
+    }
+    while !first.is_char_boundary(common) {
+        common -= 1;
+    }
+    if common > 0 {
+        let suffixes: Vec<_> = values.iter().map(|value| &value[common..]).collect();
+        return Hir::concat(vec![
+            Hir::literal(&first.as_bytes()[..common]),
+            literal_choices(&suffixes),
+        ]);
+    }
+    let mut common = first.len();
+    for value in &values[1..] {
+        common = first
+            .bytes()
+            .rev()
+            .zip(value.bytes().rev())
+            .take(common)
+            .take_while(|(a, b)| a == b)
+            .count();
+    }
+    while !first.is_char_boundary(first.len() - common) {
+        common -= 1;
+    }
+    if common > 0 {
+        let prefixes: Vec<_> = values
+            .iter()
+            .map(|value| &value[..value.len() - common])
+            .collect();
+        return Hir::concat(vec![
+            literal_choices(&prefixes),
+            Hir::literal(&first.as_bytes()[first.len() - common..]),
+        ]);
+    }
+    let mut groups = Vec::new();
+    let mut start = 0;
+    for end in 1..=values.len() {
+        if end == values.len() || values[end].chars().next() != values[start].chars().next() {
+            groups.push(if values[start].is_empty() {
+                Hir::empty()
+            } else {
+                literal_choices(&values[start..end])
+            });
+            start = end;
+        }
+    }
+    Hir::alternation(groups)
 }
 
 fn translate(
@@ -1149,6 +1290,81 @@ fn posix_class(chars: impl Iterator<Item = char>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn large_literal_choices_preserve_matches_captures_and_branch_priority() {
+        let nonliteral = (1..=1500)
+            .map(|n| format!(r"kura/kura-app-{n}[a-z]\.example:9090"))
+            .collect::<Vec<_>>()
+            .join("|");
+        assert!(matches!(
+            string(&nonliteral),
+            Err(regex::Error::CompiledTooBig(_))
+        ));
+        for (prefix, flags) in [("", ""), ("é", "(?i)")] {
+            let hosts: Vec<_> = (1..=1500)
+                .map(|n| format!("{prefix}kura/kura-app-{n}.example:9090"))
+                .collect();
+            for overlap in ["ab|a", "a|ab", "|ab"] {
+                let pattern = format!(
+                    "{flags}(?P<gone>z){{0}}(?P<outer>{overlap}|{})(?P<tail>.*)",
+                    hosts
+                        .iter()
+                        .map(|s| regex::escape(s))
+                        .collect::<Vec<_>>()
+                        .join("|")
+                );
+                // Independent unmodified compiler, with room for its larger
+                // program. Production must still fit the original 1 MiB cap.
+                let reference = regex::RegexBuilder::new(&pattern)
+                    .size_limit(16 * PROGRAM_BYTES)
+                    .build()
+                    .unwrap();
+                let (compiled, metadata) = string_with_metadata(&pattern).unwrap();
+                let byte_regex = bytes(&pattern).unwrap();
+                assert_eq!(metadata.count, 3);
+                assert_eq!(
+                    metadata.names,
+                    [("gone".into(), 1), ("outer".into(), 2), ("tail".into(), 3)]
+                );
+                let uppercase = hosts.last().unwrap().to_uppercase();
+                for input in hosts.iter().map(String::as_str).chain([
+                    uppercase.as_str(),
+                    "abx",
+                    "ax",
+                    "no-match",
+                    "kura/kura-app-1501.example:9090",
+                    "kura/kura-app-1Xexample:9090",
+                    "😀ab\n",
+                    "",
+                ]) {
+                    let expected = reference.captures(input).map(|caps| {
+                        caps.iter()
+                            .map(|m| m.map(|m| (m.start(), m.end())))
+                            .collect::<Vec<_>>()
+                    });
+                    assert_eq!(
+                        compiled.captures(input).map(|caps| {
+                            caps.iter()
+                                .map(|m| m.map(|m| (m.start(), m.end())))
+                                .collect::<Vec<_>>()
+                        }),
+                        expected,
+                        "{overlap}: {input}"
+                    );
+                    assert_eq!(
+                        byte_regex.captures(input.as_bytes()).map(|caps| {
+                            caps.iter()
+                                .map(|m| m.map(|m| (m.start(), m.end())))
+                                .collect::<Vec<_>>()
+                        }),
+                        expected,
+                        "bytes {overlap}: {input}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn byte_and_string_engines_share_codepoints_ascii_classes_and_strict_end() {

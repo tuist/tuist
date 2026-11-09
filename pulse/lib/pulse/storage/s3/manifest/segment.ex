@@ -14,6 +14,7 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
   import Bitwise
 
   alias Pulse.Codec.NIF
+  alias Pulse.Storage.S3.MetricCatalog
   alias Pulse.Storage.S3.MetricLabelSummary
   alias Pulse.Storage.S3.TraceSummary
 
@@ -250,7 +251,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
     end
   end
 
-  defp name_bloom(names) do
+  @doc false
+  def name_bloom(names) do
     wanted = MapSet.size(names) * 2
     bytes = Enum.find(@bloom_sizes, List.last(@bloom_sizes), &(&1 >= wanted))
     size = bytes * 8
@@ -335,10 +337,10 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
   queries never see rollup or catalog objects; `tier: :rollup` and
   `tier: :catalog` select only those.
   """
-  def metrics_filter(matchers, tier \\ :samples)
-  def metrics_filter({:metric_plan, _, _, _} = plan, _tier), do: plan
+  def metrics_filter(matchers, tier \\ :samples, catalog_coverage \\ nil)
+  def metrics_filter({:metric_plan, _, _, _, _} = plan, _tier, _catalog_coverage), do: plan
 
-  def metrics_filter(matchers, tier) do
+  def metrics_filter(matchers, tier, catalog_coverage) do
     plan = MetricLabelSummary.plan(matchers)
 
     # Name matchers a bloom can decide: each needs one of these names present.
@@ -348,7 +350,7 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
           alternatives != nil,
           do: Enum.map(alternatives, &name_hash/1)
 
-    {:metric_plan, plan, names, tier}
+    {:metric_plan, plan, names, tier, catalog_coverage}
   end
 
   defp bloom_names(:eq, ""), do: nil
@@ -366,8 +368,9 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
   a name bloom proves that no name an equality or literal alternation accepts
   is present.
   """
-  def matches_metrics?(segment, {:metric_plan, plan, names, tier}) do
-    in_tier?(metric_tier(segment), tier) and matches_plan?(segment, plan, names)
+  def matches_metrics?(segment, {:metric_plan, plan, names, tier, catalog_coverage}) do
+    in_tier?(metric_tier(segment), tier) and matches_plan?(segment, plan, names) and
+      not MetricCatalog.covered_in_window?(segment, catalog_coverage)
   end
 
   def matches_metrics?(segment, matchers), do: matches_metrics?(segment, metrics_filter(matchers))

@@ -145,22 +145,23 @@ defmodule PulseWeb.CompatControllerTest do
                build_conn() |> get("/api/v1/format_query", %{"query" => "sum(("}) |> json_response(400)
 
       for method <- [:get, :post],
-          query <- ["", "unknown(up)", "up @ time()", "sum by(job,job)(up)", String.duplicate(" ", 16_385) <> "up"] do
+          query <- ["", "unknown(up)", "up @ time()", "sum by(job,job)(up)", String.duplicate(" ", 262_143) <> "up"] do
         assert %{"status" => "error", "errorType" => "bad_data"} = format_query(query, method, 400)
       end
 
       assert build_conn() |> get("/api/v1/format_query") |> json_response(400)
 
       for method <- [:get, :post] do
-        assert format_query("up" <> String.duplicate(" ", 16_382), method)["data"] == "up"
+        assert format_query("up" <> String.duplicate(" ", 262_142), method)["data"] == "up"
 
-        expanded = ~s(up{job=`#{String.duplicate(<<1>>, 3000)}`})
+        expanded = ~s(up{job=`#{String.duplicate(<<1>>, 45_000)}`})
         assert {:ok, _} = Parser.parse(expanded)
         assert format_query(expanded, method, 400)["error"] == ":query_expression_limit"
 
         numeric = Enum.map_join(1..60, " + ", fn _ -> "vector(1e-308)" end)
-        assert {:ok, _} = Parser.parse(numeric)
-        assert format_query(numeric, method, 400)["error"] == ":query_expression_limit"
+        assert {:ok, expression} = Parser.parse(numeric)
+        assert %{"data" => formatted} = format_query(numeric, method)
+        assert Parser.parse(formatted) == {:ok, expression}
       end
     end
 

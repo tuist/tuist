@@ -291,6 +291,21 @@ defmodule Pulse.Storage.S3.MetricCatalog do
          MetricTiers.hour(segment.min_ts) == hour and MetricTiers.hour(segment.max_ts) == hour)
   end
 
+  @doc "Whether active catalogs cover every hour of a segment within a discovery window."
+  def covered_in_window?(%{min_ts: min, max_ts: max} = segment, {hours, covers, start_ts, end_ts})
+      when is_integer(min) and is_integer(max) do
+    first = MetricTiers.hour(max(min, start_ts))
+    last = MetricTiers.hour(min(max, end_ts))
+
+    first <= last and last - first <= 48 * @hour_ns and
+      Enum.all?(first..last//@hour_ns, fn hour ->
+        Map.has_key?(hours, hour) and
+          covered?(segment, hour, Map.get(covers, hour, MapSet.new()), hours[hour])
+      end)
+  end
+
+  def covered_in_window?(_segment, _coverage), do: false
+
   @doc "The hour a catalog describes, or nil for an object that is not one."
   def catalog_hour(%Segment{min_ts: min, max_ts: max} = segment) when is_integer(min) and is_integer(max) do
     if Segment.metric_tier(segment) == :catalog and rem(min, @hour_ns) == 0 and max == min + @hour_ns - 1, do: min

@@ -201,6 +201,36 @@ defmodule Pulse.Storage.S3.MetricPruningTest do
     end
   end
 
+  test "exact-name scans stay selective after the manifest name dictionary fills", %{agent: agent, tenant: tenant} do
+    rare =
+      for {instance, value} <- [{"left", 7.0}, {"right", 11.0}] do
+        %{sample(0, %{"__name__" => "rare_metric", "instance" => instance}) | value: value}
+      end
+
+    for row <- rare, do: assert(:ok = S3.append(:metrics, tenant, [row]))
+    :ok = Memory.append(:metrics, tenant, rare)
+
+    # Distinct complete sets, not one shared set: about 450 KiB of names
+    # exceed the 64 KiB dictionary while each set fits its 128-name bound.
+    for batch <- 1..96 do
+      rows =
+        for n <- 1..32 do
+          sample(0, %{"__name__" => "metric_#{batch}_#{n}_" <> String.duplicate("counter_", 20)})
+        end
+
+      assert :ok = S3.append(:metrics, tenant, rows)
+      :ok = Memory.append(:metrics, tenant, rows)
+    end
+
+    Runtime.put_env(:pulse, Evaluator, max_scan_segments: 4)
+    before = segment_reads(agent)
+    assert {:ok, result} = instant("sum(rare_metric)", tenant, S3)
+    assert segment_reads(agent) - before <= 4
+    assert [%{"value" => [2000.0, "18"]}] = result["data"]["result"]
+    assert {:ok, ^result} = instant("sum(rare_metric)", tenant, Memory)
+    assert {:error, :query_scan_limit} = instant(~S<sum({__name__=~".+"})>, tenant, S3)
+  end
+
   test "regex range queries over many segments stay within the scan budget", %{tenant: tenant} do
     Runtime.put_env(:pulse, Storage, adapter: S3)
     Runtime.put_env(:pulse, Evaluator, max_scan_segments: 10)

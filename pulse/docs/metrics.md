@@ -160,6 +160,16 @@ send time, a selector of a metric exposed by few targets reads only the batches
 around those scrapes, not every batch of the window. Segments written before
 this filter existed have no filter and are scanned for name matchers.
 
+The exact-name dictionary has a separate 64 KiB manifest budget. When a complete
+set of at most 128 names cannot fit, new manifest writes retain the same bounded
+bloom representation instead of discarding name pruning (64–256 bytes before
+base64 per affected segment). This adds hashing work and per-segment manifest
+metadata, without increasing the dictionary or query scan limits. Existing
+entries whose names were already omitted remain unknown until rewritten from
+complete summaries, for example by compaction; readers cannot reconstruct them.
+Older readers already understand this bloom field, and older writers may drop
+it without changing stored samples.
+
 Flags such as `(?i)`, `\Q...\E`, and patterns with no literal prefix (such as
 `.+suffix`) never prune. Segments without summaries (older writers, high
 cardinality, long values) are always scanned. Every selector still filters

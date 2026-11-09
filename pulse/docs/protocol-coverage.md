@@ -1634,7 +1634,7 @@ No native/storage-format or resource-ceiling change is needed.
 Mimir's `TestFormatQueryAPIEndpoint` now replays its exact expression and
 formatted result. Formatting covers Pulse's supported grammar over GET/form
 POST, without executing queries or accessing storage. Output preserves operator
-precedence, selector order, values and vector matching, with the same 16 KiB
+precedence, selector order, values and vector matching, with the same 256 KiB
 input/output ceiling. It removes comments/redundant parentheses and stays
 single-line; exact upstream multiline formatting remains a separate gap.
 Upgrade query-serving applications; no native/storage/keyed-byte change is needed.

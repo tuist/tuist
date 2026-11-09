@@ -71,6 +71,7 @@ defmodule Pulse.PromQL.Discovery do
     valid =
       length(all) <= 64 and
         Enum.count(all, fn {_, op, _} -> op in [:re, :nre] end) <= 8 and
+        Enum.all?(all, fn {_, op, value} -> op not in [:re, :nre] or byte_size(value) <= 1024 end) and
         Enum.all?(all, fn {name, _, _} -> byte_size(name) <= 256 end) and
         Enum.reduce(all, 0, fn {name, _, value}, n -> n + byte_size(name) + byte_size(value) end) <= 16_384
 

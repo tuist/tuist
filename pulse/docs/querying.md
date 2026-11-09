@@ -1146,11 +1146,20 @@ string quoting, durations and numeric literals while preserving evaluation
 order, vector matching and selector order. Comments and redundant parentheses
 are not retained. Output is single-line, not byte-for-byte Mimir/Prometheus
 multiline pretty-printing; unsupported language features still return HTTP 400.
-Both input and output must fit the existing 16 KiB query limit. A valid input
+Both input and output must fit the 256 KiB PromQL query limit. A valid input
 whose escaped strings or fixed-decimal literals expand beyond that limit also
 returns HTTP 400, never an unusable formatted query. Authentication still applies.
-Upgrade all query-serving applications for consistent formatting behind a load
-balancer. No storage, native ABI, configuration or keyed-byte change is involved.
+Selector regex text is capped at 64 KiB to accommodate Grafana's expanded All
+selections; the native compiler still caps programs and DFA caches at 1 MiB
+each. If compilation exceeds that program limit, translated patterns of at most
+64 KiB get one retry after adjacent literal alternatives are compacted by shared
+prefixes and suffixes. Branch priority and captures are preserved; nonliteral or
+still-oversized programs can still be rejected. AST, matcher-count, scan, heap
+and deadline limits are unchanged.
+`label_replace` and metric discovery retain their separate 1 KiB regex limits.
+Upgrade all query-serving applications and their native codecs for consistent
+admission and formatting behind a load balancer. No storage, native ABI,
+configuration or keyed-byte change is involved.
 
 `/api/v1/query_exemplars` returns the exemplars of every series the query's
 selectors select, with timestamps in `[start, end]` (`end` defaults to now,

@@ -185,12 +185,26 @@ defmodule Pulse.Storage.S3.MetricCatalogTest do
     assert discover(ctx, hours) == expected
     assert reads(ctx.agent) == 2 * length(@queries)
 
+    # Covered sample objects are not scan candidates: only the two catalogs
+    # consume the source budget, even while all original samples still exist.
+    assert discover(ctx, hours, max_scan_segments: 2) == expected
+    reads(ctx.agent)
+
     # A segment written later is read until a catalog covers it.
     :ok = S3.append(:metrics, ctx.tenant, [sample(ctx.h0 + @hour + 5 * @minute, "late", 7)])
     late = discover(ctx, hours)
     assert {:ok, names} = Enum.at(late, 3)
     assert "late" in Pulse.JSON.decode!(names)
     assert read_tiers(ctx.agent) == MapSet.new([:catalog, :raw])
+
+    assert discover(ctx, hours, max_scan_segments: 3) == late
+
+    assert {:error, :query_scan_limit} =
+             S3.metric_discovery_json(ctx.tenant, "values", "__name__", [],
+               start_ts: elem(hours, 0),
+               end_ts: elem(hours, 1),
+               max_scan_segments: 2
+             )
 
     # Grouped and finalized outputs of covered sources stay covered.
     :ok = build_all(ctx, [])
@@ -208,6 +222,28 @@ defmodule Pulse.Storage.S3.MetricCatalogTest do
     assert discover(ctx, hours) == late
     # Only catalogs and the edge rows finalization moved out of the hour.
     assert read_tiers(ctx.agent) == MapSet.new([:catalog, :raw])
+  end
+
+  test "catalog discovery stays within the default source cap across paged sample history", ctx do
+    for offset <- 1..1_025 do
+      :ok = S3.append(:metrics, ctx.tenant, [sample(ctx.h0 + @minute + offset, "catalog_scale", 7)])
+    end
+
+    opts = [start_ts: ctx.h0, end_ts: ctx.h0 + @hour - 1]
+    selectors = [[{"__name__", :eq, "catalog_scale"}]]
+
+    assert {:error, :query_scan_limit} =
+             S3.metric_discovery_json(ctx.tenant, "values", "instance", selectors, opts)
+
+    :ok = build_all(ctx, settle_ms: 0)
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    assert root.version == 4 and root.paging["refs"] != []
+    reads(ctx.agent)
+
+    assert {:ok, ~s|["10.0.0.7:9090"]|} =
+             S3.metric_discovery_json(ctx.tenant, "values", "instance", selectors, opts)
+
+    assert read_tiers(ctx.agent) == MapSet.new([:catalog])
   end
 
   test "outputs stamped by catalogs that a rollback retired are read again", ctx do

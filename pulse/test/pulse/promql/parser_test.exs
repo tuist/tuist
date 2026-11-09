@@ -287,12 +287,20 @@ defmodule Pulse.PromQL.ParserTest do
   test "matcher counts and pattern sizes are bounded before native compilation" do
     matchers = Enum.map_join(1..65, ",", &~s(a#{&1}="x"))
     assert {:error, _} = Parser.parse("m{" <> matchers <> "}")
-    assert {:error, _} = Parser.parse(~s(m{job=~"#{String.duplicate("a", 1025)}"}))
+    assert {:error, _} = Parser.parse(~s(m{job=~"#{String.duplicate("a", 65_537)}"}))
 
     quoted_matchers = Enum.map_join(1..64, ",", &~s("label😀#{&1}"="x"))
     assert {:ok, _} = Parser.parse("{" <> quoted_matchers <> "}")
     assert {:error, _} = Parser.parse(~s({"metric😀",#{quoted_matchers}}))
-    assert {:error, _} = Parser.parse(~s({"label😀"=~"#{String.duplicate("a", 1025)}"}))
+    assert {:error, _} = Parser.parse(~s({"label😀"=~"#{String.duplicate("a", 65_537)}"}))
+
+    query = "up" <> String.duplicate(" ", 262_142)
+    assert {:ok, _} = Parser.parse(query)
+    assert {:error, _} = Parser.parse(query <> " ")
+
+    # Text below the new limits must still fit the native 1 MiB program cap.
+    pattern = Enum.map_join(1..1_500, "|", &"kura/kura-app-#{&1}[a-z]\\.example:9090")
+    assert {:error, _} = Parser.parse("up{instance=~" <> JSON.encode!(pattern) <> "}")
   end
 
   test "unclosed nested aggregations cannot backtrack exponentially" do

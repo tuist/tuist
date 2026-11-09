@@ -14,6 +14,7 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.Manifest.Segment
   alias Pulse.Storage.S3.ManifestSupervision
+  alias Pulse.Storage.S3.MetadataCache
   alias Pulse.Storage.S3.Retention
   alias Pulse.Storage.S3.TraceCompactor
   alias Pulse.Test.CompactionStore
@@ -136,18 +137,104 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
     assert length(rows) == 2
   end
 
-  test "native payload ceiling refuses publication instead of dropping spans", ctx do
+  test "irreducible pair overflow normalizes fresh sources without churning native outputs", ctx do
+    # Distinct starts keep native output ordering deterministic: the large
+    # first output precedes the smaller tail when a fresh source remains.
+    rows =
+      for offset <- 0..4999 do
+        %{
+          ctx.span
+          | timestamp_ns: ctx.span.timestamp_ns + offset,
+            end_timestamp_ns: ctx.span.end_timestamp_ns + offset
+        }
+      end
+
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, rows))
+    originals = active(ctx)
+
+    blobs =
+      Enum.map(originals, fn source ->
+        assert source.byte_size < 65_536
+        assert {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+        assert {:ok, [_, _]} = NIF.compact_trace_segments_split([blob], 60_000, 256, 1024, 20_000)
+        blob
+      end)
+
+    assert {:error, :payload_too_large} = NIF.compact_trace_segments_split(blobs, 60_000, 256, 1024, 20_000)
+
+    for expected_retired <- 1..2 do
+      # Isolate the irreducible pair path rather than a later cross-pair with
+      # an already-normalized tail. All other limits retain their defaults.
+      assert {:ok, %{merged: 1, outputs: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, max_sources: 2)
+      manifest = load(ctx)
+      assert Enum.count(originals, &Map.has_key?(manifest.retired, &1.key)) == expected_retired
+
+      retained =
+        Enum.flat_map(manifest.segments, fn source ->
+          assert {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+          assert {:ok, decoded} = S3.decode_segment(:traces, blob, nil, nil, [])
+          decoded
+        end)
+
+      assert Enum.frequencies(retained) == Enum.frequencies(rows ++ rows)
+      for source <- originals, do: assert({:ok, _} = ObjectStore.get(ctx.config, source.key))
+    end
+
+    assert Enum.all?(active(ctx), &String.contains?(&1.key, "-compact-"))
+
+    # Partial-only finishing may still consolidate the smaller native outputs.
+    for _ <- 1..4, do: assert({:ok, _} = TraceCompactor.compact(ctx.tenant, ctx.config))
+    settled = active(ctx)
+    retired = load(ctx).retired
+    puts = Agent.get(ctx.agent, &Enum.filter(&1.requests, fn {method, _key} -> method == "PUT" end))
+
+    for _ <- 1..3 do
+      # Hints are disposable: convergence must not depend on remembering failures.
+      MetadataCache.clear()
+      assert {:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+      assert active(ctx) == settled
+      assert load(ctx).retired == retired
+      assert Agent.get(ctx.agent, &Enum.filter(&1.requests, fn {method, _key} -> method == "PUT" end)) == puts
+    end
+
+    assert Enum.sum_by(settled, & &1.row_count) == 10_000
+
+    retained =
+      Enum.flat_map(settled, fn source ->
+        assert {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+        assert {:ok, decoded} = S3.decode_segment(:traces, blob, nil, nil, [])
+        decoded
+      end)
+
+    assert Enum.frequencies(retained) == Enum.frequencies(rows ++ rows)
+  end
+
+  test "native payload ceiling still refuses pair admission while normalizing fresh sources", ctx do
     row = %{ctx.span | name: :binary.copy(<<0>>, 2 * 1024 * 1024)}
     for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [row]))
 
-    assert {:error, :payload_too_large} =
+    blobs =
+      Enum.map(active(ctx), fn source ->
+        assert {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+        blob
+      end)
+
+    assert {:error, :payload_too_large} = NIF.compact_trace_segments_split(blobs, 60_000, 256, 1024, 20_000)
+
+    assert {:ok, %{merged: 1, outputs: 1}} =
              TraceCompactor.compact(ctx.tenant, ctx.config,
                small_segment_bytes: 32 * 1024 * 1024,
                max_input_bytes: 64 * 1024 * 1024
              )
 
-    assert length(load(ctx).segments) == 2
-    assert load(ctx).retired == %{}
+    manifest = load(ctx)
+    assert length(manifest.segments) == 2
+    assert map_size(manifest.retired) == 1
+
+    for source <- manifest.segments do
+      assert {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+      assert {:ok, [^row]} = S3.decode_segment(:traces, blob, nil, nil, [])
+    end
   end
 
   test "over-budget native merges shrink original source sets before publication", ctx do

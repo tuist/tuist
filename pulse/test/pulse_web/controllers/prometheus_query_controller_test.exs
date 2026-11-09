@@ -7,6 +7,7 @@ defmodule PulseWeb.PrometheusQueryControllerTest do
   alias Pulse.Auth
   alias Pulse.Auth.SharedSecret
   alias Pulse.PromQL.Evaluator
+  alias Pulse.PromQL.Parser
   alias Pulse.Record.MetricSample
   alias Pulse.Storage
   alias Pulse.Storage.Memory
@@ -39,6 +40,46 @@ defmodule PulseWeb.PrometheusQueryControllerTest do
              conn
              |> post("/api/v1/query", %{query: "requests_total", time: "1970-01-01T00:00:20Z"})
              |> json_response(200)
+  end
+
+  test "large Grafana All selections preserve anchored and negated matcher results", %{conn: conn} do
+    instances = for n <- 1..1_500, do: "kura/kura-app-#{n}.example:9090"
+    pattern = "(" <> Enum.map_join(instances, "|", &Regex.escape/1) <> ")"
+    selector = "up{instance=~" <> JSON.encode!(pattern) <> "}"
+    query = "sum(#{selector}) + sum(#{selector})"
+    assert byte_size(pattern) > 1024 and byte_size(query) > 16_384
+
+    for {instance, value} <- [
+          {hd(instances), 7.0},
+          {List.last(instances), 11.0},
+          {"kura/kura-app-1501.example:9090", 1000.0},
+          {"kura/kura-app-1Xexample:9090", 2000.0},
+          {nil, 4000.0}
+        ] do
+      labels = if instance, do: %{"__name__" => "up", "instance" => instance}, else: %{"__name__" => "up"}
+
+      :ok =
+        Storage.append(:metrics, "acme", [%MetricSample{timestamp_ns: 20_000_000_000, value: value, labels: labels}])
+    end
+
+    conn = put_req_header(conn, "x-scope-orgid", "acme")
+
+    assert %{"data" => %{"result" => [%{"value" => [20.0, "36"]}]}} =
+             conn |> post("/api/v1/query", %{query: query, time: "20"}) |> json_response(200)
+
+    assert %{"data" => %{"result" => [%{"values" => [[20.0, "36"], [21.0, "36"]]}]}} =
+             conn
+             |> post("/api/v1/query_range", %{query: query, start: "20", end: "21", step: "1"})
+             |> json_response(200)
+
+    negative = "sum(up{instance!~" <> JSON.encode!(pattern) <> "})"
+
+    assert %{"data" => %{"result" => [%{"value" => [20.0, "7000"]}]}} =
+             conn |> post("/api/v1/query", %{query: negative, time: "20"}) |> json_response(200)
+
+    assert %{"data" => formatted} = conn |> post("/api/v1/format_query", %{query: query}) |> json_response(200)
+    assert {:ok, expression} = Parser.parse(query)
+    assert {:ok, ^expression} = Parser.parse(formatted)
   end
 
   test "math domain results remain successful instant and range values", %{conn: conn} do

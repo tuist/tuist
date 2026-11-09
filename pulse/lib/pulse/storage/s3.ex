@@ -1325,7 +1325,11 @@ defmodule Pulse.Storage.S3 do
       Keyword.put(
         opts,
         :metrics_filter,
-        Segment.metrics_filter(Keyword.get(opts, :matchers, []), Keyword.get(opts, :metric_tier, :samples))
+        Segment.metrics_filter(
+          Keyword.get(opts, :matchers, []),
+          Keyword.get(opts, :metric_tier, :samples),
+          opts[:metric_catalog_coverage]
+        )
       )
 
   defp metrics_filter(opts, _signal), do: opts
@@ -1403,7 +1407,6 @@ defmodule Pulse.Storage.S3 do
         else: end_ts
 
     with :ok <- NIF.ensure_metric_catalog_api!(),
-         {:ok, samples} <- query_segments(manifest, :metrics, start_ts, end_ts, opts, tenant, config),
          :ok <- check_deadline(opts[:deadline_ms]),
          {:ok, native} <- start_native_query(:metrics, start_ts, end_ts, opts) do
       catalogs = Enum.sort_by(catalogs, & &1.key)
@@ -1412,40 +1415,30 @@ defmodule Pulse.Storage.S3 do
 
       catalogs
       |> scan_sources(Map.put(ctx, :catalogs?, true), state)
-      |> scan_uncovered(samples, hours, ctx, length(catalogs))
+      |> scan_uncovered(manifest, hours, ctx, tenant)
       |> finish_scan(native, nil, :metric_discovery)
     end
   end
 
   # Continue the same native scan and budgets over every sample segment that
-  # some catalog hour in the window does not cover.
-  defp scan_uncovered({:ok, state}, samples, hours, ctx, visited) do
-    uncovered = Enum.reject(samples, &catalogued?(&1, hours, state.covers, ctx.start_ts, ctx.end_ts))
+  # some catalog hour in the window does not cover. Apply coverage while
+  # planning pages, before their candidate ceiling: covered samples are not
+  # sources this query will read, and must not exhaust its segment budget.
+  defp scan_uncovered({:ok, state}, manifest, hours, ctx, tenant) do
+    visited = length(ctx.segments)
     consumed = %{max_scan_segments: visited, max_scan_bytes: state.bytes, max_scan_rows: state.rows}
+    coverage = {hours, state.covers, ctx.start_ts, ctx.end_ts}
+    opts = ctx.opts |> remaining_budget(consumed) |> Keyword.put(:metric_catalog_coverage, coverage)
 
-    with :ok <- check_scan_budget(:metrics, uncovered, remaining_budget(ctx.opts, consumed)) do
+    with {:ok, uncovered} <-
+           query_segments(manifest, :metrics, ctx.start_ts, ctx.end_ts, opts, tenant, ctx.config),
+         :ok <- check_scan_budget(:metrics, uncovered, opts) do
       ctx = %{ctx | segments: uncovered, indexed: List.to_tuple(uncovered), offset: visited}
       scan_sources(uncovered, ctx, state)
     end
   end
 
-  defp scan_uncovered(error, _samples, _hours, _ctx, _visited), do: error
-
-  # Covered when every hour of the segment inside the window has a catalog
-  # covering it; unknown or very long spans are read.
-  defp catalogued?(%{min_ts: min, max_ts: max} = segment, hours, covers, start_ts, end_ts)
-       when is_integer(min) and is_integer(max) do
-    first = MetricTiers.hour(max(min, start_ts))
-    last = MetricTiers.hour(min(max, end_ts))
-
-    first <= last and last - first <= 48 * MetricTiers.hour_ns() and
-      Enum.all?(first..last//MetricTiers.hour_ns(), fn hour ->
-        Map.has_key?(hours, hour) and
-          MetricCatalog.covered?(segment, hour, Map.get(covers, hour, MapSet.new()), hours[hour])
-      end)
-  end
-
-  defp catalogued?(_segment, _hours, _covers, _start_ts, _end_ts), do: false
+  defp scan_uncovered(error, _manifest, _hours, _ctx, _tenant), do: error
 
   # Limited traces may stop at a strict timestamp boundary. Actual visited
   # objects are still charged for bytes/rows/segments in scan_segments/7.

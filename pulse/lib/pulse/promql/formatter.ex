@@ -32,7 +32,7 @@ defmodule Pulse.PromQL.Formatter do
 
       # Escapes and fixed-decimal literals can expand. Never return a query
       # that the same parser would reject for exceeding its input budget.
-      if byte_size(formatted) <= 16_384,
+      if byte_size(formatted) <= Pulse.QueryLimits.max_promql_query_bytes(),
         do: {:ok, formatted},
         else: {:error, :query_expression_limit}
     end
