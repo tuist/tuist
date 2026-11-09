@@ -13,7 +13,14 @@ One managed provider serves every platform through Amp's [orb types](https://amp
 | Type | Platform | Template | Shape |
 | --- | --- | --- | --- |
 | `linux` | Linux (Firecracker) | `default` | 4 vCPU, 8 GiB RAM, 10 GB workspace |
+| `linux-tiny` | Linux (Firecracker) | `default` | 1 vCPU, 2 GiB RAM, 10 GB workspace |
 | `linux-small` | Linux (Firecracker) | `default` | 2 vCPU, 4 GiB RAM, 10 GB workspace |
+| `linux-medium` | Linux (Firecracker) | `default` | 4 vCPU, 8 GiB RAM, 10 GB workspace (same as `linux`) |
+| `linux-large` | Linux (Firecracker) | `default` | 8 vCPU, 16 GiB RAM, 10 GB workspace |
+| `linux-xxlarge` | Linux (Firecracker) | `default` | 16 vCPU, 32 GiB RAM, 10 GB workspace |
+| `linux-3xlarge` | Linux (Firecracker) | `default` | 16 vCPU, 44 GiB RAM, 10 GB workspace |
+
+The Linux types mirror [Amp's orb sizes](https://ampcode.com/docs/orbs/sizes-and-costs). A type only places on a node whose carve-out ceiling (`sandboxes.maxMemoryGiB`) holds its memory plus 64 MiB of VMM overhead and the 512 MiB daemon reserve: with production's 32 GiB, `linux-xxlarge` and `linux-3xlarge` never place, so do not list them in Amp until the ceiling is raised. Shapes other than the prebuilt ones (`sandboxes.prebuildShapes`) build their template snapshot on a node's first create.
 | `macos` | macOS (Tart) | `macos` | 8 vCPU, 8 GiB RAM, 10 GB workspace |
 
 Amp passes the thread's type to every spawn as `ORB_TYPE`, and the dispatch adapter forwards it as `orb_type`. The server owns the mapping (`Tuist.Sandboxes.AmpOrbs.orb_type/1`), so the provider workload cannot choose a template or shape. A thread keeps its type for life; threads created before the provider had types arrive without one and get `linux`. Amp refuses a type the provider does not list before dispatching. Tuist refuses a listed type it does not know with HTTP 400 and `X-Tuist-Orb-Refusal: unknown-orb-type`, and a spawn whose type names another platform than the Orb's existing row with HTTP 409 and `orb-type-mismatch`; it never boots the other guest or moves disks. Pause and delete act on the existing row and ignore the type. Changing a type's shape in the catalog affects only new Orbs.

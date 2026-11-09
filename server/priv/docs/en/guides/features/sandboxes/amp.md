@@ -19,12 +19,17 @@
 You need to be an administrator of both the Amp workspace and the Tuist account.
 
 1. In Amp, open your workspace's **Settings → Orbs**, click **Add Orb Provider**, and name it, for example `tuist`. Members pick the provider by this name. Copy the `aop_live_…` token; Amp shows it only once.
-2. In the provider's **Edit** dialog in Amp, add these **Orb types** and pick the default:
+2. In the provider's **Edit** dialog in Amp, add the **Orb types** you want to offer and pick the default. The Linux types match the sizes of [Amp's own orbs](https://ampcode.com/docs/orbs/sizes-and-costs):
 
    | Type | Platform | Shape |
    | --- | --- | --- |
    | `linux` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace |
+   | `linux-tiny` | Linux | 1 vCPU, 2 GiB RAM, 10 GB workspace |
    | `linux-small` | Linux | 2 vCPU, 4 GiB RAM, 10 GB workspace |
+   | `linux-medium` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace (same as `linux`) |
+   | `linux-large` | Linux | 8 vCPU, 16 GiB RAM, 10 GB workspace |
+   | `linux-xxlarge` | Linux | 16 vCPU, 32 GiB RAM, 10 GB workspace |
+   | `linux-3xlarge` | Linux | 16 vCPU, 44 GiB RAM, 10 GB workspace |
    | `macos` | macOS with Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
@@ -33,7 +38,7 @@ The card shows **Connected** once Tuist is serving the provider. One Tuist accou
 
 ## Start a thread {#start-a-thread}
 
-In Amp's new-thread composer, click **Orb**, choose the Tuist provider under **Self-Hosted**, and pick a type, such as `linux-small` for a repository that needs less than `linux`. From the Amp CLI:
+In Amp's new-thread composer, click **Orb**, choose the Tuist provider under **Self-Hosted**, and pick a type, such as `linux-small` for a repository that needs less than `linux`, or `linux-large` for one that needs more. From the Amp CLI:
 
 ```bash
 amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos
