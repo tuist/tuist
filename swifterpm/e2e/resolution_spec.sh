@@ -1170,24 +1170,14 @@ scenario_replace_scm_with_registry_uses_registry() {
   test "$(cat "${marker}")" = "${checksum}" || return 1
 
   # A seeded entry whose checksum no longer matches the registry is stale, so
-  # the restore downloads the release itself and keeps the archive.
+  # the restore downloads the release itself. The archive is deleted once
+  # extracted: the cache keeps only the release's sources.
   printf 'stale checksum' >"${marker}"
   rm -rf "${package_dir}/.build/registry"
   restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
   test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
   test "$(cat "${marker}")" = "${checksum}" || return 1
-
-  local archive
-  archive="$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print | head -n 1)"
-  test -n "${archive}" || return 1
-
-  # A kept archive that fails checksum validation is downloaded again.
-  printf 'corrupt archive' >"${archive}"
-  printf 'stale checksum' >"${marker}"
-  rm -rf "${package_dir}/.build/registry"
-  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
-  test "$(file_sha256 "${archive}")" = "${checksum}" || return 1
+  test -z "$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print)" || return 1
 
   stop_registry_server
   echo "identity=${identity}"
@@ -1196,7 +1186,7 @@ scenario_replace_scm_with_registry_uses_registry() {
   echo "checkout=absent"
   echo "registry-cache=seeded"
   echo "stale-cache-redownload=ok"
-  echo "corrupt-archive-redownload=ok"
+  echo "registry-archive=removed"
 }
 
 restore_registry_package() {
@@ -1888,7 +1878,7 @@ Describe "swifterpm registry integration"
     The output should include "checkout=absent"
     The output should include "registry-cache=seeded"
     The output should include "stale-cache-redownload=ok"
-    The output should include "corrupt-archive-redownload=ok"
+    The output should include "registry-archive=removed"
   End
 
   It "falls back to source control when a registry identifier has no versions"

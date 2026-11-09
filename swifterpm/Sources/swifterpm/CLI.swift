@@ -581,12 +581,17 @@ enum CLIRunner {
                 }
                 let package = canonicalPackageDir(commandPackageDir(cli: cli, paths: paths, commandPackageDir: directory))
                 let scratch = commandScratchDir(cli: cli, paths: paths, packageDir: package, commandScratchDir: scratchDirectory)
+                let sharedCacheDirectory = cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDirectory)
                 try await ManifestCache.withContext(
                     packageDirectory: package, scratchDirectory: scratch,
-                    sharedCacheDirectory: cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDirectory)
+                    sharedCacheDirectory: sharedCacheDirectory
                 ) {
                     try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
                 }
+                try await CachePruner.pruneAfterInstallation(
+                    cacheDirectory: sharedCacheDirectory,
+                    maxBytes: Environment.current["SWIFTERPM_CACHE_MAX_BYTES"].flatMap { Int($0) }
+                )
             }
         }
     }
