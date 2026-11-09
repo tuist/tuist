@@ -1762,9 +1762,13 @@ and exhausted optional probes still read conservatively. Complete-context trace
 recovery and its existing horizon, catalog, scan and heap limits are unchanged.
 Metadata reads run up to 32 at a time;
 `max_scan_segments` is enforced while candidate pages are read for full scans.
-Compaction selects candidates from the tail, the four newest leaves and
-four leaves picked by a rotating cursor. It rewrites the path from one leaf to
-the root and records the pages it supersedes. Cleanup deletes retired segments
+Compaction selects candidates from the tail, the four leaves with the newest
+active timestamps and four leaves picked by a rotating cursor. It descends index
+bounds newest first to find those leaves; publication order cannot identify
+recent data because historical maintenance also appends pages. Overlapping
+timestamp bounds can require broader index reads, but at most eight distinct
+candidate leaves are read. It rewrites the path from one leaf to the root and
+records the pages it supersedes. Cleanup deletes retired segments
 and superseded pages after the compaction grace (default one hour).
 
 A node converts a flat root on its next publication: small histories stay

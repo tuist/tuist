@@ -169,7 +169,7 @@ defmodule Pulse.Storage.S3.ManifestOwner do
   defp call_owner(pid, request, timeout) do
     GenServer.call(pid, request, timeout)
   catch
-    :exit, {:timeout, {GenServer, :call, _}} -> {:error, :timeout}
+    :exit, {:timeout, {Elixir.GenServer, :call, _}} -> {:error, :timeout}
   end
 
   @doc """
