@@ -211,9 +211,12 @@ defmodule Tuist.Sandboxes.AgentSessions do
     end
   end
 
-  # Federation wins over a stored API key, so connecting the four federation
-  # ids moves an environment off its key without having to clear it first.
-  defp credential(%AgentEnvironment{} = agent_environment) do
+  @doc """
+  The control-plane credential for the environment. Federation wins over a
+  stored API key, so connecting the four federation ids moves an
+  environment off its key without having to clear it first.
+  """
+  def credential(%AgentEnvironment{} = agent_environment) do
     cond do
       Federation.federated?(agent_environment) ->
         with {:ok, token} <- Federation.credential(agent_environment), do: {:ok, {:bearer, token}}

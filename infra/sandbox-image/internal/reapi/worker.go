@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -34,6 +35,16 @@ type Worker struct {
 	// Start launches the action's command; nil uses exec.Cmd.Start.
 	Start   func(*exec.Cmd) error
 	entries int
+	// Streamed inputs by digest: the first path downloads a blob, later paths
+	// with the same digest copy that file instead of reading it again.
+	streamedMu sync.Mutex
+	streamed   map[string]*streamedInput
+}
+
+type streamedInput struct {
+	done chan struct{}
+	path string
+	err  error
 }
 
 // Execute reports whether the result may be published to the action cache.
@@ -90,6 +101,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if err = w.own(root, "."); err != nil {
 		return nil, false, err
 	}
+	w.streamed = nil
 	if err = w.materialize(ctx, root, ".", &input, 0); err != nil {
 		return nil, false, err
 	}
@@ -463,8 +475,46 @@ enqueue:
 	return ctx.Err()
 }
 
+// An input tree can hold one large blob at several paths, such as a
+// toolchain's shared libraries, so each digest is read from the CAS once per
+// action and copied locally for its other paths.
 func (w *Worker) materializeFile(ctx context.Context, root *os.Root, p string, f *re.FileNode) error {
-	return w.materializeContent(root, p, f, func(out io.Writer) error { return w.CAS.Read(ctx, f.Digest, out) })
+	key := f.Digest.Hash + "/" + strconv.FormatInt(f.Digest.SizeBytes, 10)
+	w.streamedMu.Lock()
+	if w.streamed == nil {
+		w.streamed = map[string]*streamedInput{}
+	}
+	first, ok := w.streamed[key]
+	if !ok {
+		first = &streamedInput{done: make(chan struct{}), path: p}
+		w.streamed[key] = first
+	}
+	w.streamedMu.Unlock()
+	if !ok {
+		first.err = w.materializeContent(root, p, f, func(out io.Writer) error { return w.CAS.Read(ctx, f.Digest, out) })
+		close(first.done)
+		return first.err
+	}
+	select {
+	case <-first.done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if first.err != nil {
+		return first.err
+	}
+	return w.materializeContent(root, p, f, func(out io.Writer) error {
+		in, err := root.Open(first.path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		n, err := io.Copy(out, in)
+		if err == nil && n != f.Digest.SizeBytes {
+			err = status.Error(codes.DataLoss, "local input copy size mismatch")
+		}
+		return err
+	})
 }
 
 func (w *Worker) materializeContent(root *os.Root, p string, f *re.FileNode, read func(io.Writer) error) error {

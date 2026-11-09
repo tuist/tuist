@@ -59,8 +59,20 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Rows decide rather than the report, which lags: a delete frees its
   reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
-  filesystem. `admissible?/2` is the check the poller runs before
-  acknowledging a work item. A node that reports no capacity or no disk
+  filesystem. `admission/2` is the check the poller runs on a work
+  item: it dispatches an admissible item at once and otherwise
+  acknowledges it and enqueues
+  `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
+  in the args), which rechecks every 5 s and dispatches once it passes,
+  force-stopping the item after 9 minutes (Anthropic stops an acknowledged
+  item without a worker after roughly 10 to 13 minutes). The rejection
+  reason (quota, or per node, with each macOS host's first failing check)
+  is logged when the item is held, once a minute while it waits and at
+  the deadline. Never leave an item
+  unacknowledged to wait for room: Anthropic offers it three times, 5 s
+  apart, then stops; it stays `queued`, can no longer be acknowledged, and
+  a new message does not requeue it (a stopped one is requeued by the
+  session's next message). A node that reports no capacity or no disk
   budget is not budgeted on that resource.
 - Elastic carve-outs (`Capacity.grow/3`, `Capacity.shrink/1`): a node whose
   daemon reports `elastic` with a ceiling above its floor is grown in place
@@ -142,8 +154,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the poller's admission and the router alike: an existing sandbox keeps
   its platform; a new one takes the `AgentSession` row's `platform`, else
   the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
-  else the environment's. A platform other than the environment's runs
-  that platform's default template and shape (`Sandboxes.platform_defaults/1`).
+  else the environment's. Work items carry only the session id, so that
+  key is read with `ControlPlane.get_session/2` and the environment's
+  `anthropic_api_key`; a failed read falls back to the environment's. A
+  platform other than the environment's runs that platform's default
+  template and shape (`Sandboxes.platform_defaults/1`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the

@@ -106,6 +106,9 @@ mod tests {
         }
     }
 
+    // The macOS and Linux layouts only resolve on those hosts; Unix paths such
+    // as `/cfg` are not absolute on Windows.
+    #[cfg(unix)]
     #[test]
     fn macos_prefers_tuist_prefixed_xdg_and_ignores_relative_paths() {
         let dirs = Directories::resolve(
@@ -122,6 +125,7 @@ mod tests {
         assert_eq!(dirs.state, PathBuf::from("/Users/ana/.local/state/tuist"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn linux_keeps_credentials_under_home_but_locks_follow_xdg_state() {
         let dirs = Directories::resolve(

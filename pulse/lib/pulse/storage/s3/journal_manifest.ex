@@ -572,9 +572,11 @@ defmodule Pulse.Storage.S3.JournalManifest do
   # ---- compaction ------------------------------------------------------------
 
   @doc """
-  A bounded candidate set: the tail, the four newest leaves and four older
-  leaves from a rotating cursor, so compaction also reaches history. The
-  returned root is for selection only and must never be published.
+  A bounded candidate set: the tail, the four leaves with the newest active
+  timestamps and four leaves from a rotating cursor, so compaction also
+  reaches history. Publication order is not event-time order: historical
+  maintenance can append old data after current ingestion. The returned
+  root is for selection only and must never be published.
   """
   def candidates(%Manifest{version: @version} = root, tenant, signal, config),
     do: with_ops(fn -> do_candidates(root, tenant, signal, config) end)
@@ -583,10 +585,14 @@ defmodule Pulse.Storage.S3.JournalManifest do
     refs = root.paging["refs"]
     total = Enum.sum_by(refs, & &1["l"])
     cursor = if root.paging["cc"] < total, do: root.paging["cc"], else: 0
-    recent = Enum.to_list(max(0, total - 4)..(total - 1)//1)
     sweep = Enum.to_list(cursor..min(total - 1, cursor + 3)//1)
-    wanted = MapSet.new(recent ++ sweep)
-    leaves = leaves_at(refs, 0, wanted, tenant, signal, config)
+    recent = recent_leaves(refs, tenant, signal, config)
+
+    leaves =
+      (recent ++ leaves_at(refs, 0, MapSet.new(sweep), tenant, signal, config))
+      |> Enum.uniq_by(& &1["k"])
+      |> concurrently(&read_leaf(&1, tenant, signal, config, deadline()))
+
     next = if cursor + 4 >= total, do: 0, else: cursor + 4
 
     %{
@@ -594,6 +600,20 @@ defmodule Pulse.Storage.S3.JournalManifest do
       | segments: root.segments ++ Enum.flat_map(leaves, & &1.segments),
         paging: Map.put(root.paging, "compaction_candidate", next)
     }
+  end
+
+  defp recent_leaves(refs, tenant, signal, config) do
+    bound = &(-&1["mx"])
+    rank = &{-&1["mx"], &1["k"]}
+
+    expand = fn refs ->
+      {leaves, indexes} = Enum.split_with(refs, &(&1["h"] == 0))
+      children = indexes |> concurrently(&read_index(&1, tenant, signal, config, deadline())) |> Enum.concat()
+      {leaves, Enum.filter(children, &(&1["n"] > 0))}
+    end
+
+    refs = refs |> Enum.filter(&(&1["n"] > 0)) |> Enum.sort_by(bound)
+    window_rounds(refs, 8, [], 4, bound, rank, expand)
   end
 
   defp leaves_at(refs, offset, wanted, tenant, signal, config) do
@@ -607,7 +627,7 @@ defmodule Pulse.Storage.S3.JournalManifest do
               []
 
             ref["h"] == 0 ->
-              [read_leaf(ref, tenant, signal, config, deadline())]
+              [ref]
 
             true ->
               leaves_at(read_index(ref, tenant, signal, config, deadline()), start, wanted, tenant, signal, config)

@@ -49,25 +49,70 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     end
   end
 
-  def admissible?(environment, session_id) do
+  @doc """
+  `:ok` when a work item for the session could start now, otherwise
+  `{:error, reason}` saying why, for the logs: the account's quota, or
+  `{node, reason}` for the host of the session's sandbox, or for a new
+  sandbox `{:no_node, %{node => reason}}` with each connected macOS host's
+  first failing check (`:no_template`, `:template_not_ready`, `:no_grant`,
+  `:grant_mismatch`, `:grant_stale`, `:grant_denied`, `:no_room`).
+  """
+  def admission(environment, session_id) do
     case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
       %Sandbox{} = sandbox ->
-        with true <- sandbox.state in @charged or Concurrency.check(sandbox.account_id, sandbox) == :ok,
-             {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name) do
-          info[:generation] == sandbox.node_uid and allowed?(info)
-        else
-          _ -> false
-        end
+        with :ok <- quota(sandbox), do: host_admission(sandbox)
 
       nil ->
-        Concurrency.check(environment.account_id, environment) == :ok and
-          Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
+        with :ok <- Concurrency.check(environment.account_id, environment), do: placement(environment)
+    end
+  end
+
+  def admissible?(environment, session_id), do: admission(environment, session_id) == :ok
+
+  defp quota(%Sandbox{state: state}) when state in @charged, do: :ok
+  defp quota(sandbox), do: Concurrency.check(sandbox.account_id, sandbox)
+
+  defp host_admission(%Sandbox{node_name: node_name, node_uid: node_uid}) do
+    status =
+      case Nodes.lookup(node_name) do
+        {:ok, _pid, %{generation: ^node_uid} = info} -> grant_status(info)
+        {:ok, _pid, _info} -> :node_replaced
+        {:error, reason} -> reason
+      end
+
+    if status == :ok, do: :ok, else: {:error, {node_name, status}}
+  end
+
+  defp placement(environment) do
+    statuses =
+      for node <- Nodes.connected_nodes(), node[:platform] == "darwin", into: %{} do
+        {node.name, host_status(node, environment)}
+      end
+
+    cond do
+      statuses == %{} -> {:error, :no_macos_node_connected}
+      Enum.any?(statuses, fn {_name, status} -> status == :ok end) -> :ok
+      true -> {:error, {:no_node, statuses}}
+    end
+  end
+
+  defp host_status(node, environment) do
+    with :ok <- template_status(node, environment.template),
+         :ok <- grant_status(node) do
+      if room?(node, environment), do: :ok, else: :no_room
+    end
+  end
+
+  defp template_status(node, template) do
+    case Enum.find(Map.get(node, :templates, []), &(&1.name == template)) do
+      nil -> :no_template
+      %{ready: true} -> :ok
+      _building -> :template_not_ready
     end
   end
 
   defp ready?(node, template) do
-    node[:platform] == "darwin" and allowed?(node) and
-      Enum.any?(Map.get(node, :templates, []), &(&1.name == template and &1.ready))
+    node[:platform] == "darwin" and allowed?(node) and template_status(node, template) == :ok
   end
 
   defp warm?(node, sandbox) do
@@ -75,17 +120,27 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     Enum.any?(Map.get(node, :templates, []), &(&1.name == sandbox.template and shape in Map.get(&1, :warm, [])))
   end
 
-  def allowed?(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do
-    with %{"allow" => true, "node_uid" => ^generation, "control_uid" => ^control, "observed_at" => at} <- grant,
+  def allowed?(node), do: grant_status(node) == :ok
+
+  # `:ok` for a fresh grant that allows native work on this host and its
+  # current control Pod; otherwise why not.
+  defp grant_status(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do
+    with %{"node_uid" => ^generation, "control_uid" => ^control, "observed_at" => at} <- grant,
          {:ok, observed, _offset} <- DateTime.from_iso8601(at) do
       age = DateTime.diff(DateTime.utc_now(), observed, :millisecond)
-      age >= -1000 and age < 15_000
+
+      cond do
+        age < -1000 or age >= 15_000 -> :grant_stale
+        grant["allow"] != true -> :grant_denied
+        true -> :ok
+      end
     else
-      _ -> false
+      %{"node_uid" => _} -> :grant_mismatch
+      _ -> :no_grant
     end
   end
 
-  def allowed?(_node), do: false
+  defp grant_status(_node), do: :no_grant
 
   defp reserve(sandbox, node, state) do
     Repo.transaction(fn ->

@@ -159,6 +159,12 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXks7Q9gGM5W1agX8NDowQb"
         runner_macos_compute_unit_milliseconds: "price_1UY5KOQ9gGM5W1agmgnBjo2I"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: "price_1UZpgaQ9gGM5W1aga3yr9uh2"
       retired_runners:
         runner_macos_compute_unit_milliseconds:
           - "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
@@ -706,6 +712,11 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     replicas: 1
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -895,7 +906,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 24
+  maxMemoryGiB: 48
   diskGiB: 50
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.

@@ -1,7 +1,7 @@
 defmodule Tuist.EntireTrails do
   @moduledoc """
-  Publishes Tuist insights as one maintained discussion per project and Entire
-  repository Trail. GitHub connections can coexist with these connections.
+  Publishes Tuist insights as commit checks and head-pinned Trail reviews.
+  GitHub connections can coexist with these connections.
   """
 
   import Ecto.Query
@@ -144,81 +144,137 @@ defmodule Tuist.EntireTrails do
   end
 
   defp sync_locked_trail(connection_id, repository, number) do
-    # A follow-up job can be queued during execution. Serialize comment writes
-    # and commit each pointer separately, without locking across the full list.
-    fn ->
-      with %Connection{} = connection <- Repo.one(from c in Connection, where: c.id == ^connection_id, lock: "FOR UPDATE"),
-           connection = Repo.preload(connection, [:installation, project: :account]),
-           true <- connection.installation.active and enabled?(connection.project.account),
-           :ok <- sync_trail(connection, repository, number) do
-        :ok
-      else
-        {:error, reason} -> Repo.rollback(reason)
-        _ -> :ok
-      end
-    end
-    |> Repo.transaction(timeout: 60_000)
-    |> case do
-      {:ok, _} -> :ok
-      {:error, _} = error -> error
+    # Commit the snapshot before contacting Entire, so a lost response or a
+    # worker restart reuses exactly the same attempt and idempotency keys.
+    with {:ok, summary} <- locked_trail(connection_id, &prepare_trail(&1, repository, number)),
+         {:ok, summary} <- locked_trail(connection_id, &start_publication(&1, repository, number, summary)),
+         {:ok, _} <- locked_trail(connection_id, &publish_trail(&1, repository, number, summary)) do
+      :ok
     end
   end
 
-  defp sync_trail(connection, repository, number) do
-    with {:ok, trail} <- Client.trail(connection.installation, repository, number),
+  defp start_publication(_connection, _repository, _number, nil), do: nil
+
+  defp start_publication(connection, repository, number, summary) do
+    current = Repo.get!(Summary, summary.id)
+
+    cond do
+      current.reported_at != summary.reported_at or current.published_at == current.reported_at ->
+        nil
+
+      current.publication_started ->
+        current
+
+      true ->
+        with {:ok, trail} <- Client.trail(connection.installation, repository, number),
+             true <- trail["head_sha"] == current.head_sha and trail["status"] in ["open", "draft"] do
+          # Persist before any writes. Once started, this exact attempt must be
+          # recovered even if the Trail head changes or has no new insights.
+          current |> Ecto.Changeset.change(publication_started: true) |> Repo.update!()
+        else
+          {:error, _} = error -> error
+          _ -> nil
+        end
+    end
+  end
+
+  defp publish_trail(_connection, _repository, _number, nil), do: :ok
+
+  defp publish_trail(connection, repository, number, summary) do
+    current = Repo.get!(Summary, summary.id)
+
+    with true <- current.reported_at == summary.reported_at and current.published_at != current.reported_at,
+         {:ok, trail} <- Client.trail(connection.installation, repository, number),
          true <- trail["status"] in ["open", "draft"],
-         sha when is_binary(sha) and sha != "" <- trail["head_sha"],
-         body when is_binary(body) <- report(connection.project, sha),
-         # Rendering can involve several queries. Do not publish an old head's
-         # results if the Trail advanced or closed while the report was built.
-         {:ok, current} <- Client.trail(connection.installation, repository, number),
-         true <- current["head_sha"] == sha and current["status"] in ["open", "draft"] do
-      summary = Repo.get_by(Summary, connection_id: connection.id, trail_id: trail["id"])
+         {:ok, ids} <- Client.publish(connection.installation, repository, number, current) do
+      current
+      |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
+      |> Repo.update!()
 
-      case update_summary(connection, repository, number, summary, body) do
-        {:ok, ids} ->
-          %Summary{connection_id: connection.id, trail_id: trail["id"]}
-          |> Ecto.Changeset.change(ids)
-          |> Repo.insert!(
-            on_conflict: {:replace, [:discussion_id, :message_id, :updated_at]},
-            conflict_target: [:connection_id, :trail_id]
-          )
-
-          :ok
-
-        {:error, _} = error ->
-          error
-      end
+      :ok
     else
       {:error, _} = error -> error
       _ -> :ok
     end
   end
 
-  defp update_summary(connection, repository, number, nil, body) do
-    marker = marker(connection.project)
+  defp locked_trail(connection_id, fun) do
+    Repo.transaction(
+      fn ->
+        with %Connection{} = connection <-
+               Repo.one(from c in Connection, where: c.id == ^connection_id, lock: "FOR UPDATE"),
+             connection = Repo.preload(connection, [:installation, project: :account]),
+             true <- connection.installation.active and enabled?(connection.project.account) do
+          case fun.(connection) do
+            {:error, reason} -> Repo.rollback(reason)
+            result -> result
+          end
+        else
+          _ -> nil
+        end
+      end,
+      timeout: 60_000
+    )
+  end
 
-    with {:ok, summary} <- Client.find_summary(connection.installation, repository, number, marker) do
-      if summary do
-        update_summary(connection, repository, number, summary, body)
-      else
-        Client.create_summary(connection.installation, repository, number, body)
+  defp prepare_trail(connection, repository, number) do
+    with {:ok, trail} <- Client.trail(connection.installation, repository, number),
+         true <- trail["status"] in ["open", "draft"],
+         sha when is_binary(sha) and sha != "" <- trail["head_sha"] do
+      case Repo.get_by(Summary, connection_id: connection.id, trail_id: trail["id"]) do
+        %{publication_started: true, published_at: published_at, reported_at: reported_at} = summary
+        when published_at != reported_at ->
+          # Do not replace an uncertain attempt, including after a head change.
+          # The follow-up will render current insights after recovering its IDs.
+          enqueue_connection(connection)
+          summary
+
+        summary ->
+          prepare_report(connection, trail, summary)
       end
+    else
+      {:error, _} = error -> error
+      _ -> nil
     end
   end
 
-  defp update_summary(connection, repository, number, summary, body) do
-    case Client.update_summary(connection.installation, repository, number, summary, body) do
-      {:ok, _} -> {:ok, Map.take(summary, [:discussion_id, :message_id])}
-      {:error, _} = error -> error
+  defp prepare_report(connection, trail, summary) do
+    sha = trail["head_sha"]
+
+    case report(connection.project, sha) do
+      %{body: body, findings: findings} ->
+        if match?(%{head_sha: ^sha, report_body: ^body, findings: ^findings}, summary) do
+          summary
+        else
+          (summary || %Summary{connection_id: connection.id, trail_id: trail["id"]})
+          |> Ecto.Changeset.change(
+            head_sha: sha,
+            report_body: body,
+            findings: findings,
+            reported_at: next_reported_at(summary),
+            publication_started: false
+          )
+          |> Repo.insert_or_update!()
+        end
+
+      nil ->
+        nil
     end
+  end
+
+  defp next_reported_at(summary) do
+    now = DateTime.from_unix!(System.system_time(:millisecond) * 1000, :microsecond)
+
+    if summary && summary.reported_at && DateTime.compare(now, summary.reported_at) != :gt,
+      do: DateTime.add(summary.reported_at, 1, :millisecond),
+      else: now
   end
 
   defp report(project, sha) do
     base_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}")
 
-    body =
-      VCS.get_run_report(%{
+    report =
+      VCS.get_run_report_sections(%{
         project: project,
         git_ref: nil,
         git_commit_sha: sha,
@@ -230,16 +286,22 @@ defmodule Tuist.EntireTrails do
         bundle_url: fn %{bundle: bundle} -> base_url <> "/bundles/#{bundle.id}" end
       })
 
-    if body do
-      body = body <> "\n\n" <> marker(project)
+    if report do
+      fallback = "### Tuist insights for `#{sha}`\n\n[View the full report](#{base_url})"
 
-      if String.length(body) <= 65_536 do
-        body
-      else
-        "### Tuist insights for `#{sha}`\n\n[View the full report](#{base_url})\n\n" <> marker(project)
-      end
+      findings =
+        [{"failed-tests", "medium", report.failed_tests}, {"flaky-tests", "low", report.flaky_tests}]
+        |> Enum.reject(fn {_, _, body} -> is_nil(body) end)
+        |> Enum.map(fn {id, severity, body} ->
+          %{
+            "client_id" => id,
+            "body" => if(byte_size(body) <= 65_535, do: body, else: fallback),
+            "severity" => severity,
+            "location" => %{"granularity" => "whole_change"}
+          }
+        end)
+
+      %{body: if(byte_size(report.summary) <= 65_535, do: report.summary, else: fallback), findings: findings}
     end
   end
-
-  defp marker(project), do: "<!-- tuist-project:#{project.id} -->"
 end

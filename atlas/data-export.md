@@ -9,18 +9,23 @@ deletion), storing session expiry, a SHA-256 relay capability hash and latest
 relay report: browser client ID, heartbeat, connection claim, printer model/name,
 cartridge, printable zones/dimensions and bounded status/message. `label_jobs`
 belongs to a session (cascade deletion), storing the exact preview PNG in
-PostgreSQL, title/text, preview dimensions, action/state, approved printer/supply/
-zones, approval expiry, dispatch client/time and bounded SDK result. These may
+PostgreSQL, title/text, preview dimensions, action/state, batch ID/position/size,
+cut choice, whether review was requested, queued printer/supply/zones, approval
+expiry and start deadline, dispatch client/time, separate print and cut outcomes,
+result time, bounded SDK result and a note explaining why a label returned to
+preview unprinted. Unclaimed standalone cut rows are deleted when they lapse. These may
 contain rack/asset identifiers and text supplied by the owner. No object storage
 or Tuist Server account data is added. PNGs are not encrypted separately from
 the existing database/backups.
 
-Sessions expire after eight hours and approvals after ten minutes, but rows are
+Sessions expire after eight hours, approvals after ten minutes and unstarted
+queued batches after their start deadline, but rows are
 not swept on expiry: jobs, images and consumed dispatch history remain until
 owner deletion and follow existing backup retention. An expired session cannot
-read or dispatch. `label.created`, `.submitted`, `.approval_requested`, `.approved`,
-`.dispatched` and `.result` audit events keep actor/interface, session/job IDs and
-dashboard path, not text/images/capabilities. They follow existing audit retention
+read or dispatch. `label.created`, `.submitted`, `.queued`, `.approval_requested`,
+`.approved`, `.dispatched`, `.result` and `.halted` audit events keep
+actor/interface, session/job or batch IDs, label counts and dashboard path, not
+text/images/capabilities. They follow existing audit retention
 and may outlive the owner/session. `mcp.tool_called` omits label tool arguments.
 
 For a verified subject export, select all `label_sessions` by `owner_id`, all

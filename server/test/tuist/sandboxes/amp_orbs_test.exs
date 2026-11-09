@@ -4,15 +4,10 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
-  import TuistTestSupport.Fixtures.ProjectsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
-  alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Authorization
-  alias Tuist.Cache
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.Guardian
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Sites
@@ -54,13 +49,25 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     )
   end
 
+  test "every orb type is a shape sandboxes accept, and linux-medium is linux", %{account: account} do
+    for name <- AmpOrbs.orb_types() do
+      {:ok, shape} = AmpOrbs.orb_type(name)
+      attrs = shape |> Map.delete(:workspace_gb) |> Map.merge(%{account_id: account.id, workspace_gb: 10})
+
+      assert %Ecto.Changeset{valid?: true} = Sandbox.create_changeset(%Sandbox{}, attrs), name
+    end
+
+    assert AmpOrbs.orb_type("linux-medium") == AmpOrbs.orb_type("linux")
+    assert {:ok, %{vcpus: 16, memory_mb: 45_056}} = AmpOrbs.orb_type("linux-3xlarge")
+  end
+
   test "creates once and bootstraps repeated spawn with a protected residency", %{account: account} do
     expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
     expect(Nodes, :call, 2, fn "node-a", "exec", args, _opts ->
       assert args.cmd == ["/usr/local/bin/sbx-orb-bootstrap"]
-      assert %{"ORB_TOKEN" => "orb-secret", "AMP_URL" => "https://ampcode.com", "TUIST_TOKEN" => "" <> _} = args.env
+      assert %{"ORB_TOKEN" => "orb-secret", "AMP_URL" => "https://ampcode.com"} = args.env
       refute Map.has_key?(args.env, "TUIST_CACHE_ENDPOINT")
       assert Repo.get!(Sandbox, args.sandbox_id).residency_work_id == "amp:amp-thread"
       assert {:ok, :skipped} = Sandboxes.pause_idle(args.sandbox_id)
@@ -97,10 +104,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert id == sandbox.id
   end
 
-  test "passes an account credential that reads the cache and reports builds, and the Node's site-local cache endpoint",
-       %{account: account} do
-    project = project_fixture(account: account)
-    other_project = project_fixture()
+  test "passes the Tuist URL and the Node's site-local cache endpoint but no Tuist credential", %{account: account} do
     sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
     endpoint = "http://kura-test.kura.svc.cluster.local:4000"
     expect(Sites, :node_site, fn "node-a" -> "larch" end)
@@ -118,41 +122,10 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     end)
 
     assert {:ok, _sandbox} = AmpOrbs.dispatch(account, "amp-thread", spawn_params())
-    assert_receive {:env, %{"TUIST_TOKEN" => token} = env}
+    assert_receive {:env, env}
+    refute Map.has_key?(env, "TUIST_TOKEN")
     assert env["TUIST_CACHE_ENDPOINT"] == endpoint
     assert env["TUIST_URL"] == Environment.app_url()
-
-    assert {:ok, claims} = Guardian.decode_and_verify(token)
-    assert_in_delta claims["exp"] - claims["iat"], 6 * 3600, 1
-    assert {:ok, %AuthenticatedAccount{} = subject} = Guardian.resource_from_claims(claims)
-    assert subject.account.id == account.id
-
-    assert subject.scopes == [
-             "account:cache:read",
-             "project:cache:read",
-             "project:builds:write",
-             "project:tests:write",
-             "project:runs:write"
-           ]
-
-    assert %{"account" => %{"read" => [account_handle], "write" => []}, "project" => %{"read" => readable, "write" => []}} =
-             Cache.cache_grants(subject)
-
-    assert account_handle == account.name
-    assert "#{account.name}/#{project.name}" in readable
-    refute Enum.any?(readable, &String.ends_with?(&1, "/#{other_project.name}"))
-    assert Authorization.authorize(:project_cache_read, subject, project) == :ok
-    assert Authorization.authorize(:project_cache_create, subject, project) != :ok
-    assert Authorization.authorize(:account_cache_create, subject, account) != :ok
-
-    for action <- [:build_create, :test_create, :run_create] do
-      assert Authorization.authorize(action, subject, project) == :ok
-      assert Authorization.authorize(action, subject, other_project) != :ok
-    end
-
-    assert Authorization.authorize(:preview_create, subject, project) != :ok
-    assert Authorization.authorize(:bundle_create, subject, project) != :ok
-    assert Authorization.authorize(:project_update, subject, project) != :ok
   end
 
   test "pause is repeatable and only releases residency after a successful snapshot", %{account: account} do
@@ -498,8 +471,12 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       assert Repo.get_by(DiskSnapshot, account_id: account.id, amp_snapshot_id: "proj-2", state: :ready)
     end
 
-    test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
-      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+    # Amp records a snapshot whenever the pause succeeds, so a save that
+    # failed must fail the pause or later Orbs name a snapshot that is not there.
+    test "a failed save pauses the Orb but fails the pause, and a replay retries the save", %{account: account} do
+      sandbox =
+        sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
+
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
       expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => false}} end)
@@ -510,14 +487,19 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
       expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
 
-      assert {:ok, %{state: :paused}} =
-               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+      params = %{operation: "pause", snapshot_id: "proj-1"}
+      assert {:error, :snapshot_not_saved} = AmpOrbs.dispatch(account, "amp-thread", params)
 
+      assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
       assert Repo.all(DiskSnapshot) == []
+
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", params)
+      assert [%DiskSnapshot{state: :ready, amp_snapshot_id: "proj-1"}] = Repo.all(DiskSnapshot)
     end
 
-    test "a full node disk budget skips the save", %{account: account} do
-      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+    test "a full node disk budget fails the pause without saving", %{account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
 
       stub(Nodes, :connected_nodes, fn ->
         [%{sandbox_node("node-a") | disk: %{budget_bytes: 1, available_bytes: 1}}]
@@ -526,7 +508,20 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       expect_setup_read()
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
 
-      assert {:ok, %{state: :paused}} =
+      assert {:error, :snapshot_not_saved} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+
+      assert Repo.reload!(sandbox).state == :paused
+      assert Repo.all(DiskSnapshot) == []
+    end
+
+    test "a pause of an archived Orb succeeds unless it asks for a snapshot", %{account: account} do
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", state: :archived, node_name: nil)
+      reject(&Nodes.call/4)
+
+      assert {:ok, %{state: :archived}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+
+      assert {:error, :snapshot_not_saved} =
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
 
       assert Repo.all(DiskSnapshot) == []

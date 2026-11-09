@@ -132,6 +132,10 @@ while true; do
         echo "Tuist does not offer the orb type '${ORB_TYPE:-}'. Use one of the types listed on the Tuist Amp integration page." >&2
         exit 1
     fi
+    if grep -Eiq $'^x-tuist-orb-refusal: snapshot-not-saved\r?$' "$headers"; then
+        echo 'The Orb paused, but Tuist could not save its project snapshot, so new threads will run .agents/setup.' >&2
+        exit 1
+    fi
     if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then
         echo "This thread's Orb was created for another platform than orb type '${ORB_TYPE:-}'. Start a new thread with the type you need." >&2
         exit 1

@@ -72,9 +72,12 @@ jobs:
         nif: ["2.16"]
         job:
           - { target: x86_64-unknown-linux-gnu, os: tuist-linux, use-cross: false }
-          - { target: x86_64-unknown-linux-musl, os: tuist-linux, use-cross: true }
-          - { target: aarch64-unknown-linux-gnu, os: tuist-linux, use-cross: true }
-          - { target: aarch64-unknown-linux-musl, os: tuist-linux, use-cross: true }
+          # cross mounts the host's rustup toolchain into its build container.
+          # tuist-linux runs Docker in a sidecar that only shares the work
+          # directory, so the container finds no cargo; use hosted runners.
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04, use-cross: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
           - { target: aarch64-apple-darwin, os: tuist-macos-27-0, use-cross: false }
     steps:
       - uses: actions/checkout@v4

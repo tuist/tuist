@@ -302,6 +302,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         #endif
 
+        try await signInWithWorkloadIdentityIfSignedOut(serverURL: serverURL)
+
         if !refreshIfNeeded {
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
             case let .valid(token):
@@ -695,7 +697,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .project:
                 upToDateToken = token
             case let .account(accessToken):
-                let renewedAccessToken = try await renewedAmpOrbAccessToken(
+                let renewedAccessToken = await renewedWorkloadAccessToken(
                     serverURL: serverURL,
                     accessToken: accessToken,
                     forceRefresh: forceRefresh
@@ -751,32 +753,68 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    /// Account tokens exchanged from an OIDC token have no refresh token. In an Amp orb, the orb can
-    /// mint a new identity token at any time, so an expiring session is renewed by exchanging a new one,
-    /// the way Amp's trust recipes re-mint before a cloud credential expires.
-    private func renewedAmpOrbAccessToken(
+    /// Account tokens exchanged from an OIDC token have no refresh token. Where the environment can mint a
+    /// new workload identity, an expiring session is renewed by exchanging one, the way Amp's trust recipes
+    /// re-mint before a cloud credential expires. A failed renewal keeps the session it had.
+    private func renewedWorkloadAccessToken(
         serverURL: URL,
         accessToken: JWT,
         forceRefresh: Bool
-    ) async throws -> JWT? {
+    ) async -> JWT? {
         #if canImport(TuistOIDC)
-            guard Environment.current.isAmpOrb,
+            guard CIOIDCAuthenticator().hasWorkloadIdentity,
                   forceRefresh || accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
             else { return nil }
-            Logger.current.debug("Renewing the Amp orb session for \(serverURL)")
-            let renewedAccessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
-                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
-                serverURL: serverURL
-            )
-            try await ServerCredentialsStore.current.store(
-                credentials: ServerCredentials(accessToken: renewedAccessToken),
-                serverURL: serverURL
-            )
-            return try JWT.parse(renewedAccessToken)
+            Logger.current.debug("Renewing the workload identity session for \(serverURL)")
+            do {
+                return try JWT.parse(try await exchangeWorkloadIdentityToken(serverURL: serverURL))
+            } catch {
+                Logger.current.debug("Renewing the workload identity session for \(serverURL) failed: \(error)")
+                return nil
+            }
         #else
             return nil
         #endif
     }
+
+    /// Where the environment offers a workload identity (CI providers, Amp orbs, a supplied
+    /// `TUIST_OIDC_TOKEN`), a signed-out CLI signs in on its own by exchanging it, so CI needs no
+    /// `tuist auth login` step. A refused exchange, such as from a repository or workspace no account
+    /// connected, leaves the CLI signed out and is not retried in this process.
+    private func signInWithWorkloadIdentityIfSignedOut(serverURL: URL) async throws {
+        #if canImport(TuistOIDC)
+            guard CIOIDCAuthenticator().hasWorkloadIdentity else { return }
+            _ = try await cachedValueStore.getValue(
+                key: "workload-identity-sign-in-\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
+            ) { () -> (value: Bool, expiresAt: Date?)? in
+                guard try await ServerCredentialsStore.current.read(serverURL: serverURL) == nil else {
+                    return (value: true, expiresAt: nil)
+                }
+                do {
+                    _ = try await exchangeWorkloadIdentityToken(serverURL: serverURL)
+                    Logger.current.debug("Signed in to \(serverURL) with the workload identity")
+                    return (value: true, expiresAt: nil)
+                } catch {
+                    Logger.current.debug("Signing in to \(serverURL) with the workload identity failed: \(error)")
+                    return (value: false, expiresAt: nil)
+                }
+            }
+        #endif
+    }
+
+    #if canImport(TuistOIDC)
+        private func exchangeWorkloadIdentityToken(serverURL: URL) async throws -> String {
+            let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
+                serverURL: serverURL
+            )
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: accessToken),
+                serverURL: serverURL
+            )
+            return accessToken
+        }
+    #endif
 
     #if canImport(TuistSupport)
         private func lockFilePath(serverURL: URL) -> AbsolutePath {

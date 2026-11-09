@@ -381,7 +381,7 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandb
 
 #### Amp workspaces
 
-These tools manage the <.localized_link href="/guides/server/authentication#amp-orbs">Amp workspace connections</.localized_link> that let orbs sign in with `tuist auth login`. They use the same administrator-only permission as the dashboard's Integrations page. An agent in an orb can read its own IDs from `$AMP_WORKSPACE_ID` and `$AMP_PROJECT_ID`. Every orb a connection admits gets CI access to all projects in the account, so agents should confirm with the user before connecting.
+These tools manage the <.localized_link href="/guides/server/authentication#amp-orbs">Amp workspace connections</.localized_link> that let orbs sign in to Tuist without a token. They use the same administrator-only permission as the dashboard's Integrations page. An agent in an orb can read its own IDs from `$AMP_WORKSPACE_ID` and `$AMP_PROJECT_ID`. Every orb a connection admits gets CI access to all projects in the account, so agents should confirm with the user before connecting.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|

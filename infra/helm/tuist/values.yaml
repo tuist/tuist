@@ -396,6 +396,12 @@ kuraVolumesCSI:
   # Opt in only after at least one of its nodes is labelled
   # tuist.dev/kura-thin-ready=true.
   thinRegions: []
+  # Regions where every account's instance uses kura-thin-encrypted-nvme,
+  # without the :kura_thin_volumes flag; implies thinRegions for them. Existing
+  # instances still move only through the controller's source-node gate, and new
+  # ones are placed only on thin-ready nodes. Enroll a region only once it has
+  # enough thin-ready capacity, or is being converted host by host.
+  thinEnrolledRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
@@ -1782,6 +1788,12 @@ ovhFleet:
 # `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
 # runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
 # on that label); leave it off for cache fleets so they skip the download.
+#
+# `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
+# that kubelet minor. Kata fleets on v1.36 or later also run the pod-level
+# resource managers. The MachineDeployment is OnDelete, so a change only reaches
+# boxes as they are reprovisioned; see
+# infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
 ovhFleets: {}
 
 # Shared Vultr config holder. There is no singular Vultr MachineDeployment: the
@@ -2758,11 +2770,11 @@ sandboxes:
   archiveAfterHours: 0
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "2x4096"
+  prebuildShapes: "4x8192,2x4096"
   # The only shapes a node accepts. Each shape costs a template build and a
   # memory image on disk, so the list is short and matches the shapes the
   # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "2x4096,4x8192,8x16384"
+  allowedShapes: "1x2048,2x4096,4x8192,8x16384,16x32768,16x45056"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes

@@ -76,8 +76,11 @@ defmodule TuistWeb.API.AuthControllerTest do
     test "issues nothing for a code a mailbox proof revoked while the poll ran", %{conn: conn} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
-      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
-      squatter = AccountsFixtures.user_fixture(email: "poll-race-#{System.unique_integer([:positive])}@example.com")
+      stub(Tuist.Environment, :operator_email_domain, fn -> "apiauth-example.com" end)
+
+      squatter =
+        AccountsFixtures.user_fixture(email: "poll-race-#{System.unique_integer([:positive])}@apiauth-example.com")
+
       device_code = Accounts.create_device_code("RACE-#{squatter.id}")
       Accounts.authenticate_device_code(device_code.code, squatter)
 
@@ -571,11 +574,16 @@ defmodule TuistWeb.API.AuthControllerTest do
       user = AccountsFixtures.user_fixture()
       refresh_token = refresh_token_fixture(user)
       organization = enforce_sso_for(user)
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "apiauth-example.com"
+      )
 
       %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
 
-      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}} = claims} =
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "apiauth-example.com"}} = claims} =
                Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
 
       assert claims["sso"]["organization_id"] == organization.id
@@ -591,7 +599,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       AccountsFixtures.oauth2_identity_fixture(
         user: user,
         provider: :google,
-        provider_organization_id: "other.example.com"
+        provider_organization_id: "other.apiauth-example.com"
       )
 
       %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
@@ -640,7 +648,12 @@ defmodule TuistWeb.API.AuthControllerTest do
 
       # The refused token is not spent: signing in through the provider
       # links the identity that lets it refresh again.
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "apiauth-example.com"
+      )
+
       assert %{"refresh_token" => _} = refresh(build_conn(), refresh_token)
     end
 
@@ -648,19 +661,19 @@ defmodule TuistWeb.API.AuthControllerTest do
          %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       enforce_sso_for(user)
-      sso_session = session(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      sso_session = session(user, %{auth_method: :google, provider_organization_id: "apiauth-example.com"})
 
       %{"access_token" => access_token, "refresh_token" => refresh_token} = device_code_tokens(conn, user, sso_session)
 
       for token <- [access_token, refresh_token] do
-        assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}}} =
+        assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "apiauth-example.com"}}} =
                  Tuist.Authentication.decode_and_verify(token)
       end
 
       %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
 
       # The proof carries over to the rotated token, so later refreshes pass too.
-      assert {:ok, %{"sso" => %{"provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "apiauth-example.com"}}} =
                Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
 
       assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
@@ -669,10 +682,10 @@ defmodule TuistWeb.API.AuthControllerTest do
     test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       organization = enforce_sso_for(user)
-      sso_session = session(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      sso_session = session(user, %{auth_method: :google, provider_organization_id: "apiauth-example.com"})
       %{"refresh_token" => refresh_token} = device_code_tokens(conn, user, sso_session)
 
-      organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.apiauth-example.com") |> Repo.update!()
 
       %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
       assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
@@ -867,7 +880,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       identity_token = "identity-token"
       authorization_code = "authorization-code"
-      email = "my-apple@example.com"
+      email = "my-apple@apiauth-example.com"
       user = AccountsFixtures.user_fixture(email: email)
 
       expect(Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
@@ -938,7 +951,7 @@ defmodule TuistWeb.API.AuthControllerTest do
     # Enabling enforcement through `Accounts` also requires a verified login
     # email domain, which is not what these tests are about.
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "apiauth-example.com")
     |> Repo.update!()
   end
 end

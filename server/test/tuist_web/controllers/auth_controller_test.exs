@@ -43,7 +43,7 @@ defmodule TuistWeb.AuthControllerTest do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
       :ok = Accounts.add_user_to_organization(user, organization, role: :user)
-      %{user: user, organization: enforce_sso(organization, :google, "example.com")}
+      %{user: user, organization: enforce_sso(organization, :google, "authctl-example.com")}
     end
 
     test "sends a session that did not sign in with the organization's provider to it first", %{
@@ -64,7 +64,10 @@ defmodule TuistWeb.AuthControllerTest do
         |> init_test_session(%{})
         |> put_session(
           :user_token,
-          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authctl-example.com"
+          })
         )
 
       conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
@@ -76,7 +79,10 @@ defmodule TuistWeb.AuthControllerTest do
       Accounts.create_device_code("SSO-9012")
 
       token =
-        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        Accounts.generate_user_session_token(user, %{
+          auth_method: :google,
+          provider_organization_id: "authctl-example.com"
+        })
 
       conn = conn |> init_test_session(%{}) |> put_session(:user_token, token)
 
@@ -84,7 +90,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/auth/device_codes/SSO-9012/success?type=cli"
 
-      assert %{authenticated: true, auth_provider: "google", auth_provider_organization_id: "example.com"} =
+      assert %{authenticated: true, auth_provider: "google", auth_provider_organization_id: "authctl-example.com"} =
                Accounts.get_device_code("SSO-9012")
     end
 
@@ -105,14 +111,17 @@ defmodule TuistWeb.AuthControllerTest do
     } do
       okta = AccountsFixtures.organization_fixture()
       :ok = Accounts.add_user_to_organization(user, okta, role: :user)
-      enforce_sso(okta, :okta, "https://okta.example.com")
+      enforce_sso(okta, :okta, "https://okta.authctl-example.com")
 
       conn =
         conn
         |> init_test_session(%{})
         |> put_session(
           :user_token,
-          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authctl-example.com"
+          })
         )
 
       assert_error_sent 401, fn -> get(conn, "/auth/device_codes/SSO-1234?type=cli") end
@@ -256,7 +265,7 @@ defmodule TuistWeb.AuthControllerTest do
     } do
       organization = AccountsFixtures.organization_fixture()
       :ok = Accounts.add_user_to_organization(user, organization, role: :user)
-      enforce_sso(organization, :google, "example.com")
+      enforce_sso(organization, :google, "authctl-example.com")
 
       conn = post(conn, "/auth/device", %{"user_code" => device_code.user_code})
 
@@ -321,13 +330,13 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_client_secret: UUIDv7.generate()
         )
 
-      login_hint = "user@example.com"
+      login_hint = "user@authctl-example.com"
 
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{login_hint}")
 
       redirect_url = redirected_to(conn)
       assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
-      assert redirect_url =~ "login_hint=user%40example.com"
+      assert redirect_url =~ "login_hint=user%40authctl-example.com"
     end
 
     test "raises unauthorized error when organization not found", %{conn: conn} do
@@ -353,7 +362,7 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com"
+          sso_organization_id: "authctl-example.com"
         )
 
       assert_error_sent 401, fn ->
@@ -364,14 +373,14 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "GET /users/auth/okta/callback" do
     test "links the Okta identity to an existing user and logs them in", %{conn: conn} do
-      existing_user = AccountsFixtures.user_fixture(email: "existing-okta@example.com")
+      existing_user = AccountsFixtures.user_fixture(email: "existing-okta@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: existing_user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
-          sso_login_domain: "example.com",
+          sso_login_domain: "authctl-example.com",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
@@ -411,7 +420,7 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com"
+          sso_organization_id: "authctl-example.com"
         )
 
       assert_error_sent 401, fn ->
@@ -436,17 +445,17 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}")
 
-      assert redirected_to(conn) =~ "https://auth.example.com/oauth2/authorize"
+      assert redirected_to(conn) =~ "https://auth.authctl-example.com/oauth2/authorize"
     end
 
     test "includes login_hint in the custom OAuth2 redirect when provided", %{conn: conn} do
@@ -456,20 +465,20 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
-      login_hint = "user@example.com"
+      login_hint = "user@authctl-example.com"
       conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}&login_hint=#{login_hint}")
 
       redirect_url = redirected_to(conn)
-      assert redirect_url =~ "https://auth.example.com/oauth2/authorize"
-      assert redirect_url =~ "login_hint=user%40example.com"
+      assert redirect_url =~ "https://auth.authctl-example.com/oauth2/authorize"
+      assert redirect_url =~ "login_hint=user%40authctl-example.com"
     end
 
     test "raises unauthorized error when organization is not configured for custom OAuth2", %{conn: conn} do
@@ -479,7 +488,7 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "example.com"
+          sso_organization_id: "authctl-example.com"
         )
 
       assert_error_sent 401, fn ->
@@ -490,21 +499,21 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "GET /users/auth/oauth2/callback" do
     test "links the custom OAuth2 identity to an existing user and logs them in", %{conn: conn} do
-      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
+      existing_user = AccountsFixtures.user_fixture(email: "existing@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: existing_user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
-          sso_login_domain: "example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
+          sso_login_domain: "authctl-example.com",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -527,10 +536,10 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.example.com")
+        Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.authctl-example.com")
 
       assert oauth_identity.user.id == existing_user.id
-      assert oauth_identity.provider_organization_id == "https://auth.example.com"
+      assert oauth_identity.provider_organization_id == "https://auth.authctl-example.com"
     end
 
     test "raises unauthorized error when the callback state does not match", %{conn: conn} do
@@ -540,12 +549,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       assert_error_sent 401, fn ->
@@ -572,12 +581,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       # The IdP must never reach the token endpoint when reporting an error,
@@ -605,12 +614,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       reject(&SSOClient.exchange_token/5)
@@ -634,12 +643,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -664,12 +673,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -695,19 +704,19 @@ defmodule TuistWeb.AuthControllerTest do
       # An attacker org admin configures custom OAuth2 endpoints they control
       # and returns a victim's email from /userinfo. The login must be refused
       # because the victim does not belong to the attacker's organization.
-      attacker = AccountsFixtures.user_fixture(email: "attacker@example.com")
-      victim = AccountsFixtures.user_fixture(email: "victim@example.com")
+      attacker = AccountsFixtures.user_fixture(email: "attacker@authctl-example.com")
+      victim = AccountsFixtures.user_fixture(email: "victim@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: attacker,
           sso_provider: :oauth2,
-          sso_organization_id: "https://evil.example.com",
+          sso_organization_id: "https://evil.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://evil.example.com/oauth2/authorize",
-          oauth2_token_url: "https://evil.example.com/oauth2/token",
-          oauth2_user_info_url: "https://evil.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://evil.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://evil.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://evil.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -730,27 +739,27 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The victim's account must remain unlinked from the attacker's IdP
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.authctl-example.com")
     end
 
     test "links and enrolls an existing user without redirecting through a pending invitation", %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "customer-admin@customer.example")
-      existing_user = AccountsFixtures.user_fixture(email: "member@customer.example")
+      admin = AccountsFixtures.user_fixture(email: "customer-admin@authctl-customer.example")
+      existing_user = AccountsFixtures.user_fixture(email: "member@authctl-customer.example")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           sso_automatic_enrollment: true,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       {:ok, invitation} =
@@ -784,28 +793,28 @@ defmodule TuistWeb.AuthControllerTest do
                Accounts.get_oauth2_identity(
                  :oauth2,
                  "verified-domain-member",
-                 "https://login.vendor.example"
+                 "https://login.authctl-vendor.example"
                )
 
       assert identity.user_id == existing_user.id
     end
 
     test "rejects new-user onboarding for a former compatibility-mode organization", %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "legacy-admin@customer.example")
-      new_user_email = "new-user@consultancy.example"
+      admin = AccountsFixtures.user_fixture(email: "legacy-admin@authctl-customer.example")
+      new_user_email = "new-user@authctl-consultancy.example"
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
           sso_automatic_enrollment: true,
           existing_sso_configuration: true,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -830,22 +839,22 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "customer-admin@customer.example")
+      admin = AccountsFixtures.user_fixture(email: "customer-admin@authctl-customer.example")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -853,7 +862,7 @@ defmodule TuistWeb.AuthControllerTest do
       end)
 
       expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
-        {:ok, %{"sub" => "new-user", "email" => "new@customer.example", "name" => "New User"}}
+        {:ok, %{"sub" => "new-user", "email" => "new@authctl-customer.example", "name" => "New User"}}
       end)
 
       assert_error_sent 401, fn ->
@@ -868,23 +877,23 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "links an existing user from a verified domain without automatically enrolling them", %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "identity-admin@customer.example")
-      existing_user = AccountsFixtures.user_fixture(email: "identity-only@customer.example")
+      admin = AccountsFixtures.user_fixture(email: "identity-admin@authctl-customer.example")
+      existing_user = AccountsFixtures.user_fixture(email: "identity-only@authctl-customer.example")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -911,7 +920,7 @@ defmodule TuistWeb.AuthControllerTest do
                Accounts.get_oauth2_identity(
                  :oauth2,
                  "identity-only",
-                 "https://login.vendor.example"
+                 "https://login.authctl-vendor.example"
                )
 
       assert identity.user_id == existing_user.id
@@ -919,20 +928,20 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "rejects an invited new user when the custom provider has no verified login domain",
          %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "invitation-admin@customer.example")
-      invitee_email = "new-invitee@consultancy.example"
+      admin = AccountsFixtures.user_fixture(email: "invitation-admin@authctl-customer.example")
+      invitee_email = "new-invitee@authctl-consultancy.example"
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
           sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       {:ok, _invitation} =
@@ -966,23 +975,23 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "allows an invited new user from a verified domain without treating the invitation as identity proof",
          %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "verified-invitation-admin@customer.example")
-      invitee_email = "new-invitee@customer.example"
+      admin = AccountsFixtures.user_fixture(email: "verified-invitation-admin@authctl-customer.example")
+      invitee_email = "new-invitee@authctl-customer.example"
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         )
 
       {:ok, invitation} =
@@ -1016,20 +1025,20 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "redirects to the invitation accept page when SSO finds a pending invitation",
          %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "inviter-via-sso@example.com")
-      invitee = AccountsFixtures.user_fixture(email: "redirected-to-invite@example.com")
+      admin = AccountsFixtures.user_fixture(email: "inviter-via-sso@authctl-example.com")
+      invitee = AccountsFixtures.user_fixture(email: "redirected-to-invite@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://idp.example.com",
+          sso_organization_id: "https://idp.authctl-example.com",
           sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
-          oauth2_token_url: "https://idp.example.com/oauth2/token",
-          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://idp.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.authctl-example.com/oauth2/userinfo"
         )
 
       {:ok, invitation} =
@@ -1061,7 +1070,7 @@ defmodule TuistWeb.AuthControllerTest do
       refute Accounts.organization_user?(invitee, organization)
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.authctl-example.com")
 
       assert %Invitation{} =
                Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization)
@@ -1069,19 +1078,19 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "does not redirect to the invitation accept page when the pending invitation expired",
          %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "expired-sso-inviter@example.com")
-      invitee = AccountsFixtures.user_fixture(email: "expired-sso-invitee@example.com")
+      admin = AccountsFixtures.user_fixture(email: "expired-sso-inviter@authctl-example.com")
+      invitee = AccountsFixtures.user_fixture(email: "expired-sso-invitee@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://idp.example.com",
+          sso_organization_id: "https://idp.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
-          oauth2_token_url: "https://idp.example.com/oauth2/token",
-          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://idp.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.authctl-example.com/oauth2/userinfo"
         )
 
       {:ok, invitation} =
@@ -1121,19 +1130,19 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "preserves the original return URL while redirecting an unlinked invitee",
          %{conn: conn} do
-      admin = AccountsFixtures.user_fixture(email: "preserve-return-inviter@example.com")
-      invitee = AccountsFixtures.user_fixture(email: "preserve-return-invitee@example.com")
+      admin = AccountsFixtures.user_fixture(email: "preserve-return-inviter@authctl-example.com")
+      invitee = AccountsFixtures.user_fixture(email: "preserve-return-invitee@authctl-example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: admin,
           sso_provider: :oauth2,
-          sso_organization_id: "https://idp.example.com",
+          sso_organization_id: "https://idp.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
-          oauth2_token_url: "https://idp.example.com/oauth2/token",
-          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://idp.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.authctl-example.com/oauth2/userinfo"
         )
 
       {:ok, invitation} =
@@ -1194,7 +1203,7 @@ defmodule TuistWeb.AuthControllerTest do
                Accounts.get_oauth2_identity(
                  :oauth2,
                  "invitee-sub-2",
-                 "https://idp.example.com"
+                 "https://idp.authctl-example.com"
                )
     end
 
@@ -1202,18 +1211,18 @@ defmodule TuistWeb.AuthControllerTest do
          %{conn: conn} do
       # Customer A has a legitimate user whose identity came from their IdP.
       # Their OIDC `sub` is some value, say "shared-sub".
-      victim = AccountsFixtures.user_fixture(email: "victim@customer-a.example")
+      victim = AccountsFixtures.user_fixture(email: "victim@authctl-customer-a.example")
 
       _customer_a_org =
         AccountsFixtures.organization_fixture(
           creator: victim,
           sso_provider: :oauth2,
-          sso_organization_id: "https://idp-a.example.com",
+          sso_organization_id: "https://idp-a.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://idp-a.example.com/oauth2/authorize",
-          oauth2_token_url: "https://idp-a.example.com/oauth2/token",
-          oauth2_user_info_url: "https://idp-a.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://idp-a.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-a.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-a.authctl-example.com/oauth2/userinfo"
         )
 
       {:ok, _victim_identity} =
@@ -1222,27 +1231,27 @@ defmodule TuistWeb.AuthControllerTest do
             provider: :oauth2,
             id_in_provider: "shared-sub",
             user_id: victim.id,
-            provider_organization_id: "https://idp-a.example.com"
+            provider_organization_id: "https://idp-a.authctl-example.com"
           })
         )
 
       # Customer B (the attacker) configures a different IdP they control.
       # Their IdP is going to return `sub = "shared-sub"` from /userinfo.
-      attacker = AccountsFixtures.user_fixture(email: "attacker@customer-b.example")
+      attacker = AccountsFixtures.user_fixture(email: "attacker@authctl-customer-b.example")
 
       attacker_org =
         AccountsFixtures.organization_fixture(
           creator: attacker,
           sso_provider: :oauth2,
-          sso_organization_id: "https://idp-b.example.com",
-          sso_login_domain: "customer-b.example",
+          sso_organization_id: "https://idp-b.authctl-example.com",
+          sso_login_domain: "authctl-customer-b.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://idp-b.example.com/oauth2/authorize",
-          oauth2_token_url: "https://idp-b.example.com/oauth2/token",
-          oauth2_user_info_url: "https://idp-b.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://idp-b.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-b.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-b.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -1250,13 +1259,13 @@ defmodule TuistWeb.AuthControllerTest do
       end)
 
       expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
-        {:ok, %{"sub" => "shared-sub", "email" => "attacker@customer-b.example", "name" => "Attacker"}}
+        {:ok, %{"sub" => "shared-sub", "email" => "attacker@authctl-customer-b.example", "name" => "Attacker"}}
       end)
 
       # The callback must NOT log the attacker in as the victim. Because the
       # victim's identity row is scoped to customer A's issuer and the
       # attacker is authenticating against customer B's issuer, the lookup
-      # for `(:oauth2, "shared-sub", "https://idp-b.example.com")` returns
+      # for `(:oauth2, "shared-sub", "https://idp-b.authctl-example.com")` returns
       # :not_found — so we fall through to the email-based path and link
       # the attacker to THEIR OWN existing user (which they're allowed to,
       # since their email is on the attacker org's verified domain).
@@ -1274,7 +1283,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The victim's identity row is still intact and still points at the victim.
       assert {:ok, victim_identity_after} =
-               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.authctl-example.com")
 
       assert victim_identity_after.user_id == victim.id
 
@@ -1282,7 +1291,7 @@ defmodule TuistWeb.AuthControllerTest do
       # own issuer — proving the per-issuer uniqueness key allows both rows to
       # coexist with the same `sub`.
       assert {:ok, attacker_identity} =
-               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.example.com")
+               Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.authctl-example.com")
 
       assert attacker_identity.user_id == attacker.id
       refute attacker_identity.user_id == victim.id
@@ -1295,12 +1304,12 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :oauth2,
-          sso_organization_id: "https://auth.example.com",
+          sso_organization_id: "https://auth.authctl-example.com",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          oauth2_token_url: "https://auth.example.com/oauth2/token",
-          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -1329,7 +1338,7 @@ defmodule TuistWeb.AuthControllerTest do
       user = AccountsFixtures.user_fixture()
 
       [target, other] =
-        for issuer <- ["https://idp-a.example.com", "https://idp-b.example.com"] do
+        for issuer <- ["https://idp-a.authctl-example.com", "https://idp-b.authctl-example.com"] do
           organization =
             custom_provider_organization(
               creator: user,
@@ -1393,7 +1402,7 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "linking an existing account through a custom provider" do
     test "keeps linked members signing in after compatibility mode is retired", %{conn: conn} do
-      member = AccountsFixtures.user_fixture(email: "linked@customer.example")
+      member = AccountsFixtures.user_fixture(email: "linked@authctl-customer.example")
 
       organization =
         custom_provider_organization(
@@ -1417,11 +1426,11 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :auth_method) == :oauth2
       assert Accounts.belongs_to_organization?(member, organization)
       assert Accounts.sso_enforced_for_email?(member.email)
-      refute Accounts.sso_enforced_for_email?("new@customer.example")
+      refute Accounts.sso_enforced_for_email?("new@authctl-customer.example")
     end
 
     test "does not link a member by email while the login domain is unverified", %{conn: conn} do
-      member = AccountsFixtures.user_fixture(email: "member@customer.example")
+      member = AccountsFixtures.user_fixture(email: "member@authctl-customer.example")
       organization = custom_provider_organization(creator: member)
       stub_sso_userinfo("unverified-member", member.email)
 
@@ -1433,16 +1442,16 @@ defmodule TuistWeb.AuthControllerTest do
       refute get_session(conn, :user_token)
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.authctl-vendor.example")
     end
 
     test "does not link a member whose email is outside the verified domain", %{conn: conn} do
-      member = AccountsFixtures.user_fixture(email: "contractor@elsewhere.example")
+      member = AccountsFixtures.user_fixture(email: "contractor@authctl-elsewhere.example")
 
       organization =
         custom_provider_organization(
           creator: member,
-          sso_login_domain: "customer.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
         )
@@ -1454,15 +1463,15 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.authctl-vendor.example")
     end
 
     test "links an account the organization's SCIM provisioning created while the domain is unverified", %{
       conn: conn
     } do
-      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      owner = AccountsFixtures.user_fixture(email: "owner@authctl-customer.example")
       organization = custom_provider_organization(creator: owner)
-      {:ok, provisioned} = Tuist.SCIM.provision_user(organization, %{user_name: "provisioned@customer.example"})
+      {:ok, provisioned} = Tuist.SCIM.provision_user(organization, %{user_name: "provisioned@authctl-customer.example"})
       stub_sso_userinfo("provisioned-identity", provisioned.email)
 
       conn = sso_callback(conn, organization)
@@ -1470,19 +1479,21 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{provisioned.account.name}"
 
       assert {:ok, identity} =
-               Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.authctl-vendor.example")
 
       assert identity.user_id == provisioned.id
     end
 
     test "does not link an account another organization's SCIM provisioning created", %{conn: conn} do
-      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      owner = AccountsFixtures.user_fixture(email: "owner@authctl-customer.example")
       organization = custom_provider_organization(creator: owner)
 
       other_organization =
-        AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture(email: "other-owner@mail.example"))
+        AccountsFixtures.organization_fixture(
+          creator: AccountsFixtures.user_fixture(email: "other-owner@authctl-mail.example")
+        )
 
-      {:ok, provisioned} = Tuist.SCIM.provision_user(other_organization, %{user_name: "shared@customer.example"})
+      {:ok, provisioned} = Tuist.SCIM.provision_user(other_organization, %{user_name: "shared@authctl-customer.example"})
       :ok = Accounts.add_user_to_organization(provisioned, organization, role: :user)
       stub_sso_userinfo("foreign-identity", provisioned.email)
 
@@ -1491,11 +1502,11 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.authctl-vendor.example")
     end
 
     test "requires existing members to sign in before linking an unverified provider", %{conn: conn} do
-      member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
+      member = AccountsFixtures.user_fixture(email: "legacy-member@authctl-customer.example")
 
       organization =
         custom_provider_organization(creator: member, existing_sso_configuration: true)
@@ -1507,13 +1518,13 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.authctl-vendor.example")
     end
 
     test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
-      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+      member = AccountsFixtures.user_fixture(email: "personal@authctl-mail.example")
       organization = custom_provider_organization(creator: member, existing_sso_configuration: true)
-      stub_sso_userinfo("work-identity", "person@customer.example")
+      stub_sso_userinfo("work-identity", "person@authctl-customer.example")
 
       conn =
         sso_callback(conn, organization, %{
@@ -1528,8 +1539,8 @@ defmodule TuistWeb.AuthControllerTest do
                "organization_id" => organization_id,
                "provider" => "oauth2",
                "uid" => "work-identity",
-               "provider_organization_id" => "https://login.vendor.example",
-               "email" => "person@customer.example",
+               "provider_organization_id" => "https://login.authctl-vendor.example",
+               "email" => "person@authctl-customer.example",
                "return_to" => return_to
              } = get_session(conn, :pending_sso_link)
 
@@ -1538,24 +1549,24 @@ defmodule TuistWeb.AuthControllerTest do
       assert return_to == "/#{member.account.name}/projects"
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.authctl-vendor.example")
     end
 
     test "links a signed-in member rather than starting a signup that cannot finish while signed in", %{
       conn: conn
     } do
-      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+      member = AccountsFixtures.user_fixture(email: "personal@authctl-mail.example")
 
       organization =
         custom_provider_organization(
           creator: member,
-          sso_login_domain: "customer.example",
+          sso_login_domain: "authctl-customer.example",
           sso_login_domain_verification_token: "verification-token",
           sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           sso_automatic_enrollment: true
         )
 
-      stub_sso_userinfo("work-identity", "person@customer.example")
+      stub_sso_userinfo("work-identity", "person@authctl-customer.example")
 
       conn =
         sso_callback(conn, organization, %{user_token: Accounts.generate_user_session_token(member)})
@@ -1566,8 +1577,8 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "does not offer a signed-in user who was only invited a link", %{conn: conn} do
-      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
-      invitee = AccountsFixtures.user_fixture(email: "invitee@mail.example")
+      owner = AccountsFixtures.user_fixture(email: "owner@authctl-customer.example")
+      invitee = AccountsFixtures.user_fixture(email: "invitee@authctl-mail.example")
       organization = custom_provider_organization(creator: owner)
 
       {:ok, _invitation} =
@@ -1576,19 +1587,19 @@ defmodule TuistWeb.AuthControllerTest do
           %{inviter: owner, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
 
-      stub_sso_userinfo("provider-chosen-identity", "someone@provider.example")
+      stub_sso_userinfo("provider-chosen-identity", "someone@authctl-provider.example")
 
       assert_error_sent 401, fn ->
         sso_callback(conn, organization, %{user_token: Accounts.generate_user_session_token(invitee)})
       end
 
       assert {:error, :not_found} =
-               Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.vendor.example")
+               Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.authctl-vendor.example")
     end
 
     test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
-      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
-      outsider = AccountsFixtures.user_fixture(email: "outsider@mail.example")
+      owner = AccountsFixtures.user_fixture(email: "owner@authctl-customer.example")
+      outsider = AccountsFixtures.user_fixture(email: "outsider@authctl-mail.example")
       organization = custom_provider_organization(creator: owner)
       stub_sso_userinfo("outsider-identity", outsider.email)
 
@@ -1600,17 +1611,20 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "instance-trusted SSO callbacks" do
     setup do
-      organization = custom_provider_organization(sso_login_domain: "example.com")
+      organization = custom_provider_organization(sso_login_domain: "authctl-example.com")
 
       other =
-        custom_provider_organization(sso_login_domain: "example.com", sso_organization_id: "https://other.example.com")
+        custom_provider_organization(
+          sso_login_domain: "authctl-example.com",
+          sso_organization_id: "https://other.authctl-example.com"
+        )
 
       stub(Tuist.Environment, :sso_require_login_domain_verification?, fn -> false end)
       %{organization: organization, other: other}
     end
 
     test "links an existing account through an instance-trusted provider", %{conn: conn, organization: organization} do
-      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      user = AccountsFixtures.user_fixture(email: "person@authctl-example.com")
       stub_sso_userinfo("operator-sub", user.email)
       conn = sso_callback(conn, organization)
       assert get_session(conn, :user_token)
@@ -1628,7 +1642,7 @@ defmodule TuistWeb.AuthControllerTest do
       {:ok, organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
 
-      stub_sso_userinfo("new-operator-sub", "new-person@example.com")
+      stub_sso_userinfo("new-operator-sub", "new-person@authctl-example.com")
       conn = sso_callback(conn, organization)
       assert redirected_to(conn) == "/users/choose-username"
       assert get_session(conn, :pending_oauth_signup)
@@ -1638,7 +1652,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn: conn,
       other: other
     } do
-      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      user = AccountsFixtures.user_fixture(email: "person@authctl-example.com")
       stub_sso_userinfo("other-sub", user.email)
       assert get_session(sso_callback(conn, other), :user_token)
       assert {:ok, identity} = Accounts.get_oauth2_identity(:oauth2, "other-sub", other.sso_organization_id)
@@ -1649,7 +1663,7 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         custom_provider_organization(
           sso_login_domain: Tuist.Environment.operator_email_domain(),
-          sso_organization_id: "https://idp.tenant.example"
+          sso_organization_id: "https://idp.authctl-tenant.example"
         )
 
       operator = AccountsFixtures.user_fixture(email: "ops@#{organization.sso_login_domain}")
@@ -1683,7 +1697,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "does not link email addresses outside the saved domain", %{conn: conn, organization: organization} do
-      user = AccountsFixtures.user_fixture(email: "victim@outside.example")
+      user = AccountsFixtures.user_fixture(email: "victim@authctl-outside.example")
       stub_sso_userinfo("outside-sub", user.email)
       assert_raise UnauthorizedError, fn -> sso_callback(conn, organization) end
 
@@ -1697,12 +1711,12 @@ defmodule TuistWeb.AuthControllerTest do
       Keyword.merge(
         [
           sso_provider: :oauth2,
-          sso_organization_id: "https://login.vendor.example",
+          sso_organization_id: "https://login.authctl-vendor.example",
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authctl-vendor.example/authorize",
+          oauth2_token_url: "https://login.authctl-vendor.example/token",
+          oauth2_user_info_url: "https://login.authctl-vendor.example/userinfo"
         ],
         attrs
       )
@@ -1736,18 +1750,18 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "callback/2 with OAuth" do
     test "returns to the page that asked for the sign-in, not one from an abandoned SSO attempt", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(email: "member@example.com")
+      user = AccountsFixtures.user_fixture(email: "member@authctl-example.com")
 
       organization =
         [creator: user, preload: [:account]]
         |> AccountsFixtures.organization_fixture()
-        |> enforce_sso(:google, "example.com")
+        |> enforce_sso(:google, "authctl-example.com")
 
       {:ok, _} =
         Accounts.link_oauth_identity_to_user(user, %{
           provider: :google,
           id_in_provider: "google-member",
-          provider_organization_id: "example.com"
+          provider_organization_id: "authctl-example.com"
         })
 
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
@@ -1774,7 +1788,7 @@ defmodule TuistWeb.AuthControllerTest do
           provider: :google,
           uid: "google-member",
           info: %Info{email: user.email},
-          extra: %{raw_info: %{user: %{"hd" => "example.com"}}}
+          extra: %{raw_info: %{user: %{"hd" => "authctl-example.com"}}}
         })
         |> TuistWeb.AuthController.callback(%{})
 
@@ -1782,7 +1796,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "honors the legacy return path key only for provider sign-ins, below the current key", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(email: "legacy@example.com")
+      user = AccountsFixtures.user_fixture(email: "legacy@authctl-example.com")
 
       {:ok, _} =
         Accounts.link_oauth_identity_to_user(user, %{provider: :google, id_in_provider: "google-legacy"})
@@ -1804,7 +1818,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert callback.(%{oauth_return_to: "/legacy"}) == "/legacy"
       assert callback.(%{oauth_return_to: "/legacy", user_return_to: "/current"}) == "/current"
-      assert callback.(%{oauth_return_to: "/\\evil.example"}) == TuistWeb.Authentication.signed_in_path(user)
+      assert callback.(%{oauth_return_to: "/\\authctl-evil.example"}) == TuistWeb.Authentication.signed_in_path(user)
 
       # Only provider sign-ins ever honored the legacy key.
       password_conn =
@@ -1818,13 +1832,13 @@ defmodule TuistWeb.AuthControllerTest do
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       # Given: A user already exists with a specific email
-      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
+      existing_user = AccountsFixtures.user_fixture(email: "existing@authctl-example.com")
 
       # Simulate OAuth callback with the same email but new OAuth identity
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-123",
-        info: %Info{email: "existing@example.com"},
+        info: %Info{email: "existing@authctl-example.com"},
         extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
@@ -1844,7 +1858,10 @@ defmodule TuistWeb.AuthControllerTest do
 
       # And: The confirmed account keeps its password
       assert {:ok, _} =
-               Accounts.get_user_by_email_and_password("existing@example.com", AccountsFixtures.valid_user_password())
+               Accounts.get_user_by_email_and_password(
+                 "existing@authctl-example.com",
+                 AccountsFixtures.valid_user_password()
+               )
     end
 
     test "a provider sign-in claims an unconfirmed account and voids the password it was registered with", %{
@@ -1852,12 +1869,12 @@ defmodule TuistWeb.AuthControllerTest do
     } do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       attacker_password = "attacker password!"
-      {:ok, victim} = Accounts.create_user("victim@example.com", password: attacker_password, confirmed_at: nil)
+      {:ok, victim} = Accounts.create_user("victim@authctl-example.com", password: attacker_password, confirmed_at: nil)
 
       conn =
         conn
         |> init_test_session(%{})
-        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@example.com"))
+        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@authctl-example.com"))
         |> TuistWeb.AuthController.callback(%{})
 
       assert {:ok, %{user: %{id: user_id}}} = Accounts.get_oauth2_identity(:github, "victim-github-uid")
@@ -1867,7 +1884,7 @@ defmodule TuistWeb.AuthControllerTest do
       claimed = Accounts.get_user_by_id(victim.id)
       assert claimed.confirmed_at
 
-      assert Accounts.get_user_by_email_and_password("victim@example.com", attacker_password) ==
+      assert Accounts.get_user_by_email_and_password("victim@authctl-example.com", attacker_password) ==
                {:error, :invalid_email_or_password}
     end
 
@@ -1875,14 +1892,14 @@ defmodule TuistWeb.AuthControllerTest do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
       attacker_password = "attacker password!"
       # Without email confirmation the account is confirmed at registration.
-      {:ok, attacker_account} = Accounts.create_user("victim@example.com", password: attacker_password)
+      {:ok, attacker_account} = Accounts.create_user("victim@authctl-example.com", password: attacker_password)
       assert attacker_account.confirmed_at
 
       conn =
         conn
         |> init_test_session(%{})
         |> fetch_flash()
-        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@example.com"))
+        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@authctl-example.com"))
         |> TuistWeb.AuthController.callback(%{})
 
       assert redirected_to(conn) == "/users/log_in"
@@ -1900,7 +1917,7 @@ defmodule TuistWeb.AuthControllerTest do
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: "owner-github-uid",
-          info: %{email: "owner@example.com"}
+          info: %{email: "owner@authctl-example.com"}
         })
 
       conn =
@@ -1909,7 +1926,7 @@ defmodule TuistWeb.AuthControllerTest do
         |> assign(:ueberauth_auth, %Ueberauth.Auth{
           provider: :google,
           uid: "owner-google-uid",
-          info: %Info{email: "owner@example.com"},
+          info: %Info{email: "owner@authctl-example.com"},
           extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
         })
         |> TuistWeb.AuthController.callback(%{})
@@ -1920,7 +1937,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "refuses a Google email that Google has not verified", %{conn: conn} do
-      existing_user = AccountsFixtures.user_fixture(email: "unverified-target@example.com")
+      existing_user = AccountsFixtures.user_fixture(email: "unverified-target@authctl-example.com")
 
       auth = %Ueberauth.Auth{
         provider: :google,
@@ -1937,7 +1954,9 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "confirms an unconfirmed account it links to and drops the password set before confirmation", %{conn: conn} do
       password = "StrongP@ssword!2035"
-      squatted = AccountsFixtures.user_fixture(email: "squatted@example.com", password: password, confirmed_at: nil)
+
+      squatted =
+        AccountsFixtures.user_fixture(email: "squatted@authctl-example.com", password: password, confirmed_at: nil)
 
       auth = %Ueberauth.Auth{
         provider: :google,
@@ -1962,9 +1981,9 @@ defmodule TuistWeb.AuthControllerTest do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
-      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "authctl-example.com" end)
       password = "StrongP@ssword!2037"
-      squatted = AccountsFixtures.user_fixture(email: "auto-confirmed@example.com", password: password)
+      squatted = AccountsFixtures.user_fixture(email: "auto-confirmed@authctl-example.com", password: password)
       assert squatted.confirmed_at
 
       auth = %Ueberauth.Auth{
@@ -1982,7 +2001,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "a returning sign-in records mailbox proof only for the address the provider verified", %{conn: conn} do
-      user = AccountsFixtures.user_fixture(email: "returning-#{System.unique_integer([:positive])}@example.com")
+      user = AccountsFixtures.user_fixture(email: "returning-#{System.unique_integer([:positive])}@authctl-example.com")
       AccountsFixtures.oauth2_identity_fixture(user: user, id_in_provider: "returning-uid", provider_organization_id: nil)
 
       sign_in = fn email ->
@@ -1996,7 +2015,7 @@ defmodule TuistWeb.AuthControllerTest do
         conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
       end
 
-      sign_in.("someone-else@example.com")
+      sign_in.("someone-else@authctl-example.com")
       assert is_nil(Accounts.get_user_by_id(user.id).email_verified_at)
 
       sign_in.(user.email)
@@ -2008,7 +2027,7 @@ defmodule TuistWeb.AuthControllerTest do
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-456",
-        info: %Info{email: "newuser@example.com"},
+        info: %Info{email: "newuser@authctl-example.com"},
         extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
@@ -2032,7 +2051,7 @@ defmodule TuistWeb.AuthControllerTest do
       auth = %Ueberauth.Auth{
         provider: :github,
         uid: "github-uid-123",
-        info: %Info{email: "github-user@example.com"},
+        info: %Info{email: "github-user@authctl-example.com"},
         extra: %{raw_info: %{user: %{}}}
       }
 
@@ -2049,7 +2068,7 @@ defmodule TuistWeb.AuthControllerTest do
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-123",
-        info: %Info{email: "google-user@example.com"},
+        info: %Info{email: "google-user@authctl-example.com"},
         extra: %{raw_info: %{user: %{"hd" => nil}}}
       }
 
@@ -2066,7 +2085,7 @@ defmodule TuistWeb.AuthControllerTest do
       auth = %Ueberauth.Auth{
         provider: :apple,
         uid: "apple-uid-123",
-        info: %Info{email: "apple-user@example.com"},
+        info: %Info{email: "apple-user@authctl-example.com"},
         extra: %{raw_info: %{user: %{}}}
       }
 
@@ -2079,7 +2098,7 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "logs in existing OAuth user directly", %{conn: conn} do
       # Given: A user with an existing OAuth identity
-      user = AccountsFixtures.user_fixture(email: "oauth-user@example.com")
+      user = AccountsFixtures.user_fixture(email: "oauth-user@authctl-example.com")
 
       # Create OAuth identity for the user
       {:ok, _oauth_identity} =
@@ -2095,7 +2114,7 @@ defmodule TuistWeb.AuthControllerTest do
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-existing",
-        info: %Info{email: "oauth-user@example.com"},
+        info: %Info{email: "oauth-user@authctl-example.com"},
         extra: %{raw_info: %{user: %{"hd" => nil}}}
       }
 

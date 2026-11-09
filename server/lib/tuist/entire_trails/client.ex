@@ -1,6 +1,6 @@
 defmodule Tuist.EntireTrails.Client do
   @moduledoc """
-  Entire's experimental repository Trail discussions API.
+  Entire's commit Checks and Trail Findings APIs.
   Authentication and regional routing use the shared Entire plugin client.
   """
 
@@ -14,52 +14,69 @@ defmodule Tuist.EntireTrails.Client do
     request(:get, installation, repository, trail_path(repository, number))
   end
 
-  def find_summary(installation, repository, number, marker) do
-    base = trail_path(repository, number) <> "/discussions"
+  def publish(installation, repository, number, summary) do
+    attempt = "tuist-#{summary.id}-#{DateTime.to_unix(summary.reported_at, :microsecond)}"
+    key = "tuist-insights-#{summary.connection_id}"
+    reviews = trail_path(repository, number) <> "/reviews"
 
-    with {:ok, discussions} <- list(installation, repository, base) do
-      discussions
-      |> Enum.filter(&owned?(&1["created_by_identity"], installation))
-      |> Enum.reduce_while({:ok, nil}, fn discussion, {:ok, nil} ->
-        case summary_message(installation, repository, base <> "/" <> segment(discussion["id"]), marker) do
-          {:ok, nil} -> {:cont, {:ok, nil}}
-          {:ok, message} -> {:halt, {:ok, %{discussion_id: discussion["id"], message_id: message["id"]}}}
+    state = %{
+      key: key,
+      name: "Tuist insights",
+      external_id: attempt,
+      status: "completed",
+      conclusion: "neutral",
+      external_updated_at: DateTime.to_iso8601(summary.reported_at)
+    }
+
+    # These are uploaded observations, not an executor's final CI verdict.
+    with {:ok, _} <-
+           request(
+             :post,
+             installation,
+             repository,
+             path(repository) <> "/commits/#{segment(summary.head_sha)}/check-runs",
+             json: %{
+               check_suite: state,
+               check_runs: [
+                 Map.merge(state, %{key: "report", output: %{title: "Tuist insights", summary: summary.report_body}})
+               ]
+             }
+           ),
+         {:ok, %{"review_id" => review_id}} <-
+           request(:post, installation, repository, reviews,
+             headers: [{"idempotency-key", attempt <> "-review"}],
+             json: %{head_sha: summary.head_sha}
+           ),
+         {:ok, %{"results" => results}} <-
+           request(:post, installation, repository, reviews <> "/#{segment(review_id)}/comments",
+             headers: [{"idempotency-key", attempt <> "-publish"}],
+             json: %{summary: summary.report_body, comments: summary.findings}
+           ),
+         :ok <- resolve_previous(installation, repository, reviews, summary, review_id) do
+      {:ok, %{review_id: review_id, finding_ids: Enum.map(results, & &1["comment"]["id"])}}
+    end
+  end
+
+  defp resolve_previous(installation, repository, reviews, summary, review_id) do
+    if summary.review_id && summary.review_id != review_id do
+      Enum.reduce_while(summary.finding_ids, :ok, fn id, :ok ->
+        case request(
+               :patch,
+               installation,
+               repository,
+               reviews <> "/#{segment(summary.review_id)}/comments/#{segment(id)}",
+               json: %{status: "resolved", status_reason: "Superseded by an updated Tuist insights report."}
+             ) do
+          {:ok, _} -> {:cont, :ok}
           {:error, _} = error -> {:halt, error}
         end
       end)
+    else
+      :ok
     end
   end
 
-  defp summary_message(installation, repository, path, marker) do
-    with {:ok, %{"messages" => messages}} <- request(:get, installation, repository, path) do
-      {:ok, Enum.find(messages, &(owned?(&1["identity"], installation) and String.contains?(&1["body"], marker)))}
-    end
-  end
-
-  def create_summary(installation, repository, number, body) do
-    case request(:post, installation, repository, trail_path(repository, number) <> "/discussions",
-           json: %{title: "Tuist insights", body: body}
-         ) do
-      {:ok, %{"discussion" => %{"id" => discussion_id}, "message" => %{"id" => message_id}}} ->
-        {:ok, %{discussion_id: discussion_id, message_id: message_id}}
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  def update_summary(installation, repository, number, summary, body) do
-    request(
-      :patch,
-      installation,
-      repository,
-      trail_path(repository, number) <>
-        "/discussions/#{segment(summary.discussion_id)}/messages/#{segment(summary.message_id)}",
-      json: %{body: body}
-    )
-  end
-
-  defp list(installation, repository, path, opts \\ [], items \\ []) do
+  defp list(installation, repository, path, opts, items \\ []) do
     with {:ok, body} <- request(:get, installation, repository, path, opts) do
       items = items ++ (body["items"] || [])
 
@@ -76,15 +93,15 @@ defmodule Tuist.EntireTrails.Client do
 
   defp request(method, installation, repository, path, opts \\ []) do
     with {:ok, token} <-
-           Entire.access_token(installation, repository.id, %{"contents" => "read", "discussions" => "write"}) do
+           Entire.access_token(installation, repository.id, %{
+             "contents" => "read",
+             "checks" => "write",
+             "findings" => "write"
+           }) do
       Entire.region_request(method, repository, path, token, opts)
     end
   end
 
-  defp owned?(%{"kind" => "automation", "automation" => %{"installation_id" => remote_id}}, installation),
-    do: remote_id == installation.remote_id
-
-  defp owned?(_, _), do: false
   defp path(repository), do: "/repos/" <> segment(repository.id)
   defp trail_path(repository, number), do: path(repository) <> "/trails/" <> segment(to_string(number))
   defp segment(value), do: URI.encode(value, &URI.char_unreserved?/1)

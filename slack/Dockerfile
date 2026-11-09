@@ -37,8 +37,6 @@ COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY noora/package.json noora/aube-lock.yaml /app/noora/
 COPY noora/js/ /app/noora/js/
 COPY noora/css/ /app/noora/css/
-COPY noora/components/ /app/noora/components/
-COPY noora/scripts/ /app/noora/scripts/
 COPY noora/lib/ /app/noora/lib/
 COPY noora/mix.exs noora/README.md /app/noora/
 

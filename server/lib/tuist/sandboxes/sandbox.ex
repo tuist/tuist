@@ -24,7 +24,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   # template build and a memory image on every node that serves it, so the
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
   # `sandboxes.allowedShapes`).
-  @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @shapes [{1, 2048}, {2, 4096}, {4, 8192}, {8, 16_384}, {16, 32_768}, {16, 45_056}]
   @darwin_shapes [{8, 8192}, {8, 16_384}, {8, 24_576}]
   @max_workspace_gb 100
 

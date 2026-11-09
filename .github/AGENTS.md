@@ -598,6 +598,12 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- GitHub occasionally never delivers a probe job's `workflow_job.queued`
+  webhook, so dispatch never enqueues it and an idle runner never takes it.
+  When `Dispatch` is the run's only titled failure and no probe job failed,
+  `gate.sh` reports it as a warning and dispatches the probe run once more
+  within the same `GATE_MINUTES`; a second failure blocks the deploy. Any other
+  failing layer is never retried.
 - Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
   setup-beam, process file limits, and Kura) and a
   real job-container probe (workspace/actions/externals mounts and environment

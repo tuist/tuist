@@ -280,6 +280,11 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   `kuraVolumesCSI.enabled`. It only makes a region thin-capable; accounts move
   through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
   until a region has `tuist.dev/kura-thin-ready=true` nodes.
+- `kuraVolumesCSI.thinEnrolledRegions` renders `TUIST_KURA_THIN_ENROLLED_REGIONS`:
+  every account in a listed region moves to thin without the flag. Existing
+  instances still move only through the source-node gate. Enroll a region only
+  while converting it host by host with enough thin-ready capacity, since new
+  instances and claim growth there are admitted only against thin-ready nodes.
 
 - Kura CSI's retained admission policies constrain its pod-bound identity to
   its own node's PV lifecycle and disk capacity, and preserve PVC ownership.

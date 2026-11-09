@@ -252,7 +252,10 @@ func dispatch(req request) error {
 		if err != nil {
 			return err
 		}
-		if prior.ID == req.ID {
+		// A retried start finds its own worker running. Managed Agents reuse
+		// the session ID as the work ID on every turn, so a finished worker
+		// with the same ID is an earlier turn, and this turn starts a new one.
+		if prior.ID == req.ID && prior.Running {
 			emit(prior)
 			return nil
 		}
@@ -501,8 +504,13 @@ func orbBootstrap() error {
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Env = []string{"PATH=" + filepath.Dir(amp) + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-		"HOME=" + home, "USER=" + os.Getenv("USER"), "LANG=en_US.UTF-8", "ORB_TOKEN=" + token, "AMP_URL=" + ampURL}
-	for _, name := range []string{"TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
+		"HOME=" + home, "USER=" + os.Getenv("USER"), "LANG=en_US.UTF-8", "ORB_TOKEN=" + token, "AMP_URL=" + ampURL,
+		// macOS Orbs are not qualified yet: a project thread's first setup
+		// fails without a trace at the default level. Debug records each
+		// bootstrap request in ~/.cache/amp/logs/cli.log.
+		"AMP_LOG_LEVEL=debug"}
+	// No Tuist credential reaches Amp: Tuist clients in the guest sign in with the Orb's Amp identity.
+	for _, name := range []string{"TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
 		if value := os.Getenv(name); value != "" {
 			cmd.Env = append(cmd.Env, name+"="+value)
 		}

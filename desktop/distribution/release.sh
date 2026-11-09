@@ -170,11 +170,16 @@ build() (
         printf '%s\n' "$fmt" > "$root/crates/updater/src/package-kind.txt"
     fi
     export ONCE_CACHE_PROVIDER=local
+    # Concurrent Once test batches remove and recreate shared per-package
+    # outputs (`.once/out/<package>/deps-rlib-search`). Windows fails on that
+    # race, so run its batches one at a time.
+    jobs=
+    test "$fmt" != nsis || jobs=1
     # GPUI keyboard/layout tests require debug-only bounds instrumentation.
     # Test the staged sources before switching the graph to shipping flags.
     (
         cd "$root"
-        if once test --all; then :; else
+        if once test --all ${jobs:+--jobs "$jobs"}; then :; else
             status=$?
             for log in .once/out/*/test/rust-libtest.log; do
                 test -f "$log" || continue

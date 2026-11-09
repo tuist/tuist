@@ -156,6 +156,10 @@ defmodule Tuist.Sandboxes.Query do
   def error(:not_connected), do: {:service_unavailable, "The sandbox's node is not connected."}
   def error(:node_disconnected), do: {:service_unavailable, "The sandbox's node disconnected during the operation."}
   def error(:timeout), do: {:gateway_timeout, "The sandbox's node did not answer in time."}
+
+  def error(:snapshot_not_saved),
+    do: {:service_unavailable, "The Orb paused, but its project snapshot could not be saved."}
+
   def error(%Ecto.Changeset{} = changeset), do: {:bad_request, changeset_message(changeset)}
   def error(reason) when is_binary(reason), do: {:bad_gateway, "The sandbox node rejected the operation: #{reason}"}
   def error(reason), do: {:internal_server_error, "Sandbox operation failed: #{inspect(reason)}"}

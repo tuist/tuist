@@ -335,6 +335,58 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
     assert_samples(ctx)
   end
 
+  test "recent grouping reaches event-time recent sources behind late historical outputs", ctx do
+    {query, opts, _} = hd(panels(ctx))
+    assert {:ok, expected} = memory(ctx, query, opts)
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    assert {:ok, raw} = MetricTiers.segments(root, ctx.t0, ctx.t0 + @hour, :samples, ctx.tenant, ctx.config)
+
+    historical = fn range ->
+      for n <- range do
+        ts = ctx.t0 - @hour + n
+        key = S3.object_key(ctx.tenant, "metrics", ts, ts, "historical-#{n}", nil)
+        key = String.replace(key, "-rand-", "-final-")
+        %{Segment.build(key, ts, ts, 1, 1000) | metric_names: ["other"]}
+      end
+    end
+
+    assert {:ok, root} =
+             JournalManifest.convert(
+               %Manifest{version: 1, segments: historical.(1..3000) ++ raw},
+               ctx.tenant,
+               "metrics",
+               ctx.config
+             )
+
+    # Historical finalization publishes old samples AFTER current ingestion.
+    # Neither the historical cursor nor the last four published pages holds
+    # the raw samples that recent grouping needs to keep queries working.
+    root = Manifest.merge(root, historical.(3001..6000))
+    assert {:ok, {root, payload, _}} = JournalManifest.seal(root, ctx.tenant, "metrics", ctx.config)
+    assert {:ok, _} = ObjectStore.put(ctx.config, Manifest.manifest_key(ctx.tenant, "metrics"), payload)
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
+    assert reads(ctx.agent) == 299
+
+    Runtime.put_env(:pulse, Evaluator, max_scan_segments: 1)
+    assert {:error, :query_scan_limit} = Evaluator.query(query, ctx.tenant, opts)
+    assert %{limit: :max_scan_segments} = QueryLimit.take()
+
+    assert {:ok, %{sources: 300, rows: 60_000}} =
+             MetricTiers.consolidate(ctx.tenant, ctx.config,
+               consolidate_settle_ms: 0,
+               consolidate_min_rows: 1,
+               consolidate_max_rows: 60_000,
+               target_rows: 1_500
+             )
+
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
+    assert reads(ctx.agent) == 1
+    assert root.version == 4
+    assert_samples(ctx)
+  end
+
   test "background maintenance reaches raw sources between already-grouped manifest pages", ctx do
     tenant = ctx.tenant <> "-cursor"
 

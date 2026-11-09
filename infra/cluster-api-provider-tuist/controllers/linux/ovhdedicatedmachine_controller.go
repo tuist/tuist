@@ -166,10 +166,16 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	return r.reconcileNormal(ctx, machine, patchHelper)
+	// The kubelet a fresh join installs follows the CAPI Machine's version,
+	// which the fleet's MachineDeployment sets (ovhFleets.<key>.kubernetesVersion).
+	machineVersion := ""
+	if ownerMachine != nil && ownerMachine.Spec.Version != nil {
+		machineVersion = *ownerMachine.Spec.Version
+	}
+	return r.reconcileNormal(ctx, machine, machineVersion, patchHelper)
 }
 
-func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, patchHelper *patch.Helper) (ctrl.Result, error) {
+func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, machineVersion string, patchHelper *patch.Helper) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	datacenter := firstNonEmpty(machine.Spec.Datacenter, r.DefaultDatacenter)
 
@@ -266,7 +272,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if pwErr != nil {
 			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
 		}
-		opts := r.hostOptions(machine)
+		opts := r.hostOptions(machine, machineVersion)
 		opts.KubeconfigYAML = kubeconfigYAML
 		opts.ClusterCAPEM = identity.CA
 		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
@@ -375,7 +381,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
-			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kataErr != nil {
+			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); kataErr != nil {
 				logger.Error(kataErr, "kata runtime repair failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -384,12 +390,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			// Not a return path for its own failures: a host that cannot
 			// offer nested guests still serves every other Pod, and the
 			// drift checks after this one must keep running for it.
-			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kvmErr != nil {
+			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); kvmErr != nil {
 				logger.Error(kvmErr, "kata nested virtualization repair failed; will retry")
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
-			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
+			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); quotaErr != nil {
 				logger.Error(quotaErr, "containerd quota lift failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -410,11 +416,15 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 // converge a node onto a capability it knows the machine asked for, so a future
 // bootstrap-time field added to the render must land in both — and here it does
 // so by construction rather than by remembering to update two call sites.
-func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
+//
+// kubeletVersion picks the kubelet minor: the Machine's version for a fresh
+// join, and the Node's own kubelet for a repair, so a repair never renders for
+// a kubelet the box does not run. Without one it is the provider's default.
+func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine, kubeletVersion string) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
 		KuraLVM:       kuraLVMRequested(machine.Annotations),
-		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
+		K8sMinor:      kubeletMinor(kubeletVersion, firstNonEmpty(r.KubernetesMinor, "v1.34")),
 		Taints:        machine.Spec.NodeTaints,
 		KataRuntime:   machine.Spec.KataRuntime,
 		BootstrapUser: ovhBootstrapUser,

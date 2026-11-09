@@ -25,6 +25,12 @@ defmodule Tuist.Sandboxes.CommandsTest do
 
   defp started(_args \\ nil), do: fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end
 
+  defp stdin_from_env(env) do
+    0..(String.to_integer(env["TUIST_STDIN_PARTS"]) - 1)//1
+    |> Enum.map_join(&env["TUIST_STDIN_DATA_#{&1}"])
+    |> Base.decode64!()
+  end
+
   defp running_command(sandbox, attrs \\ []) do
     Repo.insert!(%SandboxCommand{
       id: Ecto.UUID.generate(),
@@ -101,6 +107,24 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert {:error, :busy} = Commands.start(sandbox, %{command: "true"})
       assert Repo.all(SandboxCommand) == []
       assert %Sandbox{residency_work_id: "amp:orb"} = Repo.reload!(sandbox)
+    end
+
+    test "waits out a pause the start raced with, then resumes the sandbox and starts the command" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+
+      # The idle pause reached the node first; by the time the start retries,
+      # the row says paused.
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts ->
+        sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+        {:error, "sandbox is being paused: #{sandbox.id}"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, started())
+
+      assert {:ok, %{id: id, status: "running"}} = Commands.start(sandbox, %{command: "true"})
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
+      assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
     end
 
     test "gives the sandbox back when the command cannot start" do
@@ -184,12 +208,27 @@ defmodule Tuist.Sandboxes.CommandsTest do
       command = running_command(sandbox, stdin: true)
 
       expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
-        assert Base.decode64!(env["TUIST_STDIN_DATA"]) == <<0, 255, ?\n>>
+        assert stdin_from_env(env) == <<0, 255, ?\n>>
         assert env["TUIST_STDIN_CLOSE"] == "1"
         {:ok, %{"exit_code" => 0}}
       end)
 
       assert {:ok, %{stdin: true}} = Commands.write_stdin(sandbox, command.id, <<0, 255, ?\n>>, true)
+    end
+
+    test "splits a full write into environment strings Linux accepts" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      command = running_command(sandbox, stdin: true)
+      data = :crypto.strong_rand_bytes(Commands.max_stdin_bytes())
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        # MAX_ARG_STRLEN: each `NAME=value` string, with its terminating NUL, must fit in 128 KiB.
+        assert Enum.all?(env, fn {name, value} -> byte_size(name) + byte_size(value) + 2 <= 128 * 1024 end)
+        assert stdin_from_env(env) == data
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert {:ok, %{stdin: true}} = Commands.write_stdin(sandbox, command.id, data, false)
     end
   end
 

@@ -214,7 +214,7 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
       AccountsFixtures.organization_fixture(
         creator: user,
         sso_provider: :okta,
-        sso_organization_id: "example.okta.com",
+        sso_organization_id: "overview-example.okta.com",
         oauth2_client_id: "client",
         oauth2_client_secret: "secret"
       )

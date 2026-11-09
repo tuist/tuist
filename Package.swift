@@ -121,7 +121,6 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
     "TuistServer",
-    "TuistOIDC",
     "TuistEnvKey",
     "TuistCAS",
     "TuistEncodable",

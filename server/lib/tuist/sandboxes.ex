@@ -891,13 +891,20 @@ defmodule Tuist.Sandboxes do
   # is done, so an exec can reach the node mid-pause. The pause holds the
   # sandbox's lock: wait for it, resume the sandbox and run the command once
   # more.
-  defp exec_after_pause(%Sandbox{id: id}, cmd, opts) do
-    case with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end) do
+  defp exec_after_pause(%Sandbox{} = sandbox, cmd, opts) do
+    case await_pause(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) -> run_exec(sandbox, cmd, opts)
       {:ok, %Sandbox{}} -> {:error, :no_node}
       {:error, reason} -> {:error, reason}
     end
   end
+
+  @doc """
+  Waits for a pause the node has started while the row still says running
+  (the pause holds the sandbox's lock), then answers the sandbox running,
+  resuming it when the pause went through.
+  """
+  def await_pause(%Sandbox{id: id}), do: with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end)
 
   @doc """
   Runs `cmd` in a sandbox that is already running, without resuming it,
