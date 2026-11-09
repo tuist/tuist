@@ -1,5 +1,47 @@
 # Thin stack qualification
 
+## Performance acceptance criterion changed (2026-11-09)
+
+The no-raw-regression gate is replaced. Production thin enrollment is now
+judged on **production request latency**: an account may move to thin when the
+instances already moved show no regression in Kura's public request latency
+that thin explains, and the thin pools stay healthy. The raw cost measured below
+still stands and is not disputed: about 25.6% lower 4 KiB random-read IOPS at
+QD32 against encrypted thick LVM, and higher small-request tails in the staging
+pair. It shows when a node's disk is saturated, which Kura cache nodes are not:
+request time is dominated by network and the runtime. Accounts still move one at
+a time through the `kura_thin_volumes` flag and the controller's source-node
+gate; physical overcommit stays blocked.
+
+Production evidence behind the change, from `kura_public_request_latency_seconds`.
+Its buckets grow by a factor of four (1, 4, 16, 64, 256 ms), so it detects large
+shifts, not a 25% one. Shares are of requests at or under each bound; reads are
+`BatchReadBlobs`, `GetActionResult`, `FindMissingBlobs` and `ByteStream/Read`,
+writes `BatchUpdateBlobs`, `UpdateActionResult` and `ByteStream/Write`.
+
+| Instance | Window | Reads ≤4 ms | Reads ≤16 ms | Writes ≤16 ms |
+| --- | --- | ---: | ---: | ---: |
+| Oura eu-west, thin since 11-06 16:22 | 2 days before the move | 64.1% | 100% | 86.7% |
+| | 2 days to 11-09 07:51 | 64.9% | 100% | 93.2% |
+| Tuist eu-west, thin since 11-05 | weekend to 11-02 07:51 | 99.6% | 99.8% | 94.1% |
+| | weekend to 11-09 07:51 | 98.2% | 98.9% | 95.0% |
+| eu-west legacy instances (control) | weekend to 11-02 07:51 | 97.6% | 99.0% | 97.9% |
+| | weekend to 11-09 07:51 | 88.9% | 98.9% | 95.6% |
+
+Oura is the clean comparison: about 2.0M reads and 61k writes before, 1.3M reads
+after. Tuist eu-west's small shift is smaller than the legacy control's over the
+same weekend, so it follows traffic rather than layout. Fetch eu-west had no
+traffic, Tuist sa-west too little to judge, and Tuist us-central had just moved.
+On 11-09 every thin pool (eu-west ndgzl, sa-west gmn2k, us-central s2kpr) was
+healthy, had not gone read-only in three days, and used 9–44% of data and 1–3%
+of metadata.
+
+Watch for a tenant that drives a node's disk hard enough to reach the raw cost:
+compare its request latency with the legacy instances in its region and the
+thin pool alerts in `infra/helm/k8s-monitoring/kura-thin-pool-alert-rules.json`.
+The historical sections below keep their original wording; where they say the
+performance gate blocks production enrollment, this section supersedes them.
+
 ## Hosted staging migration rehearsal (2026-11-02)
 
 Staging ran this branch's server (`sha-fd5dca456951`) with the
