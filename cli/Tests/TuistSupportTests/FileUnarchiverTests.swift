@@ -1,11 +1,9 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistSupport
 
-@Suite(.coverageAttribution)
 struct FileUnarchiverTests {
     @Test(.inTemporaryDirectory)
     func preserves_optional_resource_links_in_app_archives() async throws {

@@ -1,10 +1,8 @@
 import Foundation
 import Synchronization
-import TestCoverageAttribution
 import Testing
 @testable import TuistSupport
 
-@Suite(.coverageAttribution)
 struct ProgramStatusReporterTests {
     private enum TestError: Error {
         case failed

@@ -1,11 +1,7 @@
 import Foundation
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
-@Suite(.coverageAttribution)
 struct PackageInfoCacheTests {
     @Test(
         arguments: ["example/package/1.1.4", "registry.example-12345678/example/package/1.1.4"],

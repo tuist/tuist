@@ -2,12 +2,10 @@ import Foundation
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct AzureBlobUploadRequestTests {
     @Test func addsBlobTypeHeaderForAzurePutBlobSASURL() throws {
         let url = try #require(URL(

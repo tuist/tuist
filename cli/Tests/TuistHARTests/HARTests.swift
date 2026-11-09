@@ -1,10 +1,8 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistHAR
 
-@Suite(.coverageAttribution)
 struct HARTests {
     @Test
     func encode_decodesCorrectly() throws {

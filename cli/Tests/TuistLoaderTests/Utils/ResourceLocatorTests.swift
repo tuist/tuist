@@ -1,12 +1,10 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 @testable import TuistTesting
 
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct ResourceLocatorTests {
     @Test(.withMockedEnvironment())
     func generatedProjectCASPluginCandidates_prefersTheInstalledCopy() throws {

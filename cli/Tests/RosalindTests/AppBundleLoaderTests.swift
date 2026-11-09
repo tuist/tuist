@@ -1,12 +1,11 @@
 import FileSystem
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 
 @testable import Rosalind
 
-@Suite(.coverageAttribution) struct AppBundleLoaderTests {
+@Suite struct AppBundleLoaderTests {
     private let fileSystem = FileSystem()
     private let subject = AppBundleLoader()
 

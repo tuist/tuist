@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Synchronization
-import TestCoverageAttribution
 import Testing
 @testable import TuistProcess
 #if canImport(Darwin)
@@ -13,7 +12,7 @@ import Testing
     import Musl
 #endif
 
-@Suite(.coverageAttribution, .serialized) struct CommandRunnerTests {
+@Suite(.serialized) struct CommandRunnerTests {
     #if os(macOS)
         @Test(arguments: ["--jobserver-auth", "--jobserver-fds"])
         func preservesCargoJobserverDescriptors(flag: String) async throws {

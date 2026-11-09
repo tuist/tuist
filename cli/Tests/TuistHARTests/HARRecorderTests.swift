@@ -2,12 +2,10 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistHAR
 
-@Suite(.coverageAttribution)
 struct HARRecorderTests {
     // MARK: - Entry Building Tests
 

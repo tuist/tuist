@@ -1,12 +1,10 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistProcess
 
 @testable import TuistSupport
 
-@Suite(.coverageAttribution)
 struct SecurityControllerTests {
     private let subject: SecurityController
     private let commandRunner = MockCommandRunning()

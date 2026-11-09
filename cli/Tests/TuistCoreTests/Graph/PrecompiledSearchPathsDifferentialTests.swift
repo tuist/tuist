@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
@@ -16,7 +15,6 @@ import XcodeGraph
 /// selection rules being mirrored are spread across `linkableDependencies` and three further unions, and the
 /// interesting cases are combinations — a static xcframework behind a dynamic one behind a static framework,
 /// a unit test whose host links a subset, a dependency made incompatible by a platform condition.
-@Suite(.coverageAttribution)
 struct PrecompiledSearchPathsDifferentialTests {
     /// What the reference implementation says, projected the way the framework search paths mapper projects it.
     private func reference(

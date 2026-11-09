@@ -1,12 +1,10 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistCargoCommand
 
-@Suite(.coverageAttribution)
 struct CargoCacheDetailsReportTests {
     private let action = "blake3:" + String(repeating: "a", count: 64) + ":123"
     private let object = "sha256:" + String(repeating: "b", count: 64) + ":456"

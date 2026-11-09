@@ -1,9 +1,7 @@
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistSupport
 
-@Suite(.coverageAttribution)
 struct PackageManifestEnvironmentTests {
     @Test func automatic_defaults_stabilize_manifest_inputs_across_github_jobs_without_overrides() async {
         let packageInputs = [

@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -10,7 +9,6 @@ import TuistTesting
 
 @testable import TuistXcodeProjectOrWorkspacePathLocator
 
-@Suite(.coverageAttribution)
 struct XcodeProjectOrWorkspacePathLocatorTests {
     private let fileSystem = FileSystem()
     private let subject: XcodeProjectOrWorkspacePathLocator

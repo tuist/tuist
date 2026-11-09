@@ -1,10 +1,9 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution) struct ServerPreviewTests {
+@Suite struct ServerPreviewTests {
     @Test func preserves_track_and_release_notes() throws {
         var response = Components.Schemas.Preview.test(track: "QA")
         response.release_notes = "Fix sign-in\nReady for testing"

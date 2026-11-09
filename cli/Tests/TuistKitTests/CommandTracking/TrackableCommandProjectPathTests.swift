@@ -3,7 +3,6 @@ import FileSystem
 import FileSystemTesting
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -17,7 +16,6 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct TrackableCommandProjectPathTests {
     @Test(.withMockedEnvironment(), .inTemporaryDirectory, arguments: [false, true], [false, true])
     func analytics_uses_the_parsed_project_path_even_when_raw_arguments_disagree(

@@ -1,13 +1,12 @@
 #if os(macOS)
     import Foundation
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistEnvironmentTesting
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution, .serialized)
+    @Suite(.serialized)
     struct URLSessionTuistTests {
         @Test(.withMockedEnvironment())
         func all_Apple_session_factories_install_the_trust_policy_without_custom_anchors() {

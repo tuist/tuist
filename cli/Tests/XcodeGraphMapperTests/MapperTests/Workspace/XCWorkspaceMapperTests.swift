@@ -1,13 +1,11 @@
 import Foundation
 import Path
 import PathKit
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct XCWorkspaceMapperTests {
     @Test("Maps workspace without any projects or schemes")
     func map_NoProjectsOrSchemes() async throws {

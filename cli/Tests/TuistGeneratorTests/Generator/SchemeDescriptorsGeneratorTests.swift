@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -2574,7 +2573,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct SchemeDescriptorsGeneratorDebuggerTests {
     private let subject = SchemeDescriptorsGenerator()
 
@@ -2607,7 +2605,6 @@ struct SchemeDescriptorsGeneratorDebuggerTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct SchemeDescriptorsGeneratorCodeCoverageTests {
     private let subject = SchemeDescriptorsGenerator()
 
@@ -2770,7 +2767,6 @@ struct SchemeDescriptorsGeneratorCodeCoverageTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct SchemeDescriptorsGeneratorTestPlanTests {
     @Test func generates_test_plan_side_effects_only_for_generated_plans() throws {
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -2822,7 +2818,6 @@ struct SchemeDescriptorsGeneratorTestPlanTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct SchemeDescriptorsGeneratorBuildForTests {
     @Test func perTargetBuildForOptions() throws {
         try expectBuildFor(
@@ -2878,7 +2873,6 @@ struct SchemeDescriptorsGeneratorBuildForTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct GeneratedTestPlanCoverageSchemeTests {
     @Test(arguments: [false, true])
     func coverage_resolves_actual_targets_and_rejects_unavailable_projects(external: Bool) throws {

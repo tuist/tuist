@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import struct TuistCore.Plugins
@@ -15,7 +14,6 @@ import TuistTesting
 @testable import TuistLoader
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 class CachedManifestLoaderTests {
     private var cacheDirectory: AbsolutePath!
     private var manifestLoader = MockManifestLoading()

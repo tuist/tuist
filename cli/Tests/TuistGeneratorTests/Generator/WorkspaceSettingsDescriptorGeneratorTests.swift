@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -12,7 +11,6 @@ import XcodeProj
 @testable import TuistGenerator
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct WorkspaceSettingsDescriptorGeneratorTests {
     var subject: WorkspaceSettingsDescriptorGenerator!
 

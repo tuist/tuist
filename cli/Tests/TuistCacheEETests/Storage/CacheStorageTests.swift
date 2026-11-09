@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCore
@@ -15,7 +14,6 @@ import XcodeGraph
 @testable import TuistSupport
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct CacheStorageTests {
     private var subject: CacheStorage!
     private var localStorage: MockCacheStoring!

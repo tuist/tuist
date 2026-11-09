@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAppleArchiver
 import TuistAutomation
@@ -12,7 +11,6 @@ import TuistGit
 import TuistServer
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct ShardPlanServiceTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func plan_withArchivePath_writesOptimizedArchiveAndSkipsRemoteUpload_evenWhenSkipUploadIsEnabled() async throws {

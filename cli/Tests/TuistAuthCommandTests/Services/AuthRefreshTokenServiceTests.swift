@@ -3,13 +3,11 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistServer
 
 @testable import TuistAuthCommand
 
-@Suite(.coverageAttribution)
 struct AuthRefreshTokenServiceTests {
     struct TestError: LocalizedError, Equatable {}
 

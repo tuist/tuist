@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Mockable
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -11,7 +10,6 @@ import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct ProjectDescriptionHelpersHasherTests {
     private var subject: ProjectDescriptionHelpersHasher!
     private var machineEnvironment: MockMachineEnvironmentRetrieving!

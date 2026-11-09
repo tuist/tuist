@@ -2,14 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistTesting
 import XcodeGraph
 import XcodeGraphMapper
 @testable import TuistCore
 
-@Suite(.coverageAttribution)
 struct TestImpactAffectedModulesTests {
     /// A plain Xcode project with file references, mapped as a project without manifests is: a
     /// framework with a source and an asset catalog, its unit tests, an unrelated framework, and a

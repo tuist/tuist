@@ -1,6 +1,5 @@
 import Logging
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistLoggerTesting
@@ -9,7 +8,6 @@ import XcodeGraph
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct CacheWarmGraphLinterTests {
     var subject: CacheWarmGraphLinter = .init()
 

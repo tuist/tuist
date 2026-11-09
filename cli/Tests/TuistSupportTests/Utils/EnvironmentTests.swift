@@ -1,12 +1,10 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 @testable import TuistEnvironment
 @testable import TuistSupport
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct EnvironmentTests {
     // MARK: - Cache Directory Tests
 

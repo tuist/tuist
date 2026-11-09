@@ -1,11 +1,9 @@
 #if DEBUG
     import Foundation
-    import TestCoverageAttribution
     import Testing
     import TuistHTTP
     @testable import TuistServer
 
-    @Suite(.coverageAttribution)
     struct JamClientTests {
         private let origin = URL(string: "https://self-hosted.example/prefix")!
         private let catalog = Data(#"{"models":[],"errors":[]}"#.utf8)

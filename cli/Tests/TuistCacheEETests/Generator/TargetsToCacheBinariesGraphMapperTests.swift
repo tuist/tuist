@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -827,7 +826,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
     }
 }
 
-@Suite(.coverageAttribution) struct TargetsToCacheBinariesGraphMapperPrecomputedHashesTests {
+@Suite struct TargetsToCacheBinariesGraphMapperPrecomputedHashesTests {
     private let cacheStorage = MockCacheStoring()
     private let cacheGraphContentHasher = MockCacheGraphContentHashing()
     private let cacheGraphMutator = MockCacheGraphMutating()

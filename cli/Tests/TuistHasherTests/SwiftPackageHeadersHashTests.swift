@@ -1,14 +1,12 @@
 import FileSystem
 import FileSystemTesting
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct SwiftPackageHeadersHashTests {
     @Test(.inTemporaryDirectory) func privateTemplateAndModuleMapEditsInvalidateHash() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)

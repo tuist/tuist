@@ -4,11 +4,7 @@ import Foundation
 import Synchronization
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
-@Suite(.coverageAttribution)
 struct ResolveTests {
     @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
     func forcedRegistryInstallReplacesRetainedVersion(downgrade: Bool, warmCache: Bool) async throws {

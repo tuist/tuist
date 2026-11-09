@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistAuthentication
@@ -9,7 +8,7 @@ import TuistTesting
 
 @testable import TuistMenuBar
 
-@Suite(.coverageAttribution) struct AppPreviewsViewModelTests {
+@Suite struct AppPreviewsViewModelTests {
     private let subject: AppPreviewsViewModel
     private let deviceService: MockDeviceServicing
     private let appStorage: MockAppStoring

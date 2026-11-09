@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistConstants
@@ -21,7 +20,6 @@ import XcodeGraph
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
     private let environment: MockEnvironment

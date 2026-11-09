@@ -1,14 +1,12 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ExchangeOIDCTokenServiceTests {
     @Test(.withMockedEnvironment(), arguments: [nil, "", " \n ", "my-tuist-account", " my-tuist-account \n"])
     func forwards_optional_account_without_changing_identity_token(accountHandle: String?) async throws {

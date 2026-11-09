@@ -2,14 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct SwiftPackageHeaderGenerationTests {
     @Test(arguments: [1, 10000]) func headerCountDoesNotIncreaseBuildGraph(count: Int) throws {
         let root: AbsolutePath = "/Package"

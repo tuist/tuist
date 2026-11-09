@@ -3,12 +3,10 @@
     import FileSystemTesting
     import Foundation
     import Path
-    import TestCoverageAttribution
     import Testing
 
     @testable import TuistLogging
 
-    @Suite(.coverageAttribution)
     struct ApplicationLogStoreTests {
         @Test(.inTemporaryDirectory)
         @MainActor

@@ -1,13 +1,12 @@
 #if canImport(Security)
     import Foundation
     import Security
-    import TestCoverageAttribution
     import Testing
     import TuistTestSupport
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution)
+    @Suite
     struct CertificateTrustTests {
         @Test
         func rejects_all_twelve_keys_and_hashes_the_complete_DER_SPKI() throws {

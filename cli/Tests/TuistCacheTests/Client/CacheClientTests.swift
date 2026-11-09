@@ -1,13 +1,11 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistServer
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct CacheClientTests {
     @Test func authenticated_client_retries_legacy_service_unavailable_responses() async throws {
         let configuration = URLSessionConfiguration.ephemeral

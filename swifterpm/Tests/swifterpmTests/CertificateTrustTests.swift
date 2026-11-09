@@ -3,9 +3,6 @@ import FileSystemTesting
 import Foundation
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
@@ -14,7 +11,6 @@ import Testing
     import Security
 #endif
 
-@Suite(.coverageAttribution)
 struct CertificateTrustTests {
     @Test
     func hashesAndRejectsAllTwelvePolicyKeys() async throws {

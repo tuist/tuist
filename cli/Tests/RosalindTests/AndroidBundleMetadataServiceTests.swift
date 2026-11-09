@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistProcess
 import TuistTestSupport
@@ -33,7 +32,6 @@ private func commandFailure(_ error: any Error) -> AsyncThrowingStream<ProcessEv
     }
 }
 
-@Suite(.coverageAttribution)
 struct AndroidBundleMetadataServiceTests {
     // MARK: - APK Metadata
 

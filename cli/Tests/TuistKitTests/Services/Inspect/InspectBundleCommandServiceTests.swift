@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Path
 import Rosalind
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistCore
@@ -19,7 +18,6 @@ import TuistXcodeBuildProducts
 
 @testable import TuistInspectCommand
 
-@Suite(.coverageAttribution)
 struct InspectBundleCommandServiceTests {
     private let fileSystem = FileSystem()
     private let rosalind = MockRosalind()

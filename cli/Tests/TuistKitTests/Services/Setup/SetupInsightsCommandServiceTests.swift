@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistLaunchctl
@@ -9,7 +8,6 @@ import TuistTesting
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct SetupInsightsCommandServiceTests {
     private let subject: SetupInsightsCommandService
     private let launchAgentService = MockLaunchAgentServicing()

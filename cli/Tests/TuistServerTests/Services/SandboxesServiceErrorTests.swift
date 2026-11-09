@@ -1,12 +1,10 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct SandboxesServiceErrorTests {
     @Test func anUndocumentedStatusShowsTheServersMessage() async {
         let payload = UndocumentedPayload(body: HTTPBody(#"{"message":"Sandbox operation failed: :archive_store_unavailable"}"#))

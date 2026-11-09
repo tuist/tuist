@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XCTest
 @testable import XcodeGraph
@@ -19,7 +18,6 @@ final class TestPlanTests: XCTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct TestPlanCompatibilityTests {
     @Test func decodes_legacy_graph_without_coverage_fields() throws {
         let data = Data(

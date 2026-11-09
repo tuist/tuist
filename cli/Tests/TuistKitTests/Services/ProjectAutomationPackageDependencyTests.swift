@@ -1,11 +1,9 @@
 import Foundation
 import ProjectAutomation
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct ProjectAutomationPackageDependencyTests {
     @Test(arguments: [false, true])
     func dynamicHintsPreserveTheExistingAutomationProjection(embedded: Bool) throws {

@@ -2,11 +2,9 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 @testable import TuistTestSupport
 
-@Suite(.coverageAttribution)
 struct TestPathsTests {
     @Test func environmentRootTakesPrecedence() throws {
         let root = try TestPaths.resolveRepositoryRoot(

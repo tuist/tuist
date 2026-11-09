@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistConfig
@@ -16,7 +15,6 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct XcodeCacheSettingsProjectMapperTests {
     /// Stubs the selected Xcode version. Required in every test: the mapper reads the
     /// version to decide whether to enable prefix mapping, and an unstubbed Mockable

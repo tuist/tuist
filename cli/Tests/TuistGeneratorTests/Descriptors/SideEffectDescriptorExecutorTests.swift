@@ -2,13 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 @testable import TuistGenerator
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct SideEffectDescriptorExecutorTests {
     private let fileSystem = FileSystem()
     private let commandRunner = MockCommandRunner()

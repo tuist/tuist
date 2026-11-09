@@ -2081,11 +2081,6 @@ products.append(contentsOf: [
 ])
 #endif
 
-// Every Swift Testing suite applies TestCoverageAttribution's `.coverageAttribution` trait.
-for target in targets where target.type == .test {
-    target.dependencies.append(.product(name: "TestCoverageAttribution", package: "tuist.TestCoverageAttribution"))
-}
-
 let package = Package(
     name: "tuist",
     platforms: [.macOS(.v15)],
@@ -2153,7 +2148,7 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
-        // Per-test coverage evidence for the test targets.
+        // Per-test coverage evidence for the unit and acceptance test targets (Module.swift).
         .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.3.1")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),

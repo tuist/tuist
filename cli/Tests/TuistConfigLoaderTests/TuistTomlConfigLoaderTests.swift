@@ -3,14 +3,12 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistRootDirectoryLocator
 
 @testable import TuistConfigLoader
 
-@Suite(.coverageAttribution)
 struct TuistTomlConfigLoaderTests {
     private let fileSystem = FileSystem()
 

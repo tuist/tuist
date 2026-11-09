@@ -1,11 +1,9 @@
 import Foundation
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct CreateTestImpactRunServiceTests {
     private typealias Output = Operations.createTestImpactRun.Output
 

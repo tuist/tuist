@@ -8,14 +8,12 @@
     import NIOSSL
     import Security
     import Synchronization
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistEnvironmentTesting
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution)
     struct CertificateTrustTransportTests {
         @Test(.inTemporaryDirectory, .withMockedEnvironment())
         func actual_transport_denies_leaf_intermediate_and_absent_root_before_HTTP_delivery() async throws {

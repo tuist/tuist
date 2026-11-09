@@ -2,12 +2,10 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistTesting
 @testable import TuistSupport
 
-@Suite(.coverageAttribution)
 struct SwiftPackageManagerNativeWorkspaceTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func packagePathOverrideSelectsDefaultScratch(relativePath: Bool) async throws {

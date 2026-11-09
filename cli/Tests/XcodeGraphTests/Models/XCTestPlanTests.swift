@@ -1,9 +1,7 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 
-@Suite(.coverageAttribution)
 struct XCTestPlanTests {
     @Test func decodes_real_world_xctestplan_with_mixed_option_values() throws {
         // Given: a real `.xctestplan` payload with booleans and a nested target reference

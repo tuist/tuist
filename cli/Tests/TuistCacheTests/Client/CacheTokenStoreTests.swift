@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistServer
@@ -9,7 +8,6 @@ import TuistTesting
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct CacheTokenStoreTests {
     private let authenticationURL = URL(string: "https://auth.tuist.dev")!
 

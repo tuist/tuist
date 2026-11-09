@@ -3,20 +3,6 @@ import Foundation
 import Path
 @testable import SwifterPMCore
 
-#if !canImport(TestCoverageAttribution)
-    import Testing
-
-    /// TestCoverageAttribution is linked only into Tuist's generated SwifterPMCoreTests target, so
-    /// SwifterPM's own package and Bazel builds get a trait that does nothing.
-    struct CoverageAttributionTrait: SuiteTrait, TestTrait {}
-
-    extension Trait where Self == CoverageAttributionTrait {
-        static var coverageAttribution: Self {
-            Self()
-        }
-    }
-#endif
-
 func makeTemporaryDirectory() async throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("swifterpm-tests-\(UUID().uuidString)", isDirectory: true)

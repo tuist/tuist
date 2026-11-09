@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TSCBasic
 import TuistCore
@@ -19,7 +18,6 @@ final class MockFormatter: Formatting {
     }
 }
 
-@Suite(.coverageAttribution)
 struct XcodeBuildControllerTests {
     var subject: XcodeBuildController!
     var formatter = MockFormatter()

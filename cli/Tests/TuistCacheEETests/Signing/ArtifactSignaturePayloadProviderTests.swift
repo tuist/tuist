@@ -1,5 +1,4 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
@@ -7,7 +6,6 @@ import TuistEnvironmentTesting
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct ArtifactSignaturePayloadProviderTests {
     @Test func fetch_returnsAPayloadWithNonEmptyMacAddress() async throws {
         try await withMockedEnvironment {

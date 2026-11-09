@@ -1,11 +1,9 @@
 import ArgumentParser
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistServer
 @testable import TuistRunnerCommand
 
-@Suite(.coverageAttribution)
 struct RunnerVolumeCommandTests {
     private let id = "a57a427c-1ffc-476f-9282-558ff3f61585"
 

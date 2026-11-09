@@ -4,7 +4,6 @@ import Foundation
 import GRPCCore
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistCache
@@ -23,7 +22,6 @@ import XcodeGraph
 @testable import TuistSupport
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct CacheStorageFactoryTests {
     private struct TokenCarryingError: Error, LocalizedError {
         var errorDescription: String? { "The access token ey.super-secret-token is invalid." }

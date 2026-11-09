@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistRootDirectoryLocator
@@ -11,7 +10,6 @@ import XcodeGraph
 
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct GraphContentHasherTests {
     private let fileSystem = FileSystem()
     private let rootDirectoryLocator = MockRootDirectoryLocating()

@@ -1,12 +1,11 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistAuthentication
 import TuistServer
 
-@Suite(.coverageAttribution) struct AppServerEnvironmentServiceTests {
+@Suite struct AppServerEnvironmentServiceTests {
     @Test(arguments: [
         "", "tuist.example.com", "http://tuist.example.com", "file:///tmp/server",
         "https://", "https://user:password@tuist.example.com", "https://tuist.example.com?token=secret",

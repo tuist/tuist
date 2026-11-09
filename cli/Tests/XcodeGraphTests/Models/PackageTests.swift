@@ -1,10 +1,8 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 @testable import XcodeGraph
 
-@Suite(.coverageAttribution)
 struct PackageTests {
     private enum LegacyPackage: Codable {
         case remote(url: String, requirement: Requirement)

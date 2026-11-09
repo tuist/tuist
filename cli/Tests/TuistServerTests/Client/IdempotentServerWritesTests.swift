@@ -2,7 +2,6 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -14,7 +13,6 @@ import TuistTesting
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct IdempotentServerWritesTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
 

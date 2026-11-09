@@ -1,11 +1,9 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct DynamicPackageStaticProductsGraphLinterTests {
     @Test(arguments: [GraphDependency.PackageProductType.runtimeDynamic, .runtimeDynamicEmbedded])
     func sharedDynamicProductsAreNotReportedAsDuplicateStatics(type: GraphDependency.PackageProductType) {

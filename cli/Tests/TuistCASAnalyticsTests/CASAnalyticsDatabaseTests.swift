@@ -1,11 +1,9 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistTesting
 @testable import TuistCASAnalytics
 
-@Suite(.coverageAttribution)
 struct CASAnalyticsDatabaseTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func open_creates_database() async throws {

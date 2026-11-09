@@ -1,10 +1,8 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct CacheStorableItemTests {
     @Test
     func cacheStorableItemsIsProperlyDeduplicatedInASet() {

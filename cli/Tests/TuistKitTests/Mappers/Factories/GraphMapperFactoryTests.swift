@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAutomation
 import TuistCache
@@ -26,7 +25,6 @@ import XCTest
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct GraphMapperFactoryCompilationCachingTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
     func default_preservesNativeRegenerationCommand(enabled: Bool) async throws {
@@ -905,7 +903,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         }
     }
 
-    @Suite(.coverageAttribution)
     struct CacheGraphMapperFactoryBinaryCacheWarmingTests {
         private let subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
 
@@ -961,7 +958,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
 #endif
 
 #if canImport(TuistCacheEE)
-    @Suite(.coverageAttribution)
     struct CacheGraphMapperFactoryDestinationTests {
         private let subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
 

@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
@@ -9,7 +8,6 @@ import TuistSupport
 
 @testable import TuistCore
 
-@Suite(.coverageAttribution)
 struct TuistGeneratedProjectOptionsTests {
     private let fileSystem = FileSystem()
 

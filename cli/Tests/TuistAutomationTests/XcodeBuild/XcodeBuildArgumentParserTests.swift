@@ -1,5 +1,4 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -8,7 +7,6 @@ import XcodeGraph
 
 @testable import TuistAutomation
 
-@Suite(.coverageAttribution)
 struct XcodeBuildArgumentParserTests {
     private let subject = XcodeBuildArgumentParser()
 

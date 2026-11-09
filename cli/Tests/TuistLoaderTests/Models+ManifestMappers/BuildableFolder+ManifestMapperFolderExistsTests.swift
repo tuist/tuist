@@ -3,12 +3,10 @@ import FileSystemTesting
 import Foundation
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct BuildableFolderManifestMapperFolderExistsTests {
     private let fileSystem = FileSystem()
 

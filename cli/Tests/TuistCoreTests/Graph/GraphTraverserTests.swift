@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistSupport
 import XcodeGraph
@@ -9,7 +8,6 @@ import XCTest
 @testable import TuistCore
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct GraphTraverserPackageProductTests {
     @Test func packageProductsLinkedThroughStaticTargetsIncludesDirectAndTransitiveProducts() {
         // Given
@@ -6932,7 +6930,6 @@ private struct SDKPathAndStatus: Equatable {
     var status: LinkingStatus
 }
 
-@Suite(.coverageAttribution)
 struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
     private let projectPath = try! AbsolutePath(validating: "/Project")
     private let renderer = GraphDependency.testXCFramework(
@@ -7048,7 +7045,6 @@ struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct GraphTraverserTargetsProcessingStaticXCFrameworkTests {
     private let projectPath = try! AbsolutePath(validating: "/Project")
 
@@ -7182,7 +7178,6 @@ struct GraphTraverserTargetsProcessingStaticXCFrameworkTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct GraphTraverserOrphanExternalTargetsLinkingStatusTests {
     @Test(arguments: [LinkingStatus.required, .optional, .none])
     func theDependenciesOfAPackageProductAreNotOrphansWhateverTheStatusOfTheEdgeToIt(status: LinkingStatus) throws {

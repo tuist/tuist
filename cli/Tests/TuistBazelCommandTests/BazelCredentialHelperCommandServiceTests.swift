@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -11,7 +10,6 @@ import TuistTesting
 
 @testable import TuistBazelCommand
 
-@Suite(.coverageAttribution)
 struct BazelCredentialHelperCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
 

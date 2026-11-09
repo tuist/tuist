@@ -1,11 +1,9 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct DependencyMapperTests {
     let mapper: PBXTargetDependencyMapping
 

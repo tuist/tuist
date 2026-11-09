@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -8,7 +7,6 @@ import TuistTesting
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerURLServiceTests {
     let subject = ServerEnvironmentService()
 

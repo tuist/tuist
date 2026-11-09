@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -12,7 +11,6 @@ import TuistEnvironmentTesting
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct BinaryCachePrunerTests {
     private let fileSystem = FileSystem()
 

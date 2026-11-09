@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -13,7 +12,6 @@ import TuistServer
 
 @testable import TuistProjectCommand
 
-@Suite(.coverageAttribution)
 struct ProjectShowServiceTests {
     private let opener = MockOpening()
     private let configLoader = MockConfigLoading()

@@ -1,14 +1,12 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistCore
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct DeleteDerivedDirectoryProjectMapperTests {
     @Test(.inTemporaryDirectory) func regeneration_preservesGeneratedTestPlanCoverage() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)

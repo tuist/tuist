@@ -3,7 +3,6 @@
     import FileSystemTesting
     import Foundation
     import Path
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistEnvironmentTesting
@@ -13,7 +12,7 @@
 
     /// Integration tests that run the real sampler daemon loop. Sleeps are required
     /// because the sampler collects metrics via actual macOS system calls.
-    @Suite(.coverageAttribution)
+    @Suite
     struct MachineMetricsSamplerTests {
         private let fileSystem = FileSystem()
 

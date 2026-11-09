@@ -1,11 +1,9 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct PBXFrameworksBuildPhaseMapperTests {
     // swiftlint:disable:next function_body_length
     @Test("Maps frameworks from frameworks phase")

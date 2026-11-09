@@ -1,10 +1,8 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerProjectTests {
     @Test func decodesBuildSystemsTheClientDoesNotKnow() throws {
         let json = """

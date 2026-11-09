@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -9,7 +8,6 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct ForeignBuildHasherTests {
     private let subject: ForeignBuildHasher
     private let contentHasher = MockContentHashing()

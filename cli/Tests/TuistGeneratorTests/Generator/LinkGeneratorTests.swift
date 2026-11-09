@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -21,7 +20,6 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct LinkGeneratorUnlinkedDependencyTests {
     @Test func embedsButDoesNotLinkAFrameworkDependedOnWithNoneStatus() throws {
         // Given: an app that depends on a package's framework target with `.none`, which is what
@@ -77,7 +75,6 @@ struct LinkGeneratorUnlinkedDependencyTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct LinkGeneratorPackageTests {
     @Test func generatePackagesAddsRuntimePackageFromStaticTargetChainAsBuildOnlyDependency() throws {
         // Given

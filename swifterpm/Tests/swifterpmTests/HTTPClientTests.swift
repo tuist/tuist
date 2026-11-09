@@ -1,15 +1,11 @@
 import Foundation
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
 
-@Suite(.coverageAttribution)
 struct HTTPClientTests {
     @Test
     func retriesRequestTimeoutUntilItSucceeds() async throws {

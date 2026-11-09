@@ -5,7 +5,6 @@
     import Mockable
     import Path
     import ProjectDescription
-    import TestCoverageAttribution
     import Testing
     import TuistConfig
     import TuistConstants
@@ -14,7 +13,6 @@
     @testable import TuistConfigLoader
     @testable import TuistLoader
 
-    @Suite(.coverageAttribution)
     struct SwiftConfigLoaderTests {
         private let rootDirectoryLocator: MockRootDirectoryLocating
         private let manifestLoader: MockManifestLoading

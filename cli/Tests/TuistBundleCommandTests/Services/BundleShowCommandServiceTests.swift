@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -13,7 +12,6 @@ import TuistServer
 
 @testable import TuistBundleCommand
 
-@Suite(.coverageAttribution)
 struct BundleShowCommandServiceTests {
     private let getBundleService = MockGetBundleServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()

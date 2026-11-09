@@ -2,11 +2,7 @@ import Foundation
 import Path
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
-@Suite(.coverageAttribution)
 struct ManifestEnvironmentFingerprintTests {
     @Test
     func digestIsStableAcrossDictionaryOrdering() {

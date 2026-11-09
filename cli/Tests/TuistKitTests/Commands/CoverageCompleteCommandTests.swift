@@ -1,10 +1,8 @@
 import ArgumentParser
-import TestCoverageAttribution
 import Testing
 import TuistNooraExtension
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct CoverageCompleteCommandTests {
     @Test func jsonOutputGoesThroughNoora() throws {
         let command = try CoverageCommand.parseAsRoot(["complete", "--json"])

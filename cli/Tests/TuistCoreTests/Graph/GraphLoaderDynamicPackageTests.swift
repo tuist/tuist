@@ -1,11 +1,9 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
 
-@Suite(.coverageAttribution)
 struct GraphLoaderDynamicPackageTests {
     @Test(arguments: [false, true])
     func preservesDynamicHintsFromTargetsToGraph(embedded: Bool) async throws {

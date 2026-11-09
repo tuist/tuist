@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistCore
@@ -14,7 +13,6 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct UploadAnalyticsServiceTests {
     private let fullHandle = "tuist-org/tuist"
     private let serverURL = URL(string: "https://tuist.dev")!

@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistCore
@@ -15,7 +14,6 @@ import XcodeGraph
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct AppBundleTargetResolverTests {
     private let manifestLoader = MockManifestLoading()
     private let manifestGraphLoader = MockManifestGraphLoading()

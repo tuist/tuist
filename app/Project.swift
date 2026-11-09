@@ -211,7 +211,6 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistSimulator", path: "../"),
                 .external(name: "Mockable"),
-                .external(name: "TestCoverageAttribution"),
             ]
         ),
         .target(
@@ -231,10 +230,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Tests/TuistNavigationTests/**"],
             resources: ["Fixtures/Navigation/routes.json"],
-            dependencies: [
-                .target(name: "TuistNavigation"),
-                .external(name: "TestCoverageAttribution"),
-            ]
+            dependencies: [.target(name: "TuistNavigation")]
         ),
         .target(
             name: "TuistNoora",
@@ -304,7 +300,6 @@ let project = Project(
                 .target(name: "TuistAuthentication"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
-                .external(name: "TestCoverageAttribution"),
             ]
         ),
         .target(
@@ -337,7 +332,6 @@ let project = Project(
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
-                .external(name: "TestCoverageAttribution"),
             ]
         ),
         .target(

@@ -2,12 +2,11 @@
     import FileSystem
     import Foundation
     import Synchronization
-    import TestCoverageAttribution
     import Testing
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution)
+    @Suite
     struct FileClientTests {
         @Test func download_moves_url_session_temporary_file_to_requested_destination() async throws {
             DownloadURLProtocol.responseData = Data("downloaded shard archive".utf8)

@@ -4,12 +4,10 @@ import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import Synchronization
-import TestCoverageAttribution
 import Testing
 @testable import TuistCargoCommand
 @testable import TuistREAPI
 
-@Suite(.coverageAttribution)
 struct CargoRemoteCacheTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func metadataRetriesSurviveTheRelayWatchdog(drain: Bool) async throws {

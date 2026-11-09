@@ -3,14 +3,12 @@ import FileSystemTesting
 import Foundation
 import OpenAPIRuntime
 import os
-import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistHTTP
 import TuistServer
 @testable import TuistAuthentication
 
-@Suite(.coverageAttribution)
 @MainActor
 struct ProfileAuthenticationTests {
     private let personal = Account(email: "personal@example.com", handle: "personal")

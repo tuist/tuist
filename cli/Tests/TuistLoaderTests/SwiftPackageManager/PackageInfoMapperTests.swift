@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Path
 @_spi(TuistLoader) import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistConstants
@@ -14,7 +13,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
-@Suite(.coverageAttribution, .withMockedSwiftBackDeploymentLibrariesProvider, .withMockedSDKDeploymentTargetsProvider)
+@Suite(.withMockedSwiftBackDeploymentLibrariesProvider, .withMockedSDKDeploymentTargetsProvider)
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
     private let fileSystem = FileSystem()

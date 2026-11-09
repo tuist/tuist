@@ -1,11 +1,9 @@
 import Foundation
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ResolveTestImpactBaselineServiceTests {
     private typealias Output = Operations.resolveTestImpactBaseline.Output
 

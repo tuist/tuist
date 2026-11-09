@@ -1,9 +1,7 @@
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 
-@Suite(.coverageAttribution)
 struct BuildActionTests {
     @Test func buildAction_withPerTargetBuildForOptions() {
         let subject = BuildAction.buildAction(

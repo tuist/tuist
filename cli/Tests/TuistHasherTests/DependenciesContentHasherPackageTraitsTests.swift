@@ -1,12 +1,10 @@
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct DependenciesContentHasherPackageTraitsTests {
     @Test func hashChangesWhenPackageTraitsChange() async throws {
         let dependency = TargetDependency.package(product: "foo", type: .runtime)

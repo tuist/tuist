@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCore
@@ -14,7 +13,6 @@ import TuistServer
 @testable import TuistCacheEE
 
 /// Opt-in benchmark of the real archive and REAPI storage clients against the same Kura node.
-@Suite(.coverageAttribution)
 struct ModuleCacheTransferBenchmark {
     private struct Configuration: Decodable {
         let endpoint: URL

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistGit
@@ -9,7 +8,6 @@ import TuistServer
 import XcodeGraph
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct TestImpactGraphMapperTests {
     private let gitController = MockGitControlling()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()

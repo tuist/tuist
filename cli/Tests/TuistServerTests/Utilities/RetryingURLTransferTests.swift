@@ -6,14 +6,12 @@
     import OpenAPIRuntime
     import Path
     import Synchronization
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistTesting
 
     @testable import TuistServer
 
-    @Suite(.coverageAttribution)
     struct RetryingURLTransferTests {
         @Test(
             .withMockedEnvironment(),

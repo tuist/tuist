@@ -1,13 +1,11 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistTesting
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct RefreshOAuthTokenServiceTests {
     private let serverURL = URL(string: "https://tuist.dev")!
     private let serverEnvironmentService = MockServerEnvironmentServicing()

@@ -1,5 +1,4 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistSupport
 import XcodeGraph
@@ -7,7 +6,6 @@ import XcodeGraph
 @testable import TuistCache
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct CacheWarmForeignBuildOutputValidatorTests {
     private let subject = CacheWarmForeignBuildOutputValidator()
 

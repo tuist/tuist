@@ -1,12 +1,10 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
 
-@Suite(.coverageAttribution)
 struct TestPlanDescriptorTests {
     @Test func legacy_initializer_preserves_xcode_coverage_defaults() throws {
         let inferredFactory = TestPlanDescriptor.init

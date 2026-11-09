@@ -2,11 +2,9 @@ import Foundation
 import GRPCCore
 import GRPCProtobuf
 import SwiftProtobuf
-import TestCoverageAttribution
 import Testing
 @testable import TuistREAPI
 
-@Suite(.coverageAttribution)
 struct REAPIBackpressureRetryPolicyTests {
     @Test func defaultsAndProgrammaticBounds() {
         let defaults = REAPIBackpressureRetryPolicy()

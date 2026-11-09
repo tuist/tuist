@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -20,7 +19,6 @@ import XcodeGraph
 @testable import TuistKit
 
 #if canImport(TuistCacheEE)
-    @Suite(.coverageAttribution)
     struct HashCacheCommandServiceTests {
         private let generatorFactory = MockCacheGeneratorFactorying()
         private let cacheGraphContentHasher = MockCacheGraphContentHashing()

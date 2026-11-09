@@ -1,9 +1,7 @@
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistUserInputReader
 
-@Suite(.coverageAttribution)
 struct UserInputReaderTests {
     @Test func readIntValidInput() {
         // Given

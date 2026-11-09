@@ -1,11 +1,9 @@
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct CacheDestinationGraphMapperTests {
     @Test(arguments: [true, false]) func restrictsConsumersWithoutChangingTheHashingGraphOrHostTools(simulator: Bool) throws {
         let sdk = simulator ? "iphonesimulator" : "iphoneos"

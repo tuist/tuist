@@ -1,12 +1,10 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerClientRunnerHeadersMiddlewareTests {
     @Test func validates_grant_header() {
         for value in ["", "line\nbreak", "a b", String(repeating: "a", count: 8193)] {

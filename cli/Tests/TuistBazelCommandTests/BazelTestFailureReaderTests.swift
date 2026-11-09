@@ -1,12 +1,10 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistBazelCommand
 
-@Suite(.coverageAttribution)
 struct BazelTestFailureReaderTests {
     private struct IdentityFixture: Decodable {
         struct Identity: Decodable {

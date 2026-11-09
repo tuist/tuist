@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistAuthentication
 import TuistServer
@@ -8,7 +7,7 @@ import TuistServer
 @testable import TuistFeatureFlags
 
 @MainActor
-@Suite(.coverageAttribution) struct FeatureFlagsTests {
+@Suite struct FeatureFlagsTests {
     private let service = MockListFeatureFlagsServicing()
     private let alice = AuthenticationState.loggedIn(account: Account(email: "alice@tuist.dev", handle: "alice"))
     private let bob = AuthenticationState.loggedIn(account: Account(email: "bob@tuist.dev", handle: "bob"))

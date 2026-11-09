@@ -2,7 +2,6 @@ import ArgumentParser
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCAS
 import TuistConfig
@@ -17,7 +16,6 @@ import TuistTesting
 
 @testable import TuistCacheCommand
 
-@Suite(.coverageAttribution)
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!

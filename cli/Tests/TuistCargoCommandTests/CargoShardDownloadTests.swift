@@ -5,12 +5,10 @@ import Foundation
     import FoundationNetworking
 #endif
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistServer
 @testable import TuistCargoCommand
 
-@Suite(.coverageAttribution)
 struct CargoShardDownloadTests {
     private let transfer = RetryingURLTransfer(
         urlSession: ScriptedArchiveStorage.session,

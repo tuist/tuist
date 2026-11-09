@@ -1,10 +1,8 @@
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct PBXScriptsBuildPhaseMapperTests {
     @Test("Maps embedded run scripts with specified input/output paths")
     func mapScripts() async throws {

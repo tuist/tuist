@@ -1,8 +1,6 @@
-import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct FormattersTests {
     @Test func formatBytesIsConsistentUnderConcurrentUse() async {
         let values = [2_700_000_000, 1500, 42, 3_456_789, 20_000_000_000]

@@ -1,11 +1,9 @@
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
 import XcodeGraph
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct CacheProfileTargetReplacementDeciderTests {
     @Test func allPossible_without_exceptions_replaces_everything() {
         let profile = TuistConfig.CacheProfile(

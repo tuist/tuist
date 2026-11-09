@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistServer
@@ -8,7 +7,7 @@ import TuistSimulator
 
 @testable import TuistPreviews
 
-@Suite(.coverageAttribution) struct PreviewsViewModelTests {
+@Suite struct PreviewsViewModelTests {
     private let previewsService = MockListPreviewsServicing()
     private let projectsService = MockListProjectsServicing()
     private let tracksService = MockListPreviewTracksServicing()

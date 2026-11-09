@@ -1,4 +1,3 @@
-import TestCoverageAttribution
 import Testing
 
 struct Bar {
@@ -14,7 +13,6 @@ struct Foo {
     }
 }
 
-@Suite(.coverageAttribution)
 struct Test {
     @Test func xx() {
         Bar.$current.withValue(Bar(name: "test")) {

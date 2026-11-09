@@ -1,11 +1,7 @@
 import Foundation
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
-@Suite(.coverageAttribution)
 struct ManifestTests {
     @Test
     func parseManifestDependenciesReadsSourceControlAndRegistryDependencies() throws {

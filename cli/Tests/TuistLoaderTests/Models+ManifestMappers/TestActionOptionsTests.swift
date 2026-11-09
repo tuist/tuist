@@ -1,9 +1,7 @@
 import Foundation
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 
-@Suite(.coverageAttribution)
 struct TestActionOptionsTests {
     @Test(arguments: [
         (Bool?.none, TestActionOptions.CoverageMode.inherit),

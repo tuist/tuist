@@ -1,12 +1,10 @@
 import Foundation
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistHTTP
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerErrorClassifierTests {
     @Test(arguments: [408, 429, 500, 503])
     func discoveryFailuresAreTransient(status: Int) {

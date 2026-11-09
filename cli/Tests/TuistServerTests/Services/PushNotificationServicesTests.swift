@@ -1,12 +1,10 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct PushNotificationServicesTests {
     private let serverURL = URL(string: "https://self-hosted.example.com")!
 

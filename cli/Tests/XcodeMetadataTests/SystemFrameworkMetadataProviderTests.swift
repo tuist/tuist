@@ -1,9 +1,7 @@
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import XcodeMetadata
 
-@Suite(.coverageAttribution)
 struct SystemFrameworkMetadataProviderTests {
     var subject: SystemFrameworkMetadataProvider
 

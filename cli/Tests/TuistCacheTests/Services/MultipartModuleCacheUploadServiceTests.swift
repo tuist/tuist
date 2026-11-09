@@ -5,13 +5,11 @@ import Foundation
 import Mockable
 import Path
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistServer
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct MultipartModuleCacheUploadServiceTests {
     private let startUploadService = MockStartModuleCacheMultipartUploadServicing()
     private let uploadPartService = MockUploadModuleCachePartServicing()

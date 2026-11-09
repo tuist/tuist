@@ -3,7 +3,6 @@ import Foundation
 import Mockable
 import Path
 import SwiftyJSON
-import TestCoverageAttribution
 import Testing
 import TuistCI
 import TuistEnvironment
@@ -11,7 +10,6 @@ import TuistEnvironmentTesting
 import TuistServer
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct ShardMatrixOutputServiceTests {
     @Test(.withMockedEnvironment())
     func output_github_writesMatrixToGitHubOutput() async throws {

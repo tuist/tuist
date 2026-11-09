@@ -2,12 +2,10 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeProj
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct XcodeProjWriterXCProjTests {
     private let fileSystem = FileSystem()
     private let writer = XcodeProjWriter()

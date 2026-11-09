@@ -1,12 +1,10 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct GraphDependencyReferenceHashIdentifierTests {
     @Test func product_reference_identifier_uses_target_and_product_name() {
         // Given

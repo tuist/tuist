@@ -1,5 +1,4 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import XCTest
 @testable import TuistCore
@@ -64,7 +63,6 @@ final class TestIdentifierTests: XCTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct TestTargetQueryTests {
     @Test(arguments: [
         ("tag:snapshot", ["FeatureATests", "FeatureBTests"]),

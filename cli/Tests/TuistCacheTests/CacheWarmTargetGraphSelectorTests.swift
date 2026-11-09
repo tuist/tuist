@@ -1,5 +1,4 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
@@ -7,7 +6,6 @@ import XcodeGraph
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct CacheWarmTargetGraphSelectorTests {
     @Test
     func selection_when_no_requested_targets_returns_allReachable() {

@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCore
@@ -14,7 +13,6 @@ import XcodeGraph
 
 @testable import TuistCacheEE
 
-@Suite(.coverageAttribution)
 struct TestsCacheGraphMapperToolchainTests {
     @Test(.inTemporaryDirectory) func map_hashesTestTargetsDifferently_whenTheToolchainChanges() async throws {
         // Given

@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -13,7 +12,7 @@ import XcodeGraph
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
+@Suite
 struct CacheGraphContentHasherTests {
     private var graphContentHasher: MockGraphContentHashing!
     private var contentHasher: MockContentHashing!

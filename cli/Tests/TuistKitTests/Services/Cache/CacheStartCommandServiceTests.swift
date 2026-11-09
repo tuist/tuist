@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistLaunchctl
@@ -10,7 +9,6 @@ import TuistTesting
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct CacheStartCommandServiceTests {
     private let fileSystem = FileSystem()
     private let launchctlController = MockLaunchctlControlling()

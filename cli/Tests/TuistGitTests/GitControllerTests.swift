@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistEnvironment
@@ -11,7 +10,6 @@ import TuistSupport
 @testable import TuistGit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct GitControllerTests {
     private let commandRunner = MockCommandRunner()
     private var subject: GitController!

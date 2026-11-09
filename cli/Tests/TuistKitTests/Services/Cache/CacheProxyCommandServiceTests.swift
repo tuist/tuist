@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistCAS
 import TuistEnvironment
@@ -10,7 +9,6 @@ import TuistServer
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct CacheProxyCommandServiceTests {
     @Test(.withMockedEnvironment(), arguments: ["https://cache.example", "https://acme.cache.tuist.dev"])
     func network_trusted_startup_validates_the_resolved_cache_destination(endpoint: String) async throws {

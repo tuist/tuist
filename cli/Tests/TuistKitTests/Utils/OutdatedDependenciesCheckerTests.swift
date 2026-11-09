@@ -1,7 +1,6 @@
 import FileSystem
 import FileSystemTesting
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -11,7 +10,6 @@ import TuistLoader
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct OutdatedDependenciesCheckerTests {
     private let manifestFilesLocator = MockManifestFilesLocating()
     private let configLoader = MockConfigLoading()

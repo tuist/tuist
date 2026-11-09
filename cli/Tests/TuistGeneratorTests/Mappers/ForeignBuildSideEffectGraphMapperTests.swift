@@ -2,14 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct ForeignBuildSideEffectGraphMapperTests {
     private let subject = ForeignBuildSideEffectGraphMapper()
 

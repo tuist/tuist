@@ -4,7 +4,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistCore
@@ -13,7 +12,6 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct CommandEventFactoryTests {
     private var subject: CommandEventFactory!
     private var machineEnvironment: MachineEnvironmentRetrieving!

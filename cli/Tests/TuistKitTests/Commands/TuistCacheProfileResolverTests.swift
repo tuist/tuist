@@ -1,12 +1,10 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct TuistCacheProfileResolverTests {
     @Test func explicit_cache_profile_overrides_target_focus() throws {
         // Given

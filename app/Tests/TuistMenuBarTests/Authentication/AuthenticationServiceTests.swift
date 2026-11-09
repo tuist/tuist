@@ -1,12 +1,11 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistAuthentication
 import TuistServer
 
-@Suite(.coverageAttribution) struct AuthenticationServiceTests {
+@Suite struct AuthenticationServiceTests {
     private let serverURL = URL(string: "https://tuist.dev")!
 
     @Test func deleting_credentials_logs_the_user_out() async throws {

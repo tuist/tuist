@@ -1,14 +1,12 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct CoverageLinkerSettingsProjectMapperTests {
     private let settings = Settings(
         base: ["SWIFT_VERSION": "5"],
@@ -70,7 +68,6 @@ struct CoverageLinkerSettingsProjectMapperTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct AutomaticSchemesCoverageTests {
     private let buildInsightsActionMapper = MockBuildInsightsActionMapping()
     private let testInsightsActionMapper = MockTestInsightsActionMapping()
@@ -141,7 +138,6 @@ struct AutomaticSchemesCoverageTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct InheritedCoverageSchemesWorkspaceMapperTests {
     private let projectPath = try! AbsolutePath(validating: "/project")
 

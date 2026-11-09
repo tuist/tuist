@@ -1,13 +1,11 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerClientFeatureFlagsHeadersMiddlewareTests {
     @Test func adds_feature_flag_header() async throws {
         let environment = Environment(

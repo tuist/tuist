@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -14,7 +13,6 @@ import XcodeGraph
 
 @testable import TuistCache
 
-@Suite(.coverageAttribution)
 struct ContentHashingIntegrationTests {
     var subject: CacheGraphContentHasher!
     var temporaryDirectoryPath: String!

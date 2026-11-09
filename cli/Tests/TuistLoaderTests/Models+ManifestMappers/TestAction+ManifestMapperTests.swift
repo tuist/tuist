@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistTesting
@@ -10,7 +9,6 @@ import XcodeGraph
 
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct TestActionManifestMapperTests {
     private let fileSystem = FileSystem()
 

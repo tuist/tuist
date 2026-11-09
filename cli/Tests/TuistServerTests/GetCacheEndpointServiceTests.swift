@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 
@@ -11,7 +10,6 @@ import TuistEnvironment
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct GetCacheEndpointServiceTests {
     #if canImport(Network)
         @Test(arguments: [200, 302, 307])

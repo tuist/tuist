@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Noora
-import TestCoverageAttribution
 import Testing
 import TuistAuthCommand
 import TuistConstants
@@ -22,7 +21,6 @@ private struct MockKeyStrokeListening: KeyStrokeListening {
     }
 }
 
-@Suite(.coverageAttribution)
 struct InitCommandServiceTests {
     private let fileSystem = FileSystem()
     private let prompter = MockInitPrompting()

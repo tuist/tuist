@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -13,7 +12,6 @@ import TuistServer
 import XcodeGraph
 @testable import TuistCacheEE
 
-@Suite(.coverageAttribution)
 struct TargetsToCacheBinariesDebuggingAdmissionTests {
     @Test(.inTemporaryDirectory, arguments: ["verified", "nothing-to-relocate", "missing", "invalid"])
     func replacementRequiresVerifiedMetadata(status: String) async throws {

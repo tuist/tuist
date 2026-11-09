@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfigLoader
@@ -16,7 +15,6 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
     private let subject: StaticXCFrameworkModuleMapGraphMapper
     private let manifestFilesLocator = MockManifestFilesLocating()

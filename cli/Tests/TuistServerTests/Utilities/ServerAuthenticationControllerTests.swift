@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistEnvironment
@@ -16,7 +15,6 @@ import TuistTesting
 @testable import TuistServer
 
 // swiftlint:disable:next type_body_length
-@Suite(.coverageAttribution)
 struct ServerAuthenticationControllerTests {
     struct TestError: Error, Equatable {}
 

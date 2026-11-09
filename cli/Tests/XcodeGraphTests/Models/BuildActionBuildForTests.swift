@@ -1,11 +1,9 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 
 @testable import XcodeGraph
 
-@Suite(.coverageAttribution)
 struct BuildActionBuildForTests {
     @Test func codableWithBuildForOptions() throws {
         let target = TargetReference(

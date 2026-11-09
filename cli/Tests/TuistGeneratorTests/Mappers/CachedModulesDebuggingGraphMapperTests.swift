@@ -2,14 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct CachedModulesDebuggingGraphMapperTests {
     private let subject = CachedModulesDebuggingGraphMapper()
 

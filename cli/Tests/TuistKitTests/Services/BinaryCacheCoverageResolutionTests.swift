@@ -1,4 +1,3 @@
-import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -6,7 +5,6 @@ import TuistEnvironment
 import TuistTesting
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct BinaryCacheCoverageResolutionTests {
     private func config(coverage: Bool) -> Tuist {
         .test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: coverage)))))

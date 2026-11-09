@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistAutomation
@@ -22,7 +21,6 @@ import XCTest
 @testable import TuistKit
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 struct BuildServiceErrorTests {
     @Test func description() {
         #expect(
@@ -40,7 +38,6 @@ struct BuildServiceErrorTests {
     }
 }
 
-@Suite(.coverageAttribution)
 struct BuildServiceTests {
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!

@@ -1,9 +1,7 @@
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
 
-@Suite(.coverageAttribution)
 struct ProjectExternalHashTests {
     @Test func externalHash_isTheResolutionHashOfAPackage_andNilForTheRepositoryProjects() {
         #expect(Project.test(type: .local).externalHash == nil)

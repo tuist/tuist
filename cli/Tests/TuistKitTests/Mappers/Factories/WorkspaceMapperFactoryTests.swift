@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistConfig
@@ -118,7 +117,6 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct WorkspaceMapperFactoryXcodeCacheTests {
     @Test func default_containsTheXcodeCachePrefixMappingMapper() {
         // Given

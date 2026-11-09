@@ -3,7 +3,6 @@
     import HTTPTypes
     import Mockable
     import OpenAPIRuntime
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistXCResultService
@@ -11,7 +10,6 @@
 
     @testable import TuistServer
 
-    @Suite(.coverageAttribution)
     struct ReportPublishingPayloadTests {
         private let serverURL = URL(string: "https://tuist.example")!
         private typealias MakeClient = @Sendable (URL, Bool) -> Client

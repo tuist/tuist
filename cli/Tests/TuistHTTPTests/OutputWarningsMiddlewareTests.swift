@@ -1,12 +1,10 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistHTTP
 
-@Suite(.coverageAttribution)
 struct OutputWarningsMiddlewareTests {
     private let url = URL(string: "https://test.tuist.dev")!
     private let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test")

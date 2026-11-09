@@ -1,12 +1,10 @@
 import Foundation
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct DynamicPackageDependencyManifestMapperTests {
     @Test(arguments: [false, true])
     func mapsDynamicLinkageAndPlatformCondition(embedded: Bool) throws {

@@ -8,14 +8,12 @@ import NIOPosix
 import NIOSSL
 import Path
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
 @testable import TuistHTTP
 @testable import TuistREAPI
 
-@Suite(.coverageAttribution)
 struct CertificateTrustGRPCTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func production_transport_protects_actual_h2_RPC_and_absent_anchor_before_metadata_delivery() async throws {

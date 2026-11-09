@@ -1,10 +1,8 @@
 import FileSystem
-import TestCoverageAttribution
 import Testing
 import TuistGenerator
 import XcodeGraph
 
-@Suite(.coverageAttribution)
 struct BuildableFolderCheckerTests {
     let subject = BuildableFolderChecker()
     let fileSystem = FileSystem()

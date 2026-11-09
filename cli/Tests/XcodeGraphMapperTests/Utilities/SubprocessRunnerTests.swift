@@ -1,8 +1,6 @@
-import TestCoverageAttribution
 import Testing
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct SubprocessRunnerTests {
     @Test func includesStandardErrorInTerminationError() async throws {
         do {

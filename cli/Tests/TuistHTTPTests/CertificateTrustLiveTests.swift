@@ -1,7 +1,6 @@
 #if canImport(Security)
     import Foundation
     import HTTPTypes
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistEnvironmentTesting
@@ -9,7 +8,7 @@
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution, .serialized)
+    @Suite(.serialized)
     struct CertificateTrustLiveTests {
         @Test(.withMockedEnvironment(), .enabled(if: ProcessInfo.processInfo.environment["TUIST_TRUST_LIVE"] == "1"))
         func actual_transport_rejects_public_controls_even_with_affected_additional_anchors() async throws {

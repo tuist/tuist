@@ -1,13 +1,11 @@
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct CrossProjectTargetDependencyGeneratorTests {
     private let subject = CrossProjectTargetDependencyGenerator()
 

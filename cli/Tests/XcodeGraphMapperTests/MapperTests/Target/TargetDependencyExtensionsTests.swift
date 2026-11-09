@@ -1,12 +1,10 @@
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeMetadata
 import XcodeProj
 @testable import XcodeGraph
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct TargetDependencyExtensionsTests {
     let sourceDirectory = AssertionsTesting.fixturePath()
     let target = Target.test(platform: .iOS)

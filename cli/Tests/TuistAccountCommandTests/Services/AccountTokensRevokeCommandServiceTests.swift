@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistEnvironmentTesting
@@ -9,7 +8,6 @@ import TuistServer
 
 @testable import TuistAccountCommand
 
-@Suite(.coverageAttribution)
 struct AccountTokensRevokeCommandServiceTests {
     private let subject: AccountTokensRevokeCommandService
     private let revokeAccountTokenService = MockRevokeAccountTokenServicing()

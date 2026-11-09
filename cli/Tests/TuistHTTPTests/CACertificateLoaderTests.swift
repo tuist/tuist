@@ -3,14 +3,13 @@
     import FileSystemTesting
     import Foundation
     import Security
-    import TestCoverageAttribution
     import Testing
     import TuistEnvironment
     import TuistTestSupport
 
     @testable import TuistHTTP
 
-    @Suite(.coverageAttribution)
+    @Suite
     struct CACertificateLoaderTests {
         private static let caPEM = """
         -----BEGIN CERTIFICATE-----

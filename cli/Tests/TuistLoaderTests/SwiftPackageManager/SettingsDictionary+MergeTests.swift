@@ -1,9 +1,7 @@
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct SettingsDictionaryMergeTests {
     @Test func merge_inheritFromProject_whenNewArrayContainsInherited_preservesExistingArray() {
         var subject: SettingsDictionary = [

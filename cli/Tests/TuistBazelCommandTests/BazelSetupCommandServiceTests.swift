@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Noora
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistCAS
@@ -19,7 +18,6 @@ import TuistTesting
 
 @testable import TuistBazelCommand
 
-@Suite(.coverageAttribution)
 struct BazelSetupCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!

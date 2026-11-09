@@ -1,14 +1,12 @@
 import Foundation
 import Mockable
 import Synchronization
-import TestCoverageAttribution
 import Testing
 import TuistOpener
 import TuistSupport
 import TuistUniqueIDGenerator
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerSessionControllerProgramStatusTests {
     private enum TestError: Error {
         case failed

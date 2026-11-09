@@ -1,9 +1,7 @@
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistHTTP
 
-@Suite(.coverageAttribution)
 struct HTTPRetryPolicyTests {
     @Test func uses_defaults_when_environment_is_empty() {
         let subject = HTTPRetryPolicy(environment: [:])

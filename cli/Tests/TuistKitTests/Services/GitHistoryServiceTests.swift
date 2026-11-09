@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistGit
@@ -9,7 +8,6 @@ import TuistServer
 import TuistTesting
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct GitHistoryServiceTests {
     private let gitController = MockGitControlling()
     private let settingsService = MockGetGitHistorySettingsServicing()

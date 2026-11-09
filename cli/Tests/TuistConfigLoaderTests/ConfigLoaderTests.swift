@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConstants
@@ -11,7 +10,7 @@ import TuistHTTP
 
 @testable import TuistConfigLoader
 
-@Suite(.coverageAttribution, .serialized)
+@Suite(.serialized)
 struct ConfigLoaderTests {
     @Test(.inTemporaryDirectory)
     func loadConfig_returns_toml_config_when_toml_exists() async throws {

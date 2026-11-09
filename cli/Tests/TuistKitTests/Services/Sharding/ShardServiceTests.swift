@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistAppleArchiver
 import TuistCI
@@ -16,7 +15,6 @@ import TuistTesting
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct ShardServiceTests {
     // MARK: - testIdentifiers derivation
 

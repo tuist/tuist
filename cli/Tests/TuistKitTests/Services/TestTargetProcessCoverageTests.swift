@@ -2,11 +2,9 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct TestTargetProcessCoverageTests {
     @Test func readsTheFunctionsThatRanOffASparseTextProfile() {
         let text = """

@@ -5,14 +5,12 @@ import NIOCore
 import NIOPosix
 import NIOSSL
 import NIOTLS
-import TestCoverageAttribution
 import Testing
 import TuistTestSupport
 
 @testable import TuistHTTP
 @testable import TuistREAPI
 
-@Suite(.coverageAttribution)
 struct CertificateTrustTests {
     @Test
     func rejects_all_twelve_policy_keys_and_preserves_native_verification_failure() throws {

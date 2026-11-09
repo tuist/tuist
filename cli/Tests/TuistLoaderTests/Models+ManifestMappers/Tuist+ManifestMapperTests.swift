@@ -1,12 +1,10 @@
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 
 @testable import TuistLoader
 
-@Suite(.coverageAttribution)
 struct TuistManifestMapperTests {
     @Test func from_mapsTheXcodeCacheStoreSizeLimitToBytes() async throws {
         // Given

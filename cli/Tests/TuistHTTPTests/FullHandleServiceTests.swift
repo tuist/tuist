@@ -1,10 +1,8 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 
 @testable import TuistHTTP
 
-@Suite(.coverageAttribution)
 struct FullHandleServiceTests {
     private let subject: FullHandleServicing
 

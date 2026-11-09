@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistThreadSafe
@@ -10,7 +9,6 @@ import XcodeGraph
 
 @testable import TuistHasher
 
-@Suite(.coverageAttribution)
 struct BinaryCacheFingerprintHasherTests {
     @Test func sharedDependencyFingerprintsDoNotDependOnOtherPlatforms() async throws {
         let combined = try await fingerprints(destinations: [.iPhone, .iPad, .macWithiPadDesign, .mac])

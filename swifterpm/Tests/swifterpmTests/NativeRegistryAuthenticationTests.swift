@@ -3,11 +3,7 @@ import FileSystemTesting
 import Foundation
 import Testing
 @testable import SwifterPMCore
-#if canImport(TestCoverageAttribution)
-    import TestCoverageAttribution
-#endif
 
-@Suite(.coverageAttribution)
 struct NativeRegistryAuthenticationTests {
     @Test(.inTemporaryDirectory)
     func compatibilityChecksUseTheNativeResolutionEnvironment() async throws {

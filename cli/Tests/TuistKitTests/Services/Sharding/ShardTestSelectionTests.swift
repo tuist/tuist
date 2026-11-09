@@ -1,10 +1,8 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistCore
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct ShardTestSelectionTests {
     @Test func plan_withoutRequestedIdentifiers_leavesTheUniverseUntouched() throws {
         let selection = ShardTestSelection.plan(

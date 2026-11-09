@@ -1,13 +1,11 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistConstants
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerClientCLIMetadataHeadersMiddlewareTests {
     @Test func sends_released_cli_version() async throws {
         let subject = ServerClientCLIMetadataHeadersMiddleware()

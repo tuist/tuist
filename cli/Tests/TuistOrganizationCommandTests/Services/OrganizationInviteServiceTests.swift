@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistNooraTesting
@@ -8,7 +7,6 @@ import TuistServer
 
 @testable import TuistOrganizationCommand
 
-@Suite(.coverageAttribution)
 struct OrganizationInviteServiceTests {
     private let createOrganizationInviteService: MockCreateOrganizationInviteServicing
     private let subject: OrganizationInviteService

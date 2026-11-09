@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCI
 import TuistCore
@@ -11,7 +10,6 @@ import TuistEnvironmentTesting
 
 @testable import TuistJobSummary
 
-@Suite(.coverageAttribution)
 struct GitHubActionsJobSummaryServiceTests {
     private let fileSystem = FileSystem()
     private let ciController = MockCIControlling()

@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistCore
@@ -21,7 +20,6 @@ import XCResultParser
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct InspectTestCommandServiceTests {
     private let subject: InspectTestCommandService
     private let configLoader = MockConfigLoading()

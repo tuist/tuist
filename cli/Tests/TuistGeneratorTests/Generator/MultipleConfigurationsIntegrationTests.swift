@@ -3,7 +3,6 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TSCBasic
 import struct TSCUtility.Version
@@ -14,7 +13,6 @@ import XcodeProj
 @testable import TuistSupport
 @testable import TuistTesting
 
-@Suite(.coverageAttribution)
 final class MultipleConfigurationsIntegrationTests {
     init() async throws {
         let mockSwiftVersionProvider = try #require(SwiftVersionProvider.mocked)

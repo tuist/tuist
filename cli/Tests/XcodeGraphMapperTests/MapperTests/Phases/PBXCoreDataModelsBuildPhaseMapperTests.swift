@@ -1,10 +1,8 @@
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite(.coverageAttribution)
 struct PBXCoreDataModelsBuildPhaseMapperTests {
     @Test("Maps CoreData models from version groups within resources phase")
     func mapCoreDataModels() async throws {

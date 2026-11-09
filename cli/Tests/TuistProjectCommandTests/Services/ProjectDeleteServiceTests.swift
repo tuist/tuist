@@ -1,13 +1,11 @@
 import Foundation
 import Mockable
-import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistServer
 
 @testable import TuistProjectCommand
 
-@Suite(.coverageAttribution)
 struct ProjectDeleteServiceTests {
     private let getProjectService = MockGetProjectServicing()
     private let deleteProjectService = MockDeleteProjectServicing()

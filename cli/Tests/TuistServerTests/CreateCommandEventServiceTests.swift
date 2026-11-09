@@ -1,12 +1,10 @@
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct CreateCommandEventServiceTests {
     @Test func serializes_individual_hash_inputs_without_replacing_declared_destinations() throws {
         let binary = TargetContentHashSubhashes.test(

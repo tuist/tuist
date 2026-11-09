@@ -1,13 +1,11 @@
 import AEXML
 import FileSystem
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable @preconcurrency import XcodeGraphMapper
 @testable @preconcurrency import XcodeProj
 
-@Suite(.coverageAttribution)
 struct XCSchemeMapperTests {
     private let xcodeProj: XcodeProj
     private let mapper: XCSchemeMapper

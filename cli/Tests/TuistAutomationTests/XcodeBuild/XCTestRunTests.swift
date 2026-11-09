@@ -1,11 +1,9 @@
 #if os(macOS)
     import Foundation
-    import TestCoverageAttribution
     import Testing
 
     @testable import TuistAutomation
 
-    @Suite(.coverageAttribution)
     struct XCTestRunTests {
         // MARK: - Format v2 (TestConfigurations)
 

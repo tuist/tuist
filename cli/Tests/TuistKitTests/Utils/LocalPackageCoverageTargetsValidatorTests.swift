@@ -1,6 +1,5 @@
 import Mockable
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistLoader
@@ -8,7 +7,6 @@ import XcodeGraph
 
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct LocalPackageCoverageTargetsValidatorTests {
     private let packageInfoLoader = MockPackageInfoLoading()
     private let subject: LocalPackageCoverageTargetsValidator

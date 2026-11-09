@@ -2,13 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistGenerator
 
-@Suite(.coverageAttribution)
 struct CleanGeneratedProjectFilesMapperTests {
     private let fileSystem = FileSystem()
     private let oldDate = Date(timeIntervalSince1970: 1)

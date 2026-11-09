@@ -1,13 +1,11 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 
 @testable import TuistServer
 
-@Suite(.coverageAttribution)
 struct ServerClientActorHeadersMiddlewareTests {
     @Test func environment_resolution_and_override() {
         #expect(ServerClientActorHeadersMiddleware.actorID(variables: ["USER": "developer"]) == nil)

@@ -2,13 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistProcess
 import TuistREAPI
 @testable import TuistCargoCommand
 
-@Suite(.coverageAttribution)
 struct CargoCompilationCacheTests {
     @Test func usesProjectNameAsREAPIInstanceWithinTheAccountTenant() throws {
         let scope = try #require(CargoCacheScope(fullHandle: "Acme/App"))

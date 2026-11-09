@@ -2,12 +2,10 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
 
-@Suite(.coverageAttribution)
 struct GraphTraverserStaticXCFrameworksTests {
     @Test(.inTemporaryDirectory)
     func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies_whenDynamicXCFrameworksOverlapAndChain() throws {

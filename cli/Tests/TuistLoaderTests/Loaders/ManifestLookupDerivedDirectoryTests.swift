@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
-import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistRootDirectoryLocator
@@ -17,7 +16,6 @@ import XcodeGraph
 /// framework into the binary cache. Recursive manifest lookups and the globs a manifest declares must not follow those
 /// links: on large graphs there are thousands of them, and walking each destination tree dominated the time spent
 /// loading the workspace.
-@Suite(.coverageAttribution)
 struct ManifestLookupDerivedDirectoryTests {
     private let fileSystem = FileSystem()
 

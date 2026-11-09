@@ -2,7 +2,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistEnvironment
@@ -10,7 +9,6 @@ import TuistTesting
 import XCResultParser
 @testable import TuistKit
 
-@Suite(.coverageAttribution)
 struct TestExecutionModeResolverTests {
     private let subject = TestExecutionModeResolver()
     private let uploadsCoverage = TuistConfig.Tuist.test(

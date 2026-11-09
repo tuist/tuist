@@ -1,7 +1,6 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -47,7 +46,6 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
     }
 }
 
-@Suite(.coverageAttribution)
 struct ServerCredentialSerializationTests {
     @Test(.inTemporaryDirectory, arguments: ["tuist.example.json", "Tuist.Example..json"])
     func hostname_aliases_preserve_rejected_and_corrupt_files(filename: String) async throws {
