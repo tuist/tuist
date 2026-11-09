@@ -619,7 +619,7 @@ Once the server restarts, organization admins install the App and connect reposi
 
 ##### OIDC authentication depends on this {#platform-github-oidc}
 
-<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows run `tuist auth login` without a token.
+<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows authenticate with OIDC.
 
 Your Tuist server also needs outbound access to your CI provider's OIDC issuer to fetch its signing keys:
 
