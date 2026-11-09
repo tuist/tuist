@@ -122,12 +122,14 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
       assert integration.enabled
       assert integration.provider_token == "aop_live_allowed_target"
       assert_redirect(view, path)
-      challenged = get(conn, path)
 
-      assert redirected_to(challenged) ==
-               if(unquote(invalidation) == :sso_policy, do: "/users/auth/google", else: "/users/log_in")
-
-      assert get_session(challenged, :user_return_to) == path
+      if unquote(invalidation) == :sso_policy do
+        assert_raise TuistWeb.Errors.UnauthorizedError, fn -> get(conn, path) end
+      else
+        challenged = get(conn, path)
+        assert redirected_to(challenged) == "/users/log_in"
+        assert get_session(challenged, :user_return_to) == path
+      end
     end
   end
 

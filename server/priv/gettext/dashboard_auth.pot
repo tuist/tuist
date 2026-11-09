@@ -1291,3 +1291,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr ""
+
+#: lib/tuist_web/authentication.ex:839
+#, elixir-autogen, elixir-format
+msgid "You signed in with a Google account from %{domain}, which isn't part of this organization's Google Workspace. Sign out, then continue with Google and choose your organization account."
+msgstr ""
+
+#: lib/tuist_web/authentication.ex:847
+#, elixir-autogen, elixir-format
+msgid "You signed in with a personal Google account, but this organization requires an account from its Google Workspace. Sign out, then continue with Google and choose your organization account."
+msgstr ""

@@ -808,6 +808,15 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  # Google signs a returning browser straight back into the account it already
+  # used, so sending a session from another Workspace back to Google would
+  # only bring it back here, in a redirect loop.
+  defp redirect_to_sso_sign_in(%{assigns: %{current_user_session: %UserToken{auth_provider: "google"} = session}}, %{
+         sso_provider: :google
+       }) do
+    raise UnauthorizedError, google_workspace_mismatch_message(session.auth_provider_organization_id)
+  end
+
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
     |> put_session(:user_return_to, current_path(conn))
@@ -824,6 +833,21 @@ defmodule TuistWeb.Authentication do
         account -> Authorization.authorize(:account_dashboard_read, nil, account) == :ok
       end
     end
+  end
+
+  defp google_workspace_mismatch_message(domain) when is_binary(domain) do
+    dgettext(
+      "dashboard_auth",
+      "You signed in with a Google account from %{domain}, which isn't part of this organization's Google Workspace. Sign out, then continue with Google and choose your organization account.",
+      domain: domain
+    )
+  end
+
+  defp google_workspace_mismatch_message(_domain) do
+    dgettext(
+      "dashboard_auth",
+      "You signed in with a personal Google account, but this organization requires an account from its Google Workspace. Sign out, then continue with Google and choose your organization account."
+    )
   end
 
   defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
