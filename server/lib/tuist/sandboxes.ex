@@ -163,6 +163,29 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  @doc """
+  Connects a Claude Managed Agents self-hosted environment, as the
+  dashboard and the `connect_claude_environment` MCP tool do: fetches it
+  with `credential` (see `fetch_anthropic_environment/3`), so a wrong
+  credential, environment id or workspace fails before anything is stored,
+  then creates the row named after the environment. `attrs` carries
+  `anthropic_environment_id`, `environment_key`, the credential's own
+  attributes (`anthropic_api_key` or the four federation ids) and optionally
+  the shape.
+  """
+  def connect_managed_agents_environment(
+        %Account{} = account,
+        credential,
+        %{anthropic_environment_id: environment_id} = attrs
+      ) do
+    with {:ok, environment} <- fetch_anthropic_environment(account, credential, environment_id) do
+      create_agent_environment(
+        account,
+        Map.merge(attrs, %{kind: :managed_agents, name: String.slice(environment["name"] || environment_id, 0, 100)})
+      )
+    end
+  end
+
   defp self_hosted_environment({:ok, %{"config" => %{"type" => "self_hosted"}} = environment}), do: {:ok, environment}
   defp self_hosted_environment({:ok, _environment}), do: {:error, :not_self_hosted}
   defp self_hosted_environment({:error, reason}), do: {:error, reason}

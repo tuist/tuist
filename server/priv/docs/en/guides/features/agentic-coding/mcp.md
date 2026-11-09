@@ -389,6 +389,15 @@ These tools manage the <.localized_link href="/guides/server/authentication#amp-
 | `connect_amp_workspace` | Connect an Amp workspace. Optional `project_id` limits sign-in to the orbs of one Amp project. | `account_handle`, `workspace_id` |
 | `disconnect_amp_workspace` | Disconnect a workspace. Sessions its orbs already have stay valid until they expire. | `account_handle`, `connection_id` |
 
+#### Claude environments
+
+These tools connect Claude Managed Agents self-hosted environments, so their sessions run in Tuist sandboxes, as Settings → Integrations → Claude does. They require account administration and sandboxes enabled. An agent can create the environment with Anthropic's API, but only the Claude Console generates its environment key, so the agent asks the user for it. Tuist starts sessions with an Anthropic API key or with workload identity federation, and fetches the environment with that credential before saving it. The Anthropic-side setup uses the user's own Anthropic credentials; Tuist never receives them. The keys pass through the client and model, so only provide them explicitly.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_claude_environments` | List connected environments and the credential each uses, plus the issuer URL and subject prefix a federation rule should trust. | `account_handle` |
+| `connect_claude_environment` | Connect an environment with `api_key`, or with `organization_id`, `workspace_id`, `service_account_id` and `federation_rule_id`. Optional `platform`, `vcpus` and `memory_mb` set the sandbox shape. | `account_handle`, `environment_id`, `environment_key` |
+
 #### Webhooks
 
 Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.

@@ -68,6 +68,12 @@
   Integrations page and require account `:update` for every call, reads included,
   as the dashboard does. A connection grants every admitted orb account-wide CI
   access, so keep them out of WebMCP and keep the confirm-with-the-user wording.
+- Claude environment tools (`list_claude_environments`, `connect_claude_environment`)
+  share `Sandboxes.connect_managed_agents_environment/3` with the dashboard's
+  Claude form, so Tuist fetches the environment from Anthropic before storing it.
+  They require account `:update` and the sandboxes flag, stay out of WebMCP, and
+  never return credentials. Anthropic-side setup (environments, federation rules)
+  stays with the agent and the user's own credentials; Tuist holds no `org:admin` token.
 - Code coverage tools (`get_coverage`, `list_coverage_files`,
   `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
   derive their output schemas from `Tests.Coverage.Schemas` through
