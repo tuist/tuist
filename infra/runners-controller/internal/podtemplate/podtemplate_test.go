@@ -830,6 +830,84 @@ func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
 	}
 }
 
+func TestBuild_ExclusiveCPUsMovesTheBudgetToThePod(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	if pod.Spec.Resources == nil {
+		t.Fatal("pod.Spec.Resources = nil, want the Pod-level budget")
+	}
+	for name, list := range map[string]corev1.ResourceList{"requests": pod.Spec.Resources.Requests, "limits": pod.Spec.Resources.Limits} {
+		// Guaranteed QoS needs requests equal to limits; the static CPU
+		// manager pins only Guaranteed Pods.
+		if got := list.Cpu().MilliValue(); got != 4000 {
+			t.Errorf("pod %s cpu = %dm, want 4000m", name, got)
+		}
+		if got := list.Memory().Value(); got != 16<<30 {
+			t.Errorf("pod %s memory = %d, want 16Gi", name, got)
+		}
+		if len(list) != 2 {
+			t.Errorf("pod %s = %v, want only cpu and memory", name, list)
+		}
+	}
+	// A container keeping its own CPU would take an exclusive slice of
+	// the budget and leave the sidecars an empty shared pool.
+	for _, c := range append(append([]corev1.Container{}, pod.Spec.Containers...), pod.Spec.InitContainers...) {
+		for _, list := range []corev1.ResourceList{c.Resources.Requests, c.Resources.Limits} {
+			if _, ok := list[corev1.ResourceCPU]; ok {
+				t.Errorf("container %q sets cpu %v alongside the Pod-level budget", c.Name, list)
+			}
+			if _, ok := list[corev1.ResourceMemory]; ok {
+				t.Errorf("container %q sets memory %v alongside the Pod-level budget", c.Name, list)
+			}
+		}
+	}
+	runner := containerByName(t, pod, "runner")
+	if quantity := runner.Resources.Limits[KVMResourceName]; quantity.Value() != 1 {
+		t.Errorf("runner limits %s = %v, want 1: devices stay on the container", KVMResourceName, runner.Resources.Limits)
+	}
+	if got := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("nodeSelector %s = %q, want \"true\"", PodLevelResourceManagersNodeLabel, got)
+	}
+}
+
+func TestBuild_WithoutExclusiveCPUsKeepsTheBudgetOnTheRunner(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if pod.Spec.Resources != nil {
+		t.Errorf("pod.Spec.Resources = %v on a pool that did not opt in", pod.Spec.Resources)
+	}
+	if _, ok := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; ok {
+		t.Errorf("nodeSelector carries %s on a pool that did not opt in", PodLevelResourceManagersNodeLabel)
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Errorf("runner cpu limit = %dm, want 4000m", got)
+	}
+}
+
+func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
+	for name, mutate := range map[string]func(*tuistv1.RunnerPool){
+		// Odd counts cannot fill whole two-thread cores, and full-pcpus-only
+		// would reject the Pod at admission on the node.
+		"odd cpus":        func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 1000 },
+		"fractional cpus": func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 2500 },
+		"runc":            func(p *tuistv1.RunnerPool) { p.Spec.RuntimeClass = "" },
+		"macos":           func(p *tuistv1.RunnerPool) { p.Spec.OS = "darwin"; p.Spec.RuntimeClass = "" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			pool := basePool("linux")
+			pool.Spec.ExclusiveCPUs = true
+			mutate(pool)
+			if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+				t.Error("Build accepted exclusive CPUs; want refusal")
+			}
+		})
+	}
+}
+
 func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
 	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
 	// but the kata guest kernel boots with PSI off unless psi=1 is on

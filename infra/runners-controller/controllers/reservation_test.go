@@ -1524,3 +1524,47 @@ func TestReservation_KeepsAHostThatCanSeatAnotherOwnPod(t *testing.T) {
 		t.Fatal("took a second reservation while the first is still useful")
 	}
 }
+
+// An exclusive-CPU runner carries its budget at Pod level, with no
+// container CPU or memory. Every capacity reader must still count the
+// whole budget, or reservations, preemption and sandbox admission would
+// see a running job as nearly free.
+func TestExclusiveCPURunnerCountsItsPodLevelBudget(t *testing.T) {
+	pool := &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "linux-4vcpu-16gb", Namespace: "tuist-runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			RuntimeClass:  "kata-qemu",
+			FleetSelector: "runners-linux",
+			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			PodCPUMilli:   4000,
+			PodMemoryMB:   16384,
+			ExclusiveCPUs: true,
+		},
+	}
+	pod, err := podtemplate.Build(pool, "runner-0", "runner-0", "http://dispatch", "http://internal-dispatch", "docker:28-dind", "", "", "")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("250m"),
+		corev1.ResourceMemory: resource.MustParse("1Gi"),
+	}
+
+	footprint := podFootprint(pod)
+	if got := footprint.Cpu().MilliValue(); got != 4250 {
+		t.Errorf("podFootprint cpu = %dm, want 4250m", got)
+	}
+	if got := footprint.Memory().Value(); got != 17*gib {
+		t.Errorf("podFootprint memory = %d, want 17Gi", got)
+	}
+	if got := podMemory(pod); got != 17*gib {
+		t.Errorf("podMemory = %d, want 17Gi", got)
+	}
+	if got := allocationPodMemory(pod); got != 17*gib {
+		t.Errorf("allocationPodMemory = %d, want 17Gi", got)
+	}
+	if got := fleetNodeSelector(pool)[podtemplate.PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("fleetNodeSelector reserves hosts without %s", podtemplate.PodLevelResourceManagersNodeLabel)
+	}
+}

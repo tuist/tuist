@@ -154,7 +154,14 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 			initPeak = max(initPeak, sidecars+memory)
 		}
 	}
-	return max(app+sidecars, initPeak) + copy.Spec.Overhead.Memory().Value()
+	total := max(app+sidecars, initPeak)
+	// A Pod-level budget replaces the containers' requests on the node.
+	if pod.Spec.Resources != nil {
+		if memory, ok := pod.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
+			total = memory.Value()
+		}
+	}
+	return total + copy.Spec.Overhead.Memory().Value()
 }
 
 // MacosSandboxRoleLabel marks a macOS sandbox host's control Pod and the

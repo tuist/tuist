@@ -136,6 +136,19 @@ type RunnerPoolSpec struct {
 	// +optional
 	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
 
+	// ExclusiveCPUs gives each runner Pod whole physical cores to itself.
+	// The Pod carries one Guaranteed Pod-level budget (`spec.resources`,
+	// requests equal to limits at podCPUMilli and podMemoryMB) instead of
+	// container-level CPU and memory, so the runner, dind and the other
+	// sidecars share one exclusive CPU set. It lands only on hosts labelled
+	// `tuist.dev/pod-level-resource-managers=true`, which the CAPI provider
+	// writes on Kata hosts whose kubelet runs the pod-level resource
+	// managers and Kata's static sandbox sizing. Linux `kata-qemu` pools
+	// only, and podCPUMilli must be a whole, even number of CPUs, because
+	// those hosts allocate whole physical cores of two threads each.
+	// +optional
+	ExclusiveCPUs bool `json:"exclusiveCPUs,omitempty"`
+
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a
 	// bound Pod may take to start its dispatch poller. The bound is
