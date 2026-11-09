@@ -140,7 +140,8 @@ Run from this directory:
 
 The GPUI source layout in `once.toml` requires Once's `build_script_sources`
 support; optimized Windows builds also require its build-script debug-assertions
-fix. Both are available in the pinned 0.77.2 release. Use the published binary
+fix, and Windows staged builds need its Cargo workspace path comparison fix.
+All are available in the pinned 0.77.3 release. Use the published binary
 installed by mise. Do not replace this dependency with patched Cargo sources.
 
 ```sh
