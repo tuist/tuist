@@ -448,6 +448,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "must not include the primary domain"
+      refute html =~ "Sso additional organization ids"
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert is_nil(updated_organization.sso_provider)
     end

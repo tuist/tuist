@@ -476,7 +476,11 @@ defmodule TuistWeb.AuthenticationSettingsLive do
        |> assign(flash_message: nil, field_errors: %{})}
     else
       {:error, %Changeset{} = changeset} ->
-        {:noreply, assign(socket, flash_message: {"error", changeset_error_message(changeset)})}
+        {:noreply,
+         assign(socket,
+           flash_message: {"error", changeset_error_message(changeset)},
+           field_errors: changeset_to_field_errors(changeset, "google")
+         )}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
@@ -524,6 +528,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   @changeset_to_form_field %{
     sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site", "entra" => "entra_tenant_id"},
+    sso_additional_organization_ids: "google_additional_domains",
     sso_login_domain: "sso_login_domain",
     oauth2_authorize_url: "oauth2_authorize_url",
     oauth2_token_url: "oauth2_token_url",
@@ -833,9 +838,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     changeset
     |> Changeset.traverse_errors(fn {message, _opts} -> message end)
     |> Enum.map_join("; ", fn {field, messages} ->
-      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
+      "#{changeset_field_label(field)} #{Enum.join(messages, ", ")}"
     end)
   end
+
+  defp changeset_field_label(:sso_additional_organization_ids),
+    do: dgettext("dashboard_account", "Additional Google Workspace domains")
+
+  defp changeset_field_label(field), do: Phoenix.Naming.humanize(field)
 
   defp automatic_enrollment_toggle_disabled?(selected_provider, _organization, trust, automatic_enrollment) do
     selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
