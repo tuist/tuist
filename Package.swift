@@ -2148,8 +2148,8 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
-        // Per-test coverage evidence for the unit test targets (Module.swift).
-        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.3.1")),
+        // Per-test coverage evidence for the unit and acceptance test targets (Module.swift).
+        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.4.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),

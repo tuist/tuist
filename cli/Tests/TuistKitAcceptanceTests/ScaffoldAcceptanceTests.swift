@@ -1,10 +1,12 @@
 import FileSystem
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct ScaffoldAcceptanceTests {
     @Test(.withFixture("generated_ios_app_with_templates"))
     func ios_app_with_templates_custom() async throws {

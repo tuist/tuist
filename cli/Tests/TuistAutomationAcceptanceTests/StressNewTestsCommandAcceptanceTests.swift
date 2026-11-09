@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistAlert
@@ -65,6 +66,7 @@ private enum StressGateProbe {
     }
 }
 
+@Suite(.coverageAttribution)
 struct StressNewTestsTestCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
@@ -91,6 +93,7 @@ struct StressNewTestsTestCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct StressNewTestsXcodeBuildCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
