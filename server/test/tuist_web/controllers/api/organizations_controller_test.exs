@@ -748,7 +748,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: "example.com"
+        sso_organization_id: "apiorgs-example.com"
       )
 
       stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
