@@ -4,6 +4,26 @@
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
 
+# The stdout and stderr Amp gives setup can fail a write with EAGAIN when its
+# reader falls behind a burst of output. awk, coreutils and Rust's println!
+# abort on that; on fresh orbs it killed db:migrate's awk filter mid-migration.
+# Relay both streams through a writer that waits for the stream to drain, so
+# every step below writes to an ordinary blocking pipe.
+if command -v python3 >/dev/null; then
+  relay='
+import os, select
+while data := os.read(0, 65536):
+    while data:
+        try:
+            data = data[os.write(1, data):]
+        except BlockingIOError:
+            select.select([], [1], [], 1)
+'
+  exec 3>&1 4>&2
+  exec 1> >(python3 -I -c "$relay" >&3 3>&- 4>&-) 2> >(python3 -I -c "$relay" >&4 3>&- 4>&-)
+  exec 3>&- 4>&-
+fi
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
