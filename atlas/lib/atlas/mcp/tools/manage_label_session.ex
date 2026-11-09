@@ -7,9 +7,18 @@ defmodule Atlas.MCP.Tools.ManageLabelSession do
       "required" => ["action"],
       "additionalProperties" => false,
       "properties" => %{
-        "action" => %{"type" => "string", "enum" => ~w(create status submit preview request_print request_cut)},
+        "action" => %{"type" => "string", "enum" => ~w(create status submit preview print cut)},
         "session_id" => %{"type" => "string", "format" => "uuid"},
         "job_id" => %{"type" => "string", "format" => "uuid"},
+        "job_ids" => %{
+          "type" => "array",
+          "minItems" => 1,
+          "maxItems" => 100,
+          "uniqueItems" => true,
+          "items" => %{"type" => "string", "format" => "uuid"}
+        },
+        "cut" => %{"type" => "boolean"},
+        "approval" => %{"type" => "boolean"},
         "items" => %{
           "type" => "array",
           "minItems" => 1,
@@ -38,7 +47,7 @@ defmodule Atlas.MCP.Tools.ManageLabelSession do
   alias Atlas.MCP.Tool
 
   def description do
-    "Prepare private Brady M211 labels in Atlas, inspect previews/status and request one print or separate cut. Create returns a private Chrome relay URL. The owner must connect Chrome beside the printer and explicitly approve the exact operation in Atlas. No action here can approve or automatically retry physical output. Preview returns base64 PNG bytes."
+    "Prepare private Brady M211 labels in Atlas and print them through the owner's Chrome relay. Create returns a private relay URL the owner opens in Chrome beside the printer to connect it. Submit renders previews (base64 PNG via preview). Print queues a batch of preview-only labels (job_ids in print order, default all) for the connected printer: one label at a time, cut after each label unless cut is false. Cut sends one standalone cut. Output starts directly; pass approval: true to have the owner review the batch at the returned Atlas approval URL first (only the owner can approve, never this tool). Read status for per-label printResult/cutResult. Uncertain output stops all queued output and is never retried automatically; inspect the printer, then submit a label again to reprint it."
   end
 
   def allowed_context?(%{assigns: assigns} = conn) do
@@ -59,14 +68,17 @@ defmodule Atlas.MCP.Tools.ManageLabelSession do
           "status" => :status,
           "submit" => :submit,
           "preview" => :image,
-          "request_print" => :print,
-          "request_cut" => :cut
+          "print" => :print,
+          "cut" => :cut
         }[args["action"]]
 
       data =
         Map.new([
           {"items", args["items"]},
           {"jobId", args["job_id"]},
+          {"jobIds", args["job_ids"]},
+          {"cut", args["cut"]},
+          {"approval", args["approval"]},
           {"widthMm", args["width_mm"] || 50},
           {"heightMm", args["height_mm"] || 12}
         ])

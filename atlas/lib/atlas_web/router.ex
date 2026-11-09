@@ -520,7 +520,7 @@ defmodule AtlasWeb.Router do
       on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/operations/labels/:id", LabelsLive, :relay
-      live "/operations/labels/:id/jobs/:jobId/approval", LabelsLive, :approval
+      live "/operations/labels/:id/batches/:batchId/approval", LabelsLive, :approval
       live "/operations/hardware", HardwareLive, :index
       live "/operations/hardware/financings", FinancingsLive, :index
       live "/operations/hardware/financings/:id", FinancingShowLive, :show

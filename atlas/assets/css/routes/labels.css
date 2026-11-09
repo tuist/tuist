@@ -54,6 +54,19 @@
     box-sizing: border-box;
   }
 
+  img[data-part="label-preview"] {
+    height: 40px;
+    width: auto;
+    padding: 4px;
+  }
+  [data-part="label-note"] {
+    display: block;
+    color: var(--noora-surface-label-secondary);
+  }
+  [data-part="label-state"][data-state="uncertain"] {
+    color: var(--noora-surface-label-destructive);
+  }
+
   @media (max-width: 768px) {
     [data-part="connection-grid"] {
       grid-template-columns: minmax(0, 1fr);
