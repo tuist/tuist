@@ -66,18 +66,12 @@ COPY atlas/assets/package.json atlas/assets/package-lock.json atlas/assets/build
 RUN npm ci --ignore-scripts && npm run build:labels
 
 # Install from the manifest alone so the install layer survives source
-# changes, then copy only what the build reads: the web component generator
-# walks components/ and lib/noora/icons/, reads the RTL-mirrored icon list
-# from lib/noora/icon.ex, and esbuild bundles js/ and css/.
+# changes, then copy only what the build reads: esbuild bundles js/ and css/.
 # A rebuilt stage hands the builder new bytes even when the bundles are the
 # same, so changes to noora's docs, storybook, or tests must not reach it.
 WORKDIR /noora
 COPY noora/package.json noora/aube-lock.yaml ./
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
-COPY noora/scripts scripts
-COPY noora/components components
-COPY noora/lib/noora/icons lib/noora/icons
-COPY noora/lib/noora/icon.ex lib/noora/icon.ex
 COPY noora/js js
 COPY noora/css css
 RUN aube run build
@@ -125,7 +119,6 @@ RUN mix deps.compile --skip-local-deps
 # time. The aube-built priv/static from the noora-assets stage overlays the
 # source so Atlas can serve noora's compiled CSS/JS.
 COPY noora/README.md /noora/
-COPY noora/components /noora/components
 COPY noora/lib /noora/lib
 COPY --from=noora-assets /noora/priv/static /noora/priv/static
 RUN mix deps.compile noora --force
