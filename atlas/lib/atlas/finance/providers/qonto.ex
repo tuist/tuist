@@ -75,7 +75,12 @@ defmodule Atlas.Finance.Providers.Qonto do
   Uploads a file attachment to a Qonto transaction.
 
   Accepts the raw file body (binary), a filename, and a content type.
-  Returns the created attachment map on success.
+  Returns the created attachment map on success. Qonto documents an empty
+  success body because it processes the file in the background, so the map
+  may be empty.
+
+  The required idempotency key is derived from the transaction and the file
+  contents, so retrying the same upload cannot attach the file twice.
   """
   def add_attachment(config, transaction_external_id, file_body, filename, content_type)
       when is_binary(transaction_external_id) and is_binary(file_body) and is_binary(filename) and
@@ -85,10 +90,14 @@ defmodule Atlas.Finance.Providers.Qonto do
     case post(config, path,
            body: file_body,
            filename: filename,
-           content_type: content_type
+           content_type: content_type,
+           idempotency_key: attachment_idempotency_key(transaction_external_id, file_body)
          ) do
-      {:ok, %{body: body}} ->
+      {:ok, %{body: body}} when is_map(body) ->
         {:ok, body}
+
+      {:ok, _body} ->
+        {:ok, %{}}
 
       {:error, reason} ->
         {:error, reason}
@@ -355,16 +364,17 @@ defmodule Atlas.Finance.Providers.Qonto do
     body = Keyword.fetch!(opts, :body)
     filename = Keyword.fetch!(opts, :filename)
     content_type = Keyword.fetch!(opts, :content_type)
+    idempotency_key = Keyword.fetch!(opts, :idempotency_key)
 
     request =
-      Req.new(url: url(config, path), receive_timeout: receive_timeout(config), headers: headers(config))
+      Req.new(
+        url: url(config, path),
+        receive_timeout: receive_timeout(config),
+        headers: headers(config) ++ [{"x-qonto-idempotency-key", idempotency_key}]
+      )
       |> maybe_put_bearer(config)
 
-    case Req.post(request,
-           multipart: [
-             {:file, %{body: body, filename: filename, headers: [content_type: content_type]}}
-           ]
-         ) do
+    case Req.post(request, form_multipart: [file: {body, filename: filename, content_type: content_type}]) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
         {:ok, %{body: body}}
 
@@ -399,6 +409,15 @@ defmodule Atlas.Finance.Providers.Qonto do
         Logger.warning("Qonto DELETE transport error: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  defp attachment_idempotency_key(transaction_external_id, file_body) do
+    <<a::binary-size(8), b::binary-size(4), c::binary-size(4), d::binary-size(4), e::binary-size(12), _rest::binary>> =
+      :sha256
+      |> :crypto.hash([transaction_external_id, 0, file_body])
+      |> Base.encode16(case: :lower)
+
+    Enum.join([a, b, c, d, e], "-")
   end
 
   defp maybe_put_bearer(request, config) do
