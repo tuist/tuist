@@ -580,6 +580,15 @@ struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
     }
 }
 
+struct GenerateAcceptanceTestCommandLineToolWithTraitConditionedPackageSettings {
+    @Test(.withFixture("generated_command_line_tool_with_trait_conditioned_package_settings"), .inTemporaryDirectory)
+    func command_line_tool_with_trait_conditioned_package_settings() async throws {
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
     @Test(.withFixture("generated_command_line_tool_with_package_access_and_module_map"), .inTemporaryDirectory)
     func command_line_tool_with_package_access_and_module_map() async throws {

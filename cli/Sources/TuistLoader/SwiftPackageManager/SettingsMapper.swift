@@ -8,10 +8,11 @@ struct SettingsMapper {
     init(
         headerSearchPaths: [String],
         mainRelativePath: RelativePath,
-        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        enabledTraits: Set<String> = []
     ) {
         self.headerSearchPaths = headerSearchPaths
-        self.settings = settings
+        self.settings = settings.filter { $0.isEnabled(by: enabledTraits) }
         self.mainRelativePath = mainRelativePath
     }
 
@@ -198,7 +199,7 @@ struct SettingsMapper {
     {
         settings.filter { setting in
             guard let platformName else {
-                return !setting.hasConditions
+                return !setting.hasPlatformOrConfigurationCondition
             }
             guard setting.hasConditions else { return false }
 
@@ -215,6 +216,19 @@ struct SettingsMapper {
 }
 
 extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
+    /// Like SwiftPM, a setting conditioned on traits applies when any of them is enabled.
+    fileprivate func isEnabled(by enabledTraits: Set<String>) -> Bool {
+        guard let traits = condition?.traits, !traits.isEmpty else { return true }
+        return traits.contains(where: enabledTraits.contains)
+    }
+
+    /// Trait conditions don't count: settings of disabled traits are dropped before mapping,
+    /// so a setting conditioned only on enabled traits applies unconditionally.
+    fileprivate var hasPlatformOrConfigurationCondition: Bool {
+        guard let condition else { return false }
+        return !condition.platformNames.isEmpty || condition.config != nil
+    }
+
     fileprivate var extractDefine: (name: String, value: String) {
         let define = value[0]
         if define.contains("=") {

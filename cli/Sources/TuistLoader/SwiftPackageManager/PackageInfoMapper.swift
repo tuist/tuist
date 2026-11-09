@@ -2261,10 +2261,14 @@ extension ProjectDescription.Settings {
             }
         }
 
+        var traitConditions: Set<String> = []
+        resolveTraits(enabledTraits, packageTraits: packageTraits, into: &traitConditions)
+
         let mapper = SettingsMapper(
             headerSearchPaths: dependencyHeaderSearchPaths,
             mainRelativePath: mainRelativePath,
-            settings: settings
+            settings: settings,
+            enabledTraits: enabledTraits.union(traitConditions)
         )
 
         var settingsDictionary: XcodeGraph.SettingsDictionary = [
@@ -2280,17 +2284,6 @@ extension ProjectDescription.Settings {
             values: try await SwiftBackDeploymentLibrariesProvider.current.runpathSearchPaths(),
             includeInherited: true
         )
-
-        if !enabledTraits.isEmpty {
-            var traitConditions: Set<String> = []
-
-            resolveTraits(enabledTraits, packageTraits: packageTraits, into: &traitConditions)
-
-            if !traitConditions.isEmpty {
-                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
-                    .array(["$(inherited)"] + traitConditions.sorted())
-            }
-        }
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
@@ -2318,6 +2311,13 @@ extension ProjectDescription.Settings {
 
         let resolvedSettings = try mapper.mapSettings()
         settingsDictionary.merge(resolvedSettings) { $1 }
+
+        // Appended after the target's own Swift defines so that neither replaces the other.
+        settingsDictionary.appendArraySetting(
+            key: "SWIFT_ACTIVE_COMPILATION_CONDITIONS",
+            values: traitConditions.sorted(),
+            includeInherited: true
+        )
 
         if moduleName != productName {
             settingsDictionary["PRODUCT_MODULE_NAME"] = .string(moduleName)

@@ -7486,6 +7486,62 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenSettingsHaveTraitConditions_appliesSettingsOfEnabledTraits() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let targetPath = packagePath.appending(components: "Sources", "Target1")
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.touch(targetPath.appending(component: "File.swift"))
+
+        let featureX = PackageInfo.PackageConditionDescription(platformNames: [], config: nil, traits: ["FeatureX"])
+        let featureY = PackageInfo.PackageConditionDescription(platformNames: [], config: nil, traits: ["FeatureY"])
+        let packageInfo = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    settings: [
+                        .init(tool: .c, name: .define, condition: featureX, value: ["FEATURE_X_C"]),
+                        .init(tool: .c, name: .define, condition: featureY, value: ["FEATURE_Y_C"]),
+                        .init(tool: .swift, name: .define, condition: nil, value: ["UNCONDITIONAL_SWIFT"]),
+                        .init(tool: .swift, name: .define, condition: featureX, value: ["FEATURE_X_SWIFT"]),
+                        .init(tool: .swift, name: .define, condition: featureY, value: ["FEATURE_Y_SWIFT"]),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: ["FeatureX"], name: "default", description: "Default trait"),
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+                PackageTrait(enabledTraits: [], name: "FeatureY", description: "Feature Y"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            packageInfo: packageInfo,
+            path: packagePath,
+            packageType: .local,
+            packageSettings: .test(),
+            packageModuleAliases: [:],
+            packageProducts: [:],
+            enabledTraits: Set(["default"])
+        )
+
+        let target = try #require(project?.targets.first)
+        let baseSettings = try #require(target.settings?.base)
+        #expect(baseSettings["GCC_PREPROCESSOR_DEFINITIONS"] == .array(["$(inherited)", "FEATURE_X_C=1"]))
+        #expect(
+            baseSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "UNCONDITIONAL_SWIFT", "FEATURE_X_SWIFT", "FeatureX"])
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenNoTraitsEnabled_doesNotSetSwiftActiveCompilationConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let packagePath = basePath.appending(component: "Package")
