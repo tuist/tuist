@@ -99,7 +99,7 @@ report_annotations() {
 dispatch_only_failure() {
   [ "${conclusion}" != success ] &&
     [ -n "${annotations}" ] &&
-    [ -z "$(cut -f1,2 <<< "${annotations}" | grep -v $'^failure\tDispatch$')" ] &&
+    ! grep -qv $'^failure\tDispatch\t' <<< "${annotations}" &&
     jq -e '[.jobs[] | select(.conclusion == "failure" and .name != "Dispatch watchdog")] | length == 0' <<< "${jobs}" >/dev/null
 }
 
