@@ -68,6 +68,69 @@ Do this on one staging box before canary:
   pool, which excludes every runner's exclusive cores.
 - Run a CI job next to a busy Orb and compare job time with the Orb idle.
 
+## Pod-level resource managers (kubelet v1.36)
+
+A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
+and the shell bridge. On v1.34 the static policy can only pin a container whose
+own requests equal its limits, so the Pod stays Burstable on the shared pool
+("Runner Pods are not Guaranteed yet" below). Kubelet v1.36's pod-level resource managers (alpha)
+pin a Pod's `.spec.resources` budget instead: with the Topology Manager in pod
+scope, a Guaranteed Pod-level budget gets one exclusive set of whole cores, and
+every container without its own Guaranteed resources shares that set. It is
+isolated from the node's shared pool, and CFS quota still caps it at the
+budget.
+
+A Kata host whose kubelet is v1.36 or newer (`podLevelResourceManagers`) adds:
+
+- the `PodLevelResourceManagers` feature gate, `topologyManagerPolicy:
+  best-effort` and `topologyManagerScope: pod`. The Memory Manager stays at
+  `None`: the RISE boxes have one NUMA node, so there is nothing to align, and
+  the CPU manager allocates the Pod-level CPU set without it.
+- Kata's `static_sandbox_resource_mgmt = true`
+  (`config.d/50-tuist-static-sandbox.toml`), so the VM is sized once from the
+  Pod-level budget: 1 vCPU and 2 GiB for Kata plus the budget. Without it Kata
+  hotplugs every container's copy of the budget (a 4 CPU / 6Gi Pod booted a
+  9 vCPU, ~14.5 GiB guest inside an 8.5 GiB Pod cgroup on staging).
+- `memoryReservationPolicy: TieredReservation`, which every v1.36 node gets, so
+  MemoryQoS keeps protecting memory.
+- the node label `tuist.dev/pod-level-resource-managers=true`. Runner Pods with
+  a Pod-level budget must only land on labelled nodes.
+
+The CPU manager reads the budget from `.spec.resources` and ignores the
+RuntimeClass overhead (250m, 2560Mi), so the overhead does not stop the Pod
+from getting integer CPUs. A v1.34 kubelet panics on the unknown gate, so the
+config is always rendered for the kubelet a node runs: the drift loop uses the
+Node's reported kubelet version, and nodes below v1.36 render and hash exactly
+as before.
+
+### Moving a fleet to v1.36
+
+The control plane must already be on v1.36 (a kubelet cannot be newer than its
+API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
+`spec.version`, which the fleet's `ovhFleets.<key>.kubernetesVersion` sets.
+
+1. Set `ovhFleets.runners-linux.kubernetesVersion` to the control plane's
+   version in the env's values. The MachineDeployment is `OnDelete`, so no box
+   changes.
+2. Per box: cordon it, wait until no runner Pod runs on it, then delete its
+   Machine. The provider reinstalls the box, and the replacement Machine joins
+   with the v1.36 kubelet, the static CPU manager and the pod-level managers.
+   Canary and production need `/elevate`.
+3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
+   32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
+
+## Validation on a v1.36 runner node
+
+- `sudo cat /var/lib/kubelet/cpu_manager_state` lists a Pod-level entry for a
+  runner Pod with a Pod-level budget.
+- The `Cpus_allowed_list` of its QEMU vCPU threads, virtiofsd and the shim
+  matches that entry.
+- A Firecracker guest under sandboxd and a Burstable runner Pod's VM only see
+  the shared pool.
+- The guest has 1 + the budget's vCPUs and memory, and a Burstable Pod's guest
+  is still sized from its runner container's limit.
+- A CI job next to a busy Orb takes as long as with the Orb idle.
+
 ## Runner Pods are not Guaranteed yet
 
 Until every container of a runner Pod has CPU and memory requests equal to
@@ -81,5 +144,6 @@ own cgroup namespace. dockerd uses the `cgroupfs` driver, so every Docker
 container a job starts nests under `dind`'s cgroup. A Guaranteed Pod therefore
 caps `container:` jobs, `services:` and `docker build` at whatever `dind`
 requests, and that request is also charged to the node. On Kubernetes 1.34
-two containers cannot share one budget. The pod-level resource managers that
-would allow it (`PodLevelResourceManagers`) are alpha in 1.36.
+two containers cannot share one budget. The pod-level resource managers above
+let them, so the runners-controller can give runner Pods a Pod-level budget on
+labelled nodes.

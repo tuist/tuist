@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"sigs.k8s.io/yaml"
 )
 
 // The re-push restarts kubelet on every Kata node at once. A kubelet whose
@@ -14,8 +16,8 @@ import (
 // the static policy, and only switch a node that has no checkpoint or already
 // runs static.
 func TestKubeletCPUManagerSetup(t *testing.T) {
-	sharedConfig := kubeletConfigContent("10.96.0.10", kubeletClientCAPath, false)
-	staticConfig := kubeletConfigContent("10.96.0.10", kubeletClientCAPath, true)
+	sharedConfig := kubeletConfigContent("10.96.0.10", kubeletClientCAPath, "v1.34", false)
+	staticConfig := kubeletConfigContent("10.96.0.10", kubeletClientCAPath, "v1.34", true)
 	for _, tc := range []struct {
 		name       string
 		checkpoint string
@@ -86,5 +88,43 @@ func TestKubeletCPUManagerSetup(t *testing.T) {
 				t.Fatalf("systemctl = %q", got)
 			}
 		})
+	}
+}
+
+// Pod-level resource managers need the alpha gate, the static CPU manager and
+// the Topology Manager in pod scope together, and only on Kata runner hosts. A
+// kubelet older than v1.36 panics on the gate, so it must never render there.
+// v1.36 also moves MemoryQoS's protection behind memoryReservationPolicy.
+func TestKubeletConfigPodLevelResourceManagers(t *testing.T) {
+	for _, tc := range []struct {
+		minor           string
+		kata            bool
+		podLevel, tiers bool
+	}{
+		{minor: "v1.34", kata: true},
+		{minor: "v1.35", kata: true},
+		{minor: "", kata: true},
+		{minor: "v1.36", kata: true, podLevel: true, tiers: true},
+		{minor: "v1.37", kata: true, podLevel: true, tiers: true},
+		{minor: "v1.36", tiers: true},
+	} {
+		var parsed struct {
+			FeatureGates            map[string]bool `json:"featureGates"`
+			CPUManagerPolicy        string          `json:"cpuManagerPolicy"`
+			TopologyManagerPolicy   string          `json:"topologyManagerPolicy"`
+			TopologyManagerScope    string          `json:"topologyManagerScope"`
+			MemoryReservationPolicy string          `json:"memoryReservationPolicy"`
+		}
+		if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, tc.minor, tc.kata)), &parsed); err != nil {
+			t.Fatalf("%s kata=%v: %v", tc.minor, tc.kata, err)
+		}
+		_, gate := parsed.FeatureGates["PodLevelResourceManagers"]
+		podLevel := gate && parsed.CPUManagerPolicy == "static" && parsed.TopologyManagerScope == "pod" && parsed.TopologyManagerPolicy == "best-effort"
+		if gate != tc.podLevel || podLevel != tc.podLevel {
+			t.Fatalf("%s kata=%v: gate=%v cpuManager=%q topology=%q/%q, want pod-level=%v", tc.minor, tc.kata, gate, parsed.CPUManagerPolicy, parsed.TopologyManagerPolicy, parsed.TopologyManagerScope, tc.podLevel)
+		}
+		if (parsed.MemoryReservationPolicy == "TieredReservation") != tc.tiers || (!tc.tiers && parsed.MemoryReservationPolicy != "") {
+			t.Fatalf("%s kata=%v: memoryReservationPolicy=%q", tc.minor, tc.kata, parsed.MemoryReservationPolicy)
+		}
 	}
 }

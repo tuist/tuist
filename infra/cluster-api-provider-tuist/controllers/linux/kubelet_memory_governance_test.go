@@ -18,7 +18,7 @@ import (
 func TestKubeletConfigContentParses(t *testing.T) {
 	for _, exclusiveCPUs := range []bool{false, true} {
 		var parsed map[string]any
-		if err := yaml.Unmarshal([]byte(kubeletConfigContent("10.96.0.10", kubeletClientCAPath, exclusiveCPUs)), &parsed); err != nil {
+		if err := yaml.Unmarshal([]byte(kubeletConfigContent("10.96.0.10", kubeletClientCAPath, "v1.34", exclusiveCPUs)), &parsed); err != nil {
 			t.Fatalf("exclusiveCPUs=%v: rendered kubelet config is not valid YAML: %v", exclusiveCPUs, err)
 		}
 
@@ -59,7 +59,7 @@ func TestKubeletConfigDisablesEarlyMemoryThrottling(t *testing.T) {
 		SystemReserved         map[string]string `json:"systemReserved"`
 		KubeReserved           map[string]string `json:"kubeReserved"`
 	}
-	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, false)), &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, "v1.34", false)), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
@@ -91,7 +91,7 @@ func TestKubeletConfigEvictionHardCoversEverySignal(t *testing.T) {
 	var parsed struct {
 		EvictionHard map[string]string `json:"evictionHard"`
 	}
-	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, false)), &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, "v1.34", false)), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
