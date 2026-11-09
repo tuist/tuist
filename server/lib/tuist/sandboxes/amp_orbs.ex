@@ -37,9 +37,18 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # these names under Orb types in Amp's provider settings; Amp passes the
   # thread's type to every spawn as `ORB_TYPE`, and a thread keeps it for
   # life. Threads created before the provider had types arrive without one
-  # and get Linux.
+  # and get `linux`. The Linux types mirror Amp's own orb sizes
+  # (https://ampcode.com/docs/orbs/sizes-and-costs), and `linux` is
+  # `linux-medium`, Amp's default. An existing Orb keeps the shape it was
+  # created with.
   @orb_types %{
-    "linux" => %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10},
+    "linux" => %{platform: :linux, template: "default", vcpus: 4, memory_mb: 8192, workspace_gb: 10},
+    "linux-tiny" => %{platform: :linux, template: "default", vcpus: 1, memory_mb: 2048, workspace_gb: 10},
+    "linux-small" => %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10},
+    "linux-medium" => %{platform: :linux, template: "default", vcpus: 4, memory_mb: 8192, workspace_gb: 10},
+    "linux-large" => %{platform: :linux, template: "default", vcpus: 8, memory_mb: 16_384, workspace_gb: 10},
+    "linux-xxlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 32_768, workspace_gb: 10},
+    "linux-3xlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 45_056, workspace_gb: 10},
     "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
   }
 

@@ -939,7 +939,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 40
+  maxMemoryGiB: 48
   prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
   archiveAfterHours: 24

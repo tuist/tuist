@@ -49,6 +49,18 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     )
   end
 
+  test "every orb type is a shape sandboxes accept, and linux-medium is linux", %{account: account} do
+    for name <- AmpOrbs.orb_types() do
+      {:ok, shape} = AmpOrbs.orb_type(name)
+      attrs = shape |> Map.delete(:workspace_gb) |> Map.merge(%{account_id: account.id, workspace_gb: 10})
+
+      assert %Ecto.Changeset{valid?: true} = Sandbox.create_changeset(%Sandbox{}, attrs), name
+    end
+
+    assert AmpOrbs.orb_type("linux-medium") == AmpOrbs.orb_type("linux")
+    assert {:ok, %{vcpus: 16, memory_mb: 45_056}} = AmpOrbs.orb_type("linux-3xlarge")
+  end
+
   test "creates once and bootstraps repeated spawn with a protected residency", %{account: account} do
     expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)

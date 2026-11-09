@@ -2345,7 +2345,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 32
+  maxMemoryGiB: 48
   diskGiB: 200
   archiveAfterHours: 24
   networkPolicy:

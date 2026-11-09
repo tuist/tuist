@@ -906,7 +906,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 24
+  maxMemoryGiB: 48
   diskGiB: 50
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
