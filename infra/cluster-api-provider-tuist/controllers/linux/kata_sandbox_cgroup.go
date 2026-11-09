@@ -40,3 +40,31 @@ find /sys/fs/cgroup/kata_overhead -mindepth 1 -maxdepth 1 -type d -exec rmdir {}
 TUIST_KATA_SANDBOX_CGROUP
 `, sudo, "/opt/kata/share/defaults/kata-containers/config.d", kataSandboxCgroupDropInPath, kataSandboxCgroupDropIn)
 }
+
+// With static_sandbox_resource_mgmt Kata sizes the VM once, at sandbox
+// creation, from the sandbox resources the kubelet passes: the Pod-level
+// `.spec.resources` budget when the Pod has one, otherwise the sum of its
+// containers' limits. Without it Kata hotplugs every container's limit, and
+// under a Pod-level budget each container inherits the whole budget as its
+// limit: on staging a 4 CPU / 6Gi Pod with a dind sidecar booted a 9 vCPU,
+// ~14.5 GiB guest inside an 8.5 GiB Pod cgroup. With it the same Pod gets
+// 5 vCPUs and ~7.8 GiB (Kata's default 1 vCPU and 2 GiB plus the budget).
+//
+// Only hosts running the pod-level resource managers write it
+// (podLevelResourceManagers), which a fresh v1.36 join is. The shim reads it
+// when it creates a sandbox.
+const kataStaticSandboxDropInPath = "/opt/kata/share/defaults/kata-containers/config.d/50-tuist-static-sandbox.toml"
+
+const kataStaticSandboxDropIn = `[runtime]
+static_sandbox_resource_mgmt = true
+`
+
+func kataStaticSandboxSetup(sudo string) string {
+	return fmt.Sprintf(`%sbash -s <<'TUIST_KATA_STATIC_SANDBOX'
+set -euo pipefail
+install -d %s
+cat > %s <<'TUIST_KATA_STATIC_SANDBOX_DROPIN'
+%sTUIST_KATA_STATIC_SANDBOX_DROPIN
+TUIST_KATA_STATIC_SANDBOX
+`, sudo, "/opt/kata/share/defaults/kata-containers/config.d", kataStaticSandboxDropInPath, kataStaticSandboxDropIn)
+}

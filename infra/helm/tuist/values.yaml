@@ -1788,6 +1788,12 @@ ovhFleet:
 # `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
 # runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
 # on that label); leave it off for cache fleets so they skip the download.
+#
+# `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
+# that kubelet minor. Kata fleets on v1.36 or later also run the pod-level
+# resource managers. The MachineDeployment is OnDelete, so a change only reaches
+# boxes as they are reprovisioned; see
+# infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
 ovhFleets: {}
 
 # Shared Vultr config holder. There is no singular Vultr MachineDeployment: the
