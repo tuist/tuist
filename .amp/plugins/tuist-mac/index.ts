@@ -119,7 +119,7 @@ export default function (amp: PluginAPI) {
 				try {
 					const booted = Date.now()
 					const synced = await sync(record, ctx.signal)
-					const info = await sandbox(['run', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`], {
+					const info = await sandbox(['exec', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`], {
 						cwd,
 						signal: ctx.signal,
 					})
@@ -161,7 +161,7 @@ export default function (amp: PluginAPI) {
 				const dir = typeof input.cwd === 'string' && input.cwd ? `${record.root}/${input.cwd}` : record.root!
 				const started = Date.now()
 				const result = await sandbox(
-					['run', record.sandboxId, '--cwd', dir, '--timeout', String(timeout), '--', `${PATH_PREFIX}${String(input.command)}`],
+					['exec', record.sandboxId, '--cwd', dir, '--timeout', String(timeout), '--', `${PATH_PREFIX}${String(input.command)}`],
 					{ cwd: requireRoot(), signal: ctx.signal },
 				)
 				const seconds = ((Date.now() - started) / 1000).toFixed(1)
@@ -189,7 +189,7 @@ export default function (amp: PluginAPI) {
 			const remote = String(input.path).startsWith('/') ? String(input.path) : `${record.root}/${input.path}`
 			const output = typeof input.output === 'string' && input.output ? input.output : join(tmpdir(), 'tuist-mac', ctx.thread.id)
 			await mkdir(output, { recursive: true })
-			const result = await sandbox(['download', record.sandboxId, remote, '-o', output], { cwd: requireRoot(), signal: ctx.signal })
+			const result = await sandbox(['cp', `${record.sandboxId}:${remote}`, `${output}/`], { cwd: requireRoot(), signal: ctx.signal })
 			if (result.exitCode !== 0) throw new Error(`Download failed:\n${truncate(result.output)}`)
 			return `Downloaded to ${join(output, basename(remote))}`
 		},
@@ -214,7 +214,7 @@ export default function (amp: PluginAPI) {
 				input.target === 'screen' ? 'screencapture -x "$png" 2>/dev/null' : 'xcrun simctl io booted screenshot --type=png "$png" >/dev/null 2>&1'
 			const taken = await sandbox(
 				[
-					'run',
+					'exec',
 					record.sandboxId,
 					'--timeout',
 					'120',
@@ -226,9 +226,9 @@ export default function (amp: PluginAPI) {
 			if (taken.exitCode !== 0) throw new Error(`Screenshot failed:\n${truncate(taken.output)}`)
 			const local = await mkdtemp(join(tmpdir(), 'tuist-mac-shot-'))
 			try {
-				const downloaded = await sandbox(['download', record.sandboxId, shot, '-o', local], { cwd, signal: ctx.signal })
+				const downloaded = await sandbox(['cp', `${record.sandboxId}:${shot}`, `${local}/`], { cwd, signal: ctx.signal })
 				if (downloaded.exitCode !== 0) throw new Error(`Copying the screenshot failed:\n${truncate(downloaded.output)}`)
-				void sandbox(['run', record.sandboxId, '--', `rm -f ${shot}`], { cwd }).catch(() => {})
+				void sandbox(['exec', record.sandboxId, '--', `rm -f ${shot}`], { cwd }).catch(() => {})
 				const data = await readFile(join(local, basename(shot)))
 				try {
 					const { url } = await amp.attachments.upload({ data, mimeType: 'image/jpeg' })

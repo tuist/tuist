@@ -37,7 +37,7 @@ function accountArguments(): string[] {
 }
 
 // Runs `tuist sandbox <args>` and returns its exit code and combined output.
-// An abort sends SIGINT, which makes `tuist sandbox run` cancel the command in
+// An abort sends SIGINT, which makes `tuist sandbox exec` cancel the command in
 // the sandbox before it exits.
 export function sandbox(args: string[], { cwd, signal }: CLIOptions): Promise<CLIResult> {
 	const [subcommand, ...rest] = args
@@ -66,7 +66,7 @@ export function sandbox(args: string[], { cwd, signal }: CLIOptions): Promise<CL
 		child.on('close', (code, killSignal) => {
 			signal?.removeEventListener('abort', onAbort)
 			const text = output.text()
-			if (/Unexpected argument|unknown subcommand|Error: Unknown/i.test(text) && code !== 0 && ['sync', 'run', 'download'].includes(subcommand)) {
+			if (/Unexpected argument|unknown subcommand|Unknown option|Error: Unknown/i.test(text) && code !== 0 && ['sync', 'exec', 'cp'].includes(subcommand)) {
 				reject(new Error(`This Tuist CLI has no \`tuist sandbox ${subcommand}\`. Update it with \`mise use -g tuist@latest\`.\n${text}`))
 				return
 			}
