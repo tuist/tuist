@@ -1,36 +1,23 @@
-<div id="sandboxes">
-  <.card
-    :if={@total == 0}
-    title={dgettext("dashboard_sandboxes", "Get started")}
-    icon="box_model_2"
-    id="sandboxes-onboarding"
-  >
-    <.card_section data-part="onboarding">
-      <div data-part="hero">
-        <div data-part="hero-icon"><.box_model_2 /></div>
-        <h2 data-part="hero-title">
-          {dgettext("dashboard_sandboxes", "Run agents in sandboxes")}
-        </h2>
-        <p data-part="hero-subtitle">
-          {dgettext(
-            "dashboard_sandboxes",
-            "Connect an agent and every task it starts gets its own sandbox. Sandboxes pause when the agent goes idle and resume where they left off."
-          )}
-        </p>
-      </div>
-      <span data-part="providers-title">
-        {dgettext("dashboard_sandboxes", "Choose an agent to connect:")}
-      </span>
-      <.providers
-        account={@selected_account}
-        amp_integration={@amp_integration}
-        claude_connected={@claude_connected}
-        can_manage_integrations={@can_manage_integrations}
-      />
-    </.card_section>
-  </.card>
+<.empty_state
+  :if={@total == 0}
+  command="tuist sandbox create"
+  id="sandboxes-empty-state"
+  title={dgettext("dashboard_sandboxes", "Run agents in sandboxes")}
+  subtitle={
+    dgettext("dashboard_sandboxes", "Start your first sandbox from your terminal by running:")
+  }
+  learn_more_href="https://tuist.dev/en/docs/guides/features/sandboxes"
+>
+  <:light_background>
+    <.empty_state_light_background />
+  </:light_background>
+  <:dark_background>
+    <.empty_state_dark_background />
+  </:dark_background>
+</.empty_state>
 
-  <div :if={@total > 0} data-part="date-picker-bar">
+<div :if={@total > 0} id="sandboxes">
+  <div data-part="date-picker-bar">
     <.date_picker
       id="sandboxes-analytics-date-range-picker"
       name="analytics-date-range"
@@ -86,7 +73,6 @@
 
   <.async_card
     :let={ready?}
-    :if={@total > 0}
     results={[@analytics]}
     title={dgettext("dashboard_sandboxes", "Analytics")}
     icon="chart_arcs"
@@ -316,7 +302,6 @@
 
   <.async_card
     :let={ready?}
-    :if={@total > 0}
     results={[@analytics]}
     title={dgettext("dashboard_sandboxes", "Concurrency")}
     icon="server"
@@ -359,7 +344,6 @@
   </.async_card>
 
   <.card
-    :if={@total > 0}
     title={dgettext("dashboard_sandboxes", "Recent sandboxes")}
     icon="stack_2"
     id="sandboxes-recent"
