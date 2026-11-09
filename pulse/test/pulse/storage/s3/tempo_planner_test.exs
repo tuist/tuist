@@ -6,6 +6,7 @@ defmodule Pulse.Storage.S3.TempoPlannerTest do
   alias Pulse.Record.Span
   alias Pulse.Runtime
   alias Pulse.Storage.S3
+  alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.ManifestSupervision
   alias Pulse.Storage.S3.TraceSummary
@@ -89,11 +90,144 @@ defmodule Pulse.Storage.S3.TempoPlannerTest do
     assert data_gets(ctx) == []
   end
 
+  @tag timeout: 180_000
+  test "recent complete-trace search does not materialize unrelated historical leaf references", ctx do
+    root_span = record(ctx.base, "edge", 1, 1, 10_000_000_000_000)
+    children = for i <- 2..4, do: record(ctx.base, "api", 1, i, root_span.timestamp_ns + i * 100, root_span.span_id)
+    rows = [root_span | children]
+    entries = seed(ctx, Enum.map(rows, &[&1]))
+    [entry | _] = entries
+    # Historical objects are outside the recent trace's context horizon, but
+    # remain candidates for {}. Only metadata is needed to prove them older.
+    summary = TraceSummary.from_values(["noise"], [hex(2, 128)], true)
+
+    history =
+      for i <- 1..200_000 do
+        %{
+          entry
+          | key: S3.object_key(ctx.tenant, "traces", i, i + 1, Integer.to_string(i, 16), nil),
+            min_ts: i,
+            max_ts: i + 1,
+            trace_summary: summary
+        }
+      end
+
+    assert {:ok, root} =
+             JournalManifest.convert(
+               %Manifest{version: 2, segments: entries ++ history},
+               ctx.tenant,
+               "traces",
+               ctx.config
+             )
+
+    key = Manifest.manifest_key(ctx.tenant, "traces")
+    body = root |> Manifest.encode() |> IO.iodata_to_binary()
+    Agent.update(ctx.agent, &%{&1 | objects: Map.put(&1.objects, key, {"paged-authority", body}), requests: []})
+    restart_manifest()
+    # The production 160 MiB cap, not an increased heap allowance.
+    Runtime.put_env(:pulse, Pulse.QueryRunner, max_heap_words: 20_971_520)
+    {:ok, predicates} = TempoSearch.parse("{}")
+    opts = [trace_start: root_span.timestamp_ns - 1, trace_end: List.last(rows).end_timestamp_ns + 1, limit: 1, spss: 3]
+    assert {:ok, expected} = TempoSearch.json(rows, predicates, opts)
+    assert {:ok, json} = TempoSearch.query(ctx.tenant, "{}", opts)
+    assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    assert Enum.sort(data_gets(ctx)) == Enum.sort(Enum.map(entries, & &1.key))
+
+    metadata_gets =
+      Agent.get(ctx.agent, &Enum.count(&1.requests, fn {method, key} -> method == "GET" and key =~ "/journal/" end))
+
+    assert metadata_gets <= 32
+  end
+
+  @tag timeout: 180_000
+  test "context planning does not retain wide summaries for unrelated trace IDs", ctx do
+    latest = record(ctx.base, "api", 1, 1, 1_000_000)
+    noise = record(ctx.base, "noise", 2, 2, 80)
+    rows = [latest | for(i <- 1..2500, do: record(ctx.base, "noise", 2, i + 2, 100 + i, noise.span_id))]
+    [newest | history] = seed(ctx, Enum.map(rows, &[&1]))
+    services = for i <- 1..127, do: String.pad_trailing("service-#{i}", 63, "x")
+    summary = TraceSummary.from_values(["noise" | services], [noise.trace_id], true)
+
+    # Unknown entries make every leaf's ID summary conservative. Segment IDs
+    # still prove the wide summaries unrelated; unknown entries must be read.
+    history =
+      history
+      |> Enum.with_index(1)
+      |> Enum.map(fn {entry, i} -> %{entry | trace_summary: if(rem(i, 8) != 0, do: summary)} end)
+
+    assert {:ok, root} =
+             JournalManifest.convert(
+               %Manifest{version: 2, segments: [newest | history]},
+               ctx.tenant,
+               "traces",
+               ctx.config
+             )
+
+    key = Manifest.manifest_key(ctx.tenant, "traces")
+    body = root |> Manifest.encode() |> IO.iodata_to_binary()
+
+    Agent.update(ctx.agent, &%{&1 | objects: Map.put(&1.objects, key, {"paged-context", body}), requests: []})
+
+    restart_manifest()
+    # A stricter 32 MiB cap catches catalog materialization with a smaller
+    # fixture than production's unchanged 160 MiB limit requires.
+    Runtime.put_env(:pulse, Pulse.QueryRunner, max_heap_words: 4_194_304)
+    opts = [trace_start: latest.timestamp_ns - 5, trace_end: latest.end_timestamp_ns + 5, limit: 1, spss: 3]
+    {:ok, predicates} = TempoSearch.parse("{}")
+    assert {:ok, expected} = TempoSearch.json([latest], predicates, opts)
+    assert {:ok, json} = TempoSearch.query(ctx.tenant, "{}", opts)
+    assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    expected_keys = [newest.key | for({entry, i} <- Enum.with_index(history, 1), rem(i, 8) == 0, do: entry.key)]
+    assert Enum.sort(data_gets(ctx)) == Enum.sort(expected_keys)
+  end
+
+  test "complete newest traces fit their source budget without admitting older candidates", ctx do
+    groups =
+      for n <- 1..8 do
+        for i <- 1..20, do: record(ctx.base, "api", n * 20 + i, n * 20 + i, n * 400 + i * 10)
+      end
+
+    entries = seed(ctx, groups)
+    {:ok, predicates} = TempoSearch.parse("{}")
+
+    for limit <- [1, 20] do
+      opts = [trace_start: 1, trace_end: 4000, limit: limit, spss: 3]
+      assert {:ok, expected} = TempoSearch.json(List.flatten(groups), predicates, opts)
+
+      assert {:ok, json} =
+               S3.tempo_search_json(
+                 ctx.tenant,
+                 predicates,
+                 Keyword.merge(opts,
+                   max_scan_segments: 1,
+                   max_scan_bytes: List.last(entries).byte_size,
+                   max_scan_rows: 20
+                 )
+               )
+
+      assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    end
+  end
+
+  test "a small first window expands when recovered trace starts change the newest result", ctx do
+    root = record(ctx.base, "edge", 1, 1, 1)
+    child = record(ctx.base, "api", 1, 2, 160, root.span_id)
+    newest = record(ctx.base, "api", 2, 3, 120)
+    seed(ctx, [[root], [newest], [child]])
+    {:ok, predicates} = TempoSearch.parse(@query)
+    opts = [trace_start: 1, trace_end: 200, limit: 1, spss: 3]
+    assert {:ok, expected} = TempoSearch.json([root, newest, child], predicates, opts)
+
+    assert {:ok, json} = query(ctx, limit: 1, max_scan_segments: 3)
+    assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    assert [%{"traceID" => "2"}] = Pulse.JSON.decode!(json)["traces"]
+  end
+
   test "unknown, missing or malformed proof bits cannot infer original service types", ctx do
     seed(ctx, for(n <- 1..3, do: [record(ctx.base, "noise", n, n, 10)]))
     rewrite(ctx, fn segment -> %{segment | trace_summary: %{segment.trace_summary | pruning_safe?: false}} end)
     assert {:error, :query_scan_limit} = query(ctx, max_scan_segments: 1)
-    assert data_gets(ctx) == []
+    assert length(data_gets(ctx)) == 1
     assert TraceSummary.parse(%{"v" => 1, "s" => ["noise"], "k" => "true"}).pruning_safe? == false
     assert TraceSummary.matches?(nil, proven_only: true, resource: %{"service.name" => "api"})
   end
@@ -129,9 +263,10 @@ defmodule Pulse.Storage.S3.TempoPlannerTest do
     assert {:ok, ~s'{"traces":[]}'} = search.(~s'{span.request_kind="absent"}')
     assert data_gets(ctx) == []
 
-    # Every source may match: the first window already exceeds the segment budget.
+    # Every source may match: admit the first source, then reject expansion
+    # before reading beyond the segment budget.
     assert {:error, :query_scan_limit} = search.(~s'{resource.service.name=~"no.*"}')
-    assert data_gets(ctx) == []
+    assert length(data_gets(ctx)) == 1
   end
 
   test "context GETs retain cumulative segment, byte and row limits", ctx do

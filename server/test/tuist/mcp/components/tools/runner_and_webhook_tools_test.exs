@@ -196,6 +196,8 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                  "profile_name" => "missing",
                  "cache_writer_branches" => ["main"]
                })
+
+      assert UpdateRunnerProfile.annotations().destructiveHint
     end
 
     test "lists the shapes and Xcode versions profiles can use", %{account: account, conn: conn} do

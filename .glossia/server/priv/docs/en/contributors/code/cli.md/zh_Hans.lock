@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bf3e6af0e31d9e5b3350d153412e8ae932c0f0aed6ec87d86b9e9033426bd257",
+  "hash": "95fcead35ee37d342f1b30bac61cb59643c8b07749b76047a79310b978b10c37",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,10 +26,10 @@
                   "content_hash": "53420e4502ebe0b3962d8fdc84b5dbf360dcb154af1ce56a6b9a83c3b834370f"
                 },
                 "### Set up locally {#set-up-locally}": {
-                  "content_hash": "f28cb87a2c11e480dab8b1945bfe4c22a26c84d53a60a2df1f98de1e6d49795f"
+                  "content_hash": "fa61d508caa0886bbccba48d98d22a47ea942f915fc0b02f67edd3b3ab2175ff"
                 },
                 "#### From Xcode {#from-xcode}": {
-                  "content_hash": "cf2ca6b2c6461de5ef200b98c67d3ea45978e7e5068204b379428c82f8be4218"
+                  "content_hash": "e59a9331071dad8d5e5091b29b173f6d70e99b858ded3b81326a3b0a5802356a"
                 },
                 "#### From the terminal {#from-the-terminal}": {
                   "content_hash": "7c32f0d460dfc5dfb77e10311d1c5d385880e0106ae426235575297d2d7a06ee"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "e46b4066967798c6a46846022d09d465ffbc616bfec1d51aac4902eca088ba6f",
+          "hash": "510ae67ca0ff9fd2091c809979cf7776f66ddd210b1e542f55a98c81d299a49c",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/code/cli.md",
           "metadata": {
-            "content_hash": "55ef04f0db9d4ef25722a98500d755dabb6a842bc723d0aa650bee15fba0dc25"
+            "content_hash": "d12baa07994df1d93be6c964fc77e4c376608f34ebd89e51a96d886325fe2e45"
           }
         },
         {
@@ -248,14 +248,14 @@
         }
       ],
       "details": {},
-      "hash": "bf3e6af0e31d9e5b3350d153412e8ae932c0f0aed6ec87d86b9e9033426bd257",
+      "hash": "95fcead35ee37d342f1b30bac61cb59643c8b07749b76047a79310b978b10c37",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/code/cli.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9c40e723b39bffccb9bb1b41f1256d96d437e57c8ee51df2569c1817d4a50588",
+  "output_hash": "65da09f693b6b118ca9c55f3d26b8af8a886681b14292e2137a56c2560b997bf",
   "output_path": "server/priv/docs/zh_Hans/contributors/code/cli.md",
   "protection_state": "recorded",
   "provider": "",
@@ -276,8 +276,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/contributors/code/cli.md",
-  "translated_at": "2026-11-04T17:45:58.540956Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:45:36.971677Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

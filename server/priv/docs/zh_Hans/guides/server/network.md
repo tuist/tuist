@@ -17,7 +17,7 @@
 
 ### 服务器 IP 地址 {#server-ip-addresses}
 
-为来自 Tuist 服务和集成的连接将以下两个地址加入允许列表：
+将以下两个地址加入允许列表，以允许来自 Tuist 服务和集成的连接：
 
 | IP 地址 | CIDR 表示法 |
 |---|---|
@@ -28,11 +28,11 @@ Tuist 仅通过 HTTPS 连接到你的基础设施，因此你只需允许来自�
 
 ### Tuist Runners {#tuist-runners}
 
-在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上运行的作业使用下面的出站地址。如果作业需要访问按 IP 地址限制流量的基础设施，例如从具有 IP 允许列表的 GitHub 组织检出代码库，请将工作流运行的每个平台对应的地址或范围加入允许列表。
+在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上运行的作业使用下面的出站地址。如果某个作业需要访问按 IP 地址限制流量的基础设施（例如从具有 IP 允许列表的 GitHub 组织检出代码库），请将工作流运行的每个平台对应的地址或范围加入允许列表。
 
 #### macOS {#tuist-runners-macos}
 
-为 macOS 运行器作业将以下范围加入允许列表：
+将以下范围加入允许列表，以用于 macOS 运行器作业：
 
 | IP 版本 | CIDR 表示法 |
 |---|---|
@@ -41,7 +41,7 @@ Tuist 仅通过 HTTPS 连接到你的基础设施，因此你只需允许来自�
 
 #### Linux {#tuist-runners-linux}
 
-为 Linux 运行器作业将整个范围加入允许列表：
+将整个范围加入允许列表，以用于 Linux 运行器作业：
 
 | IP 版本 | CIDR 表示法 |
 |---|---|

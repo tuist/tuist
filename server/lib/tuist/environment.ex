@@ -2098,6 +2098,8 @@ defmodule Tuist.Environment do
     get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
   end
 
+  def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
   the server presents to Atlas' support ingest, where agent feedback reported

@@ -252,4 +252,20 @@ struct CIOIDCAuthenticatorTests {
         // Then
         #expect(token == "bitrise-identity-token")
     }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_mints_an_amp_orb_token_for_the_tuist_dev_audience() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = ["AMP_ORB": "1"]
+        given(oidcTokenFetcher)
+            .fetchAmpOrbToken(audience: .value("https://tuist.dev"))
+            .willReturn("amp-orb-token")
+
+        // When
+        let token = try await subject.fetchOIDCToken()
+
+        // Then
+        #expect(token == "amp-orb-token")
+    }
 }

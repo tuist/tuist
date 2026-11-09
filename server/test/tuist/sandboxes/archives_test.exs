@@ -16,8 +16,11 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
@@ -441,6 +444,129 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert Repo.reload!(archived).state == :archived
       assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(restoring)
+    end
+  end
+
+  describe "disk snapshots" do
+    test "a ready snapshot is uploaded from its node and kept there", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account, node_name: "node-a")
+      assert Archives.queue_disk_snapshot(snapshot)
+      assert [job] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      parent = self()
+
+      expect(Storage, :multipart_start, fn key, %Account{} ->
+        assert String.starts_with?(key, Archives.object_prefix(account.id) <> "disk-snapshots/#{snapshot.id}/")
+        {:ok, "upload-1"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", args, opts ->
+        assert args.snapshot_id == snapshot.id
+        assert opts[:timeout] > to_timeout(minute: 30)
+        assert length(args.part_urls) * args.part_size > 10 * @gib
+        assert Repo.reload!(snapshot).archive_upload_id == "upload-1"
+        archive_result()
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn key, "upload-1", [{1, _}, {2, _}], _account ->
+        send(parent, {:completed, key})
+        :ok
+      end)
+
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+
+      assert :ok = perform_job(ArchiveDiskSnapshotWorker, job.args)
+      assert_receive {:completed, key}
+
+      assert %DiskSnapshot{
+               node_name: "node-a",
+               archive_key: ^key,
+               archive_upload_id: nil,
+               archive_sha256: "deadbeef",
+               archived_at: %DateTime{},
+               archive_attempted_at: %DateTime{}
+             } = Repo.reload!(snapshot)
+
+      assert Archives.archived_bytes(account.id) == 2 * @gib
+      refute Archives.queue_disk_snapshot(Repo.reload!(snapshot))
+    end
+
+    test "nothing is queued while archiving is off or the account is at its cap", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      refute Archives.queue_disk_snapshot(snapshot)
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
+      refute Archives.queue_disk_snapshot(snapshot)
+      refute Archives.queue_disk_snapshot(disk_snapshot_fixture(account: account_fixture(), state: :saving))
+      assert [] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+    end
+
+    test "a failed upload is aborted, keeps the node copy and is retried by the run after six hours",
+         %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", _args, _opts ->
+        {:error, ~s(unknown op "archive_disks")}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+
+      assert {:error, _reason} = Archives.archive_disk_snapshot(snapshot)
+
+      assert %DiskSnapshot{node_name: "node-a", archive_key: nil, archive_upload_id: nil, archived_at: nil} =
+               failed = Repo.reload!(snapshot)
+
+      assert failed.archive_attempted_at
+
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+
+      Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id),
+        set: [archive_attempted_at: 7 |> hours_ago() |> DateTime.truncate(:second)]
+      )
+
+      Archives.run()
+      assert [%{args: %{"disk_snapshot_id" => id}}] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert id == snapshot.id
+    end
+
+    test "a snapshot deleted while uploading is not recorded and its upload is aborted", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", _args, _opts ->
+        # A newer save supersedes it while the node uploads.
+        expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
+        expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+        expect(Storage, :delete_object, fn _key, _account -> :ok end)
+        assert :ok = DiskSnapshots.delete(Repo.reload!(snapshot))
+        archive_result()
+      end)
+
+      reject(&Storage.multipart_complete_upload/4)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+
+      assert {:ok, :skipped} = Archives.archive_disk_snapshot(snapshot)
+      refute Repo.reload(snapshot)
+    end
+
+    test "aborts abandoned snapshot uploads", %{account: account} do
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          archive_key: "k",
+          archive_upload_id: "upload-old",
+          archive_attempted_at: hours_ago(2)
+        )
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      expect(Storage, :multipart_abort, fn "k", "upload-old", _account -> :ok end)
+
+      Archives.run()
+
+      assert %DiskSnapshot{archive_key: nil, archive_upload_id: nil} = Repo.reload!(snapshot)
     end
   end
 

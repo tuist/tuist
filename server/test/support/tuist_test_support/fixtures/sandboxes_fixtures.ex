@@ -118,7 +118,14 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
       state: Keyword.get(opts, :state, :ready),
-      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate()
+      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate(),
+      archive_store: Keyword.get(opts, :archive_store),
+      archive_key: Keyword.get(opts, :archive_key),
+      archive_upload_id: Keyword.get(opts, :archive_upload_id),
+      archive_bytes: Keyword.get(opts, :archive_bytes),
+      archive_sha256: Keyword.get(opts, :archive_sha256),
+      archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate()
     })
   end
 

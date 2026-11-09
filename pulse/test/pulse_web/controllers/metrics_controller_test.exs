@@ -294,7 +294,14 @@ defmodule PulseWeb.MetricsControllerTest do
     source = hd(entry.manifest.segments).key
     caller = self()
     Agent.update(agent, &%{&1 | barriers: %{{"GET", source} => caller}})
-    worker_config = Map.merge(config, %{compaction_interval_ms: 3_600_000, compaction_timeout_ms: 100})
+
+    worker_config =
+      Map.merge(config, %{
+        compaction_interval_ms: 3_600_000,
+        compaction_timeout_ms: 100,
+        metric_finalize_enabled: false
+      })
+
     start_supervised!({CompactionSupervision, worker_config})
     errors = operations(:compaction, :worker_merge, :error)
     send(Pulse.Runtime.whereis(CompactionWorker), :compact)

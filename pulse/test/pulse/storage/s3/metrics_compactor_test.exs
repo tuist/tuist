@@ -598,19 +598,19 @@ defmodule Pulse.Storage.S3.MetricsCompactorTest do
     _ = :sys.get_state(worker, 60_000)
 
     tiers = load(ctx).segments |> Enum.map(&Segment.metric_tier/1) |> Enum.sort()
-    assert tiers == [:final, :rollup]
+    assert tiers == [:catalog, :final, :rollup]
     assert S3.query(:metrics, ctx.tenant, []) == before
     assert {:ok, [backup]} = ObjectStore.list(ctx.config, ManifestBackup.prefix(ctx.tenant, "metrics"))
     assert {:ok, body} = ObjectStore.get(ctx.config, backup)
     assert {:ok, %Manifest{segments: backed_up}} = Manifest.decode(body)
-    assert backed_up |> Enum.map(&Segment.metric_tier/1) |> Enum.sort() == [:final, :rollup]
+    assert backed_up |> Enum.map(&Segment.metric_tier/1) |> Enum.sort() == [:catalog, :final, :rollup]
 
     # The backup records every retirement, so cleanup could delete them all:
-    # only the finalized segment and its rollup remain.
+    # only the finalized segment, its rollup and the hour's series catalog remain.
     parquet =
       Agent.get(ctx.agent, fn state -> Enum.filter(Map.keys(state.objects), &String.ends_with?(&1, ".parquet")) end)
 
-    assert parquet |> Enum.map(&Segment.key_tier/1) |> Enum.sort() == [:final, :rollup]
+    assert parquet |> Enum.map(&Segment.key_tier/1) |> Enum.sort() == [:catalog, :final, :rollup]
   end
 
   test "missing input fails before publication and cleanup never removes active segments", ctx do

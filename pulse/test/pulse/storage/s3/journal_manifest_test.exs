@@ -3,6 +3,7 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
 
   alias Pulse.Record.Log
   alias Pulse.Runtime
+  alias Pulse.Runtime.Task
   alias Pulse.Storage.S3
   alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.LogCompactor
@@ -11,6 +12,7 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
   alias Pulse.Storage.S3.ManifestOwner
   alias Pulse.Storage.S3.ManifestSupervision
   alias Pulse.Storage.S3.MetadataCache
+  alias Pulse.Storage.S3.MetricTiers
   alias Pulse.Storage.S3.Retention
   alias Pulse.Test.CompactionStore
 
@@ -128,6 +130,41 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
     assert new.body == "new"
   end
 
+  test "replacement replans after unrelated maintenance changes the same journal page", ctx do
+    [first, second | _] = history = history(ctx.tenant, 600)
+    put_root(ctx, %Manifest{version: 1, segments: history})
+    assert :ok = S3.append(:logs, ctx.tenant, [%Log{timestamp_ns: 10_000_000_000, service: "api", body: "new"}])
+    before = stats(ctx, 0, 20_000_000_000, nil)
+    replacement = %{first | key: String.replace(first.key, "-rand-", "-compact-")}
+    other = %{second | key: String.replace(second.key, "-rand-", "-compact-")}
+    parent = self()
+    Agent.update(ctx.agent, &%{&1 | barriers: %{{"PUT", :page} => parent}})
+    tasks = start_supervised!(Task.Supervisor)
+
+    pending =
+      Task.Supervisor.async_nolink(tasks, fn ->
+        MetricTiers.publish(ctx.tenant, ctx.config, [first.key], [replacement], 60_000, "logs")
+      end)
+
+    assert_receive {:storage_barrier, storage, "PUT", page}, 30_000
+    Agent.update(ctx.agent, &%{&1 | barriers: %{}})
+    assert :ok = MetricTiers.publish(ctx.tenant, ctx.config, [second.key], [other], 60_000, "logs")
+    send(storage, {:release_storage, page})
+    assert :ok = Task.await(pending, 60_000)
+
+    {_, current} = root(ctx)
+
+    for source <- [first, second] do
+      assert {:ok, {:retired, _}} = JournalManifest.lookup(current, source, ctx.tenant, "logs", ctx.config)
+    end
+
+    for output <- [replacement, other] do
+      assert {:ok, :active} = JournalManifest.lookup(current, output, ctx.tenant, "logs", ctx.config)
+    end
+
+    assert stats(ctx, 0, 20_000_000_000, nil) == before
+  end
+
   test "a narrow window reads only the pages on its path, not the rest of history", ctx do
     put_root(ctx, %Manifest{version: 1, segments: history(ctx.tenant, 9000)})
     assert :ok = S3.append(:logs, ctx.tenant, [%Log{timestamp_ns: 10_000_000_000, service: "api", body: "new"}])
@@ -146,6 +183,33 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
     end
 
     assert Enum.sum_by(root.paging["refs"], & &1["l"]) > 16
+  end
+
+  test "limited plans order nested subtrees and inline candidates in both directions, including ties", ctx do
+    segments =
+      for i <- 1..20_000 do
+        min = div(i, 700) * 10_000 + rem(i, 3)
+        max = min + 100 + rem(i, 5)
+        key = S3.object_key(ctx.tenant, "logs", min, max, Integer.to_string(i, 16), nil)
+        %{Segment.build(key, min, max, 1, 100) | log_services: [if(rem(i, 3) == 0, do: "api", else: "web")]}
+      end
+
+    assert {:ok, root} =
+             JournalManifest.convert(%Manifest{version: 2, segments: segments}, ctx.tenant, "logs", ctx.config)
+
+    inline = Enum.at(segments, 2)
+    inline = %{inline | key: String.replace_suffix(inline.key, ".parquet", "-inline.parquet")}
+    # An inline entry competes with index and leaf bounds at a tied time.
+    root = %{root | segments: [inline]}
+    all = [inline | segments]
+
+    for order <- [:backward, :forward], n <- [1, 17, 700] do
+      rank = if order == :backward, do: &{-&1.max_ts, &1.key}, else: &{&1.min_ts, &1.key}
+      expected = all |> Enum.filter(&("api" in &1.log_services)) |> Enum.sort_by(rank) |> Enum.take(n)
+      opts = [service: "api", log_window: {order, n}, max_scan_segments: n]
+      assert {:ok, actual} = JournalManifest.query(root, ctx.tenant, "logs", opts, ctx.config)
+      assert actual == expected
+    end
   end
 
   test "appends spill into pages, keyed retries stay idempotent and every root stays bounded", ctx do

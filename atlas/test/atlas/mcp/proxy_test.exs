@@ -202,6 +202,26 @@ defmodule Atlas.MCP.ProxyTest do
     assert message =~ "not available"
   end
 
+  # The bare-metal providers' reads describe the production fleet, so a
+  # restricted session without the observability toggle must not reach them.
+  test "gates the bare-metal provider upstreams on observability access" do
+    stub(Config, :get, fn ->
+      [
+        servers:
+          for name <- ["ovh-servers", "vultr-compute"] do
+            %{"name" => name, "url" => "https://#{name}.example/mcp", "bearer_token" => "t"}
+          end
+      ]
+    end)
+
+    conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => []}}}
+
+    assert Proxy.list_hoisted_tools(conn) == []
+
+    assert {:error, message} = Proxy.call_hoisted_tool(conn, "vultr-compute__vultr_compute_baremetal_list", %{})
+    assert message =~ "not available"
+  end
+
   test "keeps upstream observability tools available for restricted observability sessions" do
     conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => ["observability"]}}}
 

@@ -28,14 +28,15 @@ defmodule Atlas.MCP.Proxy do
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
   # same "observability" ("Production systems") group as the Grafana, Pulse and
-  # Tuist database tools — granted by the same identity toggle. OVH's reads
-  # describe the production fleet, so they belong there too.
+  # Tuist database tools — granted by the same identity toggle. OVH's and
+  # Vultr's reads describe the production fleet, so they belong there too.
   @server_tool_groups %{
     "grafana" => "observability",
     "tuist" => "observability",
     "ovh-servers" => "observability",
     "ovh-services" => "observability",
     "ovh-orders" => "observability",
+    "vultr-compute" => "observability",
     "stripe" => "finance"
   }
 
@@ -478,7 +479,7 @@ defmodule Atlas.MCP.Proxy do
   defp require_approval(%Server{} = server, conn, tool_name, arguments) do
     if match?(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}}, conn) do
       case MCPContext.authorize_tool_call(conn.assigns.current_user, server.name, tool_name, arguments) do
-        :ok ->
+        {:ok, _approval} ->
           :ok
 
         {:approval_required, approval} ->

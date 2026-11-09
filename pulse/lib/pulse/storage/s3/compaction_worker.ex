@@ -22,6 +22,7 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   alias Pulse.Storage.S3.LogRollups
   alias Pulse.Storage.S3.LogTiers
   alias Pulse.Storage.S3.ManifestBackup
+  alias Pulse.Storage.S3.MetricCatalog
   alias Pulse.Storage.S3.MetricsCompactor
   alias Pulse.Storage.S3.MetricTiers
   alias Pulse.Storage.S3.TraceCompactor
@@ -122,14 +123,38 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   # Recent grouping must keep running while historical finalization is slow
   # or withdrawn. It has independent eligibility/tasks, but the same manifest
   # publication authority as the historical lane.
+  # Series catalogs of the current and previous hour come first, so the
+  # segments grouped next are already covered and their outputs need no
+  # catalog reads (`MetricCatalog`); older hours belong to the historical lane.
   defp compact_tenant(tenant, "metrics", %{maintenance_operation: :metric_consolidate} = config) do
-    result = consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+    recent = [min_hour: MetricTiers.hour(System.os_time(:nanosecond)) - MetricTiers.hour_ns()]
+
+    result =
+      with :ok <- catalog(tenant, config, recent),
+           do: consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+
     {if(result == :timeout, do: {:error, :timeout}, else: :ok), config}
+  end
+
+  # A failed historical batch must not leave the current query window as
+  # thousands of ingest objects. This lane has independent tasks/eligibility;
+  # the historical lane still owns backups and cleanup for both lanes.
+  defp compact_tenant(tenant, "traces", %{maintenance_operation: :trace_recent} = config) do
+    recent = MetricTiers.hour(System.os_time(:nanosecond)) - MetricTiers.hour_ns()
+    opts = Keyword.put(Map.get(config, :trace_compaction_options, []), :min_hour, recent)
+    result = merge_while_progressing(TraceCompactor, tenant, config, opts, Map.get(config, :compaction_max_merges, 32))
+    {result, config}
   end
 
   defp compact_tenant(tenant, signal, config) do
     {module, option_key, cleanup_key} = maintenance(signal)
     opts = Map.get(config, option_key, [])
+
+    opts =
+      if config[:maintenance_operation] == :trace_compact,
+        do: Keyword.put(opts, :max_hour, MetricTiers.hour(System.os_time(:nanosecond)) - 2 * MetricTiers.hour_ns()),
+        else: opts
+
     cleanup_opts = Map.get(config, cleanup_key, [])
     result = merge_while_progressing(module, tenant, config, opts, Map.get(config, :compaction_max_merges, 32))
     {result, config} = finalize_hours(result, tenant, signal, config)
@@ -145,19 +170,31 @@ defmodule Pulse.Storage.S3.CompactionWorker do
 
   defp finalize_hours(result, tenant, "metrics", config) do
     # Metrics maintenance only runs with metrics compaction enabled (CompactionOwnership.signals/1).
-    if Map.get(config, :metric_finalize_enabled, true) do
-      # Directly started workers retain their combined behavior; production's
-      # supervised historical lane leaves grouping to its independent worker.
-      consolidated =
-        if config[:maintenance_operation] == :metric_compact,
-          do: :ok,
-          else: consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+    # Series catalogs (`MetricCatalog`) rely on grouping and finalization
+    # marking their outputs covered, so they run only alongside them.
+    cond do
+      not Map.get(config, :metric_finalize_enabled, true) ->
+        {result, config}
 
-      if consolidated == :timeout,
-        do: {{:error, :timeout}, config},
-        else: finalize_next(result, tenant, config, Map.get(config, :metric_finalize_max_hours, 6))
-    else
-      {result, config}
+      # Production's supervised historical lane leaves grouping and the
+      # recent hours' catalogs to its independent worker.
+      config[:maintenance_operation] == :metric_compact ->
+        {result, config} = finalize_next(result, tenant, config, Map.get(config, :metric_finalize_max_hours, 6))
+        historical = [max_hour: MetricTiers.hour(System.os_time(:nanosecond)) - 2 * MetricTiers.hour_ns()]
+
+        if result != {:error, :timeout} and catalog(tenant, config, historical) == :timeout,
+          do: {{:error, :timeout}, config},
+          else: {result, config}
+
+      # Directly started workers retain their combined behavior.
+      true ->
+        consolidated =
+          with :ok <- catalog(tenant, config),
+               do: consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+
+        if consolidated == :timeout,
+          do: {{:error, :timeout}, config},
+          else: finalize_next(result, tenant, config, Map.get(config, :metric_finalize_max_hours, 6))
     end
   end
 
@@ -259,6 +296,17 @@ defmodule Pulse.Storage.S3.CompactionWorker do
 
       _ ->
         put.(skips)
+    end
+  end
+
+  # Hourly series catalogs for label and series discovery, of the hours
+  # `hours` bounds.
+  defp catalog(tenant, config, hours \\ []) do
+    opts = Keyword.merge(Map.get(config, :metric_catalog_options, []), hours)
+
+    case run_operation(fn -> MetricCatalog.build(tenant, config, opts) end, {"metrics", tenant}, "catalog", config) do
+      {:error, :timeout} -> :timeout
+      _ -> :ok
     end
   end
 
@@ -431,6 +479,7 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   defp metric_dimension("discovery"), do: :worker_discovery
   defp metric_dimension("finalize"), do: :worker_finalize
   defp metric_dimension("consolidate"), do: :worker_consolidate
+  defp metric_dimension("catalog"), do: :worker_catalog
   defp metric_dimension("log_rollup"), do: :worker_log_rollup
   defp metric_dimension("log_finalize"), do: :worker_log_finalize
   defp metric_dimension("log_consolidate"), do: :worker_log_consolidate
@@ -466,6 +515,8 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   # partitions within one call.
   defp operation_timeout(config, "finalize"), do: Map.get(config, :metric_finalize_timeout_ms, 900_000)
   defp operation_timeout(config, "consolidate"), do: Map.get(config, :metric_consolidate_timeout_ms, 120_000)
+  # Catalogs share the grouping lane and its bounded batch size.
+  defp operation_timeout(config, "catalog"), do: Map.get(config, :metric_consolidate_timeout_ms, 120_000)
   defp operation_timeout(config, "log_rollup"), do: Map.get(config, :log_rollup_timeout_ms, 120_000)
   # A production hour of logs (millions of lines) is rewritten in one call.
   defp operation_timeout(config, "log_finalize"), do: Map.get(config, :log_finalize_timeout_ms, 900_000)

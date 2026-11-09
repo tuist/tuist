@@ -1,0 +1,435 @@
+name: Condukt
+
+on:
+  pull_request:
+    paths: ["condukt/**", ".github/workflows/condukt*.yml", ".github/scripts/condukt*"]
+  push:
+    branches: [main]
+    paths: ["condukt/**", ".github/workflows/condukt*.yml", ".github/scripts/condukt*"]
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: condukt
+
+jobs:
+  release-tests:
+    name: Offline release regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+      - run: python3 .github/scripts/condukt-release.test.py
+        working-directory: .
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+
+  compile:
+    name: Compile without warnings
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+      # Compile native modules as plain stubs in the broad Elixir jobs.
+      # The tagged NIF tests are excluded from the default suite, and
+      # loading these shared libraries on Linux runners can segfault BEAM
+      # during process teardown even when the tagged tests do not run.
+      # Native coverage lives in dedicated jobs below.
+      CONDUKT_BASHKIT_DISABLE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install BEAM tooling with mise
+        uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          cache: true
+          # Install only build tooling here. Helm and kubectl are pinned for
+          # Kubernetes sandbox smoke tests, not the library's Elixir jobs.
+          install_args: "erlang elixir rust"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Install Linux native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcap-ng-dev
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+
+      - name: Upload Mix dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: mix-test-build
+          path: |
+            condukt/deps
+            condukt/_build/test
+          if-no-files-found: error
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    needs: compile
+    env:
+      MIX_ENV: test
+      CONDUKT_BASHKIT_DISABLE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install BEAM tooling with mise
+        uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          cache: true
+          # Install only build tooling here. Helm and kubectl are pinned for
+          # Kubernetes sandbox smoke tests, not the library's Elixir jobs.
+          install_args: "erlang elixir rust"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Install Linux native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcap-ng-dev gdb
+
+      - name: Enable core dumps
+        run: |
+          sudo mkdir -p /tmp/cores
+          sudo chmod 1777 /tmp/cores
+          sudo sh -c 'echo "/tmp/cores/core.%e.%p" > /proc/sys/kernel/core_pattern'
+          echo "core_pattern: $(cat /proc/sys/kernel/core_pattern)"
+
+      - name: Download Mix dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: mix-test-build
+          path: condukt
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Prepare NIF and patch out exit-time destructors
+        run: |
+          # The downloaded mix-test-build artifact has the NIF .so but
+          # also needs `mix compile` to restore file modes on test
+          # fixtures (artifacts strip exec bits) and re-run the rustler
+          # copy step. `mix compile` itself segfaults at exit on Linux
+          # because loading the project modules triggers the NIF
+          # on_load -> dlopen -> _dl_fini -> aws-lc-sys destructor
+          # crash. The .so is fully built / copied before BEAM tears
+          # down, so we tolerate exit 139 here, then patch
+          # DT_FINI_ARRAYSZ to 0. The follow-up `mix test --no-compile`
+          # runs against the patched .so and exits cleanly. See
+          # scripts/patch_nif_fini_array.py for the full diagnosis.
+          set +e
+          mix compile
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 139 ]; then
+            echo "mix compile failed with unexpected status $status"
+            exit "$status"
+          fi
+          so=_build/test/lib/condukt/priv/native/condukt_microsandbox.so
+          if [ -e "$so" ]; then
+            python3 scripts/patch_nif_fini_array.py "$so"
+          else
+            echo "warning: $so not found after mix compile"
+          fi
+
+      - name: Run test suite
+        run: |
+          ulimit -c unlimited
+          set +e
+          mix test --no-compile
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::group::NIF binary inspection"
+            so=_build/test/lib/condukt/priv/native/condukt_microsandbox.so
+            if [ -e "$so" ]; then
+              echo "--- file $so ---"
+              file "$so" || true
+              echo "--- readelf -d $so ---"
+              readelf -d "$so" || true
+              echo "--- nodelete present? ---"
+              readelf -d "$so" | grep -i nodelete || echo "NODELETE NOT SET"
+              echo "--- section headers (fini/init) ---"
+              readelf -SW "$so" | grep -E "fini|init" || true
+              echo "--- .fini_array contents ---"
+              readelf --hex-dump=.fini_array "$so" || true
+              echo "--- .init_array contents ---"
+              readelf --hex-dump=.init_array "$so" || true
+              echo "--- objdump -R (first 80 lines) ---"
+              objdump -R "$so" 2>&1 | head -80 || true
+              echo "--- readelf -rW (first 80 lines) ---"
+              readelf -rW "$so" 2>&1 | head -80 || true
+              echo "--- .fini_array destructor symbols (via addr2line + nm) ---"
+              # Pull the three function offsets from the dynamic relocations
+              # targeting .fini_array, then resolve each back to source.
+              # Use `objdump -R` format which is unambiguous:
+              #   <off>  R_X86_64_RELATIVE  *ABS*+<addr>
+              fini_addr_hex=$(readelf -SW "$so" | awk '/\.fini_array/ {print $4; exit}')
+              fini_size_hex=$(readelf -SW "$so" | awk '/\.fini_array/ {print $6; exit}')
+              if [ -n "$fini_addr_hex" ] && [ -n "$fini_size_hex" ]; then
+                fini_start=$((16#$fini_addr_hex))
+                fini_end=$((fini_start + 16#$fini_size_hex))
+                objdump -R "$so" 2>/dev/null | awk '$2 ~ /RELATIVE/ {print $1, $3}' | \
+                  while read -r off_hex addend_field; do
+                    off_dec=$((16#$off_hex)) 2>/dev/null || continue
+                    if [ "$off_dec" -ge "$fini_start" ] && [ "$off_dec" -lt "$fini_end" ]; then
+                      # addend_field looks like "*ABS*+0xABCDEF"
+                      target=${addend_field##*+}
+                      echo "--- destructor target $target (.fini_array slot 0x$off_hex) ---"
+                      echo "addr2line:"
+                      addr2line -e "$so" -f -C "$target" 2>&1 || true
+                      echo "nearest symbol:"
+                      nm -C --defined-only --numeric-sort "$so" 2>/dev/null | \
+                        awk -v tdec=$((16#${target#0x})) '
+                          {
+                            ad = strtonum("0x" $1)
+                            if (ad <= tdec) { prev_sym = $0 }
+                            if (ad > tdec) { print prev_sym; exit }
+                          }
+                        ' || true
+                      echo "disassembly:"
+                      stop=$(printf '0x%x' $((16#${target#0x} + 0x80)))
+                      objdump -d --start-address="$target" --stop-address="$stop" "$so" 2>&1 | tail -30 || true
+                    fi
+                  done
+              fi
+              echo "--- Relocations targeting .fini_array address range ---"
+              # readelf -SW columns when section name is short: [N] NAME TYPE ADDR OFF SIZE ES FLG ...
+              fini_addr_hex=$(readelf -SW "$so" | awk '/\.fini_array/ {print $4; exit}')
+              fini_size_hex=$(readelf -SW "$so" | awk '/\.fini_array/ {print $6; exit}')
+              if [ -n "$fini_addr_hex" ] && [ -n "$fini_size_hex" ]; then
+                fini_start=$((16#$fini_addr_hex))
+                fini_end=$((fini_start + 16#$fini_size_hex))
+                printf 'fini_array vaddr=0x%s size=0x%s (dec %d..%d)\n' "$fini_addr_hex" "$fini_size_hex" "$fini_start" "$fini_end"
+                readelf -rW "$so" | while IFS= read -r line; do
+                  off_hex=$(printf '%s' "$line" | awk '$1 ~ /^[0-9a-f]+$/ {print $1; exit}')
+                  [ -z "$off_hex" ] && continue
+                  off_dec=$((16#$off_hex)) 2>/dev/null || continue
+                  if [ "$off_dec" -ge "$fini_start" ] && [ "$off_dec" -lt "$fini_end" ]; then
+                    echo "$line"
+                  fi
+                done
+              fi
+            else
+              echo "$so not found"
+            fi
+            echo "::endgroup::"
+
+            echo "::group::Core dumps"
+            ls -la /tmp/cores/ || true
+            for core in /tmp/cores/core.*; do
+              [ -e "$core" ] || continue
+              echo "--- $core ---"
+              file_out=$(file "$core")
+              echo "$file_out"
+              exe=$(printf '%s' "$file_out" | sed -n "s/.*execfn: '\\([^']*\\)'.*/\\1/p")
+              if [ -z "$exe" ]; then
+                exe=$(find /home/runner/.local/share/mise/installs/erlang -path '*/erts-*/bin/beam.smp' -print -quit 2>/dev/null)
+              fi
+              echo "executable: $exe"
+              # GDB, not the shell, expands register names such as $rsp.
+              # shellcheck disable=SC2016
+              gdb -batch \
+                -ex 'set pagination off' \
+                -ex 'info sharedlibrary' \
+                -ex 'info proc mappings' \
+                -ex 'thread apply all bt full' \
+                -ex 'info registers' \
+                -ex 'x/16gx $rsp' \
+                -ex 'x/16i $rip-32' \
+                -ex 'x/16i $rip' \
+                -ex quit \
+                "$exe" "$core" 2>&1 || true
+            done
+            echo "::endgroup::"
+          fi
+          exit $status
+
+      - name: Upload core dumps and NIF binary
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-core-dumps
+          path: |
+            /tmp/cores/
+            condukt/_build/test/lib/condukt/priv/native/condukt_microsandbox.so
+          if-no-files-found: ignore
+          retention-days: 7
+
+  format:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    needs: compile
+    env:
+      MIX_ENV: test
+      CONDUKT_BASHKIT_DISABLE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install BEAM tooling with mise
+        uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          cache: true
+          # Only what this job builds with. mise.toml also pins deployment
+          # tooling for the chart, and installing all of it here means a broken
+          # download for helm or kubectl fails the library's build, which is
+          # exactly how this job went red.
+          install_args: "erlang elixir rust"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Download Mix dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: mix-test-build
+          path: condukt
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+  credo:
+    name: Run Credo
+    runs-on: ubuntu-latest
+    needs: compile
+    env:
+      MIX_ENV: test
+      CONDUKT_BASHKIT_DISABLE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install BEAM tooling with mise
+        uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          cache: true
+          # Only what this job builds with. mise.toml also pins deployment
+          # tooling for the chart, and installing all of it here means a broken
+          # download for helm or kubectl fails the library's build, which is
+          # exactly how this job went red.
+          install_args: "erlang elixir rust"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Download Mix dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: mix-test-build
+          path: condukt
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Run Credo
+        run: mix credo --strict
+
+  k8s_sandbox:
+    name: K8s sandbox smoke tests (kind)
+    runs-on: ubuntu-latest
+    needs: compile
+    env:
+      MIX_ENV: test
+      CONDUKT_BASHKIT_DISABLE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install BEAM tooling with mise
+        uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          cache: true
+          install_args: "erlang elixir rust helm kubectl"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Install Linux native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcap-ng-dev
+
+      - name: Download Mix dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: mix-test-build
+          path: condukt
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      - name: Create kind cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc
+        with:
+          cluster_name: condukt-smoke
+          wait: 60s
+
+      - name: Wait for kind control plane
+        run: |
+          kubectl wait --for=condition=Ready node --all --timeout=120s
+          kubectl -n kube-system rollout status deployment/coredns --timeout=120s
+
+      - name: Pre-pull pod image into the kind cluster
+        run: |
+          docker pull debian:bookworm-slim
+          kind load docker-image debian:bookworm-slim --name condukt-smoke
+
+      - name: Prepare NIF and patch out exit-time destructors
+        run: |
+          # Same dance as the test job. See scripts/patch_nif_fini_array.py.
+          set +e
+          mix compile
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 139 ]; then
+            echo "mix compile failed with unexpected status $status"
+            exit "$status"
+          fi
+          so=_build/test/lib/condukt/priv/native/condukt_microsandbox.so
+          if [ -e "$so" ]; then
+            python3 scripts/patch_nif_fini_array.py "$so"
+          else
+            echo "warning: $so not found after mix compile"
+          fi
+
+      - name: Run K8s sandbox smoke tests
+        run: mix test --no-compile --only k8s_sandbox test/condukt/sandbox/kubernetes_test.exs

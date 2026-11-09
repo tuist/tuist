@@ -30,13 +30,13 @@ dividers. All four showcase cards carry their illustrations. --%>
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+          "For teams and coding agents waiting on slow or unreliable test feedback: understand failures, identify flakes, and distribute test work without replacing your CI."
         )}
       </p>
       <.button
         href={
           TuistWeb.Marketing.MarketingHTML.localized_href(
-            "https://tuist.dev/en/docs/guides/features/selective-testing"
+            "https://tuist.dev/en/docs/guides/features/test-insights"
           )
         }
         variant="secondary"
@@ -53,7 +53,7 @@ dividers. All four showcase cards carry their illustrations. --%>
         <p data-part="description">
           {dgettext(
             "marketing",
-            "Skip unnecessary tests, distribute the rest efficiently, and keep your test suite healthy with built-in insights."
+            "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
           )}
         </p>
       </div>
@@ -172,7 +172,7 @@ dividers. All four showcase cards carry their illustrations. --%>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Skip tests that don't need to run. Tuist uses project hashing to identify what changed since the last successful run and executes only the affected tests."
+                "In Tuist-generated projects, the default selective-testing strategy skips test targets whose hashed inputs have not changed since their last successful run. It is not line-level impact analysis."
               )}
             </p>
           </div>
@@ -310,6 +310,14 @@ dividers. All four showcase cards carry their illustrations. --%>
                 "Track test performance over time, uncover slow tests, and understand failed runs without digging through CI logs."
               )}
             </p>
+            <.link_button
+              href="/solutions/slow-tests"
+              label={dgettext("marketing", "Diagnose slow tests")}
+              variant="secondary"
+              size="medium"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.link_button>
           </div>
         </div>
         <div data-part="cell">
@@ -328,9 +336,17 @@ dividers. All four showcase cards carry their illustrations. --%>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Automatically detect flaky tests, track them over time, and quarantine them so unreliable tests don't keep blocking CI while you fix them."
+                "Detect inconsistent test outcomes and track them over time. Configure quarantine where supported to mute or skip known flakes while someone owns fixing them; quarantine is not a repair."
               )}
             </p>
+            <.link_button
+              href="/solutions/flaky-tests"
+              label={dgettext("marketing", "Handle flaky tests")}
+              variant="secondary"
+              size="medium"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.link_button>
           </div>
         </div>
       </div>

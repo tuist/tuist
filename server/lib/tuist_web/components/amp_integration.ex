@@ -94,12 +94,7 @@ defmodule TuistWeb.Components.AmpIntegration do
   @impl true
   def render(assigns) do
     ~H"""
-    <section
-      hidden={not @available}
-      id={@id}
-      data-part="amp-card-section"
-      class="noora-card__section"
-    >
+    <div hidden={not @available} id={@id} data-part="amp-part">
       <form
         id={"amp-settings-form-#{@form_version}"}
         phx-change="validate"
@@ -109,7 +104,7 @@ defmodule TuistWeb.Components.AmpIntegration do
       >
         <div data-part="header-row">
           <div data-part="header">
-            <span data-part="title">Amp</span>
+            <span data-part="title">{dgettext("dashboard_integrations", "Orb provider")}</span>
             <span data-part="subtitle">
               {dgettext("dashboard_integrations", "Run your Amp workspace’s Orbs on Tuist sandboxes.")}
             </span>
@@ -286,7 +281,7 @@ defmodule TuistWeb.Components.AmpIntegration do
           </div>
         </div>
       </.modal>
-    </section>
+    </div>
     """
   end
 end

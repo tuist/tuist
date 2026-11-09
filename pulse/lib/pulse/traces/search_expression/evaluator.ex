@@ -425,7 +425,7 @@ defmodule Pulse.Traces.SearchExpression.Evaluator do
     selected =
       Enum.reduce(["resource", "span"], selected, fn owner, acc ->
         {actual, value, _} = actual(owner <> "." <> type, key, span, owners)
-        if match_value(actual, op, wanted), do: Map.put(acc, {key, owner}, value), else: acc
+        if value != nil and match_value(actual, op, wanted), do: Map.put(acc, {key, owner}, value), else: acc
       end)
 
     {[matched | stack], selected}
@@ -541,6 +541,7 @@ defmodule Pulse.Traces.SearchExpression.Evaluator do
     {typed(type, value), value}
   end
 
+  defp typed("any", value), do: {:any, value != nil}
   defp typed("string", %{"stringValue" => text}), do: {:string, text}
   defp typed("int", %{"intValue" => number}), do: {:int, String.to_integer(number)}
   defp typed("bool", %{"boolValue" => value}), do: {:bool, value}
@@ -549,6 +550,7 @@ defmodule Pulse.Traces.SearchExpression.Evaluator do
 
   # BEAM cannot represent IEEE nonfinite floats. The envelope keeps their
   # canonical strings; finite query operands compare with IEEE semantics.
+  defp match_value({:any, present?}, op, "nil"), do: present? == (op == "!=")
   defp match_value({:float, "NaN"}, op, _), do: op == "!="
   defp match_value({:float, "Infinity"}, op, _), do: op in ["!=", ">", ">="]
   defp match_value({:float, "-Infinity"}, op, _), do: op in ["!=", "<", "<="]

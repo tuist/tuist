@@ -1,0 +1,4 @@
+[toolchain]
+# Pinned to match bashkit's MSRV. Bump deliberately when bashkit updates.
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]

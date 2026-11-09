@@ -8,6 +8,7 @@ on:
       - cli/Sources/ProjectDescription/**
       - Package.swift
       - Package.resolved
+      - assets/marketing/404.html
       - mise/tasks/docs/project-description.sh
       - .github/workflows/project-description-docs.yml
   pull_request:
@@ -16,6 +17,7 @@ on:
       - cli/Sources/ProjectDescription/**
       - Package.swift
       - Package.resolved
+      - assets/marketing/404.html
       - mise/tasks/docs/project-description.sh
       - .github/workflows/project-description-docs.yml
   workflow_dispatch:

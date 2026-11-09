@@ -1,6 +1,12 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "Симулятор %@";
 
+/* TuistProfile/ProfileView.swift */
+"AI" = "ИИ";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "Подписки на ИИ";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "В ответе отсутствует токен доступа или токен обновления";
 
@@ -8,7 +14,7 @@
 "All" = "Все";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All tracks" = "Все каналы";
+"All tracks" = "Все треки";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
 "Android Device" = "Устройство Android";
@@ -46,17 +52,32 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Bundle identifier" = "Идентификатор пакета";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
-"Cancel" = "Отменить";
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "Отмена";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Check for updates" = "Проверить обновления";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Commit SHA" = "Хеш коммита (SHA)";
+"Commit SHA" = "Хеш коммита";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "Подключить";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "Подключить ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "Подключить Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Подключите свои личные подписки Claude и ChatGPT, чтобы использовать их с функциями ИИ в Tuist.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Подключено";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "Копировать код";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "Копировать идентификатор";
@@ -71,10 +92,10 @@
 "Could not find app bundle in the downloaded archive" = "Не удалось найти пакет приложения в загруженном архиве";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Не удалось установить приложение для %@, так как оно не содержит допустимых сборок приложения.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Не удалось установить приложение для %@, так как оно не содержит действительных сборок приложения.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Не удалось установить приложение для %@. Платформа %@ — это %@, а приложение включает только следующие платформы: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Не удалось установить приложение для %@. Платформа устройства %@ — %@, а приложение поддерживает только следующие платформы: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "Создано";
@@ -98,10 +119,16 @@
 "Delete preview" = "Удалить превью";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Details" = "Сведения";
+"Details" = "Подробности";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "Устройства";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "Отключить";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "Отключить подписку";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "Отключено";
@@ -110,13 +137,16 @@
 "Email" = "Электронная почта";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Введите допустимый URL-адрес HTTPS-сервера без учетных данных, параметров запроса или фрагмента.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Введите допустимый URL-адрес сервера HTTPS без учетных данных, параметров запроса или фрагмента.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "Введите код на странице входа в OpenAI. Этот экран закроется после подтверждения.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Ошибка";
 
 /* TuistMenuBar/StatusView.swift */
-"Finished" = "Завершено";
+"Finished" = "Готово";
 
 /* TuistProfile/ProfileView.swift */
 "Get help" = "Получить помощь";
@@ -164,13 +194,16 @@
 "No Tuist projects found" = "Проекты Tuist не найдены";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "Предварительные сборки не найдены";
+"No previews found" = "Предпросмотры не найдены";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "Нет предварительных сборок, соответствующих вашим фильтрам";
+"No previews match your filters" = "Нет предпросмотров, соответствующих фильтрам";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "ОК";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "Открыть страницу входа в OpenAI";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "Другие устройства";
@@ -179,10 +212,10 @@
 "Pin" = "Закрепить";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews" = "Предварительные сборки";
+"Previews" = "Предпросмотры";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "Предварительные сборки: %lld";
+"Previews: %lld" = "Превью: %lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "Политика конфиденциальности";
@@ -208,23 +241,26 @@
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "Запустить";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "Выполните команду claude setup-token в терминале и вставьте выведенный токен.";
+
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "Поиск";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "Self-hosted";
+"Self-hosted" = "Собственный сервер";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Self-hosted server" = "Самостоятельно размещаемый сервер";
+"Self-hosted server" = "Сервер на собственной инфраструктуре";
 
 /* TuistErrorHandling/ErrorHandling.swift */
-"Share logs" = "Поделиться журналами";
+"Share logs" = "Поделиться логами";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Sign in" = "Войти";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "Войдите, чтобы получить доступ к своим проектам и\nсотрудничать с командой";
+"Sign in to access your projects and\ncollaborate with your team" = "Войдите, чтобы получить доступ к своим проектам\nи работать вместе с командой";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "Войдите, чтобы запускать превью";
@@ -247,6 +283,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "Симуляторы";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "Токен подписки";
+
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "Поддерживаемые платформы";
 
@@ -263,34 +302,43 @@
 "The preview %@ does not have a package name set." = "Для предпросмотра %@ не указано имя пакета.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "Ссылка на предварительную сборку %@ недействительна.";
+"The preview deeplink %@ is invalid." = "Неверная глубокая ссылка предпросмотра %@.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "Сервер вернул страницу предварительной сборки, которая не обновилась. Обновите ваш сервер или попробуйте снова.";
+"The server returned a preview page that did not advance. Update your server or try again." = "Сервер вернул страницу предпросмотра, которая не обновилась. Обновите сервер или повторите попытку.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "Срок действия входа истек. Закройте этот экран и подключитесь снова.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Этот сервер не поддерживает фильтрацию предварительных сборок по каналу. Обновите ваш самостоятельно размещенный сервер Tuist или выберите «Все каналы».";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Этот сервер не поддерживает фильтрацию превью по треку. Обновите ваш собственный сервер Tuist или выберите «Все треки».";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Этот сервер не поддерживает поиск предварительных сборок. Обновите ваш самостоятельно размещенный сервер Tuist или очистите поиск.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Этот сервер не поддерживает поиск превью. Обновите ваш собственный сервер Tuist или очистите результаты поиска.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Этот сервер не поддерживает вход через приложение Tuist. Попросите вашего администратора обновить его.";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Этот сервер не поддерживает вход через приложение Tuist. Попросите администратора обновить его.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "Чтобы запустить предварительную сборку, необходимо выбрать симулятор.";
+"To run a preview, you must have a simulator selected." = "Чтобы запустить превью, необходимо выбрать симулятор.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "Обмен токена завершился ошибкой со статусом: %lld";
+"Token exchange failed with status code: %lld" = "Ошибка обмена токена с кодом состояния: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Track" = "Канал";
+"Track" = "Трек";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Tracks" = "Треки";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "Попробуйте другой поисковый запрос или выберите другой трек.";
+"Try a different search or select another track." = "Попробуйте другой запрос или выберите другой трек.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist удалит сохранённые учётные данные %@.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "Недоступно";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "Неизвестно";
@@ -309,3 +357,143 @@
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "или";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "Аккаунт";
+"Accounts" = "Аккаунты";
+"Active" = "Активный";
+"Archived" = "В архиве";
+"Archive thread" = "Архивировать ветку";
+"Archive this thread?" = "Архивировать эту ветку?";
+"Ask Tuist a question or choose a repository to work on." = "Задайте вопрос Tuist или выберите репозиторий для работы.";
+"Base branch" = "Базовая ветка";
+"Changes" = "Изменения";
+"Close" = "Закрыть";
+"Close new thread" = "Закрыть новую ветку";
+"Conversation actions" = "Действия с беседой";
+"Copy message" = "Копировать сообщение";
+"Create preview thread" = "Создать ветку превью";
+"Design preview · Sample accounts" = "Превью дизайна · Тестовые аккаунты";
+"Design preview · Sample builds" = "Превью дизайна · Тестовые сборки";
+"Design preview · Sample conversation" = "Предварительный просмотр дизайна · Пример разговора";
+"Design preview · Sample data" = "Предварительный просмотр дизайна · Пример данных";
+"Design preview · Sample threads and people" = "Предварительный просмотр дизайна · Примеры веток и участников";
+"Design preview · Starting creates a sample thread, not a running environment." = "Предварительный просмотр дизайна · При запуске создается пример ветки, а не рабочая среда.";
+"Done" = "Готово";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Каждая ветка репозитория получает собственное рабочее дерево и ветку. Исходная копия не изменяется.";
+"Environment" = "Среда";
+"Goal" = "Цель";
+"Hide keyboard" = "Скрыть клавиатуру";
+"Illustrative diff · Not a live repository change" = "Пример различий · Не является изменением в реальном репозитории";
+"In progress" = "В процессе";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Приглашение %@ открывает доступ ко всем существующим сообщениям, результатам работы инструментов и будущим ответам. Этот предварительный просмотр не отправляет приглашения или уведомления.";
+"Latest builds" = "Последние сборки";
+"Latest message" = "Последнее сообщение";
+"Layout preview" = "Предпросмотр макета";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Упомяните кого-нибудь в сообщении, чтобы пригласить. При приглашении открывается доступ к существующей истории. @Tuist просит бота выполнить действие. Примеры участников только.";
+"Message…" = "Сообщение…";
+"Message Tuist…" = "Написать Tuist…";
+"Message, or ask @Tuist…" = "Сообщение или запрос к @Tuist…";
+"New thread" = "Новая ветка";
+"No account is signed in. These screens use sample data." = "Ни одна учётная запись не авторизована. Эти экраны используют демонстрационные данные.";
+"Only you" = "Только вы";
+"Original response" = "Исходный ответ";
+"People" = "Люди";
+"Previous builds" = "Предыдущие сборки";
+"Private thread" = "Закрытый поток";
+"Private · Design preview · No work runs" = "Закрыто · Предпросмотр дизайна · Нет рабочих запусков";
+"Private · Saved to your account" = "Закрыто · Сохранено в вашем аккаунте";
+"Private · Threads are saved to your account" = "Закрыто · Потоки сохраняются в вашем аккаунте";
+"Prompt" = "Подсказка";
+"Prompts" = "Подсказки";
+"Provider" = "Провайдер";
+"Recent" = "Недавние";
+"Reconnect" = "Переподключиться";
+"Repositories" = "Репозитории";
+"Repository" = "Репозиторий";
+"Resources" = "Ресурсы";
+"Restore thread" = "Восстановить поток";
+"Review changes" = "Просмотреть изменения";
+"Repositories available to this account." = "Репозитории, доступные для этого аккаунта.";
+"Sample repositories · Design preview" = "Примеры репозиториев · Дизайн-превью";
+"Search projects" = "Поиск проектов";
+"Search repositories" = "Поиск репозиториев";
+"Select project" = "Выбрать проект";
+"Send" = "Отправить";
+"Share preview and send" = "Поделиться превью и отправить";
+"Share the conversation history?" = "Поделиться историей разговора?";
+"Shared conversation" = "Общий чат";
+"Shared with 2 people" = "Доступно 2 участникам";
+"Sign out of Tuist?" = "Выйти из Tuist?";
+"Signing out of this app does not stop running threads." = "Выход из приложения не останавливает выполняющиеся потоки.";
+"Start privately. Inviting someone would share the existing conversation with them." = "Начните приватно. Приглашение пользователя предоставит ему доступ к текущему диалогу.";
+"Start thread" = "Начать поток";
+"Start with a goal" = "Начните с цели";
+"Switch account" = "Сменить аккаунт";
+"The conversation stays available in Archived." = "Беседа остаётся доступной в архиве.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "Владелец ветки — сервер; инструменты выполняются только в этой среде. Ветки репозитория имеют собственные рабочие деревья.";
+"Thread details" = "Сведения о ветке";
+"Thread settings" = "Настройки ветки";
+"Threads" = "Ветки";
+"Tool actions" = "Действия инструментов";
+"Tool environment" = "Среда выполнения инструментов";
+"Tool outcome unknown. Nothing will be retried automatically." = "Результат работы инструмента неизвестен. Повторные попытки не будут выполняться автоматически.";
+"Tool provider" = "Поставщик инструментов";
+"Tool result" = "Результат работы инструмента";
+"Try again" = "Попробовать снова";
+"Tuist is working…" = "Tuist работает…";
+"What would you like Tuist to do?" = "Что бы вы хотели, чтобы Tuist сделал?";
+"Worktree branch" = "Ветка worktree";
+"You" = "Вы";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "Добавляет это предложение в черновик без отправки.";
+"Connection lost. Reconnecting…" = "Соединение потеряно. Повторное подключение…";
+"Needs attention" = "Требует внимания";
+"Outcome unknown" = "Результат неизвестен";
+"Preview" = "Превью";
+"Queued" = "В очереди";
+"Ready to review" = "Готово к проверке";
+"Running" = "Выполняется";
+"Load earlier messages" = "Загрузить более ранние сообщения";
+"Load more threads" = "Загрузить больше веток";
+"No repository" = "Нет репозитория";
+"Private threads only" = "Только приватные ветки";
+"Ship" = "Отправить";
+"Approve and ship" = "Одобрить и отправить";
+"Target branch" = "Целевая ветка";
+"Mode" = "Режим";
+"Base" = "Основная";
+"Head" = "Головная";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "Отправка следует политике репозитория. Одобрение ставит в очередь именно эту проверенную правку.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "Для отправки требуется отдельная проверка и явное одобрение. Политика репозитория определяет цель.";
+"Design preview · Ship requires a live account and repository policy." = "Предварительный просмотр дизайна · Для отправки нужна активная учётная запись и политика репозитория.";
+"Review again" = "Проверить снова";
+"Organization" = "Организация";
+"Model" = "Модель";
+"Choose model" = "Выбрать модель";
+"Loading models…" = "Загрузка моделей…";
+"Couldn’t load models" = "Не удалось загрузить модели";
+"Check your connection or try again in a moment." = "Проверьте подключение к интернету или повторите попытку через некоторое время.";
+"No models available" = "Нет доступных моделей";
+"Connect an AI subscription in your profile, then try again." = "Подключите подписку на ИИ в профиле, а затем повторите попытку.";
+"Models unavailable. Try again later." = "Модели недоступны. Попробуйте позже.";
+"Refresh models" = "Обновить модели";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "Модели доступны через подписки на ИИ в вашем профиле. Модель нельзя изменить после создания.";
+"Sample model catalog · Design preview · No subscription access implied" = "Пример каталога моделей · Предварительный просмотр дизайна · Подписка не требуется";
+"AI model" = "Модель ИИ";
+"AI provider" = "Поставщик ИИ";
+"Not recorded" = "Не записано";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "Поставщик и модель зафиксированы для этого потока. Начните новый поток, чтобы выбрать другую модель.";
+"This subscription is not supported for Threads." = "Эта подписка не поддерживается для потоков.";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";
+
+/* TuistApp/TuistApp.swift */
+"OK" = "OK";
+"Unable to open link" = "Не удалось открыть ссылку";
+"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "Эта ссылка относится к другому серверу Tuist. Войдите в этот сервер и откройте ссылку снова.";
+"This navigation link is invalid or unsupported." = "Этот навигационный путь недействителен или не поддерживается.";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Open on web" = "Открыть в браузере";

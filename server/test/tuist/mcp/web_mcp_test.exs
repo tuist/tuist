@@ -6,7 +6,7 @@ defmodule Tuist.MCP.WebMCPTest do
   alias Tuist.MCP.Server
   alias Tuist.MCP.WebMCP
 
-  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization ai-subscriptions)
+  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization ai-subscriptions pulse)
   @build_systems ~w(xcode gradle bazel cargo mix once)
 
   setup do
@@ -36,6 +36,22 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
   end
 
+  test "all Pulse pages including issue and event detail offer the same four read tools" do
+    organization = %{organization_id: 1}
+    pulse_tools = ~w(query_pulse get_pulse_analytics get_pulse_error_issue get_pulse_error_event)
+
+    for path <- ~w(metrics logs traces errors errors/issues/issue errors/issues/issue/events/event) do
+      assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"
+    end
+
+    assert pulse_tools -- Map.keys(WebMCP.account_server("pulse", nil).tools) == []
+    assert Map.keys(WebMCP.public_server().tools) -- pulse_tools == Map.keys(WebMCP.public_server().tools)
+
+    for page <- @pages -- ["pulse"] do
+      assert Enum.all?(pulse_tools, &(not Map.has_key?(WebMCP.account_server(page, nil).tools, &1)))
+    end
+  end
+
   test "the AI subscriptions page offers only the read-only list, and no other page does" do
     assert "list_ai_subscriptions" in Map.keys(WebMCP.account_server("ai-subscriptions", nil).tools)
 
@@ -62,8 +78,11 @@ defmodule Tuist.MCP.WebMCPTest do
 
     # Notification rules span every account the user belongs to, so no account page offers them.
     account_spanning = ~w(list_notification_events list_notification_condition_options list_notification_rules)
+    # Amp workspace connections need account `:update` even to list, so browser agents never get them.
+    admin_only = ~w(list_amp_workspace_connections)
+    not_offered = account_spanning ++ admin_only
 
-    assert read_only -- (account_spanning ++ List.flatten(page_tools)) == []
-    assert account_spanning -- List.flatten(page_tools) == account_spanning
+    assert read_only -- (not_offered ++ List.flatten(page_tools)) == []
+    assert not_offered -- List.flatten(page_tools) == not_offered
   end
 end

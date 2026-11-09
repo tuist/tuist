@@ -1,26 +1,32 @@
 {
   "navigation": {
     "groups": {
-      "builds": { "text": "建置" },
+      "builds": { "text": "建構" },
       "tests": { "text": "測試" },
       "compute": { "text": "運算" },
       "bundles": { "text": "套件" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理編碼" },
+      "agentic-coding": { "text": "代理式編碼" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 快取" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "建置與發布" },
+      "build-and-publish": { "text": "建構與發布" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "快取磁碟區" },
+      "calendar": { "text": "日曆" },
+      "channels": { "text": "頻道" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "相容性" },
       "coverage": { "text": "涵蓋率" },
       "data-retention": { "text": "資料保留" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 快取" },
+      "entire": { "text": "完整" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -29,14 +35,21 @@
       "iphone-app": { "text": "iPhone App" },
       "macos-app": { "text": "macOS App" },
       "new-project": { "text": "新專案" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Once 快取" },
+      "once-project": { "text": "Once 專案" },
+      "once-remote-execution": { "text": "Once 遠端執行" },
       "origin": { "text": "來源" },
       "profiles": { "text": "設定檔" },
       "project-description": { "text": "專案描述" },
-      "release-channels": { "text": "發布管道" },
+      "release": { "text": "版本" },
+      "release-calendar": { "text": "版本日曆" },
+      "release-channels": { "text": "版本頻道" },
       "run-previews": { "text": "執行預覽" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 快取" },
       "rust-project": { "text": "Rust 專案" },
+      "sandboxes": { "text": "沙盒" },
       "scim-provisioning": { "text": "SCIM 佈建" },
       "server-api": { "text": "伺服器 API" },
       "single-sign-on": { "text": "單一登入" },
@@ -75,12 +88,12 @@
           "cancel-button-aria-label": "取消"
         },
         "start-screen": {
-          "recent-searches-title": "搜尋記錄",
-          "no-recent-searches-text": "沒有搜尋記錄",
-          "save-recent-search-button-title": "儲存至搜尋記錄",
-          "remove-recent-search-button-title": "從搜尋記錄移除",
-          "favorite-searches-title": "我的最愛",
-          "remove-favorite-search-button-title": "從我的最愛移除"
+          "recent-searches-title": "搜尋紀錄",
+          "no-recent-searches-text": "沒有搜尋紀錄",
+          "save-recent-search-button-title": "儲存至搜尋紀錄",
+          "remove-recent-search-button-title": "從搜尋紀錄移除",
+          "favorite-searches-title": "我的收藏",
+          "remove-favorite-search-button-title": "從我的收藏移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
@@ -124,7 +137,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "更新日誌"
+          "text": "更新紀錄"
         }
       }
     }
@@ -166,7 +179,7 @@
           "text": "範例"
         },
         "libraries": {
-          "text": "函式庫"
+          "text": "程式庫"
         },
         "migrations": {
           "text": "遷移",
@@ -222,13 +235,13 @@
           "text": "語言"
         },
         "releases": {
-          "text": "版本發布"
+          "text": "版本"
         },
         "cli": {
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "紀錄"
+              "text": "記錄"
             }
           }
         }
@@ -403,7 +416,7 @@
                   "text": "動態設定"
                 },
                 "templates": {
-                  "text": "模板"
+                  "text": "範本"
                 },
                 "plugins": {
                   "text": "外掛"
@@ -534,7 +547,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理編碼",
+          "text": "代理式編碼",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -560,7 +573,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git 託管平台",
+              "text": "Git 平台",
               "items": {
                 "github": {
                   "text": "GitHub"

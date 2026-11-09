@@ -9,6 +9,18 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "pulse_enabled?/1" do
+    test "requires explicit account enrollment in every environment" do
+      account = %Account{id: 42}
+
+      for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :pulse, [for: ^account] -> enabled end)
+        assert FeatureFlags.pulse_enabled?(account) == enabled
+      end
+    end
+  end
+
   describe "app_flags/1" do
     test "lists ai only for users with the flag in production" do
       user = %Tuist.Accounts.User{id: 42}

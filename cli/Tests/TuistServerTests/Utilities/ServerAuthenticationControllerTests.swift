@@ -947,6 +947,53 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
+    ) func executeRefresh_renews_an_expiring_amp_orb_session() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        // The orb's `amp orb id-token` output, supplied through the variable the authenticator reads first.
+        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let expiringToken = try JWT.make(expiryDate: date.addingTimeInterval(+10), typ: "access", type: "account")
+            let validToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access", type: "account")
+            let renewedToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("amp-identity-token"), serverURL: .value(serverURL))
+                .willReturn(renewedToken.token)
+
+            // When
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: validToken.token, refreshToken: nil)
+            )
+            let validResult = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: expiringToken.token, refreshToken: nil)
+            )
+            let expiringResult = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+
+            // Then
+            #expect(validResult?.value == .account(try JWT.parse(validToken.token)))
+            #expect(expiringResult?.value == .account(try JWT.parse(renewedToken.token)))
+            verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+            verify(serverCredentialsStore)
+                .store(credentials: .value(ServerCredentials(accessToken: renewedToken.token)), serverURL: .value(serverURL))
+                .called(1)
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
     ) func executeRefresh_preserves_credentials_when_oauth_refresh_token_is_rejected() async throws {
         let subject = ServerAuthenticationController(
             refreshOAuthTokenService: refreshOAuthTokenService,

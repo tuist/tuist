@@ -1,7 +1,7 @@
 ---
 {
   "title": "Get started",
-  "titleTemplate": ":title · Get started · Guides · Tuist",
+  "titleTemplate": ":title · Guides · Tuist",
   "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, Rust, Bazel, or Once."
 }
 ---

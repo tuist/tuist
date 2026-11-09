@@ -288,7 +288,10 @@ fn tempo_search_add<'a>(env: Env<'a>, search: ResourceArc<Search>, blob: Binary<
     result(
         env,
         (|| {
-            let mut lock = search.0.try_lock().map_err(|_| Error::Budget)?;
+            let mut lock = search
+                .0
+                .try_lock()
+                .map_err(|_| Error::budget("resource_busy", 0, 1))?;
             let state = lock.as_mut().ok_or(Error::Invalid)?;
             let answer = state.capture(blob, false);
             if answer.is_err() {
@@ -311,7 +314,10 @@ fn tempo_search_add_unplanned<'a>(
     result(
         env,
         (|| {
-            let mut lock = search.0.try_lock().map_err(|_| Error::Budget)?;
+            let mut lock = search
+                .0
+                .try_lock()
+                .map_err(|_| Error::budget("resource_busy", 0, 1))?;
             let state = lock.as_mut().ok_or(Error::Invalid)?;
             let answer = if state.context_phase && state.roots.is_none() {
                 state.capture(blob, true)
@@ -330,7 +336,10 @@ fn tempo_search_plan_seal<'a>(env: Env<'a>, search: ResourceArc<Search>) -> Term
     result(
         env,
         (|| {
-            let mut lock = search.0.try_lock().map_err(|_| Error::Budget)?;
+            let mut lock = search
+                .0
+                .try_lock()
+                .map_err(|_| Error::budget("resource_busy", 0, 1))?;
             let state = lock.as_mut().ok_or(Error::Invalid)?;
             let answer = (|| {
                 if state.context_phase {
@@ -366,7 +375,10 @@ fn tempo_search_plan_hashes<'a>(
     result(
         env,
         (|| {
-            let mut lock = search.0.try_lock().map_err(|_| Error::Budget)?;
+            let mut lock = search
+                .0
+                .try_lock()
+                .map_err(|_| Error::budget("resource_busy", 0, 1))?;
             let state = lock.as_mut().ok_or(Error::Invalid)?;
             if !state.context_phase
                 || state.plan_hashes.is_some()
@@ -399,7 +411,10 @@ fn tempo_search_plan_may_match<'a>(
     result(
         env,
         (|| {
-            let mut lock = search.0.try_lock().map_err(|_| Error::Budget)?;
+            let mut lock = search
+                .0
+                .try_lock()
+                .map_err(|_| Error::budget("resource_busy", 0, 1))?;
             let state = lock.as_mut().ok_or(Error::Invalid)?;
             if !state.context_phase {
                 *lock = None;
@@ -433,7 +448,7 @@ fn finish<'a>(env: Env<'a>, search: ResourceArc<Search>) -> Res<(Binary<'a>, Opt
     let mut state = search
         .0
         .try_lock()
-        .map_err(|_| Error::Budget)?
+        .map_err(|_| Error::budget("resource_busy", 0, 1))?
         .take()
         .ok_or(Error::Invalid)?;
     if state.roots.is_some() {
@@ -449,7 +464,7 @@ fn finish<'a>(env: Env<'a>, search: ResourceArc<Search>) -> Res<(Binary<'a>, Opt
     let mut count = Counter::new(MAX);
     state.write(&mut count, &rows);
     if count.len() > MAX {
-        return Err(Error::Budget);
+        return Err(Error::budget("result_bytes", MAX, count.len()));
     }
     let mut out = crate::out::BinSink::with_capacity(count.len());
     state.write(&mut out, &rows);
@@ -537,7 +552,7 @@ pub(crate) fn validate_row<'a>(
     payload: &'a [u8],
 ) -> Res<crate::json_read::RawFields<'a>> {
     if payload.len() > MAX {
-        return Err(Error::Budget);
+        return Err(Error::budget("payload_bytes", MAX, payload.len()));
     }
     let fields = crate::trace_metadata::validated_fields(payload).map_err(|_| Error::Invalid)?;
     validate_fields(id, start, end, &fields)?;
@@ -552,7 +567,7 @@ pub(crate) fn validate_row_parts<'a>(
     payload: &'a str,
 ) -> Res<crate::trace_metadata::Parts<'a>> {
     if payload.len() > MAX {
-        return Err(Error::Budget);
+        return Err(Error::budget("payload_bytes", MAX, payload.len()));
     }
     let parts = crate::trace_metadata::validated_parts_utf8(payload).map_err(|_| Error::Invalid)?;
     validate_fields(id, start, end, &parts.0)?;
@@ -610,7 +625,7 @@ impl State {
             if self.roots.as_ref().is_some_and(|q| q.duration) {
                 self.retained += id.len() + 48;
                 if self.retained > MAX {
-                    return Err(Error::Budget);
+                    return Err(Error::budget("retained_bytes", MAX, self.retained));
                 }
             }
         }
@@ -781,7 +796,7 @@ impl State {
                 let mut count = Counter::new(MAX);
                 sample(&mut count, start, end, &sid, &attrs);
                 if count.len() > MAX {
-                    return Err(Error::Budget);
+                    return Err(Error::budget("sample_bytes", MAX, count.len()));
                 }
                 let mut json = Vec::with_capacity(count.len());
                 sample(&mut json, start, end, &sid, &attrs);
@@ -801,7 +816,7 @@ impl State {
             }
         }
         if self.retained > MAX {
-            return Err(Error::Budget);
+            return Err(Error::budget("retained_bytes", MAX, self.retained));
         }
         Ok(())
     }
@@ -832,7 +847,7 @@ impl State {
             let mut json = Vec::new();
             sample(&mut json, start, end, &sid, &evaluation.attributes);
             if json.len() > MAX {
-                return Err(Error::Budget);
+                return Err(Error::budget("sample_bytes", MAX, json.len()));
             }
             Some(json)
         } else {
@@ -840,7 +855,7 @@ impl State {
         };
         self.retained += 48 + sample.as_ref().map_or(0, Vec::len);
         if self.retained > MAX {
-            return Err(Error::Budget);
+            return Err(Error::budget("retained_bytes", MAX, self.retained));
         }
         self.traces
             .get_mut(id)
@@ -882,9 +897,19 @@ impl State {
                 .len()
                 .checked_mul(relations.len())
                 .and_then(|units| self.expression_work.checked_add(units))
-                .ok_or(Error::Budget)?;
+                .ok_or_else(|| {
+                    Error::budget(
+                        "structural_work",
+                        crate::tempo_expression::WORK_MAX,
+                        usize::MAX,
+                    )
+                })?;
             if self.expression_work > crate::tempo_expression::WORK_MAX {
-                return Err(Error::Budget);
+                return Err(Error::budget(
+                    "structural_work",
+                    crate::tempo_expression::WORK_MAX,
+                    self.expression_work,
+                ));
             }
             let spans: Vec<_> = links.iter().map(|l| (l.id, l.parent, l.mask)).collect();
             let kept = crate::tempo_expression::structural(relations, &spans);
@@ -909,9 +934,16 @@ impl State {
         self.input_bytes = self
             .input_bytes
             .checked_add(blob.len())
-            .ok_or(Error::Budget)?;
-        if self.input_bytes > INPUT_MAX || self.input_segments >= 1024 {
-            return Err(Error::Budget);
+            .ok_or_else(|| Error::budget("input_bytes", INPUT_MAX, usize::MAX))?;
+        if self.input_bytes > INPUT_MAX {
+            return Err(Error::budget("input_bytes", INPUT_MAX, self.input_bytes));
+        }
+        if self.input_segments >= 1024 {
+            return Err(Error::budget(
+                "input_segments",
+                1024,
+                self.input_segments + 1,
+            ));
         }
         self.input_segments += 1;
         let blob = crate::erlang_bytes::from_binary(blob);

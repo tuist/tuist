@@ -33,8 +33,14 @@ defmodule Tuist.Sandboxes.AmpOrbs do
 
   require Logger
 
-  @cache_scopes ["account:cache:read", "project:cache:read"]
-  @cache_token_ttl_hours 6
+  @tuist_scopes [
+    "account:cache:read",
+    "project:cache:read",
+    "project:builds:write",
+    "project:tests:write",
+    "project:runs:write"
+  ]
+  @tuist_token_ttl_hours 6
 
   # The orb types a managed provider offers. An account administrator adds
   # these names under Orb types in Amp's provider settings; Amp passes the
@@ -216,6 +222,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       params
       |> Map.take([:platform, :template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
+      |> Map.put(:amp_base_snapshot_id, snapshot_id(params))
 
     Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
   end
@@ -258,7 +265,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     env =
       Map.merge(
         %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")},
-        cache_env(account, sandbox)
+        tuist_env(account, sandbox)
       )
 
     # Credentials travel in the exec environment, never in shell source,
@@ -286,15 +293,17 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp bootstrap_timeout(%Sandbox{platform: :darwin}), do: 120_000
   defp bootstrap_timeout(_sandbox), do: 15_000
 
-  # Agents run arbitrary code in the guest, so it gets a read-only cache
-  # credential for its own account and nothing else the API would accept.
-  # The token is stateless and expires on its own; each spawn mints a fresh
-  # one. The endpoint is the in-cluster cache a Linux runner on the same Node
-  # would use, absent when the account has none.
-  defp cache_env(account, sandbox) do
+  # Agents run arbitrary code in the guest, so its account credential reads
+  # the cache but cannot write it, publish previews or bundles, or administer
+  # anything. Like CI, it reports builds, tests and runs, so an agent's builds
+  # show up in Tuist; those write scopes also read the account's builds, tests
+  # and runs. The token is stateless and expires on its own; each spawn mints
+  # a fresh one. The endpoint is the in-cluster cache a Linux runner on the
+  # same Node would use, absent when the account has none.
+  defp tuist_env(account, sandbox) do
     {:ok, token, _claims} =
-      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @cache_scopes, "all_projects" => true},
-        ttl: {@cache_token_ttl_hours, :hour}
+      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @tuist_scopes, "all_projects" => true},
+        ttl: {@tuist_token_ttl_hours, :hour}
       )
 
     env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}

@@ -292,8 +292,11 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
      `remote_execution_memory_gb_limit` (16 and 32 by default). Change them in
      the Remote execution concurrency card of the ops account page.
    - **Image:** the `bazel` template tag that the most connected execution
-     daemons report ready. Workers roll out `OnDelete`, so it changes only when
-     an operator replaces them, and while they are replaced the majority wins.
+     daemons are configured with (`TEMPLATE_TAG`) and have ready. Daemons keep
+     older tags ready so they take work mid-rollout; those count only for a
+     daemon whose own tag is not ready yet. Workers roll out `OnDelete`, so it
+     changes only when an operator replaces them, and while they are replaced
+     the majority wins.
    - **CAS:** the account's Linux runner cache
      (`Tuist.Kura.runner_cache_endpoint_url/2`), the Kura instance a Linux CI
      job of the account uploads into, as `grpc(s)://` on the same port. The
@@ -333,7 +336,16 @@ reads three sources, none labelled by account or project:
   `reapi_gateway_action_phase_seconds{phase}` splits each executed action into
   `queued` (admission to worker start, including VM creation), `input_fetch`,
   `execution` and `output_upload` from the executor's metadata; gateways also
-  log one `action phases:` line per action with the same durations.
+  log one `action phases:` line per action with the same durations. When
+  `input_fetch` takes 5 s or more, the line ends with the executor's
+  `cas_reads` summary. The executor carries it in the result's
+  `auxiliary_metadata`, and the gateway removes it before answering the client
+  or publishing to the action cache, so it is never stored. It has input reads
+  per RPC (`batch`, `stream`, `seeded`) with
+  calls, blobs, bytes and summed milliseconds, the five slowest reads with
+  size, duration, time to first byte for streams, gRPC code and serving peer
+  address, the CAS endpoint and whether the prepared connection was used. It
+  never contains digests.
 - The server exports `tuist_remote_execution_*` through PromEx: submissions
   (accepted, deduplicated, `queue_full`), operation outcomes, duration and queue
   time, VM preparation time by outcome, and lease outcomes. Leased executions

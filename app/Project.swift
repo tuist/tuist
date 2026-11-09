@@ -78,7 +78,7 @@ let bundleId =
     default: "dev.tuist.app"
     }
 
-let threadRichUI = Environment.threadRichUi.getBoolean(default: false)
+let jamRichUI = Environment.jamRichUi.getBoolean(default: false)
 
 let project = Project(
     name: "TuistApp",
@@ -129,7 +129,7 @@ let project = Project(
             resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ] + (threadRichUI ? [.folderReference(path: "../.build/nsh-threads/ui", inclusionCondition: .when([.ios]))] : [])),
+            ] + (jamRichUI ? [.folderReference(path: "../.build/nsh-jams/ui", inclusionCondition: .when([.ios]))] : [])),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -139,6 +139,7 @@ let project = Project(
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
                 .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
+                .target(name: "TuistNavigation", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
@@ -150,8 +151,8 @@ let project = Project(
                 // and leaves the macOS build unable to resolve the module.
                 .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
-            ] + (threadRichUI ? [.xcframework(
-                path: "../.build/nsh-threads/nsh/embed/ios/NativeShell.xcframework",
+            ] + (jamRichUI ? [.xcframework(
+                path: "../.build/nsh-jams/nsh/embed/ios/NativeShell.xcframework",
                 condition: .when([.ios])
             )] : []),
             settings: .settings(
@@ -187,6 +188,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistSimulator", path: "../"),
+                .target(name: "TuistNavigation"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
@@ -210,6 +212,25 @@ let project = Project(
                 .project(target: "TuistSimulator", path: "../"),
                 .external(name: "Mockable"),
             ]
+        ),
+        .target(
+            name: "TuistNavigation",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "dev.tuist.navigation",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            sources: ["Sources/TuistNavigation/**"]
+        ),
+        .target(
+            name: "TuistNavigationTests",
+            destinations: [.mac, .iPhone],
+            product: .unitTests,
+            bundleId: "dev.tuist.navigation-tests",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistNavigationTests/**"],
+            resources: ["Fixtures/Navigation/routes.json"],
+            dependencies: [.target(name: "TuistNavigation")]
         ),
         .target(
             name: "TuistNoora",
@@ -307,6 +328,7 @@ let project = Project(
             sources: ["Tests/TuistNotificationsTests/**"],
             dependencies: [
                 .target(name: "TuistNotifications"),
+                .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
@@ -346,6 +368,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -376,11 +399,17 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
                 .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistNavigation",
+            buildAction: .buildAction(targets: [.target("TuistNavigation")]),
+            testAction: .targets([.testableTarget(target: "TuistNavigationTests")])
+        ),
         .scheme(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),

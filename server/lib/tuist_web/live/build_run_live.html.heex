@@ -1,7 +1,7 @@
 <%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
   {TuistWeb.GradleBuildLive.render(assigns)}
 <% else %>
-  <div id="build-run">
+  <div id="build-run" phx-hook="PageFavicon" data-favicon-status={@run.status}>
     <.button
       label={dgettext("dashboard_builds", "Build Runs")}
       data-part="back-button"

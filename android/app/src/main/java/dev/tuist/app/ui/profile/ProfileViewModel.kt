@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,6 +29,7 @@ class ProfileViewModel @Inject constructor(
 
     private val _account = MutableStateFlow<Account?>(null)
     val account: StateFlow<Account?> = _account.asStateFlow()
+    val signOutFailed = MutableStateFlow(false)
 
     val isAIEnabled: StateFlow<Boolean> = featureFlags.enabled
         .map { FeatureFlag.AI in it }
@@ -41,9 +43,16 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun signOut() {
+        val session = authRepository.session.value
         viewModelScope.launch {
-            pushRegistrationManager.signOut()
-            authRepository.signOut()
+            signOutFailed.value = false
+            try {
+                pushRegistrationManager.changeProfile { authRepository.signOut(session) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                signOutFailed.value = true
+            }
         }
     }
 }

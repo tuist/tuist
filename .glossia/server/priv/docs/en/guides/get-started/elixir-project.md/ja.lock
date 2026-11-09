@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0c12c8de625ae7b5b240e67605d388b6032ff9cabc749a87306dd981728dd116",
+  "hash": "71eabd1bc2101af545a5a2685640014a04f6e31ca253cccf1e3f2a93051e6461",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "6578df79fbd779eed0518c800a961c9a7056343257d4c0cb394af1767ed52208"
                 },
                 "## Set up Tuist {#set-up-tuist}": {
-                  "content_hash": "aca1f81db33a205ca72acd10a28f5da1dc650a6b92535f93dc1ddbfe0e824755"
+                  "content_hash": "8cfc77d497f1c68e7c2211d78fe8d7d37d85b4e39900cc01000c84072d9dfb5c"
                 },
                 "## Test insights": {
                   "content_hash": "82b834412b2e2caeb45afa4fe6ce7d88314922537a5ee9195cd721788e69c212"
@@ -44,11 +44,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "82c741482a8cb06472049aed1db3f58bae30eb64d772252a4111471ad8b12007",
+          "hash": "7cff534437ce53e766f4273761380448aec2003a7593cf1caeed8a0316766e98",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/elixir-project.md",
           "metadata": {
-            "content_hash": "4933f90f6ac5c3bb17e656626ff458261ee9a3559818e1ddcffa8dce9df11788"
+            "content_hash": "40e25be41c8a121c0ca1a8bb00eff564c1e1307c6d67f4094e814c533b89ed6f"
           }
         },
         {
@@ -109,7 +109,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -128,7 +128,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -157,11 +157,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -262,21 +262,21 @@
             }
           ],
           "details": {},
-          "hash": "6b8a70db740386c62aab348490ba47eeee9b6a4fadbeb30838ecc587b4ff0012",
+          "hash": "516152b3ea1814bd6f5995a82cae5954241a5c6f78fbdb87a99a2e14cf8f8bef",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "0c12c8de625ae7b5b240e67605d388b6032ff9cabc749a87306dd981728dd116",
+      "hash": "71eabd1bc2101af545a5a2685640014a04f6e31ca253cccf1e3f2a93051e6461",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/elixir-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9463b46234d90738f11fe802dee3bc5c4da374d7b3b172aa3f0ae7a2717ce9de",
+  "output_hash": "3673a0ff9e81ccb7591f8f987a676ddb03a69de8bd9da73fd923c58ea795c30a",
   "output_path": "server/priv/docs/ja/guides/get-started/elixir-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -300,8 +300,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b733764844499811e416b12ea58c83090dabc0f6",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/get-started/elixir-project.md",
-  "translated_at": "2026-11-02T15:21:30.680329Z",
-  "translation_session_id": "01a19cd5-7349-71ea-bf79-3b644843be50"
+  "translated_at": "2026-11-06T21:25:58.794236Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

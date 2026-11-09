@@ -19,6 +19,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init({:account, :runners}), do: {:account, :runners}
   def init({:account, :runners, :update}), do: {:account, :runners, :update}
   def init({:account, :account, :update}), do: {:account, :account, :update}
+  def init({:account, :sandboxes, :use}), do: {:account, :sandboxes, :use}
   def init({:project, :project, :update}), do: {:project, :project, :update}
 
   def init(opts) when is_list(opts) do
@@ -42,6 +43,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def call(conn, {:account, :account, action}) when action == :update do
     authorize_account(conn, :account, action)
+  end
+
+  def call(conn, {:account, :sandboxes, :use}) do
+    authorize_account(conn, :sandboxes, :use)
   end
 
   def call(conn, {:project, :project, action}) when action == :update do

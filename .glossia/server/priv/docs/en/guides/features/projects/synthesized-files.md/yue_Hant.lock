@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4eab2cdd49b9c45a261963ab372831df06d303a71675b7472c9b059c46056dd6",
+  "hash": "678943fbb7de915581561ef6b196103e26e4f91c77ea1a4f12865142d0897958",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,19 +20,19 @@
                   "content_hash": "88d0f0dcb99678ccf3405a21a1bb858060068b62ec26c87ded63c965ae447fc0"
                 },
                 "## Resources {#resources}": {
-                  "content_hash": "f99a3ac8d1f858a50f94867e90fe598ba0c400fe84df7614e0febe0575d5f6f8"
+                  "content_hash": "68ea91acb674c761b0411fc133dacd33228f79127bd0c54c7816e7df8de14ad0"
                 },
                 "## Target resources {#target-resources}": {
                   "content_hash": "20fa191a643c34205fa3dc6583580af275eb3c421e14b4508e5720fdf8b9c058"
                 },
+                "### Custom templates {#custom-templates}": {
+                  "content_hash": "a7c39ac21e5ac5201ffdf84173e49d0ab05f013fc6ebf510620fa1e18d087159"
+                },
                 "### Objective-C {#objectivec}": {
-                  "content_hash": "45f877da3556d37c85c714bf78a9e0fd69d345f3890e4719aa6037d67e38ce73"
+                  "content_hash": "be80fd48fa05665c03c6d2328d52164d1fdd02deac0b72a5c0af3e8df641b221"
                 },
                 "### Swift {#swift}": {
                   "content_hash": "85dea31ae7d70cde74c4c2faed63349fb5dbc7762394b678a1e7ff4ee4b60d98"
-                },
-                "#### Custom templates {#custom-templates}": {
-                  "content_hash": "e40abbfe07f8f3e0a2d60824a9a0e3c2f696116a638870017bdd4b554e3f3856"
                 },
                 "Preamble": {
                   "content_hash": "002d8305751f25283cfcc69421a8f93d0288b7943ac849122433e70977b6f030"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9b577193f75c8231e13866c455262629a87eeb19e07b05361c50faa47d575354",
+          "hash": "33b8f365aa7d80856e1a069654297ba29ce37fd7b3d1888b0e0747f3504344e2",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/synthesized-files.md",
           "metadata": {
-            "content_hash": "52b59da05cfafd93cbad1807b9682ef748955d8fb7287d5500df80dc6e9576d6"
+            "content_hash": "eb51c36d6e8652f0832b012498194ef8fe77787ae264bd003bd8042c1524ea15"
           }
         },
         {
@@ -106,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -125,7 +125,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +154,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -235,21 +235,21 @@
             }
           ],
           "details": {},
-          "hash": "6e8d735033da15c6be6f8dee85419e5fca0be9ddad6ede7065915161eb139cdb",
+          "hash": "5eff9e76c7215323aebf7533bc5419e1ef605b6b70758aaa1fe9f3fa83b84f57",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "4eab2cdd49b9c45a261963ab372831df06d303a71675b7472c9b059c46056dd6",
+      "hash": "678943fbb7de915581561ef6b196103e26e4f91c77ea1a4f12865142d0897958",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/synthesized-files.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "013967ee5be40ff245f3b1b10390ae16b8400bf21482090d30e7dda87b8a8167",
+  "output_hash": "2e1b223de12ba5d11facfc0729ffde198a5eb5696bb08564aedcf7fbe834e81a",
   "output_path": "server/priv/docs/yue_Hant/guides/features/projects/synthesized-files.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4a02c86e605053e66f2d53d848e4dc676960522d",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/synthesized-files.md",
-  "translated_at": "2026-10-30T18:11:09.874727Z",
-  "translation_session_id": "01a18e00-a41b-799c-a557-85bc54978004"
+  "translated_at": "2026-11-06T18:57:50.712428Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

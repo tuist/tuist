@@ -6,6 +6,25 @@ defmodule TuistWeb.RouterTest do
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  test "verified legacy URLs redirect permanently with their raw query", %{conn: conn} do
+    for {old_path, destination} <- [
+          {"/es/build-insights", "/es/docs/guides/features/build-insights"},
+          {"/ko/flaky-tests", "/ko/tests"},
+          {"/zh_Hant/selective-testing", "/zh_Hant/docs/guides/features/selective-testing"},
+          {"/blog/2025/11/27/teaching-ai-to-r", "/blog/2025/11/27/teaching-ai-to-read-xcode-builds"},
+          {"/pt/docs/guides/features/projects/dependencies", "/en/docs/guides/features/projects/dependencies"},
+          {"/pt/docs/guides/features/projects/synthesized-files", "/en/docs/guides/features/projects/synthesized-files"},
+          {"/pt/docs/guides/develop/projects/adoption/migrate/swift-package",
+           "/en/docs/guides/features/projects/adoption/migrate/swift-package"},
+          {"/ar/docs/references/examples/generated_app_with_build_rules",
+           "/en/docs/references/examples/generated-projects/generated_app_with_build_rules"}
+        ],
+        query <- ["", "?utm_source=audit&x=a%2Fb&x=c+d"] do
+      assert conn |> get(old_path <> query) |> redirected_to(301) == destination <> query
+      assert conn |> head(old_path <> query) |> redirected_to(301) == destination <> query
+    end
+  end
+
   test "blog pages allow privacy-enhanced YouTube embeds and fullscreen without enabling unrelated features",
        %{conn: conn} do
     conn = get(conn, ~p"/blog")
@@ -84,9 +103,14 @@ defmodule TuistWeb.RouterTest do
   end
 
   test "legacy docs routes redirect to the locale-first docs routes", %{conn: conn} do
-    conn = get(conn, "/docs/en/guides/install-tuist?utm_source=test")
+    query = "?utm_source=test&filter=a%2Fb&filter=c+d"
 
-    assert redirected_to(conn, 301) == "/en/docs/guides/install-tuist?utm_source=test"
+    for {old_path, destination} <- [
+          {"/docs/en/guides/install-tuist", "/en/docs/guides/install-tuist"},
+          {"/docs/en/guides/features/bundle-size", "/en/docs/guides/features/bundle-insights"}
+        ] do
+      assert conn |> get(old_path <> query) |> redirected_to(301) == destination <> query
+    end
   end
 
   test "bare docs routes redirect to the English docs overview", %{conn: conn} do

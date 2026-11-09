@@ -154,7 +154,11 @@ class CertificateTrustTest {
                 if (request.path!!.endsWith(".png")) MockResponse().setHeader("Content-Type", "image/png").setBody(Buffer().write(png))
                 else MockResponse().setBody("ok")
         }
-        val tokens = mockk<TokenStorage> { every { getAccessToken() } returns "test-only-token" }
+        val tokens = mockk<TokenStorage> {
+            every { getAccessToken() } returns "test-only-token"
+            every { snapshot() } returns TokenStorage.Session("profile", 0)
+            every { isCurrent(any()) } returns true
+        }
         try {
             // Substitute only trust inputs; keep the policy, production client factories, TLS and Coil fetch real.
             for (deny in listOf(emptySet<String>()) + path.map { setOf(CertificateTrust.spkiHash(it)) } + listOf(emptySet())) {
@@ -163,7 +167,7 @@ class CertificateTrustTest {
                 mockkObject(CertificateTrust)
                 every { CertificateTrust.clientBuilder(any(), any()) } answers { policyClient.newBuilder() }
                 val plain = NetworkModule.providePlainOkHttpClient()
-                val api = NetworkModule.provideOkHttpClient(RequestIdInterceptor(), AuthInterceptor(tokens), mockk())
+                val api = NetworkModule.provideOkHttpClient(RequestIdInterceptor(), AuthInterceptor(tokens), SessionGuardInterceptor(tokens), mockk())
                 val loader = TuistApplication().newImageLoader(RuntimeEnvironment.getApplication())
                 try {
                     for (client in listOf(plain, api)) {

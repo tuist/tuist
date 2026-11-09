@@ -36,6 +36,7 @@ defmodule Tuist.MCP.Components.Tools.AISubscriptionToolsTest do
     end
 
     assert DisconnectAISubscription.annotations().destructiveHint
+    assert ConnectClaudeSubscription.annotations().destructiveHint
     assert ConnectClaudeSubscription.description() =~ "secret"
     assert ConnectClaudeSubscription.input_schema()["properties"]["token"]["description"] =~ "Secret"
   end

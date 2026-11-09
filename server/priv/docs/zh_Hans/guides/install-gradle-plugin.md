@@ -7,13 +7,13 @@
 ---
 # 安装 Gradle 插件 {#install-the-gradle-plugin}
 
-Tuist 提供了一个 Gradle 插件，可与你的 Gradle 项目集成，以启用<.localized_link href="/guides/features/cache/gradle-cache">远程构建缓存</.localized_link>和<.localized_link href="/guides/features/build-insights/gradle">构建洞察</.localized_link>等功能。本指南将带你完成插件的安装与配置。
+Tuist 提供了一个 Gradle 插件，可与你的 Gradle 项目集成，以启用<.localized_link href="/guides/features/cache/gradle-cache">远程构建缓存</.localized_link>和<.localized_link href="/guides/features/build-insights/gradle">构建洞察</.localized_link>等功能。本指南将引导你完成插件的安装和配置。
 
 该插件需要 Gradle 8.12.1 或更高版本。
 
 ## 1. 初始化 Tuist {#initialize-tuist}
 
-在 Gradle 项目根目录下运行以下命令：
+在 Gradle 项目根目录中运行以下命令：
 
 ::: code-group
 
@@ -27,17 +27,13 @@ tuist init
 <!-- -->
 :::
 
-该命令将引导你完成身份验证、创建或选择 Tuist 项目，并为你的 Gradle 项目生成配置。
+该命令将引导你完成身份验证、创建或选择 Tuist 项目，以及为 Gradle 项目生成配置。
 
 ## 2. 应用插件 {#apply-the-plugin}
 
 运行 `tuist init` 后，你需要按照命令输出的指示，将 Tuist 插件添加到 `settings.gradle.kts` 中：
 
-```kotlin
-plugins {
-    id("dev.tuist") version "0.10.0"
-}
-```
+<!-- @snippet: ./_gradle-plugin-block -->
 
 ## 3. 为你的团队和持续集成进行身份验证 {#authenticate}
 
@@ -49,7 +45,7 @@ plugins {
 tuist auth login
 ```
 
-当你使用自托管或本地 Tuist 服务器时，请传入 `tuist.toml` 中配置的相同基础 URL：
+当你使用自托管或本地 Tuist 服务器时，请传入在 `tuist.toml` 中配置的相同基础 URL：
 
 ```bash
 tuist auth login --url http://localhost:8080
@@ -58,11 +54,11 @@ tuist auth whoami --url http://localhost:8080
 
 保持主机名拼写一致。例如，为 `localhost` 存储的登录信息与为 `127.0.0.1` 存储的登录信息是分开的。
 
-对于自动化 runner，请遵循 <.localized_link href="/guides/integrations/continuous-integration#authentication">持续集成身份验证指南</.localized_link> 来为你的环境配置身份验证。
+对于自动化 runner，请遵循 <.localized_link href="/guides/server/authentication#continuous-integration">持续集成身份验证指南</.localized_link> 来为你的环境配置身份验证。
 
 ## 配置缓存和隔离项目 {#configuration-cache-and-isolated-projects}
 
-该插件支持 Gradle 的配置缓存和[隔离项目](https://docs.gradle.org/current/userguide/isolated_projects.html)。请将插件保留在 `settings.gradle.kts` 中；无需在每个子项目中单独应用它。
+该插件支持 Gradle 的配置缓存和 [隔离项目](https://docs.gradle.org/current/userguide/isolated_projects.html)。请将插件保留在 `settings.gradle.kts` 中；无需在每个子项目中单独应用它。
 
 Tuist 不会自动启用任一功能。要 opting in，请将以下内容添加到 `gradle.properties` 中：
 
@@ -75,13 +71,13 @@ org.gradle.unsafe.isolated-projects=true
 
 ## 发布预览 {#publish-previews}
 
-对于 Android 应用模块，该插件会注册 `tuistShare<Variant>` 任务：
+对于 Android 应用程序模块，该插件会注册 `tuistShare<Variant>` 任务：
 
 ```bash
 ./gradlew :app:tuistShareDebug --track nightly
 ```
 
-该任务会构建并验证单个已签名的 APK，然后使用你现有的 Tuist 身份验证将其发布。调用该任务即为 opting in：普通的 `assemble`、`build` 和测试任务不会发布预览。无需 CLI 上传步骤。有关资格、缓存重放和失败行为，请参阅 <.localized_link href="/guides/features/previews/gradle">Gradle 预览</.localized_link>。
+该任务会构建并验证单个签名 APK，然后使用你现有的 Tuist 身份验证发布它。调用该任务即为 opting in：普通的 `assemble`、`build` 和测试任务不会发布预览。无需 CLI 上传步骤。有关资格、缓存重放和失败行为，请参阅 <.localized_link href="/guides/features/previews/gradle">Gradle 预览</.localized_link>。
 
 ## 配置参考 {#configuration-reference}
 
@@ -91,8 +87,8 @@ org.gradle.unsafe.isolated-projects=true
 | --- | --- | --- | --- |
 | `project` | `String?` | `null`（可选） | 采用 `account/project` 格式的项目标识符。如果未设置，插件将从 `tuist.toml` 中读取。 |
 | `url` | `String?` | `null` | Tuist 服务器的基础 URL。如果未设置，则默认为 `"https://tuist.dev"` 或 `tuist.toml` 中定义的值。 |
-| `uploadInBackground` | `Boolean?` | `null` | 是否在后台上传构建和测试洞察。当为 `null`（默认值）时，本地构建会在后台上传，而持续集成 runner 会在前台上传。 |
-| `stressNewTests.mode` | `String?` | `null` | `"report"` 或 `"enforce"`。重新运行构建新增的测试用例，并标记任何被证明不稳定的用例；请参阅 <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">压力测试新测试</.localized_link>。未设置时关闭。 |
+| `uploadInBackground` | `Boolean?` | `null` | 是否在后台上传构建和测试洞察。当为 `null`（默认值）时，上传会在本地构建时在后台运行，在持续集成 runner 上在前台运行。 |
+| `stressNewTests.mode` | `String?` | `null` | `"report"` 或 `"enforce"`。重新运行构建添加的测试用例，并标记任何被证明不稳定的用例；请参阅 <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">压力测试新测试</.localized_link>。未设置时关闭。 |
 
 对于使用 `http://` URL 的本地服务器，仅在该本地配置中允许不安全协议：
 
@@ -109,7 +105,7 @@ tuist {
 > [!NOTE]
 > **Tuist.toml**
 >
-> 建议通过项目根目录中的 `tuist.toml` 文件来配置 `project`（以及可选的 `url`）。这样，配置将在 Tuist 命令行界面和 Gradle 插件之间共享。如有需要，你仍可以在 `settings.gradle.kts` 中覆盖这些值。
+> 配置 `project`（以及可选的 `url`）的推荐方式是通过项目根目录中的 `tuist.toml` 文件。这样，配置就可以在 Tuist 命令行界面和 Gradle 插件之间共享。如果需要，你仍然可以在 `settings.gradle.kts` 中覆盖这些值。
 
 ```toml
 project = "account/project"
@@ -122,7 +118,7 @@ url = "https://tuist.dev"
 
 ## 后续步骤 {#next-steps}
 
-安装并配置插件后，你可以启用：
+插件安装并配置完成后，你可以启用：
 
 - <.localized_link href="/guides/features/cache/gradle-cache">远程构建缓存</.localized_link>，以便在团队和持续集成 runner 之间共享构建产物。
 - <.localized_link href="/guides/features/build-insights/gradle">构建洞察</.localized_link>，用于在 Tuist 仪表板中跟踪任务耗时和缓存行为。

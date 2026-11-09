@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account opt-in to Pulse; configured tenant ownership and membership still apply."
+  def pulse_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :pulse,
+      account,
+      flag_enabled?(:pulse, account, flags)
+    )
+  end
+
   @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
   def bazel_remote_execution_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
