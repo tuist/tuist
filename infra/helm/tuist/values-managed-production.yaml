@@ -578,8 +578,10 @@ kuraVolumesCSI:
   thinRegions: [eu-west, sa-west, us-central]
   # us-central is converted host by host through the temporary third box
   # (9bg76-s2kpr): every instance there is on thin once its source host is
-  # selected, and new instances land only on thin-ready nodes.
-  thinEnrolledRegions: [us-central]
+  # selected, and new instances land only on thin-ready nodes. sa-west is
+  # converted through gmn2k: k999s's instances move there, k999s is
+  # reinstalled as lvm-v1, then gmn2k's remaining legacy instances move to it.
+  thinEnrolledRegions: [sa-west, us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
