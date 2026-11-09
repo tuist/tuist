@@ -462,6 +462,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
              %{
                sso_provider: :google,
                sso_organization_id: domain,
+               sso_additional_organization_ids: parse_domain_list(params["sso"]["google_additional_domains"]),
                sso_enforced: socket.assigns.sso_enforced,
                sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
                sso_default_role: socket.assigns.sso_default_role
@@ -755,7 +756,11 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp build_form_data("google", organization) do
-    Map.merge(default_form_data(), %{"provider" => "google", "google_domain" => organization.sso_organization_id || ""})
+    Map.merge(default_form_data(), %{
+      "provider" => "google",
+      "google_domain" => organization.sso_organization_id || "",
+      "google_additional_domains" => Enum.join(organization.sso_additional_organization_ids, ", ")
+    })
   end
 
   defp build_form_data("okta", organization) do
@@ -799,6 +804,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     %{
       "provider" => "google",
       "google_domain" => "",
+      "google_additional_domains" => "",
       "okta_domain" => "",
       "entra_tenant_id" => "",
       "oauth2_client_id" => "",
@@ -810,6 +816,9 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       "oauth2_user_info_url" => ""
     }
   end
+
+  defp parse_domain_list(nil), do: []
+  defp parse_domain_list(domains), do: String.split(domains, [",", " ", "\n"], trim: true)
 
   defp normalize_domain(nil), do: nil
 

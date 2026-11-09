@@ -2020,9 +2020,10 @@ defmodule Tuist.Accounts do
       |> Enum.map(& &1.organization)
       |> Enum.filter(&(&1.sso_enforced and not is_nil(&1.sso_provider)))
 
-    # A session proves a single organization's sign-in (see
-    # `UserToken.satisfies_sso?/2`; no two organizations share a provider
-    # tenant), so it can satisfy at most one enforcing organization.
+    # A session proves a single provider tenant (see
+    # `UserToken.satisfies_sso?/2`), so several enforcing organizations are
+    # refused even when one Google Workspace domain happens to satisfy them
+    # all through additional domains.
     case enforcing do
       [] -> :ok
       [organization] -> if UserToken.satisfies_sso?(session, organization), do: :ok, else: {:sign_in_with, organization}
@@ -2085,7 +2086,7 @@ defmodule Tuist.Accounts do
       from(i in Oauth2Identity,
         where:
           i.user_id == ^user_id and i.provider == ^organization.sso_provider and
-            i.provider_organization_id == ^organization.sso_organization_id
+            i.provider_organization_id in ^Organization.sso_provider_organization_ids(organization)
       )
     )
   end

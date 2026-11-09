@@ -155,6 +155,27 @@
         </div>
       </div>
 
+      <div :if={@sso_enabled and @selected_provider == "google"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Additional Google Workspace domains")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Members who sign in with a Google account from one of these domains satisfy SSO enforcement. Unlike the primary domain, they are never added to the organization automatically. Separate domains with commas."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:google_additional_domains]}
+            type="basic"
+            placeholder="example.org"
+          />
+        </div>
+      </div>
+
       <%!-- Okta setup instructions --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
         <div data-part="label">

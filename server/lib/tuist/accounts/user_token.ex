@@ -6,6 +6,7 @@ defmodule Tuist.Accounts.UserToken do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.UserToken
 
   @hash_algorithm :sha256
@@ -27,7 +28,7 @@ defmodule Tuist.Accounts.UserToken do
     field :auth_provider, :string
     field :auth_provider_organization_id, :string
     field :mfa_verified_at, :utc_datetime
-    belongs_to :auth_organization, Tuist.Accounts.Organization
+    belongs_to :auth_organization, Organization
     belongs_to :user, Tuist.Accounts.User
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
@@ -86,7 +87,7 @@ defmodule Tuist.Accounts.UserToken do
   def satisfies_sso?(%UserToken{} = session, organization) do
     session.auth_provider == to_string(organization.sso_provider) and
       is_binary(session.auth_provider_organization_id) and
-      session.auth_provider_organization_id == organization.sso_organization_id and
+      session.auth_provider_organization_id in Organization.sso_provider_organization_ids(organization) and
       (organization.sso_provider == :google or session.auth_organization_id == organization.id)
   end
 

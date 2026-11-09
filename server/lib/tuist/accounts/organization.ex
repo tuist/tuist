@@ -26,6 +26,7 @@ defmodule Tuist.Accounts.Organization do
   @sso_update_fields [
     :sso_provider,
     :sso_organization_id,
+    :sso_additional_organization_ids,
     :sso_enforced,
     :sso_login_domain,
     :sso_automatic_enrollment,
@@ -46,6 +47,7 @@ defmodule Tuist.Accounts.Organization do
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2, oauth2: 3]
     field :sso_organization_id, :string
+    field :sso_additional_organization_ids, {:array, :string}, default: []
     field :sso_enforced, :boolean, default: false
     field :sso_login_domain, :string
     field :sso_login_domain_verification_token, :string
@@ -70,6 +72,7 @@ defmodule Tuist.Accounts.Organization do
     |> cast(attrs, [
       :sso_provider,
       :sso_organization_id,
+      :sso_additional_organization_ids,
       :sso_enforced,
       :sso_login_domain,
       :sso_login_domain_verification_token,
@@ -86,6 +89,7 @@ defmodule Tuist.Accounts.Organization do
     |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
     |> validate_sso_login_domain()
+    |> validate_sso_additional_organization_ids()
     |> validate_sso_security_policy()
     |> validate_inclusion(:sso_default_role, @sso_default_roles)
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
@@ -115,6 +119,7 @@ defmodule Tuist.Accounts.Organization do
     |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
     |> validate_sso_login_domain()
+    |> validate_sso_additional_organization_ids()
     |> then(fn changeset ->
       if Keyword.get(opts, :validate_security_policy, true),
         do: validate_sso_security_policy(changeset),
@@ -133,6 +138,21 @@ defmodule Tuist.Accounts.Organization do
       message: "has already been verified by another organization"
     )
   end
+
+  @doc """
+  The provider organization identifiers (`hd` for Google) a sign-in can carry
+  to satisfy the organization's SSO. Google organizations accept their
+  additional Workspace domains next to the primary one; they only satisfy
+  enforcement and never drive automatic enrollment or discovery, which keep
+  using `sso_organization_id` alone.
+  """
+  def sso_provider_organization_ids(%__MODULE__{sso_organization_id: nil}), do: []
+
+  def sso_provider_organization_ids(%__MODULE__{sso_provider: :google} = organization) do
+    [organization.sso_organization_id | organization.sso_additional_organization_ids]
+  end
+
+  def sso_provider_organization_ids(%__MODULE__{sso_organization_id: id}), do: [id]
 
   def verify_sso_login_domain_changeset(organization, verified_at) do
     organization
@@ -157,20 +177,53 @@ defmodule Tuist.Accounts.Organization do
   end
 
   defp normalize_sso_login_domain(changeset) do
-    update_change(changeset, :sso_login_domain, fn
-      nil -> nil
-      domain -> domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()
-    end)
+    update_change(changeset, :sso_login_domain, &normalize_domain/1)
   end
 
   defp validate_sso_login_domain(changeset) do
     validate_format(
       changeset,
       :sso_login_domain,
-      ~r/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/,
+      domain_regex(),
       message: "must be a valid domain"
     )
   end
+
+  # Not unique across organizations: nothing looks an organization up by them,
+  # and an admin can't prove control of another Workspace, so uniqueness would
+  # let one organization squat a domain another needs.
+  defp validate_sso_additional_organization_ids(changeset) do
+    if get_field(changeset, :sso_provider) == :google do
+      changeset = update_change(changeset, :sso_additional_organization_ids, &normalize_domains/1)
+      domains = get_field(changeset, :sso_additional_organization_ids) || []
+      primary = changeset |> get_field(:sso_organization_id) |> normalize_domain()
+
+      cond do
+        not Enum.all?(domains, &Regex.match?(domain_regex(), &1)) ->
+          add_error(changeset, :sso_additional_organization_ids, "must be valid domains")
+
+        primary in domains ->
+          add_error(changeset, :sso_additional_organization_ids, "must not include the primary domain")
+
+        true ->
+          changeset
+      end
+    else
+      if get_field(changeset, :sso_additional_organization_ids) in [nil, []],
+        do: changeset,
+        else: put_change(changeset, :sso_additional_organization_ids, [])
+    end
+  end
+
+  defp normalize_domains(nil), do: []
+
+  defp normalize_domains(domains), do: domains |> Enum.map(&normalize_domain/1) |> Enum.reject(&(&1 == "")) |> Enum.uniq()
+
+  defp normalize_domain(nil), do: nil
+  defp normalize_domain(domain), do: domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+  defp domain_regex,
+    do: ~r/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/
 
   # Existing enabled policies survive loss or absence of domain trust so admins
   # can edit their configuration. Enrollment still checks trust at runtime.

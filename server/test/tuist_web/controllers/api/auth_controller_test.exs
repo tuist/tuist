@@ -679,6 +679,46 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
     end
 
+    test "tokens from a device code approved through an additional Google Workspace domain keep refreshing",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      user
+      |> enforce_sso_for()
+      |> Ecto.Changeset.change(sso_additional_organization_ids: ["secondary.apiauth-example.com"])
+      |> Repo.update!()
+
+      secondary_session =
+        session(user, %{auth_method: :google, provider_organization_id: "secondary.apiauth-example.com"})
+
+      %{"refresh_token" => refresh_token} = device_code_tokens(conn, user, secondary_session)
+      %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
+
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "secondary.apiauth-example.com"}} = claims} =
+               Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+
+      refute Map.has_key?(claims, "sso_grace_until")
+    end
+
+    test "tokens from a device code approved through an unlisted Google Workspace domain drop the proof",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      user
+      |> enforce_sso_for()
+      |> Ecto.Changeset.change(sso_additional_organization_ids: ["secondary.apiauth-example.com"])
+      |> Repo.update!()
+
+      other_session = session(user, %{auth_method: :google, provider_organization_id: "other.apiauth-example.com"})
+
+      %{"refresh_token" => refresh_token} = device_code_tokens(conn, user, other_session)
+      %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
+
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+      refute Map.has_key?(claims, "sso")
+      assert is_integer(claims["sso_grace_until"])
+    end
+
     test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       organization = enforce_sso_for(user)
