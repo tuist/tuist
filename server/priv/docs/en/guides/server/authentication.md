@@ -52,11 +52,11 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 
 ### Amp orbs {#amp-orbs}
 
-[Amp](https://ampcode.com) orbs can mint OIDC tokens that identify their Amp workspace. Connect a workspace to your Tuist account once, and `tuist auth login` in any orb of that workspace signs in without a stored token:
+[Amp](https://ampcode.com) orbs can mint OIDC tokens that identify their Amp workspace. Connect a workspace to your Tuist account once, and the Tuist CLI and the `tuist_ex` Mix tasks in any orb of that workspace sign in on their own, without a stored token or a login step:
 
 1. Find the IDs: in a thread of the workspace that runs in an orb, run `echo $AMP_WORKSPACE_ID $AMP_PROJECT_ID`.
 2. In your Tuist account, open **Settings → Integrations**, select **Connect workspace** on the Amp card, and paste the workspace ID. To admit only the orbs of one Amp project, also paste its project ID. You need to be an account admin or owner.
-3. In orbs of the workspace, run `tuist auth login`. The CLI detects the orb, mints a token with `amp orb id-token --audience https://tuist.dev`, and exchanges it for a Tuist session.
+3. Use Tuist in orbs of the workspace. When it isn't signed in, the CLI or Mix task detects the orb, mints a token with `amp orb id-token --audience https://tuist.dev`, and exchanges it for a Tuist session. `tuist auth login` and `mix tuist.login` do the same exchange explicitly.
 
 Like the trust configurations in [Amp's OIDC guide](https://ampcode.com/manual/orbs/oidc), Tuist verifies Amp's signature on every token and accepts it only when its audience is `https://tuist.dev`, its `token_use` is `exchanged`, its `workspace_id` matches a connected workspace, and, for a connection limited to a project, its `project_id` matches that project. Its `sub` must name the same workspace, and for a project connection the same project, as those claims: `workspace:<workspace-id>:project:<project-id>:…`, which `amp orb id-token` mints by default.
 
