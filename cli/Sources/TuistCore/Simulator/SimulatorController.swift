@@ -144,12 +144,7 @@ public struct SimulatorController: SimulatorControlling {
 
     /// Returns the list of simulator devices that are available in the system.
     public func devices() async throws -> [SimulatorDevice] {
-        let output = try await commandRunner
-            .runAndCollectOutput(arguments: ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
-        guard let data = output.standardOutput.data(using: .utf8), !data.isEmpty else {
-            return []
-        }
-        let json = try JSONSerialization.jsonObject(with: data, options: [])
+        let json = try await simctlListJSON("devices")
         guard let dictionary = json as? [String: Any],
               let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
         else {
@@ -169,12 +164,7 @@ public struct SimulatorController: SimulatorControlling {
 
     /// Returns the list of simulator runtimes that are available in the system.
     func runtimes() async throws -> [SimulatorRuntime] {
-        let output = try await commandRunner
-            .runAndCollectOutput(arguments: ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-        guard let data = output.standardOutput.data(using: .utf8), !data.isEmpty else {
-            return []
-        }
-        let json = try JSONSerialization.jsonObject(with: data, options: [])
+        let json = try await simctlListJSON("runtimes")
         guard let dictionary = json as? [String: Any],
               let runtimesJSON = dictionary["runtimes"] as? [Any]
         else {
@@ -184,6 +174,20 @@ public struct SimulatorController: SimulatorControlling {
         let runtimesData = try JSONSerialization.data(withJSONObject: runtimesJSON, options: [])
         let runtimes = try jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
         return runtimes
+    }
+
+    private func simctlListJSON(_ subcommand: String) async throws -> Any {
+        let arguments = ["/usr/bin/xcrun", "simctl", "list", subcommand, "--json"]
+        let output = try await commandRunner.runAndCollectOutput(arguments: arguments)
+        let standardOutput = output.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !standardOutput.isEmpty else {
+            let standardError = output.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SimulatorControllerError.simctlError(
+                "`\(arguments.dropFirst().joined(separator: " "))` returned no output."
+                    + (standardError.isEmpty ? "" : "\n\(standardError)")
+            )
+        }
+        return try JSONSerialization.jsonObject(with: Data(standardOutput.utf8))
     }
 
     /// - Parameters:
