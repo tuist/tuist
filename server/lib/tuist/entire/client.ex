@@ -159,11 +159,13 @@ defmodule Tuist.Entire.Client do
   end
 
   defp request(method, url, token, opts) do
+    {headers, opts} = Keyword.pop(opts, :headers, [])
+
     opts =
       [
         method: method,
         url: url,
-        headers: [{"authorization", "Bearer " <> token}],
+        headers: [{"authorization", "Bearer " <> token} | headers],
         redirect: false,
         retry: false,
         receive_timeout: 5_000
