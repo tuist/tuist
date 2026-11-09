@@ -155,10 +155,12 @@ defmodule Tuist.MCP.WebMCP do
 
   defp account_page([]), do: "projects"
   defp account_page(["projects"]), do: "projects"
+  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces errors), do: "pulse"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
+  defp account_page(["sandboxes" | _]), do: "sandboxes"
   defp account_page(["settings", "tokens" | _]), do: "account-tokens"
-  defp account_page(["settings", "ai-subscriptions" | _]), do: "ai-subscriptions"
+  defp account_page(["settings", "ai" | _]), do: "ai-subscriptions"
 
   defp account_page([organization | _]) when organization in ["settings", "members", "billing", "usage"],
     do: "organization"
@@ -188,15 +190,23 @@ defmodule Tuist.MCP.WebMCP do
 
   defp page_tools("module-cache", _build_system), do: @module_cache_tools
   defp page_tools("bundles", _build_system), do: [Tools.ListBundles, Tools.GetBundle, Tools.GetBundleArtifactTree]
+
   defp page_tools("previews", _build_system), do: [Tools.ListPreviews, Tools.GetPreview, Tools.GetLatestPreview]
+
   defp page_tools("project-settings", _build_system), do: @project_settings_tools
 
   defp page_tools("connect", :gradle), do: [Tools.GetGradleIntegrationGuide]
   defp page_tools("connect", :bazel), do: [Tools.GetBazelIntegrationGuide]
 
   defp page_tools("projects", _build_system), do: [Tools.ListAccounts]
+
+  defp page_tools("pulse", _build_system),
+    do: [Tools.QueryPulse, Tools.GetPulseAnalytics, Tools.GetPulseErrorIssue, Tools.GetPulseErrorEvent]
+
   defp page_tools("runners", _build_system), do: @runner_tools
   defp page_tools("webhooks", _build_system), do: @webhook_tools
+
+  defp page_tools("sandboxes", _build_system), do: [Tools.ListSandboxes, Tools.GetSandbox, Tools.GetSandboxAnalytics]
   defp page_tools("account-tokens", _build_system), do: [Tools.ListAccountTokens, Tools.GetAccountToken]
   defp page_tools("organization", _build_system), do: [Tools.GetOrganization]
   defp page_tools("ai-subscriptions", _build_system), do: [Tools.ListAISubscriptions]

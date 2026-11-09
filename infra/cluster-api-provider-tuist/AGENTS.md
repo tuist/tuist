@@ -2784,6 +2784,19 @@ clear the `memory.min` / `memory.low` values already written to existing cgroups
 (kubernetes/kubernetes#138436), so a node may need a kubelet restart or reboot to
 fully shed them. Budget for that rather than assuming a revert is instant.
 
+## Exclusive CPUs on Kata runner hosts
+
+Kata hosts (`KataRuntime`) render the kubelet config with the static CPU
+manager, `full-pcpus-only`, one whole reserved core and `system.slice` pinned
+to it (`kubeletReservationBlock`, `kubeletCPUManagerSetup`); every other fleet
+renders and hashes exactly as before. A kubelet does not start when its
+checkpoint names another policy, so the re-push keeps a node whose
+`cpu_manager_state` predates the static policy on its old shared-CPU config.
+Moving it over is a drained, human, one-box-at-a-time step. Keep that guard
+whenever the CPU manager config changes. Rollout, validation, and why runner
+Pods are not Guaranteed yet:
+[`docs/exclusive-runner-cpus.md`](docs/exclusive-runner-cpus.md).
+
 ## Operator UX: one Secret in 1Password
 
 The only thing an operator manages by hand is **Scaleway IAM
@@ -2924,6 +2937,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    ```
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-ovh` (also used to re-name a box).
+   Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one
@@ -3515,6 +3529,12 @@ populated filesystems and a populated unmounted `/data` directory are refused.
 `prjquota`; the remaining extents back CSI volumes. It journals the source
 before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
 filesystem or an already-joined legacy host. Existing nodes require a reinstall.
+Before any destructive step it also installs `thin-provisioning-tools` (LVM
+needs `thin_check` to activate thin pools after reboot), persists `dm_thin_pool`
+in `/etc/modules-load.d/kura-thin-pool.conf`, loads it, and fails unless
+`dmsetup targets` lists `thin-pool`
+([thin contract](../kura-volumes-csi/thin/interface.md)). Rack curtin layouts
+do not run this script.
 The Vultr conversion uses the same function for its detached non-ESP RAID leg;
 the root still loses its mirror, and conversion gates require the VG. Existing
 successful Vultr conversion records are not invalidated by this change.

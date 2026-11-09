@@ -79,6 +79,7 @@ public enum Module: String, CaseIterable {
     case initCommand = "TuistInitCommand"
     case runCommand = "TuistRunCommand"
     case runnerCommand = "TuistRunnerCommand"
+    case sandboxCommand = "TuistSandboxCommand"
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
@@ -307,6 +308,33 @@ public enum Module: String, CaseIterable {
                     .external(name: "TSCTestSupport"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
+            ),
+            .target(
+                name: "TuistCoverageSelectionAcceptanceTests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCoverageSelectionAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistCoverageSelectionAcceptanceTests"],
+                dependencies: [
+                    .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testSupport.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                ],
+                metadata: .metadata(tags: ["domain:testing", "layer:testing", "ee:true"])
             ),
         ]
     }
@@ -570,7 +598,7 @@ public enum Module: String, CaseIterable {
         case .cacheCommand, .bazelCommand, .cargoCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
-             .initCommand, .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android:
+             .initCommand, .runCommand, .runnerCommand, .sandboxCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -749,6 +777,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.runnerCommand.targetName),
+                    .target(name: Module.sandboxCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.constants.targetName),
@@ -1043,6 +1072,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.oidc.targetName, condition: .when([.macos])),
                     .target(name: Module.git.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
@@ -1188,6 +1218,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "libzstd"),
+                    .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "NIOCore"),
@@ -1618,6 +1649,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "Mockable"),
                 ]
+            case .sandboxCommand:
+                [
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                ]
             case .runnerCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1704,7 +1745,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
                 ]
-            case .runnerCommand:
+            case .runnerCommand, .sandboxCommand:
                 [
                     .target(name: Module.config.targetName),
                     .target(name: Module.configLoader.targetName),
@@ -1991,6 +2032,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeGraphMapper.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeMetadata.targetName),

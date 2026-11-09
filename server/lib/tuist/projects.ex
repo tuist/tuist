@@ -19,6 +19,7 @@ defmodule Tuist.Projects do
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
+  alias Tuist.VCS.GitHubAppInstallation
 
   require Logger
 
@@ -781,20 +782,38 @@ defmodule Tuist.Projects do
   Get all projects connected to a VCS repository, scoped to a provider
   (GitHub by default). Never let a same-named repository on another forge
   authorize CI tokens. The handle is matched case-insensitively.
+
+  Pass `:client_url` to keep only GitHub connections whose installation is on
+  that GitHub instance, so a github.com repository never matches a GitHub
+  Enterprise Server repository with the same handle.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
     provider = Keyword.get(opts, :provider, :github)
 
-    Repo.all(
+    query =
       from p in Project,
         join: pc in VCSConnection,
+        as: :vcs_connection,
         on: pc.project_id == p.id,
         where: pc.provider == ^provider,
         where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
-    )
+
+    query =
+      case Keyword.fetch(opts, :client_url) do
+        {:ok, client_url} ->
+          from [vcs_connection: pc] in query,
+            join: i in GitHubAppInstallation,
+            on: i.id == pc.github_app_installation_id,
+            where: i.client_url == ^client_url
+
+        :error ->
+          query
+      end
+
+    Repo.all(query)
   end
 
   @doc """

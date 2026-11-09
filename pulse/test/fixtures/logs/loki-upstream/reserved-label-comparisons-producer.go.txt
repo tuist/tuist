@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test inputs/oracles: Copyright Grafana Labs contributors; adjacent LICENSE applies.
+// Extract the complete pinned TestParseExpr_ShouldValidateLabelComparison matrix.
+// This small AST interpreter expands the original loops and reads require assertions;
+// it neither calls Pulse nor invents parser outcomes. Pass parser_test.go as argv[1].
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
+)
+
+type row struct {
+	Query    string   `json:"query"`
+	Reject   bool     `json:"reject"`
+	Contains []string `json:"error_contains,omitempty"`
+}
+
+func main() {
+	source, err := os.ReadFile(os.Args[1])
+	must(err)
+	if fmt.Sprintf("%x", sha256.Sum256(source)) != "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99" {
+		panic("source differs from pinned Loki parser_test.go")
+	}
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, os.Args[1], source, 0)
+	must(err)
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "TestParseExpr_ShouldValidateLabelComparison" {
+			continue
+		}
+		selection := source[fs.Position(fn.Pos()).Offset:fs.Position(fn.End()).Offset]
+		selection = append(selection, '\n')
+		rows := []row{}
+		walk(fn.Body, map[string]any{}, &rows)
+		out := map[string]any{
+			"revision":         "5aa4b9212d64d723f63b2770452054aa23df114d",
+			"source":           "pkg/logql/syntax/parser_test.go",
+			"test":             fn.Name.Name,
+			"source_sha256":    fmt.Sprintf("%x", sha256.Sum256(source)),
+			"selection_sha256": fmt.Sprintf("%x", sha256.Sum256(selection)),
+			"rows":             rows,
+		}
+		e := json.NewEncoder(os.Stdout)
+		e.SetIndent("", "  ")
+		must(e.Encode(out))
+		return
+	}
+	panic("missing upstream function")
+}
+
+func value(e ast.Expr, env map[string]any) any {
+	switch x := e.(type) {
+	case *ast.BasicLit:
+		s, err := strconv.Unquote(x.Value)
+		must(err)
+		return s
+	case *ast.Ident:
+		v, ok := env[x.Name]
+		if !ok {
+			panic("unknown variable: " + x.Name)
+		}
+		return v
+	case *ast.CompositeLit:
+		values := []string{}
+		for _, elt := range x.Elts {
+			values = append(values, value(elt, env).(string))
+		}
+		return values
+	case *ast.CallExpr:
+		if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.X.(*ast.Ident).Name == "fmt" && sel.Sel.Name == "Sprintf" {
+			args := []any{}
+			for _, arg := range x.Args[1:] {
+				args = append(args, value(arg, env))
+			}
+			return fmt.Sprintf(value(x.Args[0], env).(string), args...)
+		}
+	}
+	panic(fmt.Sprintf("unsupported expression %T", e))
+}
+
+func walk(block *ast.BlockStmt, env map[string]any, rows *[]row) {
+	// Leaf callbacks contain the original ParseExpr invocation and assertions.
+	var query ast.Expr
+	var reject, accept bool
+	contains := []string{}
+	for _, stmt := range block.List {
+		if a, ok := stmt.(*ast.AssignStmt); ok {
+			if call, ok := a.Rhs[0].(*ast.CallExpr); ok {
+				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "ParseExpr" {
+					query = call.Args[0]
+				}
+			}
+		}
+		if expr, ok := stmt.(*ast.ExprStmt); ok {
+			if call, ok := expr.X.(*ast.CallExpr); ok {
+				if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.X.(*ast.Ident).Name == "require" {
+					switch sel.Sel.Name {
+					case "Error":
+						reject = true
+					case "NoError":
+						accept = true
+					case "Contains":
+						contains = append(contains, value(call.Args[2], env).(string))
+					case "ErrorIs": // Original ErrParse assertion maps to HTTP parse_error.
+					default:
+						panic("unknown assertion")
+					}
+				}
+			}
+		}
+	}
+	if query != nil {
+		if reject == accept {
+			panic("ambiguous oracle")
+		}
+		*rows = append(*rows, row{value(query, env).(string), reject, contains})
+		return
+	}
+	for _, stmt := range block.List {
+		switch x := stmt.(type) {
+		case *ast.AssignStmt:
+			env[x.Lhs[0].(*ast.Ident).Name] = value(x.Rhs[0], env)
+		case *ast.RangeStmt:
+			for _, v := range value(x.X, env).([]string) {
+				child := map[string]any{}
+				for k, old := range env {
+					child[k] = old
+				}
+				child[x.Value.(*ast.Ident).Name] = v
+				walk(x.Body, child, rows)
+			}
+		case *ast.ExprStmt:
+			call := x.X.(*ast.CallExpr)
+			sel := call.Fun.(*ast.SelectorExpr)
+			if sel.X.(*ast.Ident).Name != "t" || sel.Sel.Name != "Run" {
+				panic("unexpected call")
+			}
+			walk(call.Args[1].(*ast.FuncLit).Body, env, rows)
+		default:
+			panic(fmt.Sprintf("unsupported statement %T", stmt))
+		}
+	}
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

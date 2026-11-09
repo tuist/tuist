@@ -1,14 +1,4 @@
 <div id="sandboxes">
-  <div data-part="page-header">
-    <h1 data-part="title">{dgettext("dashboard_sandboxes", "Sandboxes")}</h1>
-    <span data-part="subtitle">
-      {dgettext(
-        "dashboard_sandboxes",
-        "Isolated Linux microVMs where coding agents work on your projects, with your account's Tuist cache close by."
-      )}
-    </span>
-  </div>
-
   <.card
     :if={@total == 0}
     title={dgettext("dashboard_sandboxes", "Get started")}

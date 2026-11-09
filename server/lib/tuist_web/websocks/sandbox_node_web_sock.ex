@@ -18,19 +18,36 @@ defmodule TuistWeb.SandboxNodeWebSock do
   require Logger
 
   @impl WebSock
-  def init(%{node_name: node_name}) do
-    {:ok, %{node_name: node_name, tracked?: false, pending: %{}, next_id: 1, info: empty_info()}}
+  def init(%{node_name: node_name} = args) do
+    {:ok,
+     %{
+       identity: Map.get(args, :identity, %{platform: "linux"}),
+       node_name: node_name,
+       tracked?: false,
+       pending: %{},
+       next_id: 1,
+       info: empty_info()
+     }}
   end
 
   defp empty_info do
     %{
+      platform: "linux",
+      generation: nil,
+      control_uid: nil,
+      admission: %{},
       capacity: %{},
       elastic: %{},
       memory: %{},
       disk: %{},
       templates: [],
+      default_template: nil,
+      default_template_tag: nil,
       sandboxes: [],
       daemon_version: nil,
+      execution_deadlines: false,
+      execution_slots: 0,
+      direct_exec_endpoint: nil,
       firecracker_version: nil
     }
   end
@@ -39,7 +56,11 @@ defmodule TuistWeb.SandboxNodeWebSock do
   def handle_in({payload, [opcode: :text]}, state) do
     case JSON.decode(payload) do
       {:ok, %{"type" => type} = frame} when is_binary(type) ->
-        handle_frame(type, frame, state)
+        if type in ["hello", "report"] and not valid_identity?(frame, state.identity) do
+          {:stop, :identity_mismatch, {1008, "node identity changed"}, state}
+        else
+          handle_frame(type, frame, state)
+        end
 
       _ ->
         Logger.warning("sandboxes: node sent an undecodable frame", node: state.node_name)
@@ -180,17 +201,40 @@ defmodule TuistWeb.SandboxNodeWebSock do
   defp stream_name("stderr"), do: {:ok, :stderr}
   defp stream_name(_stream), do: :error
 
+  defp valid_identity?(frame, %{platform: "darwin", generation: generation, control_uid: control_uid}) do
+    frame["platform"] == "darwin" and frame["generation"] == generation and frame["control_uid"] == control_uid
+  end
+
+  defp valid_identity?(frame, %{platform: "linux"}), do: Map.get(frame, "platform", "linux") == "linux"
+
   defp merge_info(info, frame) do
     info
+    |> maybe_merge(:platform, frame["platform"], & &1)
+    |> maybe_merge(:generation, frame["generation"], & &1)
+    |> maybe_merge(:control_uid, frame["control_uid"], & &1)
+    |> maybe_merge(:admission, frame["admission"], & &1)
     |> maybe_merge(:capacity, frame["capacity"], &capacity/1)
     |> maybe_merge(:elastic, frame["elastic"], &elastic/1)
     |> maybe_merge(:memory, frame["memory"], &memory/1)
     |> maybe_merge(:disk, frame["disk"], &disk/1)
     |> maybe_merge(:templates, frame["templates"], &templates/1)
+    |> maybe_merge(:default_template, frame["default_template"], &string/1)
+    |> maybe_merge(:default_template_tag, frame["default_template_tag"], &string/1)
     |> maybe_merge(:sandboxes, frame["sandboxes"], &sandboxes/1)
     |> maybe_merge(:daemon_version, frame["daemon_version"], & &1)
+    |> maybe_merge(:execution_deadlines, frame["execution_deadlines"], &(&1 == true))
+    |> maybe_merge(:execution_slots, frame["execution_slots"], fn value ->
+      if is_integer(value) and value in 0..128, do: value, else: 0
+    end)
     |> maybe_merge(:firecracker_version, frame["firecracker_version"], & &1)
+    |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
+
+  defp direct_exec_endpoint("http://" <> _ = endpoint), do: endpoint
+  defp direct_exec_endpoint(_endpoint), do: nil
+
+  defp string(value) when is_binary(value), do: value
+  defp string(_value), do: nil
 
   defp maybe_merge(info, _key, nil, _normalize), do: info
   defp maybe_merge(info, key, value, normalize), do: Map.put(info, key, normalize.(value))
@@ -226,7 +270,13 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp templates(templates) when is_list(templates) do
     for %{"name" => name} = template <- templates, is_binary(name) do
-      %{name: name, tag: template["tag"], ready: template["ready"] == true, rootfs_bytes: template["rootfs_bytes"]}
+      %{
+        name: name,
+        tag: template["tag"],
+        ready: template["ready"] == true,
+        rootfs_bytes: template["rootfs_bytes"],
+        warm: for(shape <- List.wrap(template["warm"]), is_binary(shape), do: shape)
+      }
     end
   end
 

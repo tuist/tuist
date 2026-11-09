@@ -321,7 +321,7 @@ defmodule TuistWeb.UsageLive do
   def credit_label(%Money{amount: 0}), do: money_label(Money.new(0, :USD))
   def credit_label(money), do: "−" <> money_label(money)
 
-  def platform_shape(:macos), do: "6 vCPU / 14 GB"
+  def platform_shape(:macos), do: "8 vCPU / 24 GB"
   def platform_shape(:linux), do: "2 vCPU / 8 GB"
   def platform_shape(_other), do: ""
 

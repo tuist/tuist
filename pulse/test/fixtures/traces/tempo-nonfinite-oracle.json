@@ -1,0 +1,396 @@
+{
+  "cases": [
+    {
+      "target": "resource.value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "resource.value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "span.value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "span.value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "instrumentation.value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "instrumentation.value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "event.value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "event.value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "link.value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "link.value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": ".value",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": ".value",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "float",
+            "value": "+Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "-0.0"
+          },
+          {
+            "type": "float",
+            "value": "-Inf.0"
+          },
+          {
+            "type": "float",
+            "value": "1.0"
+          },
+          {
+            "type": "float",
+            "value": "NaN.0"
+          }
+        ]
+      }
+    },
+    {
+      "target": "span.literal",
+      "query": "",
+      "response": {
+        "tagValues": [
+          {
+            "type": "string",
+            "value": "+Inf"
+          },
+          {
+            "type": "string",
+            "value": "-0"
+          },
+          {
+            "type": "string",
+            "value": "-Inf"
+          },
+          {
+            "type": "string",
+            "value": "1"
+          },
+          {
+            "type": "string",
+            "value": "NaN"
+          }
+        ]
+      }
+    },
+    {
+      "target": "span.literal",
+      "query": "{resource.service.name=\"worker\"}",
+      "response": {
+        "tagValues": [
+          {
+            "type": "string",
+            "value": "+Inf"
+          },
+          {
+            "type": "string",
+            "value": "-0"
+          },
+          {
+            "type": "string",
+            "value": "-Inf"
+          },
+          {
+            "type": "string",
+            "value": "1"
+          },
+          {
+            "type": "string",
+            "value": "NaN"
+          }
+        ]
+      }
+    }
+  ]
+}

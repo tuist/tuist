@@ -7,11 +7,12 @@
 ---
 # Idiomas {#translate}
 
-Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que Tuist sea accesible para tantas personas como sea posible. Si hablas un idioma que Tuist aún no admite, puedes ayudar a Tuist a hablar ese idioma mejorando el contenido original en inglés y el contexto de localización que [Glossia](https://glossia.ai) utiliza para traducirlo.
+Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que Tuist sea accesible para tantas personas como sea posible. Si hablas un idioma que Tuist aún no admite, puedes ayudar a Tuist a hablar ese idioma mejorando el contenido original en inglés y el contexto de localización que utiliza [Glossia](https://glossia.ai) para traducirlo.
 
 Dado que el soporte de idiomas es un esfuerzo continuo, añadimos idiomas a medida que encontramos colaboradores dispuestos a ayudarnos a mantenerlos. Los siguientes idiomas están actualmente admitidos:
 
 - Inglés
+- Árabe
 - Español
 - Japonés
 - Georgiano
@@ -29,7 +30,7 @@ Dado que el soporte de idiomas es un esfuerzo continuo, añadimos idiomas a medi
 
 ## Cómo ayudar {#how-to-translate}
 
-El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y [Glossia](https://glossia.ai) genera los archivos localizados automáticamente.
+El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y [Glossia](https://glossia.ai) genera automáticamente los archivos localizados.
 
 El flujo de trabajo es:
 
@@ -46,7 +47,7 @@ El flujo de trabajo es:
 
 ## Estructura de L10N.md {#l10n-md-structure}
 
-Los archivos `L10N.md` definen el contexto que Glossia utiliza al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con ámbito específico que pueden ubicarse en diferentes niveles de directorio.
+Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con alcance específico que pueden ubicarse en diferentes niveles de directorio.
 
 Por ejemplo:
 
@@ -73,7 +74,7 @@ En el ejemplo anterior:
 - `server/L10N.md` añade contexto específico del servidor.
 - `server/L10N/es.md` añade anulaciones exclusivas para español en esa misma área.
 
-Esto significa que puedes colocar el contexto donde corresponda:
+Esto significa que puedes colocar el contexto donde corresponde:
 
 - orientación para todo el repositorio en la raíz
 - orientación específica de área en un subdirectorio

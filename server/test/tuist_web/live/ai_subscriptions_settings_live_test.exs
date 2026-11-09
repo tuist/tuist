@@ -6,6 +6,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts.AISubscriptions
+  alias Tuist.Accounts.MCPServers
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -18,9 +19,9 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
   end
 
   test "connects and disconnects a Claude subscription from the personal settings", %{conn: conn, user: user} do
-    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai")
 
-    assert html =~ "AI subscriptions"
+    assert html =~ "Subscriptions"
     assert html =~ "claude setup-token"
     assert has_element?(lv, "#connect-claude")
     # Without an OAuth client, ChatGPT sign-in cannot work, so its card stays hidden.
@@ -55,7 +56,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
       {:ok, %Req.Response{status: 200, body: %{"device_auth_id" => "dev-1", "user_code" => "ABCD-1234", "interval" => 5}}}
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai")
 
     lv |> element("#connect-chatgpt") |> render_click()
     html = render_async(lv, 2_000)
@@ -66,25 +67,59 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
   test "links the tab from the personal account's settings", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
 
-    assert has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai-subscriptions"]))
+    assert has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai"]))
   end
 
   test "is not available on another user's personal account", %{conn: conn} do
     other_user = AccountsFixtures.user_fixture(preload: [:account])
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{other_user.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{other_user.account.name}/settings/ai")
     end
+  end
+
+  test "adds an MCP server and sends the browser to its sign-in page", %{conn: conn, user: user} do
+    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai")
+    assert html =~ "No MCP servers yet."
+
+    stub(MCPServers, :start_authorization, fn %{id: user_id}, _id, redirect_uri ->
+      assert user_id == user.id
+      assert redirect_uri =~ "/integrations/mcp/callback"
+      {:ok, "https://auth.example.com/authorize?state=s"}
+    end)
+
+    lv
+    |> form("#mcp-server-form", mcp_server: %{url: "https://mcp.example.com/mcp", name: "Atlas"})
+    |> render_submit()
+
+    assert_redirect(lv, "https://auth.example.com/authorize?state=s")
+    assert [%{name: "Atlas", url: "https://mcp.example.com/mcp", connected: false}] = MCPServers.list(user)
+  end
+
+  test "explains why an MCP server cannot be connected and removes it", %{conn: conn, user: user} do
+    {:ok, server} = MCPServers.add(user, %{"url" => "https://mcp.example.com/mcp", "name" => "Atlas"})
+    stub(MCPServers, :start_authorization, fn _user, _id, _redirect_uri -> {:error, :oauth_not_supported} end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai")
+    assert html =~ "Not connected."
+
+    lv |> element("#connect-mcp-server-#{server.id}") |> render_click()
+    assert render_async(lv) =~ "Could not sign in to this server."
+
+    lv |> element("#remove-mcp-server-#{server.id}") |> render_click()
+    # The confirmation button lives in a portaled modal, out of reach of `element/2`.
+    render_click(lv, "remove-mcp-server")
+    assert MCPServers.list(user) == []
   end
 
   test "is not available on an organization's settings", %{conn: conn, user: user} do
     organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings")
-    refute has_element?(lv, ~s(a[href="/#{organization.account.name}/settings/ai-subscriptions"]))
+    refute has_element?(lv, ~s(a[href="/#{organization.account.name}/settings/ai"]))
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{organization.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{organization.account.name}/settings/ai")
     end
   end
 
@@ -92,14 +127,14 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
     stub(Environment, :env, fn -> :prod end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
-    refute has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai-subscriptions"]))
+    refute has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai"]))
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{user.account.name}/settings/ai")
     end
 
     FunWithFlags.enable(:ai, for_actor: user)
 
-    assert {:ok, _lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    assert {:ok, _lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai")
   end
 end

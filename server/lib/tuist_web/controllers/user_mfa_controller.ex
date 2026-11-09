@@ -73,7 +73,7 @@ defmodule TuistWeb.UserMFAController do
   defp mfa_purpose(_pending), do: {:mfa, nil}
 
   def show(conn, _params) do
-    render_page(conn, :settings, enabled: UserMFA.enabled?(conn.assigns.current_user), error: nil, secret: nil)
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/two-factor-authentication")
   end
 
   def enroll(conn, _params) do
@@ -111,6 +111,27 @@ defmodule TuistWeb.UserMFAController do
     redirect(conn, to: ~p"/users/settings/mfa")
   end
 
+  def regenerate(conn, params) do
+    case UserMFA.regenerate_recovery_codes(
+           conn.assigns.current_user,
+           conn.assigns.current_user_session,
+           params["mfa_code"]
+         ) do
+      {:ok, result} ->
+        conn |> rotate_session(result) |> render_page(:recovery, codes: result.recovery_codes)
+
+      {:error, _} ->
+        conn
+        |> put_status(:unauthorized)
+        |> render_page(:settings,
+          enabled: true,
+          secret: nil,
+          proof_action: :regenerate,
+          error: reauthenticate() <> " " <> invalid_code()
+        )
+    end
+  end
+
   def disable(conn, params) do
     case UserMFA.disable(conn.assigns.current_user, conn.assigns.current_user_session, params["mfa_code"]) do
       {:ok, result} ->
@@ -133,7 +154,7 @@ defmodule TuistWeb.UserMFAController do
     |> configure_session(renew: true)
     |> put_session(:user_token, result.session.token)
     |> put_session(:live_socket_id, UserToken.live_socket_id(result.session))
-    |> delete_resp_cookie("_tuist_web_user_remember_me")
+    |> Authentication.delete_remember_me_cookie()
   end
 
   defp private_response(conn, _opts) do
@@ -142,22 +163,38 @@ defmodule TuistWeb.UserMFAController do
 
   defp render_challenge(conn, assigns) do
     case UserMFA.get_challenge(get_session(conn, :pending_mfa)) do
-      nil -> redirect(conn, to: ~p"/users/log_in")
-      challenge -> render_page(conn, :challenge, Keyword.put(assigns, :email, challenge.user.email))
+      nil ->
+        redirect(conn, to: ~p"/users/log_in")
+
+      challenge ->
+        passkeys? = UserPasskeyController.enabled?() and UserPasskey.list(challenge.user) != []
+        render_page(conn, :challenge, Keyword.merge(assigns, email: challenge.user.email, passkeys?: passkeys?))
     end
   end
 
   defp render_page(conn, template, assigns) do
+    assigns =
+      if template == :settings do
+        Keyword.put(
+          assigns,
+          :fresh_session?,
+          UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user)
+        )
+      else
+        assigns
+      end
+
     conn
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
       template,
-      Keyword.put(assigns, :head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
+      assigns
+      |> Keyword.put_new(:proof_action, :disable)
+      |> Keyword.put(:head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
     )
   end
 
-  defp reauthenticate,
-    do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")
+  defp reauthenticate, do: dgettext("dashboard_auth", "Sign in again to continue changing two-factor authentication.")
 
   defp passkey_failed, do: dgettext("dashboard_auth", "The passkey could not be verified. Try again.")
 

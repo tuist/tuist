@@ -439,6 +439,53 @@ defmodule Atlas.SupportTest do
       )
     end
 
+    test "keeps replies in an agent-feedback conversation when the provider replaces Message-ID" do
+      suffix = System.unique_integer([:positive])
+      customer = "maya@customer-#{suffix}.example"
+
+      {:ok, %{thread: thread}} =
+        Support.receive_agent_feedback(%{"email" => customer, "body" => "A tool returned the wrong result."})
+
+      actor = insert_user!()
+      {:ok, %{message: message}} = Support.reply(thread, %{"body" => "We are investigating."}, actor)
+      assert message.references == []
+
+      test_pid = self()
+
+      expect(Mailer, :deliver, fn email ->
+        send(test_pid, {:outgoing_email, email})
+        {:ok, %{id: "ses-#{suffix}"}}
+      end)
+
+      assert :ok = Support.deliver_reply(message.id)
+      assert_received {:outgoing_email, outgoing_email}
+      assert outgoing_email.headers["References"] == "<#{message.message_id}>"
+      refute Map.has_key?(outgoing_email.headers, "In-Reply-To")
+
+      delivered_message = Repo.get!(Message, message.id)
+      assert delivered_message.message_id == message.message_id
+      assert delivered_message.provider_message_id == "ses-#{suffix}"
+      assert {:ok, _resolved_thread} = Support.set_status(thread, "resolved", actor)
+
+      raw_reply = """
+      Message-ID: <customer-reply-#{suffix}@customer-#{suffix}.example>
+      In-Reply-To: <ses-#{suffix}@provider.example>
+      References: #{outgoing_email.headers["References"]} <ses-#{suffix}@provider.example>
+      From: Maya <#{customer}>
+      To: contact@tuist.dev
+      Subject: Re: Agent feedback
+
+      Here is more context.
+      """
+
+      {:ok, inbox_email} =
+        Inbox.persist_inbound(raw_reply, envelope: %{"from" => customer, "to" => "contact@tuist.dev"})
+
+      assert {:ok, %{thread: reply_thread}} = Support.ingest_inbound(EmailParser.parse(raw_reply), inbox_email.id)
+      assert reply_thread.id == thread.id
+      assert reply_thread.status == "open"
+    end
+
     test "persists reply attachments and includes them in the delivered email" do
       suffix = System.unique_integer([:positive])
       {email, inbox_email} = inbound_email!("customer-#{suffix}.example", "attachment-root-#{suffix}")

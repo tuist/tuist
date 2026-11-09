@@ -2179,18 +2179,21 @@ max by (cluster, namespace, pod) (kura_migration_bridge_armed)
   [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
   `kura-migration-bridge-unready`); it must be created in Grafana separately.
 
-During a planned thin-storage move the source pod arms a write bridge after
-its preparation walk (`infra/kura-controller/thin-migration.md`). From then
-on every write it acknowledges was verified on the named destination process.
-A healthy bridge is armed and ready within seconds of arming. It goes armed
-but unready when the controller rebinds it to a restarted destination process
-and the re-proof cannot finish: the restarted process lost retained records or
-cannot be reached. The controller will not retire the donor until it is ready
-again, so the move is stuck with routing possibly already on the destination.
+During a planned thin-storage move the source pod pins its sync feed at the
+head, proves every write from that pin through the head on the named
+destination process, confirms the destination identity and then arms a write
+bridge (`infra/kura-controller/thin-migration.md`). Records retained from
+before the pin are not part of the proof. From then on every write it
+acknowledges was verified on the destination. A healthy bridge is armed and
+ready within seconds of arming. It goes armed but unready when the controller
+rebinds it to a restarted destination process and the re-proof of the feed from
+the pin cannot finish: the restarted process lost a post-pin write, the feed
+history below the pin was trimmed, or the destination cannot be reached. The
+controller will not retire the donor until it is ready again, so the move is
+stuck with routing possibly already on the destination.
 
 **When it fires.** Look at `kura_migration_reproof_failures_total_total` and
-the source's `kura.migration.reproof_failed` warning for the cause, and at
-`kura_migration_preparation_walk_records` for how far the re-proof got. Keep
+the source's `kura.migration.reproof_failed` warning for the cause. Keep
 both volumes. Follow the destination process restart section of the handoff
 protocol; never clear a bridge whose source was already demoted.
 
@@ -2217,6 +2220,91 @@ the source refuses writes it cannot prove. Keep both volumes, read the source's
 `kura.migration.bridge_failed` warning and the destination pod's state, and
 follow the handoff protocol. Never clear a bridge whose source was already
 demoted.
+
+### Kura thin pool rules
+
+Six rules in folder `Alerts`, group **Kura thin pools**, recorded in
+[`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
+the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
+`:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
+`alloy-metrics` scrapes rented plugins through their `prometheus.io/*`
+annotations, and `alloy-rack` scrapes the rack plugin on its node. Every series
+carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
+non-production keep list in `values.yaml`, because thin pools are rehearsed on
+staging, so every rule covers all environments. **No Data: Normal**,
+**Error: Error**. None sets `notification_settings`: the three critical rules
+page only in production through the sibling routes in
+[`kura-thin-pool-notification-policy.json`](kura-thin-pool-notification-policy.json)
+(the same shape as the Kura availability policy), and staging and canary land
+in `#notifications-non-prod`. `test-kura-thin-pool-alerts.sh` tests the
+expressions with promtool and the routing with amtool. The rules are proposed:
+create them and the policy routes in Grafana separately.
+
+| Rule | UID | Threshold | Pending | Severity | Routing |
+| --- | --- | --- | --- | --- | --- |
+| Kura thin pool data usage high | `kura-thin-pool-data-high` | data used > 80% | 15m | warning | policy tree |
+| Kura thin pool data almost full | `kura-thin-pool-data-full` | data used > 90% | 5m | critical | `Incidents` in production |
+| Kura thin pool metadata usage high | `kura-thin-pool-metadata-high` | metadata used > 70% | 15m | warning | policy tree |
+| Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
+| Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
+| Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
+
+#### Kura thin pool data usage
+
+```promql
+max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes)
+/ max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)
+```
+
+Pools are created with `error_if_no_space`, so a full pool fails tenant writes
+with I/O errors rather than queueing them. In `ceiling-backed-v1` every volume
+is fully backed and the driver keeps a data reserve, so crossing 80% means
+committed ceilings are near the pool size or mappings are unattributed; once
+tenants share overcommitted disk this becomes the main capacity signal. Read
+`GET /v1/node` on the node's allocator socket and compare `committed_bytes`,
+`unattributed_mapped_bytes` and per-volume `mapped_bytes`. Reclaim or move
+volumes through the planned migration path. Never extend, convert or change the
+geometry of a populated pool as the fix.
+
+#### Kura thin pool metadata usage
+
+The same ratio over `kura_volumes_thin_pool_metadata_{used,size}_bytes`, with
+lower thresholds, because exhausting metadata makes the pool read-only or fail
+and recovery needs an offline `thin_check`. The conservative profile reserves
+128 bytes per chunk and 1 MiB per device slot, so growth here means more
+devices than planned or snapshots. Stop new placements on the node and
+inspect `lvs -a`. Never run `thin_check` against the live metadata device.
+
+#### Kura thin pool read-only or out of data space
+
+```promql
+max by (cluster, node, vg, pool) ({__name__=~"kura_volumes_thin_pool_(read_only|out_of_data_space)"})
+```
+
+device-mapper reports the pool as `out_of_data_space`, `ro`, `needs_check` or
+`Fail`. The plugin reports this mode even when its full observation fails.
+Writes to every thin volume on the node fail now. Check `dmsetup status` and
+the kernel log on the node, keep every volume, and move instances off the node.
+Do not run `thin_check` or `lvconvert --repair` against an active pool.
+
+#### Kura thin pool metrics missing
+
+```promql
+max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"})
+unless on (cluster, node) (
+  max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes)
+  and on (cluster, node)
+  (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600)
+)
+```
+
+Fires for a node labelled `tuist.dev/kura-thin-ready=true` (kube-state-metrics
+exports that label through `metricLabelsAllowlist`) that has no fresh pool
+observation: the plugin is down or unscraped, or its observations fail, which
+also withdraws the node's `tuist.dev/kura-disk` capacity. The usage rules are
+blind for the node meanwhile. Read the `driver` container's logs for the
+observation error, then the pod's scrape target. An unlabelled node whose pool
+disappears is not covered: label a node only once it is qualified.
 
 ### Kura receiving no REAPI requests
 
@@ -2333,6 +2421,71 @@ the reasoning. The same query serves both, with the region rows and the node
 rows in one result: a region is the sum of its boxes, and a single box past
 the line is a problem for the tenants on it whether or not the region total
 says so, which matters once a region has boxes with different budgets.
+
+### Runner host disk buffer
+
+Rule `efss9ss24579ce`, **Runner Host Disk Buffer**, folder `Alerts`, group
+`Runners`: evaluate every minute, threshold **A < 10**, pending **15m**.
+Keep **No Data: NoData**, **Error: Error**, and the existing notification
+policy routing. The separately provisioned payload is
+[`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json); Helm
+does not install it. Before updating the live rule, GET it again and merge
+only the intended query/annotation changes into its current configuration.
+Do not replace notification policies or add a zero/healthy fallback.
+
+```promql
+min by (cluster, env, instance) (
+  100 * node_filesystem_avail_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+  / node_filesystem_size_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+)
+```
+
+The percentage must remain an unfiltered value in A, with the threshold in
+C: filtering A with `< 10` would turn a healthy fleet into NoData. Group by
+both cluster and env so a host's environment survives into notifications.
+Scope includes rented runner hosts and rack runner hosts, including the rack
+hosts lent to staging and canary; it excludes processor (`-macos-fleet-`) and
+builder (`-builders-fleet-`) hosts. The egress Service name is `instance`.
+
+On 2026-11-05 the old `tuist-tuist-runners-fleet-.*` selector returned no
+series while all 15 rack runners had `up=1` and root filesystem metrics.
+Production's 13 rack Nodes (b03–b15) independently appeared in
+`kube_node_info`; canary b02 and staging b01 also had exporter metrics.
+The rented fleet's two production `hostCount` values had deliberately been
+zero since October 26, matching the start of the rule's NoData instance
+(`2026-10-26T11:53:50Z`). This was stale alert scope, not evidence of a rack
+ingestion outage. The corrected query returned 15 percentages, production
+approximately 39–47%, canary 87%, staging 62%.
+
+Validation and triage:
+
+- Run `bash infra/helm/k8s-monitoring/test-runner-host-disk-alert.sh` with jq
+  and promtool on PATH. It exercises rented/rack coverage across envs,
+  exclusions, the strict 10% boundary, 15m pending and missing metric sides.
+- Compare the percentage host set with
+  `up{job="tuist-macos-node-exporter",instance=~".*-(runners|rack)-fleet-.*"}`
+  and the runner Node inventory, not merely a nonempty aggregate. Check both
+  `node_filesystem_avail_bytes` and `node_filesystem_size_bytes` at `/`.
+- Total absence stays NoData, and execution failure stays Error. Those are
+  telemetry failures, not proof of healthy disks. Partial host disappearance
+  is not detected by this capacity rule: compare inventory and exporter
+  health explicitly rather than relying on the other hosts' normal state.
+  The annotation guards missing A so NoData does not print a nil percentage.
+- For low space, use approved host access to inspect `df -h /` and Tart
+  golden/cache disk use. Goldens and custom cache volumes share physical
+  APFS space. Correlate tart-kubelet DiskPressure and its 15% golden-reclaim
+  floor; determine what live clones pin before reclaiming anything. Never
+  infer free physical capacity from a custom cache volume's quota alone.
+- After publishing, confirm health `ok`, 15 host instances with labels and
+  numeric percentages (or the current inventory), and no stale NoData
+  instance. Monitor several one-minute evaluations. No exporter interruption
+  or deliberate disk fill is needed to test the query's failure cases.
 
 ### Runner host PN VLAN missing
 
@@ -2761,10 +2914,14 @@ The server observes each job once, when GitHub first names the runner it ran
 on (`Tuist.Runners.WorkflowJobs.record_execution/3`). The value is the job's
 queue time as the runners dashboard measures it, enqueue to that runner's
 claim (`executor_claimed_at`). `limit_held="true"` marks a job whose
-account's open runner sessions, plus the job, exceeded its limit at enqueue
-or 15 s before that claim (`Tuist.Runners.Concurrency.limit_held?/4`).
-Those jobs waited on the limit the customer bought, so the rule leaves them
-out.
+account's open runner sessions, plus the job, exceeded its limit at any
+point from enqueue to 15 s before that claim
+(`Tuist.Runners.Concurrency.limit_held?/5`). Those jobs waited on the limit
+the customer bought, so the rule leaves them out. Checking only the two ends
+missed jobs enqueued while a slot was free and claimed just after one freed:
+on 2026-11-04 every slow Linux job counted as not held had spent part of its
+wait over the `tuist` account's limit while GitHub handed each freed slot to
+another of that account's queued jobs.
 
 The existing `tuist_runners_job_queue_time_milliseconds` histogram cannot
 serve: it is observed at every claim, so a job the runner shuffle moves
@@ -8713,6 +8870,104 @@ sum_over_time(clamp_min(
   counts every pod restart as a full counter reset. Summing the per-minute
   increases clamped at zero drops those resets.
 - No Data: OK. Error: Error.
+
+### Remote execution rules
+
+Four rules in folder `Alerts`, group `Remote execution`, recorded in
+[`remote-execution-alert-rules.json`](remote-execution-alert-rules.json).
+Create them through `POST /api/v1/provisioning/alert-rules` with
+`X-Disable-Provenance: true` when remote execution is first enabled for an
+account (`infra/sandbox-image/remote-execution.md`). Merging the file does not
+provision Grafana: change the live rules and the file together.
+
+All four are severity warning, policy routing, No Data OK and Error Error.
+None sets `affected_service`: remote execution is enabled per account behind a
+feature flag, and there is no status-page component for it yet. Each groups by
+`cluster`, so the policy tree sends staging to `#notifications-non-prod`. The
+server's `tuist_remote_execution_*` series are dropped outside production
+(the `tuist_.*` non-production write rule), so the three scheduler rules only
+see production. The gateway's `reapi_gateway_*` series reach every cluster.
+None of the metrics carry an account or project label: open the Tuist
+Remote Execution dashboard to see which path or outcome moved, and the server
+logs to see the account.
+
+`test-remote-execution-alerts.sh` checks the expressions with promtool. If a
+rule reads nothing while actions run, check for an Adaptive Metrics
+aggregation on the counter before anything else.
+
+#### Remote execution gateway Execute calls failing
+
+```promql
+sum by (cluster) (increase(reapi_gateway_executions_total{code=~"Internal|Unavailable|Unknown|DataLoss|Aborted"}[15m]))
+  / sum by (cluster) (increase(reapi_gateway_executions_total[15m]))
+  and on (cluster) (sum by (cluster) (increase(reapi_gateway_executions_total[15m])) >= 20)
+# C: A > 0.05, pending 10 minutes
+```
+
+The gateway counts each Execute call once, with the RPC's error or the
+action's own status. The rule counts only server-side codes. It leaves out
+`FailedPrecondition` (missing inputs, which Bazel uploads before it retries),
+`DeadlineExceeded` (action timeouts), `Canceled`, and the credential and
+request errors. `ResourceExhausted` is the scheduler refusing work, which the
+next rule covers. A server deploy fails the actions in flight on the stopping
+replicas as `Unavailable`. The 10-minute pending period keeps that from firing
+the rule.
+
+When it fires, split by `path` and `code`. Server-path `Unavailable` follows
+scheduler restarts and VM preparation failures. Lease-path errors point at the
+worker nodes' direct exec endpoint (`DIRECT_EXEC_ADDR`).
+
+#### Remote execution scheduler refusing actions
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_submissions_total{outcome="queue_full"}[10m]))
+# C: A > 0, pending 10 minutes
+```
+
+A full account queue answers 429, which the gateway returns to Bazel as
+`RESOURCE_EXHAUSTED`. Builds that run with `--noremote_local_fallback` then
+fail. The queue fills when VMs are not ready fast enough for the account's
+fan-out. Check the preparation rule below, the queue-time panel, and the
+account's remote execution concurrency.
+
+#### Remote execution VM preparation failing
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"no_node|unavailable|failed"}[15m]))
+  / sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"ok|no_node|unavailable|failed"}[15m]))
+  and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~"no_node|unavailable|failed"}[15m])) >= 5)
+# C: A > 0.5, pending 10 minutes
+```
+
+The outcomes mean the following:
+
+- `no_node`: no worker had room.
+- `unavailable`: the chosen node refused, and the scheduler backs off.
+- `failed`: reservation, creation or preparation crashed.
+
+`at_capacity` is left out. It means the account's own concurrency cap is
+still freeing VMs, which is the limit the customer chose, as with runner
+`limit_held`. For `no_node`, check worker capacity and the remote execution
+worker Pods in `tuist-sandboxes`. For the other two outcomes, check the
+`sandboxd` logs on the node and the server's `Tuist.RemoteExecution` logs.
+
+#### Remote execution leases timing out
+
+```promql
+sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome="timeout"}[30m]))
+  / sum by (cluster) (increase(tuist_remote_execution_leases_total[30m]))
+  and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome="timeout"}[30m])) >= 20)
+# C: A > 0.5, pending 15 minutes
+```
+
+A gateway lease request waits up to 5 s for a prepared VM. When none arrives,
+executions still run through the server path, but each one pays the
+scheduler round trip and VM preparation. Nothing fails, so the window and
+pending period are longer. Queued operations take ready VMs before leases, so
+an account that saturates its concurrency also times leases out. Compare the
+submissions and queue-time panels first. If nothing is queued, check the
+preparation rule and the `unsupported` lease outcome (nodes without a direct
+exec endpoint).
 
 ## Useful investigation queries
 

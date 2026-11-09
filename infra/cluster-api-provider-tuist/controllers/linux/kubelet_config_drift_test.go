@@ -20,20 +20,20 @@ import (
 func TestDesiredKubeletConfigHash(t *testing.T) {
 	ca1 := []byte("cluster-ca-one")
 	ca2 := []byte("cluster-ca-two")
-	if desiredKubeletConfigHash(ca1) != desiredKubeletConfigHash(ca1) {
+	if desiredKubeletConfigHash(ca1, false) != desiredKubeletConfigHash(ca1, false) {
 		t.Fatal("desiredKubeletConfigHash must be stable across calls")
 	}
-	if desiredKubeletConfigHash(ca1) == "" {
+	if desiredKubeletConfigHash(ca1, false) == "" {
 		t.Fatal("desiredKubeletConfigHash must not be empty")
 	}
 	// The CA bundle is part of the fingerprint, so a CA rotation changes the hash
 	// and re-pushes a fresh ca.crt onto already-stamped nodes.
-	if desiredKubeletConfigHash(ca1) == desiredKubeletConfigHash(ca2) {
+	if desiredKubeletConfigHash(ca1, false) == desiredKubeletConfigHash(ca2, false) {
 		t.Fatal("desiredKubeletConfigHash must change when the CA bundle changes")
 	}
 	// The hashed config is the post-fix one (clientCAFile set, serverTLSBootstrap
 	// unset), so existing (pre-fix) nodes drift and get re-pushed.
-	cfg := kubeletConfigContent("", kubeletClientCAPath)
+	cfg := kubeletConfigContent("", kubeletClientCAPath, false)
 	if !strings.Contains(cfg, "clientCAFile: "+kubeletClientCAPath) {
 		t.Fatalf("expected clientCAFile in the hashed config, got:\n%s", cfg)
 	}
@@ -56,6 +56,10 @@ func TestRenderKubeletConfigRepushScript(t *testing.T) {
 		"tee /var/lib/kubelet/config.yaml > /dev/null <<'TUIST_EOF'",
 		"clientCAFile: /var/lib/kubelet/ca.crt",
 		"clusterDNS:\n  - 10.96.0.10",
+		"tee /etc/sysctl.d/99-tuist-hardening.conf > /dev/null <<'TUIST_EOF'",
+		"kernel.io_uring_disabled = 1",
+		"sysctl -p /etc/sysctl.d/99-tuist-hardening.conf",
+		`[ "$(cat /proc/sys/kernel/io_uring_disabled)" -ge 1 ]`,
 		"systemctl restart kubelet",
 	} {
 		if !strings.Contains(s, want) {
@@ -115,13 +119,13 @@ func TestReconcileLinuxKubeletConfigDrift_NoOpWhenStamped(t *testing.T) {
 	cm := &credentials.Manager{Client: c, Namespace: ns, NodeIdentityClusterRole: linuxNodeIdentityClusterRole}
 
 	node := &corev1.Node{}
-	node.Annotations = map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca)}
+	node.Annotations = map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, false)}
 
 	// The node is stamped with the current CA's hash, so the drift check reads the
 	// identity, matches, and returns before discovering DNS or dialing SSH (the
 	// nil apiReader is safe precisely because the converged path stops at the
 	// compare).
-	requeue, err := reconcileLinuxKubeletConfigDrift(context.Background(), c, nil, cm, "m", "fleet", "ubuntu", node)
+	requeue, err := reconcileLinuxKubeletConfigDrift(context.Background(), c, nil, cm, "m", "fleet", "ubuntu", false, node)
 	if err != nil || requeue {
 		t.Fatalf("expected no-op (requeue=false, err=nil) when the node is already stamped, got requeue=%v err=%v", requeue, err)
 	}
@@ -144,9 +148,9 @@ func TestNodeInternalIP(t *testing.T) {
 func TestDesiredKubeletConfigHashCoversTheSSHStartLimitDropIns(t *testing.T) {
 	ca := []byte("cluster-ca")
 	h := sha256.New()
-	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath, false)))
 	h.Write(ca)
-	if desiredKubeletConfigHash(ca) == hex.EncodeToString(h.Sum(nil)) {
+	if desiredKubeletConfigHash(ca, false) == hex.EncodeToString(h.Sum(nil)) {
 		t.Fatal("expected the sshd drop-ins in the hash, so nodes stamped before them drift and receive them")
 	}
 }

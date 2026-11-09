@@ -1,0 +1,1 @@
+Los tests inestables son tests que producen resultados diferentes (aprobado o fallido) cuando se ejecutan varias veces con el mismo código. Minan la confianza en tu suite de tests y hacen perder tiempo a los desarrolladores al investigar fallos falsos. Tuist detecta automáticamente los tests inestables y te ayuda a hacerles seguimiento a lo largo del tiempo.

@@ -150,6 +150,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -554,6 +566,38 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/members"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
       />
+      <.sidebar_group
+        :if={Tuist.Pulse.authorized?(@current_user, @selected_account)}
+        id="sidebar-pulse"
+        label="Pulse"
+        icon="chart_arcs"
+        default_open={String.starts_with?(@current_path, "/#{@selected_account.name}/~/pulse/")}
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Metrics")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/~/pulse/metrics"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/metrics"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Logs")}
+          icon="file_text"
+          navigate={~p"/#{@selected_account.name}/~/pulse/logs"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/logs"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Traces")}
+          icon="list_tree"
+          navigate={~p"/#{@selected_account.name}/~/pulse/traces"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Errors")}
+          icon="alert_circle"
+          navigate={~p"/#{@selected_account.name}/~/pulse/errors"}
+          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/~/pulse/errors")}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Webhooks")}
@@ -603,7 +647,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
-      <% ai_subscriptions_path = ~p"/#{@selected_account.name}/settings/ai-subscriptions" %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -632,9 +676,9 @@ defmodule TuistWeb.AppLayoutComponents do
           @selected_account.user_id == @current_user.id and
             FeatureFlags.ai_enabled?(@current_user)
         }
-        label={dgettext("dashboard", "AI subscriptions")}
-        selected={String.starts_with?(@current_path, ai_subscriptions_path)}
-        navigate={ai_subscriptions_path}
+        label={dgettext("dashboard", "AI")}
+        selected={String.starts_with?(@current_path, ai_path)}
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """

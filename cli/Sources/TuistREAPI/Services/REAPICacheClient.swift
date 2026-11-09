@@ -125,6 +125,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
+        result.addString(REAPI.userAgent, forKey: "user-agent")
         if let token = try await token() {
             result.addString("Bearer \(token)", forKey: "authorization")
         }
@@ -1064,39 +1065,45 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         // A write cannot resume: a stream carries the blob from its first byte, and the committed
         // size of an unfinished upload is not reported, so a broken attempt starts over.
         let committedSize = try await withIdleGuard(expectedMessageBytes: Self.uploadChunkBytes) { heartbeat in
+            let producer = StreamingRequestProducer()
             let request = StreamingClientRequest<Google_Bytestream_WriteRequest>(
                 metadata: try await self.metadata()
             ) { writer in
-                let handle = try FileHandle(forReadingFrom: path)
-                defer { try? handle.close() }
-                let encoder = compressed ? try REAPICompression.Encoder() : nil
-                var offset: Int64 = 0
-                var consumed: Int64 = 0
-                repeat {
-                    let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
-                    consumed += Int64(input.count)
-                    guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
-                        throw REAPICacheError.corruptBlob
-                    }
-                    let finished = consumed == digest.sizeBytes
-                    let data = try encoder?.encode(input, finish: finished) ?? input
-                    // A zstd frame can buffer an input chunk without emitting any bytes yet.
-                    if !data.isEmpty || finished {
-                        try await writer.write(.with {
-                            $0.resourceName = resource
-                            $0.writeOffset = offset
-                            $0.data = data
-                            $0.finishWrite = finished
-                        })
-                        offset += Int64(data.count)
-                        sentBytes.withLock { $0 = offset }
-                        heartbeat(data.count)
-                    }
-                } while consumed < digest.sizeBytes
+                try await producer.run {
+                    let handle = try FileHandle(forReadingFrom: path)
+                    defer { try? handle.close() }
+                    let encoder = compressed ? try REAPICompression.Encoder() : nil
+                    var offset: Int64 = 0
+                    var consumed: Int64 = 0
+                    repeat {
+                        let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
+                        consumed += Int64(input.count)
+                        guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
+                            throw REAPICacheError.corruptBlob
+                        }
+                        let finished = consumed == digest.sizeBytes
+                        let data = try encoder?.encode(input, finish: finished) ?? input
+                        // A zstd frame can buffer an input chunk without emitting any bytes yet.
+                        if !data.isEmpty || finished {
+                            try await writer.write(.with {
+                                $0.resourceName = resource
+                                $0.writeOffset = offset
+                                $0.data = data
+                                $0.finishWrite = finished
+                            })
+                            offset += Int64(data.count)
+                            sentBytes.withLock { $0 = offset }
+                            heartbeat(data.count)
+                        }
+                    } while consumed < digest.sizeBytes
+                }
             }
             return try await self.withClient { client in
                 try await Google_Bytestream_ByteStream.Client(wrapping: client)
-                    .write(request: request, options: self.streamOptions(digest)).committedSize
+                    .write(request: request, options: self.streamOptions(digest)) { response in
+                        await producer.stop()
+                        return try response.message.committedSize
+                    }
             }
         }
         // REAPI permits -1 when a concurrent compressed upload has already completed.

@@ -27,8 +27,8 @@
     display: none;
     position: absolute;
     top: 0;
-    right: 0;
     z-index: var(--noora-z-index-1);
+    inset-inline-end: 0;
     width: 422px;
   }
 
@@ -62,9 +62,9 @@
       & [data-part="dots"] {
         position: absolute;
         top: 0;
-        right: -136px;
         bottom: 0;
-        left: -136px;
+        inset-inline-end: -136px;
+        inset-inline-start: -136px;
         & svg {
           display: none;
         }
@@ -121,6 +121,7 @@
   & > [data-part="actions"] {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: center;
     gap: var(--noora-spacing-4);
     padding-bottom: var(--noora-spacing-7);

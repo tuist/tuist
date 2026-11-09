@@ -45,7 +45,9 @@ Xcode 26 ships with a per-file compilation cache, but its store lives inside a m
 tuist setup cache
 ```
 
-Build in Xcode. Wipe Derived Data, build again on a second machine or a CI runner. The second build finishes in a fraction of the time and Xcode's build report shows the compilation cache hits.
+The command prints the build settings Xcode needs to use the shared cache. It does not edit your project, so add them to your project's build settings or an `.xcconfig` file, as described in <.localized_link href="/guides/features/cache/xcode-cache#configure-xcode-build-settings">Configure Xcode build settings</.localized_link>.
+
+Build in Xcode, then build the same revision on a second machine or a CI runner. The second build finishes in a fraction of the time and Xcode's build report shows the compilation cache hits.
 
 ## Build insights
 

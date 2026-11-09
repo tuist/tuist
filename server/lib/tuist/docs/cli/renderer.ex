@@ -32,6 +32,13 @@ defmodule Tuist.Docs.CLI.Renderer do
       %Group{
         label: "CLI",
         items: [
+          %Item{
+            label: "Release",
+            items: [
+              %Item{label: "Channels", slug: "/en/cli/release/channels"},
+              %Item{label: "Calendar", slug: "/en/cli/release/calendar"}
+            ]
+          },
           %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},

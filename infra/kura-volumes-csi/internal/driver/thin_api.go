@@ -55,7 +55,9 @@ func (d *Driver) ThinStatus(ctx context.Context) (*ThinSnapshot, error) {
 		return nil, err
 	}
 	defer unlock()
-	return d.observeThin(ctx)
+	s, err := d.observeThin(ctx)
+	d.recordThin(ctx, s, err)
+	return s, err
 }
 
 func (d *Driver) thinRequest(ctx context.Context, v volume, req ThinRequest) (*ThinVolume, error) {

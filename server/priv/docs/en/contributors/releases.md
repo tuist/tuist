@@ -85,7 +85,7 @@ Each component only releases when it has relevant changes:
 
 ## Release channels
 
-The CLI, the server, and Kura are not promoted to a stable release on every push to `main`. Each ships through three channels so the recommended install stays stable and slow-moving while early adopters keep per-commit builds. The user-facing documentation lives at <.localized_link href="/cli/release-channels">CLI release channels</.localized_link> and <.localized_link href="/guides/server/self-host/release-channels">Server release channels</.localized_link>; this section is the maintainer runbook.
+The CLI, the server, and Kura are not promoted to a stable release on every push to `main`. Each ships through three channels so the recommended install stays stable and slow-moving while early adopters keep per-commit builds. The user-facing documentation lives at <.localized_link href="/cli/release/channels">CLI release channels</.localized_link> and <.localized_link href="/guides/server/self-host/release/channels">Server release channels</.localized_link>; this section is the maintainer runbook.
 
 Every component uses the same three channels:
 

@@ -38,14 +38,16 @@
     justify-content: flex-end;
     align-items: flex-start;
     gap: var(--noora-spacing-9);
-    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    padding-inline: var(--noora-spacing-4) var(--noora-spacing-13);
+    padding-block: 0 var(--noora-spacing-13);
     height: 600px;
     /* Clips the chart columns while they rise from below the hero, and the
        cached stems once they've dropped past the bottom edge. */
     overflow: hidden;
 
     @media (max-width: 720px) {
-      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      padding-inline: var(--noora-spacing-4) var(--noora-spacing-10);
+      padding-block: var(--noora-spacing-13) var(--noora-spacing-10);
       height: auto;
     }
 
@@ -166,7 +168,7 @@
 
         @media (min-width: 721px) {
           &:nth-child(2n) {
-            border-left: 1px solid var(--marketing-stroke-default);
+            border-inline-start: 1px solid var(--marketing-stroke-default);
           }
         }
 
@@ -271,10 +273,10 @@
             & > [data-part="collapse"] {
               display: none;
               position: absolute;
-              right: 0;
               bottom: 0;
-              left: 0;
               z-index: var(--noora-z-index-1);
+              inset-inline-end: 0;
+              inset-inline-start: 0;
               background: var(--marketing-illustration-neutral-1);
               height: calc(100% - 24px);
             }
@@ -604,13 +606,13 @@
            the observability, globe, and build-system cards. */
         & > [data-part="illustration"] > [data-part="fade"] {
           position: absolute;
-          right: 0;
           bottom: 0;
-          left: 0;
           /* Above every stacked layer in the illustrations. */
           z-index: var(--noora-z-index-2);
           backdrop-filter: blur(1px);
           mask-image: linear-gradient(180deg, transparent, black);
+          inset-inline-end: 0;
+          inset-inline-start: 0;
           background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
           height: 123px;
           pointer-events: none;

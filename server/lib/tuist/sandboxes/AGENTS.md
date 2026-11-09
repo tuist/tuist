@@ -5,6 +5,17 @@ Server control plane for the Firecracker sandboxes run by `sandboxd`
 sandbox is one persistent microVM per coding-agent session; the first
 consumer is Claude Managed Agents `self_hosted` environments.
 
+Linux REAPI actions use a separate `Tuist.RemoteExecution` lifecycle and
+`sandboxes.purpose = remote_execution`. Keep them out of agent listing, quotas,
+idle retention and node-report reconciliation: their scheduler and lease own
+them. Reserved executor nodes must not admit agent sessions; execution rows and
+resource reservations survive errors until acknowledged VM deletion. An executor
+on a shared runner host connects as `<node>.remote-execution` with its own
+carve-out: execution placement uses memory its Pod holds without a grant and may
+grow past the grant's bytes, but never past a revoked or expired grant. Agent
+admission keeps requiring the grant.
+See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
+
 ## Pieces
 
 - `Tuist.Sandboxes`: context over `sandboxes`,
@@ -94,14 +105,26 @@ consumer is Claude Managed Agents `self_hosted` environments.
   `{:global, {Poller, agent_environment_id}}`), kept in sync with the
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
+- `Router.session_environment/2` decides the OS a session runs on, for
+  the poller's admission and the router alike: an existing sandbox keeps
+  its platform; a new one takes the `AgentSession` row's `platform`, else
+  the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
+  else the environment's. Work items carry only the session id, so that
+  key is read with `ControlPlane.get_session/2` and the environment's
+  `anthropic_api_key`; a failed read falls back to the environment's. A
+  platform other than the environment's runs that platform's default
+  template and shape (`Sandboxes.platform_defaults/1`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
-  Anthropic re-queues it. The residency that creates the sandbox also
-  binds it to the `AgentSession` row (looked up by
-  `anthropic_session_id`) and clones the requested repository into
-  `/workspace/<name>` with `git clone --filter=blob:none` (branch via
+  Anthropic re-queues it. Like an Amp Orb's spawn, a turn that just
+  created a macOS sandbox records its residency without a fresh CI grant
+  (`created: true`): the VM already holds its slot. Inside the residency
+  that created the sandbox, the router binds it to the `AgentSession` row
+  (looked up by `anthropic_session_id`) and clones the requested
+  repository into `<workspace>/<name>` (`/workspace` on Linux,
+  `/Users/runner/work` on macOS) with `git clone --filter=blob:none` (branch via
   `--branch`, a commit sha via a follow-up `checkout`; 90s budget). A
   github.com repository named on the `AgentSession` row is cloned with a
   token minted for that one repository with `contents: read`
@@ -111,6 +134,21 @@ consumer is Claude Managed Agents `self_hosted` environments.
   session metadata (which anyone with access to the Anthropic workspace
   can set) is cloned anonymously. A failed clone is logged and the
   worker still starts.
+- Claude Code cloud environments (`kind: :claude_code`, `ccpool_...`) are
+  agent environments the Managed Agents `Manager` skips. Users pick the OS
+  by picking the environment in Claude Code, so each runs its own platform.
+  `ClaudeCodeReconciler` (Oban cron, every minute, and on create/delete)
+  keeps one orchestrator Deployment per enabled environment
+  (`ClaudeCodeRuntime`, `infra/claude-code-runners`) in the Amp provider
+  namespace. Its spawn hook calls `ClaudeCodeRunnersController` with a
+  projected token (audience `tuist-claude-code-runners`) that names the
+  environment. `ClaudeCodeRunners.spawn/2` answers before the VM boots:
+  `:running` when the session's sandbox holds a residency, `:accepted` after
+  `Capacity.admissible?/2`, else `:no_capacity`. A supervised task then, under
+  the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
+  the sandbox, records the residency with `created:` like the router, and
+  starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
+  the runner's credential: keep it out of rows and logs.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -119,14 +157,23 @@ consumer is Claude Managed Agents `self_hosted` environments.
   of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
   with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
   spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
-  and is created with `from_disk_snapshot`; when that node cannot take it or
-  the clone fails, it boots the template instead. Each snapshot reserves its
+  and is created with `from_disk_snapshot`. While the archive tier is on, a
+  ready snapshot is also uploaded (`archive_disks`, `ArchiveDiskSnapshotWorker`
+  on the `sandbox_archives` queue, retried by `Archives.run/0` every six
+  hours, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
+  node copy; when the node cannot take the Orb, lost the copy or the clone
+  fails, an archived snapshot is created `from_archive` on any node with room
+  (boot source `disk_snapshot_archive`), else the template boots. A copy the
+  node loses keeps an archived row with `node_name` nil; a delete removes the
+  object too. Each snapshot with a node reserves its
   rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
   save itself is admitted under the node's lock
   (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
-  of the same id. Node reports reconcile them like sandboxes: copies no row
-  knows are deleted from the node, rows whose copy the node no longer lists
-  are dropped after a two-minute grace. A daemon that reports no
+  of the same id, and of the id the saving Orb was spawned from
+  (`sandboxes.amp_base_snapshot_id`), since Amp refreshes a project snapshot
+  under a new id. Node reports reconcile them like sandboxes: copies no row
+  places on the node are deleted from it, rows whose copy the node no longer
+  lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
@@ -154,7 +201,7 @@ consumer is Claude Managed Agents `self_hosted` environments.
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
-  node reservation and both limits; accounts stop archiving at 100 GiB of
+  node reservation and both limits; accounts stop archiving at 500 GiB of
   archives. There is no count of paused Orbs per account.
   `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
@@ -276,6 +323,21 @@ socket, the poller and the caller share a replica:
   redacted before it is logged.
 - Exec output is capped at 1 MiB per stream as frames arrive (the node
   stops streaming past 2 MiB) and returned with invalid UTF-8 replaced.
+- `Tuist.Sandboxes.Commands` (`/:sandbox_id/commands`) runs commands that
+  outlive a request: one exec launches the command detached under
+  `setsid`, outside the node's exec process-group fence, with its output,
+  stdin, pid and exit code in `$HOME/.cache/tuist/commands/<id>` in the
+  guest. A `sandbox_commands` row records each command (never its env).
+  All commands share the residency `commands` (`begin_shared_residency/2`,
+  plus a macOS host hold of the same name), so a sandbox runs several at
+  once but an agent turn refuses them with `:busy`. `release_if_idle/1`
+  ends it under the sandbox row lock once no row is `running`; `start/2`
+  inserts its row before holding, which closes the race with a release.
+  `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
+  kills each command at its deadline and records commands no client reads.
+  The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
+  under proxy idle timeouts. Never end the residency with
+  `end_residency/1`; use `end_residency/2`, which leaves a newer one alone.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when
   the model or the system prompt changes.
@@ -295,10 +357,13 @@ socket, the poller and the caller share a replica:
   canary and production), and the poller manager only runs pollers for
   flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
   workspaces up to 100 GB.
-- `TuistWeb.API.SandboxesController`: account-admin API under
+- `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
-  system prompt; sandboxes, exec/pause/resume/delete).
+  system prompt; sandboxes, exec, commands, pause/resume/delete). Members
+  (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
+  sandboxes without an agent environment, Amp integration, provider
+  environment or remote-execution purpose; everything else is admin-only.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
@@ -333,6 +398,18 @@ socket, the poller and the caller share a replica:
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,
   `events?after=<cursor>`, `archive`).
+- `Sandboxes.Query` is the public boundary the sandbox API
+  (`TuistWeb.API.SandboxesController`: list, show, analytics, pause,
+  resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
+  with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
+  It account-scopes every lookup, serializes the dashboard status, and maps
+  errors to one HTTP status and message (`Query.error/1`). The API sends
+  every 503 with a `retry-after` longer than the CLI's retry budget: the
+  server has already waited for the node, so replays only repeat the wait.
+  Every caller
+  requires an account administrator and the sandboxes flag, read-only
+  calls included, because sandboxes run arbitrary commands. MCP does not
+  expose `exec` or create.
 
 ## Related Context
 

@@ -18,7 +18,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.34.6
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -95,6 +95,11 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.
         - class: hcloud-worker
           name: md-0
           # Holds the three CNPG instances (4Gi requests each) plus capacity

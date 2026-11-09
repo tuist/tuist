@@ -54,11 +54,15 @@ defmodule Tuist.Runners.CacheVolumes.Query do
     end
   end
 
-  def run(:clear, account_id, params) do
+  def run(:delete, account_id, params) do
     with {:ok, found} <- find(account_id, params),
          {:ok, _} <- CacheVolumes.delete(account_id, found.id) do
-      {:ok, %{id: found.id, cleared: true}}
+      {:ok, %{id: found.id, deleted: true}}
     end
+  end
+
+  def run(:clear, account_id, params) do
+    with {:ok, %{id: id}} <- run(:delete, account_id, params), do: {:ok, %{id: id, cleared: true}}
   end
 
   def run(:analytics, account_id, params) do
@@ -188,6 +192,12 @@ defmodule Tuist.Runners.CacheVolumes.Query do
           description <>
             " The job started from an older saved copy because the latest one was not on its runner host yet.",
         else: description
+
+    description =
+      case CacheVolumes.cold_reason_description(use) do
+        nil -> description
+        reason -> description <> " " <> reason
+      end
 
     %{
       id: use.id,

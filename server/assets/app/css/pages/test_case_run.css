@@ -85,6 +85,8 @@
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        direction: ltr;
+        unicode-bidi: isolate;
         white-space: pre-wrap;
         word-break: break-word;
       }
@@ -120,7 +122,7 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: var(--noora-spacing-4);
-    padding-left: var(--noora-spacing-6);
+    padding-inline-start: var(--noora-spacing-6);
 
     & > [data-part="title-group"] {
       display: flex;
@@ -299,10 +301,10 @@
       & [data-part="empty-state-background"] {
         position: absolute;
         top: -50px;
-        right: 0;
         bottom: 0;
-        left: 0;
         z-index: var(--noora-z-index-0);
+        inset-inline-end: 0;
+        inset-inline-start: 0;
       }
 
       & [data-part="title"] {
@@ -405,12 +407,14 @@
           flex-direction: row;
           gap: var(--noora-spacing-4);
           font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          direction: ltr;
+          unicode-bidi: isolate;
           white-space: nowrap;
 
           & [data-part="frame-index"] {
             min-width: 24px;
             color: var(--noora-surface-label-secondary);
-            text-align: right;
+            text-align: end;
           }
 
           & [data-part="frame-image"] {
@@ -577,7 +581,7 @@
               flex-direction: row;
               align-items: center;
               gap: var(--noora-spacing-5);
-              margin-left: auto;
+              margin-inline-start: auto;
 
               & [data-part="branch-info"],
               & [data-part="branch-info-link"] {
@@ -661,6 +665,8 @@
             padding: var(--noora-spacing-5);
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
             white-space: pre-wrap;
             word-break: break-word;
           }
@@ -726,6 +732,8 @@
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        direction: ltr;
+        unicode-bidi: isolate;
         white-space: pre-wrap;
         word-break: break-word;
       }
@@ -814,6 +822,8 @@
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        direction: ltr;
+        unicode-bidi: isolate;
         white-space: pre-wrap;
         word-break: break-word;
       }

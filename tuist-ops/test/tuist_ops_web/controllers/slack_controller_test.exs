@@ -16,7 +16,6 @@ defmodule TuistOpsWeb.SlackControllerTest do
 
   alias TuistOps.GitHub.OrgMembership
   alias TuistOps.JIT.Approvals
-  alias TuistOps.Previews
   alias TuistOps.JIT.Request
   alias TuistOps.JIT.SlackClient
   alias TuistOps.JIT.TailscaleClient
@@ -26,7 +25,6 @@ defmodule TuistOpsWeb.SlackControllerTest do
 
   setup do
     stub(Environment, :approvals_channel_id, fn -> "C_APPROVALS" end)
-    stub(Environment, :previews_channel_id, fn -> "C_PREVIEWS" end)
 
     # Slack-user → email lookup is needed by every controller path.
     # Map known fixtures by slack id; unknown ids resolve to the
@@ -71,37 +69,6 @@ defmodule TuistOpsWeb.SlackControllerTest do
     |> Repo.insert!()
   end
 
-  defp preview_modal_payload(overrides \\ %{}) do
-    values =
-      %{
-        "preview_action" => selected_value(Map.get(overrides, :action, "create")),
-        "preview_slug" => text_value(Map.get(overrides, :slug, "demo")),
-        "preview_duration" => selected_value(Map.get(overrides, :duration, "2h")),
-        "preview_source_kind" => selected_value(Map.get(overrides, :source_kind, "pr")),
-        "preview_source_value" => text_value(Map.get(overrides, :source_value, "123")),
-        "preview_reason" => text_value(Map.get(overrides, :reason, "test branch with Kura"))
-      }
-
-    %{
-      "type" => "view_submission",
-      "user" => %{"id" => Map.get(overrides, :user_id, "U_MAREK")},
-      "view" => %{
-        "callback_id" => "preview_request",
-        "private_metadata" =>
-          JSON.encode!(%{"previews_channel_id" => Map.get(overrides, :channel_id, "C_PREVIEWS")}),
-        "state" => %{"values" => values}
-      }
-    }
-  end
-
-  defp selected_value(value) do
-    %{"value" => %{"selected_option" => %{"value" => value}}}
-  end
-
-  defp text_value(value) do
-    %{"value" => %{"value" => value}}
-  end
-
   describe "POST /webhooks/slack/slash" do
     setup do
       stub(SlackClient, :post_message, fn _channel, _blocks ->
@@ -129,32 +96,10 @@ defmodule TuistOpsWeb.SlackControllerTest do
                "fix flaky test"
     end
 
-    test "/elevate prod --thread <id> 30m <intent> → thread-scoped Request" do
-      conn =
-        TuistOpsWeb.SlackController.slash(
-          build_conn(),
-          %{
-            "user_id" => "U_MAREK",
-            "text" =>
-              "prod --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 30m restart wedged kura pod"
-          }
-        )
-
-      assert {:ok, body} = JSON.decode(conn.resp_body)
-      assert body["text"] =~ "C_APPROVALS"
-
-      request = Repo.one!(from r in Request, where: r.status == "pending")
-      assert request.orb_thread_id == "T-01a1a59e-55fb-744b-9415-b85a337f24d2"
-      assert request.target_group == "group:tuist-production-write"
-      assert request.ttl_seconds == 1800
-      assert request.intent == "restart wedged kura pod"
-    end
-
-    test "/elevate --thread with a malformed thread ID → ephemeral error, no Request" do
+    test "/elevate --thread → points to Atlas, no Request" do
       for text <- [
-            "canary --thread T-nope fix it now",
+            "prod --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 30m restart wedged kura pod",
             "canary --thread",
-            "staging --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 fix it",
             # A misplaced or smart-dashed flag must not become a personal elevation.
             "prod 30m --thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 restart pod",
             "prod —thread T-01a1a59e-55fb-744b-9415-b85a337f24d2 restart pod",
@@ -166,7 +111,10 @@ defmodule TuistOpsWeb.SlackControllerTest do
             "text" => text
           })
 
-        assert {:ok, %{"response_type" => "ephemeral"}} = JSON.decode(conn.resp_body)
+        assert {:ok, %{"response_type" => "ephemeral", "text" => reply}} =
+                 JSON.decode(conn.resp_body)
+
+        assert reply =~ "request_cluster_elevation"
       end
 
       assert Repo.aggregate(Request, :count) == 0
@@ -337,86 +285,6 @@ defmodule TuistOpsWeb.SlackControllerTest do
       {:ok, body} = JSON.decode(conn.resp_body)
       assert body["response_type"] == "ephemeral"
     end
-
-    test "valid /preview create dispatches preview request" do
-      expect(Previews, :create, fn attrs ->
-        assert attrs.requester_email == "marek@tuist.dev"
-        assert attrs.requester_slack_id == "U_MAREK"
-        assert attrs.slack_channel_id == "C_PREVIEWS"
-        assert attrs.slug == "demo"
-        assert attrs.ttl_seconds == 7200
-        assert attrs.ref_kind == "pr"
-        assert attrs.ref_value == "123"
-        assert attrs.reason == "test branch with Kura"
-        {:ok, %TuistOps.Previews.Preview{}}
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.slash(
-          build_conn(),
-          %{
-            "command" => "/preview",
-            "user_id" => "U_MAREK",
-            "text" => "create demo 2h pr:123 test branch with Kura"
-          }
-        )
-
-      assert conn.status == 200
-      {:ok, body} = JSON.decode(conn.resp_body)
-      assert body["response_type"] == "ephemeral"
-      assert body["text"] =~ "C_PREVIEWS"
-    end
-
-    test "/preview without arguments opens the preview form" do
-      expect(SlackClient, :open_view, fn trigger_id, view ->
-        assert trigger_id == "TRIGGER"
-        assert view.callback_id == "preview_request"
-        assert view.private_metadata == JSON.encode!(%{previews_channel_id: "C_PREVIEWS"})
-
-        block_ids = Enum.map(view.blocks, & &1.block_id)
-        assert "preview_action" in block_ids
-        assert "preview_slug" in block_ids
-        assert "preview_reason" in block_ids
-
-        :ok
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.slash(
-          build_conn(),
-          %{
-            "command" => "/preview",
-            "user_id" => "U_MAREK",
-            "trigger_id" => "TRIGGER",
-            "text" => ""
-          }
-        )
-
-      assert conn.status == 200
-      assert conn.resp_body == ""
-    end
-
-    test "valid /preview delete dispatches preview deletion" do
-      expect(Previews, :delete, fn attrs ->
-        assert attrs.requester_email == "marek@tuist.dev"
-        assert attrs.requester_slack_id == "U_MAREK"
-        assert attrs.slack_channel_id == "C_PREVIEWS"
-        assert attrs.slug == "demo"
-        assert attrs.reason == "done testing"
-        {:ok, %TuistOps.Previews.Preview{}}
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.slash(
-          build_conn(),
-          %{"command" => "/preview", "user_id" => "U_MAREK", "text" => "delete demo done testing"}
-        )
-
-      assert conn.status == 200
-      {:ok, body} = JSON.decode(conn.resp_body)
-      assert body["response_type"] == "ephemeral"
-      assert body["text"] =~ "C_PREVIEWS"
-    end
   end
 
   describe "POST /webhooks/slack/interactive" do
@@ -562,113 +430,6 @@ defmodule TuistOpsWeb.SlackControllerTest do
         })
 
       assert conn.status == 200
-    end
-
-    test "preview_delete action dispatches preview deletion and 200s" do
-      expect(Previews, :delete, fn attrs ->
-        assert attrs.requester_email == "pedro@tuist.dev"
-        assert attrs.requester_slack_id == "U_PEDRO"
-        assert attrs.slack_channel_id == "C_APPROVALS"
-        assert attrs.slug == "demo"
-        {:ok, %TuistOps.Previews.Preview{}}
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.interactive(build_conn(), %{
-          "payload" =>
-            JSON.encode!(%{
-              "user" => %{"id" => "U_PEDRO"},
-              "channel" => %{"id" => "C_APPROVALS"},
-              "actions" => [%{"action_id" => "preview_delete", "value" => "demo"}]
-            })
-        })
-
-      assert conn.status == 200
-    end
-
-    test "preview modal create submission dispatches preview request" do
-      expect(Previews, :create, fn attrs ->
-        assert attrs.requester_email == "marek@tuist.dev"
-        assert attrs.requester_slack_id == "U_MAREK"
-        assert attrs.slack_channel_id == "C_PREVIEWS"
-        assert attrs.slug == "demo"
-        assert attrs.ttl_seconds == 7200
-        assert attrs.ref_kind == "pr"
-        assert attrs.ref_value == "123"
-        assert attrs.reason == "test branch with Kura"
-        {:ok, %TuistOps.Previews.Preview{}}
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.interactive(build_conn(), %{
-          "payload" => JSON.encode!(preview_modal_payload())
-        })
-
-      assert conn.status == 200
-      assert conn.resp_body == ""
-    end
-
-    test "preview modal delete submission dispatches preview deletion" do
-      expect(Previews, :delete, fn attrs ->
-        assert attrs.requester_email == "pedro@tuist.dev"
-        assert attrs.requester_slack_id == "U_PEDRO"
-        assert attrs.slack_channel_id == "C_PREVIEWS"
-        assert attrs.slug == "demo"
-        assert attrs.reason == "done testing"
-        {:ok, %TuistOps.Previews.Preview{}}
-      end)
-
-      conn =
-        TuistOpsWeb.SlackController.interactive(build_conn(), %{
-          "payload" =>
-            JSON.encode!(
-              preview_modal_payload(%{
-                action: "delete",
-                user_id: "U_PEDRO",
-                reason: "done testing"
-              })
-            )
-        })
-
-      assert conn.status == 200
-      assert conn.resp_body == ""
-    end
-
-    test "preview modal validation errors stay attached to fields" do
-      conn =
-        TuistOpsWeb.SlackController.interactive(build_conn(), %{
-          "payload" =>
-            JSON.encode!(
-              preview_modal_payload(%{
-                source_kind: "pr",
-                source_value: "not-a-number"
-              })
-            )
-        })
-
-      assert conn.status == 200
-      assert {:ok, body} = JSON.decode(conn.resp_body)
-      assert body["response_action"] == "errors"
-      assert body["errors"]["preview_source_value"] =~ "pull request number"
-    end
-
-    test "preview modal base validation errors stay attached to fields" do
-      conn =
-        TuistOpsWeb.SlackController.interactive(build_conn(), %{
-          "payload" =>
-            JSON.encode!(
-              preview_modal_payload(%{
-                slug: "Bad Slug",
-                reason: "bad"
-              })
-            )
-        })
-
-      assert conn.status == 200
-      assert {:ok, body} = JSON.decode(conn.resp_body)
-      assert body["response_action"] == "errors"
-      assert body["errors"]["preview_slug"] =~ "Slug must be"
-      assert body["errors"]["preview_reason"] =~ "Reason must be"
     end
 
     test "missing payload field → 400" do

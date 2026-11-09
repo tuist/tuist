@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
+import TuistFeatureFlags
 import TuistNoora
 import TuistNotifications
 import TuistServer
@@ -9,6 +10,7 @@ import TuistServer
 public struct ProfileView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
+    @Environment(FeatureFlags.self) private var featureFlags
     private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     @State private var showDeleteConfirmation = false
 
@@ -45,6 +47,32 @@ public struct ProfileView: View {
                     Text(account.email)
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+
+            Section {
+                if featureFlags.isEnabled(.ai) {
+                    NavigationLink {
+                        List {
+                            AISubscriptionsSection()
+                        }
+                        .listStyle(.insetGrouped)
+                        .background(Noora.Colors.surfaceBackgroundPrimary)
+                        .navigationTitle("AI")
+                        .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        Text("AI")
+                            .font(.body)
+                            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                    }
+                }
+
+                NavigationLink {
+                    NotificationsView()
+                } label: {
+                    Text("Notifications")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 }
             }
 

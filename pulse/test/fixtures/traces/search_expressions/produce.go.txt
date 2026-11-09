@@ -1,0 +1,196 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"sort"
+	"testing"
+)
+
+// Synthetic public Tempo v2.9.0 engine/actual Parquet fetch, not a deployed query.
+func TestPulseSearchExpressions(t *testing.T) {
+	dir := "/tmp/pulse-trace-expressions"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	iv := func(n int64) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: n}} }
+	sv := func(s string) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue: s}} }
+	routes := []*cv.AnyValue{sv("/health"), sv("/work"), nil, iv(123), sv("prefix/health/suffix"), sv("/work"), sv("/health"), {Value: &cv.AnyValue_BoolValue{BoolValue: false}}}
+	codes := []*cv.AnyValue{iv(200), iv(503), nil, sv("503"), iv(500), iv(9007199254740993), iv(200), {Value: &cv.AnyValue_DoubleValue{DoubleValue: 503.5}}}
+	durations := []uint64{100000000, 600000000, 1, 500000000, 500000001, 600000000, 100000000, 1000000000}
+	all := &tempopb.Trace{}
+	var rows []*Trace
+	for i := range routes {
+		start := uint64(100+i) * 1000000000
+		r := batch(i+1, "frontend", "request", 1, 0, start, start+durations[i])
+		s := r.ScopeSpans[0].Spans[0]
+		s.Status = &tv.Status{}
+		if i == 0 {
+			s.Status.Code = tv.Status_STATUS_CODE_OK
+		}
+		if i == 1 {
+			s.Status.Code = tv.Status_STATUS_CODE_ERROR
+		}
+		if routes[i] != nil {
+			s.Attributes = append(s.Attributes, &cv.KeyValue{Key: "http.route", Value: routes[i]})
+		}
+		if codes[i] != nil {
+			s.Attributes = append(s.Attributes, &cv.KeyValue{Key: "http.response.status_code", Value: codes[i]})
+		}
+		resources := []*tv.ResourceSpans{r}
+		if i == 6 {
+			child := batch(i+1, "worker", "background", 2, 1, start+2000000000, start+2600000000)
+			child.ScopeSpans[0].Spans[0].Status = &tv.Status{Code: tv.Status_STATUS_CODE_ERROR}
+			child.ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("http.route", "/work"), {Key: "http.response.status_code", Value: iv(503)}}
+			resources = append(resources, child)
+		}
+		tr := &tempopb.Trace{ResourceSpans: resources}
+		all.ResourceSpans = append(all.ResourceSpans, resources...)
+		row, _ := traceToParquet(&backend.BlockMeta{}, s.TraceId, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	queries := []string{
+		`span.http.route !~ "/health"`,
+		`span.http.route !~ ".*health.*"`,
+		`span.http.route != "/health"`,
+		`status = error || span.http.response.status_code >= 500`,
+		`span.http.route !~ "/health" && duration > 500ms`,
+		`(status = error || span.http.response.status_code >= 500) && resource.service.name = "frontend"`,
+		`status = ok || status = unset`,
+		`span:status != error`,
+		`duration = 500ms`,
+		`span:duration >= 500.000001ms`,
+		`duration < 1.5s`,
+		`duration > 1s && resource.service.name = "frontend"`,
+		`span.http.response.status_code = 9007199254740993`,
+		`span.http.response.status_code = 9007199254740992`,
+		`span.http.response.status_code != 503`,
+		`span.http.response.status_code < 504`,
+		`span.http.response.status_code > 503`,
+		`span.http.route = "/work" || span.http.route = "/health" && status = ok`,
+		`(span.http.route = "/work" || span.http.route = "/health") && status = ok`,
+		`resource.service.name = "worker" || status = ok`,
+		`status = error || span.http.response.status_code >= 9000`,
+		`(status = error && span.http.response.status_code >= 9000) || span.http.route = "/work"`,
+		`status = ok || (status = error && duration > 500ms)`,
+		`span.http.route !~ "/health" && duration > 0.5s`,
+	}
+	type Case struct {
+		Query    string          `json:"query"`
+		Response json.RawMessage `json:"response"`
+	}
+	cases := []Case{}
+	consumed := 0
+	for i, q := range queries {
+		q = "{ " + q + " } with (most_recent=true)"
+		response, err := traceql.NewEngine().ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: q, Start: 99, End: 200, Limit: 100, SpansPerSpanSet: 3}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, common.DefaultSearchOptions())
+		}))
+		if err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		response.Metrics = nil
+		for _, tr := range response.Traces {
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					sort.Slice(sp.Attributes, func(i, j int) bool { return sp.Attributes[i].Key < sp.Attributes[j].Key })
+				}
+			}
+		}
+		out, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, Case{q, json.RawMessage(out)})
+		wire, readErr := os.ReadFile(fmt.Sprintf("%s/consumer-%d.protobuf", dir, i))
+		if readErr != nil {
+			if os.Getenv("PULSE_REQUIRE_SEARCH_EXPRESSION_CONSUMER") == "1" {
+				t.Fatal(readErr)
+			}
+		} else {
+			var decoded tempopb.SearchResponse
+			if err := proto.Unmarshal(wire, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			got, err := (&jsonpb.Marshaler{}).MarshalToString(&decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wantMap, gotMap map[string]any
+			if err = json.Unmarshal([]byte(out), &wantMap); err != nil {
+				t.Fatal(err)
+			}
+			if err = json.Unmarshal([]byte(got), &gotMap); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Traces) == 0 {
+				delete(wantMap, "traces")
+				delete(gotMap, "traces")
+				if len(decoded.Traces) != 0 {
+					t.Fatal("unexpected consumer traces")
+				}
+			}
+			wantJSON, _ := json.Marshal(wantMap)
+			gotJSON, _ := json.Marshal(gotMap)
+			if string(wantJSON) != string(gotJSON) {
+				t.Fatalf("consumer mismatch %s: got %s want %s", q, gotJSON, wantJSON)
+			}
+			consumed++
+		}
+	}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.MarshalIndent(cases, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/oracle.json", append(out, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	type DurationCase struct {
+		Literal  string `json:"literal"`
+		Nanos    int64  `json:"nanos"`
+		Accepted bool   `json:"accepted"`
+	}
+	durationCases := []DurationCase{}
+	for _, literal := range []string{"0ns", "1us", "1µs", "1h30m", "1.5s", "500.000001ms", "0.3333333333333333333333m", "0.99999999999999999999999s", "0.0000000001s", "9223372036854775807ns", "9223372036854775808ns", "2562048h"} {
+		req, err := traceql.ExtractFetchSpansRequest("{duration = " + literal + "}")
+		c := DurationCase{Literal: literal}
+		if err == nil {
+			if len(req.Conditions) != 1 || len(req.Conditions[0].Operands) != 1 {
+				t.Fatalf("unexpected literal condition: %#v", req)
+			}
+			n, ok := req.Conditions[0].Operands[0].Duration()
+			if !ok {
+				t.Fatal("not duration")
+			}
+			c.Nanos = int64(n)
+			c.Accepted = true
+		}
+		durationCases = append(durationCases, c)
+	}
+	out, err = json.MarshalIndent(durationCases, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/durations.json", append(out, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("queries=%d public consumers=%d duration literals=%d", len(cases), consumed, len(durationCases))
+}

@@ -18,8 +18,9 @@ these schemas persist volume identities and per-job uses.
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
   host gets only the repositories `VolumePlacement` places on it: every volume of
-  an account's repository goes to the same hosts, one more than the repository's
-  jobs ran on at once over the week and at least two, picked by rendezvous
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per
@@ -54,6 +55,11 @@ these schemas persist volume identities and per-job uses.
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
+- A cold report's `cold_reason` records why the host had no copy of a warm use's
+  volume (runner-cache's `Cold*` reasons: `downloading`, `not_on_host`,
+  `evicted_<eviction reason>`). Only a known reason on a `warm: false` report of
+  a use with a base is kept, and the first one stays. `cold_reason_description/1`
+  adds it to the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -138,8 +144,9 @@ these schemas persist volume identities and per-job uses.
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  the capacity chosen for the job (`full?/2`) once a use cloned from that head
-  reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
+  the capacity chosen for the job (`full?/2`) once a use cloned from that head, or
+  from the head's own parent (a sibling that saved replaced the head the others
+  filled), reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
   same generation bump as deletion, then sizes the use as for an empty volume.
   The decision precedes the host-maximum check, so a refused job changes nothing.
   Unknown sizes never clear. The dashboard warns on heads nearly full at the

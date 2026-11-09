@@ -171,6 +171,43 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         }
     }
 
+    func test_from_when_icon_composer_directory_is_kept_as_a_single_resource() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
+
+            // Recognizing .icon as a package through LaunchServices depends on whether Icon Composer has been
+            // registered on the machine, so it must be kept without relying on that.
+            let iconDirectory = rootDirectory.appending(components: "Resources", "AppIcon.icon")
+            try await fileSystem.makeDirectory(at: iconDirectory.appending(component: "Assets"))
+            try await fileSystem.touch(iconDirectory.appending(component: "icon.json"))
+            try await fileSystem.touch(iconDirectory.appending(components: "Assets", "layer.png"))
+
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/AppIcon.icon")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem,
+                includeFiles: { try await XcodeGraph.Target.isResource(path: $0, fileSystem: self.fileSystem) }
+            )
+
+            // Then
+            XCTAssertEqual(
+                model,
+                [
+                    .file(path: iconDirectory, tags: [], inclusionCondition: nil),
+                ]
+            )
+        }
+    }
+
     func test_from_when_files_found_in_opaque_directory() async throws {
         try await withMockedDependencies {
             // Given

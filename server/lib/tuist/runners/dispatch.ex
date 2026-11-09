@@ -73,32 +73,43 @@ defmodule Tuist.Runners.Dispatch do
 
   @doc """
   Handle a `workflow_job` webhook payload. Branches on `action`.
+
+  `account_id` is the account of the installation row whose own webhook
+  secret verified the delivery (GitHub Enterprise Server). Such a sender
+  writes the payload itself, so the account comes from that row and never
+  from the payload. Without it the delivery was verified with the github.com
+  App's secret, and the account is resolved from the github.com installation
+  row for `installation_id`, falling back to the repository owner's handle.
   """
-  def handle_webhook(%{"action" => "queued"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_queued(payload, installation_id)
+  def handle_webhook(payload, installation_id, account_id \\ nil)
+
+  def handle_webhook(%{"action" => "queued"} = payload, installation_id, account_id) when is_integer(installation_id) do
+    result = handle_queued(payload, %{id: installation_id, account_id: account_id})
     emit_webhook_telemetry("queued", result)
     result
   end
 
-  def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_waiting(payload, installation_id)
+  def handle_webhook(%{"action" => "waiting"} = payload, installation_id, account_id) when is_integer(installation_id) do
+    result = handle_waiting(payload, %{id: installation_id, account_id: account_id})
     emit_webhook_telemetry("waiting", result)
     result
   end
 
-  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_in_progress(payload, installation_id)
+  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id, account_id)
+      when is_integer(installation_id) do
+    result = handle_in_progress(payload, %{id: installation_id, account_id: account_id})
     emit_webhook_telemetry("in_progress", result)
     result
   end
 
-  def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_completed(payload, installation_id)
+  def handle_webhook(%{"action" => "completed"} = payload, installation_id, account_id)
+      when is_integer(installation_id) do
+    result = handle_completed(payload, %{id: installation_id, account_id: account_id})
     emit_webhook_telemetry("completed", result)
     result
   end
 
-  def handle_webhook(payload, _installation_id) do
+  def handle_webhook(payload, _installation_id, _account_id) do
     action = Map.get(payload, "action", "<none>")
     job = Map.get(payload, "workflow_job", %{})
     labels = Map.get(job, "labels", [])
@@ -136,22 +147,22 @@ defmodule Tuist.Runners.Dispatch do
     if Allowance.exhausted?(account), do: {:error, :allowance_exhausted}, else: :ok
   end
 
-  defp handle_queued(payload, installation_id) do
-    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
+  defp handle_queued(payload, installation) do
+    handle_queueable(payload, installation, &Jobs.enqueue_if_missing/1)
   end
 
-  defp handle_waiting(payload, installation_id) do
-    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
+  defp handle_waiting(payload, installation) do
+    handle_queueable(payload, installation, &Jobs.enqueue_if_missing/1)
   end
 
-  defp handle_queueable(payload, installation_id, enqueue_fun) do
+  defp handle_queueable(payload, installation, enqueue_fun) do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+    with {:ok, account} <- fetch_enabled_account(installation, owner),
          :ok <- check_allowance(account),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
@@ -167,7 +178,7 @@ defmodule Tuist.Runners.Dispatch do
     else
       {:error, :no_account} ->
         Logger.info("runners: no account match for webhook installation or owner; ignoring",
-          installation_id: installation_id,
+          installation_id: installation.id,
           owner: owner,
           repo: full_name,
           requested_labels: requested
@@ -242,13 +253,13 @@ defmodule Tuist.Runners.Dispatch do
   # runner↔job binding. We record it (fixing metrics attribution and
   # measuring how often the claim was wrong) but never re-enqueue or
   # re-claim off it — the job is already executing.
-  defp handle_in_progress(payload, installation_id) do
+  defp handle_in_progress(payload, installation) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     runner_name = Map.get(job, "runner_name", "") || ""
 
     with true <- is_integer(workflow_job_id) and runner_name != "",
-         {:ok, account} <- webhook_account(payload, installation_id) do
+         {:ok, account} <- webhook_account(payload, installation) do
       record_execution(runner_name, workflow_job_id, account.id)
     else
       _ -> :ignored
@@ -260,7 +271,7 @@ defmodule Tuist.Runners.Dispatch do
   # every other account controls the names of its own self-hosted
   # runners — so attribution and release must be scoped to the account
   # the delivery authenticates as, never matched globally by name.
-  defp webhook_account(payload, installation_id) do
+  defp webhook_account(payload, installation) do
     owner =
       payload
       |> Map.get("repository", %{})
@@ -268,7 +279,7 @@ defmodule Tuist.Runners.Dispatch do
       |> parse_full_name()
       |> elem(0)
 
-    case resolve_account(installation_id, owner) do
+    case resolve_account(installation, owner) do
       nil -> {:error, :no_account}
       account -> {:ok, account}
     end
@@ -376,7 +387,7 @@ defmodule Tuist.Runners.Dispatch do
   defp combine_attribution(_, :matched), do: :matched
   defp combine_attribution(_, _), do: :unknown_runner
 
-  defp handle_completed(payload, installation_id) do
+  defp handle_completed(payload, installation) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
@@ -390,7 +401,7 @@ defmodule Tuist.Runners.Dispatch do
       # still transition the customer-facing job row, but must touch no
       # runner state.
       account_id =
-        case webhook_account(payload, installation_id) do
+        case webhook_account(payload, installation) do
           {:ok, account} -> account.id
           {:error, _} -> nil
         end
@@ -402,7 +413,7 @@ defmodule Tuist.Runners.Dispatch do
       # is a no-op for that class.
       case record_session_execution(runner_name, workflow_job_id, account_id, job) do
         :ok ->
-          mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
+          mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation, repository)
 
         {:error, reason} ->
           # Leave the delivery unacknowledged so it retries. The billable
@@ -440,7 +451,7 @@ defmodule Tuist.Runners.Dispatch do
     }
   end
 
-  defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do
+  defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation, repository) do
     runner_name = payload |> Map.get("workflow_job", %{}) |> Map.get("runner_name", "") || ""
 
     Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
@@ -470,13 +481,18 @@ defmodule Tuist.Runners.Dispatch do
         report_displaced_requeues(requeued, runner_name)
       end
 
-      case Jobs.complete(workflow_job_id, conclusion) do
+      # A delivery completes only a job of the account it resolved to (for a
+      # bound delivery, its installation row's). A GitHub Enterprise Server
+      # sender picks `workflow_job.id` itself, so it could name another
+      # account's job, or queue a github.com job's id first and then receive
+      # that job's completion and steps.
+      case Jobs.complete(workflow_job_id, conclusion, account_id: account_id) do
         {:ok, %{account_id: account_id}} ->
           record_completed_steps_and_logs(
             workflow_job_id,
             account_id,
             raw_steps,
-            installation_id,
+            installation.id,
             repository,
             conclusion
           )
@@ -485,13 +501,13 @@ defmodule Tuist.Runners.Dispatch do
           # The completed delivery can arrive before the queued delivery.
           # If this job targets one of our pools, write a completion row now
           # so a late queued redelivery cannot resurrect canceled work.
-          case record_completed_without_queued(payload, conclusion, installation_id) do
+          case record_completed_without_queued(payload, conclusion, installation) do
             {:ok, account_id} ->
               record_completed_steps_and_logs(
                 workflow_job_id,
                 account_id,
                 raw_steps,
-                installation_id,
+                installation.id,
                 repository,
                 conclusion
               )
@@ -499,6 +515,9 @@ defmodule Tuist.Runners.Dispatch do
             other ->
               other
           end
+
+        {:error, :account_mismatch} ->
+          {:ignored, :account_mismatch}
 
         # Any other failure of the completion write (a rolled-back
         # transaction, an ordering lock we could not take) is transient, so
@@ -533,14 +552,14 @@ defmodule Tuist.Runners.Dispatch do
     {:ok, :completed}
   end
 
-  defp record_completed_without_queued(payload, conclusion, installation_id) do
+  defp record_completed_without_queued(payload, conclusion, installation) do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+    with {:ok, account} <- fetch_enabled_account(installation, owner),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
       {:ok, account.id}
@@ -782,8 +801,8 @@ defmodule Tuist.Runners.Dispatch do
   # established at connect time), then fall back to the legacy
   # `owner == account.name` convention. Enablement is checked once the
   # account resolves, regardless of which path found it.
-  defp fetch_enabled_account(installation_id, owner) do
-    case resolve_account(installation_id, owner) do
+  defp fetch_enabled_account(installation, owner) do
+    case resolve_account(installation, owner) do
       nil ->
         {:error, :no_account}
 
@@ -796,7 +815,19 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp resolve_account(installation_id, owner) do
+  # A delivery verified by an installation row's own secret is bound to that
+  # row's account. Its sender controls every payload field, including the
+  # installation id and the repository owner, so neither may pick the account.
+  defp resolve_account(%{account_id: account_id}, _owner) when is_integer(account_id) do
+    cached_account([__MODULE__, :account_by_id, account_id], fn ->
+      case Accounts.get_account_by_id(account_id) do
+        {:ok, account} -> account
+        _ -> nil
+      end
+    end)
+  end
+
+  defp resolve_account(%{id: installation_id}, owner) do
     account_by_installation_cached(installation_id) || account_by_handle(owner)
   end
 
@@ -837,12 +868,19 @@ defmodule Tuist.Runners.Dispatch do
   # caller. A nil/absent installation row falls through to the handle
   # convention.
   defp account_by_installation_cached(installation_id) when is_integer(installation_id) do
-    cache_key = [__MODULE__, :account_by_installation, installation_id]
+    cached_account([__MODULE__, :account_by_installation, installation_id], fn ->
+      account_for_installation(installation_id)
+    end)
+  end
+
+  defp account_by_installation_cached(_), do: nil
+
+  defp cached_account(cache_key, lookup) do
     cache_opts = [cache: __MODULE__.cache_name()]
 
     case KeyValueStore.get(cache_key, cache_opts) do
       nil ->
-        case account_for_installation(installation_id) do
+        case lookup.() do
           nil ->
             nil
 
@@ -856,10 +894,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp account_by_installation_cached(_), do: nil
-
+  # Only github.com deliveries reach this lookup, and installation ids are
+  # unique per host only: a GitHub Enterprise Server row can carry any id
+  # its server assigns, including one a github.com installation uses.
   defp account_for_installation(installation_id) do
-    with {:ok, %{account_id: account_id}} <- VCS.get_github_app_installation_by_installation_id(installation_id),
+    with {:ok, %{account_id: account_id}} <-
+           VCS.get_github_app_installation_by_installation_id(installation_id, client_url: VCS.default_client_url()),
          {:ok, account} <- Accounts.get_account_by_id(account_id) do
       account
     else
@@ -900,6 +940,10 @@ defmodule Tuist.Runners.Dispatch do
   so cache state never leaks across parallel cases.
   """
   def cache_name, do: :tuist
+
+  # A warm macOS sandbox pool runs no CI: a job routed to it would queue with
+  # nothing polling for it, and queued macOS CI closes every sandbox grant.
+  defp pool_summary(%{"metadata" => %{"labels" => %{"tuist.dev/macos-sandbox-warm" => "true"}}}), do: nil
 
   defp pool_summary(%{"metadata" => %{"name" => name} = metadata, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do

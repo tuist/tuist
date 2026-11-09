@@ -2,8 +2,10 @@ defmodule Tuist.Tests.CoverageRun do
   @moduledoc """
   A test run's line coverage totals, merged across its shards, for the
   coverage trend, with what measured them: the build system, the coverage
-  tool and its version, the repository's Git object format and the scheme
-  (the configuration the figures belong to), and how many files the reports
+  tool and its version, the repository's Git object format, the scheme
+  (the configuration the figures belong to) and the platform the tests ran
+  on, which coverage-based test selection matches baselines by, and how many
+  files the reports
   listed, test files included: what says a run gathered coverage when its
   product code all came prebuilt and no product line was measured. Every
   shard report inserts the totals it computed over the shards reported so far. Reports can land in any order, so `version` ranks a
@@ -21,6 +23,7 @@ defmodule Tuist.Tests.CoverageRun do
     field :coverage_tool_version, Ch, type: "LowCardinality(String)", default: ""
     field :git_object_format, Ch, type: "LowCardinality(String)", default: ""
     field :scheme, Ch, type: "String", default: ""
+    field :platform, Ch, type: "LowCardinality(String)", default: ""
     field :git_commit_sha, Ch, type: "String", default: ""
     field :covered_lines, Ch, type: "UInt64"
     field :executable_lines, Ch, type: "UInt64"

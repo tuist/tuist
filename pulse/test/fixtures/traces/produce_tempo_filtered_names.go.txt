@@ -1,0 +1,211 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"path/filepath"
+	"sort"
+	"testing"
+)
+
+func TestPulseFilteredNames(t *testing.T) {
+	root := os.Getenv("PULSE_FIXTURE_ROOT")
+	if root == "" {
+		t.Fatal("set PULSE_FIXTURE_ROOT to Pulse source tree")
+	}
+	wire, err := os.ReadFile(filepath.Join(root, "test/fixtures/traces/tempo-scopes-input.protobuf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := &tempopb.Trace{}
+	if err = proto.Unmarshal(wire, base); err != nil {
+		t.Fatal(err)
+	}
+	a := base.ResourceSpans[0]
+	b := base.ResourceSpans[1]
+	a.Resource.Attributes = append(a.Resource.Attributes, value("only.worker", "yes"))
+	b.Resource.Attributes = append(b.Resource.Attributes, value("only.frontend", "yes"))
+	for _, key := range []string{"cluster", "namespace", "pod", "container", "k8s.cluster.name", "k8s.namespace.name", "k8s.pod.name", "k8s.container.name"} {
+		a.Resource.Attributes = append(a.Resource.Attributes, value(key, ""))
+	}
+	a.ScopeSpans[0].Spans[0].Attributes = append(a.ScopeSpans[0].Spans[0].Attributes, value("only.api", "yes"), value("filter.text", "first\nsecond"), value("http.method", ""), value("http.url", "/api"), &cv.KeyValue{Key: "http.status_code", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 200}}})
+	b.ScopeSpans[0].Spans[0].Attributes = append(b.ScopeSpans[0].Spans[0].Attributes, value("only.rpc", "yes"), value("http.status_code", "wrong-type"), &cv.KeyValue{Key: "http.method", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: false}}})
+	sibling := batch(1, "worker", "sibling", 2, 1, 12_000_000_000, 13_000_000_000).ScopeSpans[0].Spans[0]
+	sibling.Attributes = []*cv.KeyValue{value("only.sibling", "yes"), value("request.kind", "sibling"), value("pred.b", "right")}
+	a.ScopeSpans[0].Spans[0].Attributes = append(a.ScopeSpans[0].Spans[0].Attributes, value("pred.a", "left"))
+	a.ScopeSpans[0].Spans = append(a.ScopeSpans[0].Spans, sibling)
+	generic := proto.Clone(base).(*tempopb.Trace)
+	generic.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("request.kind", "api")}
+	generic.ResourceSpans[0].Resource.Attributes = []*cv.KeyValue{value("service.name", "worker"), {Key: "cluster", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: false}}}}
+	noService := proto.Clone(generic).(*tempopb.Trace)
+	for _, r := range noService.ResourceSpans {
+		r.Resource.Attributes = []*cv.KeyValue{value("generic.resource", "yes")}
+	}
+	datasets := []struct {
+		Name  string
+		Trace *tempopb.Trace
+	}{{"promoted", base}, {"generic", generic}, {"no-service", noService}}
+	type Case struct {
+		Dataset   string `json:"dataset"`
+		Scope     string `json:"scope"`
+		Query     string `json:"query"`
+		Supported bool   `json:"supported"`
+		Response  any    `json:"response"`
+		Complete  any    `json:"complete"`
+	}
+	cases := []Case{}
+	dir := "/tmp/pulse-tempo-names"
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range datasets {
+		wire, err = proto.Marshal(d.Trace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(dir+"/"+d.Name+".protobuf", wire, 0644); err != nil {
+			t.Fatal(err)
+		}
+		var rows []*Trace
+		for _, r := range d.Trace.ResourceSpans {
+			tr := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}
+			row, _ := traceToParquet(&backend.BlockMeta{}, r.ScopeSpans[0].Spans[0].TraceId, tr, nil)
+			rows = append(rows, row)
+		}
+		block := makeBackendBlockWithTraces(t, rows)
+		engine := traceql.NewEngine()
+		opts := common.DefaultSearchOptions()
+		queries := []string{`{resource.service.name="worker"}`, `{span.request.kind="api"}`, `{span.request.kind="rpc"}`, `{resource.service.name="worker" && span.request.kind="sibling"}`, `{span.pred.a="left" && span.pred.b="right"}`, `{resource.service.name="absent"}`, `{span.request.kind=~"a.*"}`, `{span.filter.text=~"first.*second"}`, `{span.request.kind=~"p"}`}
+		if d.Name != "promoted" {
+			queries = []string{`{resource.service.name="absent"}`, `{span.request.kind="rpc"}`, `{span.request.kind="api"}`}
+		}
+		for _, scope := range []string{"resource", "span", "instrumentation", "event", "link"} {
+			for _, query := range queries {
+				set := map[string]bool{}
+				fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+					return block.FetchTagNames(ctx, req, cb, func(uint64) {}, opts)
+				})
+				err = engine.ExecuteTagNames(context.Background(), traceql.AttributeScopeFromString(scope), query, func(k string, s traceql.AttributeScope) bool {
+					if s.String() != scope {
+						t.Fatalf("unexpected scope %s", s)
+					}
+					set[k] = true
+					return false
+				}, fetcher)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tags := []string{}
+				for k := range set {
+					tags = append(tags, k)
+				}
+				sort.Strings(tags)
+				scopes := []any{}
+				if len(tags) > 0 {
+					scopes = append(scopes, map[string]any{"name": scope, "tags": tags})
+				}
+				// Independent complete-name contract: actual ExecuteSearch chooses
+				// span IDs, then original producer messages supply all requested
+				// owner keys. Keep upstream promoted-column hints as well. The
+				// upstream name iterator can drop keys seen on earlier nonmatches;
+				// retain BOTH results rather than changing that evidence.
+				matched, err := engine.ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: query + " with (most_recent=true)", Limit: 1000, SpansPerSpanSet: 1000}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return block.Fetch(ctx, req, opts)
+				}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids := map[string]bool{}
+				for _, tr := range matched.Traces {
+					if tr.SpanSet.Matched != uint32(len(tr.SpanSet.Spans)) {
+						t.Fatal("fixture search clipped candidates")
+					}
+					for _, sp := range tr.SpanSet.Spans {
+						ids[tr.TraceID+"/"+sp.SpanID] = true
+					}
+				}
+				complete := map[string]bool{}
+				for k := range set {
+					complete[k] = true
+				}
+				for _, r := range d.Trace.ResourceSpans {
+					for _, ss := range r.ScopeSpans {
+						for _, sp := range ss.Spans {
+							if !ids[util.TraceIDToHexString(sp.TraceId)+"/"+util.SpanIDToHexString(sp.SpanId)] {
+								continue
+							}
+							add := func(attrs []*cv.KeyValue) {
+								for _, a := range attrs {
+									complete[a.Key] = true
+								}
+							}
+							switch scope {
+							case "resource":
+								add(r.Resource.Attributes)
+							case "span":
+								add(sp.Attributes)
+							case "instrumentation":
+								if ss.Scope != nil {
+									add(ss.Scope.Attributes)
+								}
+							case "event":
+								for _, e := range sp.Events {
+									add(e.Attributes)
+								}
+							case "link":
+								for _, l := range sp.Links {
+									add(l.Attributes)
+								}
+							}
+						}
+					}
+				}
+				allTags := []string{}
+				for k := range complete {
+					allTags = append(allTags, k)
+				}
+				sort.Strings(allTags)
+				allScopes := []any{}
+				if len(allTags) > 0 {
+					allScopes = append(allScopes, map[string]any{"name": scope, "tags": allTags})
+				}
+				cases = append(cases, Case{d.Name, scope, query, true, map[string]any{"scopes": scopes}, map[string]any{"scopes": allScopes}})
+			}
+		}
+	}
+	for i, c := range cases {
+		wire, err = os.ReadFile(fmt.Sprintf(dir+"/result-%03d.protobuf", i))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := &tempopb.SearchTagsV2Response{}
+		want := &tempopb.SearchTagsV2Response{}
+		raw, _ := json.Marshal(c.Complete)
+		if err = json.Unmarshal(raw, want); err != nil {
+			t.Fatal(err)
+		}
+		if err = proto.Unmarshal(wire, got); err != nil {
+			t.Fatal(err)
+		}
+		if !proto.Equal(got, want) {
+			t.Fatalf("consumer case %d: %s vs %s", i, got, want)
+		}
+	}
+	raw, _ := json.MarshalIndent(cases, "", "  ")
+	if err = os.WriteFile(dir+"/oracle.json", append(raw, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+}

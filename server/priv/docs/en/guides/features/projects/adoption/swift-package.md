@@ -14,7 +14,7 @@ Tuist supports using `Package.swift` as a DSL for your projects and it converts 
 
 
 > [!NOTE]
-> **Root Directory**
+> **Root directory**
 >
 > Tuist commands expect a certain <.localized_link href="/guides/features/projects/directory-structure#standard-tuist-projects">directory structure</.localized_link> whose root is identified by a `Tuist` or a `.git` directory.
 

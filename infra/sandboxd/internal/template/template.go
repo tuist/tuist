@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
@@ -20,15 +21,16 @@ import (
 )
 
 const (
-	KernelFile   = "vmlinux"
-	RootfsFile   = "rootfs.ext4"
-	BootRootfs   = "rootfs.boot.ext4"
-	MemFile      = "memfile"
-	SnapshotFile = "snapshot"
-	MetadataFile = "metadata.json"
-	ReadyFile    = "ready"
-	shapesDir    = "shapes"
-	buildSuffix  = ".building"
+	KernelFile    = "vmlinux"
+	RootfsFile    = "rootfs.ext4"
+	BootRootfs    = "rootfs.boot.ext4"
+	BootWorkspace = "workspace.empty.ext4"
+	MemFile       = "memfile"
+	SnapshotFile  = "snapshot"
+	MetadataFile  = "metadata.json"
+	ReadyFile     = "ready"
+	shapesDir     = "shapes"
+	buildSuffix   = ".building"
 )
 
 // Shape is the vCPU and memory size a snapshot was taken with. A snapshot
@@ -92,6 +94,7 @@ type Metadata struct {
 	VCPUs              int       `json:"vcpus"`
 	MemoryMB           int       `json:"memory_mb"`
 	WorkspaceGB        int       `json:"workspace_gb"`
+	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -148,11 +151,12 @@ func (t Template) ReadyShapes() []Shape {
 
 // Artifacts are the files a sandbox is created from.
 type Artifacts struct {
-	Dir      string
-	Rootfs   string
-	Memfile  string
-	Snapshot string
-	Meta     Metadata
+	Dir       string
+	Rootfs    string
+	Workspace string
+	Memfile   string
+	Snapshot  string
+	Meta      Metadata
 }
 
 var ErrShapeNotReady = errors.New("template shape snapshot not built")
@@ -171,12 +175,48 @@ func (t Template) Artifacts(shape Shape) (Artifacts, error) {
 		return Artifacts{}, fmt.Errorf("decoding %s: %w", filepath.Join(dir, MetadataFile), err)
 	}
 	return Artifacts{
-		Dir:      dir,
-		Rootfs:   filepath.Join(dir, BootRootfs),
-		Memfile:  filepath.Join(dir, MemFile),
-		Snapshot: filepath.Join(dir, SnapshotFile),
-		Meta:     meta,
+		Dir:       dir,
+		Rootfs:    filepath.Join(dir, BootRootfs),
+		Workspace: filepath.Join(dir, BootWorkspace),
+		Memfile:   filepath.Join(dir, MemFile),
+		Snapshot:  filepath.Join(dir, SnapshotFile),
+		Meta:      meta,
 	}, nil
+}
+
+// shapeVersion is the Firecracker version a shape snapshot was taken with,
+// empty when its metadata is unreadable.
+func shapeVersion(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
+	if err != nil {
+		return ""
+	}
+	var meta Metadata
+	if json.Unmarshal(data, &meta) != nil {
+		return ""
+	}
+	return meta.FirecrackerVersion
+}
+
+// ownedByDaemon reports whether every entry of a shape directory belongs
+// to the daemon's uid. One a jail uid owns may already have been rewritten
+// by a sandbox in that slot, so the shape is rebuilt rather than chowned.
+func ownedByDaemon(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			return false
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || int(st.Uid) != os.Geteuid() {
+			return false
+		}
+	}
+	return true
 }
 
 // seedKernel reads the kernel name from the template-level metadata.json
@@ -289,9 +329,48 @@ func (s *Store) Resolve(name, tag string) (Template, error) {
 	}
 }
 
+// RemoveStaleTags deletes every tag directory of template `name` other than
+// `current` and the tags `inUse` reports, and returns the tags it removed.
+// The init container seeds a new tag directory on every template upgrade and
+// nothing else deletes the old ones, so without this they fill the node's data
+// disk until the kubelet evicts the Pods sharing it. Sandboxes hard-link or
+// reflink what they use from a template, so removing a tag never takes files
+// from a sandbox that was created from it.
+func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) bool) ([]string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return nil, fmt.Errorf("template name: %w", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(s.Dir, name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var removed []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == current || inUse(e.Name()) {
+			continue
+		}
+		dir, err := safepath.Under(s.Dir, name, e.Name())
+		if err != nil {
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			return removed, err
+		}
+		removed = append(removed, e.Name())
+	}
+	return removed, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
-// behind.
-func (s *Store) CleanPartialBuilds() error {
+// behind, shapes snapshotted by a different Firecracker version, which
+// that version cannot load, and shapes holding a file the daemon does not
+// own; the next create rebuilds them. Sandboxes linked to a removed memfile
+// keep their own hard link.
+func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -306,7 +385,7 @@ func (s *Store) CleanPartialBuilds() error {
 				continue
 			}
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
-			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) {
+			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

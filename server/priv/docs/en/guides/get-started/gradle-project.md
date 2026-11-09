@@ -41,11 +41,7 @@ tuist init --build-system gradle --name <project-handle> --account <account>
 
 Tuist writes a `tuist.toml` at the repository root with the project handle and prints a `plugins { ... }` block. Paste it at the top of `settings.gradle.kts`:
 
-```kotlin
-plugins {
-    id("dev.tuist") version "0.10.0"
-}
-```
+<!-- @snippet: ../_gradle-plugin-block -->
 
 Sanity-check with `./gradlew help`. Gradle should load without errors. If it can't find the plugin, make sure the block is in `settings.gradle.kts`, not `build.gradle.kts`.
 
@@ -119,7 +115,7 @@ Requesting a `tuistShare<Variant>` task opts that invocation into publication; o
 
 Cache hits, insights, and stress-testing all compound with the number of people connected to the project. Invite your teammates to the organization from the account settings on the dashboard, and set up <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link> (Google, Okta, Microsoft) so onboarding is a click rather than a per-person `tuist auth login`.
 
-For CI, don't use a personal login. Set `TUIST_TOKEN` scoped to your project (create it from the project settings on the dashboard).
+For CI, don't use a personal login. Authenticate with your CI provider's OIDC identity, or create an account token with the **CI** preset in the dashboard and set it as `TUIST_TOKEN`. See <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</.localized_link>.
 
 ## Full plugin reference
 

@@ -1,0 +1,7 @@
+{
+  "name": "Tuist jam cards",
+  "id": "dev.tuist.jams.cards",
+  "version": "1.0.0",
+  "build": 1,
+  "capabilities": { "host": ["layout.height"] }
+}

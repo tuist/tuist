@@ -1,0 +1,25 @@
+defmodule SDKCaptureExporter do
+  @moduledoc false
+  def init(%{output: output, owner: owner, exporter: opts}) do
+    {:ok, inner} = :otel_exporter_traces_otlp.init(opts)
+    {:ok, %{inner: inner, output: output, owner: owner}}
+  end
+
+  def export(tab, resource, state) do
+    request = :otel_otlp_traces.to_proto(tab, resource)
+
+    if request == :empty do
+      :otel_exporter_traces_otlp.export(tab, resource, state.inner)
+    else
+      bytes = :opentelemetry_exporter_trace_service_pb.encode_msg(request, :export_trace_service_request)
+      File.write!(state.output <> "-sdk.protobuf", bytes)
+      records = :ets.tab2list(tab)
+      File.write!(state.output <> "-sdk-records.etf", :erlang.term_to_binary({records, resource}))
+      result = :otel_exporter_traces_otlp.export(tab, resource, state.inner)
+      send(state.owner, {:export_complete, length(records), result})
+      result
+    end
+  end
+
+  def shutdown(state), do: :otel_exporter_traces_otlp.shutdown(state.inner)
+end

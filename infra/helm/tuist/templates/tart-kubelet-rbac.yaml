@@ -28,7 +28,7 @@ rules:
   # object deletion after the backing Tart VM has been torn down.
   - apiGroups: [""]
     resources: [pods]
-    verbs: [get, list, watch, update, patch, delete]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods/status]
     verbs: [get, list, watch, update, patch]

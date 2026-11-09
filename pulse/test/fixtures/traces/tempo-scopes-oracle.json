@@ -1,0 +1,840 @@
+[
+  {
+    "scope": "resource",
+    "key": "",
+    "query": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "resource",
+          "tags": [
+            "deployment.environment",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "scope": "resource",
+    "key": "shared",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "resource"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "resource",
+    "key": "shared",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "resource"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "resource",
+    "key": "shared",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "span",
+    "key": "",
+    "query": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "span",
+          "tags": [
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "scope": "span",
+    "key": "shared",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "span"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "span",
+    "key": "shared",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "span"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "span",
+    "key": "shared",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "",
+    "query": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "shared",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "instrumentation"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "shared",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "instrumentation"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "shared",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "count",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775807"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "count",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "count",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "enabled",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "enabled",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "enabled",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "empty",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "empty",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "empty",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "absent",
+    "query": "",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "absent",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "absent",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "channel",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "api"
+        },
+        {
+          "type": "string",
+          "value": "rpc"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "channel",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "api"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "channel",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "name",
+    "query": "",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "name",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "instrumentation",
+    "key": "name",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "",
+    "query": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "shared",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "event"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "shared",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "event"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "shared",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "count",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "7"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775807"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "count",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "7"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "count",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "enabled",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "enabled",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "enabled",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "empty",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "empty",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "empty",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "absent",
+    "query": "",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "absent",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "absent",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "event",
+    "key": "phase",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "first"
+        },
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "second"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "phase",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "first"
+        },
+        {
+          "type": "string",
+          "value": "second"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "event",
+    "key": "phase",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "",
+    "query": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "shared",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "link"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "shared",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "link"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "shared",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "count",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "7"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775807"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "count",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "7"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "count",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "enabled",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "enabled",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "enabled",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "empty",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "empty",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "empty",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "absent",
+    "query": "",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "absent",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "absent",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "scope": "link",
+    "key": "phase",
+    "query": "",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "first"
+        },
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "second"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "phase",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "first"
+        },
+        {
+          "type": "string",
+          "value": "second"
+        }
+      ]
+    }
+  },
+  {
+    "scope": "link",
+    "key": "phase",
+    "query": "{resource.service.name=\"absent\"}",
+    "response": {
+      "tagValues": []
+    }
+  }
+]

@@ -83,6 +83,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Tuist.Observability.attach_oban()
+    Tuist.Jams.Checkpoints.attach()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -377,14 +378,19 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
           Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
+          # JWKS HTTP refreshes must not block the application cache's transaction worker.
+          Supervisor.child_spec({Cachex, [:entire_jwks, []]}, id: :entire_jwks),
           Tuist.OIDC.JWKSCache,
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
+          Tuist.Marketing.BazelShowcase,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
+          {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
+          {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
           Tuist.KeyValueStore.Invalidator,
           {Tuist.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
@@ -399,7 +405,12 @@ defmodule Tuist.Application do
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
         redis_children() ++
-        [TuistWeb.Draining, TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        [
+          TuistWeb.Draining,
+          TuistWeb.Endpoint,
+          {Task.Supervisor, name: Tuist.Jams.Tasks},
+          {Oban, Application.fetch_env!(:tuist, Oban)}
+        ] ++
         once_events_grpc_children() ++
         RuntimeChildren.readiness_server(Environment.mode())
 
@@ -590,6 +601,10 @@ defmodule Tuist.Application do
             start_pool_metrics?: true
           ],
           object_storage_endpoint => object_storage_pool_opts,
+          # APNs only speaks HTTP/2; both providers multiplex requests on one connection.
+          "https://api.push.apple.com" => apns_pool_opts(),
+          "https://api.sandbox.push.apple.com" => apns_pool_opts(),
+          "https://fcm.googleapis.com" => apns_pool_opts(),
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,
@@ -616,6 +631,22 @@ defmodule Tuist.Application do
 
       Map.merge(base_pools, additional_pools)
     end
+  end
+
+  defp apns_pool_opts do
+    [
+      conn_opts: [
+        log: true,
+        transport_opts: [
+          inet6: Environment.use_ipv6?() in ~w(true 1),
+          cacertfile: CAStore.file_path(),
+          verify: :verify_peer
+        ]
+      ],
+      count: 1,
+      protocols: [:http2],
+      start_pool_metrics?: true
+    ]
   end
 
   defp object_storage_endpoint do

@@ -1,0 +1,1539 @@
+[
+  {
+    "name": "overlap-and-outside-match",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 30,
+    "End": 40,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": [
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "newer",
+          "startTimeUnixNano": "35000000000",
+          "durationMs": 3000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "37000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "37000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "startTimeUnixNano": "32000000000",
+          "durationMs": 15000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "32000000000",
+                "durationNanos": "15000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "32000000000",
+                  "durationNanos": "15000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 40000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "45000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "45000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "most-recent-before-limit",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 30,
+    "End": 40,
+    "Limit": 1,
+    "SPSS": 1,
+    "response": {
+      "traces": [
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "newer",
+          "startTimeUnixNano": "35000000000",
+          "durationMs": 3000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "37000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "37000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "gap-overlap",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 25,
+    "End": 30,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 40000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "45000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "45000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "inclusive-left",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 50,
+    "End": 50,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 40000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "45000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "45000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "no-match",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 80,
+    "End": 90,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "name": "final-second-exclusive",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 40,
+    "End": 40,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "startTimeUnixNano": "32000000000",
+          "durationMs": 15000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "32000000000",
+                "durationNanos": "15000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "32000000000",
+                  "durationNanos": "15000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 40000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "45000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "45000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "final-second-included",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 40,
+    "End": 41,
+    "Limit": 100,
+    "SPSS": 3,
+    "response": {
+      "traces": [
+        {
+          "traceID": "4",
+          "rootServiceName": "worker",
+          "rootTraceName": "after",
+          "startTimeUnixNano": "41000000000",
+          "durationMs": 4000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "41000000000",
+                "durationNanos": "4000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "41000000000",
+                  "durationNanos": "4000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "7",
+          "rootServiceName": "worker",
+          "rootTraceName": "inside-final-second",
+          "startTimeUnixNano": "40500000000",
+          "durationMs": 400,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "40500000000",
+                "durationNanos": "400000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "40500000000",
+                  "durationNanos": "400000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "startTimeUnixNano": "32000000000",
+          "durationMs": 15000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "32000000000",
+                "durationNanos": "15000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "32000000000",
+                  "durationNanos": "15000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 40000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "45000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "45000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "sample-not-matched-count",
+    "query": "{ resource.service.namespace = \"example\" \u0026\u0026 resource.service.name = \"worker\" \u0026\u0026 resource.deployment.environment =~ \"production\" } with (most_recent=true)",
+    "Start": 55,
+    "End": 60,
+    "Limit": 100,
+    "SPSS": 1,
+    "response": {
+      "traces": [
+        {
+          "traceID": "8",
+          "rootServiceName": "frontend",
+          "rootTraceName": "many-root",
+          "startTimeUnixNano": "55000000000",
+          "durationMs": 5000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "57000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 3
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "57000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 3
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 3
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "gap-root",
+          "startTimeUnixNano": "10000000000",
+          "durationMs": 61000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "70000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "deployment.environment",
+                    "value": {
+                      "stringValue": "production"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  },
+                  {
+                    "key": "service.namespace",
+                    "value": {
+                      "stringValue": "example"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "70000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "deployment.environment",
+                      "value": {
+                        "stringValue": "production"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    },
+                    {
+                      "key": "service.namespace",
+                      "value": {
+                        "stringValue": "example"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+]

@@ -1,65 +1,36 @@
 ---
 {
-  "title": "Code reviews",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "Learn how to contribute to Tuist by reviewing code"
+  "title": "Kod incelemeleri",
+  "titleTemplate": ":title · Katkıda Bulunanlar · Tuist",
+  "description": "Kod inceleyerek Tuist'e nasıl katkıda bulunacağınızı öğrenin"
 }
 ---
 # Kod incelemeleri {#code-reviews}
 
-Çekme isteklerini gözden geçirmek yaygın bir katkı türüdür. Sürekli entegrasyon
-(CI) kodun yapması gerekeni yapmasını sağlasa da yeterli değildir.
-Otomatikleştirilemeyen katkı özellikleri vardır: tasarım, kod yapısı ve
-mimarisi, test kalitesi veya yazım hataları. Aşağıdaki bölümler kod inceleme
-sürecinin farklı yönlerini temsil etmektedir.
+Pull request’leri incelemek yaygın bir katkı türüdür. Sürekli entegrasyon (CI), kodun yapması gerekeni yaptığını garanti etse de bu yeterli değildir. Otomatize edilemeyen katkı özellikleri vardır: tasarım, kod yapısı ve mimari, testlerin kalitesi veya yazım hataları. Aşağıdaki bölümler, kod inceleme sürecinin farklı yönlerini temsil eder.
 
 ## Okunabilirlik {#readability}
 
-Kod amacını açıkça ifade ediyor mu? **Kodun ne yaptığını anlamak için çok fazla
-zaman harcamanız gerekiyorsa, kod uygulamasının iyileştirilmesi gerekir.** Kodu,
-anlaşılması daha kolay olan daha küçük soyutlamalara bölmeyi önerin. Alternatif
-ve son kaynak olarak, bunun arkasındaki mantığı açıklayan bir yorum
-ekleyebilirler. Kendinize, yakın bir gelecekte, çekme isteği açıklaması gibi
-herhangi bir bağlam olmadan kodu anlayıp anlayamayacağınızı sorun.
+Kod amacını açıkça ifade ediyor mu? **Kodun ne yaptığını anlamak için çok zaman harcamanız gerekiyorsa, kod uygulamasının iyileştirilmesi gerekir.** Kodu daha kolay anlaşılacak daha küçük soyutlamalara ayırmayı önerin. Alternatif olarak ve son çare olarak, arkasındaki mantığı açıklayan bir yorum ekleyebilirler. Pull request açıklaması gibi bağlamlar olmadan, yakın gelecekte kodu anlayıp anlayamayacağınızı kendinize sorun.
 
-## Küçük çekme istekleri {#small-pull-requests}
+## Küçük pull request’ler {#small-pull-requests}
 
-Büyük talepleri incelemek zordur ve ayrıntıları gözden kaçırmak daha kolaydır.
-Bir çekme isteği çok büyük ve yönetilemez hale gelirse, yazara onu parçalamasını
-önerin.
+Büyük pull request’leri incelemek zordur ve detayları gözden kaçırmak daha kolaydır. Bir pull request çok büyük ve yönetilemez hale gelirse, yazardan bunu parçalara ayırmasını isteyin.
 
 > [!NOTE]
-> **Exceptions**
+> **İstisnalar**
 >
-> Değişikliklerin birbirine sıkı sıkıya bağlı olduğu ve bölünemediği durumlar
-> gibi, çekme isteğini bölmenin mümkün olmadığı birkaç senaryo vardır. Bu
-> durumlarda, yazar değişikliklerin ve arkasındaki gerekçelerin net bir
-> açıklamasını sunmalıdır.
+> Değişikliklerin sıkıca bağlı olduğu ve ayrılamadığı durumlar gibi, pull request’i bölmenin mümkün olmadığı birkaç senaryo vardır. Bu durumlarda, yazar değişiklikleri ve bunların ardındaki mantığı açıkça açıklamalıdır.
 
 
 ## Tutarlılık {#consistency}
 
-Değişikliklerin projenin geri kalanıyla tutarlı olması önemlidir. Tutarsızlıklar
-bakımı zorlaştırır ve bu nedenle bunlardan kaçınmalıyız. Kullanıcıya mesaj
-çıktısı vermek veya hataları bildirmek için bir yaklaşım varsa, buna bağlı
-kalmalıyız. Yazar projenin standartlarına katılmıyorsa, daha fazla
-tartışabileceğimiz bir sorun açmalarını önerin.
+Değişikliklerin projenin geri kalanıyla tutarlı olması önemlidir. Tutarsızlıklar bakımı zorlaştırır, bu nedenle bunlardan kaçınmalıyız. Kullanıcıya mesaj iletmek veya hata bildirmek için bir yaklaşım varsa, buna sadık kalmalıyız. Yazar projenin standartlarına katılmıyorsa, bunları daha fazla tartışabileceğimiz bir issue açmasını önerin.
 
 ## Testler {#tests}
 
-Testler kodun güvenle değiştirilmesini sağlar. Çekme taleplerindeki kod test
-edilmeli ve tüm testler geçmelidir. İyi bir test, tutarlı bir şekilde aynı
-sonucu üreten ve anlaşılması ve sürdürülmesi kolay olan bir testtir. Gözden
-geçirenler, gözden geçirme süresinin çoğunu uygulama kodunda geçirirler, ancak
-testler de kod oldukları için eşit derecede önemlidir.
+Testler, kodu güvenle değiştirmenizi sağlar. Pull request’lerdeki kod test edilmeli ve tüm testler geçmelidir. İyi bir test, tutarlı şekilde aynı sonucu üreten ve anlaşılması ile bakımı kolay olan testtir. İnceleyenler inceleme süresinin çoğunu uygulama koduna harcar, ancak testler de kod olduğu için eşit derecede önemlidir.
 
-## Kırılma değişiklikleri {#breaking-changes}
+## Kırıcı değişiklikler {#breaking-changes}
 
-Kırıcı değişiklikler Tuist kullanıcıları için kötü bir kullanıcı deneyimidir.
-Katkılar, kesinlikle gerekli olmadıkça kırıcı değişiklikler yapmaktan
-kaçınmalıdır. Kırıcı bir değişikliğe başvurmadan Tuist'in arayüzünü geliştirmek
-için yararlanabileceğimiz birçok dil özelliği vardır. Bir değişikliğin kırıcı
-olup olmadığı açık olmayabilir. Değişikliğin kırıcı olup olmadığını doğrulamak
-için bir yöntem, Tuist'i fikstürler dizinindeki fikstür projelerine karşı
-çalıştırmaktır. Bu, kendimizi kullanıcının yerine koymayı ve değişikliklerin
-onları nasıl etkileyeceğini hayal etmeyi gerektirir.
+Kırıcı değişiklikler, Tuist kullanıcıları için kötü bir kullanıcı deneyimidir. Katkılar, kesinlikle gerekli olmadıkça kırıcı değişiklikler getirmekten kaçınmalıdır. Kırıcı bir değişikliğe başvurmadan Tuist arayüzünü geliştirmek için yararlanabileceğimiz birçok dil özelliği vardır. Bir değişikliğin kırıcı olup olmadığı her zaman açık olmayabilir. Değişikliğin kırıcı olup olmadığını doğrulamanın bir yolu, Tuist’i fixtures dizinindeki fixture projelere karşı çalıştırmaktır. Kendimizi kullanıcının yerine koyup değişikliklerin onları nasıl etkileyeceğini hayal etmemiz gerekir.

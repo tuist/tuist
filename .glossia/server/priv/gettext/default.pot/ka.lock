@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1675438398117f4580941fa2192dc2416792ca6c54ced28448234363a9427d1b",
+  "hash": "02c3735fc964265b1d4a2ea75da71d329a93bfc49c56f70eaab2d6a711198fcb",
   "hash_tree": {
     "root": {
       "children": [
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,18 +119,18 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "293df82c434ab8c15ea40d68dcdceb96fe887f53d9e64f006aa6248fe08889a0",
+              "hash": "c58cccd6bd647392b2ace4f19dfca189bdaa5c5ad8eadaa191ad52ea2540f30b",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "ef99d79203262e719f50d8f921dc666b5d11e73fbc4a17dd73331879b156d9a1"
+                "content_hash": "8a0153f81a5743cfadb937e7cc5c722f2b8dbdd73edb7ece8b75ed68cd28243c"
               }
             },
             {
@@ -200,21 +200,21 @@
             }
           ],
           "details": {},
-          "hash": "f075c44656f974040b1ef2502beb6359ece5d7d16d8a67f697f1d02fccb7b083",
+          "hash": "8d4a21a03a02ece924bf35b95e5518a21ecbfcccc2daf99ea7fb082caa736f1c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "1675438398117f4580941fa2192dc2416792ca6c54ced28448234363a9427d1b",
+      "hash": "02c3735fc964265b1d4a2ea75da71d329a93bfc49c56f70eaab2d6a711198fcb",
       "kind": "translation_input",
       "label": "server/priv/gettext/default.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "13dbc28bfc3144f4267c361d507a9e74e7e168e13f2fbb540bd3d7a639fe141c",
+  "output_hash": "c92fb263da33311642d0935970ab63497cc0267a0166af2fdbc9867926d04c3c",
   "output_path": "server/priv/gettext/ka/LC_MESSAGES/default.po",
   "po_units": {
     "32bb24a806b05dbacb432e67f4f4afbea7c9c7f8d14f7bab3ac715b8bfbe5e7f": "605f764c01be1cbe1d9ca494cd031c60e1cef552ca3e2dcff98e8c1654eae538",
@@ -238,8 +238,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1f114d0d0f98855a4affbdadadae8c833f33d286",
+  "source_commit_sha": "14f76aad4328165c570066fba81bb1dbd0ec7292",
   "source_path": "server/priv/gettext/default.pot",
-  "translated_at": "2026-10-29T20:29:54.540648Z",
-  "translation_session_id": "01a18957-e625-7f6d-ad4c-c4dcb972c2b1"
+  "translated_at": "2026-11-07T01:31:08.506088Z",
+  "translation_session_id": "01a1b362-2585-7d10-9c8f-ab1290485006"
 }

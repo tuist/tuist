@@ -16,7 +16,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 )
 
@@ -89,6 +89,18 @@ func TestArchiveAndRestoreOnAnotherNode(t *testing.T) {
 
 	if _, err := h.m.Archive(ctx, archiveArgs(server, "source")); !errors.Is(err, ErrNotPaused) {
 		t.Fatalf("archiving a running sandbox must fail, got %v", err)
+	}
+	if _, err := h.m.Pause(ctx, "source"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Archive(ctx, archiveArgs(server, "source")); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("archiving a sandbox whose pause did not sync its disks must fail, got %v", err)
+	}
+	if len(store.object()) != 0 {
+		t.Fatal("a refused archive must not upload anything")
+	}
+	if _, err := h.m.Resume(ctx, "source"); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "source", SyncDisks: true}); err != nil {
 		t.Fatal(err)
@@ -170,7 +182,7 @@ func TestResumeInterruptsAnArchive(t *testing.T) {
 	store.gate = make(chan struct{})
 	defer close(store.gate)
 	h.create(t, "busy", 1)
-	if _, err := h.m.Pause(ctx, "busy"); err != nil {
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "busy", SyncDisks: true}); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -193,4 +205,110 @@ func TestResumeInterruptsAnArchive(t *testing.T) {
 	if err := <-done; !errors.Is(err, ErrArchiveInterrupted) {
 		t.Fatalf("the archive must report the interruption, got %v", err)
 	}
+}
+
+func TestArchiveDisksRestoresOnAnotherNode(t *testing.T) {
+	h := newHarness(t)
+	// fakevm.CopyFile reads whole files into memory; a 1 GiB workspace
+	// needs a copy that keeps holes, as a reflink does.
+	h.m.cloneFile = sparseCopy
+	ctx := context.Background()
+	store, server := newObjectStore(t)
+	if err := os.MkdirAll(h.m.cfg.SnapshotDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.create(t, "source", 1)
+	workspacePath := filepath.Join(vm.RootDir(h.jailBase, "source"), "workspace.ext4")
+	writeAt := func(text string) {
+		t.Helper()
+		workspace, err := os.OpenFile(workspacePath, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer workspace.Close()
+		if _, err := workspace.WriteAt([]byte(text), 300<<20); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeAt("project set up")
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "source", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.SaveDisks(ctx, protocol.SaveDisksArgs{SandboxID: "source", SnapshotID: "snap1"}); err != nil {
+		t.Fatal(err)
+	}
+	// The source keeps working after the save; the snapshot must not follow it.
+	writeAt("later changes!")
+
+	args := archiveArgs(server, "")
+	missing := protocol.ArchiveDisksArgs{SnapshotID: "absent", PartSize: args.PartSize, PartURLs: args.PartURLs}
+	if _, err := h.m.ArchiveDisks(ctx, missing); !errors.Is(err, ErrDiskSnapshotNotFound) {
+		t.Fatalf("archiving an unknown disk snapshot must fail with not found, got %v", err)
+	}
+	res, err := h.m.ArchiveDisks(ctx, protocol.ArchiveDisksArgs{SnapshotID: "snap1", PartSize: args.PartSize, PartURLs: args.PartURLs})
+	if err != nil {
+		t.Fatalf("archive disks: %v", err)
+	}
+	object := store.object()
+	sum := sha256.Sum256(object)
+	if res.Bytes != int64(len(object)) || res.SHA256 != hex.EncodeToString(sum[:]) || !res.DisksSynced || len(res.Parts) == 0 {
+		t.Fatalf("archive result %+v does not describe the object", res)
+	}
+	if infos := h.m.DiskSnapshots(); len(infos) != 1 || infos[0].ID != "snap1" {
+		t.Fatalf("archiving must keep the disk snapshot on the node, got %+v", infos)
+	}
+
+	other := newHarness(t)
+	if err := os.RemoveAll(other.tmplDir); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "fresh", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromArchive: source}); err != nil {
+		t.Fatalf("create from the disk snapshot archive: %v", err)
+	}
+	restored := filepath.Join(vm.RootDir(other.jailBase, "fresh"), "workspace.ext4")
+	got := make([]byte, 14)
+	file, err := os.Open(restored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if _, err := file.ReadAt(got, 300<<20); err != nil {
+		t.Fatal(err)
+	}
+	if vm.FileSize(restored) != 1<<30 || string(got) != "project set up" {
+		t.Fatalf("a sandbox created from the archive must hold the snapshot's disks, not the source's later writes; got %q", got)
+	}
+}
+
+// sparseCopy copies src to dst, leaving zero blocks as holes.
+func sparseCopy(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	block := make([]byte, 1<<20)
+	zero := make([]byte, len(block))
+	for offset := int64(0); offset < info.Size(); offset += int64(len(block)) {
+		n, err := in.ReadAt(block, offset)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if n > 0 && string(block[:n]) != string(zero[:n]) {
+			if _, err := out.WriteAt(block[:n], offset); err != nil {
+				return err
+			}
+		}
+	}
+	return out.Truncate(info.Size())
 }

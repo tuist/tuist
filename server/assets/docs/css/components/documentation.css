@@ -1,5 +1,5 @@
 .tuist-docs .noora-alert :is(ul, ol) {
-  padding-left: var(--noora-spacing-5);
+  padding-inline-start: var(--noora-spacing-5);
 }
 
 /* Docs admonitions read as tinted quote blocks rather than filled banners.

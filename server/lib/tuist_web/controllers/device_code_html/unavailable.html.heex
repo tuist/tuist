@@ -1,0 +1,17 @@
+<.device_code_frame
+  title={dgettext("dashboard_auth", "Sign-in link expired")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "This sign-in link has expired or was already used. Start the sign-in again."
+    )
+  }
+>
+  <.button
+    data-part="dashboard-button"
+    variant="primary"
+    size="large"
+    label={dgettext("dashboard_auth", "Dashboard")}
+    href={TuistWeb.Authentication.signed_in_path(@current_user)}
+  />
+</.device_code_frame>

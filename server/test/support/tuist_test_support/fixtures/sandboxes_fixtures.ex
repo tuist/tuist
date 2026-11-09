@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
 
     attrs = %{
       account_id: account.id,
+      kind: Keyword.get(opts, :kind, :managed_agents),
       anthropic_environment_id:
         Keyword.get(opts, :anthropic_environment_id, "env_#{TuistTestSupport.Utilities.unique_integer()}"),
       environment_key: Keyword.get(opts, :environment_key, "sk-ant-env-#{TuistTestSupport.Utilities.unique_integer()}"),
@@ -20,6 +21,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       agent_model: Keyword.get(opts, :agent_model, "claude-sonnet-5"),
       agent_system_prompt: Keyword.get(opts, :agent_system_prompt),
       name: Keyword.get(opts, :name, "environment"),
+      platform: Keyword.get(opts, :platform, :linux),
       template: Keyword.get(opts, :template, "default"),
       vcpus: Keyword.get(opts, :vcpus, 2),
       memory_mb: Keyword.get(opts, :memory_mb, 4096),
@@ -56,6 +58,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       repository_ref: Keyword.get(opts, :repository_ref),
       model: Keyword.get(opts, :model, "claude-sonnet-5"),
       budget_cents: Keyword.get(opts, :budget_cents),
+      platform: Keyword.get(opts, :platform),
       last_status: Keyword.get(opts, :last_status, "running"),
       last_stop_reason: Keyword.get(opts, :last_stop_reason),
       created_by_user_id: Keyword.get(opts, :created_by_user_id)
@@ -69,6 +72,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       account_id: account.id,
       agent_environment_id: Keyword.get(opts, :agent_environment_id),
       anthropic_session_id: Keyword.get(opts, :anthropic_session_id),
+      platform: Keyword.get(opts, :platform, :linux),
       amp_orb_id: Keyword.get(opts, :amp_orb_id),
       amp_integration_id: Keyword.get(opts, :amp_integration_id),
       template: Keyword.get(opts, :template, "default"),
@@ -78,6 +82,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
       state: Keyword.get(opts, :state, :running),
       node_name: Keyword.get(opts, :node_name, "node-#{TuistTestSupport.Utilities.unique_integer()}"),
+      node_uid: Keyword.get(opts, :node_uid),
+      resident: Keyword.get(opts, :resident, false),
       hostname: Keyword.get(opts, :hostname, "sbx-fixture"),
       residency_work_id: Keyword.get(opts, :residency_work_id),
       residency_epoch: Keyword.get(opts, :residency_epoch, 0),
@@ -91,7 +97,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       archive_bytes: Keyword.get(opts, :archive_bytes),
       archive_sha256: Keyword.get(opts, :archive_sha256),
       archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate(),
-      archived_at: opts |> Keyword.get(:archived_at) |> truncate()
+      archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      inserted_at: opts |> Keyword.get(:inserted_at) |> truncate()
     })
   end
 
@@ -107,7 +114,14 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
       state: Keyword.get(opts, :state, :ready),
-      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate()
+      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate(),
+      archive_store: Keyword.get(opts, :archive_store),
+      archive_key: Keyword.get(opts, :archive_key),
+      archive_upload_id: Keyword.get(opts, :archive_upload_id),
+      archive_bytes: Keyword.get(opts, :archive_bytes),
+      archive_sha256: Keyword.get(opts, :archive_sha256),
+      archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate()
     })
   end
 

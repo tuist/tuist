@@ -120,6 +120,22 @@ defmodule Tuist.SandboxesTest do
                )
     end
 
+    test "records a claimed warm VM as the boot source" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 900, "warm" => true}} end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{})
+
+      assert [%{boot_source: "warm"}] =
+               ClickHouseRepo.all(
+                 from(e in SandboxEvent,
+                   where: e.sandbox_id == ^sandbox.id and e.event == "started",
+                   select: %{boot_source: e.boot_source}
+                 )
+               )
+    end
+
     test "applies the requested shape" do
       account = account_fixture()
 
@@ -165,11 +181,11 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "pause/1 and resume/1" do
-    test "pause/1 snapshots a running sandbox" do
+    test "pause/1 snapshots a running sandbox after syncing its disks" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       sandbox_id = sandbox.id
 
-      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id}, _opts ->
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id, sync_disks: true}, _opts ->
         {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
       end)
 
@@ -316,6 +332,23 @@ defmodule Tuist.SandboxesTest do
       expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
 
       assert {:ok, %{exit_code: 0, stdout: "", stderr: ""}} = Sandboxes.exec(sandbox, ["/bin/true"])
+      assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+
+    test "waits out a pause the command raced with, then resumes the sandbox and runs it" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+
+      # The idle pause reached the node first; by the time the exec retries,
+      # the row says paused.
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts ->
+        sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+        {:error, "sandbox is being paused: #{sandbox.id}"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{exit_code: 0}} = Sandboxes.exec(sandbox, ["/bin/true"])
       assert %Sandbox{state: :running} = Repo.reload!(sandbox)
     end
 
@@ -470,8 +503,15 @@ defmodule Tuist.SandboxesTest do
     test "adopts reported sandboxes, errors the missing ones and deletes orphans" do
       reported = sandbox_fixture(state: :error, node_name: nil, error_message: "missing on node")
       moved = sandbox_fixture(state: :running, node_name: "node-b")
-      missing = sandbox_fixture(state: :paused, node_name: "node-a", residency_work_id: "work_9", residency_epoch: 1)
+
+      missing =
+        [state: :paused, node_name: "node-a", residency_work_id: "work_9", residency_epoch: 1]
+        |> sandbox_fixture()
+        |> backdate(60)
+
       untouched = sandbox_fixture(state: :creating, node_name: nil)
+      # Created a moment ago: the report may predate it.
+      just_created = sandbox_fixture(state: :running, node_name: "node-a")
       orphan_id = Ecto.UUID.generate()
 
       expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^orphan_id}, _opts -> {:ok, %{}} end)
@@ -495,6 +535,7 @@ defmodule Tuist.SandboxesTest do
                Repo.reload!(missing)
 
       assert %Sandbox{state: :creating, node_name: nil} = Repo.reload!(untouched)
+      assert %Sandbox{state: :running, error_message: nil} = Repo.reload!(just_created)
     end
 
     test "leaves a sandbox being deleted alone" do
@@ -505,6 +546,41 @@ defmodule Tuist.SandboxesTest do
                Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => deleting.id, "state" => "running"}]})
 
       assert %Sandbox{state: :deleted} = Repo.reload!(deleting)
+    end
+
+    test "leaves execution VMs to their scheduler" do
+      reported = sandbox_fixture(state: :creating, node_name: "node-a")
+      unreported = sandbox_fixture(state: :running, node_name: "node-a")
+
+      for sandbox <- [reported, unreported] do
+        sandbox |> Ecto.Changeset.change(purpose: :remote_execution) |> Repo.update!()
+      end
+
+      reject(&Nodes.call/4)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => reported.id, "state" => "error"}]})
+
+      assert %Sandbox{state: :creating, error_message: nil} = Repo.reload!(reported)
+      assert %Sandbox{state: :running, error_message: nil} = Repo.reload!(unreported)
+    end
+  end
+
+  describe "listing an account's sandboxes" do
+    test "leaves out execution VMs" do
+      account = account_fixture()
+      agent = sandbox_fixture(account: account, vcpus: 2)
+
+      [account: account, vcpus: 8]
+      |> sandbox_fixture()
+      |> Ecto.Changeset.change(purpose: :remote_execution)
+      |> Repo.update!()
+
+      assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
+      assert id == agent.id
+      assert Sandboxes.count_sandboxes(account) == 1
+      assert Sandboxes.sandbox_vcpus(account) == [2]
+      assert %{running: 1} = Sandboxes.count_sandboxes_by_state(account)
     end
   end
 
@@ -551,7 +627,7 @@ defmodule Tuist.SandboxesTest do
     test "errors a creating sandbox the node never got once it has been stuck, and leaves a fresh one alone" do
       stuck = [state: :creating, node_name: "node-a"] |> sandbox_fixture() |> backdate(600)
       fresh = sandbox_fixture(state: :creating, node_name: "node-a")
-      resuming = sandbox_fixture(state: :resuming, node_name: "node-a")
+      resuming = [state: :resuming, node_name: "node-a"] |> sandbox_fixture() |> backdate(60)
 
       Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => []})
 

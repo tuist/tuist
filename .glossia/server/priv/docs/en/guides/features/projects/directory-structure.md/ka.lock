@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7c9c69b4ed044eaa2d65ff109dcd7fc9b036145b126a73c31aa1931bd07d7173",
+  "hash": "47efe28d79dae1d59f35af02e62047ac5716ee9f8f0f1e9239d918ddc8386383",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "cbcf26ed8d50d7cd5b96dc5912ca22dabf4f23d0ecefdee23342f549c181abcc"
                 },
                 "## Standard Tuist projects {#standard-tuist-projects}": {
-                  "content_hash": "203b443c0fdc9420964b44269ddf49ad56b8d83fcb3856b9da6979421de4d5b4"
+                  "content_hash": "a0279654b6e77c1647073bef053d98fa173116f8d8a263f5ac763b7e93c36a2c"
                 },
                 "## Swift Package <Badge type=\"warning\" text=\"beta\" /> {#swift-package-badge-typewarning-textbeta-}": {
                   "content_hash": "bb62abfa5be379108e5cbeb1272f2ce0784745d1419992acaff939e0740a124e"
@@ -26,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "91a60b4b222a7304b58fcf7998b5287b05b7589094ad165dcac6324ef87d9e9c",
+          "hash": "4ca81359269b7de4b3c68fc2dc4748c47bb1227f7a88c2a3d5f78fd80d6e7223",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/directory-structure.md",
           "metadata": {
-            "content_hash": "fca57c50e5874c65d732a94d7dca649be32d92fe41463db92fef4c695deaddf1"
+            "content_hash": "a5b711698a259d2d7ce4ac8d866c75c4c76798f767e7634604a5f16ce3541980"
           }
         },
         {
@@ -91,7 +91,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,7 +110,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -139,11 +139,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -220,21 +220,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "7c9c69b4ed044eaa2d65ff109dcd7fc9b036145b126a73c31aa1931bd07d7173",
+      "hash": "47efe28d79dae1d59f35af02e62047ac5716ee9f8f0f1e9239d918ddc8386383",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/directory-structure.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "38b1224433f2d34786c6f9432eb9a61b19d4d6a7586943ee1d8aef2b88271a45",
+  "output_hash": "1ff188afbd9c31a7c53875213b8bffee88ea2f6882f7ffdc1db64d99a35efe0d",
   "output_path": "server/priv/docs/ka/guides/features/projects/directory-structure.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "15a89a610a8edd3147c02896a36d8ab83d1a8acb",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/directory-structure.md",
-  "translated_at": "2026-10-30T15:25:02.496214Z",
-  "translation_session_id": "01a18d60-f30c-7244-8c6f-5f8badf6f7ee"
+  "translated_at": "2026-11-06T18:49:07.874143Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

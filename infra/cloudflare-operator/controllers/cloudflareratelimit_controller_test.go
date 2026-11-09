@@ -308,7 +308,7 @@ func TestPublicPagesRateLimitExcludesVerifiedBots(t *testing.T) {
 	if cf.addCalls != 0 || cf.updateCalls != 1 || cf.createCalls != 0 {
 		t.Fatalf("expected one reviewed adoption update: add=%d update=%d create=%d", cf.addCalls, cf.updateCalls, cf.createCalls)
 	}
-	if gotRule := cf.ruleset.Rules[0]; gotRule.Expression != `(http.request.method eq "GET" and not cf.client.bot)` {
+	if gotRule := cf.ruleset.Rules[0]; gotRule.Expression != `http.request.method in {"GET" "HEAD"} and not cf.client.bot` {
 		t.Errorf("updated expression = %q", gotRule.Expression)
 	}
 	got := &cfv1alpha1.CloudflareRateLimit{}

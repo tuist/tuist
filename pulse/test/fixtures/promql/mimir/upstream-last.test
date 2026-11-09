@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+load 10s
+	data{type="numbers"} 2 0 3
+	data{type="some_nan"} 2 0 NaN
+	data{type="some_nan2"} 2 NaN 1
+	data{type="some_nan3"} NaN 0 1
+	data{type="only_nan"} NaN NaN NaN
+	data_histogram{type="only_histogram"} {{schema:0 sum:1 count:2}} {{schema:0 sum:2 count:3}} {{schema:0 sum:3 count:4}}
+	data_histogram{type="mix_samples_hlast"} 0 1 {{schema:0 sum:1 count:2}} {{schema:0 sum:2 count:3}}
+	data_sparse{type="sparse_numbers"} _ 5 2 _ 4 _
+	data_empty{type="empty_series"} _ _ _ _ _ _ _ _ _ _ _ _ _
+
+# workaround for https://github.com/prometheus/prometheus/issues/17025 causing histogram samples
+# before float samples in a load directive to be silently dropped as (incorrectly) out-of-order.
+# By splitting the vector across two loads, a commit is forced inbetween so the
+# ordering will be handled correctly.
+load 10s
+	data_histogram{type="mix_samples_hfirst"} {{schema:0 sum:1 count:2}} {{schema:0 sum:9 count:3}}
+
+load 10s
+	data_histogram{type="mix_samples_hfirst"} _ _ 4 1
+
+eval instant at 1m last_over_time({__name__=~"data(_histogram|_sparse|_empty)?"}[2m])
+	expect no_info
+	data{type="numbers"} 3
+	data{type="some_nan"} NaN
+	data{type="some_nan2"} 1
+	data{type="some_nan3"} 1
+	data{type="only_nan"} NaN
+	data_histogram{type="only_histogram"} {{schema:0 sum:3 count:4}}
+	data_histogram{type="mix_samples_hlast"} {{schema:0 sum:2 count:3}}
+	data_histogram{type="mix_samples_hfirst"} 1
+	data_sparse{type="sparse_numbers"} 4
+

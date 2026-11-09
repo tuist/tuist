@@ -30,8 +30,8 @@ defmodule TuistOpsWeb.PolicyController do
       of an Amp orb, from the Amp workload identity token the
       sidecar's orb listener verified. The orb gets its creator's
       tier, impersonated as `amp-orb:<email>:<thread>`; canary and
-      production write needs an elevation for that thread
-      (`/elevate <env> --thread <id>`).
+      production write needs an elevation for that thread, approved
+      in Atlas (`request_cluster_elevation`).
 
   Outputs:
 
@@ -202,7 +202,7 @@ defmodule TuistOpsWeb.PolicyController do
   # at TTL — DB query is the authoritative gate).
   #
   # A person's elevation and a thread's elevation never stand in for
-  # each other: `/elevate --thread` widens that one orb and not its
+  # each other: a thread elevation widens that one orb and not its
   # creator's own kubectl, and a plain `/elevate` widens the person
   # and none of their orbs. A thread elevation also only counts when
   # the person who asked for it created the thread (the token's

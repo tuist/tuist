@@ -4,7 +4,11 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
 
   alias Tuist.Bazel
   alias Tuist.Bazel.Invocation
+  alias Tuist.KeyValueStore
+  alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Marketing.BazelShowcase
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.ReapiCache
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -174,6 +178,146 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
   describe "timeline_steps/1" do
     test "returns not found for an invocation that isn't the showcase's" do
       assert BazelShowcase.timeline_steps("any-invocation") == {:error, :not_found}
+    end
+  end
+
+  describe "cached public reads" do
+    setup do
+      project = public_project()
+
+      stub(Projects, :get_project_by_account_and_project_handles, fn _, _ ->
+        Project |> Repo.get!(project.id) |> Repo.preload(:account)
+      end)
+
+      values = start_supervised!({Agent, fn -> %{} end})
+      pool = String.to_atom("bazel_showcase_test_#{System.unique_integer([:positive])}")
+      start_supervised!({LoadLimiter, name: pool})
+
+      stub(KeyValueStore, :get, fn key, opts ->
+        assert opts[:persist_across_deployments]
+        Agent.get(values, &Map.get(&1, key))
+      end)
+
+      stub(KeyValueStore, :put, fn key, value, opts ->
+        assert opts[:persist_across_deployments]
+        assert opts[:ttl] == to_timeout(minute: 1)
+        Agent.update(values, &Map.put(&1, key, value))
+        {:ok, true}
+      end)
+
+      stub(LoadLimiter, :run, fn _name, key, loader, timeout ->
+        Mimic.call_original(LoadLimiter, :run, [pool, key, loader, timeout])
+      end)
+
+      stub(Bazel, :summary, fn _, _ -> %{total: 4, successful: 3, median_duration_ms: 1200} end)
+      stub(ReapiCache, :summary, fn _, _ -> %{hit_rate: 82.5} end)
+
+      invocation = %Invocation{
+        invocation_id: "selected",
+        project_id: project.id,
+        duration_ms: 1_000,
+        build_timeline_duration_ms: 1_000,
+        build_timeline_span_lanes: [0],
+        build_timeline_span_start_ms: [100],
+        build_timeline_span_durations_ms: [400],
+        build_timeline_span_categories: ["execution"],
+        build_timeline_span_descriptions: ["Rustc //app:lib"]
+      }
+
+      stub(Bazel, :recent_invocations, fn _, opts -> if opts[:limit] == 50, do: [invocation], else: [] end)
+      stub(Bazel, :get_invocation, fn _, "selected", _ -> {:ok, invocation} end)
+
+      %{project: project, values: values, pool: pool}
+    end
+
+    test "reuses all expensive data but denies warmed data immediately when a project becomes private", %{
+      project: project
+    } do
+      assert {:ok, dashboard} = BazelShowcase.get()
+      assert dashboard.invocations == 4
+      assert {:ok, timeline} = BazelShowcase.timeline_invocation()
+      assert timeline.invocation.invocation_id == "selected"
+      assert {:ok, steps} = BazelShowcase.timeline_steps("selected")
+      assert [%{title: "Rustc //app:lib"}] = steps.events
+
+      reject(Bazel, :summary, 2)
+      reject(ReapiCache, :summary, 2)
+      reject(Bazel, :recent_invocations, 2)
+      reject(Bazel, :get_invocation, 3)
+      assert BazelShowcase.get() == {:ok, dashboard}
+      assert BazelShowcase.timeline_invocation() == {:ok, timeline}
+      assert BazelShowcase.timeline_steps("selected") == {:ok, steps}
+      assert BazelShowcase.timeline_steps("arbitrary-id") == {:error, :not_found}
+
+      project |> Ecto.Changeset.change(visibility: :private) |> Repo.update!()
+
+      assert BazelShowcase.get() == {:error, :not_found}
+      assert BazelShowcase.timeline_invocation() == {:error, :not_found}
+      assert BazelShowcase.timeline_steps("selected") == {:error, :not_found}
+    end
+
+    test "project identity prevents reuse after a handle is reassigned", %{project: project} do
+      assert {:ok, _} = BazelShowcase.get()
+      replacement = public_project()
+      stub(Projects, :get_project_by_account_and_project_handles, fn _, _ -> replacement end)
+      stub(Bazel, :summary, fn _, _ -> %{total: 10, successful: 9, median_duration_ms: 500} end)
+
+      assert {:ok, %{invocations: 10, success_rate: 90.0}} = BazelShowcase.get()
+      refute replacement.id == project.id
+    end
+
+    test "a warmed value cannot bypass enforced organization SSO", %{project: project} do
+      assert {:ok, _} = BazelShowcase.get()
+      project = %{project | account: %{project.account | organization_id: 123, visibility: :private}}
+      stub(Projects, :get_project_by_account_and_project_handles, fn _, _ -> project end)
+
+      stub(Tuist.Accounts, :get_organization_by_id, fn 123, [preload: []] ->
+        {:ok, %{sso_enforced: true, sso_provider: :okta}}
+      end)
+
+      assert BazelShowcase.get() == {:error, :not_found}
+
+      stub(Projects, :get_project_by_account_and_project_handles, fn _, _ ->
+        %{project | account: %{project.account | visibility: :public}}
+      end)
+
+      assert {:ok, %{invocations: 4}} = BazelShowcase.get()
+    end
+
+    test "concurrent cold reads share one analytics fill" do
+      parent = self()
+
+      expect(Bazel, :summary, fn _, _ ->
+        send(parent, {:loading, self()})
+        receive do: (:continue -> %{total: 4, successful: 3, median_duration_ms: 1200})
+      end)
+
+      tasks = for _ <- 1..10, do: Task.async(fn -> BazelShowcase.get() end)
+      assert_receive {:loading, worker}, 5_000
+      send(worker, :continue)
+      for task <- tasks, do: assert({:ok, %{invocations: 4}} = Task.await(task, 5_000))
+    end
+
+    @tag capture_log: true
+    test "oversized values are served only by admitted loads and are not retained", %{values: values} do
+      command = String.duplicate("x", 2 * 1_024 * 1_024)
+      stub(Bazel, :recent_invocations, fn _, _ -> [%{command: command}] end)
+
+      assert {:ok, %{recent_invocations: [%{command: ^command}]}} = BazelShowcase.get()
+      assert Agent.get(values, &map_size/1) == 0
+    end
+
+    @tag capture_log: true
+    test "cache failure and missing admission never fall back to database loads", %{pool: pool} do
+      stub(KeyValueStore, :get, fn _, _ -> raise "cache unavailable" end)
+      stop_supervised!(pool)
+      reject(Bazel, :summary, 2)
+      reject(Bazel, :recent_invocations, 2)
+      reject(Bazel, :get_invocation, 3)
+
+      assert BazelShowcase.get() == {:error, :unavailable}
+      assert BazelShowcase.timeline_invocation() == {:error, :unavailable}
+      assert BazelShowcase.timeline_steps("selected") == {:error, :unavailable}
     end
   end
 

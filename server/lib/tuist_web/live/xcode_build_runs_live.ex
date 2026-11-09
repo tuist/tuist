@@ -279,16 +279,14 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
     tags_filter =
       if Enum.any?(tags) do
-        tag_atoms = Enum.map(tags, &String.to_atom/1)
-
         [
           %Filter.Filter{
             id: "custom_tags",
             field: :custom_tags,
             display_name: dgettext("dashboard_builds", "Tags"),
             type: :option,
-            options: tag_atoms,
-            options_display_names: Map.new(tag_atoms, fn atom -> {atom, Atom.to_string(atom)} end),
+            options: tags,
+            options_display_names: Map.new(tags, &{&1, &1}),
             operator: :contains,
             value: nil
           }

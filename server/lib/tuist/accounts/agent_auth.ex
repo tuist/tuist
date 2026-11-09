@@ -645,6 +645,7 @@ defmodule Tuist.Accounts.AgentAuth do
         end
       end
       |> Repo.transaction()
+      |> tap(fn _ -> Accounts.disconnect_revoked_sessions() end)
       |> unwrap_repo_transaction()
     end
   end
@@ -814,6 +815,7 @@ defmodule Tuist.Accounts.AgentAuth do
       end
     end
     |> Repo.transaction()
+    |> tap(fn _ -> Accounts.disconnect_revoked_sessions() end)
     |> unwrap_repo_transaction()
   end
 
@@ -1934,7 +1936,10 @@ defmodule Tuist.Accounts.AgentAuth do
         maybe_confirm_user!(user)
 
       {:error, :not_found} ->
-        case Accounts.create_user(email, confirmed_at: NaiveDateTime.utc_now()) do
+        case Accounts.create_user(email,
+               confirmed_at: NaiveDateTime.utc_now(),
+               email_verified_at: DateTime.truncate(DateTime.utc_now(), :second)
+             ) do
           {:ok, user} ->
             user
 
@@ -1945,16 +1950,8 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
-  defp maybe_confirm_user!(%User{confirmed_at: nil} = user) do
-    {:ok, user} =
-      user
-      |> User.confirm_changeset()
-      |> Repo.update()
-
-    Repo.preload(user, :account)
-  end
-
   defp maybe_confirm_user!(%User{} = user) do
+    {:ok, user} = Accounts.record_mailbox_proof(user)
     Repo.preload(user, :account)
   end
 

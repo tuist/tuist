@@ -54,6 +54,7 @@ defmodule Atlas.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.16"},
+      {:gen_smtp, "~> 1.3"},
       {:mdex, "~> 0.13.0"},
       {:lumis, "~> 0.1"},
       {:req, "~> 0.6"},
@@ -88,7 +89,7 @@ defmodule Atlas.MixProject do
       {:xlsx_reader, "~> 0.8"},
       {:mimic, "~> 2.0", only: :test},
       {:tidewave, "~> 0.9", only: :dev},
-      {:condukt, github: "tuist/condukt", tag: "1.14.0", override: true},
+      {:condukt, path: "../condukt", override: true},
       {:mail, "~> 0.5"},
       {:multipart, "~> 0.4"},
       {:oban, "~> 2.19"},
@@ -127,10 +128,12 @@ defmodule Atlas.MixProject do
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
+        "cmd --cd assets npm ci --ignore-scripts",
         "esbuild.install --if-missing"
       ],
       "assets.build": [
         "cmd --cd ../noora aube run build",
+        "cmd --cd assets npm run build:labels",
         "compile",
         "esbuild atlas"
       ],

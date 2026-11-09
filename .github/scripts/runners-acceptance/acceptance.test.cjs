@@ -11,6 +11,35 @@ const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/ru
 const cascade = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-production-deployment.yml'), 'utf8'));
 const deployment = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-deployment.yml'), 'utf8'));
 
+test('native Linux ImageOS matches the actual Ubuntu release, not a fixed profile', () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-image-os-'));
+  try {
+    const script = path.join(__dirname, 'linux-runtime.sh');
+    // Run the image metadata assertions before the hardware-specific probes.
+    const runtime = fs.readFileSync(script, 'utf8');
+    const hardware = runtime.indexOf('test -c /dev/kvm');
+    assert.ok(hardware > 0);
+    const release = path.join(work, 'os-release');
+    for (const [id, version, imageOS, valid] of [
+      ['ubuntu', '22.04', 'ubuntu22', true],
+      ['ubuntu', '24.04', 'ubuntu24', true],
+      ['ubuntu', '22.04', 'ubuntu24', false],
+      ['ubuntu', '24.04', 'ubuntu22', false],
+      ['ubuntu', '24.04', '', false],
+      ['debian', '24.04', 'ubuntu24', false],
+    ]) {
+      fs.writeFileSync(release, `ID=${id}\nVERSION_ID=${version}\n`);
+      const result = spawnSync('bash', ['-c', `id() { echo 1001; }\n${runtime.slice(0, hardware).replace('/etc/os-release', release)}`, script], {
+        encoding: 'utf8', env: { ...process.env, ImageOS: imageOS, GITHUB_STEP_SUMMARY: path.join(work, 'summary') },
+      });
+      assert.equal(result.status, valid ? 0 : 1, `${id} ${version}, ImageOS=${imageOS}: ${result.stdout}${result.stderr}`);
+      if (!valid) assert.match(result.stdout, /::error title=Linux image\/runtime::/);
+    }
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('Linux staging waits and fails closed in canary; other environments preserve background holds', () => {
   const deploy = deployment.jobs.deploy;
   const helm = deploy.steps.find(step => step.name === 'helm upgrade --install');
@@ -52,7 +81,7 @@ for (const environment of ['canary', 'production']) {
 }
 
 // Production has no macOS probe while the BER1 one is paused; restore 3 with it.
-for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 9], ['production', 'tuist-linux', 2]]) {
+for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 7], ['production', 'tuist-linux', 2]]) {
   test(`${environment} plans native and container Linux probes in the watchdog count`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-plan-'));
     try {
@@ -90,7 +119,7 @@ test('production promotion requires canary runners acceptance', () => {
   assert.equal(step.env.ENVIRONMENT, 'canary');
 });
 
-const dockerPhases = ['cold', 'warm-layers', 'changed-source', 'same-size-write', 'verify-final'];
+const dockerPhases = ['cold', 'same-size-write', 'verify-final'];
 const successfulJobs = [
   ...dockerPhases.map(phase => ({ name: `Linux Docker cache ${phase} / Build`, conclusion: 'success' })),
   { name: 'macOS rack (canary)', conclusion: 'success' },
@@ -122,7 +151,7 @@ esac
       env: { ...process.env, PATH: `${work}:${process.env.PATH}`, TEST_WORK: work,
         TEST_CONCLUSION: conclusion, GITHUB_REPOSITORY: 'tuist/tuist',
         GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '1', GITHUB_STEP_SUMMARY: path.join(work, 'summary'),
-        DOCKER_CACHE_PROBES: 'true', ENVIRONMENT: 'canary', EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner@sha256:' + 'a'.repeat(64), EXPECTED_PROBE_JOBS: '9', MACOS_PICKUP_MINUTES: '15', LINUX_PICKUP_MINUTES: '10',
+        DOCKER_CACHE_PROBES: 'true', ENVIRONMENT: 'canary', EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner@sha256:' + 'a'.repeat(64), EXPECTED_PROBE_JOBS: '7', MACOS_PICKUP_MINUTES: '15', LINUX_PICKUP_MINUTES: '10',
         EXPECTED_MACOS_IMAGES: JSON.stringify(['ghcr.io/tuist/tuist-runner@sha256:' + 'c'.repeat(64)]), ...env },
     });
     assert.equal(result.error, undefined, result.error?.message);
@@ -157,7 +186,7 @@ for (const images of ['', '[]', '["ghcr.io/tuist/tuist-runner:macos-26-6-0.49.4"
 test('gate preserves aggregate workflow failures', () => {
   assert.notEqual(runScript('gate.sh', successfulJobs, 'failure').status, 0);
 });
-test('watchdog accepts all nine started probes', () => {
+test('watchdog accepts all seven started probes', () => {
   const result = runScript('dispatch-watchdog.sh', successfulJobs);
   assert.equal(result.status, 0);
   assert.equal(result.cancelled, false);
@@ -287,6 +316,34 @@ test('only the cold phase empties the build cache, before the builder is set up'
   assert.match(steps[reset].run, /docker builder prune -af/);
   assert.match(steps[reset].run, /--filter label=dev\.tuist\.cache=buildkit \| xargs -r docker volume rm/);
 });
+
+// The same-size write reads the `second` marker, which only the cold job's
+// in-job changed-source build publishes now that the gate has no separate
+// changed-source job. Without it every canary deploy would fail at that phase.
+for (const [phase, expected] of [['cold', ['cold', 'changed-source']], ['same-size-write', ['same-size-write']], ['verify-final', ['verify-final']]]) {
+  test(`${phase} probe runs the ${expected.join(' then ')} build for both drivers`, () => {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-phases-'));
+    try {
+      const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
+      const step = probe.jobs.build.steps.find(step => step.name === 'Verify both drivers');
+      fs.mkdirSync(path.join(work, '.github/scripts'), { recursive: true });
+      fs.writeFileSync(path.join(work, '.github/scripts/docker-build-cache-benchmark.sh'),
+        'echo "$CACHE_DRIVER $CACHE_PHASE $CACHE_BUILDER" >> "$RUNNER_TEMP/builds"; mkdir "$RUNNER_TEMP/docker-build-cache-results"\n');
+      const result = spawnSync('bash', ['-c', step.run], {
+        cwd: work, encoding: 'utf8',
+        env: { ...process.env, CACHE_PHASE: phase, BUILDER: 'keyed', RUNNER_TEMP: work, GITHUB_RUN_ID: '1', GITHUB_RUN_ATTEMPT: '1' },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const builds = fs.readFileSync(path.join(work, 'builds'), 'utf8').trim().split('\n');
+      assert.deepEqual(builds, [
+        ...expected.map(name => `docker ${name} default`),
+        ...expected.map(name => `docker-container ${name} keyed`),
+      ]);
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  });
+}
 
 test('probe rejects an older candidate image before any build', () => {
   const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));

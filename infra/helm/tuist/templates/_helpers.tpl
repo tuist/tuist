@@ -1093,13 +1093,23 @@ server.stripe.prices is empty (self-hosted installs without Stripe).
 {{- end -}}
 
 {{/*
-Mailing identity env vars. The Mailgun sending domain + from/reply-to addresses
-are sender identity, not secrets, so they come from chart values (shared in
-values-managed-common.yaml). The Mailgun API key itself stays in the secret
-store. Each var is emitted only when set, so an unset value leaves the accessor
-nil (mail simply degrades) rather than overriding with "".
+Mailing provider and identity. Credentials stay in the secret store. Empty sender
+values are omitted so they do not override secrets-file configuration with "".
 */}}
 {{- define "tuist.mailingEnv" -}}
+{{- if not (has .Values.server.mailing.provider (list "mailgun" "ses")) }}
+{{- fail "server.mailing.provider must be mailgun or ses" }}
+{{- end }}
+- name: TUIST_MAILING_PROVIDER
+  value: {{ .Values.server.mailing.provider | quote }}
+{{- if or (eq .Values.server.mailing.provider "ses") .Values.server.mailing.sesStartsAt }}
+- name: TUIST_SES_REGION
+  value: {{ required "server.mailing.sesRegion is required for SES" .Values.server.mailing.sesRegion | quote }}
+{{- end }}
+{{- with .Values.server.mailing.sesStartsAt }}
+- name: TUIST_MAILING_SES_STARTS_AT
+  value: {{ . | quote }}
+{{- end }}
 {{- with .Values.server.mailing.domain }}
 - name: TUIST_MAILING_DOMAIN
   value: {{ . | quote }}
@@ -1562,6 +1572,46 @@ can serve. Empty unless the rack's runners are enabled, which does not need
 `rackFleet.enabled`: an env whose rack hosts are lent to it by another env
 (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
+{{/*
+Linux OS versions the shape pools run on, as a JSON array of
+`{osVersion, tag, default, image, autoscaling}`. `runnersFleetLinux.osVersions`
+lists them; exactly one carries `default: true` and runs
+`runnersFleetLinux.shapeRunnerImage` under the shape-only pool names every
+Linux pool had before profiles could pick an OS. Every other entry runs its
+own image, `runnerImage` on the entry or the deploy-resolved
+`runnersFleetLinux.osRunnerImages.<tag>` (`ubuntu-22-04`), and is left out
+when neither is set: no pools render for it and the server does not offer
+it, so a profile can never pick an OS without a pool behind it.
+*/}}
+{{- define "tuist.runnersLinuxOSVersions" -}}
+{{- $values := .Values.runnersFleetLinux -}}
+{{- $entries := $values.osVersions | default list -}}
+{{- $defaults := 0 -}}
+{{- $result := list -}}
+{{- range $entries -}}
+{{- $osVersion := required "runnersFleetLinux.osVersions[].osVersion required" .osVersion | toString -}}
+{{- if not (regexMatch "^ubuntu-[0-9]{2}\\.[0-9]{2}$" $osVersion) -}}
+{{- fail (printf "runnersFleetLinux.osVersions[].osVersion must look like ubuntu-24.04, got %s" $osVersion) -}}
+{{- end -}}
+{{- $tag := replace "." "-" $osVersion -}}
+{{- $isDefault := dig "default" false . -}}
+{{- $image := "" -}}
+{{- if $isDefault -}}
+{{- $defaults = add1 $defaults -}}
+{{- $image = $values.shapeRunnerImage | default "" -}}
+{{- else -}}
+{{- $image = .runnerImage | default (get ($values.osRunnerImages | default dict) $tag) | default "" -}}
+{{- end -}}
+{{- if or $isDefault $image -}}
+{{- $result = append $result (dict "osVersion" $osVersion "tag" $tag "default" $isDefault "image" $image "autoscaling" (.autoscaling | default dict)) -}}
+{{- end -}}
+{{- end -}}
+{{- if and $values.shapes (ne $defaults 1) -}}
+{{- fail "runnersFleetLinux.osVersions must contain exactly one entry with default: true when runnersFleetLinux.shapes is non-empty" -}}
+{{- end -}}
+{{- $result | toJson -}}
+{{- end -}}
+
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
 {{- if .Values.runnersFleet.enabled -}}

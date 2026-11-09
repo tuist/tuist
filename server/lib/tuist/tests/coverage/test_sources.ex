@@ -12,7 +12,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
   test's history keeps every version of the code it ran. A commit whose run
   skipped a test reads the test's versions and carries it from the latest
   run whose fingerprint its own blobs reproduce, on any branch
-  (`Tuist.Tests.Coverage.Reported`), without walking its history.
+  (`Tuist.Tests.Coverage.TestEvidence`), without walking its history.
 
   Files a run did not report are ones its repository's Git does not track (a
   submodule's): nothing holds their blob, and they never count, so they are
@@ -102,7 +102,8 @@ defmodule Tuist.Tests.Coverage.TestSources do
   The versions recorded for each of the tests in the repository, with the
   latest run of each, as `%{test_case_id => [version]}`. Merges keep one row
   per version, but until they run a version can have several, so the latest
-  is picked.
+  is picked. Which of them hold at a checkout is
+  `Tuist.Tests.Coverage.TestEvidence`'s call.
   """
   def versions(_project_id, _repository_id, []), do: %{}
 

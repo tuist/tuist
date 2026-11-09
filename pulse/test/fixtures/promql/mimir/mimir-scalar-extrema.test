@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+eval range from 0 to 4m step 1m max_of(time(), 3)
+  {} 3 60 120 180 240
+
+eval range from 0 to 4m step 1m min_of(4, time())
+  {} 0 4 4 4 4
+
+eval range from 0 to 4m step 1m max_of(4, 4)
+  {} 4 4 4 4 4
+
+eval range from 0 to 4m step 1m max_of(0, 1)
+  {} 1 1 1 1 1

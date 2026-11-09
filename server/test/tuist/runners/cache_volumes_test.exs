@@ -205,7 +205,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     })
   end
 
-  defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
+  defp volume(account), do: Repo.one!(from(v in Volume, where: v.account_id == ^account.id))
 
   defp main_identity, do: Map.merge(identity(), %{default_branch: "main", writer_branch: "main"})
 
@@ -717,7 +717,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
   end
 
-  test "places a repository whose jobs ran concurrently on one more Node than they ran on", %{job: job} do
+  test "places a repository whose jobs ran concurrently on half again as many Nodes as they ran on", %{job: job} do
     now = DateTime.utc_now()
     [volume_id] = published_mac_volumes(job, ~w(xcode))
     start = now |> DateTime.add(-3 * 60 * 60, :second) |> DateTime.truncate(:second)
@@ -740,7 +740,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       })
     end
 
-    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 4
+    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 5
   end
 
   test "records the older generation a host mounted, and only that", %{job: job} do
@@ -765,6 +765,37 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
     assert %Usage{mounted_generation: nil} = current = Repo.get!(Usage, current.id)
     refute CacheVolumes.older_copy?(current)
+  end
+
+  test "records why a host had no copy of a warm use's volume, and only a known reason", %{job: job} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, evicted} = CacheVolumes.allocate_for_job(job, identity(), attrs("evicted"))
+    {:ok, unknown} = CacheVolumes.allocate_for_job(job, identity(), attrs("unknown"))
+    {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), attrs("warm"))
+    assert evicted.base_generation == 1
+
+    assert {:ok, _} =
+             CacheVolumes.report("node", evicted.id, Map.put(report("active", false), "cold_reason", "evicted_idle"))
+
+    # A later report never replaces the reason the attach recorded.
+    assert {:ok, _} =
+             CacheVolumes.report("node", evicted.id, Map.put(report("active", false), "cold_reason", "not_on_host"))
+
+    assert %Usage{cold_reason: "evicted_idle"} = evicted = Repo.get!(Usage, evicted.id)
+    assert CacheVolumes.cold_reason_description(evicted) =~ "removed its copy to free disk space"
+
+    for reason <- ["evicted_", "evicted_anything", "", 1] do
+      assert {:ok, _} = CacheVolumes.report("node", unknown.id, Map.put(report("active", false), "cold_reason", reason))
+    end
+
+    assert %Usage{cold_reason: nil} = unknown = Repo.get!(Usage, unknown.id)
+    assert is_nil(CacheVolumes.cold_reason_description(unknown))
+
+    warm_report = "active" |> report(false) |> Map.put("warm", true) |> Map.put("cold_reason", "not_on_host")
+    assert {:ok, _} = CacheVolumes.report("node", warm.id, warm_report)
+    assert %Usage{cold_reason: nil} = Repo.get!(Usage, warm.id)
   end
 
   test "a job's download keeps its own base after the head advances", %{job: job, account: account} do
@@ -1061,6 +1092,29 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
     assert {:ok, %{action: "delete"}} = publish_report("node", running.id)
     assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", fresh.id, report())
+  end
+
+  test "a nearly full snapshot a sibling saved starts a fresh lineage when its parent's clone ran out of space", %{
+    job: job,
+    account: account
+  } do
+    {:ok, parent} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", parent.id, %{"size_bytes" => 16_000_000_000, "capacity_bytes" => 20_000_000_000})
+    {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+    {:ok, sibling} = CacheVolumes.allocate_for_job(job, identity(), attrs("sibling"))
+    assert filled.parent_id == parent.id and sibling.parent_id == parent.id
+    assert {:ok, %{action: "hold"}} = report_size("node", filled.id, 19_800_000_000)
+
+    assert {:ok, %{action: "keep"}} =
+             publish_report("node", sibling.id, %{"size_bytes" => 17_000_000_000, "capacity_bytes" => 20_000_000_000})
+
+    assert volume(account).head_id == sibling.id
+
+    {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("fresh"))
+
+    assert is_nil(fresh.parent_id)
+    refute fresh.scope == parent.scope
   end
 
   test "a nearly full saved snapshot keeps chaining warm while its clones have room", %{job: job} do

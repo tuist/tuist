@@ -3,9 +3,9 @@
 # Firecracker guest template for sandboxd (infra/sandboxd/AGENTS.md).
 #
 # The image's only job is to carry a kernel and an ext4 rootfs onto a node:
-# the rootfs is Ubuntu 24.04 with a coding-agent toolchain and the three
+# the rootfs is Ubuntu 24.04 with a coding-agent toolchain and four
 # guest binaries (sbx-init as PID 1, sbx-agent on vsock, sbx-worker for
-# Managed Agents work items). There is no systemd anywhere in it.
+# Managed Agents work items, sbx-executor for REAPI actions). There is no systemd.
 #
 # Stages:
 #   builder  compiles the guest binaries (native arch, cross-compiled to amd64)
@@ -19,6 +19,10 @@ ARG NODE_MAJOR=22
 ARG ANT_VERSION=1.30.0
 ARG AMP_VERSION=0.0.1793104576-gc52692
 ARG AGENT_BROWSER_VERSION=0.38.1
+# Keep with claudeCodeVersion and its checksums in cmd/sbx-worker/claude_code.go:
+# sbx-worker uses this copy only when it is that exact build.
+ARG CLAUDE_CODE_VERSION=2.1.311
+ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be8489ada
 # agent-browser's Chrome and libraries take about 1 GiB, and a project's
 # .agents/setup fills home (mise, caches) on this same filesystem.
 ARG ROOTFS_SIZE=12G
@@ -44,7 +48,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
-        xz-utils zstd bzip2 build-essential pkg-config cmake python3 python3-pip python3-venv \
+        xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
         e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -92,6 +96,14 @@ RUN curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/amp-linu
     && visudo -cf /etc/sudoers.d/amp-user
 COPY --chmod=0755 orb-bootstrap.sh /usr/local/bin/sbx-orb-bootstrap
 
+# Claude Code's self-hosted runner, which sbx-worker runs as `user` for Claude
+# Code cloud sessions.
+ARG CLAUDE_CODE_VERSION
+ARG CLAUDE_CODE_SHA256
+RUN curl -fsSL --retry 3 "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude" -o /usr/local/bin/claude \
+    && echo "${CLAUDE_CODE_SHA256}  /usr/local/bin/claude" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/claude
+
 # Amp's own orb image ships agent-browser the same way: a global npm install,
 # then Chrome for Testing and its system libraries installed as `user`, so the
 # browser lives in /home/user/.agent-browser where the CLI looks for it.
@@ -117,6 +129,20 @@ RUN mkdir -p /workspace /mnt/memory /run /tmp /proc /sys /dev \
 COPY --from=builder /out/sbx-init /sbin/sbx-init
 COPY --from=builder /out/sbx-agent /usr/local/bin/sbx-agent
 COPY --from=builder /out/sbx-worker /usr/local/bin/sbx-worker
+COPY --from=builder /out/sbx-executor /usr/local/bin/sbx-executor
+COPY --chmod=0755 scripts/template-prepare.sh /usr/local/bin/sbx-template-prepare
+
+# Experimental per-image opt-in; account rollout still requires its feature
+# flag and this image pin. The root-owned marker is present before snapshotting.
+ARG EMBEDDED_EXECUTOR=0
+RUN case "$EMBEDDED_EXECUTOR" in \
+      0) ;; \
+      1) touch /etc/tuist-embedded-executor ;; \
+      *) echo "EMBEDDED_EXECUTOR must be 0 or 1" >&2; exit 1 ;; \
+    esac
+
+# UID 1000 cannot read the root worker's CAS credential or control sockets.
+RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home builder; fi
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
@@ -144,6 +170,14 @@ RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootf
     && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s}\n' \
         "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
+
+# Build with --target execution-gateway for the stateless public REAPI service.
+FROM alpine:3.21 AS execution-gateway
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /out/reapi-gateway /usr/local/bin/reapi-gateway
+USER 65534:65534
+EXPOSE 50051
+ENTRYPOINT ["/usr/local/bin/reapi-gateway"]
 
 # GNU coreutils for cp --sparse=always: busybox's cp cannot keep holes, and
 # a dense copy of the rootfs would cost every node the full 12 GiB.

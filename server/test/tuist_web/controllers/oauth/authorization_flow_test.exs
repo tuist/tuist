@@ -15,6 +15,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   import Ecto.Query
 
   alias Boruta.Ecto.AccessTokens
+  alias Boruta.Ecto.Admin
+  alias Boruta.Ecto.Client
   alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Token
   alias Tuist.Authentication.RefreshReplays
@@ -89,18 +91,93 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
 
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
 
     password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
     assert redirected_to(password_conn) == "/users/auth/google"
-    assert "/oauth2/authorize?" <> _ = get_session(password_conn, :oauth_return_to)
+    assert "/oauth2/authorize?" <> _ = get_session(password_conn, :user_return_to)
 
     google_token =
-      Tuist.Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      Tuist.Accounts.generate_user_session_token(user, %{
+        auth_method: :google,
+        provider_organization_id: "oauthflow-example.com"
+      })
 
     assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
+  end
+
+  describe "client jwks_uri" do
+    # Registration is anonymous and Boruta fetches `jwks_uri` with a plain
+    # Finch GET, so accepting it would let anyone make the server request an
+    # arbitrary internal address.
+    test "registration rejects it without fetching it, whether or not the rest of the metadata is valid" do
+      port = start_loopback_fixture()
+      jwks_uri = "http://127.0.0.1:#{port}/probe"
+
+      for redirect_uris <- [["not a uri"], [@redirect_uri]] do
+        conn =
+          post(build_conn(), ~p"/oauth2/register", %{
+            "client_name" => "Probe",
+            "redirect_uris" => redirect_uris,
+            "grant_types" => ["authorization_code"],
+            "response_types" => ["code"],
+            "jwks_uri" => jwks_uri
+          })
+
+        refute_received {:loopback_fixture_request, _}
+
+        assert %{"error" => "invalid_client_metadata", "error_description" => "jwks_uri is not supported." <> _} =
+                 json_response(conn, 400)
+      end
+
+      refute Repo.exists?(from(client in Client, where: client.name == "Probe"))
+    end
+
+    test "token requests never fetch one stored on an existing client" do
+      port = start_loopback_fixture()
+      public_jwk = {:rsa, 2048} |> JOSE.JWK.generate_key() |> JOSE.JWK.to_public_map() |> elem(1)
+
+      {:ok, client} =
+        Admin.create_client(%{
+          name: "Stored jwks_uri",
+          confidential: true,
+          redirect_uris: [@redirect_uri],
+          supported_grant_types: ["authorization_code"],
+          token_endpoint_auth_methods: ["private_key_jwt"],
+          token_endpoint_jwt_auth_alg: "RS256",
+          jwk: Map.put(public_jwk, "alg", "RS256"),
+          jwks_uri: "http://127.0.0.1:#{port}/probe"
+        })
+
+      # Signed by a key the client doesn't have, so Boruta's verification
+      # fails and it falls back to refreshing the client's key from jwks_uri.
+      other_key = JOSE.JWK.generate_key({:rsa, 2048})
+
+      {_, assertion} =
+        other_key
+        |> JOSE.JWT.sign(%{"alg" => "RS256"}, %{
+          "iss" => client.id,
+          "sub" => client.id,
+          "aud" => Boruta.Config.issuer(),
+          "exp" => System.system_time(:second) + 60
+        })
+        |> JOSE.JWS.compact()
+
+      token_conn =
+        post(build_conn(), ~p"/oauth2/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => client.id,
+          "redirect_uri" => @redirect_uri,
+          "code" => "unused",
+          "client_assertion_type" => "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          "client_assertion" => assertion
+        })
+
+      assert %{"error" => "invalid_client"} = json_response(token_conn, 401)
+      refute_received {:loopback_fixture_request, _}
+    end
   end
 
   describe "refreshing with SSO enforcement" do
@@ -112,14 +189,14 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"access_token" => access_token, "refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_conn, client_id))
 
-      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(access_token)
 
       assert %{"access_token" => refreshed_access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
 
       # The proof carries over to the rotated pair, so later refreshes pass too.
-      assert {:ok, %{"sso" => %{"provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(refreshed_access_token)
 
       assert %{"access_token" => _} = client_id |> refresh_conn(refreshed_refresh_token) |> json_response(200)
@@ -149,7 +226,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       # tokens carried SSO proof was.
       %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
       organization = sso_member_of(user)
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
 
       assert %{"access_token" => access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
@@ -193,8 +275,34 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
 
       # The refused token is not spent: signing in through the provider
       # links the identity that lets it refresh again.
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
+
       assert %{"access_token" => _} = client_id |> refresh_conn(second_refresh_token) |> json_response(200)
+    end
+
+    test "a refresh smuggled in an unsigned request object does not skip the SSO check", %{conn: conn, user: user} do
+      client_id = register_client(conn)
+      %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
+      sso_member_of(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(DateTime.utc_now(), 29, :day) end)
+
+      unsigned_request =
+        Enum.map_join(
+          [%{"alg" => "none"}, %{"grant_type" => "refresh_token", "refresh_token" => refresh_token}],
+          ".",
+          &(&1 |> JSON.encode!() |> Base.url_encode64(padding: false))
+        ) <> "."
+
+      response =
+        build_conn()
+        |> post(~p"/oauth2/token", %{"client_id" => client_id, "request" => unsigned_request})
+        |> json_response(400)
+
+      refute Map.has_key?(response, "access_token")
     end
 
     test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{user: user} do
@@ -204,7 +312,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_session_conn(user, organization), client_id))
 
-      organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.oauthflow-example.com") |> Repo.update!()
 
       assert %{"access_token" => access_token} = client_id |> refresh_conn(refresh_token) |> json_response(200)
       assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
@@ -466,7 +574,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     # Enabling enforcement through `Accounts` also requires a verified login
     # email domain, which is not what these tests are about.
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
   end
 
@@ -497,6 +605,33 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       "client_id" => client_id,
       "refresh_token" => refresh_token
     })
+  end
+
+  # A loopback HTTP server that reports every request it receives to the test
+  # process and answers 404. Requests are synchronous, so a fetch made while
+  # handling a call has been reported by the time the call returns.
+  defp start_loopback_fixture do
+    test_pid = self()
+    {:ok, socket} = :gen_tcp.listen(0, [:binary, ip: {127, 0, 0, 1}, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(socket)
+    spawn_link(fn -> serve_loopback_fixture(socket, test_pid) end)
+    port
+  end
+
+  defp serve_loopback_fixture(socket, test_pid) do
+    with {:ok, client} <- :gen_tcp.accept(socket) do
+      # Report the connection even if it never sends a full request.
+      request =
+        case :gen_tcp.recv(client, 0, 5_000) do
+          {:ok, request} -> request
+          {:error, reason} -> reason
+        end
+
+      send(test_pid, {:loopback_fixture_request, request})
+      :gen_tcp.send(client, "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+      :gen_tcp.close(client)
+      serve_loopback_fixture(socket, test_pid)
+    end
   end
 
   defp register_client(conn) do

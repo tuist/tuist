@@ -1334,3 +1334,24 @@ func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
 		t.Fatal("built a Docker cache pool without cache volumes")
 	}
 }
+
+func TestBuild_MacOSSandboxWarmPoolHoldsNoCredentialAndNeedsAWarmHost(t *testing.T) {
+	pool := basePool("darwin")
+	pool.Labels = map[string]string{MacosSandboxWarmLabel: "true"}
+	pod := build(t, pool)
+
+	if pod.Labels[MacosSandboxWarmLabel] != "true" || pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "v1" {
+		t.Fatalf("warm Pod not labelled or not pinned to warm hosts: labels=%v selector=%v", pod.Labels, pod.Spec.NodeSelector)
+	}
+	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
+		t.Fatal("warm Pod mounts a ServiceAccount token")
+	}
+	if len(pod.Spec.Containers[0].Env) != 0 || len(pod.Spec.Volumes) != 0 {
+		t.Fatalf("warm Pod carries dispatch env or volumes: %v %v", pod.Spec.Containers[0].Env, pod.Spec.Volumes)
+	}
+
+	ci := build(t, basePool("darwin"))
+	if _, ok := ci.Labels[MacosSandboxWarmLabel]; ok || ci.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "" || len(ci.Spec.Containers[0].Env) == 0 {
+		t.Fatal("an unlabelled darwin pool changed shape")
+	}
+}

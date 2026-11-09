@@ -151,6 +151,18 @@ spec:
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
             {{- end }}
+            {{- if .Values.tuistOps.enabled }}
+            - name: TUIST_OPS_URL
+              value: {{ .Values.tuistOps.url | quote }}
+            - name: TUIST_OPS_TOKEN_PATH
+              value: {{ printf "%s/token" .Values.tuistOps.tokenMountPath | quote }}
+            {{- end }}
+            {{- with .Values.pulse.upstreams }}
+            # One proxied MCP upstream per Pulse, each reading its own
+            # audience-scoped token from the pulse-token volume below.
+            - name: PULSE_MCP_UPSTREAMS
+              value: {{ $upstreams := list }}{{ range . }}{{ $upstreams = append $upstreams (dict "name" .name "url" .mcpUrl "token_path" (printf "%s/%s" $.Values.pulse.tokenMountPath .name)) }}{{ end }}{{ $upstreams | toJson | quote }}
+            {{- end }}
             {{- if .Values.postgres.enabled }}
             - name: PGUSER
               valueFrom:
@@ -214,14 +226,27 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.tuistServer.enabled }}
+          {{- if or .Values.tuistServer.enabled .Values.tuistOps.enabled .Values.pulse.upstreams }}
           volumeMounts:
+            {{- if .Values.tuistServer.enabled }}
             - name: tuist-server-token
               mountPath: {{ .Values.tuistServer.tokenMountPath }}
               readOnly: true
+            {{- end }}
+            {{- if .Values.tuistOps.enabled }}
+            - name: tuist-ops-token
+              mountPath: {{ .Values.tuistOps.tokenMountPath }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.pulse.upstreams }}
+            - name: pulse-token
+              mountPath: {{ .Values.pulse.tokenMountPath }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if .Values.tuistServer.enabled }}
+      {{- if or .Values.tuistServer.enabled .Values.tuistOps.enabled .Values.pulse.upstreams }}
       volumes:
+        {{- if .Values.tuistServer.enabled }}
         # Projected ServiceAccount token scoped to the Tuist server audience.
         # The Tuist server verifies it offline against Atlas' pinned JWKS
         # (InternalAtlasAuthPlug); the kubelet rotates the file in place.
@@ -232,4 +257,30 @@ spec:
                   path: token
                   audience: {{ .Values.tuistServer.tokenAudience | quote }}
                   expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
+        {{- end }}
+        {{- if .Values.tuistOps.enabled }}
+        # Same mechanism for tuist-ops, with its own audience so a token sent
+        # there is never accepted by the Tuist server or Pulse (and vice versa).
+        - name: tuist-ops-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: {{ .Values.tuistOps.tokenAudience | quote }}
+                  expirationSeconds: {{ .Values.tuistOps.tokenExpirationSeconds }}
+        {{- end }}
+        {{- with .Values.pulse.upstreams }}
+        # Same mechanism for Pulse's MCP endpoints: one token per Pulse, each
+        # with that host as its audience, so a token sent to one Pulse is
+        # never accepted by another (or by the Tuist server).
+        - name: pulse-token
+          projected:
+            sources:
+              {{- range . }}
+              - serviceAccountToken:
+                  path: {{ .name }}
+                  audience: {{ .audience | quote }}
+                  expirationSeconds: {{ $.Values.pulse.tokenExpirationSeconds }}
+              {{- end }}
+        {{- end }}
       {{- end }}

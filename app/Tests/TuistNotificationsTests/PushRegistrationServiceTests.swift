@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistAppStorage
+import TuistAuthentication
 import TuistServer
 
 @testable import TuistNotifications
@@ -43,6 +44,31 @@ import TuistServer
             name: "iPhone 17 Pro",
             serverURL: serverURL ?? self.serverURL
         )
+    }
+
+    @MainActor
+    @Test func failed_profile_change_restores_opt_in_without_reusing_retired_installation() async throws {
+        givenRegistration()
+        given(unregisterService).unregisterPushDevice(installationID: .any, serverURL: .any).willReturn()
+        try appStorage.set(
+            AuthenticationStateKey.self,
+            value: .loggedIn(account: Account(email: "alice@example.com", handle: "alice"))
+        )
+        try await optIn()
+        try await register()
+        let retired = subject.installationID(serverURL: serverURL)
+        let notifications = PushNotifications(
+            registrationService: subject,
+            appStorage: appStorage,
+            previewPermission: .authorized
+        )
+        let restore = await notifications.prepareForProfileChange()
+        #expect(!subject.isEnabled(serverURL: serverURL))
+        #expect(subject.installationID(serverURL: serverURL) == nil)
+        await restore?()
+        #expect(subject.isEnabled(serverURL: serverURL))
+        try await register()
+        #expect(subject.installationID(serverURL: serverURL) != retired)
     }
 
     @Test func does_not_register_until_notifications_are_turned_on() async throws {

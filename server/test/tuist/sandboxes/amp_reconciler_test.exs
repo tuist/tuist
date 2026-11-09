@@ -40,6 +40,32 @@ defmodule Tuist.Sandboxes.AmpReconcilerTest do
     assert %{status: :running, last_checked_at: %DateTime{}} = Repo.get!(AmpIntegration, integration.id)
   end
 
+  test "a reconcile that finds the account's lock held snoozes instead of failing", %{
+    integration: integration,
+    config: config
+  } do
+    test_pid = self()
+
+    holder =
+      spawn_link(fn ->
+        AmpIntegrations.with_lock(integration.account_id, fn ->
+          send(test_pid, :held)
+          receive do: (:release -> :ok)
+        end)
+
+        send(test_pid, :released)
+      end)
+
+    assert_receive :held
+    reject(&Client.get/2)
+    reject(&Client.apply/1)
+    assert {:snooze, _seconds} = AmpReconciler.reconcile(integration.account_id, config)
+    assert %{last_checked_at: nil} = Repo.get!(AmpIntegration, integration.id)
+
+    send(holder, :release)
+    assert_receive :released
+  end
+
   test "a partial Kubernetes write remains retryable without exposing diagnostics", %{
     integration: integration,
     config: config

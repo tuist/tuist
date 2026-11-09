@@ -41,6 +41,7 @@ type Handler struct {
 	System  System
 	Execs   *exec.Registry
 	Logger  *slog.Logger
+	Action  *SingleAction
 }
 
 // Serve accepts connections until ctx is cancelled or the listener fails.
@@ -154,11 +155,20 @@ func (h *Handler) writeFile(req *protocol.Request, w *protocol.Writer) error {
 }
 
 func (h *Handler) exec(ctx context.Context, req *protocol.Request, w *protocol.Writer) error {
+	if h.Action != nil && len(req.Cmd) == 3 && req.Cmd[0] == "/usr/local/bin/sbx-executor" && req.Cmd[1] == "--prepare-cas" {
+		return h.Action.Prepare(ctx, req, w)
+	}
+	if h.Action != nil && len(req.Cmd) == 1 && req.Cmd[0] == "/usr/local/bin/sbx-executor" {
+		return h.Action.Execute(ctx, req, w)
+	}
 	spec := exec.Spec{
 		Cmd:     req.Cmd,
 		Env:     req.Env,
 		Cwd:     req.Cwd,
 		Timeout: time.Duration(req.TimeoutMs) * time.Millisecond,
+	}
+	if len(req.Cmd) == 1 && req.Cmd[0] == executorPath {
+		spec.Env, spec.Stdin = executorRequestOnStdin(req.Env)
 	}
 	started := func(id string) {
 		_ = w.Send(protocol.Started(req.ID, id))
@@ -171,6 +181,12 @@ func (h *Handler) exec(ctx context.Context, req *protocol.Request, w *protocol.W
 }
 
 func (h *Handler) kill(req *protocol.Request, w *protocol.Writer) error {
+	if h.Action != nil && req.Target == actionExecID {
+		if err := h.Action.Kill(syscall.Signal(req.Signal)); err != nil {
+			return err
+		}
+		return w.Send(protocol.OK(req.ID))
+	}
 	if req.Target == "" {
 		return errors.New("kill: target is required")
 	}
@@ -203,3 +219,26 @@ func (s *sink) Write(stream exec.Stream, data []byte) error {
 	}
 	return s.w.Send(protocol.Stream(s.id, typ, data))
 }
+
+// executorPath is a variable so tests can substitute a stand-in executor.
+var executorPath = "/usr/local/bin/sbx-executor"
+
+// executorRequestOnStdin moves the execution request from the environment to
+// the executor's standard input. The request carries the action's prefetched
+// inputs, up to 255 KiB, and Linux refuses to exec a single environment string
+// longer than 128 KiB (MAX_ARG_STRLEN) with E2BIG.
+func executorRequestOnStdin(env map[string]string) (map[string]string, []byte) {
+	request, ok := env[executorRequestEnv]
+	if !ok {
+		return env, nil
+	}
+	rest := make(map[string]string, len(env)-1)
+	for k, v := range env {
+		if k != executorRequestEnv {
+			rest[k] = v
+		}
+	}
+	return rest, []byte(request)
+}
+
+const executorRequestEnv = "SBX_EXECUTION_REQUEST"

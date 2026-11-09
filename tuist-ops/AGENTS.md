@@ -1,7 +1,7 @@
 # Internal operations
 
-Standalone Phoenix app for JIT cluster elevation, operator project-access grants,
-and Slack-requested previews. It has its own production namespace, Helm release,
+Standalone Phoenix app for JIT cluster elevation and operator project-access
+grants. It has its own production namespace, Helm release,
 secrets, and CNPG database, independent of the customer server.
 
 ## Boundaries and security
@@ -11,8 +11,17 @@ secrets, and CNPG database, independent of the customer server.
 - Pomerium/Google Workspace authenticates human ops access, not the customer's
   Tuist OIDC provider. `X-Pomerium-Claim-Email` is spoofable on raw ingress:
   `/grants/*` must remain Pomerium-fronted.
-- Public `ops.tuist.dev` ingress exposes only Slack-signed webhook routes.
-  `/api/v1/policy` and other internal surfaces are tailnet-only.
+- Public `ops.tuist.dev` ingress exposes only Slack-signed webhook routes and
+  `/api/v1/atlas/*`, which requires Atlas's projected ServiceAccount token
+  (`TuistOps.AtlasIdentity`: pinned `ATLAS_TOKEN_JWKS`, `ops.tuist.dev`
+  audience, the `atlas-production:atlas` subject). `/api/v1/policy` and other
+  internal surfaces are tailnet-only.
+- `POST /api/v1/atlas/elevations` grants an orb thread elevation a person
+  approved in Atlas (`request_cluster_elevation`). It trusts Atlas for the
+  approver's email and the approval, still requires an engineering tailnet
+  role, refuses staging, posts nothing to Slack, and grants each Atlas
+  approval ID once. It is the only way to elevate an orb thread; Slack
+  `/elevate` rejects `--thread`.
 - Canary/production cluster access defaults to `view`; staging's write tier is
   standing access and `/elevate staging` is rejected. Read `infra/AGENTS.md` for the human-only
   `/elevate` request/approval flow; agents must never request or approve elevation.
@@ -26,9 +35,6 @@ secrets, and CNPG database, independent of the customer server.
 - Project-access read grants are self-serve with a reason; admin grants require
   Slack approval. The customer server verifies signed Ed25519 grants offline.
   See `infra/k8s/operator-project-access-audit.md` for the audit/deployment runbook.
-- Previews record their audit trail here but mutate Kubernetes through
-  `.github/workflows/preview-deploy.yml`; do not add workload-cluster credentials
-  to this app. Keep workflow outcome reporting on the originating Slack card.
 - Migrations run on boot unless `SKIP_MIGRATIONS=true`.
 
 Tool versions live in `mise.toml`; use `mix test` for tests. Deployment is defined

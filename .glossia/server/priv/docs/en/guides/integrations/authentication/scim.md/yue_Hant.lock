@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5ff4379f8747540e7356d8ce571a1b9e448d6a0606dd28dca9338eceec1a41f8",
+  "hash": "a36364f8e331a20959ff2325bfa40bf67c20f9817e6cd40fc4ad038b703e5b51",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "e017066b3bbe366d4a18fbb885103779857c17533fccb1bf280cbc404d3c77dd"
                 },
                 "## Lifecycle behavior {#lifecycle-behavior}": {
-                  "content_hash": "8ee2e49fc1828520538e0a3039ec9f020d8613d19bc18566ce6de92a4a11f3e0"
+                  "content_hash": "a988f32deef131204d77426f4cca0802eebac65d0f2e22e5362db1b29f572aaa"
                 },
                 "## Microsoft Entra ID {#microsoft-entra-id}": {
                   "content_hash": "53ea2a32af2d282116fe23a7e8f3df093ed8f1af7654ef3e967c6b82041ccfb3"
@@ -68,11 +68,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "3412688e860bb2915d607c384f1f58357192dfb24bd007bec2a2f76ec4f92616",
+          "hash": "54b4b9b5d9d09fdbd1dc5667555de4e04a87aecd7fa3076bf5814a58d25415bb",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/authentication/scim.md",
           "metadata": {
-            "content_hash": "264c3e35c2cd324c6b3e0a906e9d29455fe81a229524e3415a54ec3e45d61ca4"
+            "content_hash": "f15a5b347656cc852d3b117fdd3461dbda4c0d7831c4899a8fa1899512f2aecb"
           }
         },
         {
@@ -133,7 +133,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -152,7 +152,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -181,11 +181,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -262,21 +262,21 @@
             }
           ],
           "details": {},
-          "hash": "6e8d735033da15c6be6f8dee85419e5fca0be9ddad6ede7065915161eb139cdb",
+          "hash": "5eff9e76c7215323aebf7533bc5419e1ef605b6b70758aaa1fe9f3fa83b84f57",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "5ff4379f8747540e7356d8ce571a1b9e448d6a0606dd28dca9338eceec1a41f8",
+      "hash": "a36364f8e331a20959ff2325bfa40bf67c20f9817e6cd40fc4ad038b703e5b51",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/authentication/scim.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ecc7063ecc7794347ca81a1cd06d99fd23ed289d290fda8b07ce76eb65b6ea91",
+  "output_hash": "4c19e1299c78cc68d2375017717ba8fa7d0d4b91719a7e8a7fdf7f8b85f6be3f",
   "output_path": "server/priv/docs/yue_Hant/guides/integrations/authentication/scim.md",
   "protection_state": "recorded",
   "provider": "",
@@ -296,8 +296,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/integrations/authentication/scim.md",
-  "translated_at": "2026-11-02T15:41:24.438912Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-06T22:09:33.891446Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

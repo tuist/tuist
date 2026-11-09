@@ -1042,6 +1042,93 @@ defmodule TuistEx.DependencyCacheTest do
     refute hd(first["dependency_cache"])["key"] == hd(third["dependency_cache"])["key"]
   end
 
+  test "audited non-native builders key alias functions from the dependency's mix.exs, not PATH",
+       %{project: project, dir: dir} do
+    repo = Path.join(dir, "package")
+
+    File.write!(Path.join(repo, "mix.exs"), """
+    defmodule DepProbe.MixProject do
+      use Mix.Project
+      def project, do: [app: :dep_probe, version: "0.1.0", deps: [], aliases: [compile: [&prepare/1, "compile"]]]
+      defp prepare(_), do: File.mkdir_p!("priv")
+    end
+    """)
+
+    commit!(repo)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "remote: false,",
+        ~s(remote: false, builders: [dep_probe: [native: false, outputs: [], generated: ["priv"]]],)
+      )
+    )
+
+    first = run!(project)
+    assert [%{"outcome" => "miss", "reason" => "", "key" => key}] = first["dependency_cache"]
+    File.rm_rf!(Path.join(project, "_build"))
+    path = Path.join(dir, "other-bin") <> ":" <> System.get_env("PATH")
+    second = run!(project, [{"PATH", path}])
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = second["dependency_cache"]
+  end
+
+  test "portable native keys follow declared tools' bytes, not PATH or where the tools live",
+       %{project: project, dir: dir} do
+    native_fixture!(project, dir)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false,", "remote: false, portable: true,")
+    )
+
+    first = run!(project)
+    assert [%{"outcome" => "miss", "reason" => "", "key" => key}] = first["dependency_cache"]
+    cc = System.find_executable("cc")
+    linked = Path.join(dir, "linked-bin")
+    File.mkdir_p!(linked)
+    File.ln_s!(cc, Path.join(linked, "cc"))
+    File.rm_rf!(Path.join(project, "_build"))
+    second = run!(project, [{"PATH", linked <> ":" <> System.get_env("PATH")}])
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = second["dependency_cache"]
+
+    wrapped = Path.join(dir, "wrapped-bin")
+    File.mkdir_p!(wrapped)
+    File.write!(Path.join(wrapped, "cc"), "#!/bin/sh\nexec #{cc} \"$@\"\n")
+    File.chmod!(Path.join(wrapped, "cc"), 0o755)
+    File.rm_rf!(Path.join(project, "_build"))
+    third = run!(project, [{"PATH", wrapped <> ":" <> System.get_env("PATH")}])
+    assert [%{"outcome" => "miss", "reason" => "", "key" => other}] = third["dependency_cache"]
+    refute other == key
+  end
+
+  test "dependencies Mix does not compile are neither cached nor reported", %{
+    project: project,
+    dir: dir
+  } do
+    assets = Path.join(dir, "assets")
+    File.mkdir_p!(assets)
+    File.write!(Path.join(assets, "icon.svg"), "<svg/>")
+    git!(assets, ["init", "--quiet"])
+    commit!(assets)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      File.read!(mixfile)
+      |> String.replace(
+        "deps: [{:dep_probe,",
+        "deps: [{:assets, git: #{inspect(assets)}, app: false, compile: false}, {:dep_probe,"
+      )
+      |> String.replace("dependencies: [:dep_probe]", "dependencies: [:assets, :dep_probe]")
+    )
+
+    assert [%{"dependency" => "dep_probe", "outcome" => "miss"}] =
+             run!(project)["dependency_cache"]
+  end
+
   test "cache true automatically selects dependencies", %{project: project, dir: dir} do
     mixfile = Path.join(project, "mix.exs")
 

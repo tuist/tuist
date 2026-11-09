@@ -1,0 +1,141 @@
+name: Pulse NIF Release
+
+# rustler_precompiled downloads from the same monorepo release as the image:
+# https://github.com/tuist/tuist/releases/download/pulse@<version>/
+on:
+  push:
+    tags: ["pulse@*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release tag to build (for example pulse@1.39.0); dispatch from main"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulse-nif-release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    name: Validate Pulse NIF source
+    if: github.repository == 'tuist/tuist' && (github.event_name == 'push' || github.ref == 'refs/heads/main')
+    runs-on: tuist-linux
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate release tag before checkout
+        id: tag
+        env:
+          REQUESTED_TAG: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=$GITHUB_REF_NAME
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then tag=$REQUESTED_TAG; fi
+          [[ "$tag" =~ ^pulse@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#pulse@}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+      - name: Match tag, source and Mix version
+        id: source
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          [[ "$(git rev-parse "refs/tags/$TAG^{commit}")" == "$sha" ]]
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then [[ "$sha" == "$GITHUB_SHA" ]]; fi
+          # Read the manifest as data, without executing the tagged Mix project.
+          mix_version=$(sed -nE 's/^[[:space:]]*version: "([^"]+)",?$/\1/p' pulse/mix.exs)
+          [[ "$mix_version" == "$VERSION" ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Pulse ${{ matrix.crate }} NIF ${{ matrix.nif }} - ${{ matrix.job.target }}
+    needs: source
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [pulse_object_store, pulse_codec, pulse_grpc]
+        nif: ["2.16"]
+        job:
+          - { target: x86_64-unknown-linux-gnu, os: tuist-linux, use-cross: false }
+          # cross mounts the host's rustup toolchain into its build container.
+          # tuist-linux runs Docker in a sidecar that only shares the work
+          # directory, so the container finds no cargo; use hosted runners.
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04, use-cross: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-22.04, use-cross: true }
+          - { target: aarch64-apple-darwin, os: tuist-macos-27-0, use-cross: false }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.job.target }}
+      - name: Build the NIF
+        id: build-crate
+        # rustler-precompiled-action v1.1.4, pinned immutably.
+        uses: philss/rustler-precompiled-action@853ac56183f29a080304df3ff8a194b5bbdc24cc
+        env:
+          # musl static CRT linkage otherwise disables cdylib output.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-C target-feature=-crt-static"
+        with:
+          project-name: ${{ matrix.crate }}
+          project-version: ${{ needs.source.outputs.version }}
+          target: ${{ matrix.job.target }}
+          nif-version: ${{ matrix.nif }}
+          # The pinned composite treats the string "false" as truthy.
+          use-cross: ${{ matrix.job.use-cross && 'true' || '' }}
+          project-dir: pulse/native/${{ matrix.crate }}
+      - name: Retain precompiled NIF
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-nif-${{ matrix.crate }}-${{ matrix.nif }}-${{ matrix.job.target }}
+          path: ${{ steps.build-crate.outputs.file-path }}
+          if-no-files-found: error
+
+  publish:
+    name: Attach all Pulse NIF artifacts
+    needs: [source, build]
+    runs-on: tuist-linux
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.source.outputs.tag }}
+          persist-credentials: false
+      - name: Recheck immutable release source
+        env:
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pulse-nif-*
+          path: nif-artifacts
+          merge-multiple: true
+      # Publish only after the complete target matrix succeeds, rather than
+      # leaving a partially successful matrix looking like a finished release.
+      - name: Attach precompiled NIFs to release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ needs.source.outputs.tag }}
+          files: nif-artifacts/*.tar.gz
+          fail_on_unmatched_files: true

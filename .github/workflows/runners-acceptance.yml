@@ -110,8 +110,8 @@ jobs:
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
           esac
           # Each Linux target runs native and real job-container probes.
-          # Canary adds one macOS volume probe and five Docker cache phases.
-          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 6 : 0) ))
+          # Canary adds one macOS volume probe and three Docker cache phases.
+          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 4 : 0) ))
           {
             echo "server=${server}"
             echo "macos=${macos}"
@@ -380,32 +380,11 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
-
-  docker-warm-layers:
-    name: Linux Docker cache warm-layers
-    needs: [plan, docker-cold]
-    if: inputs.environment == 'canary'
-    uses: ./.github/workflows/runners-docker-cache-probe.yml
-    with:
-      phase: warm-layers
-      expected_linux_image: ${{ inputs.expected_linux_image }}
-    permissions:
-      contents: read
-
-  docker-changed-source:
-    name: Linux Docker cache changed-source
-    needs: [plan, docker-warm-layers]
-    if: inputs.environment == 'canary'
-    uses: ./.github/workflows/runners-docker-cache-probe.yml
-    with:
-      phase: changed-source
-      expected_linux_image: ${{ inputs.expected_linux_image }}
-    permissions:
-      contents: read
+      id-token: write
 
   docker-same-size-write:
     name: Linux Docker cache same-size-write
-    needs: [plan, docker-changed-source]
+    needs: [plan, docker-cold]
     if: inputs.environment == 'canary'
     uses: ./.github/workflows/runners-docker-cache-probe.yml
     with:
@@ -413,6 +392,7 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write
 
   docker-verify-final:
     name: Linux Docker cache verify-final
@@ -424,3 +404,4 @@ jobs:
       expected_linux_image: ${{ inputs.expected_linux_image }}
     permissions:
       contents: read
+      id-token: write

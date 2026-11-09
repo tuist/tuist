@@ -15,6 +15,9 @@ Source for the standalone `tuist/install` composite action. See
 - Inputs reach scripts through quoted environment variables. Never eval them.
 - `size` passes straight to `tuist/cache-volume`; the client validates it. Never
   forward it to the GitHub archive backend, which has no capacity.
+- On an attached volume, `install.sh` stages `TUIST_DEPENDENCIES_CACHE_MAX_BYTES`
+  from its capacity with `tuist-runner-cache`'s module-cache formula; keep the two
+  in step. A caller's value wins, and archive/external backends set none.
 - Default keys are stable names: job plus the relative package path when it is not
   the checkout root. They go through `tuist/cache-volume`, so they must satisfy its
   key contract, including the reserved `tuist-` prefix. Never include toolchain versions, manifest or lockfile

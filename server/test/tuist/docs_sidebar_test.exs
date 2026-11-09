@@ -15,6 +15,23 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
+  test "groups channels and calendar under Release in CLI fallback and server navigation" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+    [cli] = Sidebar.cli_tree()
+    server = Enum.find(Sidebar.guides_tree(), &(&1.label == "Server"))
+    self_hosting = Enum.find(server.items, &(&1.label == "Self-hosting"))
+
+    for {items, base} <- [{cli.items, "/en/cli"}, {self_hosting.items, "/en/guides/server/self-host"}] do
+      release = Enum.find(items, &(&1.label == "Release"))
+      assert is_nil(release.slug)
+
+      assert Enum.map(release.items, &{&1.label, &1.slug}) == [
+               {"Channels", "#{base}/release/channels"},
+               {"Calendar", "#{base}/release/calendar"}
+             ]
+    end
+  end
+
   test "every authored navigation label is available to the translation rule" do
     stub(CLI, :sidebar_items, fn -> [] end)
 
@@ -55,7 +72,8 @@ defmodule Tuist.Docs.SidebarTest do
              {"Gradle project", "/en/guides/get-started/gradle-project"},
              {"Elixir project", "/en/guides/get-started/elixir-project"},
              {"Rust project", "/en/guides/get-started/rust-project"},
-             {"Bazel project", "/en/guides/get-started/bazel-project"}
+             {"Bazel project", "/en/guides/get-started/bazel-project"},
+             {"Once project", "/en/guides/get-started/once-project"}
            ]
 
     assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
@@ -76,7 +94,8 @@ defmodule Tuist.Docs.SidebarTest do
     assert Enum.map(build.items, &{&1.label, &1.slug, &1.icon}) == [
              {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
              {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
-             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"}
+             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"},
+             {"Once", "/en/guides/features/previews/once", "brand_once"}
            ]
 
     assert Enum.map(run.items, &{&1.label, &1.slug}) == [

@@ -74,6 +74,8 @@ server:
       enabled: true
     apns:
       enabled: true
+    fcm:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -115,7 +117,7 @@ server:
   stripe:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
-      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
+      # on the 8 vCPU / 24 GB baseline) are free, and beyond that each
       # millisecond costs 0.000083333333 cents, which is $0.05 per baseline
       # machine-minute. That is 1/12,000 of a cent, which repeats, so the
       # amount is cut at the 12 decimals Stripe accepts: a cent less per 50
@@ -857,10 +859,8 @@ rackFleet:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # The host's production sizing (16 CPU / 48 GB) fits two 8 vCPU / 24 GB
+    # guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true

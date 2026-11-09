@@ -1,0 +1,236 @@
+name: Condukt Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - condukt/**
+      - .github/workflows/condukt*.yml
+      - .github/scripts/condukt*
+      - mise/tasks/release/components.json
+  workflow_dispatch:
+    inputs:
+      egress_version:
+        description: "Recover only the egress image for the latest published Condukt version (e.g. 1.15.0)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: condukt-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should-release: ${{ steps.plan.outputs.condukt-should-release }}
+      version: ${{ steps.recovery.outputs.version || steps.plan.outputs.condukt-next-version-number }}
+      tag: ${{ steps.plan.outputs.condukt-next-version }}
+      source-sha: ${{ steps.recovery.outputs.source-sha || github.sha }}
+      egress-only: ${{ steps.recovery.outputs.egress-only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        if: inputs.egress_version == ''
+        with:
+          install_args: "--locked git-cliff jq"
+      - id: plan
+        if: inputs.egress_version == ''
+        run: mise run --skip-tools release:check condukt
+      - id: recovery
+        if: github.event_name == 'workflow_dispatch' && inputs.egress_version != ''
+        env:
+          RECOVERY_VERSION: ${{ inputs.egress_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/condukt-egress-recovery.sh
+
+  validate:
+    needs: plan
+    if: needs.plan.outputs.should-release == 'true'
+    uses: ./.github/workflows/condukt.yml
+
+  validate-egress:
+    needs: plan
+    if: needs.plan.outputs.should-release == 'true'
+    uses: ./.github/workflows/condukt-egress.yml
+
+  build-nifs:
+    needs: [plan, validate, validate-egress]
+    if: needs.plan.outputs.should-release == 'true'
+    name: NIF (${{ matrix.crate }} | ${{ matrix.target }} | ${{ matrix.nif }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { crate: condukt_bashkit, nif: "2.16", target: aarch64-apple-darwin, os: macos-15 }
+          - { crate: condukt_bashkit, nif: "2.16", target: x86_64-apple-darwin, os: macos-15-intel }
+          - { crate: condukt_bashkit, nif: "2.16", target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { crate: condukt_bashkit, nif: "2.16", target: aarch64-unknown-linux-gnu, os: ubuntu-22.04, use-cross: true }
+          - { crate: condukt_bashkit, nif: "2.16", target: x86_64-pc-windows-msvc, os: windows-2022 }
+          - { crate: condukt_bashkit, nif: "2.17", target: aarch64-apple-darwin, os: macos-15 }
+          - { crate: condukt_bashkit, nif: "2.17", target: x86_64-apple-darwin, os: macos-15-intel }
+          - { crate: condukt_bashkit, nif: "2.17", target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { crate: condukt_bashkit, nif: "2.17", target: aarch64-unknown-linux-gnu, os: ubuntu-22.04, use-cross: true }
+          - { crate: condukt_bashkit, nif: "2.17", target: x86_64-pc-windows-msvc, os: windows-2022 }
+          - { crate: condukt_microsandbox, nif: "2.16", target: aarch64-apple-darwin, os: macos-15 }
+          - { crate: condukt_microsandbox, nif: "2.16", target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          # microsandbox cannot cross-link glibc build scripts: use native arm64.
+          - { crate: condukt_microsandbox, nif: "2.16", target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { crate: condukt_microsandbox, nif: "2.17", target: aarch64-apple-darwin, os: macos-15 }
+          - { crate: condukt_microsandbox, nif: "2.17", target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { crate: condukt_microsandbox, nif: "2.17", target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          # Avoid unrelated Xcode fixtures exceeding Windows path limits.
+          sparse-checkout: condukt
+      - name: Install Linux native dependencies
+        if: matrix.crate == 'condukt_microsandbox' && startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcap-ng-dev
+      - id: build
+        uses: philss/rustler-precompiled-action@v1.1.5
+        with:
+          project-name: ${{ matrix.crate }}
+          project-version: ${{ needs.plan.outputs.version }}
+          target: ${{ matrix.target }}
+          nif-version: ${{ matrix.nif }}
+          # Composite inputs are strings: "false" would still enable cross.
+          use-cross: ${{ matrix.use-cross == true && 'true' || '' }}
+          project-dir: condukt/native/${{ matrix.crate }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.file-name }}
+          path: ${{ steps.build.outputs.file-path }}
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build-nifs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: condukt
+    env:
+      MIX_ENV: prod
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: condukt
+          install_args: "erlang elixir git-cliff"
+      - run: |
+          mix local.hex --force
+          mix local.rebar --force
+          elixir -e 'Mix.start(); unless Mix.env() == :prod, do: raise("release requires MIX_ENV=prod")'
+          mix deps.get --check-locked
+      - uses: actions/download-artifact@v4
+        with:
+          path: condukt/nif-artifacts/condukt_bashkit
+          pattern: "*condukt_bashkit-*.tar.gz"
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          path: condukt/nif-artifacts/condukt_microsandbox
+          pattern: "*condukt_microsandbox-*.tar.gz"
+          merge-multiple: true
+      - name: Prepare immutable release payload
+        run: |
+          set -euo pipefail
+          python3 ../.github/scripts/condukt-artifacts.py "$RELEASE_VERSION" nif-artifacts
+          elixir scripts/generate_nif_checksum.exs nif-artifacts/condukt_bashkit Elixir.Condukt.Bashkit.NIF
+          elixir scripts/generate_nif_checksum.exs nif-artifacts/condukt_microsandbox Elixir.Condukt.Microsandbox.NIF
+          elixir scripts/version.exs set "$RELEASE_VERSION"
+          latest=$(git tag -l 'condukt@*' | sort -V | tail -n1)
+          range=()
+          if [ -n "$latest" ]; then range=("$latest..HEAD"); fi
+          git cliff --config cliff.toml --repository .. --include-path 'condukt/**/*' \
+            --include-path '.github/workflows/condukt*.yml' --include-path '.github/scripts/condukt*' \
+            --tag "$RELEASE_TAG" -- "${range[@]}" > "$RUNNER_TEMP/condukt-release.md"
+          # Build, but do not commit generated version/checksum/changelog files.
+          # The tag always identifies the tested, immutable event SHA.
+          mix hex.build
+      - name: Publish native downloads before Hex
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+        run: bash ../.github/scripts/condukt-publish.sh
+      - name: Publish package to Hex
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          set -euo pipefail
+          : "${HEX_API_KEY:?HEX_API_KEY secret is required}"
+          bash ../.github/scripts/condukt-hex.sh
+      - name: Publish HexDocs
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          MIX_ENV: dev
+          # ExDoc is dev-only. Do not source-build NIFs just to render docs.
+          CONDUKT_BASHKIT_DISABLE: "1"
+          CONDUKT_MICROSANDBOX_DISABLE: "1"
+        run: |
+          set -euo pipefail
+          mix deps.get --check-locked
+          mix docs
+          mix hex.publish docs --yes
+
+  publish-egress-image:
+    needs: [plan, publish]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' &&
+      (needs.publish.result == 'success' || needs.plan.outputs.egress-only == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.source-sha }}
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: condukt/native/condukt_egress
+          file: condukt/native/condukt_egress/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/condukt-egress:${{ needs.plan.outputs.version }}
+            ghcr.io/tuist/condukt-egress:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/tuist/tuist
+            org.opencontainers.image.revision=${{ needs.plan.outputs.source-sha }}
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha,scope=condukt-egress
+          cache-to: type=gha,scope=condukt-egress,mode=max

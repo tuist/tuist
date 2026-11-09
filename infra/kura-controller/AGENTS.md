@@ -302,8 +302,9 @@ rehearsal saw immediate GET misses after successful PUTs at handoff; initial
 catch-up and an empty connection cohort did not prove destination content.
 The destination-bound acknowledgment bridge corrected that defect: the repeated
 staged migration passed with every acknowledged write independently verified.
-Keep both the failed and successful evidence in the CSI thin validation report;
-the remaining performance gate still blocks production thin enrollment.
+Keep both the failed and successful evidence in the CSI thin validation report.
+Production thin enrollment is judged on production request latency since
+2026-11-09, not the raw-I/O gate; see the top of that report.
 
 Thin write handoff adds a persisted source-process/destination-pod-and-
 process binding before `lvm-rebuild`. The runtime's content preparation receipt

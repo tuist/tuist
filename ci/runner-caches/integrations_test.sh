@@ -101,9 +101,18 @@ if [ "$1" = -h ]; then
   exit 2
 fi
 printf '%s\n' "$@" > "$CAPTURE_ARGS"
+# A saved cache: $4 is the caches path and $6 the wrapper path.
+if [ -n "${FILL_CACHE-}" ]; then mkdir -p "$4/build-cache-1" "$4/modules-2" "$6/dists"; fi
 exit "${CLIENT_EXIT:-0}"
 CLIENT
 chmod +x "$fixture/bin/tuist-cache-volume"
+# The volume's fill, in percent, while Gradle's local build cache exists and after it is gone.
+cat > "$fixture/bin/df" <<'DF'
+#!/bin/bash
+if [ -e "${!#}/build-cache-1" ]; then used=${USED_WITH_BUILD_CACHE:-10}; else used=${USED_WITHOUT_BUILD_CACHE:-10}; fi
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nvolume 1000 %s %s %s%% /volume\n' "$used" "$((100 - used))" "$used"
+DF
+chmod +x "$fixture/bin/df"
 sed -n "/<<'GROOVY'$/,/^GROOVY$/p" "$source_dir/../../.github/actions/gradle-cache/setup.sh" | sed '1d;$d' > "$fixture/expected-init"
 [[ -s "$fixture/expected-init" ]]
 sed -n 's/^      //p' "$source_dir/gradle-cache/gitlab/gradle-cache.yml" > "$fixture/gradle-gitlab.sh"
@@ -134,9 +143,20 @@ for entry in "bash $gradle_hook BUILDKITE_PLUGIN_GRADLE_CACHE_SIZE" "bash $fixtu
   cmp "$fixture/expected-args-without-size" "$CAPTURE_ARGS"
   grep -q '^Warning: this runner image does not support' "$fixture/err"
   [[ -f "$fixture/gradle-home/.gradle/init.d/tuist-gradle-cache.gradle" ]]
+
+  caches="$fixture/gradle-home/.gradle/caches"
+  [[ $(export FILL_CACHE=1 USED_WITH_BUILD_CACHE=74; run_gradle "$shell" "$script" 2> "$fixture/err") == *after ]]
+  [[ -d "$caches/build-cache-1" && -d "$caches/modules-2" && ! -s "$fixture/err" ]]
+  [[ $(export FILL_CACHE=1 USED_WITH_BUILD_CACHE=75 USED_WITHOUT_BUILD_CACHE=74; run_gradle "$shell" "$script" 2> "$fixture/err") == *after ]]
+  [[ ! -e "$caches/build-cache-1" && -d "$caches/modules-2" && ! -s "$fixture/err" ]]
+  [[ $(export FILL_CACHE=1 USED_WITH_BUILD_CACHE=90 USED_WITHOUT_BUILD_CACHE=75; run_gradle "$shell" "$script" 2> "$fixture/err") == *after ]]
+  [[ -z $(ls -A "$caches") && -d "$fixture/gradle-home/.gradle/wrapper/dists" ]]
+  grep -q '^Warning: the Gradle cache was nearly full' "$fixture/err"
+  cmp "$fixture/expected-init" "$fixture/gradle-home/.gradle/init.d/tuist-gradle-cache.gradle"
 done
 echo 'ok: Gradle entry points attach the cache and install the cleanup init script'
 echo 'ok: Gradle entry points pass the size only to a client that supports it'
+echo 'ok: Gradle entry points keep a nearly full cache within its volume'
 
 bash "$source_dir/gradle-cache/buildkite/package.sh" "$fixture/gradle-buildkite"
 [[ -x "$fixture/gradle-buildkite/hooks/pre-command" ]]

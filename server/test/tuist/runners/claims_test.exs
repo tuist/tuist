@@ -80,7 +80,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "atomically rejects a shape that would exceed a platform budget" do
       account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      macos_resources = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(1400, account.id, "fleet-macos", "pod-1", macos_resources)
       assert {:ok, _} = Claims.attempt(1401, account.id, "fleet-macos", "pod-2", macos_resources)
@@ -89,8 +89,8 @@ defmodule Tuist.Runners.ClaimsTest do
                Claims.attempt(1402, account.id, "fleet-macos", "pod-3", macos_resources)
 
       assert details.platform == :macos
-      assert details.used == %{vcpus: 12, memory_gb: 28}
-      assert details.limit == %{vcpus: 12, memory_gb: 28}
+      assert details.used == %{vcpus: 16, memory_gb: 48}
+      assert details.limit == %{vcpus: 16, memory_gb: 48}
       assert details.requested == macos_resources
       assert Claims.counts_per_account() == %{account.id => 2}
     end
@@ -101,7 +101,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # over the limit it pays for.
     test "still charges an account for a claim whose job was displaced" do
       account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      macos_resources = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(1410, account.id, "fleet-macos", "pod-1", macos_resources)
       assert {:ok, _} = Claims.attempt(1411, account.id, "fleet-macos", "pod-2", macos_resources)
@@ -111,12 +111,12 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:error, {:concurrency_limit_reached, details}} =
                Claims.attempt(1412, account.id, "fleet-macos", "pod-3", macos_resources)
 
-      assert details.used == %{vcpus: 12, memory_gb: 28}
+      assert details.used == %{vcpus: 16, memory_gb: 48}
     end
 
     test "keeps Linux and macOS budgets independent" do
       account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 12, memory_gb: 28}
+      macos_resources = %{platform: :macos, vcpus: 16, memory_gb: 48}
       linux_resources = %{platform: :linux, vcpus: 2, memory_gb: 8}
 
       assert {:ok, _} = Claims.attempt(1450, account.id, "fleet-macos", "pod-macos", macos_resources)
@@ -146,11 +146,11 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:error, {:concurrency_limit_reached, details}} =
                Claims.attempt(1456, account.id, "macos-26-5", "new-pod", %{
                  platform: :macos,
-                 vcpus: 12,
-                 memory_gb: 28
+                 vcpus: 16,
+                 memory_gb: 48
                })
 
-      assert details.used == %{vcpus: 6, memory_gb: 14}
+      assert details.used == %{vcpus: 8, memory_gb: 24}
       refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1456))
     end
 

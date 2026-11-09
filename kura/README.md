@@ -318,6 +318,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
 | `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum number of concurrent accelerated transfers per node. Requests above the limit fall back to the normal Axum/Hyper path before any request bytes are consumed. | Yes | `32` |
 | `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
+| `KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY` | Maximum number of `SpliceBlob` verifications that stream chunks at once per node. Further splices queue (up to four per slot) for at most 30 seconds before they are refused with retryable `RESOURCE_EXHAUSTED` carrying `google.rpc.RetryInfo`. | Yes | CPU count, clamped to 4–16 |
 | `KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED` | When true, evicting a CAS blob cascades to the action-cache entries that reference it (removed in the same atomic batch) so an entry never outlives its blobs. Additionally gated on the node's one-time reverse-map backfill completing; the serve-side presence gates stay on regardless as the backstop. | Yes | `true` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
@@ -641,7 +642,7 @@ a 5-second total request deadline covering setup, upload, and response.
 
 ByteStream writes do not retain resumable partial uploads across requests. An interrupted upload must restart at offset zero. `QueryWriteStatus` still reports completed artifacts, but returns `UNIMPLEMENTED` when no completed blob is available, allowing clients such as Bazel to fall back to a full restart instead of treating `NOT_FOUND` as a terminal upload failure. Ordinary missing-blob reads and CAS existence checks retain their existing behavior. A Write whose blob the node already stores is read to completion without staging, decoding, storing, or billing it, and is answered exactly as a full write; it is counted as `kura_artifact_writes_total{result="already_present"}`. A restarted upload of a blob that landed meanwhile therefore costs its wire bytes but no disk or CPU. If the blob is evicted while such a write streams, Kura answers `UNAVAILABLE` and the client restarts the upload. The [Bazel upload recovery fixture](test/e2e/bytestream-recovery/README.md) exercises both paths with the real uploader.
 
-Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
+Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`/`GetTree`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
@@ -1008,7 +1009,9 @@ REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain mo
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
 
 Planned legacy thin-storage moves use a destination-bound write bridge before
-changing endpoints. It verifies retained content and live mutation completion;
-closing old connections alone does not synchronize asynchronous replicas. See
+changing endpoints. It verifies on the destination every write acknowledged
+since the bridge pinned the feed; records retained from before the pin are
+best-effort cache content either replica may evict. Closing old connections
+alone does not synchronize asynchronous replicas. See
 [thin storage handoff](../infra/kura-controller/thin-migration.md) for protocol
 bounds, pause behavior, safe preparation retry and qualification limits.

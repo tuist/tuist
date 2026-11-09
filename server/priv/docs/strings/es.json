@@ -4,23 +4,29 @@
       "builds": { "text": "Compilaciones" },
       "tests": { "text": "Tests" },
       "compute": { "text": "Cómputo" },
-      "bundles": { "text": "Bundles" },
+      "bundles": { "text": "Paquetes" },
       "other-features": { "text": "Otras funcionalidades" }
     },
     "items": {
       "agentic-coding": { "text": "Programación con agentes" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Caché de Bazel" },
       "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "Compilar y publicar" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Volúmenes de caché" },
+      "calendar": { "text": "Calendario" },
+      "channels": { "text": "Canales" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "Compatibilidad" },
       "coverage": { "text": "Cobertura" },
       "data-retention": { "text": "Retención de datos" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Caché de Elixir" },
+      "entire": { "text": "Completo" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -29,22 +35,29 @@
       "iphone-app": { "text": "App para iPhone" },
       "macos-app": { "text": "App para macOS" },
       "new-project": { "text": "Nuevo proyecto" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Caché de Once" },
+      "once-project": { "text": "Proyecto de Once" },
+      "once-remote-execution": { "text": "Ejecución remota de Once" },
       "origin": { "text": "Origen" },
       "profiles": { "text": "Perfiles" },
       "project-description": { "text": "Descripción del proyecto" },
+      "release": { "text": "Versión" },
+      "release-calendar": { "text": "Calendario de versiones" },
       "release-channels": { "text": "Canales de lanzamiento" },
       "run-previews": { "text": "Ejecutar previsualizaciones" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
-      "rust-project": { "text": "Proyecto Rust" },
+      "rust-project": { "text": "Proyecto de Rust" },
+      "sandboxes": { "text": "Entornos aislados" },
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
       "single-sign-on": { "text": "Inicio de sesión único" },
-      "supported-types": { "text": "Tipos compatibles" },
+      "supported-types": { "text": "Tipos admitidos" },
       "webhooks": { "text": "Webhooks" },
-      "xcodegen-project": { "text": "Proyecto XcodeGen" },
+      "xcodegen-project": { "text": "Proyecto de XcodeGen" },
       "xcodeproj-integration": { "text": "Integración con Xcodeproj" },
-      "ufeatures-architecture": { "text": "Arquitectura uFeatures" }
+      "ufeatures-architecture": { "text": "Arquitectura de uFeatures" }
     }
   },
   "aside": {
@@ -83,7 +96,7 @@
           "remove-favorite-search-button-title": "Eliminar de favoritos"
         },
         "error-screen": {
-          "title-text": "No se pueden obtener los resultados",
+          "title-text": "No se han podido obtener los resultados",
           "help-text": "Es posible que debas comprobar tu conexión de red"
         },
         "footer": {
@@ -94,9 +107,9 @@
         },
         "no-results-screen": {
           "no-results-text": "No se han encontrado resultados relevantes",
-          "suggested-query-text": "Puedes probar a buscar",
+          "suggested-query-text": "Puedes intentar buscar",
           "report-missing-results-text": "¿Crees que esta consulta debería tener resultados?",
-          "report-missing-results-link-text": "Haz clic para dar feedback"
+          "report-missing-results-link-text": "Haz clic para enviar comentarios"
         }
       }
     }
@@ -222,13 +235,13 @@
           "text": "Idiomas"
         },
         "releases": {
-          "text": "Lanzamientos"
+          "text": "Versiones"
         },
         "cli": {
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Registro"
+              "text": "Registros"
             }
           }
         }
@@ -304,13 +317,13 @@
               "text": "Proyecto de Xcode generado"
             },
             "gradle-project": {
-              "text": "Proyecto Gradle"
+              "text": "Proyecto de Gradle"
             },
             "elixir-project": {
-              "text": "Proyecto Elixir"
+              "text": "Proyecto de Elixir"
             },
             "bazel-project": {
-              "text": "Proyecto Bazel"
+              "text": "Proyecto de Bazel"
             }
           }
         },
@@ -360,7 +373,7 @@
                       "text": "Crear un nuevo proyecto"
                     },
                     "swift-package": {
-                      "text": "Probar con un paquete Swift"
+                      "text": "Probar con un paquete de Swift"
                     },
                     "migrate": {
                       "text": "Migrar",
@@ -369,13 +382,13 @@
                           "text": "Un proyecto de Xcode"
                         },
                         "swift-package": {
-                          "text": "Un paquete Swift"
+                          "text": "Un paquete de Swift"
                         },
                         "xcodegen-project": {
-                          "text": "Un proyecto XcodeGen"
+                          "text": "Un proyecto de XcodeGen"
                         },
                         "bazel-project": {
-                          "text": "Un proyecto Bazel"
+                          "text": "Un proyecto de Bazel"
                         }
                       }
                     }
@@ -394,7 +407,7 @@
                   "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Compartir código"
+                  "text": "Compartición de código"
                 },
                 "synthesized-files": {
                   "text": "Archivos sintetizados"
@@ -468,7 +481,7 @@
                   "text": "Integración basada en XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Paquete Swift"
+                  "text": "Paquete de Swift"
                 },
                 "continuous-integration": {
                   "text": "Integración continua"

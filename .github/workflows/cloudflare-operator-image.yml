@@ -7,11 +7,9 @@ name: Cloudflare Operator Image
 # crawler controls, and zone settings as possible follow-on resources) lives
 # in git.
 #
-# Every merge to main pushes a fresh image; Flux's
-# image-automation-controller (see `infra/flux/cloudflare-operator/
-# image-automation.yaml`) picks the newest tag and opens a bump commit
-# on the values file, so no human-authored PR is needed to roll a
-# controller change out to the management cluster.
+# Relevant main merges publish an image followed by an OCI Helm chart
+# containing that image's digest. Flux selects chart versions without
+# committing image bumps to Git or needing repository-rule bypass access.
 
 on:
   push:
@@ -19,16 +17,27 @@ on:
       - main
     paths:
       - infra/cloudflare-operator/**
+      - infra/helm/cloudflare-operator/**
+      - infra/flux/cloudflare-operator/**
+      - infra/flux/mgmt/cloudflare-operator.yaml
+      - .github/scripts/cloudflare-operator-chart*.sh
       - .github/workflows/cloudflare-operator-image.yml
   pull_request:
     paths:
       - infra/cloudflare-operator/**
+      - infra/helm/cloudflare-operator/**
+      - infra/flux/cloudflare-operator/**
+      - infra/flux/mgmt/cloudflare-operator.yaml
+      - .github/scripts/cloudflare-operator-chart*.sh
       - .github/workflows/cloudflare-operator-image.yml
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: cloudflare-operator-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -40,6 +49,18 @@ jobs:
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm yq kubectl"
+          cache: "false"
+      - name: Validate published chart contents
+        run: bash .github/scripts/cloudflare-operator-chart.test.sh
+      - name: Render Flux configuration
+        run: |
+          kubectl kustomize infra/flux/cloudflare-operator > /dev/null
+          kubectl kustomize infra/flux/cloudflare-config > /dev/null
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/cloudflare-operator/go.mod
@@ -64,10 +85,19 @@ jobs:
 
   build:
     needs: test
-    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: tuist-linux
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm yq"
+          cache: "false"
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -77,29 +107,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compute tags
         id: tags
-        # Three tags per build, and each one has a reason to exist:
-        #   - `sha-<12sha>` is human-readable and what everything before
-        #     Flux image automation grep-ed for in review.
-        #   - `sha-<epoch>-<12sha>` is what `ImagePolicy` sorts on —
-        #     Flux extracts the numeric epoch, picks the largest, and
-        #     rewrites `values-mgmt.yaml` with this exact string. Ordering
-        #     by git SHA is not chronological, so without an embedded
-        #     timestamp Flux would have to pick effectively at random.
-        #   - `latest` is left for humans running `docker pull` while
-        #     debugging. Flux ignores it because it does not match the
-        #     policy pattern.
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           GIT_SHA="${GITHUB_SHA::12}"
-          EPOCH="$(date -u +%s)"
           {
+            echo "image_tag=sha-${GIT_SHA}"
+            echo "chart_version=0.2.${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:sha-${EPOCH}-${GIT_SHA}"
             echo "${IMAGE}:latest"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
+        id: image
         with:
           context: .
           file: infra/cloudflare-operator/Dockerfile
@@ -108,3 +128,20 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=cloudflare-operator
           cache-to: type=gha,mode=max,scope=cloudflare-operator
+          labels: |
+            org.opencontainers.image.source=https://github.com/tuist/tuist
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Package and publish immutable Helm chart
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+          CHART_VERSION: ${{ steps.tags.outputs.chart_version }}
+          IMAGE_TAG: ${{ steps.tags.outputs.image_tag }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/chart"
+          bash .github/scripts/cloudflare-operator-chart.sh \
+            "$CHART_VERSION" "$IMAGE_TAG" "$IMAGE_DIGEST" "$RUNNER_TEMP/chart"
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
+          helm push "$RUNNER_TEMP/chart/cloudflare-operator-$CHART_VERSION.tgz" oci://ghcr.io/tuist/charts

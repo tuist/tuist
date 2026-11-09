@@ -113,6 +113,13 @@ jobs:
         run: |
           go test -c -o /tmp/kura-thin-driver.test ./internal/driver
           sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} /tmp/kura-thin-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee /tmp/kura-thin-driver.log
+      - name: Qualify prepare-pool against real LVM
+        # prepare-pool always creates 512 KiB chunks, so one matrix entry covers it.
+        if: matrix.chunk-kib == 512
+        shell: bash
+        run: |
+          (cd infra/kura-volumes-csi && CGO_ENABLED=0 go build -o /tmp/kura-volumes-csi ./cmd/kura-volumes-csi)
+          sudo env KURA_THIN_DISPOSABLE_VM=1 bash infra/kura-volumes-csi/thin/prepare_pool_test.sh /tmp/kura-volumes-csi | tee /tmp/kura-prepare-pool.log
       - name: Qualify reclamation and the quota counterexample
         run: |
           # The unprivileged runner owns the report artifact.
@@ -125,6 +132,7 @@ jobs:
           path: |
             /tmp/kura-thin-driver.log
             /tmp/kura-thin-stack.json
+            /tmp/kura-prepare-pool.log
 
   borrowed-build:
     if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true

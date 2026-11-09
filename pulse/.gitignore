@@ -1,0 +1,45 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Temporary files, for example, from tests.
+/tmp/
+
+# Ignore package tarball (built via "mix hex.build").
+pulse-*.tar
+
+# Rustler compiles crates under native/*/target/ and copies the produced
+# shared object into priv/native/. Both are build artifacts.
+native/*/target/
+/priv/native/
+
+# RustlerPrecompiled emits a checksum sidecar in the project root when it
+# verifies a downloaded NIF artifact. It contains dev-machine transient
+# state; the authoritative checksums live in the GitHub Release.
+/checksum-*.exs
+
+# Per-worktree dev-instance suffix written by mise/utilities/dev_instance_env.sh.
+# Persisted inside .git/worktrees/*/pulse-dev-instance by design; the
+# top-level fallback is tracked here as a safety net for setups where the
+# git-scoped path is unwritable.
+/.pulse-dev-instance
+
+# Local autoresearch sessions, including logs and machine-specific outputs.
+/.auto/

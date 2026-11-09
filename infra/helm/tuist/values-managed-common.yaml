@@ -196,9 +196,11 @@ server:
   google:
     managedSecrets: true
 
-  # Mailing identity (not secret — shared across managed envs). The Mailgun API
-  # key itself is the only mail secret and stays in the per-env MAILGUN 1P item.
+  # Each environment reads its own send-only SES credentials from its SES item.
+  # The verified identity and region are shared, not the credentials.
   mailing:
+    provider: ses
+    sesRegion: eu-west-1
     domain: mail.tuist.dev
     fromAddress: noreply@tuist.dev
     replyToAddress: contact@tuist.dev
@@ -598,8 +600,8 @@ observability:
 # Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
 runnersFleet:
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
   xcodeOverrides:
     "27.2":
@@ -623,10 +625,21 @@ runnersFleet:
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.
 runnersFleetLinux:
+  # Ubuntu 22.04 stays selectable until GitHub removes its hosted image
+  # (Apr 17, 2027). Its image, `<semver>-ubuntu-22-04`, is resolved per
+  # deploy into `osRunnerImages`.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+    - osVersion: ubuntu-22.04
   nestedVirtualization:
     enabled: true
     defaultEnabled: true
 
+# Prepare host services; account admission is gated by the :sandboxes flag.
+sandboxes:
+  macos:
+    enabled: true
 # Account-owned provider workloads run on the general pool.
 ampOrbProvider:
   nodeSelector:
