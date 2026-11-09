@@ -1905,12 +1905,13 @@ export const NOORA_CSS = String.raw`
     }
   }
 
+  /* A 16px icon beside the 14px label, as in large buttons. */
   &[data-size="large"] {
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
-      width: var(--noora-icon-size-large);
-      height: var(--noora-icon-size-large);
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 }
