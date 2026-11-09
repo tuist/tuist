@@ -2149,8 +2149,7 @@ let package = Package(
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
         // Per-test coverage evidence for the unit and acceptance test targets (Module.swift).
-        // 0.4.0, which skips listed Swift Testing tests, from its commit until the registry has it.
-        .package(url: "https://github.com/tuist/TestCoverageAttribution", revision: "af356437771d222087eb5459449bcb3441f090b3"),
+        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.4.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),
