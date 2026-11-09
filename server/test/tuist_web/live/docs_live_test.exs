@@ -35,7 +35,7 @@ defmodule TuistWeb.DocsLiveTest do
     end)
 
     {:ok, view, _html} = live(conn, "/en/docs/cli/release/channels")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
 
     assert has_element?(
@@ -47,7 +47,7 @@ defmodule TuistWeb.DocsLiveTest do
     assert has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/cli/release/calendar")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, "h1", "Release calendar")
     assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
     assert has_element?(view, ~s(main a[href="/en/docs/cli/release/channels"]), "Release channels")
@@ -55,7 +55,7 @@ defmodule TuistWeb.DocsLiveTest do
     refute has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/guides/server/self-host/release/channels")
-    render_async(view)
+    render_async(view, 5000)
     refute has_element?(view, ~s(#docs-release-status [data-component="cli"]))
 
     for component <- [:server, :kura] do
@@ -63,7 +63,7 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     send(view.pid, :refresh_release_status)
-    render_async(view)
+    render_async(view, 5000)
 
     assert has_element?(
              view,
@@ -74,7 +74,7 @@ defmodule TuistWeb.DocsLiveTest do
     assert has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/guides/server/self-host/release/calendar")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, "h1", "Release calendar")
     assert has_element?(view, ~s(main a[href="/en/docs/guides/server/self-host/release/channels"]), "Release channels")
 
