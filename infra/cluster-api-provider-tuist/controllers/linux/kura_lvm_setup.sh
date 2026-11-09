@@ -86,7 +86,11 @@ kura_lvm_setup() (
   if ! lvs "$vg/data" >/dev/null 2>&1; then
     touch /var/lib/tuist/kura-data-unformatted
     sync /var/lib/tuist
-    lvcreate -L 128G -n data "$vg"
+    # /data holds only containerd's store (capped by its 64 GiB project quota)
+    # and the kubelet root; cache volumes live in the rest of the VG. 80 GiB
+    # keeps that quota below the kubelet's 85% image GC and imagefs eviction
+    # line (68 GiB) and hands the rest to the thin pool.
+    lvcreate -L 80G -n data "$vg"
   fi
   vgchange -ay "$vg"
   if [ "$(blkid -s TYPE -o value "$lv" || true)" != xfs ]; then
