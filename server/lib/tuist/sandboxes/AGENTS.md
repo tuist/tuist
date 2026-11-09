@@ -68,7 +68,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   item without a worker after roughly 10 to 13 minutes). The rejection
   reason (quota, or per node, with each macOS host's first failing check)
   is logged when the item is held, once a minute while it waits and at
-  the deadline. Never leave an item
+  the deadline. The quota check (`Capacity.quota/2`) asks
+  `Archives.make_room/1` to archive a paused Orb past the disk limit, as a
+  create does, and an item that nothing can make room for
+  (`:sandbox_limit`) is released at once. Never leave an item
   unacknowledged to wait for room: Anthropic offers it three times, 5 s
   apart, then stops; it stays `queued`, can no longer be acknowledged, and
   a new message does not requeue it (a stopped one is requeued by the

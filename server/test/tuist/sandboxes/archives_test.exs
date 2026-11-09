@@ -128,6 +128,27 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
+
+    test "a held Managed Agents work item past it makes room the same way", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      paused_orb(account)
+
+      linux = agent_environment_fixture(account: account)
+      macos = agent_environment_fixture(account: account, platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+
+      for environment <- [linux, macos] do
+        assert {:error, :sandbox_disk_limit} = Capacity.admission(environment, "new-session")
+      end
+
+      assert [%{args: %{"account_id" => account_id}} | _] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert account_id == account.id
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+
+      for environment <- [linux, macos] do
+        assert {:error, :sandbox_limit} = Capacity.admission(environment, "new-session")
+      end
+    end
   end
 
   describe "request/1" do
