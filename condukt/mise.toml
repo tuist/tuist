@@ -11,4 +11,4 @@ rust = "1.91"
 # Kubernetes sandbox smoke-test tooling.
 helm = "4.2.4"
 kubectl = "1.34.6"
-jq = "1.8.1"
+jq = "1.8.2"
