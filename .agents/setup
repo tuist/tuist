@@ -7,21 +7,18 @@ set -euo pipefail
 # The stdout and stderr Amp gives setup can fail a write with EAGAIN when its
 # reader falls behind a burst of output. awk, coreutils and Rust's println!
 # abort on that; on fresh orbs it killed db:migrate's awk filter mid-migration.
-# Relay both streams through a writer that waits for the stream to drain, so
-# every step below writes to an ordinary blocking pipe. perl-base is Essential
-# on Debian and Ubuntu, so the relay needs nothing installed.
-relay='
-while (sysread STDIN, my $data, 65536) {
-  while (length $data) {
-    my $written = syswrite STDOUT, $data;
-    if (defined $written) { substr($data, 0, $written) = "" }
-    elsif ($!{EAGAIN} || $!{EINTR}) { select undef, undef, undef, 0.01 }
-    else { exit 1 }
-  }
-}'
+# Relay both streams through Node, whose stream writes wait for the stream to
+# drain, so every step below writes to an ordinary blocking pipe. Orb images
+# ship Node; mise's toolchains are not installed yet at this point.
+relay='process.stdin.pipe(process.stdout)'
 exec 3>&1 4>&2
-exec 1> >(perl -e "$relay" >&3 3>&- 4>&-) 2> >(perl -e "$relay" >&4 3>&- 4>&-)
+exec 1> >(node -e "$relay" >&3 3>&- 4>&-)
+stdout_relay=$!
+exec 2> >(node -e "$relay" >&4 3>&- 4>&-)
+stderr_relay=$!
 exec 3>&- 4>&-
+# Exit only after the relays have passed on the last output, often the error.
+trap 'exec >&- 2>&-; wait "$stdout_relay" "$stderr_relay"' EXIT
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
