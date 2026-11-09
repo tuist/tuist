@@ -1307,14 +1307,14 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, arguments: [Int32(4), Int32(14)])
-    func batchTransportFailuresKeepTheirShortRetryBudget(status: Int32) async throws {
+    @Test(.inTemporaryDirectory)
+    func batchDeadlineFailuresKeepTheirShortRetryBudget() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let body = Data("blob".utf8)
         let source = directory.appending(component: "upload").url
         try body.write(to: source)
         let state = WireCache()
-        await state.planUpdates(Array(repeating: .reject(status: status), count: 10))
+        await state.planUpdates(Array(repeating: .reject(status: 4), count: 10))
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
             address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
         )
@@ -1331,7 +1331,45 @@ struct REAPICacheClientTests {
             let result = try await client.uploadAvailableBlobs([REAPI.digest(body): source])
             #expect(result.available.isEmpty)
             #expect(result.failures.count == 1)
-            #expect(await state.updateCalls == (status == 4 ? 2 : 3))
+            #expect(await state.updateCalls == 2)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func waitsOutAnUnavailableCacheWhileUploading(recovers: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Data("blob".utf8)
+        let digest = REAPI.digest(body)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        let failure = RPCError(code: .unavailable, message: "Channel isn't ready, no subchannel available.")
+        await state.planMissingFailures(Array(repeating: failure, count: recovers ? 4 : 100))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(maximumRetryCount: 5, baseDelayMilliseconds: 1)
+            ) { "token" }
+
+            let upload = try await client.uploadAvailableBlobs([digest: source])
+
+            if recovers {
+                #expect(upload.available == [digest])
+                #expect(await state.blobs[digest] == body)
+                #expect(await state.missingQueries == 5)
+            } else {
+                #expect(upload.available.isEmpty)
+                #expect(upload.failures[digest]?.contains("failed with unavailable: \(failure.message)") == true)
+                #expect(await state.missingQueries == 6)
+            }
         }
     }
 
