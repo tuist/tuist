@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -93,6 +94,11 @@ func (lab *directLab) executeAction(auth string, action *re.Digest) int32 {
 	var result re.ExecuteResponse
 	if err != nil || !op.Done || op.GetResponse().UnmarshalTo(&result) != nil {
 		lab.t.Fatalf("result: %v %v", op, err)
+	}
+	// The gateway counts an execution after sending its result; the stream
+	// ends only once it has.
+	if _, err := stream.Recv(); err != io.EOF {
+		lab.t.Fatalf("stream after the result: %v", err)
 	}
 	return result.Result.GetExitCode()
 }
