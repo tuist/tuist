@@ -63,7 +63,7 @@ export default function (amp: PluginAPI) {
 
 	// Mirrors the worktree into the Mac and remembers where the repository is there.
 	async function sync(record: SessionRecord, signal?: AbortSignal): Promise<string> {
-		const result = await sandboxJSON<{ root: string; base: string; patch_bytes: number; uploaded: boolean }>(
+		const result = await sandboxJSON<{ root: string; changed_files: number; bytes: number; uploaded: boolean }>(
 			['sync', record.sandboxId],
 			{ cwd: requireRoot(), signal },
 		)
@@ -71,8 +71,9 @@ export default function (amp: PluginAPI) {
 			record.root = result.root
 			await persist()
 		}
-		const size = result.patch_bytes < 1024 ? `${result.patch_bytes} B` : `${Math.round(result.patch_bytes / 1024)} KB`
-		return `${size} of changes against ${result.base.slice(0, 12)}${result.uploaded ? '' : ', already on the Mac'}`
+		if (!result.uploaded) return 'nothing, already on the Mac'
+		const size = result.bytes < 1024 * 1024 ? `${Math.ceil(result.bytes / 1024)} KB` : `${(result.bytes / 1024 / 1024).toFixed(1)} MB`
+		return `${result.changed_files} changed file${result.changed_files === 1 ? '' : 's'} (${size})`
 	}
 
 	amp.registerTool({
