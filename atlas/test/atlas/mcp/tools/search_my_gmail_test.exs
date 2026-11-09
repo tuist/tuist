@@ -12,6 +12,7 @@ defmodule Atlas.MCP.Tools.SearchMyGmailTest do
   alias Atlas.MCP.Tools.CreateMyGmailDraft
   alias Atlas.MCP.Tools.GetMyGmailDraft
   alias Atlas.MCP.Tools.GetMyGmailMessage
+  alias Atlas.MCP.Tools.SaveMyGmailAttachment
   alias Atlas.MCP.Tools.SearchMyGmail
   alias Atlas.MCP.Tools.SearchMySlack
   alias Atlas.MCP.Tools.SendMyGmailDraft
@@ -22,6 +23,7 @@ defmodule Atlas.MCP.Tools.SearchMyGmailTest do
     for {module, name} <- [
           {SearchMyGmail, "search_my_gmail"},
           {GetMyGmailMessage, "get_my_gmail_message"},
+          {SaveMyGmailAttachment, "save_my_gmail_attachment"},
           {GetMyGmailDraft, "get_my_gmail_draft"},
           {CreateMyGmailDraft, "create_my_gmail_draft"},
           {UpdateMyGmailDraft, "update_my_gmail_draft"},

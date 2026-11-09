@@ -293,6 +293,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RunGTMSignalSearch
   alias Atlas.MCP.Tools.SaveErrorAlertRule
   alias Atlas.MCP.Tools.SaveMemory
+  alias Atlas.MCP.Tools.SaveMyGmailAttachment
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
@@ -445,6 +446,7 @@ defmodule Atlas.MCP.Server do
     SearchDocuments,
     CreateDocumentUpload,
     FinalizeDocumentUpload,
+    SaveMyGmailAttachment,
     ListAccountServiceLevels,
     ListAccountIncidentContacts
   ]
@@ -585,6 +587,7 @@ defmodule Atlas.MCP.Server do
     ManageAccountConnections,
     SearchMyGmail,
     GetMyGmailMessage,
+    SaveMyGmailAttachment,
     GetMyGmailDraft,
     CreateMyGmailDraft,
     UpdateMyGmailDraft,
@@ -1045,6 +1048,7 @@ defmodule Atlas.MCP.Server do
               ManageAccountConnections,
               SearchMyGmail,
               GetMyGmailMessage,
+              SaveMyGmailAttachment,
               GetMyGmailDraft,
               CreateMyGmailDraft,
               UpdateMyGmailDraft,
@@ -1175,7 +1179,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
+       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

@@ -3,7 +3,9 @@ defmodule Atlas.Connections.Gmail do
   On-demand Gmail access through the caller's own personal Google connection.
   Reading needs the separate `gmail.readonly` consent and drafts the separate
   `gmail.compose` consent, both granted from `/settings/connections`. Tokens stay
-  server-side; results carry message metadata and bounded plain-text bodies only.
+  server-side; results carry message metadata, bounded plain-text bodies and
+  attachment listings. `get_attachment/3` returns one attachment's bytes for the
+  caller to keep, such as a receipt saved to the document library.
 
   Sending is never direct: `send_draft/2` sends only a draft whose recipients,
   subject, body and attachments still match a single-use approval its owner
@@ -21,6 +23,8 @@ defmodule Atlas.Connections.Gmail do
   @api "https://gmail.googleapis.com/gmail/v1/users/me"
   @max_results 25
   @max_body 20_000
+  # Matches the document library's upload cap.
+  @max_attachment_bytes 50 * 1024 * 1024
   @max_draft_body 100_000
   @max_recipients 50
   @id ~r/\A[A-Za-z0-9_-]{1,100}\z/
@@ -57,7 +61,37 @@ defmodule Atlas.Connections.Gmail do
       with_token(user, [@read_scope], "message_read", fn token ->
         with {:ok, message} <- request(:get, "/messages/" <> id, token, params: [format: "full"]) do
           audit(user, "connection.gmail_message_read", %{"message_id" => id})
-          {:ok, message |> summary() |> Map.put(:body, message |> Map.get("payload", %{}) |> body() |> bounded())}
+          payload = Map.get(message, "payload", %{})
+
+          {:ok,
+           message
+           |> summary()
+           |> Map.put(:body, payload |> body() |> bounded())
+           |> Map.put(:attachments, message_attachments(payload))}
+        end
+      end)
+    end
+  end
+
+  @doc """
+  Downloads one attachment of a message by the `part_id` that `get_message/2`
+  lists. Gmail issues a new attachment id on every read, so the MIME part id is
+  the stable reference and the attachment id is looked up again here.
+  """
+  def get_attachment(%User{} = user, message_id, part_id) when is_binary(message_id) and is_binary(part_id) do
+    with :ok <- valid_id(message_id),
+         :ok <- valid_part_id(part_id) do
+      with_token(user, [@read_scope], "attachment_read", fn token ->
+        with {:ok, message} <- request(:get, "/messages/" <> message_id, token, params: [format: "full"]),
+             {:ok, part} <- attachment_part(message, part_id),
+             {:ok, data} <- attachment_data(token, message_id, part) do
+          audit(user, "connection.gmail_attachment_read", %{
+            "message_id" => message_id,
+            "part_id" => part_id,
+            "byte_size" => byte_size(data)
+          })
+
+          {:ok, %{filename: part["filename"], mime_type: part["mimeType"], body: data}}
         end
       end)
     end
@@ -500,6 +534,67 @@ defmodule Atlas.Connections.Gmail do
     for %{"filename" => name} = part <- flatten(payload), is_binary(name), name != "" do
       %{"filename" => name, "mime_type" => part["mimeType"], "size" => get_in(part, ["body", "size"])}
     end
+  end
+
+  # Draft attachments above stay as they are: their shape feeds the send-approval digest.
+  defp message_attachments(payload) do
+    for %{"filename" => name, "partId" => part_id} = part <- flatten(payload),
+        is_binary(name) and name != "" and is_binary(part_id) do
+      %{
+        "part_id" => part_id,
+        "filename" => name,
+        "mime_type" => part["mimeType"],
+        "size" => get_in(part, ["body", "size"])
+      }
+    end
+  end
+
+  defp attachment_part(message, part_id) do
+    part =
+      message
+      |> Map.get("payload", %{})
+      |> flatten()
+      |> Enum.find(&(&1["partId"] == part_id and is_binary(&1["filename"]) and &1["filename"] != ""))
+
+    case part do
+      nil ->
+        {:error, :not_found}
+
+      %{"body" => %{"size" => size}} when is_integer(size) and size > @max_attachment_bytes ->
+        {:error, {:invalid, "The attachment is larger than #{div(@max_attachment_bytes, 1024 * 1024)} MB."}}
+
+      part ->
+        {:ok, part}
+    end
+  end
+
+  # Small attachments arrive inline; larger ones need a separate request.
+  defp attachment_data(token, message_id, %{"body" => %{"attachmentId" => id}}) when is_binary(id) do
+    with true <- Regex.match?(~r/\A[A-Za-z0-9_-]+\z/, id) || {:error, :invalid_response},
+         {:ok, %{"data" => data}} when is_binary(data) <-
+           request(:get, "/messages/" <> message_id <> "/attachments/" <> id, token, []) do
+      decode_bytes(data)
+    else
+      {:ok, _body} -> {:error, :invalid_response}
+      error -> error
+    end
+  end
+
+  defp attachment_data(_token, _message_id, %{"body" => %{"data" => data}}) when is_binary(data), do: decode_bytes(data)
+  defp attachment_data(_token, _message_id, _part), do: {:error, {:invalid, "The attachment is empty."}}
+
+  defp decode_bytes(data) do
+    data
+    |> String.trim_trailing("=")
+    |> Base.url_decode64(padding: false)
+    |> case do
+      {:ok, bytes} -> {:ok, bytes}
+      :error -> {:error, :invalid_response}
+    end
+  end
+
+  defp valid_part_id(part_id) do
+    if Regex.match?(~r/\A[0-9]{1,4}(\.[0-9]{1,4}){0,9}\z/, part_id), do: :ok, else: {:error, :not_found}
   end
 
   defp flatten(%{"parts" => parts} = payload) when is_list(parts), do: [payload | Enum.flat_map(parts, &flatten/1)]
