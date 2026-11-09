@@ -35,6 +35,7 @@ defmodule Tuist.Runners.CacheVolumes do
   @checkout_key "checkout"
   @docker_key "docker"
   @reserved_keys [@checkout_key, @docker_key]
+  @history_retention_days 90
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
   @publication_operations ["upload", "upload_parts", "complete", "publish"]
@@ -180,6 +181,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc "The reserved name of a repository's Docker data root, which no job can request."
   def docker_key, do: @docker_key
+
+  @doc "The keys whose storage is not billed: every reserved key."
+  def unbilled_keys, do: @reserved_keys
+
+  @doc "The days of saved-size history `prune_history/0` keeps, beyond one baseline per volume."
+  def saved_size_retention_days, do: @history_retention_days
 
   @doc """
   Allocates the Docker data root of the GitHub repository a Linux pod is running a
@@ -2106,7 +2113,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Cross-tenant maintenance: prune deleted copies.
   def prune_history do
-    threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
+    threshold = DateTime.add(DateTime.utc_now(), -@history_retention_days, :day)
     Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
     # Keep one baseline per volume so an unchanged cache survives the retention boundary.
     Repo.query!(

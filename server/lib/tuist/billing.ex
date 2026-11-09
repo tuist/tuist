@@ -17,6 +17,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -119,7 +120,8 @@ defmodule Tuist.Billing do
   job without recalculating usage when that job retries.
 
   Reports the cache egress, cache request, and passing test case meters
-  that exist in Stripe, plus the language model and runner meters.
+  that exist in Stripe, plus the language model, runner compute, and
+  cache volume storage meters.
   """
   def customer_meter_values(
         %Account{customer_id: customer_id, id: account_id} = account,
@@ -157,9 +159,24 @@ defmodule Tuist.Billing do
       end)
       |> Enum.filter(&runner_meter_provisioned?(&1.event_name))
 
+    # Cache volume storage is a runner Price, so a runner trial leaves it
+    # off the subscription like the compute Prices, and it turns on the
+    # same way once its key is in `stripe.prices.runners`.
+    storage_values =
+      if runner_meter_provisioned?(CacheVolumeBilling.meter_event_name()) do
+        [
+          %{
+            event_name: CacheVolumeBilling.meter_event_name(),
+            value: CacheVolumeBilling.meter_value(account_id, period_start, period_end)
+          }
+        ]
+      else
+        []
+      end
+
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
-    Enum.reject(usage_values ++ language_model_values ++ runner_values, &(&1.value == 0))
+    Enum.reject(usage_values ++ language_model_values ++ runner_values ++ storage_values, &(&1.value == 0))
   end
 
   # A platform reports as soon as its Meter exists in Stripe, which the
