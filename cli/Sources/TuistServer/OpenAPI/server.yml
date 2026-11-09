@@ -8382,7 +8382,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -9301,7 +9301,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -13578,7 +13578,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -21949,7 +21949,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -22884,7 +22884,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -44136,7 +44136,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4

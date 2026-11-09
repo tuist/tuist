@@ -183,7 +183,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert_received {:shape, %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192}}
 
     request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "template" => "macos", "vcpus" => 8})
-    assert_received {:shape, %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096}}
+    assert_received {:shape, %{platform: :linux, template: "default", vcpus: 2, memory_mb: 8192}}
   end
 
   test "an unknown orb type is refused before dispatch", %{conn: conn, integration: integration} do
