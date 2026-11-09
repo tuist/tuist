@@ -8,21 +8,20 @@ set -euo pipefail
 # reader falls behind a burst of output. awk, coreutils and Rust's println!
 # abort on that; on fresh orbs it killed db:migrate's awk filter mid-migration.
 # Relay both streams through a writer that waits for the stream to drain, so
-# every step below writes to an ordinary blocking pipe.
-if command -v python3 >/dev/null; then
-  relay='
-import os, select
-while data := os.read(0, 65536):
-    while data:
-        try:
-            data = data[os.write(1, data):]
-        except BlockingIOError:
-            select.select([], [1], [], 1)
-'
-  exec 3>&1 4>&2
-  exec 1> >(python3 -I -c "$relay" >&3 3>&- 4>&-) 2> >(python3 -I -c "$relay" >&4 3>&- 4>&-)
-  exec 3>&- 4>&-
-fi
+# every step below writes to an ordinary blocking pipe. perl-base is Essential
+# on Debian and Ubuntu, so the relay needs nothing installed.
+relay='
+while (sysread STDIN, my $data, 65536) {
+  while (length $data) {
+    my $written = syswrite STDOUT, $data;
+    if (defined $written) { substr($data, 0, $written) = "" }
+    elsif ($!{EAGAIN} || $!{EINTR}) { select undef, undef, undef, 0.01 }
+    else { exit 1 }
+  }
+}'
+exec 3>&1 4>&2
+exec 1> >(perl -e "$relay" >&3 3>&- 4>&-) 2> >(perl -e "$relay" >&4 3>&- 4>&-)
+exec 3>&- 4>&-
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
