@@ -46,7 +46,7 @@ For GitHub Actions, CircleCI, and Bitrise:
 
 1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
-2. **Grant the identity token**: on GitHub Actions, give the job `permissions: id-token: write`; on CircleCI and Bitrise, enable OIDC for the project. When the CLI isn't signed in and no `TUIST_TOKEN` is set, it detects the CI environment and exchanges the identity token on its first request, so no login step is needed. You can still run `tuist auth login` to sign in explicitly and fail early when the exchange is refused.
+2. **Grant the identity token**: on GitHub Actions, give the job `permissions: id-token: write`; on CircleCI and Bitrise, enable OIDC for the project. From Tuist 4.218.0, when the CLI isn't signed in and no `TUIST_TOKEN` is set, it detects the CI environment and exchanges the identity token on its first request, so no login step is needed. Earlier versions need `tuist auth login` first, and you can still run it to sign in explicitly and fail early when the exchange is refused.
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 

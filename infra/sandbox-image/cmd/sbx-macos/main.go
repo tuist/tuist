@@ -509,7 +509,8 @@ func orbBootstrap() error {
 		// fails without a trace at the default level. Debug records each
 		// bootstrap request in ~/.cache/amp/logs/cli.log.
 		"AMP_LOG_LEVEL=debug"}
-	for _, name := range []string{"TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
+	// No Tuist credential reaches Amp: Tuist clients in the guest sign in with the Orb's Amp identity.
+	for _, name := range []string{"TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
 		if value := os.Getenv(name); value != "" {
 			cmd.Env = append(cmd.Env, name+"="+value)
 		}

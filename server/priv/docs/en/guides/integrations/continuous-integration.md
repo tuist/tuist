@@ -69,7 +69,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: tuist auth login
       - run: tuist setup cache
 ```
 ```yaml [OIDC (Homebrew)]
@@ -92,7 +91,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install --formula tuist@x.y.z
-      - run: tuist auth login
       - run: tuist setup cache
 ```
 ```yaml [Account token (Mise)]
@@ -143,7 +141,7 @@ jobs:
 > [!NOTE]
 > **OIDC setup**
 >
-> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` secret.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. From Tuist 4.218.0, the CLI exchanges the identity token on its first request, so the workflow needs no `tuist auth login` step; on earlier versions, run `tuist auth login` before other Tuist commands. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` secret.
 
 
 > [!TIP]
@@ -206,9 +204,6 @@ jobs:
           name: Install Tuist
           command: mise install
       - run:
-          name: Authenticate
-          command: mise exec -- tuist auth login
-      - run:
           name: Build
           command: mise exec -- tuist setup cache
 ```
@@ -240,7 +235,7 @@ jobs:
 > [!NOTE]
 > **Authentication**
 >
-> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. CircleCI OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. CircleCI OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. From Tuist 4.218.0, the CLI exchanges the identity token on its first request, so no `tuist auth login` step is needed; on earlier versions, run `mise exec -- tuist auth login` before other Tuist commands. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
 
 
 ### Bitrise {#bitrise}
@@ -266,10 +261,6 @@ workflows:
       - get-identity-token@0:
           inputs:
           - audience: tuist
-      - script@1:
-          title: Authenticate
-          inputs:
-            - content: mise exec -- tuist auth login
       - script@1:
           title: Build
           inputs:
@@ -301,7 +292,7 @@ workflows:
 > [!NOTE]
 > **Authentication**
 >
-> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. Bitrise OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. Bitrise OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. From Tuist 4.218.0, the CLI exchanges the identity token on its first request, so no `tuist auth login` step is needed; on earlier versions, run `mise exec -- tuist auth login` before other Tuist commands. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
 
 
 ### Codemagic {#codemagic}

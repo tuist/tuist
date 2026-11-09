@@ -11,12 +11,10 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistHTTP
 import TuistNooraTesting
-import TuistOIDC
 import TuistServer
 import TuistTesting
 
 @testable import TuistCacheCommand
-@testable import TuistOIDC
 
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
@@ -33,9 +31,7 @@ struct CacheConfigCommandServiceTests {
         serverAuthenticationController: MockServerAuthenticationControlling,
         cacheURLStore: MockCacheURLStoring,
         fullHandleService: MockFullHandleServicing,
-        configLoader: MockConfigLoading,
-        ciOIDCAuthenticator: MockCIOIDCAuthenticating,
-        exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
+        configLoader: MockConfigLoading
     ) {
         let serverURL = serverURL ?? self.serverURL
         let cacheURL = cacheURL ?? self.cacheURL
@@ -52,8 +48,6 @@ struct CacheConfigCommandServiceTests {
         }
         let fullHandleService = MockFullHandleServicing()
         let configLoader = MockConfigLoading()
-        let ciOIDCAuthenticator = MockCIOIDCAuthenticating()
-        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -83,9 +77,7 @@ struct CacheConfigCommandServiceTests {
             cacheURLStore: cacheURLStore,
             getCacheTokenService: tokenService,
             fullHandleService: fullHandleService,
-            configLoader: configLoader,
-            ciOIDCAuthenticator: ciOIDCAuthenticator,
-            exchangeOIDCTokenService: exchangeOIDCTokenService
+            configLoader: configLoader
         )
 
         return (
@@ -94,15 +86,13 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             cacheURLStore,
             fullHandleService,
-            configLoader,
-            ciOIDCAuthenticator,
-            exchangeOIDCTokenService
+            configLoader
         )
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func run_returns_unsigned_configuration_only_for_discovered_self_hosted_cache() async throws {
-        let (subject, _, authentication, _, _, _, _, _) = makeSubject(
+        let (subject, _, authentication, _, _, _) = makeSubject(
             serverURL: URL(string: "https://tuist.example.com")!,
             cacheURL: URL(string: "https://cache.example.com")!,
             cacheTokenError: .unknownError(503)
@@ -119,7 +109,7 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [404, 503])
     func run_propagates_exchange_failure_without_printing_credentials(status: Int) async throws {
         let error = GetCacheTokenServiceError.unknownError(status)
-        let (subject, _, authentication, _, _, _, _, _) = makeSubject(cacheTokenError: error)
+        let (subject, _, authentication, _, _, _) = makeSubject(cacheTokenError: error)
         given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
         await #expect(throws: error) {
             try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
@@ -129,7 +119,7 @@ struct CacheConfigCommandServiceTests {
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func run_returns_the_scoped_cache_token_for_the_proxy() async throws {
-        let (subject, _, authentication, _, _, _, _, _) = makeSubject(cacheToken: "scoped-cache-token")
+        let (subject, _, authentication, _, _, _) = makeSubject(cacheToken: "scoped-cache-token")
         given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
         try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
         let decoded = try #require(JSONSerialization.jsonObject(with: Data(ui().utf8)) as? [String: Any])
@@ -145,8 +135,6 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             _,
             _,
-            _,
-            ciOIDCAuthenticator,
             _
         ) = makeSubject()
         let environment = try #require(Environment.mocked)
@@ -168,10 +156,6 @@ struct CacheConfigCommandServiceTests {
         verify(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .called(1)
-
-        verify(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .called(0)
     }
 
     @Test(.withMockedEnvironment())
@@ -183,8 +167,6 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             _,
             _,
-            _,
-            ciOIDCAuthenticator,
             _
         ) = makeSubject()
         given(serverAuthenticationController)
@@ -204,10 +186,6 @@ struct CacheConfigCommandServiceTests {
         verify(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .called(1)
-
-        verify(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .called(0)
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -217,8 +195,6 @@ struct CacheConfigCommandServiceTests {
             subject,
             _,
             serverAuthenticationController,
-            _,
-            _,
             _,
             _,
             _
@@ -252,8 +228,6 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             _,
             _,
-            _,
-            _,
             _
         ) = makeSubject(cacheURLError: .noEndpointsAvailable)
         given(serverAuthenticationController)
@@ -272,66 +246,8 @@ struct CacheConfigCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies())
-    func run_authenticates_with_oidc_when_not_authenticated() async throws {
-        // Given
-        let (
-            subject,
-            _,
-            serverAuthenticationController,
-            _,
-            _,
-            _,
-            ciOIDCAuthenticator,
-            exchangeOIDCTokenService
-        ) = makeSubject()
-        let environment = try #require(Environment.mocked)
-        environment.variables["CI"] = "true"
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .any)
-            .willReturn(nil)
-
-        given(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .willReturn("oidc-jwt-token")
-
-        given(exchangeOIDCTokenService)
-            .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
-            .willReturn("tuist-access-token")
-
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        accessToken: "tuist-access-token"
-                    )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        // When
-        try await subject.run(
-            fullHandle: "my-account/my-project",
-            json: true,
-            forceRefresh: false,
-            directory: nil,
-            url: nil
-        )
-
-        // Then
-        verify(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .called(1)
-
-        verify(exchangeOIDCTokenService)
-            .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
-            .called(1)
-    }
-
     @Test(.withMockedEnvironment())
-    func run_throws_when_not_authenticated_and_oidc_not_available() async throws {
+    func run_throws_when_not_authenticated() async throws {
         // Given
         let (
             subject,
@@ -339,17 +255,11 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             _,
             _,
-            _,
-            ciOIDCAuthenticator,
             _
         ) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(nil)
-
-        given(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .willThrow(CIOIDCAuthenticatorError.unsupportedCIEnvironment)
 
         // When/Then
         await #expect(throws: CacheConfigCommandServiceError.notAuthenticated) {
@@ -370,8 +280,6 @@ struct CacheConfigCommandServiceTests {
             subject,
             _,
             serverAuthenticationController,
-            _,
-            _,
             _,
             _,
             _
@@ -400,7 +308,7 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment())
     func run_throws_when_server_url_is_invalid() async throws {
         let invalidURL = "http://%"
-        let (subject, _, _, _, _, _, _, _) = makeSubject()
+        let (subject, _, _, _, _, _) = makeSubject()
         // When/Then
         await #expect(throws: CacheConfigCommandServiceError.invalidServerURL(invalidURL)) {
             try await subject.run(
@@ -421,9 +329,7 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             _,
             fullHandleService,
-            configLoader,
-            _,
-            _
+            configLoader
         ) = makeSubject()
         configLoader.reset()
         given(configLoader)
@@ -454,9 +360,7 @@ struct CacheConfigCommandServiceTests {
             _,
             _,
             _,
-            configLoader,
-            _,
-            _
+            configLoader
         ) = makeSubject()
         given(configLoader)
             .loadConfig(path: .any)
@@ -482,8 +386,6 @@ struct CacheConfigCommandServiceTests {
             serverAuthenticationController,
             cacheURLStore,
             fullHandleService,
-            _,
-            _,
             _
         ) = makeSubject()
         given(serverAuthenticationController)
