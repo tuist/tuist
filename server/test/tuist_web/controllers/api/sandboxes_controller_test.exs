@@ -675,7 +675,8 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       bytes = <<"hello", 0, 255, "\n">>
 
       expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
-        assert Base.decode64!(env["TUIST_STDIN_DATA"]) == bytes
+        assert env["TUIST_STDIN_PARTS"] == "1"
+        assert Base.decode64!(env["TUIST_STDIN_DATA_0"]) == bytes
         assert env["TUIST_STDIN_CLOSE"] == "1"
         {:ok, %{"exit_code" => 0}}
       end)
