@@ -79,7 +79,7 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
 
     queue_poll_responses([{:ok, item}])
 
-    stub(Capacity, :admissible?, fn %{platform: :darwin}, "session_full" -> false end)
+    stub(Capacity, :admission, fn %{platform: :darwin}, "session_full" -> {:error, :no_room} end)
 
     expect(Client, :ack, fn "env_full", "sk-full", "work_full" ->
       send(test_pid, :acked)

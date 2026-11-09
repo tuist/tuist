@@ -267,4 +267,47 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     assert Repo.reload!(sandbox).state == :running
   end
+
+  test "admission names why each host cannot take a session's work item", %{node: node} do
+    environment = agent_environment_fixture(platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+    stale = DateTime.utc_now() |> DateTime.add(-20, :second) |> DateTime.to_iso8601()
+
+    hosts = %{
+      "building" => %{node | templates: [%{name: "macos", ready: false, tag: "t"}]},
+      "other-template" => %{node | templates: [%{name: "linux", ready: true, tag: "t"}]},
+      "stale" => put_in(node.admission["observed_at"], stale),
+      "denied" => put_in(node.admission["allow"], false),
+      "replaced" => put_in(node.admission["node_uid"], "old-node-uid"),
+      "full" => put_in(node.admission["slots"], 0)
+    }
+
+    stub(Nodes, :connected_nodes, fn -> Enum.map(hosts, fn {name, host} -> Map.put(host, :name, name) end) end)
+
+    assert {:error,
+            {:no_node,
+             %{
+               "building" => :template_not_ready,
+               "other-template" => :no_template,
+               "stale" => :grant_stale,
+               "denied" => :grant_denied,
+               "replaced" => :grant_mismatch,
+               "full" => :no_room
+             }}} = Capacity.admission(environment, "new-session")
+
+    stub(Nodes, :connected_nodes, fn -> [node | Enum.map(hosts, fn {name, host} -> Map.put(host, :name, name) end)] end)
+    assert :ok = Capacity.admission(environment, "new-session")
+
+    stub(Nodes, :lookup, fn _name -> {:error, :not_connected} end)
+
+    sandbox(
+      state: :paused,
+      node_name: node.name,
+      node_uid: node.generation,
+      agent_environment_id: environment.id,
+      anthropic_session_id: "paused-session"
+    )
+
+    assert {:error, {node_name, :not_connected}} = Capacity.admission(environment, "paused-session")
+    assert node_name == node.name
+  end
 end

@@ -59,12 +59,16 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Rows decide rather than the report, which lags: a delete frees its
   reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
-  filesystem. `admissible?/2` is the check the poller runs on a work
+  filesystem. `admission/2` is the check the poller runs on a work
   item: it dispatches an admissible item at once and otherwise
   acknowledges it and enqueues
   `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
   in the args), which rechecks every 5 s and dispatches once it passes,
-  force-stopping the item after 30 minutes. Never leave an item
+  force-stopping the item after 9 minutes (Anthropic stops an acknowledged
+  item without a worker after roughly 10 to 13 minutes). The rejection
+  reason (quota, or per node, with each macOS host's first failing check)
+  is logged when the item is held, once a minute while it waits and at
+  the deadline. Never leave an item
   unacknowledged to wait for room: Anthropic offers it three times, 5 s
   apart, then stops; it stays `queued`, can no longer be acknowledged, and
   a new message does not requeue it (a stopped one is requeued by the

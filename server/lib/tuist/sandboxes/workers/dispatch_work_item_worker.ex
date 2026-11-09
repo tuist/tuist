@@ -10,8 +10,11 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   seconds apart, and then stops: the item stays `queued`, cannot be
   acknowledged any more, and a new message on the session does not bring it
   back, so the turn hangs. An acknowledged item waits in `starting` for its
-  worker. Past the deadline the item is force-stopped, which lets the
-  session's next message queue it again.
+  worker, but Anthropic stops it on its own after roughly 10 to 13 minutes
+  without a worker, so the deadline stays under that: a worker started 10
+  minutes after the acknowledgement still ran the turn. Past the deadline
+  the item is force-stopped, which lets the session's next message queue it
+  again.
 
   The work item's secret is stored Vault-encrypted in the job's arguments.
   """
@@ -29,7 +32,9 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   require Logger
 
   @check_seconds 5
-  @max_wait_ms to_timeout(minute: 30)
+  # Checks between two "still waiting" log lines: one a minute.
+  @log_every div(60, @check_seconds)
+  @max_wait_ms to_timeout(minute: 9)
 
   @doc "The job holding `item` (a polled session work item, secret included) until a node has room."
   def new_for(%AgentEnvironment{id: agent_environment_id}, %{"id" => work_id, "secret" => secret} = item) do
@@ -45,35 +50,48 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"agent_environment_id" => agent_environment_id, "item" => item} = args}) do
+  def perform(%Oban.Job{args: %{"agent_environment_id" => agent_environment_id, "item" => item} = args, attempt: attempt}) do
     with {:ok, %AgentEnvironment{enabled: true} = agent_environment} <-
            Sandboxes.get_agent_environment_by_id(agent_environment_id),
          {:ok, ciphertext} <- Base.decode64(args["secret"]),
          {:ok, secret} <- Tuist.Vault.decrypt(ciphertext) do
-      dispatch_or_wait(agent_environment, Map.put(item, "secret", secret), args["deadline_ms"])
+      dispatch_or_wait(agent_environment, Map.put(item, "secret", secret), args["deadline_ms"], attempt)
     else
       _ -> :ok
     end
   end
 
-  defp dispatch_or_wait(agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item, deadline_ms) do
-    cond do
-      Capacity.admissible?(Router.session_environment(agent_environment, item), session_id) ->
+  defp dispatch_or_wait(
+         agent_environment,
+         %{"id" => work_id, "data" => %{"id" => session_id}} = item,
+         deadline_ms,
+         attempt
+       ) do
+    case Capacity.admission(Router.session_environment(agent_environment, item), session_id) do
+      :ok ->
         _ = Router.dispatch(agent_environment, item)
         :ok
 
-      System.system_time(:millisecond) < deadline_ms ->
-        {:snooze, @check_seconds}
-
-      true ->
-        Logger.warning("sandboxes: no node had room for a work item before its deadline; releasing it",
+      {:error, reason} ->
+        log = [
           agent_environment_id: agent_environment.id,
           work_id: work_id,
-          session_id: session_id
-        )
+          session_id: session_id,
+          reason: inspect(reason)
+        ]
 
-        _ = Client.stop(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id, true)
-        :ok
+        if System.system_time(:millisecond) < deadline_ms do
+          if rem(attempt, @log_every) == 0, do: Logger.info("sandboxes: work item still waiting for a node", log)
+          {:snooze, @check_seconds}
+        else
+          release(agent_environment, work_id, log)
+        end
     end
+  end
+
+  defp release(agent_environment, work_id, log) do
+    Logger.warning("sandboxes: no node had room for a work item before its deadline; releasing it", log)
+    _ = Client.stop(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id, true)
+    :ok
   end
 end

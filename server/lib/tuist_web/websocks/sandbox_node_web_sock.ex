@@ -188,10 +188,20 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp put_info(%{tracked?: true} = state, info) do
     _ = Nodes.update(state.node_name, info)
+    ready = ready_templates(info.templates)
+
+    # Placement only uses a node's ready templates, so a change there is when
+    # the node starts or stops taking sandboxes of a template.
+    if ready != ready_templates(state.info.templates) do
+      Logger.info("sandboxes: node ready templates changed to #{inspect(ready)}", node: state.node_name)
+    end
+
     %{state | info: info}
   end
 
   defp put_info(state, info), do: %{state | info: info}
+
+  defp ready_templates(templates), do: templates |> Enum.filter(& &1.ready) |> Enum.map(& &1.name) |> Enum.sort()
 
   defp result(%{"ok" => true} = frame), do: {:ok, Map.get(frame, "data") || %{}}
   defp result(%{"ok" => false} = frame), do: {:error, Map.get(frame, "error") || "unknown node error"}

@@ -30,7 +30,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorkerTest do
     environment_id = agent_environment.id
     expected = item()
 
-    expect(Capacity, :admissible?, fn %{id: ^environment_id}, "session_held" -> true end)
+    expect(Capacity, :admission, fn %{id: ^environment_id}, "session_held" -> :ok end)
     expect(Router, :dispatch, fn %{id: ^environment_id}, ^expected -> :ok end)
     reject(&Client.stop/4)
 
@@ -40,7 +40,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorkerTest do
   test "waits while no node has room and the deadline has not passed" do
     agent_environment = agent_environment_fixture(anthropic_environment_id: "env_held", environment_key: "sk-held")
 
-    stub(Capacity, :admissible?, fn _environment, "session_held" -> false end)
+    stub(Capacity, :admission, fn _environment, "session_held" -> {:error, :no_room} end)
     reject(&Router.dispatch/2)
     reject(&Client.stop/4)
 
@@ -50,7 +50,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorkerTest do
   test "force-stops the item when no node had room before the deadline" do
     agent_environment = agent_environment_fixture(anthropic_environment_id: "env_held", environment_key: "sk-held")
 
-    stub(Capacity, :admissible?, fn _environment, "session_held" -> false end)
+    stub(Capacity, :admission, fn _environment, "session_held" -> {:error, :no_room} end)
     reject(&Router.dispatch/2)
     expect(Client, :stop, fn "env_held", "sk-held", "work_held", true -> {:ok, %{}} end)
 

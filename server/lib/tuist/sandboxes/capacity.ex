@@ -765,26 +765,44 @@ defmodule Tuist.Sandboxes.Capacity do
   asked for, and the item, left queued, fits once that node has room. Sessions whose sandbox already holds memory and
   environments with no connected node at all are admissible; the latter
   fail on dispatch as before.
-  """
-  def admissible?(%AgentEnvironment{platform: :darwin} = environment, session_id),
-    do: MacosCapacity.admissible?(environment, session_id)
 
-  def admissible?(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
+  Returns `:ok`, or `{:error, reason}` saying why not for the logs: the
+  account's quota, `{node, reason}` for the node of the session's sandbox,
+  or `:no_room` for a new one. macOS gives per-host reasons
+  (`Tuist.Sandboxes.MacosCapacity.admission/2`).
+  """
+  def admission(%AgentEnvironment{platform: :darwin} = environment, session_id),
+    do: MacosCapacity.admission(environment, session_id)
+
+  def admission(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state, node_name: name} when state in @charged_states ->
-        case Nodes.lookup(name) do
-          {:ok, _pid, info} ->
-            allocation_allows?(Map.put(info, :name, name), reserved_bytes(name) + @daemon_reserve_bytes)
-
-          _ ->
-            not shared_node?(name)
-        end
+        charged_admission(name)
 
       %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) ->
-        Concurrency.check(sandbox.account_id, sandbox) == :ok and resumable?(sandbox)
+        with :ok <- Concurrency.check(sandbox.account_id, sandbox) do
+          if resumable?(sandbox), do: :ok, else: {:error, {node_name, :no_room}}
+        end
 
       _new ->
-        Concurrency.check(agent_environment.account_id, agent_environment) == :ok and placeable?(agent_environment)
+        with :ok <- Concurrency.check(agent_environment.account_id, agent_environment) do
+          if placeable?(agent_environment), do: :ok, else: {:error, :no_room}
+        end
+    end
+  end
+
+  @doc "Whether `admission/2` lets the session's work item through."
+  def admissible?(agent_environment, session_id), do: admission(agent_environment, session_id) == :ok
+
+  defp charged_admission(name) do
+    case Nodes.lookup(name) do
+      {:ok, _pid, info} ->
+        if allocation_allows?(Map.put(info, :name, name), reserved_bytes(name) + @daemon_reserve_bytes),
+          do: :ok,
+          else: {:error, {name, :not_allocated}}
+
+      _ ->
+        if shared_node?(name), do: {:error, {name, :not_connected}}, else: :ok
     end
   end
 
