@@ -35,7 +35,9 @@ defmodule Tuist.RemoteExecution.VMs do
 
   def lease_seconds, do: @lease_seconds
 
-  def reserve(account_id, %Settings{} = settings) do
+  def reserve(account_id, %Settings{} = settings, memory_gb \\ Settings.default_memory_gb()) do
+    shape = Settings.shape(memory_gb)
+
     Repo.transaction(fn ->
       lock_account(account_id)
 
@@ -47,7 +49,7 @@ defmodule Tuist.RemoteExecution.VMs do
           )
         )
 
-      if vcpus + Settings.vm_vcpus() > settings.vcpus or memory_mb + Settings.vm_memory_mb() > settings.memory_gb * 1024,
+      if vcpus + shape.vcpus > settings.vcpus or memory_mb + shape.memory_mb > settings.memory_gb * 1024,
         do: Repo.rollback(:busy)
 
       %Sandbox{}
@@ -55,8 +57,8 @@ defmodule Tuist.RemoteExecution.VMs do
         account_id: account_id,
         purpose: :remote_execution,
         template: "bazel",
-        vcpus: Settings.vm_vcpus(),
-        memory_mb: Settings.vm_memory_mb(),
+        vcpus: shape.vcpus,
+        memory_mb: shape.memory_mb,
         workspace_gb: 10
       })
       |> Ecto.Changeset.change(

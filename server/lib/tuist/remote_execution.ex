@@ -150,9 +150,10 @@ defmodule Tuist.RemoteExecution do
       when is_binary(hash) and is_integer(size) and size >= 0 and size <= 4_194_304 do
     skip_cache = Map.get(params, "skip_cache", false)
     inputs = Map.get(params, "inputs")
+    memory_gb = Map.get(params, "memory_gb", Settings.default_memory_gb())
 
     if Regex.match?(~r/^[a-f0-9]{64}$/, hash) and is_boolean(skip_cache) and
-         (is_nil(inputs) or (is_binary(inputs) and byte_size(inputs) <= @max_inputs_bytes)) do
+         memory_gb in Settings.memory_sizes_gb() and valid_inputs?(inputs) do
       attrs = %{
         project_id: project.id,
         account_name: project.account.name,
@@ -160,7 +161,8 @@ defmodule Tuist.RemoteExecution do
         hash: hash,
         size: size,
         skip_cache: skip_cache,
-        inputs: inputs
+        inputs: inputs,
+        memory_gb: memory_gb
       }
 
       Scheduler.submit(project.account_id, attrs, wait(opts))
@@ -170,6 +172,8 @@ defmodule Tuist.RemoteExecution do
   end
 
   def submit(_project, _params, _opts), do: {:error, :invalid_request}
+
+  defp valid_inputs?(inputs), do: is_nil(inputs) or (is_binary(inputs) and byte_size(inputs) <= @max_inputs_bytes)
 
   @doc """
   Returns the operation once its state differs from `after_state`, it
