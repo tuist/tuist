@@ -64,7 +64,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   acknowledges it and enqueues
   `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
   in the args), which rechecks every 5 s and dispatches once it passes,
-  force-stopping the item after 30 minutes. Never leave an item
+  force-stopping the item after 9 minutes (Anthropic stops an acknowledged
+  item without a worker after roughly 10 to 13 minutes). Never leave an item
   unacknowledged to wait for room: Anthropic offers it three times, 5 s
   apart, then stops; it stays `queued`, can no longer be acknowledged, and
   a new message does not requeue it (a stopped one is requeued by the

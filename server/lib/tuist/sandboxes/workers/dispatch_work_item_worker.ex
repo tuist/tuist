@@ -10,8 +10,11 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   seconds apart, and then stops: the item stays `queued`, cannot be
   acknowledged any more, and a new message on the session does not bring it
   back, so the turn hangs. An acknowledged item waits in `starting` for its
-  worker. Past the deadline the item is force-stopped, which lets the
-  session's next message queue it again.
+  worker, but Anthropic stops it on its own after roughly 10 to 13 minutes
+  without a worker, so the deadline stays under that: a worker started 10
+  minutes after the acknowledgement still ran the turn. Past the deadline
+  the item is force-stopped, which lets the session's next message queue it
+  again.
 
   The work item's secret is stored Vault-encrypted in the job's arguments.
   """
@@ -29,7 +32,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   require Logger
 
   @check_seconds 5
-  @max_wait_ms to_timeout(minute: 30)
+  @max_wait_ms to_timeout(minute: 9)
 
   @doc "The job holding `item` (a polled session work item, secret included) until a node has room."
   def new_for(%AgentEnvironment{id: agent_environment_id}, %{"id" => work_id, "secret" => secret} = item) do
