@@ -302,6 +302,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         #endif
 
+        try await signInWithAmpOrbIfSignedOut(serverURL: serverURL)
+
         if !refreshIfNeeded {
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
             case let .valid(token):
@@ -764,19 +766,49 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                   forceRefresh || accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
             else { return nil }
             Logger.current.debug("Renewing the Amp orb session for \(serverURL)")
-            let renewedAccessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
-                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
-                serverURL: serverURL
-            )
-            try await ServerCredentialsStore.current.store(
-                credentials: ServerCredentials(accessToken: renewedAccessToken),
-                serverURL: serverURL
-            )
-            return try JWT.parse(renewedAccessToken)
+            return try JWT.parse(try await exchangeAmpOrbIdentityToken(serverURL: serverURL))
         #else
             return nil
         #endif
     }
+
+    /// In an Amp orb, a signed-out CLI signs in on its own by exchanging the orb's identity token, so an
+    /// account that connected the orb's Amp workspace needs no `tuist auth login`. A refused exchange, such
+    /// as from a workspace no account connected, leaves the CLI signed out and is not retried in this process.
+    private func signInWithAmpOrbIfSignedOut(serverURL: URL) async throws {
+        #if canImport(TuistOIDC)
+            guard Environment.current.isAmpOrb else { return }
+            _ = try await cachedValueStore.getValue(
+                key: "amp-orb-sign-in-\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
+            ) { () -> (value: Bool, expiresAt: Date?)? in
+                guard try await ServerCredentialsStore.current.read(serverURL: serverURL) == nil else {
+                    return (value: true, expiresAt: nil)
+                }
+                do {
+                    _ = try await exchangeAmpOrbIdentityToken(serverURL: serverURL)
+                    Logger.current.debug("Signed in to \(serverURL) with the Amp orb's identity")
+                    return (value: true, expiresAt: nil)
+                } catch {
+                    Logger.current.debug("Signing in to \(serverURL) with the Amp orb's identity failed: \(error)")
+                    return (value: false, expiresAt: nil)
+                }
+            }
+        #endif
+    }
+
+    #if canImport(TuistOIDC)
+        private func exchangeAmpOrbIdentityToken(serverURL: URL) async throws -> String {
+            let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
+                serverURL: serverURL
+            )
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: accessToken),
+                serverURL: serverURL
+            )
+            return accessToken
+        }
+    #endif
 
     #if canImport(TuistSupport)
         private func lockFilePath(serverURL: URL) -> AbsolutePath {

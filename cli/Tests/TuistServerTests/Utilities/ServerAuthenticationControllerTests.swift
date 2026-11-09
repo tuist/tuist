@@ -994,6 +994,82 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
+    ) func authenticationToken_signs_a_signed_out_amp_orb_in_with_its_identity() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        let date = Date()
+        let serverURL: URL = .test()
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+        let credentialsBox = TestStore<ServerCredentials?>(nil)
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in credentialsBox.value }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+        given(exchangeOIDCTokenService)
+            .exchangeOIDCToken(oidcToken: .value("amp-identity-token"), serverURL: .value(serverURL))
+            .willReturn(accessToken.token)
+
+        // When
+        let tokens = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                [
+                    try await subject.authenticationToken(serverURL: serverURL, refreshIfNeeded: false),
+                    try await subject.authenticationToken(serverURL: serverURL),
+                ]
+            }
+        }
+
+        // Then
+        let expected: AuthenticationToken = .account(try JWT.parse(accessToken.token))
+        #expect(tokens == [expected, expected])
+        #expect(credentialsBox.value == ServerCredentials(accessToken: accessToken.token))
+        verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func authenticationToken_leaves_an_amp_orb_signed_out_when_its_workspace_is_not_connected() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        let serverURL: URL = .test()
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(nil)
+        given(exchangeOIDCTokenService)
+            .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+            .willThrow(TestError())
+
+        // When
+        let tokens = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            [
+                try await subject.authenticationToken(serverURL: serverURL),
+                try await subject.authenticationToken(serverURL: serverURL),
+            ]
+        }
+
+        // Then
+        #expect(tokens == [nil, nil])
+        verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
     ) func executeRefresh_preserves_credentials_when_oauth_refresh_token_is_rejected() async throws {
         let subject = ServerAuthenticationController(
             refreshOAuthTokenService: refreshOAuthTokenService,
