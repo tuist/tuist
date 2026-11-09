@@ -196,11 +196,38 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-dark-300)
   );
 
+  /* Focus ring: one focus treatment for every focusable element. A 1.5px
+     gap in the surface color, then a 1.5px purple ring. As box-shadow layers
+     (--noora-focus-ring), or as an outline (width, color, offset) where a
+     shadow doesn't fit. Component focus tokens put it over their own resting
+     border. */
+  --noora-focus-ring-color: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-focus-ring-gap: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1200)
+  );
+  --noora-focus-ring-width: 1.5px;
+  --noora-focus-ring-offset: 1.5px;
+  --noora-focus-ring:
+    0px 0px 0px 1.5px var(--noora-focus-ring-gap),
+    0px 0px 0px 3px var(--noora-focus-ring-color);
+
   /* Button */
+  /* Disabled is one look for every button: primary, secondary, destructive,
+     and neutral. */
+  --noora-button-disabled-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
   --noora-button-primary-background: var(--noora-purple-500);
   --noora-button-primary-label: var(--noora-neutral-light-50);
-  --noora-button-primary-disabled-background: var(--noora-purple-300);
-  --noora-button-primary-disabled-label: var(--noora-neutral-light-200);
   --noora-button-secondary-background: light-dark(
     var(--noora-neutral-light-50),
     var(--noora-neutral-dark-1100)
@@ -208,10 +235,6 @@ export const NOORA_CSS = String.raw`
   --noora-button-secondary-label: light-dark(
     var(--noora-neutral-light-1200),
     var(--noora-neutral-light-50)
-  );
-  --noora-button-secondary-disabled-background: light-dark(
-    var(--noora-neutral-light-100),
-    var(--noora-neutral-dark-1000)
   );
   --noora-button-neutral-background-hover: light-dark(
     var(--noora-neutral-light-200),
@@ -221,21 +244,11 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-light-300),
     var(--noora-neutral-dark-900)
   );
-  --noora-button-secondary-disabled-label: light-dark(
-    var(--noora-neutral-light-600),
-    var(--noora-neutral-dark-600)
-  );
   --noora-button-destructive-background: var(--noora-red-500);
   --noora-button-destructive-label: var(--noora-neutral-light-50);
-  --noora-button-destructive-disabled-background: var(--noora-red-300);
-  --noora-button-destructive-disabled-label: var(--noora-neutral-light-200);
   --noora-button-neutral-label: light-dark(
     var(--noora-neutral-light-1200),
     var(--noora-neutral-light-50)
-  );
-  --noora-button-neutral-disabled-label: light-dark(
-    var(--noora-neutral-light-600),
-    var(--noora-neutral-dark-600)
   );
 
   /* Button Dropdown Trigger */
@@ -275,7 +288,7 @@ export const NOORA_CSS = String.raw`
         )
         100%
     ),
-    var(--noora-button-secondary-disabled-background);
+    var(--noora-button-disabled-background);
 
   --noora-button-background-primary:
     linear-gradient(
@@ -294,13 +307,6 @@ export const NOORA_CSS = String.raw`
   --noora-button-background-primary-active: var(
     --noora-button-primary-background
   );
-  --noora-button-background-primary-disabled:
-    linear-gradient(
-      180deg,
-      light-dark(oklch(100% 0 0 / 0.16), oklch(32% 0.005 247.968 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
-    ),
-    var(--noora-button-primary-disabled-background);
   --noora-button-border-primary:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
@@ -313,25 +319,17 @@ export const NOORA_CSS = String.raw`
     0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
     0px 2px 3px oklch(32% 0.005 247.968 / 0.16),
     0px 1px 0px oklch(100% 0 0 / 0.1) inset;
-  --noora-button-border-primary-focus:
-    0px 0px 0px 1px
-      light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200)),
-    0px 0px 0px 2.5px
-      light-dark(var(--noora-purple-500), var(--noora-purple-400)),
-    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+  /* The focus ring of every button and button-like control (buttons,
+     dropdown and button dropdown triggers, the date picker, table sort
+     buttons) over the primary button's shading. */
+  --noora-button-border-focus:
+    var(--noora-focus-ring), 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
     0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
     0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
   --noora-button-border-primary-active:
     0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
-  --noora-button-border-primary-disabled:
-    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
-    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.4),
-    0px 2px 3px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
 
   --noora-button-background-secondary:
     linear-gradient(
@@ -347,13 +345,13 @@ export const NOORA_CSS = String.raw`
       light-dark(oklch(78.4% 0.005 247.894 / 0.16), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
-  --noora-button-background-secondary-disabled:
+  --noora-button-background-disabled:
     linear-gradient(
       180deg,
       light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.06)),
       light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
     ),
-    var(--noora-button-secondary-disabled-background);
+    var(--noora-button-disabled-background);
   --noora-button-border-secondary:
     0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
@@ -363,7 +361,7 @@ export const NOORA_CSS = String.raw`
       light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
       light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
-  --noora-button-border-secondary-disabled:
+  --noora-button-border-disabled:
     0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
@@ -379,22 +377,6 @@ export const NOORA_CSS = String.raw`
       light-dark(oklch(78.4% 0.005 247.894 / 0.13), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
-  --noora-button-border-secondary-focus:
-    0px 0px 0px 1px
-      light-dark(
-        var(--noora-neutral-light-1000),
-        var(--noora-neutral-dark-1200)
-      ),
-    0px 0px 0px 2.5px
-      light-dark(oklch(32% 0.005 247.968 / 0.25), oklch(54.9% 0 0 / 0.8)),
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
-      inset,
-    0px 1px 1px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
-    0px 0px 0px 1px
-      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
-    0px 2px 3px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-border-secondary-active:
     0px 0px 0px 1px
       light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
@@ -420,35 +402,9 @@ export const NOORA_CSS = String.raw`
     0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
     0px 2px 3px 0px
       light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
-  --noora-button-background-destructive-disabled:
-    linear-gradient(
-      180deg,
-      light-dark(oklch(100% 0 0 / 0.06), oklch(32% 0.005 247.968 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
-    ),
-    var(--noora-button-destructive-disabled-background);
-  --noora-button-border-destructive-disabled:
-    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
-    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.5),
-    0px 2px 3px 0px
-      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-border-destructive-active:
     0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
-  --noora-button-border-destructive-focus:
-    0px 0px 0px 1px
-      light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200)),
-    0px 0px 0px 2.5px
-      light-dark(
-        oklch(from var(--noora-red-500) l c h / 0.75),
-        oklch(from var(--noora-red-400) l c h / 0.8)
-      ),
-    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
-    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
-    0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
 
   /* Tooltip */
   --noora-tooltip-background: light-dark(
@@ -848,19 +804,17 @@ export const NOORA_CSS = String.raw`
     0px 0px 0px 1px var(--noora-red-500),
     0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1);
   --noora-border-small-error-focus:
-    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px var(--noora-red-500),
-    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 4px oklch(from var(--noora-red-500) l c h / 0.2);
+    0px 0px 0px 1.5px var(--noora-focus-ring-gap),
+    0px 0px 0px 3px light-dark(var(--noora-red-500), var(--noora-red-300)),
+    var(--noora-border-small-error);
   --noora-border-small-warning:
     0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.05),
     0px 0px 0px 1px var(--noora-orange-500),
     0px 1px 3px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.1);
   --noora-border-small-warning-focus:
-    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px var(--noora-orange-400),
-    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 4px oklch(from var(--noora-orange-400) l c h / 0.2);
+    0px 0px 0px 1.5px var(--noora-focus-ring-gap),
+    0px 0px 0px 3px light-dark(var(--noora-orange-400), var(--noora-orange-300)),
+    var(--noora-border-small-warning);
 
   --noora-border-medium:
     0px 8px 6px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.02),
@@ -983,19 +937,10 @@ export const NOORA_CSS = String.raw`
     --noora-border-small-error:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
       0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
-    --noora-border-small-error-focus:
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
-      0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 4px oklch(from var(--noora-red-300) l c h / 0.25);
     --noora-border-small-warning:
       0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.2),
       0px 0px 0px 1px var(--noora-orange-300),
       0px 2px 3px 0px oklch(from var(--noora-alpha-black) l c h / 0.3);
-    --noora-border-small-warning-focus:
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
-      0px 0px 0px 1px var(--noora-orange-300),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 4px oklch(from var(--noora-orange-300) l c h / 0.25);
     --noora-border-medium:
       0px 2px 4px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.12),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
@@ -1757,13 +1702,13 @@ export const NOORA_CSS = String.raw`
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-primary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-primary-disabled);
-      background: var(--noora-button-background-primary-disabled);
-      color: var(--noora-button-primary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -1782,13 +1727,13 @@ export const NOORA_CSS = String.raw`
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-secondary-disabled);
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -1809,13 +1754,13 @@ export const NOORA_CSS = String.raw`
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-destructive-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-destructive-disabled);
-      background: var(--noora-button-background-destructive-disabled);
-      color: var(--noora-button-destructive-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -1828,28 +1773,16 @@ export const NOORA_CSS = String.raw`
     padding: var(--noora-spacing-3);
   }
 
+  /* Small buttons pad 4px all round with a 16px icon and the 12px label:
+     24px tall, labelled or icon-only. */
   &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-small);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  &[data-size="medium"] {
     --noora-button-icon-size: var(--noora-icon-size-medium);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    &,
+    &[data-icon-only] {
+      padding: var(--noora-spacing-2);
     }
 
     & svg {
@@ -1858,13 +1791,36 @@ export const NOORA_CSS = String.raw`
     }
   }
 
+  /* Medium buttons take the 14px label with 4px padding all round: 28px
+     tall. Icon-only ones keep 6px around the 16px icon to match. */
+  &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  /* Large buttons take a 16px icon, which sits better beside the 14px
+     label; icon-only ones pad 8px to stay 32px square, the labelled height. */
   &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-large);
+    --noora-button-icon-size: var(--noora-icon-size-medium);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     &:not([data-icon-only]) {
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+
+    &[data-icon-only] {
+      padding: var(--noora-spacing-4);
     }
 
     & svg {
@@ -1898,8 +1854,8 @@ export const NOORA_CSS = String.raw`
   background: transparent;
 
   &:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+    outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+    outline-offset: var(--noora-focus-ring-offset);
   }
 
   &:disabled {
@@ -1982,7 +1938,7 @@ export const NOORA_CSS = String.raw`
 
   &[disabled] {
     cursor: not-allowed;
-    color: var(--noora-button-neutral-disabled-label);
+    color: var(--noora-button-disabled-label);
   }
 
   /* Same label inset as .noora-button's \`& > span\`, scoped to the label

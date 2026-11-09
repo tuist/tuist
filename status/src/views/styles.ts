@@ -119,8 +119,8 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
-  outline-offset: 2px;
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
 }
 
 /* Present to assistive tech only: the skip link and the live region. The
