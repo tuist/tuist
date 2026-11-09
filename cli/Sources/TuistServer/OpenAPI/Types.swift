@@ -18245,7 +18245,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -18253,7 +18253,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
@@ -18269,7 +18269,7 @@ public enum Components {
             ///   - platform:
             ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 amp_url: Swift.String? = nil,
@@ -19495,7 +19495,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -19503,7 +19503,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
@@ -19524,7 +19524,7 @@ public enum Components {
             ///   - pause_grace_seconds:
             ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 agent_model: Swift.String? = nil,
@@ -26420,7 +26420,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -26428,7 +26428,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
@@ -26440,7 +26440,7 @@ public enum Components {
             ///   - memory_mb:
             ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
@@ -40737,7 +40737,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -40745,7 +40745,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
@@ -40757,7 +40757,7 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -43845,7 +43845,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -43853,7 +43853,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
@@ -43869,7 +43869,7 @@ public enum Operations {
                     ///   - platform:
                     ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         amp_url: Swift.String? = nil,
@@ -104725,7 +104725,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -104733,7 +104733,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
@@ -104754,7 +104754,7 @@ public enum Operations {
                     ///   - pause_grace_seconds:
                     ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         agent_model: Swift.String? = nil,

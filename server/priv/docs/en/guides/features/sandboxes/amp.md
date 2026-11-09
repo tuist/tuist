@@ -23,7 +23,8 @@ You need to be an administrator of both the Amp workspace and the Tuist account.
 
    | Type | Platform | Shape |
    | --- | --- | --- |
-   | `linux` | Linux | 2 vCPU, 4 GiB RAM, 10 GB workspace |
+   | `linux` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace |
+   | `linux-small` | Linux | 2 vCPU, 4 GiB RAM, 10 GB workspace |
    | `macos` | macOS with Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
@@ -32,13 +33,13 @@ The card shows **Connected** once Tuist is serving the provider. One Tuist accou
 
 ## Start a thread {#start-a-thread}
 
-In Amp's new-thread composer, click **Orb**, choose the Tuist provider under **Self-Hosted**, and pick `linux` or `macos`. From the Amp CLI:
+In Amp's new-thread composer, click **Orb**, choose the Tuist provider under **Self-Hosted**, and pick a type, such as `linux-small` for a repository that needs less than `linux`. From the Amp CLI:
 
 ```bash
 amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos
 ```
 
-A thread keeps its orb type for life. Without a type, it gets the provider's default. To use one platform for every new thread, choose the provider and its type under **Default Orb** in Amp's **Settings → Orbs**.
+A thread keeps its orb type for life. Without a type, it gets the provider's default. To use one type for every new thread, choose the provider and its type under **Default Orb** in Amp's **Settings → Orbs**.
 
 Amp clones the repository, runs your `.agents/setup` script and sets up Git credentials, as it does for every orb. Each orb can also read your account's Tuist <.localized_link href="/guides/features/cache">cache</.localized_link>.
 

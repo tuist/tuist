@@ -373,7 +373,7 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandb
 | `list_sandboxes` | Paginate sandboxes with their status, shape and timestamps. Optional `search` (text in the sandbox, Amp Orb or Anthropic session ID), `status`, `vcpus`, `sort_by` (`created`, `last_active`, `identifier`) and `sort_order`. | `account_handle` |
 | `get_sandbox` | A sandbox's status, shape, node, archive and timestamps. | `account_handle`, `sandbox_id` |
 | `get_sandbox_analytics` | vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, with trends. Optional `start` and `end` (ISO 8601); defaults to 30 days, maximum 90. | `account_handle` |
-| `create_sandbox` | Boot a bare sandbox and return it once it runs. Optional `platform` (`linux` or `darwin`), `template`, `vcpus` with `memory_mb` (Linux: 2x4096, 2x8192, 4x8192 or 8x16384, default 2x4096; macOS: 8x8192, 8x16384 or 8x24576, default 8x8192) and `workspace_gb`. | `account_handle` |
+| `create_sandbox` | Boot a bare sandbox and return it once it runs. Optional `platform` (`linux` or `darwin`), `template`, `vcpus` with `memory_mb` (Linux: 2x4096, 4x8192 or 8x16384, default 2x4096; macOS: 8x8192, 8x16384 or 8x24576, default 8x8192) and `workspace_gb`. | `account_handle` |
 | `pause_sandbox` | Snapshot a running sandbox to its node's disk. | `account_handle`, `sandbox_id` |
 | `resume_sandbox` | Resume a paused or archived sandbox. | `account_handle`, `sandbox_id` |
 | `archive_sandbox` | Queue moving a paused sandbox's disks to object storage. | `account_handle`, `sandbox_id` |

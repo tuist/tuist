@@ -86,7 +86,7 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
   @impl EMCP.Tool
   def description,
     do:
-      "Boot a bare Linux or macOS sandbox from a template and return it once it runs. Linux sandboxes take 2x4096, 2x8192, 4x8192 or 8x16384 vCPUs x memory MB (default 2x4096); macOS sandboxes take 8x8192, 8x16384 or 8x24576 (default 8x8192). It counts toward the account's sandbox limits. Requires account administration."
+      "Boot a bare Linux or macOS sandbox from a template and return it once it runs. Linux sandboxes take 2x4096, 4x8192 or 8x16384 vCPUs x memory MB (default 2x4096); macOS sandboxes take 8x8192, 8x16384 or 8x24576 (default 8x8192). It counts toward the account's sandbox limits. Requires account administration."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:create, conn, args)
 end

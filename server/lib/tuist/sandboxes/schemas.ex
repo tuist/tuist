@@ -60,7 +60,7 @@ defmodule Tuist.Sandboxes.Schemas do
       vcpus: %Schema{
         type: :integer,
         enum: [2, 4, 8],
-        description: "Linux: 2x4096, 2x8192, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+        description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
       },
       memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
       workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
