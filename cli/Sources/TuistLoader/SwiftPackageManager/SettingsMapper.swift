@@ -193,7 +193,7 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    /// `nil` means settings without a condition.
+    /// `nil` means settings without a platform or configuration condition.
     private func settings(for platformName: String?) throws
         -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     {
@@ -222,8 +222,7 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
         return traits.contains(where: enabledTraits.contains)
     }
 
-    /// Trait conditions don't count: settings of disabled traits are dropped before mapping,
-    /// so a setting conditioned only on enabled traits applies unconditionally.
+    /// Ignores traits because `init` already dropped the settings of disabled traits.
     fileprivate var hasPlatformOrConfigurationCondition: Bool {
         guard let condition else { return false }
         return !condition.platformNames.isEmpty || condition.config != nil
