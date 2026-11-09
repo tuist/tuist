@@ -41,6 +41,18 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @not_visible_snoozes 2
   @not_visible_snooze_seconds 15
 
+  @machine_metric_fields ~w(
+    timestamp
+    offset_ms
+    cpu_usage_percent
+    memory_used_bytes
+    memory_total_bytes
+    network_bytes_in
+    network_bytes_out
+    disk_bytes_read
+    disk_bytes_written
+  )a
+
   # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
   # slot indefinitely. The NIF's internal timeout is set lower so it returns
   # a structured error first; this is the outer guard for everything else.
@@ -146,7 +158,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         files: Enum.map(parsed[:files] || [], &atomize_keys/1),
         cacheable_tasks: Enum.map(parsed[:cacheable_tasks] || [], &atomize_keys/1),
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
-        machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1),
+        machine_metrics: Enum.map(parsed[:machine_metrics] || [], &machine_metric/1),
         build_steps: Stream.map(Map.get(parsed, :build_steps, []), &atomize_keys/1)
       })
 
@@ -198,6 +210,16 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         ])
         |> Map.put(:updated_at, NaiveDateTime.add(existing_build.updated_at, 1, :microsecond))
     end
+  end
+
+  # Machine metric samples are JSON objects copied from the uploaded archive, so
+  # their keys are client-controlled. Atomizing them would let one archive fill
+  # the atom table and abort the VM; keep only the fields we store.
+  defp machine_metric(sample) do
+    for field <- @machine_metric_fields,
+        Map.has_key?(sample, Atom.to_string(field)),
+        into: %{},
+        do: {field, sample[Atom.to_string(field)]}
   end
 
   defp atomize_keys(map) when is_map(map) do

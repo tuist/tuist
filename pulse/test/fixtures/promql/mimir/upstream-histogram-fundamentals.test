@@ -1,0 +1,322 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/native_histograms.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+
+# buckets:[1 2 1] means 1 observation in the 1st bucket, 2 observations in the 2nd and 1 observation in the 3rd (total 4).
+load 5m
+	single_histogram	{{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+
+# histogram_count extracts the count property from the histogram.
+eval instant at 1m histogram_count(single_histogram)
+	{} 4
+
+# histogram_sum extracts the sum property from the histogram.
+eval instant at 1m histogram_sum(single_histogram)
+	{} 5
+
+# histogram_avg calculates the average from sum and count properties.
+eval instant at 1m histogram_avg(single_histogram)
+	{} 1.25
+
+# We expect half of the values to fall in the range 1 < x <= 2.
+eval instant at 1m histogram_fraction(1, 2, single_histogram)
+	{} 0.5
+
+# We expect all values to fall in the range 0 < x <= 8.
+eval instant at 1m histogram_fraction(0, 8, single_histogram)
+    expect no_info
+	{} 1
+
+# Median is 1.414213562373095 (2**2**-1, or sqrt(2)) due to
+# exponential interpolation, i.e. the "midpoint" within range 1 < x <=
+# 2 is assumed where the bucket boundary would be if we increased the
+# resolution of the histogram by one step.
+eval instant at 1m histogram_quantile(0.5, single_histogram)
+	expect no_info
+	{} 1.414213562373095
+
+eval instant at 1m histogram_quantiles(single_histogram, "q", 0.5)
+	expect no_info
+	{q="0.5"} 1.414213562373095
+
+clear
+
+# Repeat the same histogram 10 times.
+load 5m
+	multi_histogram	{{schema:0 sum:5 count:4 buckets:[1 2 1]}}x10 {{schema:0 sum:5 count:4 buckets:[1 2 1]}}+{{}}x10
+
+eval instant at 5m histogram_count(multi_histogram)
+	{} 4
+
+eval instant at 5m histogram_sum(multi_histogram)
+	{} 5
+
+eval instant at 5m histogram_avg(multi_histogram)
+	{} 1.25
+
+eval instant at 5m histogram_fraction(1, 2, multi_histogram)
+	{} 0.5
+
+# See explanation for exponential interpolation above.
+eval instant at 5m histogram_quantile(0.5, multi_histogram)
+	{} 1.414213562373095
+
+
+# Each entry should look the same as the first.
+eval instant at 50m histogram_count(multi_histogram)
+	{} 4
+
+eval instant at 50m histogram_sum(multi_histogram)
+	{} 5
+
+eval instant at 50m histogram_avg(multi_histogram)
+	{} 1.25
+
+eval instant at 50m histogram_fraction(1, 2, multi_histogram)
+	{} 0.5
+
+# See explanation for exponential interpolation above.
+eval instant at 50m histogram_quantile(0.5, multi_histogram)
+	{} 1.414213562373095
+
+clear
+
+# Accumulate the histogram addition for 10 iterations, offset is a bucket position where offset:0 is always the bucket
+# with an upper limit of 1 and offset:1 is the bucket which follows to the right. Negative offsets represent bucket
+# positions for upper limits <1 (tending toward zero), where offset:-1 is the bucket to the left of offset:0.
+load 5m
+    incr_histogram {{schema:0 sum:4 count:4 buckets:[1 2 1]}}+{{sum:2 count:1 buckets:[1] offset:1}}x10
+
+eval instant at 5m histogram_count(incr_histogram)
+    {} 5
+
+eval instant at 5m histogram_sum(incr_histogram)
+    {} 6
+
+eval instant at 5m histogram_avg(incr_histogram)
+    {} 1.2
+
+# We expect 3/5ths of the values to fall in the range 1 < x <= 2.
+eval instant at 5m histogram_fraction(1, 2, incr_histogram)
+    {} 0.6
+
+# See explanation for exponential interpolation above.
+eval instant at 5m histogram_quantile(0.5, incr_histogram)
+    {} 1.414213562373095
+
+
+eval instant at 50m incr_histogram
+    {__name__="incr_histogram"} {{count:14 sum:24 buckets:[1 12 1]}}
+
+eval instant at 50m histogram_count(incr_histogram)
+    {} 14
+
+eval instant at 50m histogram_sum(incr_histogram)
+    {} 24
+
+eval instant at 50m histogram_avg(incr_histogram)
+    {} 1.7142857142857142
+
+# We expect 12/14ths of the values to fall in the range 1 < x <= 2.
+eval instant at 50m histogram_fraction(1, 2, incr_histogram)
+     {} 0.8571428571428571
+
+# See explanation for exponential interpolation above.
+eval instant at 50m histogram_quantile(0.5, incr_histogram)
+     {} 1.414213562373095
+
+# Per-second average rate of increase should be 1/(5*60) for count and buckets, then 2/(5*60) for sum.
+eval instant at 50m rate(incr_histogram[10m])
+    expect no_warn
+    {} {{count:0.0033333333333333335 sum:0.006666666666666667 offset:1 buckets:[0.0033333333333333335]}}
+
+# Calculate the 50th percentile of observations over the last 10m.
+# See explanation for exponential interpolation above.
+eval instant at 50m histogram_quantile(0.5, rate(incr_histogram[10m]))
+    expect no_warn
+    {} 1.414213562373095
+
+clear
+
+# Schema represents the histogram resolution, different schema have compatible bucket boundaries, e.g.:
+#  0: 1 2 4 8 16 32 64 (higher resolution)
+# -1: 1   4   16    64  (lower resolution)
+#
+# Histograms can be merged as long as the histogram to the right is same resolution or higher.
+load 5m
+	low_res_histogram	{{schema:-1 sum:4 count:1 buckets:[1] offset:1}}+{{schema:0 sum:4 count:4 buckets:[2 2] offset:1}}x1
+
+eval instant at 5m low_res_histogram
+	{__name__="low_res_histogram"} {{schema:-1 count:5 sum:8 offset:1 buckets:[5]}}
+
+eval instant at 5m histogram_count(low_res_histogram)
+	{} 5
+
+eval instant at 5m histogram_sum(low_res_histogram)
+	{} 8
+
+eval instant at 5m histogram_avg(low_res_histogram)
+	{} 1.6
+
+# We expect all values to fall into the lower-resolution bucket with the range 1 < x <= 4.
+eval instant at 5m histogram_fraction(1, 4, low_res_histogram)
+	{} 1
+
+clear
+
+# z_bucket:1 means there is one observation in the zero bucket and z_bucket_w:0.5 means the zero bucket has the range
+# 0 < x <= 0.5. Sum and count are expected to represent all observations in the histogram, including those in the zero bucket.
+load 5m
+	single_zero_histogram {{schema:0 z_bucket:1 z_bucket_w:0.5 sum:0.25 count:1}}
+
+eval instant at 1m histogram_count(single_zero_histogram)
+	{} 1
+
+eval instant at 1m histogram_sum(single_zero_histogram)
+	{} 0.25
+
+eval instant at 1m histogram_avg(single_zero_histogram)
+	{} 0.25
+
+# When only the zero bucket is populated, or there are negative buckets, the distribution is assumed to be equally
+# distributed around zero; i.e. that there are an equal number of positive and negative observations. Therefore the
+# entire distribution must lie within the full range of the zero bucket, in this case: -0.5 < x <= +0.5.
+eval instant at 1m histogram_fraction(-0.5, 0.5, single_zero_histogram)
+	{} 1
+
+# Half of the observations are estimated to be zero, as this is the midpoint between -0.5 and +0.5.
+eval instant at 1m histogram_quantile(0.5, single_zero_histogram)
+	{} 0
+
+clear
+
+# Let's turn single_histogram upside-down.
+load 5m
+	negative_histogram {{schema:0 sum:-5 count:4 n_buckets:[1 2 1]}}
+
+eval instant at 1m histogram_count(negative_histogram)
+	{} 4
+
+eval instant at 1m histogram_sum(negative_histogram)
+	{} -5
+
+eval instant at 1m histogram_avg(negative_histogram)
+	{} -1.25
+
+# We expect half of the values to fall in the range -2 < x <= -1.
+eval instant at 1m histogram_fraction(-2, -1, negative_histogram)
+	{} 0.5
+
+# Exponential interpolation works the same as for positive buckets, just mirrored.
+eval instant at 1m histogram_quantile(0.5, negative_histogram)
+	{} -1.414213562373095
+
+clear
+
+# Two histogram samples.
+load 5m
+	two_samples_histogram {{schema:0 sum:4 count:4 buckets:[1 2 1]}} {{schema:0 sum:-4 count:4 n_buckets:[1 2 1]}}
+
+# We expect to see the newest sample.
+eval instant at 5m histogram_count(two_samples_histogram)
+	{} 4
+
+eval instant at 5m histogram_sum(two_samples_histogram)
+	{} -4
+
+eval instant at 5m histogram_avg(two_samples_histogram)
+	{} -1
+
+eval instant at 5m histogram_fraction(-2, -1, two_samples_histogram)
+	{} 0.5
+
+# See explanation for exponential interpolation above.
+eval instant at 5m histogram_quantile(0.5, two_samples_histogram)
+	{} -1.414213562373095
+
+clear
+
+# Add two histograms with negated data.
+load 5m
+	balanced_histogram {{schema:0 sum:4 count:4 buckets:[1 2 1]}}+{{schema:0 sum:-4 count:4 n_buckets:[1 2 1]}}x1
+
+eval instant at 5m histogram_count(balanced_histogram)
+	{} 8
+
+eval instant at 5m histogram_sum(balanced_histogram)
+	{} 0
+
+eval instant at 5m histogram_avg(balanced_histogram)
+	{} 0
+
+eval instant at 5m histogram_fraction(0, 4, balanced_histogram)
+	{} 0.5
+
+# If the quantile happens to be located in a span of empty buckets, the actually returned value is the lower bound of
+# the first populated bucket after the span of empty buckets.
+eval instant at 5m histogram_quantile(0.5, balanced_histogram)
+	{} 0.5
+
+clear
+
+# Add histogram to test sum(last_over_time) regression
+load 5m
+    incr_sum_histogram{number="1"} {{schema:0 sum:0 count:0 buckets:[1]}}+{{schema:0 sum:1 count:1 buckets:[1]}}x10
+    incr_sum_histogram{number="2"} {{schema:0 sum:0 count:0 buckets:[1]}}+{{schema:0 sum:2 count:1 buckets:[1]}}x10
+
+eval instant at 50m histogram_sum(sum(incr_sum_histogram))
+    {} 30
+
+eval instant at 50m histogram_sum(sum(last_over_time(incr_sum_histogram[5m])))
+    {} 30
+
+clear
+
+# Apply rate function to histogram.
+load 15s
+    histogram_rate {{schema:1 count:12 sum:18.4 z_bucket:2 z_bucket_w:0.001 buckets:[1 2 0 1 1] n_buckets:[1 2 0 1 1]}}+{{schema:1 count:9 sum:18.4 z_bucket:1 z_bucket_w:0.001 buckets:[1 1 0 1 1] n_buckets:[1 1 0 1 1]}}x100
+
+eval instant at 5m rate(histogram_rate[45s])
+    expect no_warn
+    {} {{schema:1 count:0.6 sum:1.2266666666666652 z_bucket:0.06666666666666667 z_bucket_w:0.001 buckets:[0.06666666666666667 0.06666666666666667 0 0.06666666666666667 0.06666666666666667] n_buckets:[0.06666666666666667 0.06666666666666667 0 0.06666666666666667 0.06666666666666667]}}
+
+eval range from 5m to 5m30s step 30s rate(histogram_rate[45s])
+    expect no_warn
+    {} {{schema:1 count:0.6 sum:1.2266666666666652 z_bucket:0.06666666666666667 z_bucket_w:0.001 buckets:[0.06666666666666667 0.06666666666666667 0 0.06666666666666667 0.06666666666666667] n_buckets:[0.06666666666666667 0.06666666666666667 0 0.06666666666666667 0.06666666666666667]}}x1
+
+clear
+# Counter reset only noticeable in a single bucket.
+load 5m
+     reset_in_bucket {{schema:0 count:4 sum:5 buckets:[1 2 1]}} {{schema:0 count:5 sum:6 buckets:[1 1 3]}} {{schema:0 count:6 sum:7 buckets:[1 2 3]}}
+
+eval instant at 10m increase(reset_in_bucket[15m])
+     expect no_warn
+     {} {{count:9 sum:10.5 buckets:[1.5 3 4.5]}}
+
+# The following two test the "fast path" where only sum and count is decoded.
+eval instant at 10m histogram_count(increase(reset_in_bucket[15m]))
+     expect no_warn
+     {} 9
+
+eval instant at 10m histogram_sum(increase(reset_in_bucket[15m]))
+     expect no_warn
+     {} 10.5
+
+clear
+
+# Test native histograms with custom buckets.
+load 5m
+    custom_buckets_histogram {{schema:-53 sum:5 count:4 custom_values:[5 10] buckets:[1 2 1]}}x10
+
+eval instant at 5m histogram_fraction(5, 10, custom_buckets_histogram)
+    {} 0.5
+
+eval instant at 5m histogram_quantile(0.5, custom_buckets_histogram)
+    {} 7.5
+
+eval instant at 5m sum(custom_buckets_histogram)
+    {} {{schema:-53 sum:5 count:4 custom_values:[5 10] buckets:[1 2 1]}}
+
+clear

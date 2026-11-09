@@ -8,13 +8,10 @@ import TuistServer
 import TuistSupport
 
 enum CoverageReadCommandServiceError: Equatable, LocalizedError {
-    case earlyAccess
     case missingFullHandle
 
     var errorDescription: String? {
         switch self {
-        case .earlyAccess:
-            return "Code coverage is in early access. Set TUIST_FEATURE_FLAG_COVERAGE=1 to use it; your account needs it enabled too."
         case .missingFullHandle:
             return "The project's full handle is missing. Pass --full-handle or run the command from a Tuist project."
         }
@@ -31,7 +28,6 @@ struct CoverageReadContext {
         configLoader: ConfigLoading,
         serverEnvironmentService: ServerEnvironmentServicing
     ) async throws -> CoverageReadContext {
-        guard ClientFeatureFlags.contains("COVERAGE") else { throw CoverageReadCommandServiceError.earlyAccess }
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let fullHandle = fullHandle ?? config.fullHandle else {

@@ -278,6 +278,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.serverNamespace }}
+        {{- with .Values.sandboxNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: shard-storage-lifecycle

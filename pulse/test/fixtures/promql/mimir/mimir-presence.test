@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+load 1m
+  some_metric_count{foo="bar"} 0 1 2 3 _ _ {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+eval range from 0 to 7m step 1m present_over_time(some_metric_count[3m1s])
+  {foo="bar"} 1 1 1 1 1 1 1 1
+
+eval range from 0 to 7m step 1m present_over_time(some_metric_count[6s])
+  {foo="bar"} 1 1 1 1 _ _ 1 1
+
+clear
+
+# Test the case where multiple series have the same labels after the metric name is removed by a function.
+load 1m
+  float_metric_1 0+1x4
+  float_metric_2 0+2x4
+  histogram_metric_1 {{sum:0 count:0}}x4
+  histogram_metric_2 {{sum:1 count:1}}x4
+
+eval_fail instant at 5m present_over_time({__name__=~"float_metric_.*"}[5m])
+  expected_fail_message vector cannot contain metrics with the same labelset
+

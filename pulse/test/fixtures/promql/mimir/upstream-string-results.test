@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/literals.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+eval instant at 50m ("Foo")
+	expect string `Foo`
+
+eval instant at 50m "Foo"
+	expect string "Foo"
+
+eval instant at 50m " Foo "
+    expect string " Foo "
+
+eval instant at 50m ("")
+	expect string ""
+
+eval instant at 50m ""
+   	expect string ""

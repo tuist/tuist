@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4d3cbe0311197546a42d27d902c1fa37156b3e34de83c8a74cfd8344e787ac64",
+  "hash": "535031be6b3a8d95047f2b3858f15bab6fe3562783be97df4f51528a131572a9",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,10 +14,10 @@
                   "content_hash": "13819ee532eb73221bf74124092ec6a42a995b94ceafbf00d9c00a6b2d2cb75d"
                 },
                 "## Project.swift {#projectswift}": {
-                  "content_hash": "4dbd66bd59200981439199b2f8be24b63b253d366ac7e916f25b053bbe65f4bc"
+                  "content_hash": "8a0e8f91250ccec0456446f9bc6f60b953e02448203fc0cf9cc589441618601a"
                 },
                 "## Tuist.swift {#tuistswift}": {
-                  "content_hash": "54a72206e1bd3b1e9bb40f86a04d528c6e94b72fd1e233235822c46da428a7ac"
+                  "content_hash": "d12bb692f0f453aa2a053d2e280db744bdb01ad02b6db0347119d7513bb1e567"
                 },
                 "## Workspace.swift {#workspaceswift}": {
                   "content_hash": "1d963681c2a694a09e679607545d6657c484ac71de37f5ac39f72632566c4e01"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "be909e14672946a3d2a1321306c48e4169825a9bb9d88218e8337af3e7ed9c65",
+          "hash": "af3c18da54a7a5f5e255b024b2a8c5582c45cf41a5863b936598480fdea5c4d4",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/manifests.md",
           "metadata": {
-            "content_hash": "23db1c449c042d83a783398fc491b77c61c147e6c87fdb4fceb18417917cebb6"
+            "content_hash": "fea9ef75db697e6ec8d9f9e46e05572cc656eda9fe4d3db6268ea47488d57bcd"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,13 +116,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -135,21 +135,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -229,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "a57f50291ec90cdc3aa5ef0db494fba6ad537af68f0528991f70a3215ad556bd",
+          "hash": "6633c4189c9b5e82c0172795b9d19de509c24da4003a716bcbac53309d78b20c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "4d3cbe0311197546a42d27d902c1fa37156b3e34de83c8a74cfd8344e787ac64",
+      "hash": "535031be6b3a8d95047f2b3858f15bab6fe3562783be97df4f51528a131572a9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/manifests.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3a690e69402ccc6f178e3751ea45a5c6278dd2bd2e9def7036e42d85e5204735",
+  "output_hash": "f5b934f122a8e8dd5384abc16119816c0520a023b4891ab2ee025b63e626a5cf",
   "output_path": "server/priv/docs/es/guides/features/projects/manifests.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/manifests.md",
-  "translated_at": "2026-10-29T15:13:10.034255Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-06T18:53:18.159156Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

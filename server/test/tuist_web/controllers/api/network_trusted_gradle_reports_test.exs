@@ -111,9 +111,9 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
 
   test "a real shared quota backend outage remains unavailable without local fallback", %{conn: conn, project: project} do
     stub(Tuist.Environment, :redis_url, fn -> "redis://unavailable" end)
-    reject(TuistWeb.RateLimit.InMemory, :hit, 4)
-    reject(TuistWeb.RateLimit.InMemory.Local, :hit, 4)
-    expect(TuistWeb.RateLimit.PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:noproc) end)
+    reject(Tuist.RateLimit.InMemory, :hit, 4)
+    reject(Tuist.RateLimit.InMemory.Local, :hit, 4)
+    expect(Tuist.RateLimit.PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:noproc) end)
 
     assert conn |> publish(project) |> json_response(503)
   end

@@ -2,7 +2,10 @@ defmodule Tuist.Sandboxes.Sandbox do
   @moduledoc """
   A Firecracker sandbox VM living on one sandboxd node. Created from a
   template snapshot, paused to the node's disk when idle, resumed when
-  the next agent turn arrives.
+  the next agent turn arrives. An Amp Orb paused for long enough is
+  `archived`: its disks move to object storage (`archive_*` fields), it has
+  no node, and its next spawn restores it on any node
+  (`Tuist.Sandboxes.Archives`).
 
   `residency_work_id` names the Anthropic work item whose worker is
   currently running inside the VM. `residency_epoch` increments every
@@ -16,18 +19,23 @@ defmodule Tuist.Sandboxes.Sandbox do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes.AgentEnvironment
 
-  @states [:creating, :running, :resuming, :paused, :error, :deleted]
+  @states [:creating, :running, :resuming, :paused, :archived, :error, :deleted]
   # The shapes (vcpus, memory_mb) accounts can request. Each one costs a
   # template build and a memory image on every node that serves it, so the
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
   # `sandboxes.allowedShapes`).
-  @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @shapes [{1, 2048}, {2, 4096}, {4, 8192}, {8, 16_384}, {16, 32_768}, {16, 45_056}]
+  @darwin_shapes [{8, 8192}, {8, 16_384}, {8, 24_576}]
   @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do
+    field :purpose, Ecto.Enum, values: [:agent, :remote_execution], default: :agent
+    # Renewed by the owning remote-execution scheduler; lapsed rows are reaped.
+    field :execution_lease_expires_at, :utc_datetime
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
+    field :amp_base_snapshot_id, :string
     field :template, :string
     field :template_tag, :string
     field :vcpus, :integer
@@ -35,12 +43,23 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :workspace_gb, :integer
     field :state, Ecto.Enum, values: @states, default: :creating
     field :node_name, :string
+    field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
+    field :node_uid, :string
+    field :resident, :boolean, default: false
     field :hostname, :string
     field :residency_work_id, :string
     field :residency_epoch, :integer, default: 0
     field :last_active_at, :utc_datetime
+    field :guest_cpu_ms, :integer
     field :paused_at, :utc_datetime
     field :error_message, :string
+    field :archive_key, :string
+    field :archive_store, :string
+    field :archive_upload_id, :string
+    field :archive_bytes, :integer
+    field :archive_sha256, :string
+    field :archive_attempted_at, :utc_datetime
+    field :archived_at, :utc_datetime
 
     belongs_to :account, Account
     belongs_to :provider_environment, Tuist.Sandboxes.ProviderEnvironment, type: :binary_id
@@ -52,6 +71,8 @@ defmodule Tuist.Sandboxes.Sandbox do
 
   def states, do: @states
   def shapes, do: @shapes
+  def shapes(:darwin), do: @darwin_shapes
+  def shapes(_platform), do: @shapes
   def max_workspace_gb, do: @max_workspace_gb
 
   @doc """
@@ -63,11 +84,13 @@ defmodule Tuist.Sandboxes.Sandbox do
     vcpus = get_field(changeset, :vcpus)
     memory_mb = get_field(changeset, :memory_mb)
 
+    shapes = shapes(get_field(changeset, :platform))
+
     changeset =
-      if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in @shapes do
+      if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in shapes do
         changeset
       else
-        offered = Enum.map_join(@shapes, ", ", fn {v, m} -> "#{v}x#{m}" end)
+        offered = Enum.map_join(shapes, ", ", fn {v, m} -> "#{v}x#{m}" end)
         add_error(changeset, :memory_mb, "vcpus x memory_mb must be one of #{offered}")
       end
 
@@ -77,10 +100,13 @@ defmodule Tuist.Sandboxes.Sandbox do
   def create_changeset(sandbox, attrs) do
     sandbox
     |> cast(attrs, [
+      :platform,
       :account_id,
+      :purpose,
       :agent_environment_id,
       :anthropic_session_id,
       :amp_orb_id,
+      :amp_base_snapshot_id,
       :amp_integration_id,
       :provider_environment_id,
       :template,
@@ -102,12 +128,22 @@ defmodule Tuist.Sandboxes.Sandbox do
       :template_tag,
       :state,
       :node_name,
+      :node_uid,
+      :resident,
       :hostname,
       :residency_work_id,
       :residency_epoch,
       :last_active_at,
+      :guest_cpu_ms,
       :paused_at,
-      :error_message
+      :error_message,
+      :archive_key,
+      :archive_store,
+      :archive_upload_id,
+      :archive_bytes,
+      :archive_sha256,
+      :archive_attempted_at,
+      :archived_at
     ])
     |> validate_required([:state])
   end

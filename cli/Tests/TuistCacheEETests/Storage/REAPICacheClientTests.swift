@@ -1307,14 +1307,14 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, arguments: [Int32(4), Int32(14)])
-    func batchTransportFailuresKeepTheirShortRetryBudget(status: Int32) async throws {
+    @Test(.inTemporaryDirectory)
+    func batchDeadlineFailuresKeepTheirShortRetryBudget() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let body = Data("blob".utf8)
         let source = directory.appending(component: "upload").url
         try body.write(to: source)
         let state = WireCache()
-        await state.planUpdates(Array(repeating: .reject(status: status), count: 10))
+        await state.planUpdates(Array(repeating: .reject(status: 4), count: 10))
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
             address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
         )
@@ -1331,7 +1331,45 @@ struct REAPICacheClientTests {
             let result = try await client.uploadAvailableBlobs([REAPI.digest(body): source])
             #expect(result.available.isEmpty)
             #expect(result.failures.count == 1)
-            #expect(await state.updateCalls == (status == 4 ? 2 : 3))
+            #expect(await state.updateCalls == 2)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func waitsOutAnUnavailableCacheWhileUploading(recovers: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Data("blob".utf8)
+        let digest = REAPI.digest(body)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        let failure = RPCError(code: .unavailable, message: "Channel isn't ready, no subchannel available.")
+        await state.planMissingFailures(Array(repeating: failure, count: recovers ? 4 : 100))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(maximumRetryCount: 5, baseDelayMilliseconds: 1)
+            ) { "token" }
+
+            let upload = try await client.uploadAvailableBlobs([digest: source])
+
+            if recovers {
+                #expect(upload.available == [digest])
+                #expect(await state.blobs[digest] == body)
+                #expect(await state.missingQueries == 5)
+            } else {
+                #expect(upload.available.isEmpty)
+                #expect(upload.failures[digest]?.contains("failed with unavailable: \(failure.message)") == true)
+                #expect(await state.missingQueries == 6)
+            }
         }
     }
 
@@ -1758,8 +1796,10 @@ struct REAPICacheClientTests {
 
             try await client.uploadBlobs([digest: source])
 
-            // The stalled attempt was cut and the blob uploaded again from its first byte.
-            #expect(await state.writeAttempts == 2)
+            // Prove that the first attempt reached the scripted stall. A healthy retry can also
+            // hit the impatient idle guard on a busy executor, so its attempt count is not fixed.
+            #expect(await state.stalledWriteBytes == [1024 * 1024])
+            #expect(await state.writeAttempts >= 2)
             #expect(await state.blobs[digest] == body)
         }
     }
@@ -2081,6 +2121,8 @@ private actor WireCache {
     private var writePlans: [WritePlan] = []
     var writeAttempts = 0
     var writeAttemptTimes: [ContinuousClock.Instant] = []
+    var stalledWriteBytes: [Int] = []
+    func recordStalledWrite(bytes: Int) { stalledWriteBytes.append(bytes) }
     func planWrites(_ plans: [WritePlan]) { writePlans = plans }
     func nextWritePlan() -> WritePlan {
         writeAttempts += 1
@@ -2339,7 +2381,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
 
     func write(
         request: RPCAsyncSequence<Google_Bytestream_WriteRequest, any Error>,
-        context _: ServerContext
+        context: ServerContext
     ) async throws -> Google_Bytestream_WriteResponse {
         state.uploadActivity.withLock { $0.active += 1; $0.peak = max($0.peak, $0.active) }
         defer { state.uploadActivity.withLock { $0.active -= 1 } }
@@ -2360,7 +2402,13 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
             compressed = message.resourceName.contains("/compressed-blobs/zstd/")
             data.append(message.data)
             finished = message.finishWrite
-            if case let .hang(after) = plan, data.count >= after { try await Task.sleep(for: .seconds(30)) }
+            if case let .hang(after) = plan, data.count >= after {
+                await state.recordStalledWrite(bytes: data.count)
+                // RPC cancellation does not cancel the handler's Task. Stop here permanently,
+                // rather than waking up and sleeping again for every buffered upload message.
+                try await context.cancellation.cancelled
+                throw CancellationError()
+            }
         }
         let expected = try #require(digest)
         #expect(finished)

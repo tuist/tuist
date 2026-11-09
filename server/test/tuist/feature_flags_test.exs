@@ -9,23 +9,26 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  describe "cli_previews_enabled?/1" do
-    test "canary and production require explicit enrollment after the server rollout" do
+  describe "pulse_enabled?/1" do
+    test "requires explicit account enrollment in every environment" do
       account = %Account{id: 42}
 
-      for env <- [:can, :prod], enabled <- [false, true] do
+      for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
         stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :cli_previews, [for: ^account] -> enabled end)
-        assert FeatureFlags.cli_previews_enabled?(account) == enabled
+        expect(FunWithFlags, :enabled?, fn :pulse, [for: ^account] -> enabled end)
+        assert FeatureFlags.pulse_enabled?(account) == enabled
       end
     end
+  end
 
-    test "local and staging previews work without enrollment" do
-      reject(FunWithFlags, :enabled?, 2)
+  describe "app_flags/1" do
+    test "lists ai only for users with the flag in production" do
+      user = %Tuist.Accounts.User{id: 42}
+      stub(Environment, :env, fn -> :prod end)
 
-      for env <- [:dev, :test, :stag] do
-        stub(Environment, :env, fn -> env end)
-        assert FeatureFlags.cli_previews_enabled?(%Account{id: 42})
+      for {enabled, flags} <- [{false, []}, {true, ["ai"]}] do
+        expect(FunWithFlags, :enabled?, fn :ai, [for: ^user] -> enabled end)
+        assert FeatureFlags.app_flags(user) == flags
       end
     end
   end
@@ -124,6 +127,28 @@ defmodule Tuist.FeatureFlagsTest do
         assert FeatureFlags.coverage_enabled?(account, %Project{build_system: build_system}) ==
                  (flag? or build_system == :mix)
       end
+    end
+  end
+
+  describe "test_impact_analysis_enabled?/2" do
+    test "canary and production require the account flag and coverage for the project" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for flag? <- [true, false], coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :test_impact_analysis, [for: ^account] -> flag?
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) ==
+                 (flag? and coverage?)
+      end
+    end
+
+    test "other environments enable it for projects with coverage" do
+      stub(Environment, :env, fn -> :stag end)
+      assert FeatureFlags.test_impact_analysis_enabled?(%Account{id: 42, name: "tuist"}, %Project{build_system: :xcode})
     end
   end
 

@@ -98,25 +98,31 @@ defmodule TuistEx.DependencyCacheTest do
         commit!(Path.join(dir, "package"))
       end
 
-      compile_alias =
-        case unquote(bootstrap) do
-          :legacy ->
-            "&Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)"
-
-          bootstrap when bootstrap in [:ordinary, :deterministic] ->
-            inspect([
-              "deps.compile tuist_ex --include-children",
-              "deps.loadpaths --no-compile --no-deps-check",
-              "tuist.compile"
-            ])
-        end
-
       contents =
         String.replace(
           File.read!(mixfile),
           "deps: [{:dep_probe,",
-          "aliases: [compile: #{compile_alias}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
+          "deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,"
         )
+
+      contents =
+        if unquote(bootstrap) == :legacy do
+          script = inspect(Path.join(package, "compile.exs"))
+
+          String.replace(
+            contents,
+            "deps: [",
+            "aliases: [compile: &Code.eval_string(File.read!(#{script}), args: &1)], deps: [",
+            global: false
+          )
+        else
+          config = [tuist: [project: "test/cache", cache: [remote: false]]]
+          {:ok, contents} = TuistEx.ProjectSetup.configure(contents, config)
+          contents
+        end
+
+      File.mkdir_p!(Path.join(project, "lib"))
+      File.write!(Path.join(project, "lib/root.ex"), "defmodule CacheFixture do\nend")
 
       compile_args =
         if unquote(bootstrap) in [:ordinary, :deterministic],
@@ -191,6 +197,15 @@ defmodule TuistEx.DependencyCacheTest do
       assert File.exists?(
                Path.join(project, "_build/test/lib/dep_probe/ebin/Elixir.DepProbe.beam")
              )
+
+      if unquote(bootstrap) != :legacy do
+        # An up-to-date project rebuilds no dependency and recompiles nothing.
+        {current, status} = run_mix.(compile_args)
+        assert status == 0, current
+        refute current =~ "===> Compiling", current
+        refute current =~ "Generated", current
+        refute current =~ ~r/Compiling \d+ files? \(\.ex\)/, current
+      end
 
       if unquote(bootstrap) == :ordinary do
         {output, status} =
@@ -341,26 +356,21 @@ defmodule TuistEx.DependencyCacheTest do
     mix_path = Path.join(project, "custom mix path")
     File.mkdir_p!(mix_path)
 
-    File.write!(
-      mixfile,
+    test_alias = ["fixture.prepare", "tuist.test"]
+
+    {:ok, contents} =
       mixfile
       |> File.read!()
       |> String.replace(
         "deps: [{:dep_probe,",
-        ~s|aliases: [compile: &compile/1, test: ["fixture.prepare", "tuist.test"]], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
+        ~s|aliases: [test: #{inspect(test_alias)}], deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:dep_probe,|
       )
-      |> String.replace("\nend\n", """
+      |> TuistEx.ProjectSetup.configure(
+        aliases: [test: test_alias],
+        tuist: [project: "test/cache", cache: [remote: false]]
+      )
 
-        defp compile(args) do
-          if "--no-compile" not in args do
-            Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
-          end
-          Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
-          Mix.Task.run("tuist.compile", args)
-        end
-      end
-      """)
-    )
+    File.write!(mixfile, contents)
 
     File.mkdir_p!(Path.join(project, "lib"))
 
@@ -715,6 +725,37 @@ defmodule TuistEx.DependencyCacheTest do
              Enum.map(second["dependency_cache"], & &1["key"])
   end
 
+  test "portable keys follow rebar3's bytes rather than its install path", %{
+    project: project,
+    dir: dir
+  } do
+    rebar_fixture!(project, dir)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    {rebar, _args} = Mix.Rebar.rebar_args(:rebar3, [])
+
+    install = fn home ->
+      path = Path.join([dir, home, "rebar3"])
+      File.mkdir_p!(Path.dirname(path))
+      File.cp!(rebar, path)
+      path
+    end
+
+    first = run!(project, [{"MIX_REBAR3", install.("runner")}])
+    assert Enum.all?(first["dependency_cache"], &(&1["outcome"] == "miss"))
+    File.rm_rf!(Path.join(project, "_build"))
+    second = run!(project, [{"MIX_REBAR3", install.("user")}])
+    assert Enum.all?(second["dependency_cache"], &(&1["outcome"] == "local_hit"))
+
+    assert Enum.map(first["dependency_cache"], & &1["key"]) ==
+             Enum.map(second["dependency_cache"], & &1["key"])
+  end
+
   test "rebar bare builds accept packaged app metadata, inert Makefiles and evaluated config scripts",
        %{project: project, dir: dir} do
     rebar_fixture!(project, dir)
@@ -1001,6 +1042,93 @@ defmodule TuistEx.DependencyCacheTest do
     refute hd(first["dependency_cache"])["key"] == hd(third["dependency_cache"])["key"]
   end
 
+  test "audited non-native builders key alias functions from the dependency's mix.exs, not PATH",
+       %{project: project, dir: dir} do
+    repo = Path.join(dir, "package")
+
+    File.write!(Path.join(repo, "mix.exs"), """
+    defmodule DepProbe.MixProject do
+      use Mix.Project
+      def project, do: [app: :dep_probe, version: "0.1.0", deps: [], aliases: [compile: [&prepare/1, "compile"]]]
+      defp prepare(_), do: File.mkdir_p!("priv")
+    end
+    """)
+
+    commit!(repo)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "remote: false,",
+        ~s(remote: false, builders: [dep_probe: [native: false, outputs: [], generated: ["priv"]]],)
+      )
+    )
+
+    first = run!(project)
+    assert [%{"outcome" => "miss", "reason" => "", "key" => key}] = first["dependency_cache"]
+    File.rm_rf!(Path.join(project, "_build"))
+    path = Path.join(dir, "other-bin") <> ":" <> System.get_env("PATH")
+    second = run!(project, [{"PATH", path}])
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = second["dependency_cache"]
+  end
+
+  test "portable native keys follow declared tools' bytes, not PATH or where the tools live",
+       %{project: project, dir: dir} do
+    native_fixture!(project, dir)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false,", "remote: false, portable: true,")
+    )
+
+    first = run!(project)
+    assert [%{"outcome" => "miss", "reason" => "", "key" => key}] = first["dependency_cache"]
+    cc = System.find_executable("cc")
+    linked = Path.join(dir, "linked-bin")
+    File.mkdir_p!(linked)
+    File.ln_s!(cc, Path.join(linked, "cc"))
+    File.rm_rf!(Path.join(project, "_build"))
+    second = run!(project, [{"PATH", linked <> ":" <> System.get_env("PATH")}])
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = second["dependency_cache"]
+
+    wrapped = Path.join(dir, "wrapped-bin")
+    File.mkdir_p!(wrapped)
+    File.write!(Path.join(wrapped, "cc"), "#!/bin/sh\nexec #{cc} \"$@\"\n")
+    File.chmod!(Path.join(wrapped, "cc"), 0o755)
+    File.rm_rf!(Path.join(project, "_build"))
+    third = run!(project, [{"PATH", wrapped <> ":" <> System.get_env("PATH")}])
+    assert [%{"outcome" => "miss", "reason" => "", "key" => other}] = third["dependency_cache"]
+    refute other == key
+  end
+
+  test "dependencies Mix does not compile are neither cached nor reported", %{
+    project: project,
+    dir: dir
+  } do
+    assets = Path.join(dir, "assets")
+    File.mkdir_p!(assets)
+    File.write!(Path.join(assets, "icon.svg"), "<svg/>")
+    git!(assets, ["init", "--quiet"])
+    commit!(assets)
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      File.read!(mixfile)
+      |> String.replace(
+        "deps: [{:dep_probe,",
+        "deps: [{:assets, git: #{inspect(assets)}, app: false, compile: false}, {:dep_probe,"
+      )
+      |> String.replace("dependencies: [:dep_probe]", "dependencies: [:assets, :dep_probe]")
+    )
+
+    assert [%{"dependency" => "dep_probe", "outcome" => "miss"}] =
+             run!(project)["dependency_cache"]
+  end
+
   test "cache true automatically selects dependencies", %{project: project, dir: dir} do
     mixfile = Path.join(project, "mix.exs")
 
@@ -1216,6 +1344,23 @@ defmodule TuistEx.DependencyCacheTest do
              second["dependency_cache"] |> hd() |> Map.fetch!("key")
 
     assert second["value"] == 2
+  end
+
+  test "the project's own configuration does not change dependency keys", %{project: project} do
+    config = fn pool_size ->
+      File.write!(Path.join(project, "config/config.exs"), """
+      import Config
+      config :dep_probe, value: 1
+      config :cache_fixture, pool_size: #{pool_size}
+      """)
+    end
+
+    config.(8)
+    assert [%{"outcome" => "miss", "key" => key}] = run!(project)["dependency_cache"]
+    File.rm_rf!(Path.join(project, "_build"))
+    config.(4)
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] = run!(project)["dependency_cache"]
   end
 
   test "unselected fetched dependencies retain Mix's OS-worker batching", %{
@@ -1584,6 +1729,78 @@ defmodule TuistEx.DependencyCacheTest do
     second = run!(relocated)
     assert [%{"outcome" => "local_hit"}] = second["dependency_cache"]
     assert second["value"] == 1
+  end
+
+  test "portable keys ignore the checkout path inside configured values", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    File.write!(Path.join(project, "config/config.exs"), """
+    import Config
+    config :dep_probe, value: 1
+    config :cache_fixture,
+      assets: [cd: Path.expand("../assets", __DIR__), root: Path.expand("..", __DIR__)],
+      env: %{"NODE_PATH" => Path.expand("../deps", __DIR__) <> ":/usr/lib/node"}
+    """)
+
+    assert [%{"outcome" => "miss", "key" => key}] = run!(project)["dependency_cache"]
+    relocated = Path.join(dir, "relocated")
+    File.cp_r!(project, relocated)
+    File.rm_rf!(Path.join(relocated, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(relocated)["dependency_cache"]
+  end
+
+  test "portable keys follow archive contents rather than the archive directory", %{
+    project: project,
+    dir: dir
+  } do
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(File.read!(mixfile), "remote: false", "remote: false, portable: true")
+    )
+
+    archives = fn home, contents ->
+      path = Path.join([dir, home, ".mix/archives"])
+      File.mkdir_p!(Path.join(path, "hex-2.6.0/ebin"))
+      File.write!(Path.join(path, "hex-2.6.0/ebin/hex.app"), contents)
+      path
+    end
+
+    assert [%{"outcome" => "miss", "key" => key}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("runner", "hex")}])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("user", "hex")}])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "miss", "key" => changed}] =
+             run!(project, [{"MIX_ARCHIVES", archives.("other", "hex 2")}])["dependency_cache"]
+
+    assert changed != key
+  end
+
+  test "scheduler counts do not change the key", %{project: project} do
+    assert [%{"outcome" => "miss", "key" => key}] =
+             run!(project, [], ["--erl", "+S 2:2"])["dependency_cache"]
+
+    File.rm_rf!(Path.join(project, "_build"))
+
+    assert [%{"outcome" => "local_hit", "key" => ^key}] =
+             run!(project, [], ["--erl", "+S 3:3"])["dependency_cache"]
   end
 
   test "unmodeled source links and custom compiler inputs bypass caching", %{project: project} do
@@ -2266,15 +2483,15 @@ defmodule TuistEx.DependencyCacheTest do
     File.write!(root, String.replace(File.read!(root), "dependencies: [:dep_probe], ", ""))
   end
 
-  defp run!(project, env \\ []) do
-    {output, status} = run(project, env)
+  defp run!(project, env \\ [], vm_args \\ []) do
+    {output, status} = run(project, env, vm_args)
     assert status == 0, output
     assert File.exists?(Path.join(project, "result.json")), output
     result = JSON.decode!(File.read!(Path.join(project, "result.json")))
     Map.put(result, "output", output)
   end
 
-  defp run(project, env \\ []) do
+  defp run(project, env \\ [], vm_args \\ []) do
     ebin = :tuist_ex |> :code.lib_dir() |> to_string() |> Path.join("ebin")
 
     script = """
@@ -2302,7 +2519,7 @@ defmodule TuistEx.DependencyCacheTest do
     end)
     """
 
-    System.cmd(System.find_executable("elixir"), ["-pa", ebin, "-e", script],
+    System.cmd(System.find_executable("elixir"), vm_args ++ ["-pa", ebin, "-e", script],
       cd: project,
       env:
         [

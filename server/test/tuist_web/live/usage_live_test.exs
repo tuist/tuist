@@ -10,7 +10,10 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Repo
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.CacheVolumes.SavedSize
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -53,7 +56,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(7_500, :USD),
       billed: Money.new(0, :USD),
@@ -84,7 +87,7 @@ defmodule TuistWeb.UsageLiveTest do
       period_end: ~D[2026-09-24],
       usage_through: ~D[2026-08-25],
       minutes: 1_000,
-      free_minutes: 100,
+      free_minutes: %{macos: 100, linux: 2_500},
       gross: Money.new(7_500, :USD),
       trial_covered: Money.new(0, :USD),
       billed: Money.new(6_750, :USD),
@@ -344,10 +347,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "−75.00"
     end
 
-    test "does not deduct from a platform that has no rate yet", %{conn: conn, account: account} do
-      # Linux has no agreed rate, so its value reads as a dash. Taking a
-      # dash off a dash rendered "−—", which is not a number and not an
-      # explanation.
+    test "shows a Linux receipt billed past its own free minutes", %{conn: conn, account: account} do
+      # 2,590 minutes are 90 past the 2,500 free Linux ones: $6.22 of
+      # usage, $6.00 of it included and 22 cents billed.
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       breakdown = %{
@@ -356,13 +358,13 @@ defmodule TuistWeb.UsageLiveTest do
             %{
               id: "linux",
               platform: :linux,
-              minutes: 90,
-              projected_minutes: 90,
-              included_minutes: nil,
+              minutes: 2_590,
+              projected_minutes: 2_590,
+              included_minutes: 2_500,
               previous_minutes: 0,
-              gross: nil,
-              trial_covered: nil,
-              billed: nil
+              gross: Money.new(622, :USD),
+              trial_covered: Money.new(0, :USD),
+              billed: Money.new(22, :USD)
             }
           ]
       }
@@ -374,8 +376,10 @@ defmodule TuistWeb.UsageLiveTest do
 
       html = render(lv)
 
-      assert html =~ "90 minutes run"
-      refute html =~ "−—"
+      assert html =~ "2,590 minutes run"
+      assert html =~ "2,500 minutes included"
+      assert html =~ "−6.00"
+      assert html =~ "0.22"
       refute html =~ "Covered by your trial"
     end
 
@@ -385,6 +389,53 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
       refute has_element?(lv, "[data-part='runner-usage-card']")
+    end
+  end
+
+  describe "cache volume storage" do
+    test "walks the period's GB-months down to what the allowance leaves", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository_id: 1,
+          repository: "org/app",
+          key: "deps",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      Repo.insert!(%SavedSize{
+        volume_id: volume.id,
+        size_bytes: 42_000_000_000,
+        observed_at: DateTime.add(DateTime.utc_now(), -60, :day)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-storage-stored", "42.0 GB")
+      assert has_element?(lv, "[data-kind='storage']", "100.0 GB-months included")
+      assert has_element?(lv, "[data-kind='storage']", "$0.10 per GB-month")
+      assert has_element?(lv, "#storage-chart")
+    end
+
+    test "shows an empty state for an account that saved nothing", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part='storage-usage-empty']")
+    end
+
+    test "is hidden for an account with neither runners nor usage", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part='storage-usage-card']")
     end
   end
 
@@ -545,11 +596,67 @@ defmodule TuistWeb.UsageLiveTest do
     end
   end
 
+  describe "sandbox usage" do
+    test "adds up the vCPU-hours sandboxes ran in the period", %{conn: conn, account: account} do
+      stub(DateTime, :utc_now, fn -> ~U[2026-01-17 12:00:00.000000Z] end)
+      sandbox_id = Ecto.UUID.generate()
+
+      # Two hours on 4 vCPUs in the period, and an hour before it that
+      # counts towards the previous one.
+      Tuist.Sandboxes.SandboxEvent.Buffer.insert_all(
+        for {event, at} <- [
+              {"started", ~N[2025-12-31 23:00:00.000000]},
+              {"paused", ~N[2026-01-01 00:00:00.000000]},
+              {"started", ~N[2026-01-17 08:00:00.000000]},
+              {"paused", ~N[2026-01-17 10:00:00.000000]}
+            ] do
+          %{
+            id: UUIDv7.generate(),
+            account_id: account.id,
+            sandbox_id: sandbox_id,
+            event: event,
+            source: "amp",
+            vcpus: 4,
+            memory_mb: 8192,
+            workspace_gb: 10,
+            boot_source: "",
+            duration_ms: 0,
+            inserted_at: at
+          }
+        end
+      )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-sandbox-vcpu-hours", "8.0")
+      # 8 vCPU-hours at $0.06, none of it billed during early access.
+      assert has_element?(lv, "#widget-sandbox-gross", "0.48")
+      assert has_element?(lv, "#widget-sandbox-billed", "0.00")
+      assert has_element?(lv, "#sandbox-spend-chart")
+      assert has_element?(lv, ~s([data-kind="sandboxes"] [data-kind="credit"]), "0.48")
+      # 16.5 of January's 31 days have passed: 8 × 31 / 16.5 rounds down to 15.
+      assert has_element?(
+               lv,
+               ~s([data-kind="sandboxes"] [data-part="footnote"]),
+               "On track for about 15 vCPU-hours this period. Last period came to 4.0."
+             )
+    end
+
+    test "is hidden while the account has no sandboxes", %{conn: conn, account: account} do
+      stub(FeatureFlags, :sandboxes_enabled?, fn _account -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute html =~ "Sandbox usage"
+    end
+  end
+
   describe "rendering" do
     test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
-      assert html =~ "Runner time and cache traffic billed to this account"
+      assert html =~ "Runner time, cache volume storage, and cache traffic billed to this account"
       assert html =~ "Billing period:"
       # Both the free-range and project controls are gone: the page
       # reports one period, and everything on it follows that period.
@@ -567,7 +674,7 @@ defmodule TuistWeb.UsageLiveTest do
       account = user.account
       started = DateTime.add(now, -2, :hour)
 
-      Tuist.Repo.insert!(%Tuist.Runners.RunnerSession{
+      Repo.insert!(%Tuist.Runners.RunnerSession{
         account_id: account.id,
         workflow_job_id: System.unique_integer([:positive]),
         fleet_name: "tuist-macos",
@@ -591,9 +698,9 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "100 minutes included"
       assert html =~ "Billed this period"
       # The credit reads as money off the bill, not as a bare minute count.
-      assert html =~ "−7.50"
+      assert html =~ "−5.00"
       # 20 minutes past the allowance at the standard rate.
-      assert html =~ "1.50"
+      assert html =~ "1.00"
     end
 
     test "renders a pace for a projected runner receipt" do
@@ -682,11 +789,11 @@ defmodule TuistWeb.UsageLiveTest do
       # The projection has to share the axis and the stack with the
       # repositories, otherwise the days ahead land on their own bars
       # and the period reads as though it restarted.
-      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}]
 
       projected = [
-        %{date: ~D[2026-08-22], total_ms: 600_000},
-        %{date: ~D[2026-08-23], total_ms: 600_000}
+        %{date: ~D[2026-08-22], platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-23], platform: :macos, total_ms: 600_000}
       ]
 
       assert [spent, projection] = UsageLive.runner_chart_series(by_repository, projected)
@@ -711,8 +818,11 @@ defmodule TuistWeb.UsageLiveTest do
       # alone it stopped at today, so a period with days still ahead was
       # labelled as though it ended this morning.
       breakdown = %{
-        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}],
-        projected_days: [%{date: ~D[2026-08-22], total_ms: 600_000}, %{date: ~D[2026-08-23], total_ms: 600_000}]
+        by_repository: [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}],
+        projected_days: [
+          %{date: ~D[2026-08-22], platform: :macos, total_ms: 600_000},
+          %{date: ~D[2026-08-23], platform: :macos, total_ms: 600_000}
+        ]
       }
 
       options = breakdown |> UsageLive.runner_chart_dates() |> UsageLive.runner_chart_options()
@@ -721,10 +831,37 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "has no projected series for a period that is over" do
-      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", total_ms: 600_000}]
+      by_repository = [%{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000}]
 
       assert [only] = UsageLive.runner_chart_series(by_repository, [])
       refute only.name == "Projected"
+    end
+
+    test "values each platform's rows at its own rate" do
+      # Ten macOS minutes are $0.50 and a thousand Linux baseline minutes
+      # $2.40, so a day running both comes to $2.90 rather than either
+      # rate applied to the sum.
+      by_repository = [
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :linux, total_ms: 60_000_000}
+      ]
+
+      assert [only] = UsageLive.runner_chart_series(by_repository, [])
+      assert only.data == [[~D[2026-08-21], 2.9]]
+    end
+
+    test "splits the spend by platform across repositories" do
+      # Two repositories on both platforms: by platform, the bars carry one
+      # series per platform, each summing its rows from every repository.
+      by_repository = [
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/other", platform: :macos, total_ms: 600_000},
+        %{date: ~D[2026-08-21], repository: "tuist/tuist", platform: :linux, total_ms: 60_000_000}
+      ]
+
+      assert [linux, macos] = UsageLive.runner_chart_series(by_repository, [], "platform")
+      assert {linux.name, linux.data} == {"Linux", [[~D[2026-08-21], 2.4]]}
+      assert {macos.name, macos.data} == {"macOS", [[~D[2026-08-21], 1.0]]}
     end
   end
 end

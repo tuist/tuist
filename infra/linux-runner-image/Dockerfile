@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-# Tuist Linux runner image — Ubuntu 22.04 base with the GitHub
+# Tuist Linux runner image — Ubuntu base (24.04 by default, 22.04 with
+# `--build-arg OS_VERSION=ubuntu-22.04`) with the GitHub
 # Actions runner binary and Tuist's dispatch-poll script baked in.
 # Designed to run as a single-job Pod on Hetzner Cloud nodes
 # managed by the runners-controller. After `./run.sh --jitconfig
@@ -15,6 +16,10 @@
 #
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
+
+# Global scope: `FROM base-${OS_VERSION}` below only sees ARGs declared
+# before the first FROM.
+ARG OS_VERSION=ubuntu-24.04
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS runner-shell-agent-builder
 
@@ -47,6 +52,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
+
+# Executor for runner jobs created through the Tuist API. Stdlib only.
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS job-runner-builder
+WORKDIR /src
+COPY job-runner/go.mod ./
+COPY job-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-job-runner .
 
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
@@ -126,14 +142,24 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # `runner`, not root.
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
-FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS runner
-
+# One base stage per Ubuntu release a Runner Profile can pick
+# (`runnersFleetLinux.osVersions` in the chart). `OS_VERSION` selects one;
+# BuildKit builds only the stage it names, so the other base is never
+# pulled. Everything after the base is shared, and the large layers
+# (`COPY --link` of the Android SDK) do not depend on it.
+#
 # GitHub-hosted runners set ImageOS, and setup actions such as
-# erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
-# in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
-# is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
-# `ubuntu22-arm64`.
+# erlef/setup-beam read it to pick a prebuilt binary for the OS, so each
+# base sets the value GitHub uses for its release. The image is
+# amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
+# `ubuntu24-arm64` / `ubuntu22-arm64`.
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS base-ubuntu-24.04
+ENV ImageOS=ubuntu24
+
+FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04
 ENV ImageOS=ubuntu22
+
+FROM base-${OS_VERSION} AS runner
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
 # of the box and apt-driven installs in workflow steps don't trip
@@ -149,7 +175,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # stays deferred to a `tuist-linux-runner-fat` variant).
 #
 # Categorized for readability:
-#   - actions/runner runtime: libicu70 + libssl3 + libkrb5
+#   - actions/runner runtime: libicu + libssl3 + libkrb5. 24.04 renamed
+#     the ICU and OpenSSL runtime packages (libicu74, libssl3t64), so the
+#     names come from the base's release
 #   - baseline shell + transfer: bash, ca-certificates, curl, wget,
 #     gnupg, jq, locales, lsb-release, sudo, tar, unzip, xz-utils
 #   - build toolchain: build-essential pulls gcc/g++/make/libc6-dev;
@@ -166,7 +194,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #   - DB clients: client-only — services land in containers in
 #     workflows that need them
 #   - common CLI utilities: ripgrep, fd-find, tree, less, vim,
-#     httpie, netcat, dnsutils, iputils-ping, file
+#     httpie, netcat, dnsutils, iproute2, iputils-ping, file. The Bitrise
+#     den agent reads the default interface through `ip`, and fails to
+#     start without it
 #   - python3 toolchain: python3 + pip + venv so actions/setup-*
 #     can bootstrap pip-based tooling without re-installing the
 #     interpreter
@@ -174,17 +204,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # `actions/runner` registers under a non-root user by default —
 # `RUNNER_ALLOW_RUNASROOT=0` enforces it, and the explicit `runner`
 # user is created below.
-RUN apt-get update \
+RUN . /etc/os-release \
+    && case "$VERSION_ID" in \
+         22.04) runtime_packages="libicu70 libssl3" ;; \
+         24.04) runtime_packages="libicu74 libssl3t64" ;; \
+         *) echo "No runtime packages for Ubuntu $VERSION_ID" >&2; exit 1 ;; \
+       esac \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
+        $runtime_packages \
         bash \
         ca-certificates \
         curl \
         git \
         gnupg \
         jq \
-        libicu70 \
         libkrb5-3 \
-        libssl3 \
         locales \
         lsb-release \
         sudo \
@@ -233,6 +268,7 @@ RUN apt-get update \
         httpie \
         netcat-openbsd \
         dnsutils \
+        iproute2 \
         iputils-ping \
         python3 \
         python3-pip \
@@ -327,9 +363,13 @@ ENV ANDROID_HOME=/usr/local/lib/android/sdk \
 # matches the hosted-runner experience. The `docker` group GID is
 # pinned to 123 to match the `--group=123` arg the controller
 # passes to dockerd in the sidecar, so the runner can reach
-# /var/run/docker.sock without sudo.
-RUN groupadd -g 123 docker \
-    && useradd -m -d /home/runner -s /bin/bash -G docker runner \
+# /var/run/docker.sock without sudo. `runner` is UID 1000 on every base:
+# cached checkouts and Docker data roots that earlier jobs left are owned
+# by it, and a profile can move between OS versions. 24.04 ships an
+# `ubuntu` user at UID 1000, which is removed; 22.04 has none.
+RUN if id -u ubuntu >/dev/null 2>&1; then userdel --remove ubuntu; fi \
+    && groupadd -g 123 docker \
+    && useradd -m -u 1000 -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
     && chown -R runner:runner /home/runner \
@@ -366,6 +406,41 @@ RUN set -eux; \
     rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
     buildkite-agent --version
 
+# The Bitrise den agent and the CLI it runs builds with, for the same
+# reason. Started without `--fetch-latest-cli`, so neither updates itself.
+# The agent checksums are the ones bitrise-io/homebrew-den-agent pins; the
+# CLI's come from the release's checksums.txt.
+# renovate: datasource=github-releases depName=bitrise-io/bitrise-den-agent
+ARG BITRISE_DEN_AGENT_VERSION=2.69.0
+ARG BITRISE_DEN_AGENT_SHA256_AMD64=926b332d0f0fb5cd423396658bf0236607eadcb52f2bb8f4ec7d7c74951b6909
+ARG BITRISE_DEN_AGENT_SHA256_ARM64=a3ffa2413e829b1e9045195550cbae8d4967f1d17a40ad8ad72dd5680d85b0f5
+# renovate: datasource=github-releases depName=bitrise-io/bitrise
+ARG BITRISE_CLI_VERSION=3.2.1
+ARG BITRISE_CLI_SHA256_AMD64=509952cfde023199f569928aedecf8a6550931df2db2ece6517c6c28492ec3c6
+ARG BITRISE_CLI_SHA256_ARM64=8b4e4a9dbb0b01984ce70580c53f07b30fb8aa24961506005f7ea4b6d6d30606
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) agent_arch=amd64; agent_sha="${BITRISE_DEN_AGENT_SHA256_AMD64}"; cli_arch=x86_64; cli_sha="${BITRISE_CLI_SHA256_AMD64}" ;; \
+      arm64) agent_arch=arm64; agent_sha="${BITRISE_DEN_AGENT_SHA256_ARM64}"; cli_arch=arm64; cli_sha="${BITRISE_CLI_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl -fSL "https://github.com/bitrise-io/bitrise-den-agent/releases/download/v${BITRISE_DEN_AGENT_VERSION}/bitrise-den-agent-linux-${agent_arch}.zip" \
+        -o /tmp/bitrise-den-agent.zip; \
+    echo "${agent_sha}  /tmp/bitrise-den-agent.zip" | sha256sum -c -; \
+    mkdir -p /tmp/bitrise-den-agent-dist; \
+    unzip -q /tmp/bitrise-den-agent.zip -d /tmp/bitrise-den-agent-dist; \
+    install -m 0755 /tmp/bitrise-den-agent-dist/bitrise-den-agent /usr/local/bin/bitrise-den-agent; \
+    curl -fSL "https://github.com/bitrise-io/bitrise/releases/download/v${BITRISE_CLI_VERSION}/bitrise-Linux-${cli_arch}" \
+        -o /tmp/bitrise; \
+    echo "${cli_sha}  /tmp/bitrise" | sha256sum -c -; \
+    install -m 0755 /tmp/bitrise /usr/local/bin/bitrise; \
+    mkdir -p /opt/bitrise/var/log /opt/bitrise/releases /opt/bitrise/bin; \
+    touch /opt/bitrise/.env_all.yaml; \
+    chown -R runner:runner /opt/bitrise; \
+    rm -rf /tmp/bitrise-den-agent.zip /tmp/bitrise-den-agent-dist /tmp/bitrise; \
+    bitrise-den-agent --version; \
+    bitrise --version
+
 USER runner
 WORKDIR /home/runner/actions-runner
 
@@ -387,6 +462,7 @@ USER root
 # Compiled clients precede scripts so a shell-only release leaves their layers
 # untouched, including the copy exposed to Docker job containers via /__e.
 COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
+COPY --from=job-runner-builder /out/tuist-job-runner /usr/local/bin/tuist-job-runner
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
@@ -396,6 +472,7 @@ COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/acti
 # Set permissions during COPY: a later chmod would copy unchanged binaries
 # into another layer whenever a script changes.
 COPY --chmod=0755 buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+COPY --chmod=0755 bitrise-hooks/ /usr/local/share/tuist/bitrise-hooks/
 COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh /usr/local/bin/
 
 USER runner

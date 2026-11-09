@@ -50,7 +50,7 @@ msgstr "لم يتم العثور على قاعدة التنبيه. يرجى ال
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "انتهت صلاحية طلب التفويض. يرجى بدء عملية ربط Slack مرة أخرى."
+msgstr "انتهت صلاحية طلب التفويض. يرجى بدء عملية الاتصال بـ Slack مرة أخرى."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

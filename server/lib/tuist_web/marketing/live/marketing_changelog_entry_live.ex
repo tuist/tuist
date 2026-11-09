@@ -20,13 +20,25 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
     {:ok, socket}
   end
 
-  def handle_params(%{"id" => id}, _url, socket) do
+  def handle_params(%{"id" => id}, url, socket) do
     entry = Changelog.get_entry_by_id(id)
 
     if is_nil(entry) do
       raise NotFoundError
     end
 
+    uri = URI.parse(url)
+    request_path = Localization.path_without_locale(uri.path)
+
+    if Enum.any?(Changelog.available_locales(entry), &(Localization.localized_href(request_path, &1) == uri.path)) do
+      render_entry(entry, socket)
+    else
+      target = %URI{path: "/changelog/#{entry.id}", query: uri.query}
+      {:noreply, redirect(socket, to: URI.to_string(target))}
+    end
+  end
+
+  defp render_entry(entry, socket) do
     date = Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")
 
     {head_image, head_image_dimensions} = changelog_entry_head_image(entry, date)
@@ -34,6 +46,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
     {:noreply,
      socket
      |> assign(:entry, entry)
+     |> assign(:head_available_locales, Changelog.available_locales(entry))
      |> assign(:head_title, entry.title)
      |> assign(:head_description, entry.description)
      |> assign(:head_image, head_image)

@@ -27,7 +27,7 @@ defmodule Tuist.Repo.Migrations.MoveXcode272BetaRunnerProfilesToStableTest do
 
     stub(Environment, :runners_site_pools, fn ->
       Map.new(
-        for version <- ["27-2-beta", "27-2"], suffix <- ["", "-12vcpu-28gb"] do
+        for version <- ["27-2-beta", "27-2"], suffix <- ["", "-16vcpu-48gb"] do
           {"#{@prefix}-ber1-#{version}#{suffix}", %{site: "ber1", platform: :macos}}
         end
       )
@@ -77,7 +77,7 @@ defmodule Tuist.Repo.Migrations.MoveXcode272BetaRunnerProfilesToStableTest do
     account: account
   } do
     pairs =
-      for {shape, suffix} <- [{[vcpus: 6, memory_gb: 14], ""}, {[vcpus: 12, memory_gb: 28], "-12vcpu-28gb"}],
+      for {shape, suffix} <- [{[vcpus: 8, memory_gb: 24], ""}, {[vcpus: 16, memory_gb: 48], "-16vcpu-48gb"}],
           placement <- [:rented, :rack] do
         original = profile(account, shape)
         job = job(account, pool_name(original, placement))

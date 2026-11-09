@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -104,11 +104,12 @@ func forgetKataRuntimeMetric(machine string) {
 // job instead of queueing it.
 func renderKataRuntimeRepairScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
+	podLevel := podLevelResourceManagers(opts.K8sMinor, true)
 	kubeletUnit := kubeletUnitContent(
 		opts.NodeName,
 		taintArgFor(opts.Taints),
 		instanceTypeOrDefault(opts.InstanceType),
-		kataNodeLabelsArg(true),
+		kataNodeLabelsArg(true, podLevel),
 	)
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
@@ -143,7 +144,7 @@ export DEBIAN_FRONTEND=noninteractive
 %[1]stee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'
 %[2]sTUIST_EOF
 %[1]ssystemctl daemon-reload
-`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true), sudoE)
+`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true, podLevel), sudoE)
 }
 
 // labelKataRuntimeNode patches the kata labels onto the live Node, which is the

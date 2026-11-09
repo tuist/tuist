@@ -24,6 +24,10 @@
 # box can be prepped with no cluster access. Falls back to the in-cluster
 # <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
 # selects the entity (default ovh-us).
+#
+# This task is for people. Agents prep a box through the Atlas MCP's
+# approval-gated ovh-servers__reinstall-dedicated-server instead (see
+# infra/AGENTS.md, "From an Amp orb"), so the OVH_API token never reaches them.
 
 set -euo pipefail
 

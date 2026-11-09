@@ -7,7 +7,7 @@
 ---
 # Android {#bundle-insights-android}
 
-Analiza un bundle de Android indicando `tuist inspect bundle` a un app bundle o un instalable:
+Analiza un paquete de Android apuntando `tuist inspect bundle` a un paquete de aplicación o a un instalable:
 
 ::: code-group
 ```bash [Analyze an .aab (recommended)]
@@ -22,8 +22,6 @@ tuist inspect bundle App.apk
 > [!NOTE]
 > **Analizar un `.apk` requiere `aapt2`**, que se incluye con las herramientas de compilación del SDK de Android. Configura `ANDROID_HOME` o `ANDROID_SDK_ROOT` para que Tuist pueda encontrarlo, o añade `aapt2` al `PATH`. Analizar un `.aab` no necesita herramientas externas.
 
-El comando sube el bundle a Tuist y devuelve un enlace a una vista detallada, que incluye un análisis del contenido y un desglose por módulos:
-
-![Bundle analizado](/images/guides/features/bundle-size/analyzed-bundle.png)
+<!-- @snippet: ./_upload-result -->
 
 <!-- @snippet: ./_shared -->

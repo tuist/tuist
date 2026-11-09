@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "93d5ec8f301d73269dfc9878af8bdb90bca716053ce77a1b5e256db5633d359b",
+  "hash": "5da64bd92bcd091d218f60b352819eec382cf4cd10a67587a6771da28e3f3a06",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,58 +11,25 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Gradle flaky tests {#gradle-flaky-tests}": {
-                  "content_hash": "67f7b3af5ebe850d58133d5d8e49a9f27e192dee07fedfb094a83fc4049ec3e7"
+                  "content_hash": "a7bf8555cc3c97d159f86afddad809d6c48633a9d21f7fa636407626612e1e99"
                 },
                 "## How flaky detection works {#how-it-works}": {
                   "content_hash": "5f98312f9bc586bd32cb842f08bc11c8d30e8f2e24b09353c1bb0aa8819ec2f9"
                 },
-                "## Managing flaky tests {#managing-flaky-tests}": {
-                  "content_hash": "11d25e392de7f616097c41bd981e80c7ca6dc4bea26bcb5cbc19e63323498f7b"
-                },
                 "## Quarantining flaky tests {#quarantining}": {
-                  "content_hash": "1bbe2adca7b1a13fbe36a8d98c318b5e89ae14076364859a72c65c70d8bec397"
-                },
-                "## Querying flaky and quarantined state {#querying}": {
-                  "content_hash": "72798b50903aa02c966d084590175f6141864a03d5083b0e1815f5e37b7e97d2"
-                },
-                "## Slack notifications {#slack-notifications}": {
-                  "content_hash": "935080092bbd6787aaab4211dcff24737f0684a20badd29e06505fcfa3223c4c"
+                  "content_hash": "f3513787d706f32183b2e4a8e90b0053330f7fdce06810fb8669c862c971d3af"
                 },
                 "## Stress-testing new tests {#stress-testing-new-tests}": {
-                  "content_hash": "279d63147cf803da7b70d8d8925bb54dbe34b26b1a51ae95c2d35735f698fc4c"
-                },
-                "### Automatic clearing": {
-                  "content_hash": "4c1cb6d485552e05e578c9d98ad86331426c472b54fb1e957219eac49bb35e83"
-                },
-                "### CLI": {
-                  "content_hash": "09b942346ea389b37942f7641b8d0ac043be11809f2ab6017721a14ca2adbebf"
+                  "content_hash": "6bd26a0cd592e204bdb567b01b5c273f55b4956c51e3758bf7ec46cbaa012208"
                 },
                 "### Cross-run detection {#cross-run-detection}": {
-                  "content_hash": "56ff537967d4b474c8ca1063586bc510ef6c007bf900734714766d4ce1a7a117"
-                },
-                "### Enabling it": {
-                  "content_hash": "ea6e655a0ef669619ea076762b1b930e90e8516c9a1390d9399ed52e09cadb0d"
+                  "content_hash": "2cd140d8b684da46cc00e9fa2c03a95791d7d9336864d6a36f82631f913c3fca"
                 },
                 "### Enabling quarantine {#enabling-quarantine}": {
                   "content_hash": "d673e4245c252ace92453523c4d2e5950e343c51057e446d8f9ddde461911d3a"
                 },
-                "### How many times each test reruns": {
-                  "content_hash": "b2b39651dcdc697e07fdd1b6f56da7ae1674e6c6f9ffc9784d645066b02b5a3f"
-                },
-                "### Manual management": {
-                  "content_hash": "b0a03976838d963ea081edccd9d0467fe309e5834a7830378bbfb072dc1379e4"
-                },
-                "### REST API": {
-                  "content_hash": "5c4eba85d5336f143c63e7d9bbcef5b9b9114c684892d90c3a81b47c739a09da"
-                },
                 "### Test retries {#test-retries}": {
                   "content_hash": "534f4cce733746d206096bd04b758c5b1bfbe7637ddef4af3a757941e217783f"
-                },
-                "### When the gate doesn't run": {
-                  "content_hash": "b5f027ae13394b68b2a98814bef87631751c37dc778b6aa70354d961d23a6370"
-                },
-                "### Why quarantined tests can appear as passing {#quarantined-passing}": {
-                  "content_hash": "e405f964fc43a05d6249ac3f5ed5cdcaa3a8b027b104193061425274b3ea1599"
                 },
                 "Preamble": {
                   "content_hash": "95a9e8fc0be4b062c7ef746d378782be2f07f51e807e46220384d65995e0d288"
@@ -71,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "7e976db591228ff2e483a89cd9bd145205bbd6bd383453038f7ad5c55582241e",
+          "hash": "10dd264264d8fb30c10a84ae7e5a14db11879a96dc80135a6b0c4d713e7d7f36",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
           "metadata": {
-            "content_hash": "356fc9195ca0c5459690e9afe0f033e992ddf769b5ff0c4ae258cff8cdd13e58"
+            "content_hash": "5764557b36f922861b6fd9024a659c3054e032cd7a32130a0a7139d5500f576e"
           }
         },
         {
@@ -136,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,13 +122,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -174,21 +141,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -262,12 +229,6 @@
                         "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
                         "translation_hash": "60588e84943d7d6e9a6cfa7cd9e7214a74f00d7b394c2e8680eebce228afd518"
                       },
-                      "entry:f62132c6f65234d7723d00af7da7844ea4be17735ae97c8c81542d1a3c7124cb": {
-                        "case_sensitive": false,
-                        "definition_hash": "b34d6f2265704075c9f2d7555824d65602d7ab02302a028b9c7e2a4f850faffc",
-                        "term_hash": "b792c1896e8d0a8070db2b6fb633a4e82d21621dffc66dc8354ff941bac35e5f",
-                        "translation_hash": "6ce6de421469abb179d84d6fea9b4865cd18e2cedd8aaf679ef321d7fcf75477"
-                      },
                       "entry:fdcdde56d01f2c4dab158a2c7113ac79adb7e903a93f74f13bb8d43b8cc484d8": {
                         "case_sensitive": false,
                         "definition_hash": "98331c521e97b455755792e924a8205eb9e5e1f87f3db30a09d717cecf8afea5",
@@ -276,16 +237,16 @@
                       }
                     }
                   },
-                  "hash": "554dc212d34066daa560cffd7e9e993b1ad11f702a6c09666083b946c2d8d529",
+                  "hash": "a64225b1663db5445de695c65d5375a0d00cca377f1264381df201a043f0c7d0",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "8db3d3d597acf21b76424b3fdcbd6e4a43a8969c3b91b6fd295bd3831114fec3"
+                    "content_hash": "33159981c8d017fe104b81224552a98ce9d9a2fbf490f636a3852828e5ff1e71"
                   }
                 }
               ],
               "details": {},
-              "hash": "ba0619dc7ed8b0696cc830a8b55d5cf4b014a9869e1c46bfae7323f513872b72",
+              "hash": "3756cf658af04848a7b887421443e2f4a32c1a9dbdc03b5fb7fa1191b9429ab6",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -295,21 +256,21 @@
             }
           ],
           "details": {},
-          "hash": "3698b2d11dc916988beb7eb44e1e7e30d20a08407be6c2f8082965370a390155",
+          "hash": "4f145dc486247f06469a0dcb6b041a5eb853c530461f2dab07be8211dbcd8721",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "93d5ec8f301d73269dfc9878af8bdb90bca716053ce77a1b5e256db5633d359b",
+      "hash": "5da64bd92bcd091d218f60b352819eec382cf4cd10a67587a6771da28e3f3a06",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f590ddf910b89785e88519acd0cfd9b66221554f06791a023b933dcca24f75e0",
+  "output_hash": "b8e482a7940be4d93c2c69175bf60ad729555d1a31329ec6eef7d2a80df067f5",
   "output_path": "server/priv/docs/ko/guides/features/test-insights/flaky-tests/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -320,10 +281,9 @@
         "repo:features",
         "repo:flaky-tests",
         "repo:test-case",
-        "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "8db3d3d597acf21b76424b3fdcbd6e4a43a8969c3b91b6fd295bd3831114fec3",
+      "content_hash": "33159981c8d017fe104b81224552a98ce9d9a2fbf490f636a3852828e5ff1e71",
       "shadowed": [],
       "version": null
     },
@@ -333,8 +293,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
-  "translated_at": "2026-10-29T15:53:29.286723Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-06T21:25:55.253604Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

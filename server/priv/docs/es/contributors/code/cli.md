@@ -7,11 +7,11 @@
 ---
 # CLI {#cli}
 
-Origen: [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) y [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
+Fuente: [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) y [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
 ## Para qué sirve {#what-it-is-for}
 
-La CLI es el núcleo de Tuist. Gestiona la generación de proyectos, flujos de automatización (test, run, graph e inspect) y proporciona la interfaz con el servidor de Tuist para funcionalidades como autenticación, caché, insights, previews, registry y tests selectivos.
+La CLI es el corazón de Tuist. Se encarga de la generación de proyectos, los flujos de automatización (test, run, graph e inspect) y proporciona la interfaz con el servidor de Tuist para funcionalidades como autenticación, caché, insights, previews, registry y tests selectivos.
 
 ## Cómo contribuir {#how-to-contribute}
 
@@ -25,21 +25,21 @@ La CLI es el núcleo de Tuist. Gestiona la generación de proyectos, flujos de a
 - Clona el repositorio: `git clone git@github.com:tuist/tuist.git`
 - Instala Mise usando [su script oficial de instalación](https://mise.jdx.dev/getting-started.html) (no Homebrew) y ejecuta `mise install`
 - Instala las dependencias de Tuist: `tuist install`
-- Genera el workspace: `tuist generate`
+- Genera el espacio de trabajo: `tuist generate`
 
 El proyecto generado se abre automáticamente. Si necesitas volver a abrirlo más tarde, ejecuta `open Tuist.xcworkspace`.
 
 > [!NOTE]
-> **Xed .**
+> **`xed .`**
 >
-> Si intentas abrir el proyecto con `xed .`, se abrirá el paquete, no el workspace generado por Tuist. Usa `Tuist.xcworkspace`.
+> Si intentas abrir el proyecto con `xed .`, se abrirá el paquete, no el espacio de trabajo generado por Tuist. Usa `Tuist.xcworkspace`.
 
 
 ### Ejecutar Tuist {#run-tuist}
 
 #### Desde Xcode {#from-xcode}
 
-Edita el esquema `tuist` y configura argumentos como `generate --no-open`. Establece el directorio de trabajo en la raíz del proyecto (o usa `--path`).
+Edita el esquema `tuist` y establece argumentos como `generate --no-open`. Configura el directorio de trabajo en la raíz del proyecto (o usa `--path`).
 
 > [!WARNING]
 > **Compilación de ProjectDescription**
@@ -47,9 +47,9 @@ Edita el esquema `tuist` y configura argumentos como `generate --no-open`. Estab
 > La CLI depende de que `ProjectDescription` esté compilado. Si falla al ejecutarse, compila primero el esquema `Tuist-Workspace`.
 
 
-#### Desde la terminal {#from-the-terminal}
+#### Desde el terminal {#from-the-terminal}
 
-Primero genera el workspace:
+Primero genera el espacio de trabajo:
 
 ```bash
 tuist generate --no-open

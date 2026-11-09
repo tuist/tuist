@@ -180,11 +180,10 @@ defmodule TuistOps.JIT.SlackBlocks do
   # The GitHub login comes from the slash command, so it may not be the
   # requester's own account; the card names it next to the requester.
   defp target_line(%Request{target_group: target_group} = req) do
-    if Policy.github_admin_group?(target_group) do
-      "*GitHub account:* <https://github.com/#{req.github_login}|#{req.github_login}> → organization admin"
-    else
-      "*Group:* `#{target_group}`"
-    end
+    if Policy.github_admin_group?(target_group),
+      do:
+        "*GitHub account:* <https://github.com/#{req.github_login}|#{req.github_login}> → organization admin",
+      else: "*Group:* `#{target_group}`"
   end
 
   defp format_seconds(seconds) when seconds < 60, do: "#{seconds}s"

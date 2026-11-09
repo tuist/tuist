@@ -1,0 +1,42 @@
+<.security_settings_frame
+  title={dgettext("dashboard_auth", "Save your recovery codes")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Save these codes somewhere safe. You won't see them again."
+    )
+  }
+>
+  <ul id="mfa-recovery-codes">
+    <li :for={code <- @codes}><code>{code}</code></li>
+  </ul>
+  <p data-part="security-note">
+    {dgettext(
+      "dashboard_auth",
+      "Each code can be used once if you lose access to your authenticator."
+    )}
+  </p>
+  <div data-part="actions">
+    <.button
+      type="button"
+      variant="secondary"
+      size="large"
+      data-copy-recovery-codes
+      data-copy-success={dgettext("dashboard_auth", "Recovery codes copied")}
+      data-copy-failure={
+        dgettext(
+          "dashboard_auth",
+          "Could not copy automatically. Select and copy your recovery codes."
+        )
+      }
+      label={dgettext("dashboard_auth", "Copy recovery codes")}
+    />
+    <span data-copy-status role="status" class="auth-copy-status"></span>
+    <.button
+      variant="primary"
+      size="large"
+      href={~p"/users/settings/mfa"}
+      label={dgettext("dashboard_auth", "I saved my recovery codes")}
+    />
+  </div>
+</.security_settings_frame>

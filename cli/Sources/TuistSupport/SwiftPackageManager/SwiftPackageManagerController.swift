@@ -73,11 +73,15 @@ protocol SwifterPMResolving: Sendable {
 
 extension SwifterPM: SwifterPMResolving {
     func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws {
-        _ = try await resolve(request)
+        _ = try await SwifterPM.withDebugHandler({ Logger.current.debug("\($0)") }) {
+            try await resolve(request)
+        }
     }
 
     func updateDependencies(_ request: SwifterPMResolutionRequest) async throws {
-        _ = try await update(request)
+        _ = try await SwifterPM.withDebugHandler({ Logger.current.debug("\($0)") }) {
+            try await update(request)
+        }
     }
 }
 
@@ -345,6 +349,8 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         request.quiet = request.quiet || !printOutput
         request.manifestEnvironment = manifestEnvironment
         request.resolutionEnvironment = resolutionEnvironment
+        request.cacheMaxBytes = environmentVariables()[Constants.EnvironmentVariables.dependenciesCacheMaxBytes]
+            .flatMap { Int($0) }
         return request
     }
 

@@ -2,11 +2,14 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Engineering.Errors.PulseMirror
 alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
+alias Atlas.MCP.Proxy.StripeCallPolicy
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
+alias Swoosh.Adapters.AmazonSES
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
@@ -229,15 +232,52 @@ if gtm_ingest_token = System.get_env("ATLAS_GTM_INGEST_TOKEN") do
   config :atlas, :gtm_ingest, token: gtm_ingest_token
 end
 
-# Mailgun is the company's email provider: tuist.dev is already verified there
-# and has a sending history, which a second provider would not inherit. The
-# account is in Mailgun's EU region, so the base URL is not the default one.
-if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
+# Products report agent feedback with a projected Kubernetes ServiceAccount
+# token (audience `atlas-support-ingest`) from their own cluster, verified
+# offline against that cluster's pinned public JWKS (Atlas.WorkloadIdentity).
+# The subject is the one `namespace:service-account` allowed to report.
+if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
+  config :atlas, :support_ingest,
+    issuer: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_ISSUER"),
+    audience: "atlas-support-ingest",
+    jwks: support_ingest_jwks,
+    subject: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT")
+end
+
+case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
+  "mailgun" ->
+    if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
+      config :atlas, Atlas.Mailer,
+        adapter: Mailgun,
+        api_key: mailgun_api_key,
+        domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
+        base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+    end
+
+  "ses" ->
+    config :atlas, Atlas.Mailer,
+      adapter: AmazonSES,
+      region: System.fetch_env!("ATLAS_SES_REGION"),
+      access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+      secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+
+  provider ->
+    raise "unsupported mailing provider: #{inspect(provider)}"
+end
+
+# Atlas.Mailer sends through SES from this instant on, without a restart.
+if ses_starts_at = System.get_env("ATLAS_SES_STARTS_AT") do
+  {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
   config :atlas, Atlas.Mailer,
-    adapter: Mailgun,
-    api_key: mailgun_api_key,
-    domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
-    base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+    ses_cutover:
+      {ses_starts_at,
+       [
+         adapter: AmazonSES,
+         region: System.fetch_env!("ATLAS_SES_REGION"),
+         access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+         secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+       ]}
 end
 
 allowed_email_domain =
@@ -591,56 +631,175 @@ case System.get_env("MCP_PROXY_SERVERS") do
       # governs anything beyond their memberships.
       tuist_mcp_base_url = System.get_env("TUIST_MCP_BASE_URL") || "https://tuist.dev"
 
+      # Pulse holds each Tuist cluster's metrics, logs, traces and Kubernetes
+      # events. Its MCP tools are read-only queries scoped to one tenant.
+      # Atlas authenticates to each with its own projected ServiceAccount
+      # token (audience = that Pulse's host), so there is no shared secret.
+      # The chart renders PULSE_MCP_UPSTREAMS from `pulse.upstreams`.
+      pulse_servers =
+        case JSON.decode(System.get_env("PULSE_MCP_UPSTREAMS") || "[]") do
+          {:ok, upstreams} when is_list(upstreams) ->
+            Enum.map(upstreams, fn upstream ->
+              %{
+                name: Map.fetch!(upstream, "name"),
+                url: Map.fetch!(upstream, "url"),
+                auth_type: "service_account_token",
+                token_path: Map.fetch!(upstream, "token_path"),
+                protocol_version: "2026-07-28",
+                read_only: true,
+                receive_timeout: 60_000
+              }
+            end)
+
+          _ ->
+            raise "environment variable PULSE_MCP_UPSTREAMS must be a JSON array"
+        end
+
       config :atlas, :mcp_proxy,
-        servers: [
-          %{
-            name: "tuist",
-            url: "#{tuist_mcp_base_url}/mcp",
-            auth_type: "oauth2",
-            authorization_url: "#{tuist_mcp_base_url}/oauth2/authorize",
-            token_url: "#{tuist_mcp_base_url}/oauth2/token",
-            registration_url: "#{tuist_mcp_base_url}/oauth2/register",
-            scopes: ["mcp"],
-            # The Tuist tool registry includes project and organization
-            # creation, membership changes and test-case updates. Atlas proxies
-            # this upstream to investigate production, so it takes only the
-            # tools that declare themselves read-only. That declaration is
-            # required of every Tuist tool at compile time, so a write tool
-            # cannot reach here by saying nothing — which is what lets this
-            # stand on its own without also enumerating the tools by name.
-            read_only: true,
-            # Atlas' ServiceAccount token, so the Tuist server knows the call
-            # came through Atlas' audit log and lets operators read any
-            # account without a grant.
-            atlas_identity_header: "x-tuist-atlas-identity"
-          },
-          %{
-            name: "grafana",
-            url: "https://mcp.grafana.com/mcp",
-            auth_type: "oauth2",
-            authorization_url: "https://mcp.grafana.com/mcp/oauth/authorize",
-            token_url: "https://mcp.grafana.com/mcp/oauth/token",
-            registration_url: "https://mcp.grafana.com/mcp/oauth/register",
-            scopes: ["grafana:read", "grafana:write"],
-            headers: grafana_headers
-          },
-          %{
-            name: "sentry",
-            url: System.get_env("SENTRY_MCP_URL") || "https://mcp.sentry.dev/mcp",
-            auth_type:
-              if(System.get_env("SENTRY_MCP_BEARER_TOKEN") in [nil, ""],
-                do: "oauth2",
-                else: "bearer_token"
-              ),
-            authorization_url: "https://mcp.sentry.dev/oauth/authorize",
-            token_url: "https://mcp.sentry.dev/oauth/token",
-            registration_url: "https://mcp.sentry.dev/oauth/register",
-            scopes: ["org:read", "project:write", "team:write", "event:write"],
-            shared_oauth: true,
-            shared_oauth_user_email: System.get_env("SENTRY_MCP_SHARED_USER_EMAIL"),
-            bearer_token: System.get_env("SENTRY_MCP_BEARER_TOKEN")
-          }
-        ]
+        servers:
+          [
+            %{
+              name: "tuist",
+              url: "#{tuist_mcp_base_url}/mcp",
+              auth_type: "oauth2",
+              authorization_url: "#{tuist_mcp_base_url}/oauth2/authorize",
+              token_url: "#{tuist_mcp_base_url}/oauth2/token",
+              registration_url: "#{tuist_mcp_base_url}/oauth2/register",
+              scopes: ["mcp"],
+              # The Tuist tool registry includes project and organization
+              # creation, membership changes and test-case updates. Atlas proxies
+              # this upstream to investigate production, so it takes only the
+              # tools that declare themselves read-only. That declaration is
+              # required of every Tuist tool at compile time, so a write tool
+              # cannot reach here by saying nothing — which is what lets this
+              # stand on its own without also enumerating the tools by name.
+              read_only: true,
+              # Atlas' ServiceAccount token, so the Tuist server knows the call
+              # came through Atlas' audit log and lets operators read any
+              # account without a grant.
+              atlas_identity_header: "x-tuist-atlas-identity"
+            },
+            %{
+              name: "grafana",
+              url: "https://mcp.grafana.com/mcp",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.grafana.com/mcp/oauth/authorize",
+              token_url: "https://mcp.grafana.com/mcp/oauth/token",
+              registration_url: "https://mcp.grafana.com/mcp/oauth/register",
+              scopes: ["grafana:read", "grafana:write"],
+              headers: grafana_headers
+            },
+            # OVHcloud's MCP server serves one API section per URL, and every
+            # fleet is on the OVHcloud US account. Each person connects their own
+            # OVH login, which can reinstall, reboot and terminate servers, so
+            # only the named reads are proxied. OVH's tools carry no readOnlyHint,
+            # which is why this enumerates them rather than using read_only.
+            #
+            # The reinstall half of baremetal:prep-ovh is the one write, and each
+            # call waits for that person to approve its exact arguments in Atlas
+            # (/admin/mcps). OVH's MCP has no displayName write, so the rename
+            # that hands a prepped box to its fleet stays a human step.
+            %{
+              name: "ovh-servers",
+              url: "https://mcp.us.ovhcloud.com/mcp/v1_dedicated_server",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+              token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+              registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+              scopes: ["all"],
+              tool_allowlist: [
+                "get-dedicated-server-list",
+                "get-dedicated-server-details",
+                "get-dedicated-server-service-infos",
+                "get-dedicated-server-install-status",
+                "get-dedicated-server-hardware-specs",
+                "get-dedicated-server-network-specs",
+                "list-dedicated-server-tasks",
+                "get-dedicated-server-task-details",
+                "list-dedicated-server-vracks",
+                "list-dedicated-server-planned-interventions",
+                "list-dedicated-server-datacenter-availabilities",
+                "list-dedicated-server-compatible-templates"
+              ],
+              approval_required_tools: ["reinstall-dedicated-server"]
+            },
+            # A server's displayName (the fleet adoption prefix) lives on its
+            # service, not under /dedicated/server.
+            %{
+              name: "ovh-services",
+              url: "https://mcp.us.ovhcloud.com/mcp/v1_services",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+              token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+              registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+              scopes: ["all"],
+              tool_allowlist: ["get-service-list", "get-service-details"]
+            },
+            # Orders live under /me, a section that also manages the account's
+            # users, API credentials and payment methods, so only the order
+            # reads pass. OVH's MCP has no cart or checkout tools: placing an
+            # order stays in the OVH console.
+            %{
+              name: "ovh-orders",
+              url: "https://mcp.us.ovhcloud.com/mcp/v1_me",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+              token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+              registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+              scopes: ["all"],
+              tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
+            },
+            # Vultr's hosted MCP server, compute area only: Cloud Compute and
+            # Bare Metal, where the Kura hosts in ord and scl live. Each person
+            # connects their own Vultr login, one organization per sign-in,
+            # after an org admin enables MCP and attaches the "Use MCP" policy.
+            # The server has no write tools at all and marks every tool with
+            # readOnlyHint, so read_only is enough on its own; it also withholds
+            # VNC URLs, userdata and startup-script bodies.
+            #
+            # There is no write here. Tagging a box `tuist-kura-vultr-production`
+            # makes the fleet adopt it and convert its disks, but the token this
+            # session holds is the MCP server's own JWT, which it swaps for the
+            # real Vultr token server-side, so it cannot call api.vultr.com.
+            # Tagging and ordering stay in the Vultr console.
+            %{
+              name: "vultr-compute",
+              url: "https://mcp.vultr.com/mcp/compute",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.vultr.com/authorize",
+              token_url: "https://mcp.vultr.com/token",
+              registration_url: "https://mcp.vultr.com/register",
+              read_only: true
+            },
+            # Stripe's hosted MCP server, reached with each person's own Stripe
+            # login: Stripe's consent screen picks the accounts and sandboxes
+            # the session covers, so Atlas holds no Stripe key. Reserved for the
+            # people who run billing. Reads pass; `stripe_api_write` takes any
+            # write operation, so StripeCallPolicy judges each call: live-mode
+            # writes wait for the caller's approval of that exact call at
+            # /admin/mcps, test-mode writes run, and meter events are refused.
+            %{
+              name: "stripe",
+              url: "https://mcp.stripe.com",
+              auth_type: "oauth2",
+              authorization_url: "https://access.stripe.com/mcp/oauth2/authorize",
+              token_url: "https://access.stripe.com/mcp/oauth2/token",
+              registration_url: "https://access.stripe.com/mcp/oauth2/register",
+              scopes: ["mcp"],
+              authorization_params: %{"resource" => "https://mcp.stripe.com"},
+              allowed_user_emails: ["marek@tuist.dev", "pedro@tuist.dev"],
+              tool_allowlist: [
+                "list_available_accounts_or_orgs",
+                "get_stripe_account_info",
+                "stripe_api_search",
+                "stripe_api_details",
+                "stripe_api_read",
+                "search_stripe_documentation",
+                "stripe_api_write"
+              ],
+              call_policy: StripeCallPolicy
+            }
+          ] ++ pulse_servers
     end
 
   value ->
@@ -676,6 +835,12 @@ config :atlas, :slack,
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
 config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
+
+# No mirroring unless explicitly provisioned. This is independent of the SDK
+# DSN: the shared Atlas recorder also covers native LoggerHandler capture.
+if routes = System.get_env("ATLAS_PULSE_ERROR_ROUTES_JSON") do
+  config :atlas, PulseMirror, routes: Jason.decode!(routes)
+end
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
@@ -827,6 +992,14 @@ end
 
 clickhouse_enabled? =
   parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
+# tuist-ops, which grants orb thread cluster elevations a person approved in
+# Atlas (`request_cluster_elevation`). Atlas authenticates with a projected
+# ServiceAccount token (audience `ops.tuist.dev`); without the token file the
+# tool reports elevations as unavailable.
+config :atlas, :tuist_ops,
+  base_url: System.get_env("TUIST_OPS_URL") || "https://ops.tuist.dev",
+  token_path: System.get_env("TUIST_OPS_TOKEN_PATH") || "/var/run/secrets/tuist-ops/token"
 
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount

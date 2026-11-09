@@ -25,8 +25,14 @@ import (
 // pools shrink while a carve-out is grown and refill once it shrinks, and it
 // retires idle warm runners on a node whose growth the kubelet deferred for
 // lack of room. Runners executing a job are never chosen.
+//
+// A remote execution worker (infra/helm/remote-execution) on a shared host
+// is a second daemon on the node with its own carve-out. It connects to the
+// server as `<node>.remote-execution`, so its grants carry that name.
 const (
 	sandboxdLabel           = "tuist.dev/sandboxd"
+	executionDaemonLabel    = "tuist.dev/remote-execution-daemon"
+	executionDaemonSuffix   = ".remote-execution"
 	sandboxdContainer       = "sandboxd"
 	preemptedForSandboxes   = "sandboxes"
 	podResizePendingType    = corev1.PodConditionType("PodResizePending")
@@ -35,8 +41,9 @@ const (
 
 // sandboxDaemon is one sandboxd Pod as the autoscaler sees it.
 type sandboxDaemon struct {
-	name string
-	node string
+	name   string
+	node   string
+	native bool
 	// memory is the largest of the request, allocated resources and applied
 	// container resources, so an incomplete shrink never frees memory early.
 	memory      int64
@@ -45,6 +52,22 @@ type sandboxDaemon struct {
 	// deferred is how many more bytes a growth the kubelet deferred is
 	// waiting for on the node.
 	deferred int64
+	// execution marks a remote execution worker rather than the node's
+	// agent sandbox daemon.
+	execution bool
+}
+
+// grantNode is the name the daemon connects to the server as, which its
+// grants are published under.
+func (d sandboxDaemon) grantNode() string {
+	if d.execution {
+		return d.node + executionDaemonSuffix
+	}
+	return d.node
+}
+
+func isSandboxDaemon(pod *corev1.Pod) bool {
+	return pod.Labels[sandboxdLabel] == "true" || pod.Labels[executionDaemonLabel] == "true"
 }
 
 // sandboxDaemons lists the bound sandbox daemon Pods. The sandboxes namespace
@@ -63,20 +86,32 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		return nil, nil
 	}
 	var pods corev1.PodList
-	if err := reader.List(ctx, &pods, client.InNamespace(namespace), client.MatchingLabels{sandboxdLabel: "true"}); err != nil {
+	if err := reader.List(ctx, &pods, client.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list sandbox daemons: %w", err)
 	}
 	daemons := make([]sandboxDaemon, 0, len(pods.Items))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
+		native := pod.Labels[macosSandboxRole] == "execution"
+		if !native && !isSandboxDaemon(pod) {
+			continue
+		}
 		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		asked, allocated := daemonMemory(pod)
-		daemon := sandboxDaemon{name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
+		if native {
+			asked = allocationPodMemory(pod)
+			allocated = asked
+		}
+		daemon := sandboxDaemon{native: native, name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
+		daemon.execution = pod.Labels[executionDaemonLabel] == "true"
 		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()
+		if native && pod.Status.Phase != corev1.PodRunning {
+			daemon.deferred = asked
+		}
 		// A deleting daemon still holds its allocation while it pauses VMs.
 		if pod.DeletionTimestamp.IsZero() && resizeDeferred(pod) && asked > allocated {
 			daemon.deferred = asked - allocated
@@ -206,13 +241,19 @@ func planSandboxPreemption(
 	return chosen
 }
 
-// podMemory is what a Pod holds on its node: its containers' memory requests
-// plus the RuntimeClass overhead admission added.
+// podMemory is what a Pod holds on its node: its containers' memory requests,
+// or its Pod-level budget where it sets one, plus the RuntimeClass overhead
+// admission added.
 func podMemory(pod *corev1.Pod) int64 {
 	var total int64
 	for _, c := range pod.Spec.Containers {
 		if q, ok := c.Resources.Requests[corev1.ResourceMemory]; ok {
 			total += q.Value()
+		}
+	}
+	if pod.Spec.Resources != nil {
+		if q, ok := pod.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
+			total = q.Value()
 		}
 	}
 	if q, ok := pod.Spec.Overhead[corev1.ResourceMemory]; ok {
@@ -231,13 +272,17 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	now time.Time,
 	logger logr.Logger,
 ) (bool, error) {
-	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" || fleet == nil {
+	if r.SandboxesNamespace == "" || (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || fleet == nil {
 		return false, nil
 	}
 
 	var nodes corev1.NodeList
 	// The same nodes the fleet's budget counts.
-	if err := r.List(ctx, &nodes, client.MatchingLabels{fleetNodePoolLabel: pool.Spec.FleetSelector}); err != nil {
+	selector := fleetNodeSelector(pool)
+	if pool.Spec.OS == "linux" {
+		selector = client.MatchingLabels{fleetNodePoolLabel: pool.Spec.FleetSelector}
+	}
+	if err := r.List(ctx, &nodes, selector); err != nil {
 		return false, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	inFleet := map[string]bool{}
@@ -311,8 +356,20 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		candidates[node] = append(candidates[node], sandboxCandidate{pod: pod, pool: owner.Name, since: since})
 	}
 
+	plan := planSandboxPreemption(deficits, freeing, candidates)
+	if pool.Spec.OS == "darwin" {
+		var allPods corev1.PodList
+		var reader client.Reader = r.Client
+		if r.APIReader != nil {
+			reader = r.APIReader
+		}
+		if err := reader.List(ctx, &allPods); err != nil {
+			return false, err
+		}
+		plan = planNativeSandboxPreemption(nodes.Items, allPods.Items, deficits, candidates, now)
+	}
 	var mine []*corev1.Pod
-	for _, c := range planSandboxPreemption(deficits, freeing, candidates) {
+	for _, c := range plan {
 		if c.pool == pool.Name {
 			mine = append(mine, c.pod)
 		}

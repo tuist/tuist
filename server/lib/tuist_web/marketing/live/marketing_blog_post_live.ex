@@ -33,6 +33,15 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       raise NotFoundError
     end
 
+    if Enum.any?(Blog.available_locales(post), &(Localization.localized_href(request_path, &1) == uri.path)) do
+      render_post(post, uri, socket)
+    else
+      target = %URI{path: post.slug, query: uri.query}
+      {:noreply, redirect(socket, to: URI.to_string(target))}
+    end
+  end
+
+  defp render_post(post, uri, socket) do
     author = Blog.get_authors()[post.author]
     post_image_url = post_image_url(post)
 
@@ -60,6 +69,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     socket =
       socket
       |> assign(:current_path, current_path)
+      |> assign(:head_available_locales, Blog.available_locales(post))
       |> assign(:post, post)
       |> assign(:author, author)
       |> assign(:read_next_posts, read_next_posts)

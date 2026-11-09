@@ -14,6 +14,32 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
       assert html =~ "/marketing/assets/bundle.css"
     end
 
+    test "describes the engineering topics in page metadata and Markdown", %{conn: conn} do
+      title = "Tuist Blog: engineering and build infrastructure"
+
+      description =
+        "Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions."
+
+      for path <- ["/blog", "/blog?category=learn&view=list"] do
+        document = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
+
+        assert document |> Floki.find("title") |> Floki.text() |> String.trim() == title
+        assert Floki.attribute(document, ~s(meta[property="og:title"]), "content") == [title]
+        assert Floki.attribute(document, ~s(meta[name="twitter:title"]), "content") == [title]
+
+        for selector <- [
+              ~s(meta[name="description"]),
+              ~s(meta[property="og:description"]),
+              ~s(meta[name="twitter:description"])
+            ] do
+          assert Floki.attribute(document, selector, "content") == [description]
+        end
+      end
+
+      markdown = conn |> get("/marketing-markdown/blog") |> response(200)
+      assert markdown =~ description
+    end
+
     test "keeps the most recent post in the grid", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog")
 

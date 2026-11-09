@@ -1,0 +1,163 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Most cases for aggregation operators are covered already in the upstream test cases.
+# These test cases cover scenarios not covered by the upstream test cases, such as range queries, or edge cases that are uniquely likely to cause issues in the streaming engine.
+
+load 1m
+  some_metric{env="prod", cluster="eu"} 0+1x4
+  some_metric{env="prod", cluster="us"} 0+2x4
+  some_metric{env="test", cluster="eu"} 0+3x4
+  some_metric{env="test", cluster="us"} 0+4x4
+  some_other_metric{env="test", cluster="us"} 0+5x4
+
+# Range query, aggregating to one group.
+eval range from 0 to 4m step 1m sum(some_metric)
+  {} 0 10 20 30 40
+
+eval range from 0 to 4m step 1m avg(some_metric)
+  {} 0 2.5 5 7.5 10
+
+eval range from 0 to 4m step 1m quantile(0.5, some_metric)
+  {} 0 2.5 5 7.5 10
+
+# Range query, aggregating to multiple groups with 'by'.
+eval range from 0 to 4m step 1m sum by (env) (some_metric)
+  {env="prod"} 0 3 6 9 12
+  {env="test"} 0 7 14 21 28
+
+eval range from 0 to 4m step 1m avg by (env) (some_metric)
+  {env="prod"} 0 1.5 3 4.5 6
+  {env="test"} 0 3.5 7 10.5 14
+
+eval range from 0 to 4m step 1m quantile by (env) (0.5, some_metric)
+  {env="prod"} 0 1.5 3 4.5 6
+  {env="test"} 0 3.5 7 10.5 14
+
+# Range query, aggregating to multiple groups with 'without'.
+eval range from 0 to 4m step 1m sum without (env) (some_metric)
+  {cluster="eu"} 0 4 8 12 16
+  {cluster="us"} 0 6 12 18 24
+
+eval range from 0 to 4m step 1m avg without (env) (some_metric)
+  {cluster="eu"} 0 2 4 6 8
+  {cluster="us"} 0 3 6 9 12
+
+eval range from 0 to 4m step 1m quantile without (env) (0.5, some_metric)
+  {cluster="eu"} 0 2 4 6 8
+  {cluster="us"} 0 3 6 9 12
+
+# Range query, aggregating to a single group with 'without'.
+eval range from 0 to 4m step 1m sum without (env, cluster) (some_metric)
+  {} 0 10 20 30 40
+
+eval range from 0 to 4m step 1m avg without (env, cluster) (some_metric)
+  {} 0 2.5 5 7.5 10
+
+eval range from 0 to 4m step 1m quantile without (env, cluster) (0.5, some_metric)
+  {} 0 2.5 5 7.5 10
+
+# 'without' should always ignore the metric name.
+eval range from 0 to 4m step 1m sum without(cluster) ({cluster="us"})
+  {env="prod"} 0 2 4 6 8
+  {env="test"} 0 9 18 27 36
+
+eval range from 0 to 4m step 1m avg without(cluster) ({cluster="us"})
+  {env="prod"} 0 2 4 6 8
+  {env="test"} 0 4.5 9 13.5 18
+
+eval range from 0 to 4m step 1m quantile without(cluster) (0.5, {cluster="us"})
+  {env="prod"} 0 2 4 6 8
+  {env="test"} 0 4.5 9 13.5 18
+clear
+
+# Test native histogram aggregations
+load 1m
+  single_histogram{label="value"} {{schema:0 sum:2 count:4 buckets:[1 2 1]}} {{sum:2 count:4 buckets:[1 2 1]}}
+  single_histogram{label="value2"} {{schema:1 sum:5 count:5 buckets:[1 3 1]}} {{schema:0 sum:2 count:4 buckets:[1 2 1]}} {{schema:0 sum:4 count:6 buckets:[2 2 2]}}
+  single_histogram{label="value2", another="value"} {{schema:1 sum:10 count:9 buckets:[3 3 3]}} {{schema:2 sum:2 count:4 buckets:[1 2 1]}}
+eval instant at 0m quantile(0.5, single_histogram)
+  expect info
+  expect no_warn
+
+clear
+
+# Test a mix of float and histogram values at the same point
+load 1m
+  single_histogram{label="value"}   0 1                                          {{schema:0 sum:2 count:4 buckets:[1 2 1]}} {{sum:2 count:4 buckets:[1 2 1]}} 2 {{sum:2 count:4 buckets:[1 2 1]}}
+  single_histogram{label="value2"}  0 {{schema:1 sum:5 count:5 buckets:[1 3 1]}} {{schema:0 sum:2 count:4 buckets:[1 2 1]}} 4                                 6 {{sum:2 count:4 buckets:[1 2 1]}}
+eval range from 0 to 5m step 1m quantile(0.5, single_histogram)
+  expect info
+  expect no_warn
+  {} 0 1 _ 4 4
+clear
+
+# Test a mix of float and histogram values at the same point
+load 1m
+  single_histogram{label="value"}   3
+  single_histogram{label="value2"}  {{sum:5 count:5 buckets:[1 3 1]}}
+eval instant at 1m quantile(0.5, single_histogram)
+  expect info
+  expect no_warn
+  {} 3
+clear
+
+# Test a mix of float and histogram values at the same point
+load 1m
+  single_histogram{label="value"}   {{sum:5 count:5 buckets:[1 3 1]}}
+  single_histogram{label="value2"}  3
+eval instant at 1m quantile(0.5, single_histogram)
+  expect info
+  expect no_warn
+  {} 3
+clear
+
+# Test a mix of float and histogram values at the same point, where after adding 2 conflicting series and removing a point,
+# that a third series doesn't add the point back in.
+load 1m
+  single_histogram{label="value"}   1
+  single_histogram{label="value2"}  {{sum:5 count:5 buckets:[1 3 1]}}
+  single_histogram{label="value3"}  3
+eval instant at 1m quantile(0.5, single_histogram)
+  expect info
+  expect no_warn
+  {} 2
+clear
+
+load 6m
+  series{idx="1"}   1 2 3 4 5 6
+  series{idx="2"}   4 5 6 7 8 9
+  series{idx="3"}   7 8 Inf NaN -Inf
+
+# Quantile value warning is emitted even when no series are returned
+eval range from 0 to 12m step 6m quantile(20, noseries)
+  expect no_info
+  expect warn
+
+eval range from 0 to 12m step 6m quantile(Inf, noseries)
+  expect no_info
+  expect warn
+
+eval range from 0 to 12m step 6m quantile(-Inf, noseries)
+  expect no_info
+  expect warn
+
+eval range from 0 to 30m step 6m quantile(0.9, series)
+  {} 6.4 7.4 +Inf 6.4 7.4 8.7
+
+eval range from 0 to 30m step 6m quantile(0, series)
+  {} 1 2 3 NaN -Inf 6
+
+eval range from 0 to 30m step 6m quantile(1, series)
+  {} 7 8 +Inf 7 8 9
+clear
+
+load 6m
+  series{env="prod", instance="1"} 1   4   9   20  _   _   _ _
+  series{env="prod", instance="2"} 2   3   10  _   _   1   _ _
+  series{env="prod", instance="3"} 0   0   8   _   _   _   _ _
+  param                            0.5 0.1 0.9 0.1 0.2 0.3 _ Inf
+
+eval range from 0 to 42m step 6m quantile(scalar(param), series)
+  expect no_info
+  expect warn
+  {} 1 0.6000000000000001 9.799999999999999 20 _ 1 _ _

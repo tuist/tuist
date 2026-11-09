@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import struct TSCUtility.Version
 import TuistConfig
 import TuistCore
@@ -293,13 +294,27 @@ public struct GraphLinter: GraphLinting {
         let targets = graphTraverser.targets().flatMap { projectPath, projectTargets in
             projectTargets.keys.map { TargetReference(projectPath: projectPath, name: $0) }
         }
-        return targets.map(context: .concurrent) { target -> [LintingIssue] in
+
+        let (successors, productNames) = numberedTargetGraph(roots: targets, graphTraverser: graphTraverser)
+
+        return Array(targets.indices).map(context: .concurrent) { root -> [LintingIssue] in
+            let target = targets[root]
+            // Like `allTargetDependencies`, every target reachable from the root, which itself is only included
+            // when a cycle leads back to it.
+            var reachable = Set<Int>()
+            var pending: [Int] = []
+            for successor in successors[root] where reachable.insert(successor).inserted {
+                pending.append(successor)
+            }
+            while let node = pending.popLast() {
+                for successor in successors[node] where reachable.insert(successor).inserted {
+                    pending.append(successor)
+                }
+            }
+
             var seenProductNames: Set<String> = []
             var duplicatedProductNames: Set<String> = []
-            for productName in graphTraverser
-                .allTargetDependencies(path: target.projectPath, name: target.name)
-                .map(\.target.productNameWithExtension)
-            {
+            for productName in reachable.compactMap({ productNames[$0] }) {
                 if seenProductNames.contains(productName) {
                     duplicatedProductNames.insert(productName)
                 } else {
@@ -316,6 +331,45 @@ public struct GraphLinter: GraphLinting {
             return []
         }
         .flatMap { $0 }
+    }
+
+    /// The target dependency graph below `roots`, with the targets numbered: `roots` take the first numbers, in order,
+    /// followed by every target they reach. Each target's direct target dependencies are listed by number, along with its
+    /// product name (`nil` for roots no target depends on, whose product names are not needed).
+    ///
+    /// The duplicated product names check walks integers instead of calling `allTargetDependencies`, which collects
+    /// `GraphTarget` values whose equality compares whole targets and projects, and which dominated the check.
+    private func numberedTargetGraph(
+        roots: [TargetReference],
+        graphTraverser: GraphTraversing
+    ) -> (successors: [[Int]], productNames: [String?]) {
+        var references = roots
+        var numbers = Dictionary(uniqueKeysWithValues: roots.enumerated().map { ($1, $0) })
+        var productNames = [String?](repeating: nil, count: roots.count)
+        var successors: [[Int]] = []
+        // Each pass looks up the direct dependencies of the targets the previous pass discovered, concurrently.
+        while successors.count < references.count {
+            let directDependencies = Array(references[successors.count...]).map(context: .concurrent) { target in
+                graphTraverser.directTargetDependencies(path: target.projectPath, name: target.name).map(\.graphTarget)
+            }
+            for dependencies in directDependencies {
+                successors.append(dependencies.map { dependency in
+                    let reference = TargetReference(projectPath: dependency.path, name: dependency.target.name)
+                    let number: Int
+                    if let existing = numbers[reference] {
+                        number = existing
+                    } else {
+                        number = references.count
+                        numbers[reference] = number
+                        references.append(reference)
+                        productNames.append(nil)
+                    }
+                    productNames[number] = dependency.target.productNameWithExtension
+                    return number
+                })
+            }
+        }
+        return (successors, productNames)
     }
 
     private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
@@ -367,21 +421,30 @@ public struct GraphLinter: GraphLinting {
     }
 
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        let rootProjects = graphTraverser.rootProjects()
+        // The reasons depend only on a root's configurations and each dependency's project, and the targets reachable
+        // from a union of roots are the union of the targets reachable from each, so roots that share configurations
+        // are traversed together.
+        var rootTargetsByConfigurations: [Set<BuildConfiguration>: [GraphTarget]] = [:]
+        for project in graphTraverser.rootProjects() {
+            rootTargetsByConfigurations[Set(project.settings.configurations.keys), default: []]
+                .append(contentsOf: graphTraverser.targets(at: project.path))
+        }
 
         var reasons = Set<String>()
-        for project in rootProjects {
-            let rootProjectConfigurations = Set(project.settings.configurations.keys)
+        for (rootProjectConfigurations, rootTargets) in rootTargetsByConfigurations {
             let sortedRootProjectConfigurations = rootProjectConfigurations.sorted()
-            let rootProjectTargets = Array(graphTraverser.targets(at: project.path))
+            var dependencyProjects: [AbsolutePath: Project] = [:]
+            for dependency in graphTraverser.allTargetDependencies(traversingFromTargets: rootTargets) {
+                dependencyProjects[dependency.project.path] = dependency.project
+            }
 
-            for dependency in graphTraverser.allTargetDependencies(traversingFromTargets: rootProjectTargets) {
-                let configurations = Set(dependency.project.settings.configurations.keys)
+            for project in dependencyProjects.values {
+                let configurations = Set(project.settings.configurations.keys)
 
                 if !rootProjectConfigurations.isSubset(of: configurations) {
                     let sortedConfigurations = configurations.sorted()
                     let reason =
-                        "The project '\(dependency.project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
+                        "The project '\(project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
                     reasons.insert(reason)
                 }
             }

@@ -317,7 +317,8 @@ struct CargoTestSelection {
             fullHandle: context.reporting.handle, serverURL: context.reporting.serverURL, reference: reference,
             modules: modules.map(\.name), parallelizableModules: nil, testSuites: nil, skippedTestSuites: nil,
             shardMin: options["--shard-min"], shardMax: options["--shard-max"], shardTotal: options["--shard-total"],
-            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil
+            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil,
+            testImpactRunId: nil
         )
         try CargoShardService.emit(plan, environment: context.environment)
     }

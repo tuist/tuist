@@ -105,6 +105,32 @@ defmodule Tuist.CacheTest do
       assert Enum.sort(grants["project"]["read"]) == Enum.sort(handles)
       assert Enum.sort(grants["project"]["write"]) == Enum.sort(handles)
     end
+
+    test "grants account cache writes to a user-issued token only on accounts its issuer may write to" do
+      # Given
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      token_for = fn user ->
+        %AuthenticatedAccount{
+          account: user.account,
+          issued_by: user,
+          scopes: ["account:cache:read", "account:cache:write"],
+          all_projects: true
+        }
+      end
+
+      # When
+      viewer_grants = Cache.cache_grants(token_for.(viewer))
+      member_grants = Cache.cache_grants(token_for.(member))
+
+      # Then
+      assert viewer_grants["account"]["write"] == [viewer.account.name]
+      assert Enum.sort(member_grants["account"]["write"]) == Enum.sort([member.account.name, organization.account.name])
+    end
   end
 
   describe "free tier enforcement" do
@@ -224,7 +250,16 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
-      assert got == %{accounts: [], projects: [], payment_required: [user.account.name], payment_failed: []}
+      assert got == %{
+               accounts: [],
+               projects: [],
+               cache_grants: %{
+                 "account" => %{"read" => [], "write" => []},
+                 "project" => %{"read" => [], "write" => []}
+               },
+               payment_required: [user.account.name],
+               payment_failed: []
+             }
     end
 
     # A node answers both with a payment refusal, but only this one tells the
@@ -275,9 +310,15 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
+      handle = "#{user.account.name}/#{project.name}"
+
       assert got == %{
                accounts: [user.account.name],
-               projects: ["#{user.account.name}/#{project.name}"],
+               projects: [handle],
+               cache_grants: %{
+                 "account" => %{"read" => [user.account.name], "write" => [user.account.name]},
+                 "project" => %{"read" => [handle], "write" => [handle]}
+               },
                payment_required: [],
                payment_failed: []
              }

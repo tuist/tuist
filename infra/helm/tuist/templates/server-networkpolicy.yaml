@@ -79,6 +79,18 @@ spec:
       ports:
         - protocol: TCP
           port: http
+    # The remote-execution release in the same namespace: its gateways call
+    # the execution API and its daemons dial the node WebSocket.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+          podSelector:
+            matchLabels:
+              tuist.dev/remote-execution: "true"
+      ports:
+        - protocol: TCP
+          port: http
     {{- end }}
   egress:
     {{- if .Values.server.cluster.enabled }}

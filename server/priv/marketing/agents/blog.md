@@ -1,6 +1,6 @@
 # Tuist engineering blog
 
-An entry point to Tuist's articles on build systems, caching, testing, CI, and the reasoning behind product and infrastructure decisions.
+Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions.
 
 ## What this area provides
 
@@ -12,10 +12,6 @@ The [blog index](/blog) lists dated articles. They explain tradeoffs, architectu
 2. Request the article URL with `Accept: text/markdown` to get its full content without page chrome. This guide only lists articles; it does not summarize them.
 3. Note the publication date, and separate measured results, illustrative models, and proposed future work.
 4. Confirm current support in the matching product guide before recommending a setup.
-
-## Limitations
-
-An older article is not a current support promise, and numbers from a specific project or an interactive model are not a guarantee for another project.
 
 ## Next steps
 

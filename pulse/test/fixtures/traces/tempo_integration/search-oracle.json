@@ -1,0 +1,2334 @@
+[
+  {
+    "query": "{ .shared = \"resource\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"resource\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"span\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "span"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "span"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "span"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "span"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"span\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "span"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "span"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "span"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "span"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"resource\" \u0026\u0026 span.other = \"yes\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"resource\" \u0026\u0026 span.other = \"yes\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"resource\" || span.other = \"yes\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = \"resource\" || span.other = \"yes\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "other",
+                    "value": {
+                      "stringValue": "yes"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "other",
+                      "value": {
+                        "stringValue": "yes"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared =~ \"resource\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared =~ \"resource\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared != \"span\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared != \"span\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared !~ \"span\" } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared !~ \"span\" } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  },
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    },
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "stringValue": "resource"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "stringValue": "resource"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = 7 } with (most_recent=true)",
+    "Start": 99,
+    "End": 200,
+    "response": {
+      "traces": [
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "intValue": "7"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "intValue": "7"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ .shared = 7 } with (most_recent=true)",
+    "Start": 0,
+    "End": 0,
+    "response": {
+      "traces": [
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 1,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "1000000",
+                "attributes": [
+                  {
+                    "key": "shared",
+                    "value": {
+                      "intValue": "7"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "1000000",
+                  "attributes": [
+                    {
+                      "key": "shared",
+                      "value": {
+                        "intValue": "7"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+]

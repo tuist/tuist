@@ -210,6 +210,29 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
     assert String.to_integer(token_estimate) > 0
     assert body =~ "# Install Tuist"
     assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
+
+    assert get_resp_header(conn, "link") == [
+             ~s(<#{Tuist.Environment.app_url(path: "/en/docs/guides/install-tuist")}>; rel="canonical")
+           ]
+  end
+
+  test "untranslated docs markdown fallbacks declare the English HTML page as canonical" do
+    conn = get(build_conn(), "/ar/docs-markdown/guides/install-tuist")
+
+    assert response(conn, 200) =~ "# Install Tuist"
+
+    assert get_resp_header(conn, "link") == [
+             ~s(<#{Tuist.Environment.app_url(path: "/en/docs/guides/install-tuist")}>; rel="canonical")
+           ]
+  end
+
+  @tag :locale
+  test "translated docs markdown declares its own locale's HTML page as canonical" do
+    conn = get(build_conn(), "/es/docs-markdown/guides/install-tuist")
+
+    assert get_resp_header(conn, "link") == [
+             ~s(<#{Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")}>; rel="canonical")
+           ]
   end
 
   defp negotiated_response(path, accept, status, body) do

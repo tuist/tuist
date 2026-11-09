@@ -7,14 +7,14 @@ defmodule TuistWeb.MarketingMarkdownController do
   def show(conn, params) do
     path = "/" <> Enum.join(Map.get(params, "path", []), "/")
 
-    respond(conn, MarketingMarkdown.get(path))
+    respond(conn, MarketingMarkdown.get(path), path)
   end
 
   def source(conn, %{"path" => segments}) do
-    respond(conn, MarketingMarkdown.source("/" <> Enum.join(segments, "/")))
+    respond(conn, MarketingMarkdown.source("/" <> Enum.join(segments, "/")), nil)
   end
 
-  defp respond(conn, content) do
+  defp respond(conn, content, path) do
     case content do
       nil ->
         conn
@@ -23,10 +23,18 @@ defmodule TuistWeb.MarketingMarkdownController do
 
       markdown ->
         conn
+        |> put_canonical(path)
         |> put_resp_header("content-language", "en")
         |> put_resp_header("cache-control", "public, max-age=3600")
         |> MarkdownResponse.prepare(markdown)
         |> send_resp(:ok, markdown)
     end
+  end
+
+  defp put_canonical(conn, nil), do: conn
+
+  defp put_canonical(conn, path) do
+    url = Tuist.Environment.app_url(path: path)
+    put_resp_header(conn, "link", ~s(<#{url}>; rel="canonical"))
   end
 end

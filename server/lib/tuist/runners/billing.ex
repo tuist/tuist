@@ -56,8 +56,8 @@ defmodule Tuist.Runners.Billing do
   Usage is metered as normalized compute units, one Stripe meter per
   platform. Each platform is normalized to its own baseline machine,
   so one Linux compute unit is one minute on the 2 vCPU / 8 GB Linux
-  baseline and one macOS compute unit is one minute on the 6 vCPU /
-  14 GB Mac. A session's elapsed milliseconds are scaled by the
+  baseline and one macOS compute unit is one minute on the 8 vCPU /
+  24 GB Mac. A session's elapsed milliseconds are scaled by the
   multiplier frozen on the row when it opened. Each meter receives
   compute-unit milliseconds and its price transforms 60,000 units
   into one billed baseline-minute, so a platform's Price is quoted
@@ -222,7 +222,7 @@ defmodule Tuist.Runners.Billing do
   4 vCPU / 16 GB Linux machine contributes twice the units of the Linux
   baseline for the same wall-clock time. Because each platform is
   normalized to its own baseline machine, one macOS compute unit is one
-  minute on the real 6 vCPU / 14 GB Mac, and its Stripe Price is quoted
+  minute on the real 8 vCPU / 24 GB Mac, and its Stripe Price is quoted
   directly in those terms.
 
   One meter per platform, rather than one per exact shape, keeps a

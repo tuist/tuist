@@ -10,6 +10,7 @@ defmodule TuistWeb.AppLayoutComponents do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.MCP.WebMCP
   alias Tuist.Projects.Project
   alias TuistWeb.API.BuildEntityResources
   alias TuistWeb.Helpers.BuildEntityLabels
@@ -145,6 +146,18 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
             )
           }
         />
@@ -474,6 +487,8 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
+      <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
+      <% sandbox_instances_path = ~p"/#{@selected_account.name}/sandboxes/instances" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -521,6 +536,26 @@ defmodule TuistWeb.AppLayoutComponents do
           selected={String.starts_with?(@current_path, runner_profiles_path)}
         />
       </.sidebar_group>
+      <.sidebar_group
+        :if={
+          FeatureFlags.sandboxes_enabled?(@selected_account) and
+            Authorization.authorize(:sandboxes_read, @current_user, @selected_account) == :ok
+        }
+        id="sidebar-sandboxes"
+        label={dgettext("dashboard_sandboxes", "Sandboxes")}
+        icon="box_model_2"
+        navigate={sandboxes_path}
+        selected={@current_path == sandboxes_path}
+        default_open={String.starts_with?(@current_path, sandboxes_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard_sandboxes", "Instances")}
+          icon="stack_2"
+          navigate={sandbox_instances_path}
+          selected={String.starts_with?(@current_path, sandboxes_path <> "/")}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={
           Accounts.organization?(@selected_account) and
@@ -531,6 +566,38 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/members"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
       />
+      <.sidebar_group
+        :if={Tuist.Pulse.authorized?(@current_user, @selected_account)}
+        id="sidebar-pulse"
+        label="Pulse"
+        icon="chart_arcs"
+        default_open={String.starts_with?(@current_path, "/#{@selected_account.name}/~/pulse/")}
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Metrics")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/~/pulse/metrics"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/metrics"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Logs")}
+          icon="file_text"
+          navigate={~p"/#{@selected_account.name}/~/pulse/logs"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/logs"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Traces")}
+          icon="list_tree"
+          navigate={~p"/#{@selected_account.name}/~/pulse/traces"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Errors")}
+          icon="alert_circle"
+          navigate={~p"/#{@selected_account.name}/~/pulse/errors"}
+          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/~/pulse/errors")}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Webhooks")}
@@ -580,6 +647,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -602,6 +670,15 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          @selected_account.user_id == @current_user.id and
+            FeatureFlags.ai_enabled?(@current_user)
+        }
+        label={dgettext("dashboard", "AI")}
+        selected={String.starts_with?(@current_path, ai_path)}
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """
@@ -703,9 +780,26 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:latest_app_release, :map, required: true)
   attr(:title, :string, default: nil)
 
+  attr(:webmcp, :boolean,
+    default: true,
+    doc: "Whether the page registers the selected account's WebMCP tools; pages that are not that account's turn it off."
+  )
+
+  attr(:current_path, :string, default: nil, doc: "The page's path, which picks its WebMCP tools.")
+  attr(:selected_project, :map, default: nil, doc: "The page's project, on project pages.")
+
   def headerbar(assigns) do
     ~H"""
-    <header class="headerbar">
+    <%!-- The WebMCP tools for this page of the account it belongs to; see
+    assets/shared/js/webmcp.mjs. It changes with live navigation, unlike the
+    root layout's endpoint for other pages. --%>
+    <header
+      class="headerbar"
+      data-webmcp-endpoint={
+        @webmcp && @current_user &&
+          webmcp_endpoint(@selected_account, @selected_project, @current_path)
+      }
+    >
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
           <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
@@ -767,6 +861,18 @@ defmodule TuistWeb.AppLayoutComponents do
       </div>
     </header>
     """
+  end
+
+  # Names the page rather than its full path, so the endpoint, and with it the
+  # registered tools, only changes when navigation reaches a different page.
+  defp webmcp_endpoint(account, project, path) do
+    query =
+      Enum.reject(
+        [page: WebMCP.dashboard_page(path, account, project), build_system: project && project.build_system],
+        fn {_key, value} -> is_nil(value) end
+      )
+
+    ~p"/api/webmcp/accounts/#{account.name}?#{query}"
   end
 
   attr(:id, :string, required: true)

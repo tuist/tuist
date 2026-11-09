@@ -1,0 +1,10 @@
+{
+  "name": "atlas-browser-dependencies",
+  "private": true,
+  "scripts": {
+    "build:labels": "node build-labels-sdk.mjs"
+  },
+  "dependencies": {
+    "@bradycorporation/brady-web-sdk": "3.3.3"
+  }
+}

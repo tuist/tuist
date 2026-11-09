@@ -1,4 +1,8 @@
-<div id="test-case-run-detail">
+<div
+  id="test-case-run-detail"
+  phx-hook="PageFavicon"
+  data-favicon-status={status_class(@test_case)}
+>
   <.button
     label={@run.command_display || dgettext("dashboard_tests", "Test Run")}
     data-part="back-button"

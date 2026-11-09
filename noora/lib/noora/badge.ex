@@ -7,53 +7,47 @@ defmodule Noora.Badge do
   import Noora.Icon
   import Noora.Utils
 
-  @badge_contract_path Path.expand("../../components/badge.json", __DIR__)
-  @external_resource @badge_contract_path
-  @badge_contract @badge_contract_path |> File.read!() |> Jason.decode!()
-  @badge_attributes Map.new(@badge_contract["attributes"], &{&1["name"], &1})
-  @appearance_contract Map.fetch!(@badge_attributes, "appearance")
-  @color_contract Map.fetch!(@badge_attributes, "color")
-  @size_contract Map.fetch!(@badge_attributes, "size")
-  @disabled_contract Map.fetch!(@badge_attributes, "disabled")
-  @dot_contract Map.fetch!(@badge_attributes, "dot")
-  @icon_only_contract Map.fetch!(@badge_attributes, "icon-only")
-  @label_contract Map.fetch!(@badge_attributes, "label")
-  @badge_class @badge_contract["className"]
+  @badge_appearances ~w(fill light-fill)
+  @badge_colors ~w(neutral destructive warning attention success information focus primary secondary)
+  @badge_sizes ~w(small large)
 
-  def badge_appearances, do: @appearance_contract["values"]
-  def badge_colors, do: @color_contract["values"]
-  def badge_sizes, do: @size_contract["values"]
+  def badge_appearances, do: @badge_appearances
+  def badge_colors, do: @badge_colors
+  def badge_sizes, do: @badge_sizes
 
   attr(:style, :string,
-    values: @appearance_contract["values"],
-    default: @appearance_contract["default"],
-    doc: @appearance_contract["description"]
+    values: @badge_appearances,
+    default: "fill",
+    doc: "Controls whether the badge uses a solid or light fill."
   )
 
-  attr(:label, :string, required: true, doc: @label_contract["description"])
+  attr(:label, :string, required: true, doc: "The label of the badge")
 
   attr(:color, :string,
-    values: @color_contract["values"],
-    default: @color_contract["default"],
-    doc: @color_contract["description"]
+    values: @badge_colors,
+    default: "neutral",
+    doc: "Controls the semantic color. Disabled badges ignore this value."
   )
 
   attr(:size, :string,
-    values: @size_contract["values"],
-    default: @size_contract["default"],
-    doc: @size_contract["description"]
+    values: @badge_sizes,
+    default: "small",
+    doc: "Controls the badge dimensions and text size."
   )
 
   attr(:disabled, :boolean,
-    default: @disabled_contract["default"],
-    doc: @disabled_contract["description"]
+    default: false,
+    doc: "Uses the disabled presentation regardless of color."
   )
 
-  attr(:dot, :boolean, default: @dot_contract["default"], doc: @dot_contract["description"])
+  attr(:dot, :boolean,
+    default: false,
+    doc: "Displays a dot before the label when the icon slot is empty."
+  )
 
   attr(:icon_only, :boolean,
-    default: @icon_only_contract["default"],
-    doc: @icon_only_contract["description"]
+    default: false,
+    doc: "Hides the label and displays only the icon slot."
   )
 
   slot(:icon, doc: "The icon to render next to the label. Overrides the `dot` attribute.")
@@ -63,7 +57,7 @@ defmodule Noora.Badge do
   def badge(assigns) do
     ~H"""
     <span
-      class={badge_class()}
+      class="noora-badge"
       data-style={@style}
       data-color={@color}
       data-size={@size}
@@ -166,6 +160,4 @@ defmodule Noora.Badge do
     </svg>
     """
   end
-
-  defp badge_class, do: @badge_class
 end

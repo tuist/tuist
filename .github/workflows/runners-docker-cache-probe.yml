@@ -29,13 +29,20 @@ jobs:
     needs: publication-window
     runs-on: tuist-canary-linux
     timeout-minutes: 10
+    # The job-started hook mints a tuist-runner-cache OIDC token so the server
+    # binds this pod to its job before the Docker attach. Without it, binding
+    # waits on GitHub's webhook or API, which can miss the agent's 25 s wait
+    # and leave the cache unmounted ("timeout").
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           sparse-checkout: |
             .github/actions/setup-docker-builder
-            .github/scripts/docker-build-cache-benchmark.sh
+            .github/scripts
       - name: Require candidate runner and mounted cache
         env:
           EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}
@@ -74,6 +81,14 @@ jobs:
           BUILDER: ${{ steps.builder.outputs.name }}
         run: |
           set -euo pipefail
+          # The cold job also builds the changed source, so it publishes the
+          # `second` marker the same-size write reads. Every cross-job claim
+          # (mounted marker, same-size publication, compile-layer hit) is then
+          # proven by the next job; the in-job build only seeds that state and
+          # saves a publication wait. The in-repo Docker e2e test covers every
+          # phase as its own job.
+          phases="$CACHE_PHASE"
+          [ "$CACHE_PHASE" != cold ] || phases="cold changed-source"
           # Both drivers share one published snapshot. Parallel seed jobs can
           # overwrite whole BuildKit databases, obscuring what this gate tests.
           for driver in docker docker-container; do
@@ -81,8 +96,10 @@ jobs:
             export CACHE_EXPERIMENT="canary-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$driver"
             export CACHE_BUILDER=default
             [ "$driver" != docker-container ] || export CACHE_BUILDER="$BUILDER"
-            bash .github/scripts/docker-build-cache-benchmark.sh
-            mv "$RUNNER_TEMP/docker-build-cache-results" "$RUNNER_TEMP/docker-cache-$driver"
+            for phase in $phases; do
+              CACHE_PHASE="$phase" bash .github/scripts/docker-build-cache-benchmark.sh
+              mv "$RUNNER_TEMP/docker-build-cache-results" "$RUNNER_TEMP/docker-cache-$driver-$phase"
+            done
           done
       - uses: actions/upload-artifact@v4
         if: always()

@@ -38,8 +38,8 @@ for environment in staging canary production; do
   pool=shard-storage
   region=null
   if [[ "$environment" == staging ]]; then
-    pool=kura-ovh-gra-runners
-    region='"ovh-gra-runners"'
+    pool=kura-dedibox
+    region='"eu-west"'
   fi
   jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" '
     any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and

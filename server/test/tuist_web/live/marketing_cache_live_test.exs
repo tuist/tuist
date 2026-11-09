@@ -9,7 +9,7 @@ defmodule TuistWeb.Marketing.MarketingCacheLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/cache")
 
       assert html =~ "/marketing/assets/bundle.css"
-      assert html =~ "Never build the"
+      assert html =~ "Reuse what you&#39;ve"
       assert html =~ "Everything you&#39;d want from a cache"
     end
   end

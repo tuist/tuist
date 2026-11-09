@@ -7,32 +7,32 @@
 ---
 # 網絡 {#network}
 
-本頁介紹將 Tuist 與你的基礎設施整合時可能需要的網絡相關設定。
+本頁涵蓋將 Tuist 整合至你的基礎設施時可能需要設定的網絡相關配置。
 
 ## 出站 IP 位址 {#outbound-ip-addresses}
 
-如果你的基礎設施按 IP 位址限制入站流量，你可能需要將 Tuist 使用的 IP 範圍加入白名單。當 Tuist 需要與防火牆或 VPN 後方的服務（例如自託管 Git 供應商或構件儲存）通訊，或者你的 GitHub 組織使用 [IP 允許清單](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) 時，這種情況很常見。
+如果你的基礎設施按 IP 位址限制入站流量，你可能需要將 Tuist 使用的 IP 範圍加入白名單。當 Tuist 需要與防火牆或 VPN 後方的服務通訊（例如自託管 Git 供應商或構件儲存），或當你的 GitHub 組織使用 [IP 允許清單](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) 時，這種情況很常見。
 
-將 Tuist 整合的伺服器位址，以及你的工作流程所用各平台的執行器位址加入白名單。
+請將 Tuist 整合的伺服器位址，以及你工作流程所用各平台的 Runner 位址加入白名單。
 
 ### 伺服器 IP 位址 {#server-ip-addresses}
 
-將以下兩個位址加入白名單，以便 Tuist 服務和整合進行連線：
+請將以下兩個位址加入白名單，以允許來自 Tuist 服務和整合的連線：
 
 | IP 位址 | CIDR 表示法 |
 |---|---|
 | 116.202.0.10 | `116.202.0.10/32` |
 | 116.202.4.195 | `116.202.4.195/32` |
 
-Tuist 只會透過 HTTPS 連線到你的基礎設施，因此你只需允許來自這些位址的 HTTPS 流量（TCP 連接埠 443，或你的 HTTPS 端點監聽的連接埠）。Tuist 不需要 SSH 存取權。
+Tuist 只會透過 HTTPS 連線到你的基礎設施，因此你只需允許從這些位址發出的 HTTPS 流量（TCP 埠 443，或你的 HTTPS 端點監聽的埠）。Tuist 不需要 SSH 存取權限。
 
 ### Tuist Runners {#tuist-runners}
 
-在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上執行的工作會使用以下的出站位址。如果工作需要連線到按 IP 位址限制流量的基礎設施（例如從設有 IP 允許清單的 GitHub 組織簽出儲存庫），請將你的工作流程所運行的每個平台的位址或範圍加入白名單。
+在 <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> 上執行的工作會使用以下的出站位址。如果工作需要連線到按 IP 位址限制流量的基礎設施（例如從設有 IP 允許清單的 GitHub 組織簽出儲存庫），請將你工作流程所執行每個平台的位址或範圍加入白名單。
 
 #### macOS {#tuist-runners-macos}
 
-將以下範圍加入 macOS 執行器工作的白名單：
+請將以下範圍加入白名單，以供 macOS Runner 工作使用：
 
 | IP 版本 | CIDR 表示法 |
 |---|---|
@@ -41,7 +41,7 @@ Tuist 只會透過 HTTPS 連線到你的基礎設施，因此你只需允許來�
 
 #### Linux {#tuist-runners-linux}
 
-將整個範圍加入 Linux 執行器工作的白名單：
+請將整個範圍加入白名單，以供 Linux Runner 工作使用：
 
 | IP 版本 | CIDR 表示法 |
 |---|---|

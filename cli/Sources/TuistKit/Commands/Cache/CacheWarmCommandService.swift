@@ -970,23 +970,45 @@ import XcodeGraph
                             [product.extension == "framework" ? product
                                 .appending(component: product.basenameWithoutExt) : product]
                     }
-                    let output: String
+                    func dwarfdump(_ arguments: [String]) async throws -> String {
+                        do {
+                            return try await commandRunner.capture(
+                                arguments: ["/usr/bin/xcrun", "dwarfdump"] + arguments + inputs.map(\.pathString)
+                            )
+                        } catch {
+                            try Task.checkCancellation()
+                            if error is CancellationError { throw error }
+                            throw DebuggingMetadataError.unavailableSymbols(error.localizedDescription)
+                        }
+                    }
+                    let output = metadata.sources.isEmpty ? "" : try await dwarfdump(["--show-sources"])
+                    let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init)
+                        .filter { $0.hasPrefix("/") })
+                    let recorded: CachedModuleDebuggingMetadata
                     do {
-                        output = metadata.sources.isEmpty ? "" : try await commandRunner.capture(
-                            arguments: ["/usr/bin/xcrun", "dwarfdump", "--show-sources"] + inputs.map(\.pathString)
+                        recorded = try await metadata.recording(
+                            debugSources: debugSources, prefixMappings: prefixMappings,
+                            linkedDebugSymbols: linkedDebugSymbols,
+                            staticBinary: target.target.product.isStatic && !linkedDebugSymbols ? inputs.first : nil,
+                            fileSystem: fileSystem
                         )
-                    } catch {
-                        try Task.checkCancellation()
-                        if error is CancellationError { throw error }
-                        throw DebuggingMetadataError.unavailableSymbols(error.localizedDescription)
+                    } catch DebuggingMetadataError.missingSources where !linkedDebugSymbols {
+                        // An object compiled from sources without code keeps their compile unit but lists no
+                        // line-table source, so only its compile unit names show the symbols are present.
+                        let units = try await dwarfdump(["--debug-info", "--recurse-depth=0"])
+                        recorded = try await metadata.recording(
+                            debugSources: debugSources, prefixMappings: prefixMappings,
+                            compileUnits: Set(units.split(whereSeparator: \.isNewline).compactMap { line in
+                                let name = line.trimmingCharacters(in: .whitespaces)
+                                guard name.hasPrefix("DW_AT_name"), let start = name.firstIndex(of: "\"") else { return nil }
+                                let path = name[name.index(after: start)...].dropLast(2)
+                                return path.hasPrefix("/") ? String(path) : nil
+                            }),
+                            fileSystem: fileSystem
+                        )
                     }
                     try await fileSystem.writeAsJSON(
-                        metadata.recording(
-                            debugSources: Set(output.split(whereSeparator: \.isNewline).map(String.init)
-                                .filter { $0.hasPrefix("/") }),
-                            prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-                            fileSystem: fileSystem
-                        ), at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
+                        recorded, at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
                     )
                 }
                 return true

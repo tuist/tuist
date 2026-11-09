@@ -93,10 +93,7 @@ defmodule Tuist.OAuth2.SSRFGuard do
     end
   end
 
-  defp encode_ip({_, _, _, _} = ipv4), do: ipv4 |> :inet.ntoa() |> to_string()
-
-  defp encode_ip({_, _, _, _, _, _, _, _} = ipv6) do
-    # URI spec §3.2.2: IPv6 literals in URLs must be enclosed in brackets.
-    "[" <> (ipv6 |> :inet.ntoa() |> to_string()) <> "]"
-  end
+  # `URI.to_string/1` encloses IPv6 hosts in brackets itself (RFC 3986
+  # §3.2.2), so the host is the bare address for both families.
+  defp encode_ip(ip), do: ip |> :inet.ntoa() |> to_string()
 end

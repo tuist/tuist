@@ -7,7 +7,7 @@
 ---
 # Plantillas {#templates}
 
-En proyectos con una arquitectura establecida, los desarrolladores pueden querer inicializar nuevos componentes o funcionalidades que sean coherentes con el proyecto. Con `tuist scaffold` puedes generar archivos a partir de una plantilla. Puedes definir tus propias plantillas o usar las que vienen incluidas con Tuist. Estos son algunos escenarios en los que el scaffolding puede ser útil:
+En proyectos con una arquitectura establecida, es posible que los desarrolladores quieran inicializar nuevos componentes o funcionalidades coherentes con el proyecto. Con `tuist scaffold` puedes generar archivos a partir de una plantilla. Puedes definir tus propias plantillas o usar las que vienen incluidas con Tuist. Estos son algunos escenarios en los que el scaffolding puede ser útil:
 
 - Crear una nueva funcionalidad que siga una arquitectura determinada: `tuist scaffold viper --name MyFeature`.
 - Crear nuevos proyectos: `tuist scaffold feature-project --name Home`
@@ -15,7 +15,7 @@ En proyectos con una arquitectura establecida, los desarrolladores pueden querer
 > [!NOTE]
 > **Sin opiniones predefinidas**
 >
-> Tuist no impone opiniones sobre el contenido de tus plantillas ni sobre su uso. Solo se requiere que estén en un directorio específico.
+> Tuist no impone opiniones sobre el contenido de tus plantillas ni sobre su uso. Solo es necesario que estén en un directorio específico.
 
 
 ## Definir una plantilla {#defining-a-template}
@@ -65,11 +65,11 @@ tuist scaffold name_of_template --name Name --platform macos
 
 Si `.string` y `.files` no ofrecen suficiente flexibilidad, puedes aprovechar el lenguaje de plantillas [Stencil](https://stencil.fuller.li/en/latest/) mediante el caso `.file`. Además, también puedes usar filtros adicionales definidos aquí.
 
-Con interpolación de cadenas, `\(nameAttribute)` anterior se resolvería como `{{ name }}`. Si deseas usar filtros de Stencil en la definición de la plantilla, puedes usar esa interpolación manualmente y añadir los filtros que prefieras. Por ejemplo, podrías usar `{ { name | lowercase } }` en lugar de `\(nameAttribute)` para obtener el valor en minúsculas del atributo name.
+Al usar interpolación de cadenas, `\(nameAttribute)` se resolvería como `{{ name }}`. Si quieres usar filtros de Stencil en la definición de la plantilla, puedes usar esa interpolación manualmente y añadir los filtros que desees. Por ejemplo, podrías usar `{ { name | lowercase } }` en lugar de `\(nameAttribute)` para obtener el valor en minúsculas del atributo name.
 
 También puedes usar `.directory`, que permite copiar carpetas completas a una ruta determinada.
 
 > [!TIP]
-> **Ayudantes de ProjectDescription**
+> **Ayudantes de descripción de proyecto**
 >
-> Las plantillas admiten el uso de <.localized_link href="/guides/features/projects/code-sharing">ayudantes de ProjectDescription</.localized_link> para reutilizar código entre plantillas.
+> Las plantillas admiten el uso de <.localized_link href="/guides/features/projects/code-sharing">ayudantes de descripción de proyecto</.localized_link> para reutilizar código entre plantillas.

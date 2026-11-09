@@ -7,7 +7,7 @@
 ---
 # Configuración dinámica {#dynamic-configuration}
 
-Hay ciertos escenarios en los que podrías necesitar configurar tu proyecto de forma dinámica en el momento de la generación. Por ejemplo, es posible que quieras cambiar el nombre de la app, el identificador del bundle o el destino de despliegue según el entorno donde se esté generando el proyecto. Tuist lo permite mediante variables de entorno, a las que se puede acceder desde los archivos de manifiesto.
+Hay ciertos escenarios en los que podrías necesitar configurar tu proyecto de forma dinámica en el momento de la generación. Por ejemplo, es posible que quieras cambiar el nombre de la app, el identificador del bundle o el destino de despliegue según el entorno en el que se está generando el proyecto. Tuist lo permite mediante variables de entorno, a las que se puede acceder desde los archivos de manifiesto.
 
 ## Configuración mediante variables de entorno {#configuration-through-environment-variables}
 
@@ -25,7 +25,7 @@ TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 
 ## Lectura de las variables de entorno desde los manifiestos {#reading-the-environment-variables-from-manifests}
 
-Se puede acceder a las variables usando el tipo [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment). Cualquier variable que siga la convención `TUIST_XXX` definida en el entorno o pasada a Tuist al ejecutar comandos será accesible mediante el tipo `Environment`. El siguiente ejemplo muestra cómo accedemos a la variable `TUIST_APP_NAME`:
+Se puede acceder a las variables usando el tipo [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment). Cualquier variable que siga la convención `TUIST_XXX` definida en el entorno o pasada a Tuist al ejecutar comandos será accesible mediante el tipo `Environment`. Los descriptores usan el nombre de la variable en camelCase sin el prefijo `TUIST_`, así que `TUIST_APP_NAME` se lee como `Environment.appName` y `TUIST_ENABLE_ANALYTICS` como `Environment.enableAnalytics`. Para comprobar si el manifiesto se evalúa en CI, usa el booleano `Environment.isCI`. El siguiente ejemplo lee `TUIST_APP_NAME`:
 
 ```swift
 func appName() -> String {
@@ -37,29 +37,29 @@ func appName() -> String {
 }
 ```
 
-Acceder a las variables devuelve una instancia del tipo `Environment.Value?`, que puede tomar cualquiera de los siguientes valores:
+Acceder a las variables devuelve una instancia del tipo `Environment.Value?` que puede tomar cualquiera de los siguientes valores:
 
 | Caso | Descripción |
 | --- | --- |
-| `.string(String)` | Se usa cuando la variable representa una cadena de texto. |
+| `.string(String)` | Se usa cuando la variable representa una cadena. |
 
-También puedes obtener la variable de tipo `Environment` como cadena o booleano usando cualquiera de los métodos auxiliares definidos más abajo; estos métodos requieren que se pase un valor predeterminado para garantizar que el usuario obtenga resultados consistentes cada vez. Esto evita la necesidad de definir la función appName() mostrada arriba.
+También puedes recuperar la variable de tipo `Environment` de cadena o booleana usando cualquiera de los métodos auxiliares definidos más abajo; estos métodos requieren que se pase un valor predeterminado para garantizar que el usuario obtenga resultados consistentes cada vez. Esto evita la necesidad de definir la función appName() mostrada arriba.
 
 ::: code-group
 
 ```swift [String]
-Environment.appName.getString(default: "TuistServer")
+Environment.appName.getString(default: "MyApp")
 ```
 
 ```swift [Boolean]
-Environment.isCI.getBoolean(default: false)
+Environment.enableAnalytics.getBoolean(default: false)
 ```
 <!-- -->
 :::
 
 ## Reenvío de variables de entorno adicionales a los manifiestos {#forwarding-additional-environment-variables-to-manifests}
 
-De forma predeterminada, solo las variables con el prefijo `TUIST_`, además de `CI` y `DEVELOPER_DIR`, se reenvían al subproceso que evalúa `Project.swift`, `Workspace.swift`, `Package.swift` y los asistentes de descripción del proyecto. Esto mantiene la generación determinista e impide que variables no relacionadas del shell o de CI invaliden la caché del manifiesto.
+Por defecto, solo las variables con el prefijo `TUIST_`, además de `CI` y `DEVELOPER_DIR`, se reenvían al subproceso que evalúa `Project.swift`, `Workspace.swift`, `Package.swift` y los ayudantes de descripción del proyecto. Esto mantiene la generación determinista y evita que variables del shell o de CI no relacionadas invaliden la caché del manifiesto.
 
 Cuando un manifiesto necesita leer variables que no están bajo tu control (por ejemplo, un `Package.swift` de terceros que ya lee `OPENSWIFTUI_LIBRARY_TYPE`), decláralas en `Tuist.swift` mediante `manifestEnvironment` en las opciones de generación. Cada entrada es bien un nombre literal o un nombre que termina en `*` para coincidencia por prefijo:
 

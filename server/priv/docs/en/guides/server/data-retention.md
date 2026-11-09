@@ -56,7 +56,7 @@ These records are separate from the downloadable build archives, result bundles,
 
 | Data | Retention |
 | --- | --- |
-| Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
+| Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
 | Xcode module compilation and cache history on persistent module detail pages | 30 days |
 | Task, declared Once action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |

@@ -10,6 +10,7 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
@@ -138,6 +139,42 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       refute has_element?(lv, "#billing-payment-issue")
+    end
+  end
+
+  describe "when a downgrade to air is pending" do
+    setup %{account: account} do
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        subscription_id: "sub_downgrading",
+        cancel_at_period_end: true
+      )
+
+      stub(Billing, :get_payment_method_id_from_subscription_id, fn _ -> nil end)
+      stub(Billing, :current_billing_period, fn _ -> {~U[2026-11-01 00:00:00Z], ~U[2026-12-01 00:00:00Z]} end)
+      :ok
+    end
+
+    test "says when the plan switches to air and keeps pro until then", %{conn: conn, account: account} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-pending-downgrade", "Your plan switches to Air on December 1")
+      assert has_element?(lv, "[data-part='current-plan-card-section']", "Pro")
+    end
+
+    test "keeping pro withdraws the downgrade", %{conn: conn, account: account} do
+      # Given
+      expect(Billing, :update_plan, fn %{plan: :pro} -> :ok end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # When
+      lv |> element("#billing-pending-downgrade button", "Keep Pro") |> render_click()
+
+      # Then
+      assert_redirect(lv, "/#{account.name}/billing")
     end
   end
 
@@ -367,6 +404,39 @@ defmodule TuistWeb.BillingLiveTest do
       assert has_element?(lv, "#usage-pricing-table", "10.0 GB above free tier")
       assert has_element?(lv, "#usage-pricing-table", "$2 per million")
     end
+
+    test "adds cache volume storage past its allowance to the estimate", %{conn: conn, account: account} do
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(true) end)
+
+      stub(CacheVolumeBilling, :period_breakdown, fn _account, _period ->
+        %{
+          history_complete: true,
+          included: 100_000_000_000,
+          byte_months: 125_000_000_000,
+          stored_bytes: 130_000_000_000,
+          billable: 25_000_000_000,
+          charge: Money.new(250, :USD),
+          billed: Money.new(250, :USD)
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "9.00"
+      assert has_element?(lv, "#cache-volume-storage-progress", "125.0 GB-months")
+      assert has_element?(lv, "#usage-pricing-table", "25.0 GB-months above free tier")
+      assert has_element?(lv, "#usage-pricing-table", "$0.10 per GB-month")
+    end
   end
 
   describe "prepaid runner credit" do
@@ -396,7 +466,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free runner minutes plus 10K prepaid"
+      assert html =~ "100 free macOS minutes plus 10K prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
@@ -424,7 +494,7 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      assert html =~ "100 free runner minutes plus 40K prepaid"
+      assert html =~ "100 free macOS minutes plus 40K prepaid"
       refute html =~ "200K"
     end
   end

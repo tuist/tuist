@@ -542,7 +542,6 @@ impl SyncFeedState {
             .collect()
     }
 
-    #[cfg(test)]
     pub fn forget_consumer(&self, peer: &str) {
         self.consumers
             .lock()

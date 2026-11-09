@@ -252,6 +252,20 @@ spec:
               value: {{ max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
+            # The guests reach the Tuist API through its public URL; the
+            # in-cluster server (SERVER_URL's Service and its Pods' port) and
+            # the archive store are the daemon's alone.
+            {{- $daemonOnlyPorts := list }}
+            {{- if not .Values.sandboxes.networkPolicy.guestServerAccess }}
+            {{- $daemonOnlyPorts = append $daemonOnlyPorts (.Values.server.service.targetPort | default 8080) }}
+            {{- end }}
+            {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
+            {{- $daemonOnlyPorts = append $daemonOnlyPorts 3900 }}
+            {{- end }}
+            - name: DAEMON_ONLY_TCP_PORTS
+              value: {{ join "," $daemonOnlyPorts | quote }}
+            - name: GUESTS_REACH_SERVER
+              value: {{ .Values.sandboxes.networkPolicy.guestServerAccess | default false | quote }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
@@ -356,8 +370,9 @@ spec:
 ---
 # Gates the daemon Pod and, through the NAT, every sandbox on the node:
 # ingress only for metrics scraping and the admin API, egress to DNS, the
-# in-cluster server (the node connection and, from the guests, the Tuist
-# API), and the public internet on 80/443 with the cluster ranges carved out.
+# in-cluster server (the daemon's node connection; the daemon drops guest
+# traffic to it unless guestServerAccess is set), and the public internet
+# on 80/443 with the cluster ranges carved out.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -435,6 +450,18 @@ spec:
       ports:
         - protocol: TCP
           port: 4000
+    {{- end }}
+    {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage
+      ports:
+        - protocol: TCP
+          port: 3900
     {{- end }}
 {{- end }}
 {{- end }}

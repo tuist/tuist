@@ -423,6 +423,10 @@ struct CacheLocalStorageTests {
             atPath: staleEntry.appending(component: "binary").pathString,
             contents: Data(repeating: 0x41, count: 1_000_000)
         )
+        try FileManager.default.setAttributes(
+            [.modificationDate: Calendar.current.date(byAdding: .hour, value: -2, to: Date())!],
+            ofItemAtPath: staleEntry.pathString
+        )
 
         let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
         given(cacheDirectoriesProvider)

@@ -30,6 +30,8 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   @shared_crons [
+    {"* * * * *", Tuist.RemoteExecution.MaintenanceWorker},
+    {"* * * * *", Tuist.Jams.RecoveryWorker},
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
@@ -39,8 +41,10 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"* * * * *", Tuist.Sandboxes.AmpReconciler},
+    {"* * * * *", Tuist.Sandboxes.ClaudeCodeReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
+    {"20 * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
@@ -48,7 +52,9 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},
-    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
+    {"@hourly", Tuist.Shards.Workers.PruneRecentShardPlansWorker},
+    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker},
+    {"30 4 * * *", Tuist.Push.Workers.PruneWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -70,6 +76,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
     {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
+    {"* * * * *", Tuist.Runners.Workers.BitrisePollWorker},
     {"* * * * *", Tuist.Runners.Workers.GitLabPollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},

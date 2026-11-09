@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c2c1813ab3d9e2d85c3617be320393df6ee3a8ae75a597b55cc48043500531a0",
+  "hash": "984854f8180bf164ed6a9bac47467adb7dee3ea8d17d02dbad362e5382ddb394",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,13 +17,13 @@
                   "content_hash": "3b9eaf12be36fc7e750a9951721026824be78f1e67f4aa66711f6e647d6de925"
                 },
                 "# Disable binary replacement entirely": {
-                  "content_hash": "594d6771d2b7715d02e97fe9aef67e5d3fbe3274f561812feb0b1d30bd41e05b"
+                  "content_hash": "9310c1b3d211861b1b849eb9e50478ab5c629a9eb7682b6db5097524fb99950f"
                 },
                 "# Focus on specific targets (implies all-possible)": {
                   "content_hash": "9308b567e5a77ee1a9745fd45667a02ea04796da71286a4ae09e3da44240e131"
                 },
                 "# Module cache {#module-cache}": {
-                  "content_hash": "9d1dd72d0a31763eecea17073344644965261ef3515becd4e0f9fcfbe86f466c"
+                  "content_hash": "bbe58f871b14db3e9c4a4f5d611fc9d68f3ce0aa0b50850271fc5fa63b0b9e19"
                 },
                 "# Use config default (no flag)": {
                   "content_hash": "6991ebcfb430d3016be6db0109ddd344c99f39be71e0a0bad5f3f76e4b15125d"
@@ -41,10 +41,10 @@
                   "content_hash": "c3b8119513811b7942e004307ba3ff0c1e64776953de305242532ce668848cdf"
                 },
                 "## Recommended setup {#recommended-setup}": {
-                  "content_hash": "f14d3ae8f82076fb10358a12bcc81d3cdfa782553f738e4db78bdc1b9bf0f694"
+                  "content_hash": "29ece0204353732bb521b10ec3845c9443b43cac57bf94157cde82296a9888d3"
                 },
                 "## Supported products {#supported-products}": {
-                  "content_hash": "9c287d8d65d32e5b03ddfc1b05dd72be60b670a0c95b99f2c4faf623bc1163aa"
+                  "content_hash": "e0f98eefac3b97a8da46e11f3f657d2848219d511d0365f187a08f11158e7c52"
                 },
                 "## Troubleshooting {#troubleshooting}": {
                   "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
@@ -68,13 +68,13 @@
                   "content_hash": "1e8653725174e947bc07908dc0ef9a168c4c428cd3ec37ebd81d7b87f8680f4d"
                 },
                 "### Code coverage {#code-coverage}": {
-                  "content_hash": "e85dbc4ea62405b913727a190610d1b851738d4c3034ba39b0227cafbee15792"
+                  "content_hash": "a16ab7a387d3fabeab615001d64ec87a40b5c63cad18a84d26574407a0330d1f"
                 },
                 "### Configuration selection {#configuration-selection}": {
                   "content_hash": "5f4462583d652a2cfe77b4fc0455848bcb1b33a9e77ffcd733dfbe01d633c798"
                 },
                 "### Destination selection {#destination-selection}": {
-                  "content_hash": "d13f6089dc4daa49bae49a8242c597e9633f35dd022e209b246cd680c5cfdc7b"
+                  "content_hash": "f93ed95721ec9b1edd93d7ff69b26abe90fdf2c55686c2631069dd13f56535c7"
                 },
                 "### Improving the cache hit rate {#improving-cache-hit-rate}": {
                   "content_hash": "efd0de3f9298638d991846394530fe951d9924fc670cc5499cee5451f1bc5e43"
@@ -98,11 +98,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "cc805c85321dff58106a1fe85f0c55859db6a8d7f3fac5a5d29d63d4e38357de",
+          "hash": "494952254d47204217cd6b7a3b5c645453c9c4ba354b7069989f38e2c492dafe",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/module-cache.md",
           "metadata": {
-            "content_hash": "c1cfd63ec574821d269ec79bc911030fe25e0822f8508e9869c8fa4af5848a54"
+            "content_hash": "8e51b7652408e0d2e31a492bac1fe87904575b3a45fe4b5d59802ae3d95061a8"
           }
         },
         {
@@ -163,7 +163,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -182,7 +182,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -211,11 +211,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -310,21 +310,21 @@
             }
           ],
           "details": {},
-          "hash": "fa7cdb5f1326dc2c93737996fab03c4bfd90cdcf30a8dad84219b483473f24bf",
+          "hash": "745456ff9646e529e7cf60512ae52d5291b22eec85ea3b9dcefb1f05dcca2d03",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "c2c1813ab3d9e2d85c3617be320393df6ee3a8ae75a597b55cc48043500531a0",
+      "hash": "984854f8180bf164ed6a9bac47467adb7dee3ea8d17d02dbad362e5382ddb394",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/module-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "970c6add7a1fbc8930427dbd27e61584c1586502f91e94201af1beaa89be1ca1",
+  "output_hash": "a562b8af439e04950d9d72aa37ed706e2042bf2616d96ab22cc09d6e683dc210",
   "output_path": "server/priv/docs/ka/guides/features/cache/module-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -347,8 +347,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "224df5a9a809da6fb43951e91d50b2314ac738ba",
+  "source_commit_sha": "744d65dfb3825963232908275fa0210323b8c66b",
   "source_path": "server/priv/docs/en/guides/features/cache/module-cache.md",
-  "translated_at": "2026-10-30T14:17:08.480268Z",
-  "translation_session_id": "01a18d2a-60c1-763a-9c19-b5a583c68084"
+  "translated_at": "2026-11-06T17:40:08.474504Z",
+  "translation_session_id": "01a1b1ec-616e-7908-8b79-1e5087f3e863"
 }

@@ -16,7 +16,7 @@ mechanism; a degraded control plane pages via Grafana Cloud.
 | Owned by Flux | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
-| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-preview.yaml` (replicas mutated out-of-band by the preview workflows; Flux would fight them every interval) and `cluster-pentest.yaml` (isolated security-assessment cluster) |
+| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
 | Cloudflare operator Helm release and `tuist.dev` rate-limit configuration | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
@@ -29,15 +29,34 @@ scoped to a single `workloads/<cluster>/` subdir. Key invariants:
   `Available` rollup (a sync gate, not health alerting).
 
 `cloudflare-operator.yaml` follows the same child-Kustomization pattern,
-but points at a local Helm release and waits for it to become ready.
-Alongside the release, `infra/flux/cloudflare-operator/image-automation.yaml`
-declares an `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation`
-that bump `values-mgmt.yaml`'s image tag on every merge to main; the
-initial reconcile leaves the automation suspended so the rollout can be
-confirmed by hand before it goes autonomous. `cloudflare-config.yaml`
+but explicitly health-checks the local operator Helm release rather than
+waiting on every resource in its inventory. The controller and its CRDs
+must be ready before configuration applies; unrelated source resources
+must not block that runtime dependency.
+The release consumes `oci://ghcr.io/tuist/charts/cloudflare-operator`.
+The image workflow publishes chart versions `0.2.<run-number>-<attempt>`
+after the image succeeds, embedding its SHA tag and immutable digest in
+the chart defaults. Flux selects the newest matching `0.2.x` artifact;
+image delivery never writes back to Git. Chart and operator source changes
+both trigger publication, and a failed publication leaves the installed
+release unchanged. `cloudflare-config.yaml`
 depends on the release and applies the Cloudflare resources under
 `infra/flux/cloudflare-config/`, preventing Flux from applying a custom
 resource before its definition exists.
+
+During the first migration, Flux may report no matching OCI chart until
+the main-branch publication completes. The existing Helm release keeps
+running; do not remove its readiness gate or activate crawler exemptions
+to work around this. The GHCR chart package must allow public reads, as
+the Flux source intentionally has no registry credentials. Verify an
+anonymous `helm pull` after the first publication. Removing the old image
+automation manifests lets Flux prune those three resources without
+changing repository branch protections.
+
+To roll back, pin `HelmRelease.spec.chart.spec.version` to a known published
+version in a reviewed PR; restore the range only when resuming upgrades.
+Do not change the image independently of its chart or deploy another Helm
+release alongside the existing `cloudflare-operator` release.
 
 The adopted rate-limit resource starts in `read_only`. That mode deliberately
 reports `Ready=False`, so the configuration Kustomization does not wait on
@@ -158,8 +177,8 @@ kubectl -n flux-system patch kustomization cluster-<name> --type=merge \
 
 ### Harden the source (optional)
 
-Path-scoping already prevents Flux from touching the immutable templates,
-preview or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
+Path-scoping already prevents Flux from touching the immutable templates
+or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
 the `flux-system` `GitRepository` is a second guard, and in a monorepo this
 size it also keeps the source artifact small (source-controller otherwise
 packages the whole repository on every sync).
@@ -189,7 +208,6 @@ patches:
           /infra/k8s/clusters/clusterclass-tuist.yaml
           /infra/k8s/clusters/bare-metal*.yaml
           /infra/k8s/clusters/machinedrainrules.yaml
-          /infra/k8s/clusters/cluster-preview.yaml
           /infra/k8s/clusters/cluster-pentest.yaml
 ```
 
@@ -274,5 +292,5 @@ things (see spec/72 Decision 6): the one-time bootstrap above; recovering
 Flux when it cannot reconcile itself (bad upgrade, source-controller can't
 reach git, RBAC lockout) by applying the corrective manifest directly until
 git access is restored; and manifests still outside Flux's scope (the
-ClusterClass/templates, preview, mgmt-side workloads). Routine cluster and
+ClusterClass/templates, mgmt-side workloads). Routine cluster and
 Flux changes go through git.

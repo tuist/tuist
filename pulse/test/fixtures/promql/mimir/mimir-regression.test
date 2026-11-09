@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Testing derive
+# nh stands for native histogram
+# nhcb stands for native histogram custom bucket
+load 1m
+  metric{case="all same floats value=0"} 0 0 0 0 0 0 0 0
+  metric{case="all same floats value=3"} 3 3 3 3 3 3 3 3
+  metric{case="all NaN"} NaN NaN NaN NaN NaN NaN NaN NaN
+  metric{case="all Inf"} Inf Inf Inf Inf Inf Inf Inf Inf
+  metric{case="all floats 1"} 0 1 2 3 _ 5 6 _
+  metric{case="all floats 2"} 0 1 2 3 2 1 0 _
+  metric{case="mixed float, NaN and Inf"} Inf 1 2 3 NaN Inf Inf NaN 100 10 8 7 7 6
+  metric{case="all same histogram"} {{schema:3 sum:0 count:0 buckets:[1 2 1]}} {{schema:3 sum:0 count:0 buckets:[1 2 1]}}
+  metric{case="nh, count decreased"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}}
+  metric{case="nh, bucket decreased"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 0 1]}}
+  metric{case="nh, sum decreased"} {{schema:3 sum:3 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:2 buckets:[1 2 1]}}
+  metric{case="nh, schema increased"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:4 sum:0 count:2 buckets:[1 2 1]}}
+  metric{case="floats and nh"} 9 1 2 3 _ _ {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+  metric{case="nhcb stay same"} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}}
+  metric{case="nhcb"} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:15 count:2 custom_values:[5 10] buckets:[0 2]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[7 8]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[0 0]}}
+  metric{case="floats, nh and nhcb"} 0 1 2 3 2 1 0 _ {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 0 1]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:15 count:2 custom_values:[5 10] buckets:[0 2]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[7 8]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[0 0]}}
+
+eval range from 0 to 20m step 1m deriv(metric[3m1s])
+  expect info
+  expect no_warn
+  {case="all Inf"} _ NaN NaN NaN NaN NaN NaN NaN NaN NaN
+  {case="all NaN"} _ NaN NaN NaN NaN NaN NaN NaN NaN NaN
+  {case="all floats 1"} _ 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.016666666666666666
+  {case="all floats 2"} _ 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.006666666666666667 -0.006666666666666667 -0.016666666666666666 -0.016666666666666666 -0.016666666666666666
+  {case="all same floats value=0"} _ 0 0 0 0 0 0 0 0 0
+  {case="all same floats value=3"} _ 0 0 0 0 0 0 0 0 0
+  {case="floats and nh"} _ -0.13333333333333333 -0.058333333333333334 -0.028333333333333332 0.016666666666666666 0.016666666666666666
+  {case="floats, nh and nhcb"} _ 0.016666666666666666 0.016666666666666666 0.016666666666666666 0.006666666666666667 -0.006666666666666667 -0.016666666666666666 -0.016666666666666666 -0.016666666666666666
+  {case="mixed float, NaN and Inf"} _ NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN -0.4683333333333333 -0.016666666666666666 -0.01 -0.008333333333333333 -0.016666666666666666
+
+clear

@@ -4,22 +4,36 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.tuist.app.data.auth.AuthRepository
+import dev.tuist.app.data.featureflags.FeatureFlag
+import dev.tuist.app.data.featureflags.FeatureFlagsRepository
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
+import dev.tuist.app.data.push.PushRegistrationManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    featureFlags: FeatureFlagsRepository,
+    private val pushRegistrationManager: PushRegistrationManager,
 ) : ViewModel() {
 
     private val _account = MutableStateFlow<Account?>(null)
     val account: StateFlow<Account?> = _account.asStateFlow()
+    val signOutFailed = MutableStateFlow(false)
+
+    val isAIEnabled: StateFlow<Boolean> = featureFlags.enabled
+        .map { FeatureFlag.AI in it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FeatureFlag.AI in featureFlags.enabled.value)
 
     init {
         viewModelScope.launch {
@@ -29,6 +43,16 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun signOut() {
-        authRepository.signOut()
+        val session = authRepository.session.value
+        viewModelScope.launch {
+            signOutFailed.value = false
+            try {
+                pushRegistrationManager.changeProfile { authRepository.signOut(session) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                signOutFailed.value = true
+            }
+        }
     }
 }

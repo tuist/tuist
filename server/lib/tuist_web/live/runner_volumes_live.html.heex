@@ -19,7 +19,7 @@
         :if={@can_manage}
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_runners", "Clear volume")}
+        label={dgettext("dashboard_runners", "Delete volume")}
         phx-click="request_delete"
         phx-value-id={@selected.id}
       >
@@ -635,11 +635,11 @@
   </.async_result>
   <.modal
     id="volume-confirm-delete"
-    title={dgettext("dashboard_runners", "Clear volume")}
+    title={dgettext("dashboard_runners", "Delete volume")}
     description={
       dgettext(
         "dashboard_runners",
-        "Clears the saved cache for future jobs. Running jobs can finish."
+        "Deletes the volume and its saved cache. Running jobs can finish; later jobs with the same key start empty."
       )
     }
     on_dismiss="cancel"
@@ -657,7 +657,7 @@
         </:action>
         <:action>
           <.button
-            label={dgettext("dashboard_runners", "Clear volume")}
+            label={dgettext("dashboard_runners", "Delete volume")}
             variant="destructive"
             phx-click="confirm"
           />

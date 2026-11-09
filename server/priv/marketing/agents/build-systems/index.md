@@ -16,7 +16,7 @@ Being able to invoke `bazel build` or `./gradlew build` in a CI job is compatibi
 
 Tuist's priority is to understand that work and help teams avoid unnecessary execution. A larger runner can make the same waste happen faster; compatible output reuse can remove execution entirely where supported, and recorded evidence can guide changes to tasks, graphs, and tests. Tuist does not automatically apply those project changes.
 
-Compute-first offerings sell capacity; Tuist leads with needing less execution. For minute- or resource-minute-metered compute, more billable execution means more compute revenue at the same rate. That is a structural incentive to examine, not proof that any provider wants slow builds. Some CI and acceleration providers also offer deep integrations; our [provider comparisons](/marketing-markdown/compare#billing-and-incentives) acknowledge that overlap, cite billing models, and account for Tuist's own usage charges. The buying question is whether the product goes deep into the organization's build systems, not merely whether it can run their commands.
+Compute-first offerings sell capacity; Tuist leads with needing less execution. For minute- or resource-minute-metered compute, more billable execution means more compute revenue at the same rate. That is a structural incentive to examine, not proof that any provider wants slow builds. Some CI and acceleration providers also offer deep integrations; our [provider comparisons](/marketing-markdown/compare#compare-total-costs) acknowledge that overlap, cite billing models, and account for Tuist's own usage charges. The buying question is whether the product goes deep into the organization's build systems, not merely whether it can run their commands.
 
 ## Project first, environment second
 
@@ -31,10 +31,10 @@ Improve unnecessary invalidation, task inputs, test setup, and retries first. Sh
 | [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Existing or generated Xcode project; Xcode 26+ for compilation caching |
 | [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Tuist settings plugin and Gradle build-cache configuration |
 | [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
-| [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Per-file compilation insights, test history, flaky detection, balanced test sharding | `tuist_ex` package and compilation/test aliases |
-| [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; remote execution coming soon | Script annotations or a supported native project; Tuist provider in canary |
+| [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Supported compiled-dependency caching, per-file compilation insights, test history, flaky detection and quarantine, balanced test sharding | `tuist_ex` package and `mix tuist.setup` |
+| [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; eligible Linux remote execution for enabled accounts | Script annotations or a supported native project; Tuist provider in canary |
 
-Support is feature-specific, not a blanket claim that every Tuist capability works with every build system. App previews and bundle insights operate on supported Apple and Android artifacts; they do not automatically apply to every project using one of these tools.
+Support is feature-specific. Previews accept supported mobile apps, macOS apps, and macOS/Linux command-line distributions; bundle insights analyze supported Apple and Android bundles. Their eligibility depends on the artifact and publishing workflow, not just the build-system name.
 
 ## First experiment
 

@@ -507,7 +507,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	kept := map[string]corev1.ResourceList{}
 	for i := range fleetPods.Items {
 		pod := &fleetPods.Items[i]
-		if pod.Namespace == r.SandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == r.SandboxesNamespace && isSandboxDaemon(pod) {
 			continue // Already subtracted from the node, even if namespaces coincide.
 		}
 		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
@@ -656,7 +656,7 @@ func permanentFootprints(pods []corev1.Pod, pool *tuistv1.RunnerPool, sandboxesN
 	permanent := map[string]corev1.ResourceList{}
 	for i := range pods {
 		pod := &pods[i]
-		if pod.Namespace == sandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == sandboxesNamespace && isSandboxDaemon(pod) {
 			continue
 		}
 		if !isAlive(pod) || pod.Spec.NodeName == "" {
@@ -687,7 +687,8 @@ func unplacedFootprint(pool *tuistv1.RunnerPool, pods []corev1.Pod) corev1.Resou
 }
 
 // podFootprint is a Pod's scheduling request: the larger of its containers'
-// sum and its largest init container, plus overhead.
+// sum and its largest init container, or the Pod-level budget where the Pod
+// sets one, plus overhead.
 func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
@@ -702,6 +703,11 @@ func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 			if current, ok := total[name]; !ok || quantity.Cmp(current) > 0 {
 				total[name] = quantity.DeepCopy()
 			}
+		}
+	}
+	if pod.Spec.Resources != nil {
+		for name, quantity := range pod.Spec.Resources.Requests {
+			total[name] = quantity.DeepCopy()
 		}
 	}
 	for name, quantity := range pod.Spec.Overhead {
@@ -862,7 +868,7 @@ func (r *RunnerPoolReconciler) reserveNode(
 			if r.SignalsClient == nil {
 				return fmt.Errorf("cannot revoke sandbox allocation without signals client")
 			}
-			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
+			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: daemon.grantNode(), Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
 				return err
 			}
 		}
@@ -954,6 +960,9 @@ func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 		}
 		if pool.Spec.NestedVirtualization {
 			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			labels[podtemplate.PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return labels
 	default:

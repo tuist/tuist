@@ -12,6 +12,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -174,6 +175,21 @@ func TestIsStaleRuntimeClassRevision(t *testing.T) {
 	delete(pool.Annotations, podtemplate.RuntimeClassRevisionAnnotation)
 	if isStaleRuntimeClassRevision(stale, pool) {
 		t.Fatal("revision was classified as stale when the pool has no desired revision")
+	}
+}
+
+func TestIsStaleExclusiveCPUs(t *testing.T) {
+	pool := newLinuxKataPool("pool", 1, 1)
+	shared := warmLinuxRunnerPod("shared", "image", pool.Name, "")
+	exclusive := warmLinuxRunnerPod("exclusive", "image", pool.Name, "")
+	exclusive.Spec.Resources = &corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}}
+
+	if isStaleExclusiveCPUs(shared, pool) || !isStaleExclusiveCPUs(exclusive, pool) {
+		t.Fatal("with exclusive CPUs off, only the Pod-level Pod should be stale")
+	}
+	pool.Spec.ExclusiveCPUs = true
+	if !isStaleExclusiveCPUs(shared, pool) || isStaleExclusiveCPUs(exclusive, pool) {
+		t.Fatal("with exclusive CPUs on, only the container-level Pod should be stale")
 	}
 }
 

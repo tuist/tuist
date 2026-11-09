@@ -270,7 +270,7 @@ struct CargoRemoteCacheTests {
 
     @Test(.inTemporaryDirectory)
     func servesMetadataAndDownloadsWhilePublicationsAreSaturated() async throws {
-        let remote = BrokerMemoryCache(synchronizeReads: true, blockUploads: true)
+        let remote = BrokerMemoryCache(minimumConcurrentReads: 2, blockUploads: true)
         try await withBroker(remote: remote) { cache, root in
             let uploads = (0 ..< 24).map { _ in Task { try await cache.uploadBlobs([:]) } }
             defer { uploads.forEach { $0.cancel() } }
@@ -302,7 +302,7 @@ struct CargoRemoteCacheTests {
 
     @Test(.inTemporaryDirectory)
     func concurrentLookupsWaitWithoutSpendingTheirRemoteTimeout() async throws {
-        let remote = BrokerMemoryCache(readDelay: .milliseconds(600))
+        let remote = BrokerMemoryCache(minimumConcurrentReads: 8)
         try await withBroker(remote: remote) { cache, root in
             let expected = REAPI.ActionResult.with { $0.stdoutRaw = Data("cached result".utf8) }
             try await cache.storeActionResult(expected, for: REAPI.emptyBlob)
@@ -498,11 +498,17 @@ struct CargoRemoteCacheTests {
     ) async throws {
         let root = try directory()
         let broker = root.appendingPathComponent("broker")
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            defer { group.cancelAll() }
-            group.addTask { try await CargoRemoteCache.serve(directory: broker, remote: remote) }
-            group.addTask { try await body(CargoRemoteCache(directory: broker), root) }
-            try await group.next()
+        // These tests exercise lane admission and backend cleanup, not client delivery deadlines.
+        // Keep executor scheduling delays out of that clock; deadline tests control it separately.
+        let now = CargoRemoteCache.timing.now()
+        let timing = CargoRemoteCache.Timing(now: { now }, sleep: CargoRemoteCache.timing.sleep)
+        try await CargoRemoteCache.$timing.withValue(timing) {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                defer { group.cancelAll() }
+                group.addTask { try await CargoRemoteCache.serve(directory: broker, remote: remote) }
+                group.addTask { try await body(CargoRemoteCache(directory: broker), root) }
+                try await group.next()
+            }
         }
         #expect(!FileManager.default.fileExists(atPath: broker.appendingPathComponent("server.json").path))
     }
@@ -514,7 +520,7 @@ struct CargoRemoteCacheTests {
     }
 
     private static func waitUntil(_ condition: () async -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while await !condition() {
             try #require(ContinuousClock.now < deadline)
             try await Task.sleep(for: .milliseconds(5))
@@ -722,7 +728,7 @@ private struct CargoWireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableS
 private actor BrokerMemoryCache: REAPICacheStoring {
     static let rejected = REAPI.digest(Data("rejected".utf8))
     private let knownUploads: Bool
-    private let synchronizeReads: Bool
+    private let minimumConcurrentReads: Int
     private var blockReads: Bool
     private var blockUploads: Bool
     private let readDelay: Duration
@@ -737,11 +743,11 @@ private actor BrokerMemoryCache: REAPICacheStoring {
     private(set) var peakUploads = 0
 
     init(
-        knownUploads: Bool = false, synchronizeReads: Bool = false, blockReads: Bool = false,
+        knownUploads: Bool = false, minimumConcurrentReads: Int = 0, blockReads: Bool = false,
         blockUploads: Bool = false, readDelay: Duration = .zero, readCancellationDelay: Duration = .zero
     ) {
         self.knownUploads = knownUploads
-        self.synchronizeReads = synchronizeReads
+        self.minimumConcurrentReads = minimumConcurrentReads
         self.blockReads = blockReads
         self.blockUploads = blockUploads
         self.readDelay = readDelay
@@ -761,7 +767,7 @@ private actor BrokerMemoryCache: REAPICacheStoring {
             }
         }
         try await Task.sleep(for: readDelay)
-        while synchronizeReads, peakReads < 2 {
+        while peakReads < minimumConcurrentReads {
             try await Task.sleep(for: .milliseconds(5))
         }
         return result

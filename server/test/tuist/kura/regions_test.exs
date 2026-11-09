@@ -7,6 +7,94 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  test "every eligible enrolled region has at least two replicas" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [] end)
+    ids = for region <- Regions.all(), region.provisioner_config[:storage_class] == "scw-local-nvme", do: region.id
+    refute ids == []
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ids end)
+
+    for id <- ids do
+      replicas = Regions.get(id).provisioner_config.replicas
+      assert is_integer(replicas) and replicas >= 2
+    end
+  end
+
+  test "LVM enrollment includes rack storage and leaves other regions unchanged" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    assert Regions.get("scw-fr-par-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("scw-fr-par-runners")) == "tuist.dev/kura-disk"
+    assert Regions.disk_resource(Regions.get("us-east")) == "ephemeral-storage"
+    assert Regions.get("ber1-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("ber1-runners")) == "tuist.dev/kura-disk"
+    assert Regions.get("larch-runners").provisioner_config.storage_class == "scw-local-nvme"
+    refute Regions.get("larch-runners").provisioner_config.encrypted_volumes
+  end
+
+  test "each rack site requires its own explicit LVM enrollment" do
+    for id <- ["ber1-runners", "larch-runners"] do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [id] end)
+      config = Regions.get(id).provisioner_config
+      assert config.storage_class == "kura-lvm-nvme"
+      assert config.encrypted_volumes
+      assert config.replicas == 2
+      assert Regions.disk_resource(Regions.get(id)) == "tuist.dev/kura-disk"
+
+      other_id = if id == "ber1-runners", do: "larch-runners", else: "ber1-runners"
+      other_config = Regions.get(other_id).provisioner_config
+      assert other_config.storage_class == "scw-local-nvme"
+      refute other_config.encrypted_volumes
+      assert other_config.replicas == 1
+    end
+  end
+
+  describe "thin_volumes?/1" do
+    test "marks only enrolled node-local regions as thin-capable, leaving their storage unchanged" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> [] end)
+      before = Regions.get("eu-west")
+      refute Regions.thin_volumes?(before)
+
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west", "hetzner-staging-runners"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == before.provisioner_config.storage_class
+      assert Regions.disk_resource(region) == Regions.disk_resource(before)
+      assert region.provisioner_config.replicas == before.provisioner_config.replicas
+      refute Regions.thin_volumes?(Regions.get("us-east"))
+      refute Regions.thin_volumes?(Regions.get("hetzner-staging-runners"))
+    end
+
+    test "an enrolled region selects every account without reading the flag, and only that region" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_enrolled_region_ids, fn -> ["us-central"] end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+      account = %Tuist.Accounts.Account{id: 42}
+
+      enrolled = Regions.get("us-central")
+      assert Regions.thin_volumes?(enrolled)
+      assert Regions.thin_volumes?(enrolled, account)
+
+      capable = Regions.get("eu-west")
+      assert Regions.thin_volumes?(capable)
+      refute Regions.thin_volumes?(capable, account)
+      refute Map.has_key?(capable.provisioner_config, :thin_enrolled)
+
+      refute Regions.thin_volumes?(Regions.get("us-east"), account)
+
+      reject(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, 1)
+      assert Regions.thin_volumes?(enrolled, account)
+    end
+
+    test "combines with LVM enrollment" do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == "kura-lvm-nvme"
+    end
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)

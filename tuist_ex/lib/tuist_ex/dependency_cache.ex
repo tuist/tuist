@@ -40,6 +40,7 @@ defmodule TuistEx.DependencyCache do
   ]
 
   @compiler_environment ~w(ERL_COMPILER_OPTIONS ELIXIR_ERL_OPTIONS ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS SOURCE_DATE_EPOCH ERL_LIBS MIX_PATH MIX_ARCHIVES)
+  @code_path_environment ~w(ERL_LIBS MIX_PATH MIX_ARCHIVES)
 
   def prepare(args, reporter, analytics_options \\ []) do
     options =
@@ -101,6 +102,10 @@ defmodule TuistEx.DependencyCache do
                       )
 
                     {pending, support}
+
+                  # Mix compiles nothing for these, so there is nothing to cache.
+                  dependency.opts[:compile] == false ->
+                    {[dependency | pending], support}
 
                   selected?(dependency, options) ->
                     compile_dependencies(Enum.reverse(pending))
@@ -545,7 +550,7 @@ defmodule TuistEx.DependencyCache do
       upstream_sources
       |> Enum.sort_by(fn {dep, _, _} -> dep.app end)
       |> Enum.map(fn {dep, upstream_config, tree} ->
-        {dep.app, dependency_options(dep), tree, compiler_config(upstream_config),
+        {dep.app, dependency_options(dep), tree, compiler_config(upstream_config, options),
          Plan.fetch({:artifacts, dep}, fn -> Compiler.artifacts(dep, upstream_config) end)}
       end)
 
@@ -554,8 +559,8 @@ defmodule TuistEx.DependencyCache do
         do: {File.cwd!(), dependency.opts[:dest], dependency.opts[:build]}
 
     inputs =
-      {context, dependency.app, dependency_options(dependency), sources, compiler_config(config),
-       upstream, paths}
+      {context, dependency.app, dependency_options(dependency), sources,
+       compiler_config(config, options), upstream, paths}
 
     {:ok, inputs |> model_term() |> Key.build()}
   end
@@ -593,8 +598,34 @@ defmodule TuistEx.DependencyCache do
   defp dependency_config(dependency, options),
     do: Compiler.config(dependency, true, Compiler.builder(dependency, options))
 
-  defp compiler_config(config),
-    do: config |> Keyword.take(@compiler_config) |> Compiler.effective_config()
+  defp compiler_config(config, options) do
+    config = config |> Keyword.take(@compiler_config) |> Compiler.effective_config()
+    if Keyword.get(options, :portable, false), do: portable_config(config), else: config
+  end
+
+  # Toolchains install under per-user homes, so portable keys name rebar3 and
+  # declared builder tools by name and bytes rather than where they live. PATH
+  # only decides which executables run: declared tools are keyed by the bytes it
+  # resolves, and the builder's platform covers the rest. Other native variables
+  # keep their values, with the checkout path replaced.
+  defp portable_config(config) do
+    config
+    |> Keyword.replace_lazy(
+      :rebar_toolchain,
+      &Enum.map(&1, fn {path, digest} -> {Path.basename(path), digest} end)
+    )
+    |> Keyword.replace_lazy(:builder_inputs, fn inputs ->
+      %{
+        inputs
+        | environment:
+            inputs.environment
+            |> List.keydelete("PATH", 0)
+            |> relocatable(checkout_root(File.cwd!())),
+          tools:
+            Enum.map(inputs.tools, fn {tool, _path, _canonical, digest} -> {tool, digest} end)
+      }
+    end)
+  end
 
   defp dependency_options(dependency) do
     options = fn dep ->
@@ -626,8 +657,13 @@ defmodule TuistEx.DependencyCache do
   defp context(options) do
     # Loading an .app merges defaults into live env. Those defaults are keyed by
     # dependency sources; only explicitly configured keys belong in this context.
+    # Dependencies compile before the project, so its own application's
+    # configuration is not theirs to read.
+    project_app = Mix.Project.config()[:app]
+
     config =
       Mix.Tasks.Loadconfig.read_compile()
+      |> Enum.reject(fn {app, _pairs} -> app == project_app end)
       |> Enum.map(fn {app, pairs} ->
         {app,
          Enum.map(pairs, fn {key, value} -> {key, Application.get_env(app, key, value)} end)
@@ -635,17 +671,24 @@ defmodule TuistEx.DependencyCache do
       end)
       |> Enum.sort()
 
+    config =
+      if Keyword.get(options, :portable, false),
+        do: relocatable(config, checkout_root(File.cwd!())),
+        else: config
+
     %{
       toolchain: %{
         elixir: System.build_info(),
         otp: otp_version(),
-        erts: :erlang.system_info(:system_version),
+        # The system_version banner also carries scheduler counts, which follow
+        # the machine's CPUs rather than anything the compiler reads.
+        erts: :erlang.system_info(:version),
         architecture: :erlang.system_info(:system_architecture),
         word_size: :erlang.system_info(:wordsize),
         endianness: :erlang.system_info(:endian),
         parsetools_includes:
           :parsetools |> :code.lib_dir() |> to_string() |> Path.join("include") |> Key.tree(),
-        os: {:os.type(), :os.version()},
+        os: :os.type(),
         compilers:
           Enum.map(
             [
@@ -677,7 +720,7 @@ defmodule TuistEx.DependencyCache do
         (@compiler_environment ++ Keyword.get(options, :env, []))
         |> Enum.uniq()
         |> Enum.sort()
-        |> Enum.map(&{&1, System.get_env(&1)}),
+        |> Enum.map(&{&1, environment_value(&1, System.get_env(&1), options)}),
       inputs:
         options
         |> Keyword.get(:inputs, [])
@@ -686,6 +729,43 @@ defmodule TuistEx.DependencyCache do
         |> Enum.map(&{&1, Key.tree(&1)}),
       project: Mix.Project.config()[:tuist] |> Keyword.get(:project)
     }
+  end
+
+  # Toolchain managers point these at per-user install directories, so portable
+  # keys hash what the listed directories hold instead of where they are.
+  defp environment_value(name, value, options)
+       when name in @code_path_environment and is_binary(value) do
+    if Keyword.get(options, :portable, false),
+      do: value |> String.split(":", trim: true) |> Enum.map(&Key.tree/1),
+      else: value
+  end
+
+  defp environment_value(_name, value, _options), do: value
+
+  # Configuration often holds paths built from __DIR__, so portable keys name
+  # the checkout with a placeholder instead.
+  defp relocatable(term, root) when is_binary(term) do
+    if term == root, do: "<checkout>", else: String.replace(term, root <> "/", "<checkout>/")
+  end
+
+  defp relocatable([head | tail], root), do: [relocatable(head, root) | relocatable(tail, root)]
+
+  defp relocatable(term, root) when is_tuple(term),
+    do: term |> Tuple.to_list() |> relocatable(root) |> List.to_tuple()
+
+  defp relocatable(term, root) when is_map(term),
+    do: :maps.map(fn _key, value -> relocatable(value, root) end, term)
+
+  defp relocatable(term, _root), do: term
+
+  defp checkout_root(dir) do
+    parent = Path.dirname(dir)
+
+    cond do
+      File.exists?(Path.join(dir, ".git")) -> dir
+      parent == dir -> File.cwd!()
+      true -> checkout_root(parent)
+    end
   end
 
   defp otp_version do
@@ -740,6 +820,13 @@ defmodule TuistEx.DependencyCache do
   defp model_term(term), do: term
 
   defp observation(dependency, outcome, reason, key, duration, saved) do
+    # The compile report carries these observations, but a client that cannot
+    # submit it (a read-only cache token) would otherwise never see them.
+    Report.debug(
+      "tuist cache: #{dependency.app} #{outcome}" <>
+        if(reason == "", do: "", else: " (#{reason})") <> if(key == "", do: "", else: " #{key}")
+    )
+
     %{
       dependency: Atom.to_string(dependency.app),
       outcome: outcome,

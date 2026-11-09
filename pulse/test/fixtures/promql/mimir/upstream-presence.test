@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Testdata for present_over_time()
+eval instant at 1m present_over_time(http_requests_total[5m])
+
+eval instant at 1m present_over_time(http_requests_total{handler="/foo"}[5m])
+
+eval instant at 1m present_over_time(http_requests_total{handler!="/foo"}[5m])
+
+eval instant at 1m present_over_time(http_requests_total{handler="/foo", handler="/bar", handler="/foobar"}[5m])
+
+eval instant at 1m present_over_time(http_requests_total{handler="/foo", handler="/bar", instance="127.0.0.1"}[5m])
+
+load 1m
+	http_requests_total{path="/foo",instance="127.0.0.1",job="httpd"}	1+1x10
+	http_requests_total{path="/bar",instance="127.0.0.1",job="httpd"}	1+1x10
+	httpd_handshake_failures_total{instance="127.0.0.1",job="node"}	1+1x15
+	httpd_log_lines_total{instance="127.0.0.1",job="node"}	1
+	ssl_certificate_expiry_seconds{job="ingress"} NaN NaN NaN NaN NaN
+
+eval instant at 5m present_over_time(http_requests_total[5m])
+    {instance="127.0.0.1", job="httpd", path="/bar"} 1
+    {instance="127.0.0.1", job="httpd", path="/foo"} 1
+
+eval instant at 5m present_over_time(rate(http_requests_total[5m])[5m:1m])
+    {instance="127.0.0.1", job="httpd", path="/bar"} 1
+    {instance="127.0.0.1", job="httpd", path="/foo"} 1
+
+eval instant at 0m present_over_time(httpd_log_lines_total[30s])
+    {instance="127.0.0.1",job="node"} 1
+
+eval instant at 1m present_over_time(httpd_log_lines_total[30s])
+
+eval instant at 15m present_over_time(http_requests_total[5m])
+
+eval instant at 15m present_over_time(http_requests_total[10m])
+    {instance="127.0.0.1", job="httpd", path="/bar"} 1
+    {instance="127.0.0.1", job="httpd", path="/foo"} 1
+
+eval instant at 16m present_over_time(http_requests_total[6m])
+
+eval instant at 16m present_over_time(http_requests_total[16m])
+    {instance="127.0.0.1", job="httpd", path="/bar"} 1
+    {instance="127.0.0.1", job="httpd", path="/foo"} 1
+
+eval instant at 16m present_over_time(httpd_handshake_failures_total[1m])
+
+eval instant at 16m present_over_time({instance="127.0.0.1"}[5m])
+    {instance="127.0.0.1",job="node"} 1
+
+eval instant at 21m present_over_time({job="grok"}[20m])
+
+eval instant at 30m present_over_time({instance="127.0.0.1"}[5m:5s])
+
+eval instant at 5m present_over_time({job="ingress"}[4m])
+    {job="ingress"} 1
+
+eval instant at 10m present_over_time({job="ingress"}[4m])
+
+clear

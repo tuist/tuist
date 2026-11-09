@@ -9,12 +9,9 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     queue: :vcs_comments,
     unique: [keys: [:project_id, :git_ref], states: :incomplete, period: :infinity]
 
-  use Phoenix.VerifiedRoutes,
-    endpoint: TuistWeb.Endpoint,
-    router: TuistWeb.Router
-
   import Ecto.Query
 
+  alias Tuist.EntireTrails
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
@@ -50,31 +47,47 @@ defmodule Tuist.VCS.Workers.CommentWorker do
       })
     end
 
+    # Queued here rather than when this job is enqueued, because processors
+    # enqueue it and their database role cannot read Entire connections; this
+    # queue runs only on web nodes. Queuing after the comment keeps uploads
+    # that arrived while this job was pending or running (deduplicated into
+    # it) covered by the report, whose own delay outlasts their buffer flush.
+    EntireTrails.enqueue(project_id)
+
     :ok
   end
 
   defp preview_url(%{project: %{account: account} = project, preview: preview}) do
-    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}")
+    app_url([account.name, project.name, "previews", preview.id])
   end
 
   defp preview_qr_code_url(%{project: %{account: account} = project, preview: preview}) do
-    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png")
+    app_url([account.name, project.name, "previews", preview.id, "qr-code.png"])
   end
 
   defp command_run_url(%{project: %{account: account} = project, command_event: command_event}) do
-    url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+    app_url([account.name, project.name, "runs", command_event.id])
   end
 
   defp test_run_url(%{project: %{account: account} = project, test_run: test_run}) do
-    url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+    app_url([account.name, project.name, "tests", "test-runs", test_run.id])
   end
 
   defp bundle_url(%{project: %{account: account} = project, bundle: bundle}) do
-    url(~p"/#{account.name}/#{project.name}/bundles/#{bundle.id}")
+    app_url([account.name, project.name, "bundles", bundle.id])
   end
 
   defp build_url(%{project: %{account: account} = project, build: build}) do
-    url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}")
+    app_url([account.name, project.name, "builds", "build-runs", build.id])
+  end
+
+  defp app_url(segments) do
+    path =
+      Enum.map_join(segments, fn segment ->
+        "/" <> URI.encode(Phoenix.Param.to_param(segment), &URI.char_unreserved?/1)
+      end)
+
+    Phoenix.VerifiedRoutes.unverified_url(Tuist.Web.endpoint(), path)
   end
 
   defp cancel_competing_jobs(current_job_id, project_id, git_ref) do

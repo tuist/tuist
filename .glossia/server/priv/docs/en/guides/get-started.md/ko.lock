@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b2afa31312666068d979125fa01833e5428b1618c4f0297af53e022d418a7ad7",
+  "hash": "3e5d58b0dc28dad89d6a688cb328f485d3afc5f6e386df6b2e5799934ed298c0",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Get started {#get-started}": {
-                  "content_hash": "454c84432ef1550e6b8feecd8f83d48e837417dd97320d8f9d3c6a16b8310b66"
+                  "content_hash": "697b4b62b4750ac3ae14bb789a462d152801caa5082812482bc9ec01f6c51286"
                 },
                 "## Bazel project {#bazel-project}": {
-                  "content_hash": "e158979539f668694076ee39b660c8824cbb574f46cb2cf124bedcb426981363"
+                  "content_hash": "f34481f7ecfdc805d917c7ea948dda13a62fb86da190417a4929eb027305b5b4"
                 },
                 "## Elixir project {#elixir-project}": {
                   "content_hash": "1970cb9d6891a0d0f8cafaf20acc94c4cdc55caef0b999c8abb3c9dc8e35bdce"
@@ -25,6 +25,9 @@
                 "## Gradle project {#gradle-project}": {
                   "content_hash": "4f57915fd61693a433b8a14ba9d52e03606f76b938892500228d9271960b02ea"
                 },
+                "## Once project {#once-project}": {
+                  "content_hash": "92ed11b416e26d6872842d211dca2ab5a12a29f605b24073fffbf6c023f1dfbb"
+                },
                 "## Rust project {#rust-project}": {
                   "content_hash": "6a0dade3f579d336689df4a7b7fe8025ddce663362e97154b6c9d29c24aea4ff"
                 },
@@ -32,17 +35,17 @@
                   "content_hash": "17a9d8a19df965a505b3904866ec33219c3afa08f015edc3dfd8566098d6ab59"
                 },
                 "Preamble": {
-                  "content_hash": "a6a21f764d6cb3f3e092327168524c7646af1c2a5ffc292eba510cbd4b226263"
+                  "content_hash": "44ce158d4227e46bc2234f4fb8784161c6a5ded1ed2a352176b9b4715c2d85a7"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "611f2435cf8a982fa5a9248d7ba2507e483a12bae52ca079253416d2407f18a1",
+          "hash": "1cf8c811ee709b016b9b59469706dc482dcf7e5f7813b29da9ba1569027a54b9",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started.md",
           "metadata": {
-            "content_hash": "c25532e759645be9458da35cdab896df6b6ff8ad8a4fd8fa462489f9a33c33a3"
+            "content_hash": "0b588ae91317683f0cb11daf5493ea5d62e4600fa491dbf1ba0b9bdb84a07b82"
           }
         },
         {
@@ -103,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,13 +125,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -141,21 +144,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -250,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "803ac51eb5f809a1ae6251073d26691bbd353a4a907eb544759584ec1e2c9fc6",
+          "hash": "cd7533b06156207a7f98fb2df29eee760b49d144dcf3af7125d8b9c0c8d83e08",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "b2afa31312666068d979125fa01833e5428b1618c4f0297af53e022d418a7ad7",
+      "hash": "3e5d58b0dc28dad89d6a688cb328f485d3afc5f6e386df6b2e5799934ed298c0",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d9a493b3cf7607f9675f7becc0a4f99ccefed9adbf33153be8d78b06a26273f2",
+  "output_hash": "d9a8f49e9674393f368dda1aef71d8b5127a3933ab5a2e14ee3ae86625c34306",
   "output_path": "server/priv/docs/ko/guides/get-started.md",
   "protection_state": "recorded",
   "provider": "",
@@ -286,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/get-started.md",
-  "translated_at": "2026-10-29T16:15:54.009217Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-11-06T21:25:58.431661Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

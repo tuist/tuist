@@ -23,6 +23,8 @@ defmodule Tuist.Bazel do
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
+  @invocation_log_streams ~w(stdout stderr)
+  @invocation_log_error_pattern "(?m)^\\r*(?:ERROR|FAIL|TIMEOUT): "
 
   def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
@@ -117,6 +119,8 @@ defmodule Tuist.Bazel do
           sequence_number: log.sequence_number,
           stream: log.stream,
           message: log.message,
+          target_label: Map.get(log, :target_label, ""),
+          status: Map.get(log, :status, ""),
           project_id: log.project_id,
           observed_at: log.observed_at,
           inserted_at: now
@@ -457,14 +461,78 @@ defmodule Tuist.Bazel do
 
   def list_invocations(project_id, flop_params \\ %{}, opts \\ []) do
     {commands, flop_params} = Map.pop(flop_params, :commands)
+    failure_category? = Keyword.get(opts, :failure_category, false)
 
-    {invocations, meta} =
+    # Two steps. `FINAL` keeps ClickHouse from moving filters to `PREWHERE`,
+    # and the table is sorted by project and random invocation ID, so a query
+    # that selects whole rows reads every column of the project's history to
+    # sort and filter it. The page is chosen from the narrow key, filter and
+    # sort columns instead, and only its rows are then loaded by primary key.
+    {page, meta} =
       project_id
       |> invocation_query(Keyword.put(opts, :commands, commands))
       |> maybe_with_failure_category(project_id, opts)
+      |> select_page_key(failure_category?)
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
-    with_cache_summaries(project_id, invocations, meta)
+    with_cache_summaries(project_id, load_page(project_id, page, failure_category?), meta)
+  end
+
+  defp select_page_key(query, true),
+    do:
+      select(query, [invocation], %{
+        invocation_id: invocation.invocation_id,
+        inserted_at: invocation.inserted_at,
+        failure_category: invocation.failure_category
+      })
+
+  defp select_page_key(query, false),
+    do: select(query, [invocation], %{invocation_id: invocation.invocation_id, inserted_at: invocation.inserted_at})
+
+  defp load_page(_project_id, [], _failure_category?), do: []
+
+  defp load_page(project_id, page, failure_category?) do
+    {first_inserted_at, last_inserted_at} = page |> Enum.map(& &1.inserted_at) |> Enum.min_max_by(& &1, NaiveDateTime)
+    invocation_ids = Enum.map(page, & &1.invocation_id)
+
+    # The page holds the latest version of each row, so bounding by its
+    # insertion times only prunes partitions that cannot hold that version.
+    invocations =
+      from(invocation in Invocation,
+        hints: ["FINAL"],
+        where:
+          invocation.project_id == ^project_id and invocation.invocation_id in ^invocation_ids and
+            invocation.inserted_at >= ^first_inserted_at and invocation.inserted_at <= ^last_inserted_at
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.invocation_id, &1})
+
+    # A row that expired between the two queries is left out of the page.
+    for key <- page, invocation <- List.wrap(invocations[key.invocation_id]) do
+      if failure_category?, do: %{invocation | failure_category: key.failure_category}, else: invocation
+    end
+  end
+
+  @doc """
+  Lists a project's invocations newest first for the REST API and MCP. Each
+  filter in `params` is an exact match, and a `nil` or `""` value leaves it out,
+  so the latest failure on a branch is one page of size one.
+  """
+  def list_project_invocations(project_id, params) do
+    filters =
+      for field <- [:status, :git_branch, :git_commit_sha, :is_ci, :command],
+          value <- [Map.get(params, field)],
+          value not in [nil, ""],
+          do: %{field: field, op: :==, value: value}
+
+    list_invocations(project_id, %{
+      filters: [%{field: :project_id, op: :==, value: project_id} | filters],
+      # Invocations finishing in the same second keep a stable page order.
+      order_by: [:finished_at, :invocation_id],
+      order_directions: [:desc, :desc],
+      page: Map.get(params, :page, 1),
+      page_size: Map.get(params, :page_size, 20)
+    })
   end
 
   defp maybe_with_failure_category(query, project_id, opts) do
@@ -510,6 +578,10 @@ defmodule Tuist.Bazel do
     |> ClickHouseRepo.exists?()
   end
 
+  # Besides the time-pruning options, `opts` accepts the filters shared by the
+  # API and MCP: `stream:` (`"stdout"` or `"stderr"`), `source:` (`"progress"`
+  # or `"test_log"`), `target_label:` and `errors: true`. Absent or unknown
+  # values do not filter.
   def list_invocation_logs(project_id, invocation_id, flop_params \\ %{}, opts \\ []) do
     ClickHouseFlop.validate_and_run!(
       invocation_log_query(project_id, invocation_id, opts),
@@ -655,14 +727,16 @@ defmodule Tuist.Bazel do
   def recent_invocations(project_id, opts) when is_list(opts) do
     limit = Keyword.get(opts, :limit, 30)
 
-    invocations =
+    # Picks the rows from narrow columns before loading them, as `list_invocations/3` does.
+    page =
       project_id
       |> invocation_query(opts)
       |> order_by([invocation], desc: invocation.finished_at)
       |> limit(^limit)
+      |> select_page_key(false)
       |> ClickHouseRepo.all()
 
-    {invocations, _meta} = with_cache_summaries(project_id, invocations, %{})
+    {invocations, _meta} = with_cache_summaries(project_id, load_page(project_id, page, false), %{})
     invocations
   end
 
@@ -687,6 +761,7 @@ defmodule Tuist.Bazel do
       |> where([invocation], invocation.project_id == ^project_id)
       |> maybe_filter_commands(Keyword.get(opts, :commands))
       |> maybe_filter_environment(Keyword.get(opts, :is_ci))
+      |> maybe_filter_status(Keyword.get(opts, :status))
 
     query =
       case Keyword.get(opts, :start_datetime) do
@@ -731,11 +806,57 @@ defmodule Tuist.Bazel do
         start_datetime -> where(query, [log], log.observed_at >= ^start_datetime)
       end
 
-    case Keyword.get(opts, :end_datetime) do
-      nil -> query
-      end_datetime -> where(query, [log], log.observed_at < ^end_datetime)
-    end
+    query =
+      case Keyword.get(opts, :end_datetime) do
+        nil -> query
+        end_datetime -> where(query, [log], log.observed_at < ^end_datetime)
+      end
+
+    query
+    |> filter_invocation_log_stream(Keyword.get(opts, :stream))
+    |> filter_invocation_log_source(Keyword.get(opts, :source))
+    |> filter_invocation_log_target(Keyword.get(opts, :target_label))
+    |> filter_invocation_log_errors(Keyword.get(opts, :errors))
   end
+
+  defp filter_invocation_log_stream(query, stream) when stream in @invocation_log_streams,
+    do: where(query, [log], log.stream == ^stream)
+
+  defp filter_invocation_log_stream(query, _stream), do: query
+
+  # The writers encode a row's origin in its sequence number: Kura stores Build
+  # Event Protocol progress at `2 * event sequence` (stderr) and
+  # `2 * event sequence + 1` (stdout), and ProcessTestInvocationWorker stores
+  # each test.log on stdout at `2 * test result sequence`. Even stdout rows are
+  # therefore test logs and every other row is progress output.
+  defp filter_invocation_log_source(query, "test_log"),
+    do: where(query, [log], log.stream == "stdout" and fragment("modulo(?, 2) = 0", log.sequence_number))
+
+  defp filter_invocation_log_source(query, "progress"),
+    do: where(query, [log], log.stream == "stderr" or fragment("modulo(?, 2) = 1", log.sequence_number))
+
+  defp filter_invocation_log_source(query, _source), do: query
+
+  # Only test logs carry a target label: Bazel does not attribute progress
+  # output to targets.
+  defp filter_invocation_log_target(query, target_label) when is_binary(target_label) and target_label != "",
+    do: where(query, [log], log.target_label == ^target_label)
+
+  defp filter_invocation_log_target(query, _target_label), do: query
+
+  # Errors are test logs of failed attempts, plus stderr progress chunks with a
+  # line Bazel's terminal reporter prefixes for an ERROR, FAIL or TIMEOUT event.
+  # Progress stdout is program output and is never matched as text.
+  defp filter_invocation_log_errors(query, true) do
+    where(
+      query,
+      [log],
+      log.status == "failure" or
+        (log.stream == "stderr" and fragment("match(?, ?)", log.message, ^@invocation_log_error_pattern))
+    )
+  end
+
+  defp filter_invocation_log_errors(query, _errors), do: query
 
   defp daily_analytics(query, opts) do
     %{start_datetime: start_datetime, end_datetime: end_datetime} = period(opts)
@@ -809,6 +930,12 @@ defmodule Tuist.Bazel do
   end
 
   defp maybe_filter_environment(query, _is_ci), do: query
+
+  defp maybe_filter_status(query, status) when status in ["success", "failure"] do
+    where(query, [invocation], invocation.status == ^status)
+  end
+
+  defp maybe_filter_status(query, _status), do: query
 
   defp cache_summary_query_options(invocations) do
     first_started_at = invocations |> Enum.min_by(& &1.started_at, NaiveDateTime) |> Map.fetch!(:started_at)

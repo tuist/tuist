@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/trig_functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+load 5m
+	trig{l="x"} 10
+	trig{l="y"} 20
+	trig{l="NaN"} NaN
+
+eval instant at 1m rad(trig)
+	{l="x"} 0.17453292519943295
+	{l="y"} 0.3490658503988659
+	{l="NaN"} NaN
+
+eval instant at 1m rad(trig - 10)
+	{l="x"} 0
+	{l="y"} 0.17453292519943295
+	{l="NaN"} NaN
+
+eval instant at 1m rad(trig - 20)
+	{l="x"} -0.17453292519943295
+	{l="y"} 0
+	{l="NaN"} NaN
+
+eval instant at 1m deg(trig)
+	{l="x"} 572.9577951308232
+	{l="y"} 1145.9155902616465
+	{l="NaN"} NaN
+
+eval instant at 1m deg(trig - 10)
+	{l="x"} 0
+	{l="y"} 572.9577951308232
+	{l="NaN"} NaN
+
+eval instant at 1m deg(trig - 20)
+	{l="x"} -572.9577951308232
+	{l="y"} 0
+	{l="NaN"} NaN
+
+eval instant at 1m rad(vector(1e308))
+	{} 1.7453292519943295e+306
+
+eval instant at 1m deg(vector(1e306))
+	{} 5.729577951308232e+307
+
+clear
+
+eval instant at 0s pi()
+	3.141592653589793

@@ -267,11 +267,11 @@ class ProjectFileElements {
 
         // Elements
         var elements = Set<GroupFileElement>()
-        if let layout = target.headers?.sourceLayout {
-            elements.insert(.folder(path: layout.root, group: target.filesGroup))
-        }
+        let headerTree = target.headers?.sourceLayout.map { Self.headerTree(root: $0.root) } ?? (folders: [], files: [])
+        elements.formUnion(headerTree.folders.map { .folder(path: $0, group: target.filesGroup) })
+        files.formUnion(headerTree.files)
         elements.formUnion(files.map { path in
-            if let root = target.headers?.sourceLayout?.root, path.isDescendant(of: root) {
+            if headerTree.folders.contains(where: { path.isDescendant(of: $0) }) {
                 return GroupFileElement.buildFile(
                     path: path,
                     group: target.filesGroup,
@@ -299,6 +299,34 @@ class ProjectFileElements {
         }
 
         return elements
+    }
+
+    /// The references that make a SwiftPM target's header tree visible without adding its headers to build planning.
+    /// Xcode resolves a referenced folder that directly contains `Package.swift` as a local package, along with its
+    /// dependencies, so a package directory (the root of a target declared with `path: "."`) is referenced through its
+    /// contents instead. Hidden entries, manifests, and wrapper directories such as `.xcodeproj`, which Xcode would open
+    /// by their extension, are left out.
+    private static func headerTree(root: AbsolutePath) -> (folders: [AbsolutePath], files: [AbsolutePath]) {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: root.appending(component: "Package.swift").pathString),
+              let children = try? fileManager.contentsOfDirectory(atPath: root.pathString)
+        else { return ([root], []) }
+        var tree: (folders: [AbsolutePath], files: [AbsolutePath]) = ([], [])
+        for child in children.sorted()
+            where !child.hasPrefix(".") && child != "Package.swift" && !child.hasPrefix("Package@swift-")
+        {
+            let path = root.appending(component: child)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory) else { continue }
+            if !isDirectory.boolValue {
+                tree.files.append(path)
+            } else if path.extension == nil {
+                let nested = headerTree(root: path)
+                tree.folders += nested.folders
+                tree.files += nested.files
+            }
+        }
+        return tree
     }
 
     func generate(

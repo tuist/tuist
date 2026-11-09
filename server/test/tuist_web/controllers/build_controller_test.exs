@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildControllerTest do
   alias Tuist.Bazel
   alias Tuist.Bazel.Profile
   alias Tuist.Builds
+  alias Tuist.Builds.Trace
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
@@ -134,6 +135,99 @@ defmodule TuistWeb.BuildControllerTest do
         |> json_response(200)
 
       assert %{"events" => [], "total_count" => 0, "target_count" => 0} = response
+    end
+  end
+
+  describe "trace/2" do
+    test "packs overlapping steps into lanes and adds machine counters", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      steps =
+        for {id, start_ms} <- [{1, 0.0}, {2, 50.0}, {3, 100.0}] do
+          %{
+            event_id: id,
+            title: "Step #{id}",
+            target: "App",
+            project: "App",
+            start_ms: start_ms,
+            duration_ms: 100.0,
+            status: "success",
+            log: "Private log"
+          }
+        end
+
+      metric = %{
+        timestamp: 1_700_000_000.25,
+        offset_ms: 250.0,
+        cpu_usage_percent: 42.0,
+        memory_used_bytes: 2 * 1024 * 1024 * 1024,
+        memory_total_bytes: 16_000_000_000,
+        network_bytes_in: 100,
+        network_bytes_out: 200,
+        disk_bytes_read: 300,
+        disk_bytes_written: 400
+      }
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(project_id: project.id, build_steps: steps, machine_metrics: [metric], duration: 300)
+
+      path = ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build.id}/trace.json"
+      response_conn = conn |> log_in_user(user) |> get(path)
+
+      assert response_conn.status == 200
+
+      assert get_resp_header(response_conn, "content-disposition") == [
+               ~s(attachment; filename="build-#{build.id}-trace.json")
+             ]
+
+      events = JSON.decode!(response_conn.resp_body)["traceEvents"]
+
+      # Step 3 starts exactly when step 1 ends, so it reuses step 1's lane.
+      assert [
+               %{"name" => "Step 1", "tid" => 2, "ts" => 0, "dur" => 100_000},
+               %{"name" => "Step 2", "tid" => 3, "ts" => 50_000, "dur" => 100_000},
+               %{"name" => "Step 3", "tid" => 2, "ts" => 100_000, "dur" => 100_000}
+             ] = Enum.filter(events, &(&1["ph"] == "X" and &1["tid"] > 1))
+
+      assert %{"dur" => 300_000} = Enum.find(events, &(&1["cat"] == "build"))
+      refute response_conn.resp_body =~ "Private log"
+
+      assert %{"ts" => 250_000, "args" => %{"used" => 2.0}} =
+               Enum.find(events, &(&1["ph"] == "C" and &1["name"] == "Memory (GiB)"))
+
+      assert_error_sent 404, fn ->
+        conn |> log_in_user(AccountsFixtures.user_fixture()) |> get(path)
+      end
+    end
+  end
+
+  describe "signed_trace/2" do
+    test "serves Gradle and Bazel traces to holders of a valid link only", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      for source <- [:gradle, :bazel] do
+        project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: source)
+        {id, _route} = recorded_build(project, source)
+        token = Trace.sign_token(project, id)
+
+        events = conn |> get("/build-traces/#{token}") |> response(200) |> JSON.decode!() |> Map.fetch!("traceEvents")
+        assert Enum.any?(events, &(&1["ph"] == "X" and &1["name"] == "Compile"))
+
+        assert_error_sent 404, fn -> get(conn, "/build-traces/#{token}x") end
+      end
+    end
+
+    test "rejects an expired link", %{conn: conn} do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "build trace", {project.id, build.id},
+          signed_at: System.system_time(:second) - Trace.token_max_age() - 1
+        )
+
+      assert_error_sent 404, fn -> get(conn, "/build-traces/#{token}") end
     end
   end
 

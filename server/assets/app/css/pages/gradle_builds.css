@@ -47,7 +47,7 @@
     & > [data-part="configuration-insights-card-chart-section"] {
       padding: var(--noora-spacing-9) var(--noora-spacing-7);
       & > .tuist-legend {
-        margin-left: var(--noora-spacing-5);
+        margin-inline-start: var(--noora-spacing-5);
         padding-bottom: unset;
       }
     }

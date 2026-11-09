@@ -229,8 +229,17 @@ struct GenerateAcceptanceTestiOSAppWithTests {
 struct GenerateAcceptanceTestiOSAppWithFrameworks {
     @Test(.withFixture("generated_ios_app_with_frameworks"), .inTemporaryDirectory)
     func ios_app_with_frameworks() async throws {
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
+
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "MainApp.xcworkspace").pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", derivedData.pathString,
+        ])
         try await XCTAssertProductWithDestinationContainsInfoPlistKey(
             "Framework1.framework",
             destination: "Debug-iphonesimulator",
@@ -572,10 +581,15 @@ struct GenerateAcceptanceTestsiOSAppWithCustomScheme {
 }
 
 struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
-    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    @Test(
+        .withFixture("generated_ios_app_with_local_swift_package"),
+        .inTemporaryDirectory,
+        .withTestingSimulator("iPhone 17")
+    )
     func ios_app_with_local_swift_package() async throws {
+        let simulator = try #require(Simulator.testing)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "--device", simulator.name)
     }
 
     @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)

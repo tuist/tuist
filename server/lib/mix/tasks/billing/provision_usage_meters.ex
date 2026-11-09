@@ -3,7 +3,8 @@ defmodule Mix.Tasks.Billing.ProvisionUsageMeters do
 
   @moduledoc ~S"""
   Creates the Stripe Meters and Prices usage-based pricing bills on, and
-  prints the `stripe.prices.usage_meters` map to configure with them.
+  prints the `stripe.prices.usage_meters` map and the cache volume storage
+  entry of `stripe.prices.runners` to configure with them.
 
       mix billing.provision_usage_meters
       mix billing.provision_usage_meters --live
@@ -16,6 +17,7 @@ defmodule Mix.Tasks.Billing.ProvisionUsageMeters do
   use Boundary, classify_to: Tuist.MixTasks
 
   alias Tuist.Billing.UsageMeterProvisioning
+  alias Tuist.Runners.CacheVolumeBilling
 
   def run(args) do
     Mix.Task.run("app.start")
@@ -24,12 +26,11 @@ defmodule Mix.Tasks.Billing.ProvisionUsageMeters do
 
     case UsageMeterProvisioning.provision(live: Keyword.get(opts, :live, false)) do
       {:ok, price_ids} ->
-        Mix.shell().info("Provisioned in #{mode()} mode:\n")
-        Mix.shell().info("usage_meters:")
+        {runners, usage_meters} = Map.split(price_ids, [CacheVolumeBilling.meter_event_name()])
 
-        Enum.each(price_ids, fn {event_name, price_id} ->
-          Mix.shell().info(~s(  #{event_name}: "#{price_id}"))
-        end)
+        Mix.shell().info("Provisioned in #{mode()} mode:\n")
+        print_section("usage_meters", usage_meters)
+        print_section("runners", runners)
 
       {:error, :refusing_live_mode_without_opt_in} ->
         Mix.raise("The configured key addresses live mode. Pass --live to provision there.")
@@ -40,6 +41,14 @@ defmodule Mix.Tasks.Billing.ProvisionUsageMeters do
       {:error, {event_name, reason}} ->
         Mix.raise("Provisioning #{event_name} failed: #{inspect(reason)}")
     end
+  end
+
+  defp print_section(name, price_ids) do
+    Mix.shell().info("#{name}:")
+
+    Enum.each(price_ids, fn {event_name, price_id} ->
+      Mix.shell().info(~s(  #{event_name}: "#{price_id}"))
+    end)
   end
 
   defp mode do

@@ -343,6 +343,8 @@ defmodule Tuist.AppBuilds do
     end
   end
 
+  def storage_key(%{app_build: %{artifact_storage_key: key}}) when is_binary(key), do: key
+
   def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build: app_build}) do
     extension = if app_build.type == :apk, do: "apk", else: "zip"
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build.id}.#{extension}"
@@ -363,11 +365,11 @@ defmodule Tuist.AppBuilds do
   Signs a token that grants access to a preview's install endpoints for 24 hours.
   """
   def preview_install_token(%Preview{id: preview_id}) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, @preview_install_salt, preview_id)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @preview_install_salt, preview_id)
   end
 
   def verify_preview_install_token(%Preview{id: preview_id}, token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @preview_install_salt, token,
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @preview_install_salt, token,
            max_age: @preview_install_token_ttl_seconds
          ) do
       {:ok, ^preview_id} -> :ok

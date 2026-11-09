@@ -7,22 +7,22 @@
 ---
 # 中繼資料標籤 {#metadata-tags}
 
-隨著專案規模與複雜度增加，一次性處理整個程式碼庫會變得效率低下。Tuist 提供**中繼資料標籤**，讓你將目標組織成邏輯群組，並在開發期間專注於專案的特定部分。
+隨著專案規模與複雜度增加，一次性處理整個程式碼庫會變得效率低落。Tuist 提供 **中繼資料標籤**，讓你將目標組織成邏輯群組，並在開發期間專注於專案的特定部分。
 
 ## 什麼是的中繼資料標籤？ {#what-are-metadata-tags}
 
-中繼資料標籤是可以附加到專案中目標的字串標籤。它們作為標記，讓你能夠：
+中繼資料標籤是你可以附加到專案中目標的字串標籤。它們作為標記，讓你能夠：
 
-- **群組相關目標** - 為屬於相同功能、團隊或架構層級的目標加上標籤
+- **群組相關目標** - 為屬於同一功能、團隊或架構層級的目標加上標籤
 - **聚焦工作區** - 產生僅包含具有特定標籤之目標的專案
 - **最佳化工作流程** - 專注於特定功能，無需載入程式碼庫中不相關的部分
-- **選擇要保留為原始碼的目標** - 在快取時選擇要保留為原始碼的目標群組
+- **選擇保留為原始碼的目標** - 在快取時，選擇要保留為原始碼的目標群組
 
-標籤是使用目標上的 `metadata` 屬性定義，並以字串陣列的形式儲存。
+標籤使用目標上的 `metadata` 屬性定義，並以字串陣列的形式儲存。
 
 ## 定義中繼資料標籤 {#defining-metadata-tags}
 
-你可以在專案清單中的任何目標上加入標籤：
+你可以在專案清單中為任何目標新增標籤：
 
 ```swift
 import ProjectDescription
@@ -63,7 +63,7 @@ let project = Project(
 
 ## 聚焦於已加標籤的目標 {#focusing-on-tagged-targets}
 
-為目標加上標籤後，你可以使用 `tuist generate` 指令來建立一個聚焦專案，其中僅包含特定的目標：
+為目標加上標籤後，你可以使用 `tuist generate` 指令來建立一個聚焦的專案，其中僅包含特定的目標：
 
 ### 依標籤聚焦
 
@@ -86,20 +86,20 @@ tuist generate tag:team:identity
 tuist generate Authentication
 ```
 
-### 聚焦的運作方式
+### 聚焦運作方式
 
 當你聚焦於目標時：
 
 1. **包含的目標** - 符合你查詢條件的目標會被包含在產生的專案中
 2. **相依性** - 聚焦目標的所有相依性會自動被包含
-3. **測試目標** - 聚焦目標的測試目標會被包含
+3. **測試目標** - 聚焦目標對應的測試目標會被包含
 4. **排除** - 所有其他目標都會從工作區中排除
 
 這表示你會獲得一個更小、更易於管理的工作區，其中僅包含開發功能所需的內容。
 
 ## 標籤命名慣例 {#tag-naming-conventions}
 
-雖然你可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持標籤的組織性：
+雖然你可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持標籤的條理：
 
 ```swift
 // Organize by feature
@@ -128,7 +128,7 @@ Tuist 使用 `tuist:` 前綴來標示由系統管理的標籤。這些標籤由 
 
 | 標籤 | 說明 |
 | --- | --- |
-| `tuist:synthesized` | 套用到 Tuist 為靜態函式庫和靜態框架中的資源處理所建立的合成套件目標。這些套件基於歷史原因而存在，旨在提供資源存取 API。 |
+| `tuist:synthesized` | 套用於 Tuist 為靜態函式庫與靜態框架中的資源處理所建立的合成 Bundle 目標。這些 Bundle 因歷史因素而存在，旨在提供資源存取 API。 |
 
 ### 在快取設定檔中使用系統標籤
 
@@ -155,14 +155,14 @@ let tuist = Tuist(
 ```
 
 > [!TIP]
-> **合成套件繼承父目標標籤**
+> **合成 Bundle 會繼承父項標籤**
 >
-> 合成套件目標除了接收 `tuist:synthesized` 標籤外，還會繼承其父目標的所有標籤。這表示如果你為靜態函式庫加上 `feature:auth` 標籤，其合成的資源套件將同時擁有 `feature:auth` 和 `tuist:synthesized` 標籤。
+> 合成 Bundle 目標除了接收 `tuist:synthesized` 標籤外，還會繼承其父項目標的所有標籤。這表示若你為靜態函式庫加上 `feature:auth` 標籤，其合成的資源 Bundle 將同時擁有 `feature:auth` 與 `tuist:synthesized` 標籤。
 
 
 ## 搭配專案描述輔助工具使用標籤 {#using-tags-with-helpers}
 
-你可以利用<.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>，將標籤的套用方式標準化：
+你可以利用 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link> 來標準化標籤在專案中的套用方式：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -211,22 +211,22 @@ let project = Project(
 
 透過聚焦於專案的特定部分，你可以：
 
-- **縮減 Xcode 專案規模** - 處理較小的專案，開啟與導覽速度更快
+- **縮小 Xcode 專案規模** - 處理較小的專案，開啟與瀏覽速度更快
 - **加速建置** - 僅建置目前工作所需的內容
 - **提升專注度** - 避免無關程式碼的干擾
-- **最佳化索引** - Xcode 索引的程式碼較少，讓自動完成功能更快速
+- **最佳化索引** - Xcode 索引的程式碼較少，讓自動完成更快速
 
-### 更好的專案組織
+### 更佳的專案組織
 
 標籤提供了一種靈活的方式來組織你的程式碼庫：
 
-- **多個維度** - 依功能、團隊、層級、平台或任何其他維度為目標加上標籤
+- **多重維度** - 依功能、團隊、層級、平台或其他任何維度為目標加上標籤
 - **無需結構變更** - 在不改變目錄結構的情況下新增組織架構
 - **跨領域關注點** - 單一目標可以屬於多個邏輯群組
 
 ### 與快取整合
 
-元資料標籤可與<.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link>無縫協作：
+元資料標籤可與 <.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link> 無縫整合：
 
 ```bash
 # Cache all targets
@@ -238,14 +238,14 @@ tuist generate tag:feature:payment
 
 ## 最佳實踐 {#best-practices}
 
-1. **從簡單開始** - 從單一的標籤維度（例如功能）開始，並視需要擴展
+1. **從簡單開始** - 從單一的標籤維度（例如功能）開始，並依需求擴展
 2. **保持一致性** - 在所有清單中使用相同的命名慣例
-3. **記錄你的標籤** - 在專案文件中維護可用標籤及其含義的清單
+3. **記錄你的標籤** - 在專案文件中維護可用標籤及其意義的清單
 4. **使用輔助工具** - 利用專案描述輔助工具來標準化標籤的套用
 5. **定期檢視** - 隨著專案演進，檢視並更新你的標籤策略
 
 ## 相關功能 {#related-features}
 
-- <.localized_link href="/guides/features/projects/code-sharing">程式碼共用</.localized_link> - 使用專案描述輔助工具來標準化標籤的使用方式
+- <.localized_link href="/guides/features/projects/code-sharing">程式碼共用</.localized_link> - 使用專案描述輔助工具來標準化標籤的使用
 - <.localized_link href="/guides/features/cache">快取</.localized_link> - 將標籤與快取結合，以達到最佳的建置效能
 - <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> - 僅針對已變更的目標執行測試

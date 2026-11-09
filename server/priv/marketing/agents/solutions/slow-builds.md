@@ -1,46 +1,64 @@
-# Tuist: my builds are slow
+# Slow builds: find the work worth removing · Tuist
 
-Tuist combines toolchain-aware Build Insights with remote caching so developers, CI, and coding agents can investigate bottlenecks and reuse compatible outputs without moving jobs to Tuist Runners. Start with the supported Tuist integration for your build system to understand expensive work and identify reuse opportunities before buying more compute.
+Tuist helps engineering teams and coding agents investigate slow builds and reuse compatible outputs without replacing CI. Improve the project first, then its execution environment: start with recorded build evidence and remove unnecessary work before buying more compute.
 
-## Diagnose the bottleneck
+Tuist is build infrastructure for engineering teams and coding agents. It provides build evidence and capabilities, not a coding agent or automatic project repair.
 
-Compare the same commit, toolchain version, build configuration, and machine shape. Record both a cold build and a repeat build. Separate queue time, dependency downloads, compilation, linking, packaging, and cache transfers; the longest operation is not necessarily the whole critical path because operations can overlap.
+## Choose an approach
 
-| Symptom | What to investigate | Where Tuist helps |
+| Approach | Good fit | Tradeoff |
 | --- | --- | --- |
-| Every fresh checkout rebuilds unchanged code | Cacheable work, misses, compatible inputs, and download time | [Cache](/marketing-markdown/cache) shares build outputs across environments. |
-| A small edit rebuilds much of the project | Dependency fan-out, target boundaries, build settings, and scripts | [Build Insights](/en/docs-markdown/guides/features/build-insights) provides recorded timings and toolchain data to ground a graph or configuration change. |
-| A warm build is still slow | Slow files, tasks, transforms, linking, and serial work | Inspect timed operations before changing machine size or parallelism. |
-| Swift package resolution dominates | Git checkout and dependency-resolution time | The [Swift package registry](/en/docs-markdown/guides/features/package-registries/swift) can replace Git-based retrieval for supported packages. |
-| CI is slow but the same build is fast locally | Queueing, machine shape, cold state, and cache locality | [Compute](/marketing-markdown/compute) is an optional managed-runner choice, not a cache prerequisite. |
+| Tuist | Shared build evidence and compatible-output reuse across environments. | Requires integration and a measured experiment, not a promised speedup. |
+| CI | Triggering and orchestrating build jobs. | Keep it; orchestration does not remove expensive project work. |
+| Optimization suite | A focused tool already addresses the measured bottleneck. | Compare evidence, supported actions, and total operating cost. |
+| Do nothing | Build time is acceptable and waiting is infrequent. | Reassess if lost feedback time grows; avoid integration for its own sake. |
 
-## Project first, environment second
+## Diagnose
 
-Improve the dependency graph, task inputs, and expensive operations first, reuse compatible outputs, then optimize machines and locality for the remaining work. This applies to Gradle tasks, Bazel actions, Elixir compilation, and Xcode builds; the applicable intervention differs by toolchain.
+Compare the same commit, toolchain, configuration, and machine shape. Record cold and repeat builds. Separate queue time, dependency retrieval, compilation, linking, packaging, and cache transfers. Operations overlap, so the longest operation alone is not necessarily the critical path.
 
-Tuist records different evidence for different toolchains: Gradle task outcomes, configuration and transform timings; Bazel invocation metrics, profile intervals, and critical-path diagnostics; Elixir compilation data; and Xcode build steps, targets, files, and cache tasks. Start with the [Build Insights integration](/en/docs-markdown/guides/features/build-insights) matching the project.
+| Symptom | First investigation | Existing reference |
+| --- | --- | --- |
+| Fresh environments rebuild unchanged code | Compatible inputs, cache misses, and transfer cost. | [Cache integration guide](/en/docs-markdown/guides/features/cache) |
+| Small edits rebuild much of the project | Dependency fan-out, task inputs, settings, and scripts. | [Build Insights](/en/docs-markdown/guides/features/build-insights) |
+| Warm builds remain slow | Timed operations and serial work before buying capacity. | [Build Insights](/en/docs-markdown/guides/features/build-insights) |
+| Only CI is slow | Queueing, cold state, machine capacity, and cache locality. | [Compute requirements](/en/docs-markdown/guides/features/runners) |
 
-Use that evidence to decide whether to split a highly connected module, correct an unnecessarily invalidated task, improve a script, or introduce caching. Insights do not automatically rewrite the build graph.
-
-[Remote caching](/marketing-markdown/cache) reuses outputs keyed by compatible inputs. Tuist normally directs clients to a nearby regional endpoint. The cache serves developer machines and agent environments as well as CI; it does not require Tuist Runners. Configure trusted producers and verify that another environment can consume their outputs.
-
-The integration matters: whole-module caching requires Tuist-generated Xcode projects; the Xcode compilation cache works with existing projects on Xcode 26 or later; Gradle and Bazel use their own build-cache integrations. Elixir has Build Insights but no Tuist remote build cache.
+Start with the supported integration for the existing project. Cache requirements differ: whole-module substitution and compilation-output reuse are separate capabilities. The linked guides are setup and measurement references, not evidence of a universal speedup. Insights do not automatically rewrite the build graph.
 
 ## Investigate with an agent
 
-Connect the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) and give the agent a baseline build and a slow build. For Xcode, `list_xcode_build_steps` and `list_xcode_build_cache_tasks` expose timing and reuse evidence. For Gradle, use `list_gradle_build_tasks` and `list_gradle_build_steps`; for Bazel, use `get_bazel_invocation` and `list_bazel_build_steps`.
+Connect the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) and give your coding agent a baseline and slow build. For example, `list_xcode_build_steps` and `list_xcode_build_cache_tasks` expose recorded timing and reuse evidence for their supported integration. Check the MCP guide for tools matching the project and any separate integration authentication.
 
-Ask for an evidence-backed bottleneck, one proposed change, and a before/after measurement. Missing or expired data is not proof that an operation was fast. Tool access requires authorization; Gradle and Bazel integrations need their own authentication in addition to MCP access. Review changes before applying them.
+Ask for an evidence-backed bottleneck, one proposed change, and a before/after measurement. Missing data is not proof an operation was fast. Reading evidence does not authorize writes: review proposed changes before applying them.
 
 ## First experiment
 
-1. Connect [Build Insights](/en/docs-markdown/guides/features/build-insights) for the existing toolchain.
-2. Measure a representative cold build and repeat build, including queue and transfer time.
-3. Change one source of unnecessary work or enable the matching [cache integration](/marketing-markdown/cache).
-4. Compare end-to-end duration and total compute consumption, not just hit rate. Repeat on a developer or agent machine as well as CI.
+1. Connect [Build Insights](/en/docs-markdown/guides/features/build-insights) for one project.
+2. Record representative cold and repeat builds, including queue and transfer time.
+3. Remove one source of unnecessary work or enable the matching [cache integration](/marketing-markdown/cache).
+4. Compare end-to-end duration and total machine usage, not only hit rate. Repeat in development or an agent environment as well as CI.
 
-## Limitations
+## Questions before you start
 
-Caching helps only when compatible outputs exist and downloading them is worthwhile. A highly changed workload, serial linker bottleneck, or external service wait may need another intervention. A graph change can improve one build while making others worse; validate representative edits. Faster compute is sometimes the right answer, but no integration guarantees a speedup or lower costs. Tuist Runners are invite-only and their pricing is not public.
+### What is Tuist?
 
-Related: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).
+Tuist is build infrastructure for engineering teams and coding agents. For slow builds, start with evidence and reuse rather than a CI migration.
+
+### Does this replace CI?
+
+No. Existing CI keeps orchestrating jobs. Cache and insights work independently of the optional managed Compute service.
+
+### Can we adopt it incrementally?
+
+Yes. Instrument one project, establish a baseline, and test one intervention before expanding. Check each feature's integration requirements instead of assuming all projects have the same capabilities.
+
+### Hosted or self-hosted?
+
+Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server) and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the invite-only managed Compute fleet.
+
+### How do we measure value?
+
+Measure feedback time and total machine usage before and after a representative change. Include transfer overhead, integration and operational effort, and current [Tuist pricing](/pricing). Do not treat hit rate or a faster isolated task as proof of end-to-end savings.
+
+Related: [slow tests](/marketing-markdown/solutions/slow-tests) and [rising CI costs](/marketing-markdown/solutions/ci-costs).

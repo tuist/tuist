@@ -2,7 +2,9 @@
 # End-to-end smoke test of a Managed Agents self-hosted environment served by
 # Tuist sandboxes: creates an agent and a session, waits for the first turn,
 # lets the sandbox pause, then sends a second turn that must see the files
-# the first one wrote.
+# the first one wrote. The file lives in the worker's working directory
+# (/workspace on Linux, /Users/runner/work on macOS), so the same run checks
+# a darwin environment.
 #
 #   ANTHROPIC_API_KEY=sk-ant-... ENVIRONMENT_ID=env_... \
 #     infra/sandboxd/validation/managed-agents-smoke.sh
@@ -11,7 +13,8 @@
 # model; the prompts are deliberately tiny), AGENT_ID (reuse an agent),
 # BUDGET_CENTS (hard session spend cap, default 50), PAUSE_WAIT seconds
 # between turns (default 90, longer than the worker's max idle plus the
-# server's pause grace so the second turn hits a resume).
+# server's pause grace so the second turn hits a resume), TUIST_PLATFORM
+# (linux or macos: overrides the environment's platform for this session).
 set -euo pipefail
 
 : "${ANTHROPIC_API_KEY:?}"
@@ -71,12 +74,12 @@ if [ -z "${AGENT_ID:-}" ]; then
 fi
 echo "agent: $AGENT_ID"
 
-SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; date -u | tee /workspace/t"}]}]}')" | jq -r .id)
+SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" --arg p "${TUIST_PLATFORM:-}" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", metadata:(if $p == "" then {} else {tuist_platform:$p} end), budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; uname -s; pwd; date -u | tee t"}]}]}')" | jq -r .id)
 echo "session: $SID"
 
 echo "== turn 1"; wait_turn "$SID" 1; print_turn "$SID" 0
 seen=$(event_count "$SID")
 echo "== waiting ${PAUSE_WAIT}s for the sandbox to pause"; sleep "$PAUSE_WAIT"
-req POST "/v1/sessions/$SID/events" '{"events":[{"type":"user.message","content":[{"type":"text","text":"bash: cat /workspace/t; uptime"}]}]}' >/dev/null
+req POST "/v1/sessions/$SID/events" '{"events":[{"type":"user.message","content":[{"type":"text","text":"bash: cat t; uptime"}]}]}' >/dev/null
 echo "== turn 2"; wait_turn "$SID" "$((seen + 1))"; print_turn "$SID" "$seen"
 echo "session: $SID"

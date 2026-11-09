@@ -9,7 +9,9 @@ import dev.tuist.app.api.model.PaginationMetadata
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.PreviewsIndex1
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.data.auth.TokenStorage
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -31,7 +33,12 @@ class PreviewsRepositoryTest {
         previewsApi = mockk()
         projectsApi = mockk()
         moshi = Moshi.Builder().build()
-        repository = PreviewsRepository(previewsApi, projectsApi, moshi)
+        val tokens = mockk<TokenStorage> {
+            every { snapshot() } returns TokenStorage.Session("profile", 0, "tuist", "https://tuist.dev")
+            every { selectedAccount() } returns "tuist"
+            every { isCurrent(any()) } returns true
+        }
+        repository = PreviewsRepository(previewsApi, projectsApi, moshi, tokens)
     }
 
     @Test
@@ -61,6 +68,26 @@ class PreviewsRepositoryTest {
         val result = repository.listProjects()
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `projects and previews include all authorized organizations despite legacy selection`() = runTest {
+        val own = Project("main", "tuist/app", 1, Project.Visibility.`private`)
+        val other = own.copy(id = 2, fullName = "other/app")
+        coEvery { projectsApi.listProjects() } returns Response.success(ListProjects200Response(listOf(other, own)))
+        val preview = createPreview("other-preview", "Other organization app")
+        coEvery {
+            previewsApi.listPreviews(accountHandle = "other", projectHandle = "app", page = 1, pageSize = 10)
+        } returns Response.success(
+            PreviewsIndex1(PaginationMetadata(false, false, 10), listOf(preview)),
+        )
+        coEvery { previewsApi.getPreview("other", "app", "other-preview") } returns Response.success(preview)
+        coEvery { previewsApi.deletePreview("other", "app", "other-preview") } returns Response.success(Unit)
+
+        assertEquals(listOf(other, own), repository.listProjects())
+        assertEquals(listOf(preview), repository.listPreviews("other", "app").previews)
+        assertEquals(preview, repository.getPreview("other", "app", "other-preview"))
+        repository.deletePreview("other", "app", "other-preview")
     }
 
     @Test(expected = RuntimeException::class)

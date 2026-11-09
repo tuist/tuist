@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "359bafc7a1698214c5a8999358ef7a8ff10fa463aae80320f2424ddfce52a2e5",
+  "hash": "2d0e457a364e25b7348f4cebebfd94f4b63fb65533dfba47c654f185d67f0b76",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# GitHub Actions {#github-actions}": {
-                  "content_hash": "8eda7f275761ee199f8ba0c9b2c1daf38f623c68e849d875688078529f3d8447"
+                  "content_hash": "1f770c1fe3683d2a6c90f602decebfc6472eff55796e29cd3882a81d951a4306"
                 },
                 "## Cache volumes {#cache-volumes}": {
-                  "content_hash": "3bda64e9790d1a56a9daf26aed060b8e18ec3308032d51371fd8da8e3c5e04f6"
+                  "content_hash": "c4e631bcbd82082a49f1b04a6dbf9847cb538548d0a561d4faaffbe181fbb167"
                 },
                 "Preamble": {
                   "content_hash": "8d3c9209d62d2813b7f192965b99b70dcd32d5e4358ddc644b8871ea480b4cf4"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "55fa0c9047313d6b9594ffe3950f8ee201d501e6b016f5663f22b508f89db842",
+          "hash": "a247b2336677619f0c28394cfefa91824b449890708fe303dcc38f5a7970c41d",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
           "metadata": {
-            "content_hash": "0d2b4445535b6d8e519852225bf4773a82702438154f23b0d8433c11a9758150"
+            "content_hash": "475b9022cf811c4dde8fc9ba0bf86e57acbbaa9bafcaa8e3b8990c809bd01f6e"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,13 +107,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -126,21 +126,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -223,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "9f12dd723ed143073d07c2a3fdd2e6ea7e86e01f355b73b2cd5cd69e5d689e49",
+          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "359bafc7a1698214c5a8999358ef7a8ff10fa463aae80320f2424ddfce52a2e5",
+      "hash": "2d0e457a364e25b7348f4cebebfd94f4b63fb65533dfba47c654f185d67f0b76",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "33dc1dd4a5bc836ef7abd25c365126d51150327893a44d9104d14f0cff86b1af",
+  "output_hash": "182f13de4bf4d1b5bc777fa6fc10c4f551c1cf82e1beb97a64b57560700d389e",
   "output_path": "server/priv/docs/ko/guides/features/runners/ci-providers/github-actions.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
-  "translated_at": "2026-10-29T15:29:42.955724Z",
-  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
+  "translated_at": "2026-11-06T19:13:53.188608Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

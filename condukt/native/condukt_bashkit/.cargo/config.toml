@@ -1,0 +1,7 @@
+# Allow Rustler to dynamically link against the BEAM emulator without
+# resolving symbols at build time. Standard for cdylib NIFs.
+[target.'cfg(target_os = "macos")']
+rustflags = [
+    "-C", "link-arg=-undefined",
+    "-C", "link-arg=dynamic_lookup",
+]

@@ -1,7 +1,7 @@
 #domains {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
+  gap: var(--noora-spacing-6);
   min-width: 0;
 
   & [data-part="page-header"] {
@@ -14,15 +14,17 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--noora-spacing-3);
+      gap: var(--noora-spacing-2);
       max-width: 720px;
 
       & h1 {
+        margin: 0;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
       }
 
       & p {
+        margin: 0;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }

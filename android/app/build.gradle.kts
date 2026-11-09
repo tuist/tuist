@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace = "dev.tuist.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.tuist.app"
@@ -20,6 +20,18 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Firebase Cloud Messaging is initialized manually from these values; when any is empty
+        // the app skips FCM and push registration is unavailable.
+        listOf(
+            "FIREBASE_APPLICATION_ID" to "TUIST_ANDROID_FIREBASE_APPLICATION_ID",
+            "FIREBASE_PROJECT_ID" to "TUIST_ANDROID_FIREBASE_PROJECT_ID",
+            "FIREBASE_API_KEY" to "TUIST_ANDROID_FIREBASE_API_KEY",
+            "FIREBASE_GCM_SENDER_ID" to "TUIST_ANDROID_FIREBASE_GCM_SENDER_ID",
+        ).forEach { (field, variable) ->
+            val value = providers.environmentVariable(variable).getOrElse("")
+            buildConfigField("String", field, "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        }
     }
 
     signingConfigs {
@@ -63,14 +75,22 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Glossia updates values-*/strings.xml only after source strings land, so renamed
+        // or removed keys stay in translations until its next sync; Android drops them.
+        disable += "ExtraTranslation"
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
+            isIncludeAndroidResources = true
         }
     }
 
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
     sourceSets["androidTest"].assets.srcDir("src/test/resources")
+    sourceSets["test"].resources.srcDir("../../app/Fixtures/Navigation")
 }
 
 kotlin {
@@ -122,6 +142,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
@@ -134,8 +157,12 @@ dependencies {
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.robolectric)
 
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.okhttp.tls)
 }
@@ -164,7 +191,9 @@ openApiGenerate {
     ))
 }
 
-// With "original" enum naming, an empty-string enum value generates a constant without a name.
+// With "original" enum naming, an empty-string enum value generates a constant without a name,
+// and `name` and `value` entries clash with Kotlin's `Enum.name` and the generated `value`
+// property. The plugin ignores `enumNameMappings`, so rename them here; JSON values are unchanged.
 tasks.named("openApiGenerate") {
     val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
     doLast {
@@ -172,7 +201,10 @@ tasks.named("openApiGenerate") {
             .filter { it.extension == "kt" }
             .forEach { file ->
                 val source = file.readText()
-                val patched = source.replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                val patched = source
+                    .replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                    .replace("@Json(name = \"name\") name(\"name\")", "@Json(name = \"name\") name_(\"name\")")
+                    .replace("@Json(name = \"value\") `value`(\"value\")", "@Json(name = \"value\") value_(\"value\")")
                 if (patched != source) file.writeText(patched)
             }
     }

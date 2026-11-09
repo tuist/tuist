@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "db01bc477544c303cbe844df88337ab4b12d1fb1822fa106cbb6b85bb2a39ed2",
+  "hash": "773e156225d58064c548cdcf56d27927e2ec4f49a2ab7d6f40b4b3be427c6019",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Create a generated project {#create-a-generated-project}": {
-                  "content_hash": "001d8a05f0b17d41d072f3bcd8baced766a4050892e8d79291c1f612a451b4e4"
+                  "content_hash": "90c48b63240a1f0508e11f6c607134c02cae5542c05744d174b0385a04f6283a"
                 },
                 "## Add dependencies {#add-dependencies}": {
-                  "content_hash": "9cd4e3bfcc399879cbbbb0488ee1e9ca69f3e6c03f52ad64193e0771f5d40af2"
+                  "content_hash": "13fe517dbbaa726702205e0900df98f5fba1b0bba3445e764f46109993af54b9"
                 },
                 "## Use the dependency {#use-the-dependency}": {
-                  "content_hash": "3b91e42c397490863658bfca36a60a41041f59ffa87c7af1099b6d966c5c7244"
+                  "content_hash": "025f0b702a5380322b84b4933fc1f8b62ba78d391c8ff31a127e7a7095cd3f4b"
                 },
                 "## Visualize the project {#visualize-the-project}": {
                   "content_hash": "ba0e7916eea5890a2bf02a3d4eb73df3fc27d341a29eed04d4b9a56a7c34de06"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5c28d2b25b0d7f206c69107574c8ac234b0a0cc280d5ca0f7f34cc2e9ecb382f",
+          "hash": "daea44e33d92f18b8d5d3c87e248804d00920e2b3bd5445f4ee5478bc4186237",
           "kind": "source",
           "label": "server/priv/docs/en/tutorials/xcode/create-a-generated-project.md",
           "metadata": {
-            "content_hash": "0876e520c2237d655872509f14a4585ce87cc877144a733e95a074e177c65bfb"
+            "content_hash": "cf8c9071a608a10f127a0adc49318e53e82e42188a0872061bcbea420d624289"
           }
         },
         {
@@ -94,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,13 +113,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -132,21 +132,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -229,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "4ea30794bc249eaef1a7a784d0dccab57e0bd6f62a2e735686ccee653be48033",
+          "hash": "1f3ad84c99c70bc0c3079c5a6d88053e40cf0cc72fe6826ee4141a93a3ddd008",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "db01bc477544c303cbe844df88337ab4b12d1fb1822fa106cbb6b85bb2a39ed2",
+      "hash": "773e156225d58064c548cdcf56d27927e2ec4f49a2ab7d6f40b4b3be427c6019",
       "kind": "translation_input",
       "label": "server/priv/docs/en/tutorials/xcode/create-a-generated-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "c2f108facd97cb654957f1c6d773c7746c3cbab09ca259086fc1a6fe6a1c24fd",
+  "output_hash": "11ae6b306936dce8b401e7f2c4a3ab02209c99650624493c64554b040480a3e7",
   "output_path": "server/priv/docs/ja/tutorials/xcode/create-a-generated-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -264,8 +264,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "3d0214c04842592d101eedd3361a54993a2a534a",
+  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
   "source_path": "server/priv/docs/en/tutorials/xcode/create-a-generated-project.md",
-  "translated_at": "2026-10-29T17:46:15.397618Z",
-  "translation_session_id": "01a188c3-33f5-732d-b926-50bca0431aa5"
+  "translated_at": "2026-11-06T23:28:40.417646Z",
+  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
 }

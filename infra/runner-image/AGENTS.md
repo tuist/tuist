@@ -76,9 +76,9 @@ What decides whether a row matches:
   only), so MDM is not a route.
 - **Client.** TCC charges an AppleEvent to the responsible process, not to
   `osascript`. For GitHub jobs that is
-  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite and
-  GitLab agents are started directly by `dispatch-poll.sh`, so theirs is
-  expected to be its `/bin/bash`. The microphone row is a bundle-ID client
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite,
+  GitLab and Bitrise agents are started directly by `dispatch-poll.sh`, so
+  theirs is expected to be its `/bin/bash`. The microphone row is a bundle-ID client
   (`client_type` 0). `log stream --predicate 'subsystem == "com.apple.TCC"'`
   names the charged process (`Prompting for access to indirect object
   Finder by …`, `AttributionChain: responsible=…`).
@@ -594,10 +594,12 @@ but not boot it.
   triggers above, and when the previous release published none for it
   (its `build-manifest.json` entry lacks `stacked: true`). Otherwise
   `carry` re-tags it like the standalone tag. The `build-stacked` job
-  runs on the macOS 27 builders (`macos-27` label), and the release gate
+  runs on the macOS 27 builders (`macos-27` label), each profile on the
+  builder `stacked-builders.json` pins it to, and the release gate
   requires both tags of every profile. Pulling the base is most of a
-  stacked build, so its disk reclaim keeps the release's other bases
-  cached, evicting the ones later in `profiles.json` first.
+  stacked build, so its disk reclaim keeps the bases of the builder's
+  profiles cached across releases (`../vm-image-builder.md`, "Stacked
+  build labels").
 - **Where it runs.** `server-deployment.yml` resolves each published
   stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
   Rack pools run it when `rackFleet.runners.stackedImages` is on, which
@@ -636,7 +638,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.3-beta", "27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the

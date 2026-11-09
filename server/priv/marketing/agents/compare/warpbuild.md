@@ -6,7 +6,7 @@ Choose Tuist when the goal is understanding and reducing supported build and tes
 
 WarpBuild's [cloud-runner documentation](https://www.warpbuild.com/docs/ci/cloud-runners) describes ephemeral Linux, Windows x86-64, and Apple-silicon macOS runners. Its [caching documentation](https://www.warpbuild.com/docs/ci/features/caching) covers GitHub Actions caching, and its [observability](https://www.warpbuild.com/docs/ci/features/observability) includes resource metrics, job logs, and runner right-sizing recommendations. The observability page says collection covers jobs longer than approximately one minute; do not assume complete telemetry for very short jobs.
 
-It also documents [MCP support](https://www.warpbuild.com/docs/ci/mcp) for interacting with its API, including runner and image resources. Do not compare “has MCP” as a unique Tuist advantage. Compare the toolchain evidence versus infrastructure operations needed for the task.
+It also documents [MCP support](https://www.warpbuild.com/docs/ci/mcp) for interacting with its API, including runner and image resources. Having an MCP server is not a unique Tuist advantage. Compare the toolchain evidence versus infrastructure operations needed for the task.
 
 ## Compare the bottleneck
 
@@ -28,9 +28,5 @@ Keep the machine shape fixed and record one representative workflow with [Tuist 
 ## Sources and review
 
 Sources checked on **2026-10-08**: WarpBuild's [cloud runners](https://www.warpbuild.com/docs/ci/cloud-runners), [caching](https://www.warpbuild.com/docs/ci/features/caching), [observability](https://www.warpbuild.com/docs/ci/features/observability), [MCP](https://www.warpbuild.com/docs/ci/mcp), and [Tuist Build Insights](/en/docs-markdown/guides/features/build-insights). This comparison is written by Tuist, not a vendor-wide feature audit.
-
-## Limitations
-
-Benchmark results, machine images, and integration scope change. MCP presence does not establish equivalent data or actions. Tuist module caching and selective testing require generated Xcode projects; ordinary compilation caching requires Xcode 26+. Licenses and self-hosting terms are component-specific. Tuist Runners are invite-only with no public pricing; no guaranteed speedup or cheapest-provider claim is made.
 
 Related: [Blacksmith](/marketing-markdown/compare/blacksmith), [Namespace](/marketing-markdown/compare/namespace), and [all comparisons](/marketing-markdown/compare).

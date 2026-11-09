@@ -3,13 +3,16 @@
 set -euo pipefail
 SECONDS=0
 
-# Stop retrying admission after 150 seconds, leaving two minutes to boot.
-# The whole dispatch (including authentication and HTTP) stays below Amp's
-# five-minute deadline. Operators may shorten, but never extend, the wait.
-wait_seconds=${TUIST_ORB_CAPACITY_WAIT_SECONDS:-150}
-if [[ ! "$wait_seconds" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( wait_seconds > 150 )); then
-    echo 'TUIST_ORB_CAPACITY_WAIT_SECONDS must be an integer between 0 and 150.' >&2; exit 1;
+# Amp's spawn hook gives up after 120 seconds without an `amp orb bootstrap`
+# connection. The whole dispatch (including authentication and HTTP) ends
+# within 115 seconds, so users see the adapter's error rather than Amp's.
+# Stop retrying admission after 90 seconds, leaving 25 seconds to boot.
+# Operators may shorten, but never extend, the wait.
+wait_seconds=${TUIST_ORB_CAPACITY_WAIT_SECONDS:-90}
+if [[ ! "$wait_seconds" =~ ^(0|[1-9][0-9]?)$ ]] || (( wait_seconds > 90 )); then
+    echo 'TUIST_ORB_CAPACITY_WAIT_SECONDS must be an integer between 0 and 90.' >&2; exit 1;
 fi
+capacity_timeout='Timed out waiting for sandbox capacity or account CPU/RAM budget. If the account is at its disk quota, Tuist may still be archiving a paused Orb to make room, which can take a few minutes. Please retry shortly.'
 
 : "${TUIST_URL:?Set the Tuist server URL}"
 
@@ -28,6 +31,9 @@ case "$ORB_OPERATION" in
 esac
 if [[ -n "${ORB_SNAPSHOT_ID:-}" && ! "$ORB_SNAPSHOT_ID" =~ ^[A-Za-z0-9._:-]{1,255}$ ]]; then
     echo 'Invalid Orb snapshot ID.' >&2; exit 1
+fi
+if [[ -n "${ORB_TYPE:-}" && ! "$ORB_TYPE" =~ ^[a-z0-9-]{1,64}$ ]]; then
+    echo 'Invalid orb type.' >&2; exit 1
 fi
 
 # ORB_IMAGE is a template name, not an OCI image: sandboxd only boots
@@ -72,6 +78,8 @@ jq -n '{operation: env.ORB_OPERATION} +
         memory_mb: ((env.TUIST_ORB_MEMORY_MB // "4096") | tonumber),
         workspace_gb: ((env.TUIST_ORB_WORKSPACE_GB // "10") | tonumber)
     } + (if (env.AMP_URL // "") != "" then {amp_url: env.AMP_URL} else {} end)
+      + (if (env.TUIST_WORKLOAD_TOKEN_FILE // "") != "" and (env.ORB_TYPE // "") != ""
+           then {orb_type: env.ORB_TYPE} else {} end)
     else {} end)' > "$request"
 
 # Retry only explicit admission refusals, never ambiguous transport failures
@@ -80,9 +88,8 @@ jq -n '{operation: env.ORB_OPERATION} +
 delay=2
 waiting=false
 while true; do
-    remaining=$((270 - SECONDS))
+    remaining=$((115 - SECONDS))
     (( remaining > 0 )) || { echo 'Tuist Orb dispatch timed out.' >&2; exit 1; }
-    (( remaining <= 240 )) || remaining=240
     if [[ -n "${TUIST_WORKLOAD_TOKEN_FILE:-}" ]]; then
         TUIST_TOKEN=$(cat "$TUIST_WORKLOAD_TOKEN_FILE")
         : "${TUIST_TOKEN:?Tuist authentication returned no token}"
@@ -98,7 +105,7 @@ while true; do
         grep -Eiq $'^x-tuist-orb-retry: admission\r?$' "$headers"; then
         wait_remaining=$((wait_seconds - SECONDS))
         if (( wait_remaining <= 0 )); then
-            echo 'Timed out waiting for sandbox capacity or account CPU/RAM budget. Please retry shortly.' >&2
+            echo "$capacity_timeout" >&2
             exit 1
         fi
         if [[ "$waiting" == false ]]; then
@@ -109,7 +116,7 @@ while true; do
         (( sleep_seconds <= wait_remaining )) || sleep_seconds=$wait_remaining
         sleep "$sleep_seconds"
         if (( SECONDS >= wait_seconds )); then
-            echo 'Timed out waiting for sandbox capacity or account CPU/RAM budget. Please retry shortly.' >&2
+            echo "$capacity_timeout" >&2
             exit 1
         fi
         delay=$((delay * 2))
@@ -118,7 +125,19 @@ while true; do
     fi
     if [[ "$ORB_OPERATION" == spawn && "$status" == 429 ]] &&
         grep -Eiq $'^x-tuist-orb-refusal: sandbox-limit\r?$' "$headers"; then
-        echo 'The Tuist account reached its sandbox limit, and paused Orbs count toward it. Delete threads you no longer need, then retry.' >&2
+        echo 'The Tuist account reached its limit of Orbs kept on sandbox nodes, and paused Orbs count toward it. Delete threads you no longer need, then retry.' >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: unknown-orb-type\r?$' "$headers"; then
+        echo "Tuist does not offer the orb type '${ORB_TYPE:-}'. Use one of the types listed on the Tuist Amp integration page." >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: snapshot-not-saved\r?$' "$headers"; then
+        echo 'The Orb paused, but Tuist could not save its project snapshot, so new threads will run .agents/setup.' >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then
+        echo "This thread's Orb was created for another platform than orb type '${ORB_TYPE:-}'. Start a new thread with the type you need." >&2
         exit 1
     fi
     echo "Tuist Orb $ORB_OPERATION failed (HTTP $status)." >&2

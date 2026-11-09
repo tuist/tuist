@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/cluster-api/util/conditions"
 )
 
 func kvmReadyHarness(t *testing.T) *kataHarness {
@@ -23,7 +23,7 @@ func kvmReadyHarness(t *testing.T) *kataHarness {
 func (h *kataHarness) reconcileKVM(t *testing.T) (bool, error) {
 	t.Helper()
 	return reconcileLinuxKataKVM(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 }
 
 func TestKataKVMKernelMatchesKataVersion(t *testing.T) {

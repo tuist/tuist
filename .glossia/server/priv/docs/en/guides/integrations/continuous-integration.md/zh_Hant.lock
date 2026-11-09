@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f78e537ce593932b6a2252176a564c1e70479af63a232f06d58e2f300ea44ab5",
+  "hash": "1e1607652ddab0912c33e351e01dc442fcabf79357d8f4e06ec79c209be2858c",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,16 +11,19 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Continuous Integration (CI) {#continuous-integration-ci}": {
-                  "content_hash": "f518c11c4b1bb3e86aad83ebe72b72a835734a4815648267c2ca4dd15f0b0c57"
+                  "content_hash": "39e41a440a35609f91f232d3df1d054e81cba6a010f8c3078ff6877614b8ae58"
                 },
                 "# Mise installation taken from https://mise.jdx.dev/continuous-integration.html#xcode-cloud": {
-                  "content_hash": "0cd8cb0ee56cf6063215b502fcb8d12ac85f89143c24b8d3399865d55fe54f38"
+                  "content_hash": "da93041c879000f0383e9e2b29529df69c188d85de460fc59e01a0670534b162"
                 },
-                "# Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}": {
-                  "content_hash": "e24e4bd1acca13eb37810078c9612c9e6ea51e1cf479cac132082cde70d4190d"
+                "# Runs the version of Tuist indicated in the mise.toml file": {
+                  "content_hash": "fa5ab982c3d4a1b8fa2a8ba0c3da364e6565ba70698569ace1a1b6ac8dbea267"
                 },
                 "## Examples {#examples}": {
                   "content_hash": "920e9f64074de3a230b106db59b6f768f174a5ea33a07924612b34dbe7fd3c0b"
+                },
+                "## Once {#once}": {
+                  "content_hash": "622b1c0788afe102f941412f2d3626aafba19a9f0deaa0126bc60c0e733134aa"
                 },
                 "## Run report {#run-report}": {
                   "content_hash": "711c495689009b1d1af98fbbfc5595cf9759514ad1c4f54cf670f2af15d03be7"
@@ -29,16 +32,16 @@
                   "content_hash": "2b5e3475238dc7b40ba831e94ccc26ba8b70aa483c251c71c1e788780cfa8e36"
                 },
                 "### Bitrise {#bitrise}": {
-                  "content_hash": "6cf778c584d157907db199585e0126d9bd4599a30c7557fd07b585ec9f7e2ba2"
+                  "content_hash": "b54c9ad507819837561d2a66bcc3184611d2b383b5989ef4f18c8950422083b6"
                 },
                 "### CircleCI {#circleci}": {
-                  "content_hash": "340cb7d05d97b0bda8fb30d206516af8d43fd65e86da7208fc6a0d1a15ddda7b"
+                  "content_hash": "87cc51563bdb3130b53d3792ef6d68fe03e564763b70c270b139f4295ff33817"
                 },
                 "### Codemagic {#codemagic}": {
-                  "content_hash": "9dd64258de1bc236a659ba95448b6a7f6fe576b15f4096e7aae3ad41ea27d9fe"
+                  "content_hash": "2bafabf4ef2c8f9a8b76ad163d1d3c360cf91ff7405fb759a66e88e0ee9d7940"
                 },
                 "### GitHub Actions {#github-actions}": {
-                  "content_hash": "ed7c89c6d74dbad20458048aa0502896db0ac738bcbbe522123b912b46d19ccc"
+                  "content_hash": "6cae6c8ed48e47e7fbfc4d25784a1444d3bc1261bec3258b009fe77ecb1a75ec"
                 },
                 "### Xcode Cloud {#xcode-cloud}": {
                   "content_hash": "1744369dfc39d98c6834a386d1ddf7739277d1a875d83707795c5da77fc9c58c"
@@ -50,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "cf778d2988cc90a4c2a76ed350909d715a1154f0cce460c7942fa23d762804de",
+          "hash": "bcfe94ebd30689a59ba70ab4ea21dc5797c58d629ee9a9a995bf77f3f09a98e0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/continuous-integration.md",
           "metadata": {
-            "content_hash": "99c2ad72c4e3c5db4cbc39a989045579ea97cd1789591fa5241cc88bbf17fd2a"
+            "content_hash": "c672ddea4481be2f2ea9026880f58fb345ab7ade2b2310cdc7682e4eb2f5e452"
           }
         },
         {
@@ -115,7 +118,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -134,13 +137,13 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -153,21 +156,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -262,21 +265,21 @@
             }
           ],
           "details": {},
-          "hash": "511f7464d68e71163c94fedcc27e2edf78d3f0be575eac6c5fcccd2b7afe7eb6",
+          "hash": "dc8949b570547e20cae939d8b4bd338040216e60be2dd751d749f51282a918f8",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "f78e537ce593932b6a2252176a564c1e70479af63a232f06d58e2f300ea44ab5",
+      "hash": "1e1607652ddab0912c33e351e01dc442fcabf79357d8f4e06ec79c209be2858c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/continuous-integration.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "317a6167aff130b4ddf3cc41a45a4fb9905386f10fe0fdfe2970851105b65ac6",
+  "output_hash": "16ef68c13bc0035952ecc0bb3601a190715ec20f820985f683c1985dbd6108c5",
   "output_path": "server/priv/docs/zh_Hant/guides/integrations/continuous-integration.md",
   "protection_state": "recorded",
   "provider": "",
@@ -299,8 +302,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "e2d83711f920ed81085070185d1fe39a6f166821",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/integrations/continuous-integration.md",
-  "translated_at": "2026-10-29T16:44:51.302085Z",
-  "translation_session_id": "01a18889-9abd-7cd5-93c7-fbe3f8e92b65"
+  "translated_at": "2026-11-06T22:16:07.673236Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

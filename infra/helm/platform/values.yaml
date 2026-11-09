@@ -38,6 +38,14 @@ ingressCertificate:
     kind: ClusterIssuer
     name: letsencrypt-cloudflare
 
+# DaemonSet that holds net.mptcp.enabled at 0 in every Linux node's host network
+# namespace and persists it in /etc/sysctl.d. A listener opened before the value
+# changed stays MPTCP until its process restarts. See
+# templates/disable-multipath-tcp.yaml.
+disableMultipathTCP:
+  enabled: false
+  image: public.ecr.aws/docker/library/busybox:1.37
+
 cert-manager:
   enabled: true
   # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
@@ -405,7 +413,11 @@ clusterPortsHostPolicy:
       protocol: UDP
     - port: 4240
       protocol: TCP
+    - port: 4244
+      protocol: TCP
     - port: 10250
+      protocol: TCP
+    - port: 10254
       protocol: TCP
     - port: 9962
       protocol: TCP
@@ -464,6 +476,11 @@ external-secrets:
   installCRDs: true
   webhook:
     port: 9443
+  # Keep off. It lets an ExternalSecret render into a ConfigMap, which the
+  # view tier reads, and the JIT write tier may patch ExternalSecrets
+  # (`tuist-write-externalsecrets` in infra/helm/pomerium).
+  genericTargets:
+    enabled: false
 
 # Backs the pods.metrics.k8s.io API the HPA reads. Without it, HPAs report
 # `FailedGetResourceMetric` and refuse to scale.
@@ -642,37 +659,6 @@ ciliumEgressGateway:
       tuist.dev/stable-egress-gateway: server
     egressIP: ""
 
-# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
-# by default so ordinary platform installs do not get cluster-wide delete
-# permissions. The tuist-preview overlay enables it.
-previewJanitor:
-  enabled: false
-  schedule: "0 * * * *"
-  suspend: false
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
-  startingDeadlineSeconds: 900
-  backoffLimit: 0
-  activeDeadlineSeconds: 900
-  stuckCreateAgeSeconds: 1800
-  teardownTimeout: 5m
-  kuraNamespace: kura
-  serviceAccount:
-    name: preview-janitor
-  image:
-    repository: alpine/k8s
-    tag: "1.36.1"
-    pullPolicy: IfNotPresent
-  nodeSelector: {}
-  tolerations: []
-  resources:
-    requests:
-      cpu: 25m
-      memory: 96Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
-
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
 clusterIssuer:
@@ -783,3 +769,14 @@ cacheDNS:
     storeName: onepassword
     writerItem: ""
     solverItem: ""
+
+# Drops incoming IPv4 TCP packets that carry IP options on every Linux node, in
+# a nftables table of its own (CVE-2026-98432). Managed clusters only. See
+# templates/ipv4-options-tcp-drop.yaml.
+ipv4OptionsTcpDrop:
+  enabled: false
+  # For its nft, sh, grep and sleep; nothing of kube-proxy runs.
+  image: registry.k8s.io/kube-proxy:v1.34.6@sha256:d0921102f744d15133bc3a1cb54d8cbf323e00f2f73ea5a79c763202c6db18aa
+  imagePullPolicy: IfNotPresent
+  table: tuist_ipopts
+  reconcileIntervalSeconds: 30

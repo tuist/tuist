@@ -1,13 +1,13 @@
 ---
 {
   "title": "設定檔",
-  "titleTemplate": ":title · 執行器 · 功能 · 指南 · Tuist",
-  "description": "執行器設定檔是有名稱的機器規格，你可從 runs-on 參考它們，為 Tuist 執行器選擇平台、大小與 Xcode 版本。"
+  "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
+  "description": "Runner 設定檔是具名的機器規格，你可從 runs-on 參考它們，為 Tuist Runners 選擇平台、大小、Ubuntu 版本或 Xcode 版本。"
 }
 ---
 # 設定檔 {#profiles}
 
-**設定檔**是以帳號為範圍、具名稱的機器規格。你可以在工作流程的 `runs-on` 中引用它，Tuist 會將工作路由至相符的執行器。設定檔將基礎設施選擇（平台、大小、Xcode 版本）集中管理，而非分散在每個工作流程檔案中，並提供穩定的標籤供 CI 指向。
+**設定檔**是帳戶層級、具名稱的機器規格。你可以在工作流程的 `runs-on` 中參照它，Tuist 會將工作路由到相符的執行器。設定檔讓基礎設施選項（平台、規格大小、Ubuntu 版本或 Xcode 版本）集中在一處，而非散落在每個工作流程檔案中，並提供穩定的標籤供 CI 指向。
 
 ```yaml
 jobs:
@@ -15,49 +15,56 @@ jobs:
     runs-on: tuist-macos
 ```
 
-該標籤是設定檔名稱加上 `tuist-` 前綴。名為 `macos` 的設定檔對應 `runs-on: tuist-macos`；名為 `linux-large` 的設定檔對應 `runs-on: tuist-linux-large`。比對時不區分大小寫。
+該標籤是設定檔名稱加上 `tuist-` 前綴。名為 `macos` 的設定檔對應 `runs-on: tuist-macos`；名為 `linux-large` 的設定檔對應 `runs-on: tuist-linux-large`。比對不區分大小寫。
 
 ## 預設設定檔 {#default-profiles}
 
-每個已啟用 Runners 的帳號都會從兩個設定檔開始，讓你無需任何設定即可使用執行器群組：
+每個啟用 Runners 的帳戶都會從兩個設定檔開始，讓你無需任何設定即可使用執行器群：
 
 {{runner_default_profiles_table}}
 
-兩者皆指向各自平台的預設<.localized_link href="/guides/features/runners/profiles#machine-shapes">機器規格</.localized_link>。它們受**保護**，因此無法刪除，確保工作流程所依賴的標籤始終能正確解析。你仍可變更其機器規格或 Xcode 版本，並可為其他規格或 Xcode 版本建立額外的設定檔。
+兩者都指向各自平台的預設<.localized_link href="/guides/features/runners/profiles#machine-shapes">規格</.localized_link>。它們受**保護**，因此無法刪除，且你的工作流程所依賴的標籤永遠能解析。你仍可變更其規格或 Xcode 版本，並可為其他規格大小或 Xcode 版本建立額外設定檔。
 
 ## 機器規格 {#machine-shapes}
 
-Runners 可在 macOS（Apple silicon，於 Mac 群組上虛擬化）與 Linux 上使用。每個設定檔會固定來自下方目錄的一個機器規格，即一組 `(vCPUs, memory)` 配對。
+執行器可在 macOS（Apple 晶片，於 Mac 機群上虛擬化）與 Linux 上使用。每個設定檔會固定來自下方目錄的一個機器規格，即一組 `(vCPUs, memory)`。
 
 ### Linux {#linux}
 
 {{runner_linux_shapes_table}}
 
-每個 Linux 設定檔都透過 `/dev/kvm` 支援 <.localized_link href="/guides/features/runners#android-emulators">硬體加速的 Android 模擬器</.localized_link>。無需獨立的 KVM 設定檔。
+Linux 設定檔也會選擇一個 **Ubuntu 版本**，如同 macOS 設定檔選擇 Xcode 版本：
+
+- **Ubuntu 24.04**（`ubuntu-24.04`），新設定檔的預設值。
+- **Ubuntu 22.04**（`ubuntu-22.04`），適用於仍需此版本的工作流程。GitHub 已棄用其 22.04 託管映像，並將於 2027 年 4 月 17 日移除；請在此之前規劃遷移。
+
+設定檔會維持在你選擇的版本，直到你變更為止，因此較新的預設值不會自行將你的工作移至另一個作業系統。在 24.04 上建置的二進位檔需要其較新的 glibc（2.39），可能無法在較舊系統上執行，且其系統 Python 會在虛擬環境之外拒絕 `pip install`（PEP 668）。執行器會像 GitHub 託管執行器一樣設定 `ImageOS`（`ubuntu24` 或 `ubuntu22`），以便設定動作選取正確版本的建置。
+
+每個 Linux 設定檔都透過 `/dev/kvm` 支援<.localized_link href="/guides/features/runners#android-emulators">硬體加速的 Android 模擬器</.localized_link>。不需要獨立的 KVM 設定檔。
 
 ### macOS {#macos}
 
 {{runner_macos_shapes_table}}
 
-較大的 macOS 規格在群組中可用的機器較少，因此要求該規格的工作可能比在較小規格上執行的相同工作等待更久才啟動。當工作受 CPU 限制時，請選擇較大的規格；其他情況則保留預設規格。若不確定，可在兩種規格上執行工作，並在儀表板中比較持續時間。
+較大的 macOS 規格在機群中可用的機器較少，因此要求該規格的工作可能比在較小規格上執行的相同工作等待更久才啟動。當工作受限於 CPU 時，請選用較大規格；其他情況則保留預設規格。若不確定，可在兩種規格上執行工作，並在儀表板中比較持續時間。
 
-macOS 設定檔也會固定一個**Xcode 版本**。該版本會選擇已預裝該 Xcode 的執行器映像，讓工作在開始時就已備妥工具鏈。目前支援的版本：
+macOS 設定檔也會固定一個 **Xcode 版本**。該版本會選取已預先安裝該 Xcode 的執行器映像，因此工作開始時工具鏈已就緒。目前支援的版本：
 
 {{runner_macos_xcode_versions}}
 
 > [!NOTE]
-> 隨著我們新增硬體與 Xcode 發行版，目錄會持續演進。儀表板中的**新增設定檔**表單與 `tuist runner profile catalog` 始終顯示你帳號目前可用的規格與 Xcode 版本，請以它們為準。
+> 隨著我們新增硬體與 Xcode 版本，目錄會持續演進。儀表板中的 **新增設定檔** 表單與 `tuist runner profile catalog` 一律顯示你帳戶目前可用的規格、Xcode 版本與 Ubuntu 版本，請將其視為權威來源。
 
-macOS 執行器的名稱會顯示其執行的 macOS 版本、設定檔的 Xcode 版本及其規格，例如 `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-1a2b3c4d5e6f`。該名稱會出現在 GitHub 上工作的 **設定工作** 步驟，以及 Tuist 儀表板中的工作詳細資訊。
+macOS 執行器的名稱會顯示其執行的 macOS 版本、設定檔的 Xcode 版本及其規格，例如 `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-1a2b3c4d5e6f`。該名稱會出現在 GitHub 上工作的 **設定工作** 步驟，以及 Tuist 儀表板中的工作詳細資料。
 
 ## 建立設定檔 {#creating-a-profile}
 
-1. 開啟帳號儀表板的 **Runners → Profiles** 區段。
+1. 開啟帳戶儀表板的 **Runners → Profiles** 區段。
 2. 選擇 **新增設定檔**。
-3. 為其命名、選擇平台，並選取規格。若是 macOS，還需選擇 Xcode 版本。
-4. 儲存後，在工作流程中使用 `runs-on: tuist-<name>` 引用它。
+3. 為其命名、選擇平台，並選取規格。若是 Linux，也請選擇 Ubuntu 版本；若是 macOS，則選擇 Xcode 版本。
+4. 儲存後，在工作流程中使用 `runs-on: tuist-<name>` 參照它。
 
-你也可以從命令列管理設定檔。建立、變更與刪除設定檔需要帳號管理權限（如同在儀表板中），或具備 `account:runners:write` 範圍的帳號權杖：
+你也可以從命令列管理設定檔。建立、變更與刪除設定檔需要帳戶管理權限（如同儀表板），或具備 `account:runners:write` 範圍的帳戶權杖：
 
 ```bash
 tuist runner profile catalog
@@ -66,7 +73,7 @@ tuist runner profile update linux-large --vcpus 16 --memory-gb 32
 tuist runner profile delete linux-large --yes
 ```
 
-Agents 可以透過 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 伺服器</.localized_link> 執行相同操作。
+代理程式可以透過 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 伺服器</.localized_link> 執行相同操作。
 
 例如，名為 `linux-large` 的設定檔，使用 8 vCPU / 32 GB 規格：
 
@@ -76,7 +83,7 @@ jobs:
     runs-on: tuist-linux-large
 ```
 
-或是名為 `xcode-26-4` 的 macOS 設定檔，固定於 Xcode `26.4.1`，讓工作可以在較舊的工具鏈上執行，而你的預設 `macos` 設定檔則追蹤最新版本：
+或是一個名為 `xcode-26-4` 的 macOS 設定檔，固定於 Xcode `26.4.1`，讓工作可以在較舊的工具鏈上執行，而你的預設 `macos` 設定檔則追蹤最新版本：
 
 ```yaml
 jobs:

@@ -1,0 +1,2125 @@
+[
+  {
+    "dataset": "promoted",
+    "query": "",
+    "raw": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "deployment.environment",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.frontend",
+            "only.worker",
+            "pod",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "filter.text",
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.api",
+            "only.rpc",
+            "only.sibling",
+            "pred.a",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "deployment.environment",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.frontend",
+            "only.worker",
+            "pod",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "filter.text",
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.api",
+            "only.rpc",
+            "only.sibling",
+            "pred.a",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "cluster",
+        "container",
+        "count",
+        "deployment.environment",
+        "empty",
+        "enabled",
+        "filter.text",
+        "http.method",
+        "http.status_code",
+        "http.url",
+        "k8s.cluster.name",
+        "k8s.container.name",
+        "k8s.namespace.name",
+        "k8s.pod.name",
+        "namespace",
+        "only.api",
+        "only.frontend",
+        "only.rpc",
+        "only.sibling",
+        "only.worker",
+        "opaque",
+        "phase",
+        "pod",
+        "pred.a",
+        "pred.b",
+        "request.kind",
+        "service.name",
+        "service.namespace",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "promoted",
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "deployment.environment",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.worker",
+            "pod",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "filter.text",
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.api",
+            "only.sibling",
+            "pred.a",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "deployment.environment",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.worker",
+            "pod",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "filter.text",
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.api",
+            "only.sibling",
+            "pred.a",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "cluster",
+        "container",
+        "count",
+        "deployment.environment",
+        "empty",
+        "enabled",
+        "filter.text",
+        "http.method",
+        "http.status_code",
+        "http.url",
+        "k8s.cluster.name",
+        "k8s.container.name",
+        "k8s.namespace.name",
+        "k8s.pod.name",
+        "namespace",
+        "only.api",
+        "only.sibling",
+        "only.worker",
+        "opaque",
+        "phase",
+        "pod",
+        "pred.a",
+        "pred.b",
+        "request.kind",
+        "service.name",
+        "service.namespace",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "promoted",
+    "query": "{span.request.kind=\"rpc\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.frontend",
+            "pod",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "deployment.environment",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "only.frontend",
+            "pod",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "cluster",
+        "container",
+        "count",
+        "deployment.environment",
+        "enabled",
+        "http.method",
+        "http.status_code",
+        "http.url",
+        "k8s.cluster.name",
+        "k8s.container.name",
+        "k8s.namespace.name",
+        "k8s.pod.name",
+        "namespace",
+        "only.frontend",
+        "only.rpc",
+        "phase",
+        "pod",
+        "request.kind",
+        "service.name",
+        "service.namespace",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "promoted",
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "pod",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "pod",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "cluster",
+        "container",
+        "http.method",
+        "http.status_code",
+        "http.url",
+        "k8s.cluster.name",
+        "k8s.container.name",
+        "k8s.namespace.name",
+        "k8s.pod.name",
+        "namespace",
+        "pod",
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "promoted",
+    "query": "{span.pred.a=\"left\" \u0026\u0026 span.pred.b=\"right\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "pod",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "container",
+            "k8s.cluster.name",
+            "k8s.container.name",
+            "k8s.namespace.name",
+            "k8s.pod.name",
+            "namespace",
+            "pod",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "http.url"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "cluster",
+        "container",
+        "http.method",
+        "http.status_code",
+        "http.url",
+        "k8s.cluster.name",
+        "k8s.container.name",
+        "k8s.namespace.name",
+        "k8s.pod.name",
+        "namespace",
+        "pod",
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "generic",
+    "query": "",
+    "raw": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "deployment.environment",
+            "only.frontend",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "only.sibling",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "deployment.environment",
+            "only.frontend",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "only.sibling",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "cluster",
+        "count",
+        "deployment.environment",
+        "empty",
+        "enabled",
+        "http.method",
+        "http.status_code",
+        "only.frontend",
+        "only.rpc",
+        "only.sibling",
+        "opaque",
+        "phase",
+        "pred.b",
+        "request.kind",
+        "service.name",
+        "service.namespace",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "generic",
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "only.sibling",
+            "pred.b",
+            "request.kind"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "cluster",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "only.sibling",
+            "pred.b",
+            "request.kind"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "cluster",
+        "count",
+        "empty",
+        "enabled",
+        "only.sibling",
+        "opaque",
+        "phase",
+        "pred.b",
+        "request.kind",
+        "service.name",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "generic",
+    "query": "{span.request.kind=\"rpc\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "deployment.environment",
+            "only.frontend",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "deployment.environment",
+            "only.frontend",
+            "service.name",
+            "service.namespace",
+            "shared"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "count",
+        "deployment.environment",
+        "enabled",
+        "http.method",
+        "http.status_code",
+        "only.frontend",
+        "only.rpc",
+        "phase",
+        "request.kind",
+        "service.name",
+        "service.namespace",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "generic",
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "generic",
+    "query": "{span.pred.a=\"left\" \u0026\u0026 span.pred.b=\"right\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "no-service",
+    "query": "",
+    "raw": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "generic.resource",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "only.sibling",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "empty",
+            "enabled",
+            "opaque",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "generic.resource",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "only.sibling",
+            "pred.b",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "count",
+        "empty",
+        "enabled",
+        "generic.resource",
+        "http.method",
+        "http.status_code",
+        "only.rpc",
+        "only.sibling",
+        "opaque",
+        "phase",
+        "pred.b",
+        "request.kind",
+        "service.name",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "no-service",
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "no-service",
+    "query": "{span.request.kind=\"rpc\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "event",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "instrumentation",
+          "tags": [
+            "channel",
+            "count",
+            "enabled",
+            "shared"
+          ]
+        },
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "link",
+          "tags": [
+            "count",
+            "phase",
+            "shared"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "generic.resource",
+            "service.name"
+          ]
+        },
+        {
+          "name": "span",
+          "tags": [
+            "http.method",
+            "http.status_code",
+            "only.rpc",
+            "request.kind",
+            "shared"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "channel",
+        "count",
+        "enabled",
+        "generic.resource",
+        "http.method",
+        "http.status_code",
+        "only.rpc",
+        "phase",
+        "request.kind",
+        "service.name",
+        "shared"
+      ]
+    }
+  },
+  {
+    "dataset": "no-service",
+    "query": "{resource.service.name=\"absent\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "service.name"
+      ]
+    }
+  },
+  {
+    "dataset": "no-service",
+    "query": "{span.pred.a=\"left\" \u0026\u0026 span.pred.b=\"right\"}",
+    "raw": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "complete": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        },
+        {
+          "name": "resource",
+          "tags": [
+            "service.name"
+          ]
+        }
+      ]
+    },
+    "v1": {
+      "tagNames": [
+        "service.name"
+      ]
+    }
+  }
+]

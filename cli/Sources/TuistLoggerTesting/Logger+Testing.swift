@@ -95,11 +95,16 @@ public struct LoggerTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let (logger, handler) = Logger.initTestingLogger(forwardLogs: forwardLogs)
-        try await Logger.$current.withValue(logger) {
-            try await Logger.$testingLogHandler.withValue(handler) {
-                try await function()
-            }
+        try await TuistLoggerTesting.withMockedLogger(forwardLogs: forwardLogs, function)
+    }
+}
+
+/// What `.withMockedLogger(forwardLogs:)` does, for tests that can't take traits, such as XCTest.
+public func withMockedLogger(forwardLogs: Bool = false, _ closure: () async throws -> Void) async throws {
+    let (logger, handler) = Logger.initTestingLogger(forwardLogs: forwardLogs)
+    try await Logger.$current.withValue(logger) {
+        try await Logger.$testingLogHandler.withValue(handler) {
+            try await closure()
         }
     }
 }

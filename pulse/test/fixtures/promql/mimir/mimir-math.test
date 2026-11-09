@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Test simple functions not covered by the upstream tests
+load 1m
+  some_metric_count{env="prod"} 0 0.5 -0.5 NaN -NaN 2.1 -2.1
+
+eval range from 0 to 6m step 1m ceil(some_metric_count)
+  {env="prod"} 0 1 -0 NaN -NaN 3 -2
+
+clear
+
+# Test the case where multiple series have the same labels after the metric name is removed by a function.
+load 1m
+  float_metric_1 0+1x4
+  float_metric_2 0+2x4
+  histogram_metric_1 {{sum:0 count:0}}x4
+  histogram_metric_2 {{sum:1 count:1}}x4
+
+eval_fail instant at 5m ceil({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m exp({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m ln({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m log10({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m log2({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m sqrt({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset

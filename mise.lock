@@ -153,6 +153,9 @@ url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912
 version = "1.20.2"
 backend = "core:elixir"
 
+[tools.elixir."platforms.linux-x64"]
+checksum = "blake3:7600659b283c3eecfc77619ec505646035300d17244d8ce0f3a05147d638cd6c"
+
 [[tools.erlang]]
 version = "29.0.3"
 backend = "core:erlang"
@@ -226,6 +229,38 @@ url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392607114"
 checksum = "sha256:55f85cfc05fa4f62751f69f3a70d95c3dde25395ca9c56729ecf659212135e05"
 url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-windows-amd64.zip"
 url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392601582"
+
+[[tools.go]]
+version = "1.26.10"
+backend = "core:go"
+
+[tools.go."platforms.linux-arm64"]
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
+
+[tools.go."platforms.linux-arm64-musl"]
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
+
+[tools.go."platforms.linux-x64"]
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+
+[tools.go."platforms.linux-x64-musl"]
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
+
+[tools.go."platforms.macos-arm64"]
+checksum = "sha256:0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3"
+url = "https://dl.google.com/go/go1.26.10.darwin-arm64.tar.gz"
+
+[tools.go."platforms.macos-x64"]
+checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
+url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
+
+[tools.go."platforms.windows-x64"]
+checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
+url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
 
 [[tools.gradle]]
 version = "8.12.1"
@@ -357,6 +392,7 @@ url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
 [tools.jq."platforms.linux-x64"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
@@ -645,32 +681,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.216.0-canary.26"
+version = "4.218.0-canary.4"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:41f03efc17067cfa2e95beffb1013ee20356570587ef4377b4c9c44a5b1ae6d7"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:905490c81958cfe4ee98523c0136d846b37f1da5dfb1ac5ce83ed2d2da3c0319"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:41f03efc17067cfa2e95beffb1013ee20356570587ef4377b4c9c44a5b1ae6d7"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:905490c81958cfe4ee98523c0136d846b37f1da5dfb1ac5ce83ed2d2da3c0319"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:da38e6b6467a5381bdabbc77e752f02a2b175cb616c7ee311d4c78993ddc02ce"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:24ced942aed0db3739f04ab9bddb313aacc4449af790b69a1f33cb170b82c751"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:da38e6b6467a5381bdabbc77e752f02a2b175cb616c7ee311d4c78993ddc02ce"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:24ced942aed0db3739f04ab9bddb313aacc4449af790b69a1f33cb170b82c751"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:0db0d8ab6e9c40be7541eb9b5918a9b01d1b8ce5894f2b384c188572bd339aee"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist.zip"
+checksum = "sha256:48805ca50d2b75f69aabd3cd5a7968818b3877e6b164ec8041cadcba29473370"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:0db0d8ab6e9c40be7541eb9b5918a9b01d1b8ce5894f2b384c188572bd339aee"
-url = "https://github.com/tuist/tuist/releases/download/4.216.0-canary.26/tuist.zip"
+checksum = "sha256:48805ca50d2b75f69aabd3cd5a7968818b3877e6b164ec8041cadcba29473370"
+url = "https://github.com/tuist/tuist/releases/download/4.218.0-canary.4/tuist.zip"
 
 [[tools.xcodes]]
 version = "2.1.0"

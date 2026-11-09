@@ -588,5 +588,14 @@ defmodule TuistWeb.PreviewControllerTest do
         get(conn, "/#{own_project.account.name}/#{own_project.name}/previews/#{preview.id}/manifest.plist")
       end
     end
+
+    test "preview page raises not found for a preview of another project", %{conn: conn, user: user, preview: preview} do
+      own_project =
+        ProjectsFixtures.project_fixture(account_id: user.account.id, visibility: :public, preload: [:account])
+
+      assert_raise NotFoundError, fn ->
+        get(conn, "/#{own_project.account.name}/#{own_project.name}/previews/#{preview.id}")
+      end
+    end
   end
 end

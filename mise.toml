@@ -4,7 +4,7 @@
     # config and devDependencies live here rather than in a package.
     node = "24.11.0"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.216.0-canary.26"
+    tuist = "4.218.0-canary.4"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"
@@ -25,6 +25,8 @@
     caddy = "2.11.4"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    # Matches go.work; mise tasks such as baremetal:prep-ovh `go run` from the root.
+    go = "1.26.10"
     # Management cluster Hetzner resources (infra/k8s/mgmt/talos/hetzner.yaml).
     hcloud = "1.70.1"
     # pomerium-cli is the kubeconfig exec credential plugin that does
@@ -42,9 +44,6 @@
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
     TUIST_INSPECT_TEST_MODE = "remote"
-    # Coverage is in early access: without the flag the CLI ignores
-    # Tuist.swift's `coverage` option.
-    TUIST_FEATURE_FLAG_COVERAGE = "1"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"
@@ -140,6 +139,9 @@
 [settings]
     jobs = 6
     http_timeout = "60"
+    # GitHub release downloads return 504s for a minute or more at a time. The default
+    # 3 retries give up after about 5 seconds; 8 keep retrying for about a minute.
+    http_retries = 8
     experimental = true
     sops.age_key_file = "~/.config/mise/tuist-age.txt"
     sops.strict = false

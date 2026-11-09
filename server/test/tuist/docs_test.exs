@@ -2,6 +2,8 @@ defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import TuistWeb.Docs.MarkdownComponents, warn: false
+
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
@@ -54,6 +56,42 @@ defmodule Tuist.DocsTest do
     end
 
     @tag :tmp_dir
+    test "component links in markdown keep the rendered page's locale", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "cards.md")
+
+      File.write!(source_path, """
+      # Cards
+
+      See <.localized_link href="/guides/features/test-code-coverage">Coverage</.localized_link>.
+
+      <.home_cards>
+        <.home_card
+          title="Xcode"
+          details="Track Xcode tests."
+          link="/guides/features/test-insights/xcode"
+      />
+        <.home_card title="Pinned" details="Explicit locale." link="/guides/install-tuist" locale="ja" />
+      </.home_cards>
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      {rendered, _} =
+        Code.eval_quoted(page.body_template, [assigns: %{locale: "es", _doc_code_blocks: page.code_blocks}], __ENV__)
+
+      hrefs =
+        rendered
+        |> Phoenix.HTML.Safe.to_iodata()
+        |> IO.iodata_to_binary()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("a", "href")
+
+      assert "/es/docs/guides/features/test-code-coverage" in hrefs
+      assert "/es/docs/guides/features/test-insights/xcode" in hrefs
+      assert "/ja/docs/guides/install-tuist" in hrefs
+    end
+
+    @tag :tmp_dir
     test "heading examples remain literal code and do not enter page metadata", %{tmp_dir: tmp_dir} do
       source_path = Path.join(tmp_dir, "heading-examples.md")
 
@@ -88,6 +126,134 @@ defmodule Tuist.DocsTest do
       assert Floki.find(document, "h2 a[id=real-section]") != []
     end
 
+    test "preview overview owns shared guidance separately from publication workflows" do
+      overview = Docs.get_page("/en/guides/features/previews")
+
+      for anchor <- ["what-you-can-preview", "publish-a-preview", "run-a-preview", "visibility", "tracks", "readme-badge"] do
+        assert Enum.any?(overview.headings, &(&1.id == anchor))
+      end
+
+      assert overview.markdown =~ "Private previews require authentication and project access"
+      assert overview.markdown =~ "bundle-id=com.example.app"
+      assert overview.markdown =~ "/guides/features/previews/run/cli"
+
+      for system <- ["xcode", "gradle", "bazel", "once"] do
+        page = Docs.get_page("/en/guides/features/previews/" <> system)
+
+        for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+          refute Enum.any?(page.headings, &(&1.id == anchor))
+        end
+
+        assert page.markdown =~ ~s(href="/guides/features/previews#run-a-preview")
+        refute page.markdown =~ "<!-- @snippet:"
+
+        if system in ["bazel", "once"] do
+          refute page.markdown =~ "--release-notes"
+          refute page.markdown =~ "tuist share --json"
+          refute page.markdown =~ "monitorPreviewUpdates"
+          refute Enum.any?(page.headings, &(&1.id == "pullmerge-request-comments"))
+        end
+      end
+
+      for snippet <- ["_shared", "_tuist-share"] do
+        assert is_nil(Docs.get_page("/en/guides/features/previews/" <> snippet))
+      end
+    end
+
+    test "supported types preserve packaging, compatibility, and safety guidance separately from running" do
+      page = Docs.get_page("/en/guides/features/previews/types")
+
+      for text <- [
+            "tuist share path/to/MyApp.app",
+            "--executable bin/my-tool",
+            "macOS arm64, macOS x86_64, and Linux x86_64",
+            "not in a sandbox",
+            "Only run builds from authors and pull requests you trust"
+          ] do
+        assert page.markdown =~ text
+      end
+
+      for anchor <- [
+            "mobile-apps",
+            "desktop-apps",
+            "command-line-tools",
+            "multiple-cli-targets",
+            "client-and-server-compatibility"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      refute page.markdown =~ "monitorPreviewUpdates"
+      refute page.markdown =~ "tuist run {url} -- --help"
+      refute page.markdown =~ "x-tuist-preview-capabilities"
+      refute page.markdown =~ "cli_previews"
+
+      cli = Docs.get_page("/en/guides/features/previews/run/cli")
+      assert cli.markdown =~ "tuist run {url} -- --help"
+      assert cli.markdown =~ "Child arguments are excluded from Tuist command analytics"
+      assert cli.markdown =~ "CLI distributions remain in Tuist's local `previews` cache"
+      assert cli.markdown =~ "returns the executable's exit status"
+    end
+
+    test "Gradle previews document explicit native publication separately from CLI sharing" do
+      page = Docs.get_page("/en/guides/features/previews/gradle")
+
+      assert page.markdown =~ "./gradlew :app:tuistShareDebug --track nightly"
+      assert page.markdown =~ "Ordinary `assemble`, `build`, and test tasks never publish"
+      assert page.markdown =~ "./gradlew :app:tuistShareMainDebug"
+      assert page.markdown =~ "`cpp-application` or `swift-application`"
+      assert page.markdown =~ "requires authentication"
+      assert page.markdown =~ "split APKs are rejected"
+      assert page.markdown =~ "## Share an existing APK"
+      assert page.markdown =~ "tuist share app/build/outputs/apk/debug/app-debug.apk"
+      refute page.markdown =~ "monitorPreviewUpdates"
+    end
+
+    test "Xcode publication links to independent companion guides with complete Swift SDK instructions" do
+      page = Docs.get_page("/en/guides/features/previews/xcode")
+
+      for anchor <- [
+            "release-notes",
+            "preview-metadata-compatibility",
+            "pullmerge-request-comments",
+            "automations"
+          ] do
+        assert Enum.any?(page.headings, &(&1.id == anchor))
+      end
+
+      assert page.markdown =~ "--release-notes"
+      assert page.markdown =~ "10,000 characters"
+      assert page.markdown =~ "can't overwrite or clear existing ones"
+      assert page.markdown =~ "tuist share --json"
+      assert page.markdown =~ "qrCodeURL"
+      assert page.markdown =~ "/guides/features/previews/run/macos"
+      assert page.markdown =~ "/guides/features/previews/run/ios"
+      refute page.markdown =~ "monitorPreviewUpdates"
+
+      macos = Docs.get_page("/en/guides/features/previews/run/macos")
+      assert macos.markdown =~ "brew install --cask tuist/tuist/tuist"
+      assert macos.markdown =~ "falls back to paginated history"
+
+      ios = Docs.get_page("/en/guides/features/previews/run/ios")
+
+      for anchor <- [
+            "in-app-update-notifications",
+            "sdk-installation",
+            "sdk-monitor-updates",
+            "sdk-single-check",
+            "sdk-stop-monitoring"
+          ] do
+        assert Enum.any?(ios.headings, &(&1.id == anchor))
+      end
+
+      assert ios.markdown =~ "monitorPreviewUpdates"
+      assert ios.markdown =~ "sdk.checkForUpdate()"
+      assert ios.markdown =~ "task.cancel()"
+      assert ios.markdown =~ "disabled on simulators and App Store builds"
+      assert ios.markdown =~ "browse previews without filtering on older servers"
+      refute ios.markdown =~ "/api/projects/"
+    end
+
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
       guide = Docs.get_page("/en/guides/server/authentication").markdown
       assert guide =~ "only the `ci` scope group and covers all current and future projects"
@@ -103,7 +269,7 @@ defmodule Tuist.DocsTest do
 
     test "cache documentation exposes Rust with its experimental qualification" do
       index = Docs.get_page("/en/index").markdown
-      assert index =~ "supported_for=\"apple,gradle,bazel,rust\""
+      assert index =~ "supported_for=\"apple,gradle,bazel,elixir,rust,once\""
       assert index =~ "Rust's experimental compilation cache"
 
       cache = Docs.get_page("/en/guides/features/cache").markdown
@@ -116,8 +282,8 @@ defmodule Tuist.DocsTest do
 
       guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
       assert guide =~ "{#cache-measurements}"
-      assert guide =~ "registry leaf libraries"
-      assert guide =~ "absolute paths"
+      assert guide =~ "qualified on Apple silicon Macs"
+      assert guide =~ "checkouts at different paths on the same machine"
       refute guide =~ "compatible cache runtime"
       refute guide =~ "verification detects"
     end
@@ -147,7 +313,7 @@ defmodule Tuist.DocsTest do
         assert page
         assert page.title =~ "Rust"
         assert page.markdown =~ "tuist cargo"
-        assert page.markdown =~ "[!IMPORTANT] Requirements"
+        assert page.markdown =~ "> [!IMPORTANT]\n> **Requirements**"
         refute Regex.match?(~r/^> \[![A-Z]+\] [A-Z][A-Z ]+\??$/m, page.markdown)
         assert Docs.get_page("/en/guides/features/" <> path).markdown =~ path <> "/rust"
       end
@@ -177,7 +343,8 @@ defmodule Tuist.DocsTest do
       for heading <- [
             "How flaky detection works",
             "Managing flaky tests",
-            "Quarantining and stress-testing",
+            "Quarantining flaky tests",
+            "Stress-testing new tests",
             "Slack notifications"
           ] do
         assert flaky =~ "## #{heading}"

@@ -119,7 +119,8 @@ defmodule TuistWeb.API.GradleTasksController do
                      format: :"date-time",
                      nullable: true,
                      description: "When the task started executing."
-                   }
+                   },
+                   failure_message: GradleExecution.failure_message()
                  },
                  required: [:id, :task_path, :outcome, :cacheable, :duration_ms]
                }
@@ -190,7 +191,8 @@ defmodule TuistWeb.API.GradleTasksController do
                 duration_ms: task.duration_ms,
                 cache_key: task.cache_key,
                 cache_artifact_size: task.cache_artifact_size,
-                started_at: task.started_at
+                started_at: task.started_at,
+                failure_message: if(task.failure_message != "", do: task.failure_message)
               }
             end),
           pagination_metadata: %{

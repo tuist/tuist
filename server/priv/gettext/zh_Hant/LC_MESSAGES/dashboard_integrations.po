@@ -13,6 +13,7 @@ msgstr "Language: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=
 
 #: lib/tuist_web/live/integrations_live.html.heex:198
 #: lib/tuist_web/live/integrations_live.html.heex:366
+#: lib/tuist_web/live/integrations_live.html.heex:858
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr "新增專案連線"
@@ -22,24 +23,28 @@ msgstr "新增專案連線"
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
+#: lib/tuist_web/live/integrations_live.html.heex:924
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
 #: lib/tuist_web/live/integrations_live.html.heex:221
 #: lib/tuist_web/live/integrations_live.html.heex:423
+#: lib/tuist_web/live/integrations_live.html.heex:882
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr "選擇 Tuist 專案"
 
 #: lib/tuist_web/live/integrations_live.html.heex:248
 #: lib/tuist_web/live/integrations_live.html.heex:444
+#: lib/tuist_web/live/integrations_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr "選擇儲存庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:191
 #: lib/tuist_web/live/integrations_live.html.heex:353
+#: lib/tuist_web/live/integrations_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr "選擇要連線的儲存庫"
@@ -47,20 +52,21 @@ msgstr "選擇要連線的儲存庫"
 #: lib/tuist_web/live/integrations_live.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "將你的 GitHub 儲存庫與專案連線"
+msgstr "將你的 GitHub 儲存庫連線至專案"
 
-#: lib/tuist_web/live/integrations_live.ex:699
+#: lib/tuist_web/live/integrations_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr "於 %{time_ago} 連線"
 
-#: lib/tuist_web/live/integrations_live.ex:701
+#: lib/tuist_web/live/integrations_live.ex:892
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr "由 %{name} 於 %{time_ago} 連線"
 
 #: lib/tuist_web/live/integrations_live.html.heex:276
 #: lib/tuist_web/live/integrations_live.html.heex:469
+#: lib/tuist_web/live/integrations_live.html.heex:931
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr "建立連線"
@@ -75,46 +81,49 @@ msgstr "GitHub"
 msgid "Install GitHub App"
 msgstr "安裝 GitHub App"
 
-#: lib/tuist_web/live/integrations_live.ex:78
+#: lib/tuist_web/live/integrations_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "整合"
 
-#: lib/tuist_web/live/integrations_live.ex:555
+#: lib/tuist_web/live/integrations_live.ex:746
+#: lib/tuist_web/live/integrations_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "管理"
 
 #: lib/tuist_web/live/integrations_live.html.heex:174
 #: lib/tuist_web/live/integrations_live.html.heex:342
+#: lib/tuist_web/live/integrations_live.html.heex:834
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr "管理整合"
 
-#: lib/tuist_web/live/integrations_live.ex:558
+#: lib/tuist_web/live/integrations_live.ex:749
+#: lib/tuist_web/live/integrations_live.html.heex:967
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr "移除連線"
 
-#: lib/tuist_web/live/integrations_live.ex:26
-#: lib/tuist_web/live/integrations_live.ex:349
+#: lib/tuist_web/live/integrations_live.ex:31
+#: lib/tuist_web/live/integrations_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "你無權執行此動作。"
+msgstr "你沒有權限執行此動作。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr "你對儲存庫的存取權限取決於 GitHub 與 Tuist 整合設定。"
 
-#: lib/tuist_web/live/integrations_live.ex:361
-#: lib/tuist_web/live/integrations_live.ex:759
-#: lib/tuist_web/live/integrations_live.ex:780
+#: lib/tuist_web/live/integrations_live.ex:552
+#: lib/tuist_web/live/integrations_live.ex:950
+#: lib/tuist_web/live/integrations_live.ex:971
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr "無效的 URL"
 
-#: lib/tuist_web/live/integrations_live.ex:795
+#: lib/tuist_web/live/integrations_live.ex:986
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr "無效的組織"
@@ -145,21 +154,21 @@ msgstr "正在重新導向至 GitHub Enterprise Server"
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr "正在重新導向至 GitHub Enterprise Server 以註冊 Tuist 應用程式…"
 
-#: lib/tuist_web/live/integrations_live.ex:746
+#: lib/tuist_web/live/integrations_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "必填"
 
-#: lib/tuist_web/live/integrations_live.ex:735
-#: lib/tuist_web/live/integrations_live.ex:767
+#: lib/tuist_web/live/integrations_live.ex:926
+#: lib/tuist_web/live/integrations_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
-msgstr "請使用 GitHub Enterprise Server 網址"
+msgstr "使用 GitHub Enterprise Server URL"
 
 #: lib/tuist_web/live/integrations_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "No github.com App is configured"
-msgstr "尚未設定 github.com 應用程式"
+msgstr "未設定 github.com 應用程式"
 
 #: lib/tuist_web/live/integrations_live.html.heex:146
 #, elixir-autogen, elixir-format
@@ -169,9 +178,9 @@ msgstr "閱讀設定指南"
 #: lib/tuist_web/live/integrations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
-msgstr "此 Tuist 伺服器必須先在 github.com 上註冊自己的 GitHub App，才能進行安裝。請註冊該 App，然後設定 TUIST_GITHUB_APP_NAME、TUIST_GITHUB_APP_CLIENT_ID、TUIST_GITHUB_APP_CLIENT_SECRET 與 TUIST_GITHUB_APP_PRIVATE_KEY_BASE64，並重新啟動伺服器。"
+msgstr "此 Tuist 伺服器必須先在 github.com 上註冊自己的 GitHub App，才能進行安裝。請註冊該 App，然後設定 TUIST_GITHUB_APP_NAME、TUIST_GITHUB_APP_CLIENT_ID、TUIST_GITHUB_APP_CLIENT_SECRET 和 TUIST_GITHUB_APP_PRIVATE_KEY_BASE64，並重新啟動伺服器。"
 
-#: lib/tuist_web/live/integrations_live.ex:834
+#: lib/tuist_web/live/integrations_live.ex:1025
 #, elixir-autogen, elixir-format
 msgid "Buildkite"
 msgstr "Buildkite"
@@ -188,6 +197,8 @@ msgstr "Cluster Agent Token"
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
 #: lib/tuist_web/live/integrations_live.html.heex:802
+#: lib/tuist_web/live/integrations_live.html.heex:1021
+#: lib/tuist_web/live/integrations_live.html.heex:1069
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr "連線"
@@ -200,13 +211,14 @@ msgstr "連接 Buildkite"
 #: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-msgstr "在 Buildkite 叢集的 Agent Tokens 下建立代理權杖。作業會從以你的執行器設定檔命名的自管佇列中擷取。"
+msgstr "在 Buildkite 的叢集 Agent Tokens 下建立代理權杖。作業會從以你的執行器設定檔命名的自託管佇列中擷取。"
 
 #: lib/tuist_web/components/amp_integration.ex:121
 #: lib/tuist_web/components/amp_integration.ex:249
 #: lib/tuist_web/components/amp_integration.ex:281
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
+#: lib/tuist_web/live/integrations_live.html.heex:997
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr "中斷連線"
@@ -214,12 +226,12 @@ msgstr "中斷連線"
 #: lib/tuist_web/live/integrations_live.html.heex:767
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
-msgstr "組織縮寫"
+msgstr "組織代稱"
 
-#: lib/tuist_web/live/integrations_live.ex:836
+#: lib/tuist_web/live/integrations_live.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-msgstr "在 Tuist 執行器上執行 Buildkite 作業。Tuist 會監控你叢集中的自管佇列，並執行其中發現的作業。"
+msgstr "在 Tuist 執行器上執行 Buildkite 作業。Tuist 會監控你叢集中的自託管佇列，並執行其中發現的作業。"
 
 #: lib/tuist_web/components/amp_integration.ex:224
 #: lib/tuist_web/live/integrations_live.html.heex:781
@@ -232,7 +244,7 @@ msgstr "經過加密儲存，且不會再次顯示。"
 msgid "Organization"
 msgstr "組織"
 
-#: lib/tuist_web/live/integrations_live.ex:292
+#: lib/tuist_web/live/integrations_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "Buildkite connection saved."
 msgstr "Buildkite 連線已儲存。"
@@ -271,7 +283,7 @@ msgstr "GitLab URL"
 msgid "Runner authentication token"
 msgstr "Runner 驗證權杖"
 
-#: lib/tuist_web/live/integrations_live.ex:201
+#: lib/tuist_web/live/integrations_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Check the GitLab URL and runner authentication token."
 msgstr "請檢查 GitLab URL 與 Runner 驗證權杖。"
@@ -279,29 +291,29 @@ msgstr "請檢查 GitLab URL 與 Runner 驗證權杖。"
 #: lib/tuist_web/live/integrations_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
-msgstr "使用你的 Tuist Profile 標籤建立 GitLab Runner，停用未標記的作業，並將其權杖貼至此處。在流水線中以 [tuist-macos] 等標籤選取該機器。"
+msgstr "建立帶有 Tuist Profile 標籤的 GitLab Runner，停用未標記的作業，並將其權杖貼到此處。在流水線中使用 [tuist-macos] 等標籤選擇機器。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
 msgstr "在 Tuist 執行器上執行 GitLab CI 工作。使用管線標籤為每個工作選擇機器。"
 
-#: lib/tuist_web/live/integrations_live.ex:464
+#: lib/tuist_web/live/integrations_live.ex:655
 #, elixir-autogen, elixir-format
 msgid "The selected repository is not accessible to this account's GitHub App installation."
 msgstr "此帳號的 GitHub App 安裝無法存取所選的儲存庫。"
 
-#: lib/tuist_web/live/integrations_live.ex:457
+#: lib/tuist_web/live/integrations_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "The project connection could not be created."
 msgstr "無法建立專案連線。"
 
-#: lib/tuist_web/live/integrations_live.ex:358
+#: lib/tuist_web/live/integrations_live.ex:549
 #, elixir-autogen, elixir-format
 msgid "GitHub API URL updated."
 msgstr "GitHub API URL 已更新。"
 
-#: lib/tuist_web/live/integrations_live.ex:365
+#: lib/tuist_web/live/integrations_live.ex:556
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise integration not found."
 msgstr "找不到 GitHub Enterprise 整合。"
@@ -331,34 +343,34 @@ msgstr "GitHub Enterprise Server"
 #: lib/tuist_web/live/integrations_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
-msgstr "Tuist 伺服器可存取的 REST API 基礎 URL，需包含 /api/v3。留空則使用伺服器網址並自動附加 /api/v3。"
+msgstr "Tuist 伺服器可存取的 REST API 基礎 URL，需包含 /api/v3。留空則使用伺服器網址並附加 /api/v3。"
 
-#: lib/tuist_web/live/integrations_live.ex:170
+#: lib/tuist_web/live/integrations_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "Could not connect this Origin repository. Check the installation's access and choose an unconnected project."
-msgstr "無法連線至此 Origin 儲存庫。請檢查安裝權限，並選擇未連線的專案。"
+msgstr "無法連接此 Origin 儲存庫。請檢查安裝權限，並選擇未連接的專案。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "Origin app not configured"
-msgstr "尚未設定 Origin 應用程式"
+msgstr "Origin 應用程式尚未設定"
 
 #: lib/tuist_web/live/integrations_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Register an Origin app, then configure TUIST_ORIGIN_APP_ID and TUIST_ORIGIN_APP_PRIVATE_KEY on this Tuist server to enable installation."
-msgstr "請註冊 Origin 應用程式，然後在此 Tuist 伺服器上設定 TUIST_ORIGIN_APP_ID 與 TUIST_ORIGIN_APP_PRIVATE_KEY 以啟用安裝功能。"
+msgstr "請註冊 Origin 應用程式，然後在此 Tuist 伺服器上設定 TUIST_ORIGIN_APP_ID 和 TUIST_ORIGIN_APP_PRIVATE_KEY 以啟用安裝功能。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Choose a native Origin repository available to your connected account. GitHub mirrors use the GitHub integration."
-msgstr "從已連線帳號可存取的 native Origin 儲存庫中選擇。GitHub 鏡像請使用 GitHub 整合。"
+msgstr "選擇已連接帳號可用的原生 Origin 儲存庫。GitHub 鏡像使用 GitHub 整合。"
 
-#: lib/tuist_web/live/integrations_live.ex:587
+#: lib/tuist_web/live/integrations_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "Could not load Origin repositories"
 msgstr "無法載入 Origin 儲存庫"
 
-#: lib/tuist_web/live/integrations_live.ex:580
+#: lib/tuist_web/live/integrations_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Loading repositories..."
 msgstr "正在載入儲存庫..."
@@ -373,18 +385,19 @@ msgstr "管理整合以授予原生儲存庫的存取權限，然後重試載入
 msgid "No native Origin repositories available"
 msgstr "沒有可用的原生 Origin 儲存庫"
 
-#: lib/tuist_web/live/integrations_live.ex:652
+#: lib/tuist_web/live/integrations_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Origin account"
 msgstr "Origin 帳戶"
 
-#: lib/tuist_web/live/integrations_live.ex:597
+#: lib/tuist_web/live/integrations_live.ex:788
 #: lib/tuist_web/live/integrations_live.html.heex:397
+#: lib/tuist_web/live/integrations_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "Retry"
 msgstr "重試"
 
-#: lib/tuist_web/live/integrations_live.ex:589
+#: lib/tuist_web/live/integrations_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "Try again or manage the integration to check its repository access."
 msgstr "請再試一次或管理整合以檢查其儲存庫存取權限。"
@@ -392,7 +405,7 @@ msgstr "請再試一次或管理整合以檢查其儲存庫存取權限。"
 #: lib/tuist_web/live/integrations_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Connect any of your Origin repositories to a project"
-msgstr "將你的任何 Origin 儲存庫連接至專案"
+msgstr "將任何 Origin 儲存庫連線至專案"
 
 #: lib/tuist_web/live/integrations_live.html.heex:332
 #, elixir-autogen, elixir-format
@@ -409,7 +422,7 @@ msgstr "API 存取權杖"
 #: lib/tuist_web/live/integrations_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
-msgstr "讓合併請求管線儲存快取卷。需要 read_api 權限範圍。"
+msgstr "讓合併請求管線儲存快取磁碟區。需要 read_api 權限範圍。"
 
 #: lib/tuist_web/components/amp_integration.ex:178
 #, elixir-autogen, elixir-format
@@ -419,12 +432,12 @@ msgstr "連接 Amp"
 #: lib/tuist_web/components/amp_integration.ex:207
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
-msgstr "複製提供者權杖並貼到下方。Tuist 將為此帳號執行該提供者。"
+msgstr "複製提供者權杖並貼到下方。Tuist 將為此帳戶執行該提供者。"
 
 #: lib/tuist_web/components/amp_integration.ex:51
 #, elixir-autogen, elixir-format
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
-msgstr "無法儲存連線。請檢查你的提供者權杖、帳號權限，以及此提供者是否已連接到其他帳號。"
+msgstr "無法儲存連線。請檢查你的提供者權杖、帳戶權限，以及此提供者是否已連接到其他帳戶。"
 
 #: lib/tuist_web/components/amp_integration.ex:201
 #, elixir-autogen, elixir-format
@@ -445,7 +458,7 @@ msgstr "你已無權限中斷此整合的連線。"
 #: lib/tuist_web/components/amp_integration.ex:114
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes."
-msgstr "在 Tuist 沙箱上執行你的 Amp 工作區 Orbs。"
+msgstr "在 Tuist 沙箱上執行 Amp 工作區的 Orbs。"
 
 #: lib/tuist_web/components/amp_integration.ex:149
 #, elixir-autogen, elixir-format
@@ -455,4 +468,210 @@ msgstr "Tuist 無法準備或停止提供者。將自動重試。"
 #: lib/tuist_web/components/amp_integration.ex:251
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-msgstr "這會停止新工作並暫停此整合正在執行的 Orbs。已儲存的磁碟會保留，直到你刪除為止。儲存在 Tuist 中的權杖將被移除。"
+msgstr "這會停止新工作並暫停此整合正在執行的 Orb。已儲存的磁碟將保留，直到你刪除為止。儲存在 Tuist 中的權杖將被移除。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1060
+#: lib/tuist_web/live/integrations_live.html.heex:1176
+#, elixir-autogen, elixir-format
+msgid "API token"
+msgstr "API 權杖"
+
+#: lib/tuist_web/live/integrations_live.ex:1090
+#: lib/tuist_web/live/integrations_live.ex:1103
+#: lib/tuist_web/live/integrations_live.html.heex:1111
+#, elixir-autogen, elixir-format
+msgid "Add pool"
+msgstr "新增集區"
+
+#: lib/tuist_web/live/integrations_live.html.heex:983
+#, elixir-autogen, elixir-format
+msgid "Bitrise"
+msgstr "Bitrise"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1009
+#, elixir-autogen, elixir-format
+msgid "Connect Bitrise"
+msgstr "連接 Bitrise"
+
+#: lib/tuist_web/live/integrations_live.ex:1167
+#, elixir-autogen, elixir-format
+msgid "Pool token"
+msgstr "集區權杖"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1101
+#, elixir-autogen, elixir-format
+msgid "Runner pools"
+msgstr "執行器集區"
+
+#: lib/tuist_web/live/integrations_live.ex:1135
+#, elixir-autogen, elixir-format
+msgid "Stack ID"
+msgstr "堆疊 ID"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1102
+#, elixir-autogen, elixir-format
+msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
+msgstr "當 Bitrise 工作流程在「Stacks & Machines」下選擇此堆疊集的堆疊時，建置會在 Tuist 上執行。"
+
+#: lib/tuist_web/live/integrations_live.ex:329
+#, elixir-autogen, elixir-format
+msgid "Bitrise API token updated."
+msgstr "Bitrise API 權杖已更新。"
+
+#: lib/tuist_web/live/integrations_live.ex:1226
+#, elixir-autogen, elixir-format
+msgid "Bitrise rejected this API token."
+msgstr "Bitrise 拒絕了此 API 權杖。"
+
+#: lib/tuist_web/live/integrations_live.ex:1169
+#, elixir-autogen, elixir-format
+msgid "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
+msgstr "Bitrise 僅在建置集建立時顯示其權杖一次。若你未儲存該權杖，請重新建立建置集。"
+
+#: lib/tuist_web/live/integrations_live.ex:375
+#, elixir-autogen, elixir-format
+msgid "Choose a runner pool and paste its pool token."
+msgstr "選擇一個執行器集並貼上其集權杖。"
+
+#: lib/tuist_web/live/integrations_live.ex:370
+#, elixir-autogen, elixir-format
+msgid "Choose one of your Tuist profiles."
+msgstr "選擇其中一個 Tuist 設定檔。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:988
+#, elixir-autogen, elixir-format
+msgid "Connected to %{workspace}. Pair each runner pool with a Tuist profile to run its builds on Tuist runners."
+msgstr "已連線至 %{workspace}。將每個執行器集與 Tuist 設定檔配對，以便在 Tuist 執行器上執行其建置。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1011
+#, elixir-autogen, elixir-format
+msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
+msgstr "在 Bitrise 中，開啟「Workspace settings」，然後選擇「Security」，並建立一個具備 Viewer 角色及 Bitrise CI 的 Tester/QA 存取權限的工作區 API 權杖。Tuist 僅會使用它來讀取你的建置。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1155
+#, elixir-autogen, elixir-format
+msgid "Loading runner pools from Bitrise…"
+msgstr "正在從 Bitrise 載入執行器集區…"
+
+#: lib/tuist_web/live/integrations_live.ex:1050
+#, elixir-autogen, elixir-format
+msgid "Reload pools"
+msgstr "重新載入集區"
+
+#: lib/tuist_web/live/integrations_live.html.heex:984
+#, elixir-autogen, elixir-format
+msgid "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Your workflows stay on Bitrise; only the machines change."
+msgstr "在 Tuist 執行器上執行你自行託管的 Bitrise 執行器集區的建置。你的工作流程仍保留在 Bitrise；僅變更執行機器。"
+
+#: lib/tuist_web/live/integrations_live.ex:1120
+#: lib/tuist_web/live/integrations_live.ex:1124
+#, elixir-autogen, elixir-format
+msgid "Runner pool"
+msgstr "執行器集區"
+
+#: lib/tuist_web/live/integrations_live.ex:1229
+#, elixir-autogen, elixir-format
+msgid "This API token can't see any Bitrise workspace."
+msgstr "此 API 權杖無法檢視任何 Bitrise 工作區。"
+
+#: lib/tuist_web/live/integrations_live.ex:1233
+#, elixir-autogen, elixir-format
+msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
+msgstr "此 API 權杖無法檢視已連接的工作區。請先中斷連線以切換工作區。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1041
+#, elixir-autogen, elixir-format
+msgid "This token can see several workspaces. Choose the one whose runner pools Tuist should serve."
+msgstr "此權杖可檢視多個工作區。請選擇 Tuist 應提供服務的執行器集區所屬的工作區。"
+
+#: lib/tuist_web/live/integrations_live.ex:1043
+#, elixir-autogen, elixir-format
+msgid "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
+msgstr "此工作區尚未有自託管執行器集區。請在 Bitrise 的「Workspace settings」>「Infrastructure」下建立一個。"
+
+#: lib/tuist_web/live/integrations_live.ex:1137
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
+msgstr "Tuist 無法從 Bitrise 載入你的執行器集區。請輸入集區的堆疊 ID，其開頭為 agent-pool-。"
+
+#: lib/tuist_web/live/integrations_live.ex:1239
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't reach Bitrise. Try again in a moment."
+msgstr "Tuist 無法連線至 Bitrise。請稍後再試。"
+
+#: lib/tuist_web/live/integrations_live.ex:1148
+#: lib/tuist_web/live/integrations_live.ex:1156
+#, elixir-autogen, elixir-format
+msgid "Tuist profile"
+msgstr "Tuist 個人檔案"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1039
+#, elixir-autogen, elixir-format
+msgid "Workspace"
+msgstr "工作區"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1178
+#, elixir-autogen, elixir-format
+msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
+msgstr "貼上新權杖以取代已儲存的權杖。該權杖必須屬於同一工作區。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1191
+#, elixir-autogen, elixir-format
+msgid "Update token"
+msgstr "更新權杖"
+
+#: lib/tuist_web/live/integrations_live.ex:1150
+#, elixir-autogen, elixir-format
+msgid "The machine this pool's builds run on."
+msgstr "此集區的建置所執行的機器。"
+
+#: lib/tuist_web/live/integrations_live.ex:1078
+#, elixir-autogen, elixir-format
+msgid "Add a runner pool"
+msgstr "新增執行器集區"
+
+#: lib/tuist_web/live/integrations_live.ex:1062
+#: lib/tuist_web/live/integrations_live.html.heex:1160
+#, elixir-autogen, elixir-format
+msgid "No runner pools are paired yet."
+msgstr "尚未配對任何執行器集區。"
+
+#: lib/tuist_web/live/integrations_live.ex:1080
+#, elixir-autogen, elixir-format
+msgid "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
+msgstr "將 Bitrise 執行器集區與應執行其建置的 Tuist 設定檔配對。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1145
+#, elixir-autogen, elixir-format
+msgid "Remove pool"
+msgstr "移除集區"
+
+#: lib/tuist_web/live/integrations_live.ex:142
+#, elixir-autogen, elixir-format
+msgid "Could not connect the Entire repository."
+msgstr "無法連接 Entire 儲存庫。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:869
+#, elixir-autogen, elixir-format
+msgid "Could not load Entire repositories."
+msgstr "無法載入 Entire 儲存庫。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:828
+#, elixir-autogen, elixir-format
+msgid "Install Entire plugin"
+msgstr "安裝 Entire 外掛程式"
+
+#: lib/tuist_web/live/integrations_live.html.heex:818
+#, elixir-autogen, elixir-format
+msgid "Keep build, test, bundle, and preview insights up to date on your Trails."
+msgstr "讓 Trails 上的建置、測試、套件與預覽分析保持最新。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:866
+#, elixir-autogen, elixir-format
+msgid "Loading Entire repositories…"
+msgstr "正在載入 Entire 儲存庫…"
+
+#: lib/tuist_web/live/integrations_live.html.heex:847
+#, elixir-autogen, elixir-format
+msgid "Your access to repositories depends on your Entire and Tuist integration setup."
+msgstr "您對儲存庫的存取權取決於您的 Entire 與 Tuist 整合設定。"

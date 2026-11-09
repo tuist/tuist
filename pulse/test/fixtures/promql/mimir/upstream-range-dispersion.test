@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for stddev_over_time and stdvar_over_time.
+clear
+load 10s
+	metric 0 8 8 2 3
+	metric_histogram{type="only_histogram"} {{schema:1 sum:2 count:3}}x5
+	metric_histogram{type="mix"} 1 1 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}}
+
+eval instant at 1m stdvar_over_time(metric[2m])
+	{} 10.56
+
+eval instant at 1m stddev_over_time(metric[2m])
+	{} 3.249615
+
+eval instant at 1m stddev_over_time((metric[2m]))
+	{} 3.249615
+
+# Tests for stddev_over_time and stdvar_over_time with histograms.
+eval instant at 1m stddev_over_time(metric_histogram{type="only_histogram"}[2m])
+	#empty
+
+eval instant at 1m stddev_over_time(metric_histogram{type="mix"}[2m])
+	expect info
+	{type="mix"} 0
+
+eval instant at 1m stdvar_over_time(metric_histogram{type="only_histogram"}[2m])
+	expect no_info
+	#empty
+
+eval instant at 1m stdvar_over_time(metric_histogram{type="mix"}[2m])
+	expect info
+	{type="mix"} 0
+
+# Tests for stddev_over_time and stdvar_over_time #4927.
+clear
+load 10s
+	metric 1.5990505637277868 1.5990505637277868 1.5990505637277868
+
+eval instant at 55s stdvar_over_time(metric[1m])
+	{} 0
+
+eval instant at 55s stddev_over_time(metric[1m])
+	{} 0

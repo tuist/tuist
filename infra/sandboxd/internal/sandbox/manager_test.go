@@ -18,7 +18,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
@@ -28,6 +28,20 @@ type eventSink struct {
 	mu     sync.Mutex
 	events []protocol.Event
 	cond   *sync.Cond
+}
+
+func TestExpiredExecutionCannotCreateAfterDeletion(t *testing.T) {
+	h := newHarness(t)
+	args := protocol.CreateArgs{SandboxID: "expired-execution", Template: "default", VCPUs: 2, MemoryMB: 4096, ExpiresAtUnix: time.Now().Add(-time.Second).Unix()}
+	if err := h.m.Delete(context.Background(), args.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Create(context.Background(), args); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired create: %v", err)
+	}
+	if len(h.m.List()) != 0 {
+		t.Fatal("expired request resurrected a deleted executor")
+	}
 }
 
 func newEventSink() *eventSink {
@@ -108,7 +122,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	m := New(Config{
 		JailBase: jailBase, FirecrackerBin: "/fc", JailerBin: "/jailer", JailerEnabled: true, UIDBase: 10000,
-		DNS: []string{"10.128.0.10"}, DefaultTemplate: "default", BootTimeout: 5 * time.Second, StopWorkerGrace: 2 * time.Second,
+		DNS: []string{"10.128.0.10"}, DefaultTemplate: "default", BootTimeout: 5 * time.Second, StopWorkerGrace: 2 * time.Second, FirecrackerVersion: "v1.16.1",
 		SnapshotDir: filepath.Join(dataDir, "snapshots"),
 	}, Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: net, Slots: slots, Agent: agent,
@@ -160,7 +174,7 @@ func TestLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.State != protocol.StateRunning || meta.Slot != 0 || meta.Generation != 0 || meta.Hostname != "sbx-abc123def456" || meta.Template != "default" || meta.Tag != "t1" || meta.WorkspaceGB != 20 {
+	if meta.State != protocol.StateRunning || meta.Slot != 0 || meta.Generation != 0 || meta.Hostname != "sbx-abc123def456" || meta.Template != "default" || meta.Tag != "t1" || meta.WorkspaceGB != 20 || meta.FirecrackerVersion != "v1.16.1" {
 		t.Fatalf("metadata %+v", meta)
 	}
 	// Instance 0 was the template build; instance 1 is the sandbox.
@@ -482,7 +496,9 @@ func TestRecover(t *testing.T) {
 	}
 	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("nosnapshot", Metadata{ID: "nosnapshot", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 1})
-	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1}, "mem", "snapshot")
+	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot")
+	write("sameversion", Metadata{ID: "sameversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 5, Generation: 2, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
+	write("oldversion", Metadata{ID: "oldversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 4, Generation: 3, FirecrackerVersion: "v1.16.0"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("tmpl-default-t1-2x4096", Metadata{}, "mem")
 	h.net.Existing = []string{"sbx-stale", "sbx-tmpl-deadbeef"}
 
@@ -493,7 +509,7 @@ func TestRecover(t *testing.T) {
 	for _, info := range h.m.List() {
 		byID[info.ID] = info
 	}
-	if len(byID) != 3 {
+	if len(byID) != 5 {
 		t.Fatalf("recovered %v", byID)
 	}
 	// A sandbox that was running when the daemon died has disks newer than
@@ -504,6 +520,14 @@ func TestRecover(t *testing.T) {
 	}
 	if byID["waspaused"].ColdBoot {
 		t.Fatalf("a cleanly paused sandbox must keep its memory image: %+v", byID["waspaused"])
+	}
+	// Another Firecracker version cannot load the memory image a clean
+	// pause left, so the sandbox cold boots on its disks instead.
+	if byID["oldversion"].State != protocol.StatePaused || !byID["oldversion"].ColdBoot {
+		t.Fatalf("oldversion %+v", byID["oldversion"])
+	}
+	if byID["sameversion"].ColdBoot {
+		t.Fatalf("a memory image this Firecracker wrote must be kept: %+v", byID["sameversion"])
 	}
 	if byID["nosnapshot"].State != protocol.StateError || byID["nosnapshot"].Error == "" {
 		t.Fatalf("nosnapshot %+v", byID["nosnapshot"])
@@ -574,6 +598,11 @@ func TestRecover(t *testing.T) {
 	}
 	if !vm.Exists(filepath.Join(root, "mem")) || !vm.Exists(filepath.Join(root, "snapshot")) {
 		t.Fatal("pause after a cold boot must write a fresh memory image")
+	}
+	// Recovery compares this against the running binary; a pause that left
+	// it out would cold boot every sandbox after each daemon restart.
+	if meta, _ = LoadMetadata(root); meta.FirecrackerVersion != "v1.16.1" {
+		t.Fatalf("pause must record the Firecracker version: %+v", meta)
 	}
 }
 
@@ -710,6 +739,14 @@ func (f *fakeOps) DeleteDisks(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete_disks "+id)
 	return nil
 }
+func (f *fakeOps) Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	f.calls = append(f.calls, fmt.Sprintf("archive %s parts=%d", args.SandboxID, len(args.PartURLs)))
+	return protocol.ArchiveResult{Bytes: 3}, nil
+}
+func (f *fakeOps) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
+	f.calls = append(f.calls, fmt.Sprintf("archive_disks %s parts=%d", args.SnapshotID, len(args.PartURLs)))
+	return protocol.ArchiveResult{Bytes: 3}, nil
+}
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete "+id)
 	return nil
@@ -792,6 +829,10 @@ func TestDispatch(t *testing.T) {
 	if !res.OK {
 		t.Fatalf("delete_disks result %+v", res)
 	}
+	res, _ = run("archive", `{"sandbox_id":"s1","part_size":1048576,"part_urls":["https://a","https://b"]}`)
+	if !res.OK || res.Data.(protocol.ArchiveResult).Bytes != 3 {
+		t.Fatalf("archive result %+v", res)
+	}
 	res, _ = run("delete", `{"sandbox_id":"s1"}`)
 	if !res.OK {
 		t.Fatalf("delete result %+v", res)
@@ -808,7 +849,7 @@ func TestDispatch(t *testing.T) {
 	if res.OK || !strings.Contains(res.Error, "decoding args") {
 		t.Fatalf("bad args result %+v", res)
 	}
-	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1 sync=true,exec s1,start_worker s1,stop_worker s1,status s1,save_disks s1 snap1,delete_disks snap1,delete s1" {
+	if strings.Join(ops.calls, ",") != "create s1,resume s1,pause s1 sync=true,exec s1,start_worker s1,stop_worker s1,status s1,save_disks s1 snap1,delete_disks snap1,archive s1 parts=2,delete s1" {
 		t.Fatalf("calls %v", ops.calls)
 	}
 	data, _ := json.Marshal(Dispatch(context.Background(), ops, protocol.Command{ID: "x", Op: "delete", Args: json.RawMessage(`{"sandbox_id":"s1"}`)}, nil))
@@ -997,5 +1038,174 @@ func TestDispatchReclaimsTheCgroupDownToTheTarget(t *testing.T) {
 	missing := protocol.Command{Type: protocol.FrameCommand, ID: "c-reclaim", Op: protocol.OpReclaim}
 	if res := Dispatch(context.Background(), &fakeOps{}, missing, nil); res.OK {
 		t.Fatalf("a reclaim without a target must fail, got %+v", res)
+	}
+}
+
+func TestPreparedWorkspaceClonesArePrivateAndSizeChangesStillFormat(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	tmpl, err := h.m.store.Resolve("default", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := h.m.builder.Ensure(ctx, tmpl, template.Shape{VCPUs: 2, MemoryMB: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Tiny stand-in for the formatted filesystem, so the fake VM test does
+	// not copy a 10 GiB sparse disk through os.ReadFile.
+	if err := os.WriteFile(artifacts.Workspace, []byte("pristine workspace"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	artifacts.Meta.WorkspacePrepared = true
+	encoded, _ := json.Marshal(artifacts.Meta)
+	if err := os.WriteFile(filepath.Join(artifacts.Dir, template.MetadataFile), encoded, 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"prepared-first", "prepared-second"} {
+		h.create(t, id, 10)
+		workspace := filepath.Join(vm.RootDir(h.jailBase, id), firecracker.WorkspacePath)
+		data, err := os.ReadFile(workspace)
+		if err != nil || string(data) != "pristine workspace" {
+			t.Fatalf("action inherited a used workspace: %q %v", data, err)
+		}
+		requests := h.launcher.Last().Agent.RequestsOf("configure")
+		if len(requests) != 1 || requests[0]["format_workspace"] == true {
+			t.Fatalf("prepared workspace was reformatted: %v", requests)
+		}
+		if err := os.WriteFile(workspace, []byte("action-private data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.m.Delete(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.create(t, "different-size", 20)
+	requests := h.launcher.Last().Agent.RequestsOf("configure")
+	if len(requests) != 1 || requests[0]["format_workspace"] != true {
+		t.Fatalf("different-sized workspace must be formatted: %v", requests)
+	}
+	if err := h.m.Delete(ctx, "different-size"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type deletionNetwork struct {
+	network.Interface
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+	failure error
+}
+
+func (n *deletionNetwork) Teardown(ctx context.Context, _ string, _ int) error {
+	n.once.Do(func() { close(n.started) })
+	if n.release != nil {
+		select {
+		case <-n.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return n.failure
+}
+
+type deletionInstance struct {
+	vm.Instance
+	networkStarted <-chan struct{}
+	killed         chan struct{}
+	failure        error
+}
+
+func (i *deletionInstance) Kill(ctx context.Context) error {
+	select {
+	case <-i.networkStarted:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if i.failure != nil {
+		return i.failure
+	}
+	err := i.Instance.Kill(ctx)
+	if i.killed != nil {
+		close(i.killed)
+		i.killed = nil
+	}
+	return err
+}
+
+func TestDeleteOverlapsIndependentCleanupButWaitsForBoth(t *testing.T) {
+	h := newHarness(t)
+	h.create(t, testID, 10)
+	sb, _ := h.m.get(testID)
+	release := make(chan struct{})
+	net := &deletionNetwork{Interface: h.net, started: make(chan struct{}), release: release}
+	h.m.net = net
+	killed := make(chan struct{})
+	sb.inst = &deletionInstance{Instance: sb.inst, networkStarted: net.started, killed: killed}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- h.m.Delete(ctx, testID) }()
+	select {
+	case <-killed:
+	case <-ctx.Done():
+		t.Fatal("VM exit waited for network teardown")
+	}
+	if !vm.Exists(sb.root) || !h.m.current(testID, sb) {
+		t.Fatal("resources released before network teardown completed")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteFailureRetainsInstanceAndReservationForRetry(t *testing.T) {
+	for _, phase := range []string{"kill", "network"} {
+		t.Run(phase, func(t *testing.T) {
+			h := newHarness(t)
+			h.create(t, testID, 10)
+			sb, _ := h.m.get(testID)
+			net := &deletionNetwork{Interface: h.net, started: make(chan struct{})}
+			inst := &deletionInstance{Instance: sb.inst, networkStarted: net.started}
+			if phase == "kill" {
+				inst.failure = errors.New("unconfirmed death")
+			} else {
+				net.failure = errors.New("network still present")
+			}
+			sb.inst = inst
+			h.m.net = net
+			if err := h.m.Delete(context.Background(), testID); err == nil {
+				t.Fatal("unconfirmed cleanup succeeded")
+			}
+			if !vm.Exists(sb.root) || !h.m.current(testID, sb) || sb.meta.Slot < 0 || sb.inst != inst {
+				t.Fatal("failed cleanup lost the instance or reservation")
+			}
+			inst.failure, net.failure = nil, nil
+			if err := h.m.Delete(context.Background(), testID); err != nil {
+				t.Fatal(err)
+			}
+			if vm.Exists(sb.root) || h.m.current(testID, sb) {
+				t.Fatal("successful retry left resources")
+			}
+		})
+	}
+}
+
+func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 1)
+	h.launcher.Last().SetCPUTime(1500 * time.Millisecond)
+
+	if got := h.m.List()[0].CPUMs; got != 1500 {
+		t.Fatalf("running cpu_ms = %d, want 1500", got)
+	}
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if got := h.m.List()[0].CPUMs; got != 0 {
+		t.Fatalf("paused cpu_ms = %d, want 0", got)
 	}
 }
