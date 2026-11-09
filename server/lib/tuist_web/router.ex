@@ -964,6 +964,7 @@ defmodule TuistWeb.Router do
         get "/:sandbox_id/commands/:command_id/logs", SandboxesController, :stream_command_logs
         post "/:sandbox_id/commands/:command_id/stdin", SandboxesController, :write_command_stdin
         post "/:sandbox_id/commands/:command_id/cancel", SandboxesController, :cancel_command
+        post "/:sandbox_id/uploads", SandboxesController, :create_upload
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
         post "/:sandbox_id/archive", SandboxesController, :archive
