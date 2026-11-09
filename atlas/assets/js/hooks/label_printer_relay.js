@@ -2,25 +2,44 @@ export default {
   async mounted() {
     this.stopped = false;
     const id = this.el.dataset.sessionId;
-    let token;
+    const storageKey = `atlas-label-relay:${id}`;
     const capability = this.el.querySelector("#capability");
+    let token, clientId;
     try {
-      const storageKey = `atlas-label-relay:${id}`;
+      clientId = sessionStorage.getItem("m211-client") || crypto.randomUUID();
+      sessionStorage.setItem("m211-client", clientId);
       const params = new URLSearchParams(location.hash.slice(1));
       token = params.get("token") || localStorage.getItem(storageKey);
       if (params.has("token")) {
         localStorage.setItem(storageKey, token);
         history.replaceState(null, "", location.pathname);
       }
-      if (!token)
-        throw new Error(
-          "Reopen the full private connection link from your agent.",
-        );
-    } catch (error) {
-      capability.textContent = `Relay not started: ${error.message}`;
+    } catch {
+      capability.textContent =
+        "Browser storage is required to preserve the relay identity. No output will be sent.";
       return;
     }
-    const api = async (tail = "", method = "GET", body) => {
+    // The link's #token fragment does not survive every route here (sign-in
+    // round trips drop it), so the signed-in owner's page can ask Atlas for a
+    // fresh relay capability. Atlas refuses while another relay tab is active.
+    const issueToken = () =>
+      new Promise((resolve, reject) =>
+        this.pushEvent("relay_token", { clientId }, (reply) => {
+          if (!reply?.token)
+            return reject(new Error(reply?.error || "Relay not started."));
+          localStorage.setItem(storageKey, reply.token);
+          resolve(reply.token);
+        }),
+      );
+    if (!token) {
+      try {
+        token = await issueToken();
+      } catch (error) {
+        capability.textContent = `Relay not started: ${error.message}`;
+        return;
+      }
+    }
+    const api = async (tail = "", method = "GET", body, renewed = false) => {
       const response = await fetch(`/api/labels/relay/sessions/${id}${tail}`, {
         method,
         headers: {
@@ -29,6 +48,11 @@ export default {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
+      // A stored capability can be outdated; Atlas did nothing for a 401.
+      if (response.status === 401 && !renewed) {
+        token = await issueToken();
+        return api(tail, method, body, true);
+      }
       if (!response.ok)
         throw new Error(
           (await response.json()).error || `HTTP ${response.status}`,
@@ -45,15 +69,6 @@ export default {
     const connect = this.el.querySelector("#connect");
     const disconnect = this.el.querySelector("#disconnect");
     const attempted = new Set();
-    let clientId;
-    try {
-      clientId = sessionStorage.getItem("m211-client") || crypto.randomUUID();
-      sessionStorage.setItem("m211-client", clientId);
-    } catch {
-      capability.textContent =
-        "Browser storage is required to preserve the relay identity. No output will be sent.";
-      return;
-    }
     const report = () => ({
       clientId,
       connected: sdk?.isConnected() === true,

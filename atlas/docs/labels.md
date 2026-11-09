@@ -15,7 +15,10 @@ separate CLI, Labels dashboard, sidebar entry or browser label-preparation workf
    signed into the same Atlas account. Click **Connect M211**, select the printer
    and approve the browser's Bluetooth prompt. Keep that one tab open and the
    computer awake. No CLI, repository, Elixir, Node, drivers or helper is needed
-   on this computer. Zen/Firefox cannot provide Web Bluetooth.
+   on this computer. Zen/Firefox cannot provide Web Bluetooth. If the page says
+   it lost the private token (sign-in round trips drop the `#token` part of the
+   link), it asks Atlas for a new one itself: the signed-in owner's connection
+   page gets a fresh relay credential whenever no other relay tab is active.
 3. The agent reads `status` and `preview`, inspects the PNGs, printer, supply
    and printable zones, then calls `print`. **While the tab is connected the agent
    operates the printer directly**: the batch starts without an approval step.
@@ -77,7 +80,9 @@ Slack callers are excluded. Existing roles are not granted new permissions.
   Output goes only to the owner's own connected relay; the agent needs the
   owner's personal Atlas connection and `assets:write` to queue it. Private relay
   capabilities grant transport/status only, never preparation or approval.
-  PostgreSQL stores only their SHA-256 hashes. Links are secrets.
+  PostgreSQL stores only their SHA-256 hashes. Links are secrets. Only the
+  signed-in owner's connection page can rotate the capability, never while
+  another relay tab is active; the replaced one stops working.
 - PostgreSQL row locks serialize claims across replicas. The `dispatched` state
   commits before Chrome receives permission to output. Restart, competing
   claims and lost responses never return a consumed job to the queue. A crash
