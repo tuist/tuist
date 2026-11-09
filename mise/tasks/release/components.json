@@ -232,7 +232,8 @@
         "infra/macos-host-bootstrap/**/*",
         "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*",
-        "infra/runner-cache/**/*"
+        "infra/runner-cache/**/*",
+        "infra/sandbox-image/**/*"
       ]
     },
     {
