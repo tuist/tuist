@@ -54,7 +54,7 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
     |> render()
     |> Floki.parse_fragment!()
     |> Floki.text()
-    |> Jason.decode!()
+    |> JSON.decode!()
     |> get_in(["series", Access.at(0), "data"])
     |> Enum.map(fn [_date, value] -> value end)
   end
