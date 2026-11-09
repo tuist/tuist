@@ -175,6 +175,7 @@
     "manage_account_connections": "Personal OAuth metadata and disconnect require explicit caller intent, never workflow credential lifecycle management.",
     "search_my_gmail": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "get_my_gmail_message": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
+    "save_my_gmail_attachment": "Copies a file from the caller's personal mailbox into the shared document library through their own OAuth grant; workflows must not act on one person's private messages.",
     "get_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
     "create_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
     "update_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",

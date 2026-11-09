@@ -28,6 +28,23 @@ defmodule Atlas.MCP.Tools.GmailSerializers do
     }
   end
 
+  def message_attachments_schema do
+    %{
+      "type" => "array",
+      "items" => %{
+        "type" => "object",
+        "required" => ["part_id", "filename", "mime_type", "size"],
+        "properties" => %{
+          "part_id" => %{"type" => "string"},
+          "filename" => %{"type" => "string"},
+          "mime_type" => %{"type" => ["string", "null"]},
+          "size" => %{"type" => ["integer", "null"]}
+        },
+        "additionalProperties" => false
+      }
+    }
+  end
+
   def draft_schema do
     %{
       "type" => "object",
