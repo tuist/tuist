@@ -12,6 +12,7 @@ defmodule Tuist.Sandboxes.RouterTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Router
@@ -279,6 +280,12 @@ defmodule Tuist.Sandboxes.RouterTest do
     test "a Linux environment runs a session on macOS when its metadata asks for it", %{
       agent_environment: agent_environment
     } do
+      agent_environment = Repo.update!(Ecto.Changeset.change(agent_environment, anthropic_api_key: "sk-ant-api"))
+
+      expect(ControlPlane, :get_session, fn "sk-ant-api", "session_meta_mac" ->
+        {:ok, %{"id" => "session_meta_mac", "metadata" => %{"tuist_platform" => "macos"}}}
+      end)
+
       expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192} ->
         {:ok, "mac-a"}
       end)
@@ -290,8 +297,7 @@ defmodule Tuist.Sandboxes.RouterTest do
         {:ok, %{}}
       end)
 
-      item = put_in(work_item("session_meta_mac"), ["data", "metadata"], %{"tuist_platform" => "macos"})
-      assert :ok = Router.dispatch(agent_environment, item)
+      assert :ok = Router.dispatch(agent_environment, work_item("session_meta_mac"))
 
       assert %Sandbox{platform: :darwin, node_name: "mac-a"} =
                Sandboxes.get_sandbox_for_session(agent_environment.id, "session_meta_mac")
@@ -308,10 +314,10 @@ defmodule Tuist.Sandboxes.RouterTest do
         platform: :darwin
       )
 
-      item = put_in(work_item("session_row_mac"), ["data", "metadata"], %{"tuist_platform" => "linux"})
+      reject(&ControlPlane.get_session/2)
 
       assert %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, anthropic_environment_id: "env_router"} =
-               Router.session_environment(agent_environment, item)
+               Router.session_environment(agent_environment, work_item("session_row_mac"))
     end
 
     test "a session keeps the platform of the sandbox it already has", %{
@@ -325,8 +331,8 @@ defmodule Tuist.Sandboxes.RouterTest do
         node_name: "node-a"
       )
 
-      item = put_in(work_item("session_linux"), ["data", "metadata"], %{"tuist_platform" => "darwin"})
-      assert Router.session_environment(agent_environment, item) == agent_environment
+      reject(&ControlPlane.get_session/2)
+      assert Router.session_environment(agent_environment, work_item("session_linux")) == agent_environment
     end
 
     test "clones private github.com repositories with a repository-scoped token passed only through git's environment",

@@ -5,6 +5,7 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
   alias Tuist.Sandboxes.Anthropic.Poller
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
   alias Tuist.Sandboxes.Capacity
@@ -61,11 +62,19 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
   end
 
   test "leaves a session item queued and backs off when no node has room for the platform its session asks for" do
-    agent_environment = agent_environment_fixture(anthropic_environment_id: "env_full", environment_key: "sk-full")
-    test_pid = self()
+    agent_environment =
+      agent_environment_fixture(
+        anthropic_environment_id: "env_full",
+        environment_key: "sk-full",
+        anthropic_api_key: "sk-ant-api"
+      )
 
-    item =
-      work_item("work_full", %{"id" => "session_full", "type" => "session", "metadata" => %{"tuist_platform" => "macos"}})
+    test_pid = self()
+    item = work_item("work_full", %{"id" => "session_full", "type" => "session"})
+
+    stub(ControlPlane, :get_session, fn "sk-ant-api", "session_full" ->
+      {:ok, %{"id" => "session_full", "metadata" => %{"tuist_platform" => "macos"}}}
+    end)
 
     queue_poll_responses([{:ok, item}, {:ok, item}])
 
