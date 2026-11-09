@@ -129,33 +129,47 @@ const successfulJobs = [
 ].map((job, index) => ({ ...job, id: index + 1, status: 'completed', labels: ['canary'],
   created_at: '2026-01-01T00:00:00Z', started_at: '2026-01-01T00:00:01Z' }));
 
-function runScript(script, jobs, conclusion = 'success', env = {}) {
+// `runs` lists the probe runs the gate dispatches after the first, as
+// { jobs, conclusion, annotations }; annotations map a job id to the gate's
+// filtered "level<TAB>title<TAB>message" lines.
+function runScript(script, jobs, conclusion = 'success', env = {}, annotations = {}, runs = []) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-gate-'));
   try {
-    fs.writeFileSync(path.join(work, 'jobs.json'), JSON.stringify({ jobs }));
+    [{ jobs, conclusion, annotations }, ...runs].forEach((run, index) => {
+      fs.writeFileSync(path.join(work, `jobs-${index + 1}.json`), JSON.stringify({ jobs: run.jobs }));
+      fs.writeFileSync(path.join(work, `conclusion-${index + 1}`), run.conclusion);
+      for (const [id, lines] of Object.entries(run.annotations ?? {})) {
+        fs.writeFileSync(path.join(work, `annotations-${index + 1}-${id}`), `${lines}\n`);
+      }
+    });
     fs.writeFileSync(path.join(work, 'gh'), `#!/usr/bin/env bash
 set -euo pipefail
+run="$(cat "$TEST_WORK/run" 2>/dev/null || echo 1)"
 case "$*" in
-  'workflow run '*) ;;
-  'run list '*) echo 42 ;;
+  'workflow run '*) echo "$*" >> "$TEST_WORK/dispatched" ;;
+  'run list '*) wc -l < "$TEST_WORK/dispatched" | tr -d ' ' | tee "$TEST_WORK/run" ;;
   *'--jq .status') echo completed ;;
-  *'--jq .conclusion') echo "$TEST_CONCLUSION" ;;
+  *'--jq .conclusion') cat "$TEST_WORK/conclusion-$run" ;;
   'run cancel '*) touch "$TEST_WORK/cancelled" ;;
-  *check-runs*) ;;
-  api*) cat "$TEST_WORK/jobs.json" ;;
+  *check-runs*)
+    id="$(sed -E 's|.*check-runs/([0-9]+)/annotations.*|\\1|' <<< "$*")"
+    cat "$TEST_WORK/annotations-$run-$id" 2>/dev/null || true ;;
+  api*) cat "$TEST_WORK/jobs-$run.json" ;;
   *) echo "Unexpected gh call: $*" >&2; exit 1 ;;
 esac
 `, { mode: 0o755 });
     const result = spawnSync('bash', [path.join(__dirname, script)], {
       encoding: 'utf8', timeout: 5000,
       env: { ...process.env, PATH: `${work}:${process.env.PATH}`, TEST_WORK: work,
-        TEST_CONCLUSION: conclusion, GITHUB_REPOSITORY: 'tuist/tuist',
+        GITHUB_REPOSITORY: 'tuist/tuist',
         GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '1', GITHUB_STEP_SUMMARY: path.join(work, 'summary'),
         DOCKER_CACHE_PROBES: 'true', ENVIRONMENT: 'canary', EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner@sha256:' + 'a'.repeat(64), EXPECTED_PROBE_JOBS: '7', MACOS_PICKUP_MINUTES: '15', LINUX_PICKUP_MINUTES: '10',
         EXPECTED_MACOS_IMAGES: JSON.stringify(['ghcr.io/tuist/tuist-runner@sha256:' + 'c'.repeat(64)]), ...env },
     });
     assert.equal(result.error, undefined, result.error?.message);
-    return { ...result, cancelled: fs.existsSync(path.join(work, 'cancelled')) };
+    const dispatched = path.join(work, 'dispatched');
+    return { ...result, cancelled: fs.existsSync(path.join(work, 'cancelled')),
+      dispatches: fs.existsSync(dispatched) ? fs.readFileSync(dispatched, 'utf8').trim().split('\n').length : 0 };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
@@ -185,6 +199,37 @@ for (const images of ['', '[]', '["ghcr.io/tuist/tuist-runner:macos-26-6-0.49.4"
 }
 test('gate preserves aggregate workflow failures', () => {
   assert.notEqual(runScript('gate.sh', successfulJobs, 'failure').status, 0);
+});
+// What the watchdog leaves when GitHub never delivers a probe job's queued
+// webhook: the probe is cancelled with the run and only `Dispatch` failed.
+const undispatchedJobs = [
+  ...successfulJobs.map(job => job.name.startsWith('macOS ') ? { ...job, conclusion: 'cancelled' } : job),
+  { id: 8, name: 'Dispatch watchdog', status: 'completed', conclusion: 'failure', labels: ['ubuntu-latest'] },
+];
+const dispatchAnnotation = { 8: 'failure\tDispatch\tmacOS rack (canary): no runner picked up runs-on canary within 15 minutes' };
+test('gate dispatches the probe once more when only dispatch failed', () => {
+  const result = runScript('gate.sh', undispatchedJobs, 'cancelled', {}, dispatchAnnotation,
+    [{ jobs: successfulJobs, conclusion: 'success' }]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.dispatches, 2);
+  assert.match(result.stdout, /::warning title=Dispatch \(canary\)::/);
+  assert.doesNotMatch(result.stdout, /::error/);
+});
+test('gate fails when the second probe run is not dispatched either', () => {
+  const result = runScript('gate.sh', undispatchedJobs, 'cancelled', {}, dispatchAnnotation,
+    [{ jobs: undispatchedJobs, conclusion: 'cancelled', annotations: dispatchAnnotation }]);
+  assert.notEqual(result.status, 0);
+  assert.equal(result.dispatches, 2);
+  assert.match(result.stdout, /::error title=Dispatch \(canary\)::/);
+});
+test('gate does not retry dispatch when another layer also failed', () => {
+  const jobs = undispatchedJobs.map(job => job.name.startsWith('Linux native ') ? { ...job, conclusion: 'failure' } : job);
+  const result = runScript('gate.sh', jobs, 'failure', {},
+    { ...dispatchAnnotation, 7: 'failure\tKura auth\tthe token was rejected' },
+    [{ jobs: successfulJobs, conclusion: 'success' }]);
+  assert.notEqual(result.status, 0);
+  assert.equal(result.dispatches, 1);
+  assert.match(result.stdout, /::error title=Kura auth \(canary\)::/);
 });
 test('watchdog accepts all seven started probes', () => {
   const result = runScript('dispatch-watchdog.sh', successfulJobs);
