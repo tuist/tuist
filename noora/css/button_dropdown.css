@@ -20,11 +20,11 @@
   }
 
   &:has(:focus-visible) {
-    box-shadow: var(--noora-button-border-secondary-focus);
+    box-shadow: var(--noora-button-border-focus);
   }
 
   &:has([data-part="main-button"]:disabled) {
-    box-shadow: var(--noora-button-border-secondary-disabled);
+    box-shadow: var(--noora-button-border-disabled);
   }
 
   & [data-part="main-button"],
@@ -59,8 +59,8 @@
     }
 
     &:disabled {
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
   }
 
@@ -81,8 +81,8 @@
     }
 
     &:disabled {
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
   }
 

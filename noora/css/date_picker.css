@@ -53,11 +53,11 @@
 
     &:focus-visible {
       background: var(--noora-button-background-secondary-hover);
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[data-state="open"] {
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
   }
 

@@ -74,8 +74,8 @@
 
     &:disabled {
       cursor: not-allowed;
-      background: var(--noora-button-background-secondary-disabled);
-      box-shadow: var(--noora-button-border-secondary-disabled);
+      background: var(--noora-button-background-disabled);
+      box-shadow: var(--noora-button-border-disabled);
 
       & [data-part="icon"] {
         color: var(--noora-dropdown-disabled-secondary-text);
@@ -101,7 +101,7 @@
 
     &:focus-visible {
       background: var(--noora-button-background-secondary-hover);
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
   }
 
@@ -253,7 +253,7 @@
 
       &:focus-visible {
         background: var(--noora-button-background-secondary-hover);
-        box-shadow: var(--noora-button-border-secondary-focus);
+        box-shadow: var(--noora-button-border-focus);
       }
     }
 

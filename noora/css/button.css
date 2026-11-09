@@ -52,13 +52,13 @@
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-primary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-primary-disabled);
-      background: var(--noora-button-background-primary-disabled);
-      color: var(--noora-button-primary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -77,13 +77,13 @@
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-secondary-disabled);
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -104,13 +104,13 @@
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-destructive-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-destructive-disabled);
-      background: var(--noora-button-background-destructive-disabled);
-      color: var(--noora-button-destructive-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -123,28 +123,16 @@
     padding: var(--noora-spacing-3);
   }
 
+  /* Small buttons pad 4px all round with a 16px icon and the 12px label:
+     24px tall, labelled or icon-only. */
   &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-small);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  &[data-size="medium"] {
     --noora-button-icon-size: var(--noora-icon-size-medium);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    &,
+    &[data-icon-only] {
+      padding: var(--noora-spacing-2);
     }
 
     & svg {
@@ -153,13 +141,36 @@
     }
   }
 
+  /* Medium buttons take the 14px label with 4px padding all round: 28px
+     tall. Icon-only ones keep 6px around the 16px icon to match. */
+  &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  /* Large buttons take a 16px icon, which sits better beside the 14px
+     label; icon-only ones pad 8px to stay 32px square, the labelled height. */
   &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-large);
+    --noora-button-icon-size: var(--noora-icon-size-medium);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     &:not([data-icon-only]) {
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+
+    &[data-icon-only] {
+      padding: var(--noora-spacing-4);
     }
 
     & svg {
@@ -193,8 +204,8 @@
   background: transparent;
 
   &:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+    outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+    outline-offset: var(--noora-focus-ring-offset);
   }
 
   &:disabled {
@@ -277,7 +288,7 @@
 
   &[disabled] {
     cursor: not-allowed;
-    color: var(--noora-button-neutral-disabled-label);
+    color: var(--noora-button-disabled-label);
   }
 
   /* Same label inset as .noora-button's `& > span`, scoped to the label
