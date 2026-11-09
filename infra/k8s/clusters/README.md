@@ -186,6 +186,26 @@ Everything below the PR is a human operation:
    must be Ready: Ready means `/replicas_status` reports the replica caught
    up. The PodDisruptionBudget refuses the drain otherwise, and that refusal
    is the point. Check that the last backup CronJob runs succeeded.
+
+   Then check that no backup is running. Don't drain either box while one
+   is, including the box whose replica isn't running it. Backups run at
+   01:00 UTC: the weekly full on Mondays takes about 11 hours on production,
+   and the daily incremental takes much less. On production on 2026-11-09,
+   draining `clickhouse-1`'s box failed the full that `clickhouse-0` had
+   been writing for 7 hours. It failed with an S3 `RequestCanceled` 21
+   seconds after the eviction, and the Job's one retry then started again
+   from scratch. Before draining, both of these must be empty:
+
+   ```bash
+   kubectl -n <namespace> get jobs | grep clickhouse-backup | grep Running
+   kubectl -n <namespace> exec tuist-tuist-clickhouse-0 -c clickhouse -- \
+     sh -c 'clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD" \
+       -q "SELECT name, start_time FROM system.backups WHERE status = '\''CREATING_BACKUP'\''"'
+   ```
+
+   Repeat the `system.backups` query on `tuist-tuist-clickhouse-1`. The
+   server can keep writing a backup after its Job has failed or hit its
+   deadline. That's why `system.backups` is the check, not the Job's status.
 3. For **one** box (`NODE=bm-...-md-clickhouse-...`):
 
    ```bash
