@@ -1776,8 +1776,72 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.dependencies,
             [
-                .target(name: app.name, path: project.path): [],
+                .target(name: app.name, path: project.path): [
+                    .testXCFramework(path: dynamicXCFrameworkPath, status: .none),
+                ],
                 .testXCFramework(path: dynamicXCFrameworkPath): [],
+            ]
+        )
+    }
+
+    ///                         (Cached)
+    /// ┌─────┐  ┌─────────────────────────────────────────┐
+    /// │ App ├──►  Dynamic framework A (.optional LinkingStatus)
+    /// │     │  └─────────────────────────────────────────┘
+    /// │     │  ┌─────────────────────────────────────────┐
+    /// │     ├──►  Dynamic framework B (.none LinkingStatus)
+    /// └─────┘  └─────────────────────────────────────────┘
+    ///                         (Source)
+    func test_map_keeps_the_linking_status_of_edges_to_replaced_and_source_targets() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let a = Target.test(name: "A", destinations: [.iPhone], product: .framework)
+        let b = Target.test(name: "B", destinations: [.iPhone], product: .framework)
+        let project = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [app, a, b]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: a.name, path: project.path, status: .optional),
+                    .target(name: b.name, path: project.path, status: .none),
+                ],
+            ]
+        )
+        let aXCFrameworkPath = path.appending(component: "A.xcframework")
+        let xcframeworks = [
+            GraphTarget.test(path: project.path, target: a, project: project): aXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == aXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: aXCFrameworkPath)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
+            keepSourceTargets: false
+        )
+
+        // Then
+        XCTAssertEqual(
+            got.dependencies,
+            [
+                .target(name: app.name, path: project.path): [
+                    .testXCFramework(path: aXCFrameworkPath, status: .optional),
+                    .target(name: b.name, path: project.path, status: .none),
+                ],
+                .testXCFramework(path: aXCFrameworkPath): [],
+                .target(name: b.name, path: project.path): [],
             ]
         )
     }
@@ -1840,7 +1904,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.dependencies,
             [
-                .target(name: app.name, path: project.path): [],
+                .target(name: app.name, path: project.path): [
+                    .testXCFramework(path: dynamicXCFrameworkPath, status: .none),
+                ],
                 .target(name: dynamicFramework.name, path: project.path): [],
                 .testXCFramework(path: dynamicXCFrameworkPath): [],
             ]
