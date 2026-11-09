@@ -38,6 +38,9 @@ export default {
     let sdk,
       connecting = false,
       ready = false,
+      // Tells Atlas this page has no operation in flight, so anything it still
+      // shows as dispatched is uncertain and queued output stops.
+      restarted = true,
       message = "Waiting for connection.";
     const connect = this.el.querySelector("#connect");
     const disconnect = this.el.querySelector("#disconnect");
@@ -64,8 +67,12 @@ export default {
       supplyWidth: sdk?.supplyWidth,
       supplyHeight: sdk?.supplyHeight,
       cutReady: typeof sdk?.cut === "function",
+      restarted,
     });
-    const publish = () => api("/relay", "POST", report());
+    const publish = async () => {
+      await api("/relay", "POST", report());
+      restarted = false;
+    };
     const buttons = () => {
       connect.disabled = connecting || !ready || sdk?.isConnected() === true;
       disconnect.disabled = connecting || !sdk?.isConnected();
@@ -81,11 +88,12 @@ export default {
       sdk.printerName === job.printer &&
       sdk.supplyName === job.supply &&
       zonesKey(sdk.zoneDimensions) === zonesKey(job.zoneDimensions);
+    // Returns true only when the next queued label may follow.
     const dispatch = async (job) => {
-      if (this.stopped || attempted.has(job.id) || !sdk?.isConnected()) return;
+      if (this.stopped || attempted.has(job.id) || !sdk?.isConnected())
+        return false;
       if (!sameSupply(job))
         throw new Error("Printer or supply changed. Output blocked.");
-      attempted.add(job.id);
       let url;
       try {
         let image;
@@ -97,29 +105,43 @@ export default {
           image.src = url;
           await image.decode();
         }
+        await publish(); // Keep the relay lease fresh during long batches.
         // Exclusive, durable server-side consumption must succeed before any SDK output.
         await api(`/jobs/${job.id}/claim`, "POST", { clientId });
+        attempted.add(job.id);
         let success = false;
+        let cutSuccess = null;
+        let failure;
         try {
           if (this.stopped || !sdk.isConnected() || !sameSupply(job))
             throw new Error("Printer or supply changed");
           if (job.action === "cut") success = (await sdk.cut()) === true;
           else {
+            // One label per print call so every label gets its own SDK result.
+            // printBitmaps reports one boolean for the whole job.
             sdk.setCopies(1);
-            sdk.setCutOption(2); // Never cut as part of printing.
+            sdk.setCutOption(2); // Never cut inside the print job.
             success = (await sdk.printBitmap(image)) === true;
+            if (success && job.cut) {
+              cutSuccess = false;
+              cutSuccess = (await sdk.cut()) === true;
+            }
           }
-          message = success
-            ? "Brady SDK confirmed operation. Check the physical label."
-            : "Outcome uncertain. Inspect printer; never retry automatically.";
         } catch (error) {
-          message = `Outcome uncertain: ${error.message}. No retry.`;
+          failure = error.message;
         }
+        const ok =
+          success && (job.action === "cut" || !job.cut || cutSuccess === true);
+        message = ok
+          ? `Brady SDK confirmed ${job.title}. Check the physical label.`
+          : `Outcome uncertain for ${job.title}${failure ? `: ${failure}` : ""}. Inspect printer; never retry automatically.`;
         await api(`/jobs/${job.id}/result`, "POST", {
           clientId,
           success,
+          cutSuccess,
           message,
         });
+        return ok;
       } finally {
         if (url) URL.revokeObjectURL(url);
       }
@@ -129,8 +151,15 @@ export default {
       try {
         await publish();
         const state = await (await api()).json();
-        const job = state.jobs.find((j) => j.state === "queued");
-        if (job) await dispatch(job);
+        const queued = state.jobs
+          .filter((j) => j.state === "queued")
+          .sort(
+            (a, b) => a.queuedAt - b.queuedAt || a.batchIndex - b.batchIndex,
+          );
+        for (const job of queued) {
+          if (!(await dispatch(job))) break;
+          capability.textContent = message;
+        }
       } catch (error) {
         message = error.message;
       }
