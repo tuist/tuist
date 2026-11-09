@@ -19,6 +19,8 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.AmpOrbs
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
@@ -142,6 +144,28 @@ defmodule Tuist.Sandboxes do
     |> AgentEnvironment.update_changeset(attrs)
     |> Repo.update()
   end
+
+  @doc """
+  Fetches the self-hosted Managed Agents environment `environment_id`
+  from the account's Anthropic workspace, which checks the credential
+  before an agent environment row exists. It authenticates with
+  `{:api_key, key}`, or with a federated token for the federation `ids`
+  (see `Tuist.Sandboxes.Anthropic.Federation.verify/2`). Returns
+  `{:error, :not_self_hosted}` for an environment Anthropic runs itself.
+  """
+  def fetch_anthropic_environment(%Account{}, {:api_key, key}, environment_id) when is_binary(key) do
+    {:api_key, key} |> ControlPlane.get_environment(environment_id) |> self_hosted_environment()
+  end
+
+  def fetch_anthropic_environment(%Account{id: account_id}, %{} = ids, environment_id) do
+    with {:ok, token} <- Federation.verify(account_id, ids) do
+      {:bearer, token} |> ControlPlane.get_environment(environment_id) |> self_hosted_environment()
+    end
+  end
+
+  defp self_hosted_environment({:ok, %{"config" => %{"type" => "self_hosted"}} = environment}), do: {:ok, environment}
+  defp self_hosted_environment({:ok, _environment}), do: {:error, :not_self_hosted}
+  defp self_hosted_environment({:error, reason}), do: {:error, reason}
 
   # ----- Agent sessions -----
 

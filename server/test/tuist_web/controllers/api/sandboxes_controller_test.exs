@@ -249,6 +249,55 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:not_found)
     end
 
+    test "stores the federation ids all or none and returns the account's issuer", %{conn: conn, account: account} do
+      federation_ids = %{
+        anthropic_organization_id: "00000000-0000-4000-8000-000000000001",
+        anthropic_workspace_id: "wrkspc_01Abc",
+        anthropic_service_account_id: "svac_01Abc",
+        anthropic_federation_rule_id: "fdrl_01Abc"
+      }
+
+      created =
+        conn
+        |> post(
+          ~p"/api/accounts/#{account.name}/sandboxes/agent-environments",
+          Map.merge(federation_ids, %{anthropic_environment_id: "env_federated", environment_key: "sk-ant-secret"})
+        )
+        |> json_response(:created)
+
+      assert %{
+               "has_api_key" => false,
+               "anthropic_organization_id" => "00000000-0000-4000-8000-000000000001",
+               "anthropic_workspace_id" => "wrkspc_01Abc",
+               "anthropic_service_account_id" => "svac_01Abc",
+               "anthropic_federation_rule_id" => "fdrl_01Abc",
+               "federation_issuer_url" => issuer_url,
+               "federation_subject" => subject
+             } = created
+
+      assert String.ends_with?(issuer_url, "/oidc/accounts/#{account.id}")
+      assert subject == "account:#{account.id}:agent-environment:#{created["id"]}"
+
+      response =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{created["id"]}", %{
+          anthropic_federation_rule_id: nil
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "anthropic_federation_rule_id"
+
+      cleared =
+        conn
+        |> patch(
+          ~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{created["id"]}",
+          Map.new(federation_ids, fn {key, _value} -> {key, nil} end)
+        )
+        |> json_response(:ok)
+
+      assert %{"anthropic_organization_id" => nil, "anthropic_federation_rule_id" => nil} = cleared
+    end
+
     test "stores the agent settings, reports has_api_key and drops the cached agent when the model changes", %{
       conn: conn,
       account: account

@@ -105,10 +105,16 @@ defmodule Tuist.Sandboxes.Router do
     do: platform
 
   # Work items carry only the session id, so the session's own metadata
-  # comes from the control plane, with the environment's API key.
-  defp requested_platform(_agent_session, %AgentEnvironment{anthropic_api_key: api_key} = agent_environment, session_id)
-       when is_binary(api_key) and api_key != "" do
-    case ControlPlane.get_session(api_key, session_id) do
+  # comes from the control plane, with the environment's credential.
+  defp requested_platform(_agent_session, %AgentEnvironment{} = agent_environment, session_id) do
+    case AgentSessions.credential(agent_environment) do
+      {:ok, credential} -> read_platform(credential, agent_environment, session_id)
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp read_platform(credential, agent_environment, session_id) do
+    case ControlPlane.get_session(credential, session_id) do
       {:ok, %{"metadata" => %{"tuist_platform" => platform}}} ->
         case platform do
           "linux" -> :linux
@@ -129,8 +135,6 @@ defmodule Tuist.Sandboxes.Router do
         nil
     end
   end
-
-  defp requested_platform(_agent_session, _agent_environment, _session_id), do: nil
 
   defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
 

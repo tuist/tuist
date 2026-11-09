@@ -282,7 +282,7 @@ defmodule Tuist.Sandboxes.RouterTest do
     } do
       agent_environment = Repo.update!(Ecto.Changeset.change(agent_environment, anthropic_api_key: "sk-ant-api"))
 
-      expect(ControlPlane, :get_session, fn "sk-ant-api", "session_meta_mac" ->
+      expect(ControlPlane, :get_session, fn {:api_key, "sk-ant-api"}, "session_meta_mac" ->
         {:ok, %{"id" => "session_meta_mac", "metadata" => %{"tuist_platform" => "macos"}}}
       end)
 

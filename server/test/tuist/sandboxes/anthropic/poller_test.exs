@@ -73,7 +73,7 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
     test_pid = self()
     item = work_item("work_full", %{"id" => "session_full", "type" => "session"})
 
-    stub(ControlPlane, :get_session, fn "sk-ant-api", "session_full" ->
+    stub(ControlPlane, :get_session, fn {:api_key, "sk-ant-api"}, "session_full" ->
       {:ok, %{"id" => "session_full", "metadata" => %{"tuist_platform" => "macos"}}}
     end)
 
