@@ -4426,6 +4426,8 @@ defmodule Tuist.Tests do
           corrections_to_insert
         )
 
+        mark_legacy_test_runs_as_flaky(already_applied ++ corrections_to_insert)
+
         if corrections_to_insert != [] do
           report_test_case_run_multiplicity(project_id, git_commit_sha, corrections_to_insert)
         end
@@ -4444,6 +4446,40 @@ defmodule Tuist.Tests do
     end
 
     :ok
+  end
+
+  # Version-0 runs derive their flaky flag from child test-case rows. A later
+  # successful retry can correct a previously persisted failed child, so amend
+  # the original authenticated parent through its buffer too. Reusing its exact
+  # timestamp preserves the parent metadata and keeps the correction ordered
+  # after a buffered create with the same version.
+  defp mark_legacy_test_runs_as_flaky([]), do: :ok
+
+  defp mark_legacy_test_runs_as_flaky(corrections) do
+    test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
+
+    test_run_ids =
+      from(tcr in TestCaseRun.query(),
+        hints: ["FINAL"],
+        where: tcr.id in ^test_case_run_ids,
+        select: tcr.test_run_id
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq()
+
+    parents =
+      ClickHouseRepo.all(
+        from(test in Test.query(),
+          where: test.id in ^test_run_ids,
+          where: test.reporting_version == 0,
+          where: test.submission_auth != "network_trusted",
+          where: test.is_flaky == false
+        )
+      )
+
+    Enum.each(parents, fn parent ->
+      insert_test_run(%{parent | is_flaky: true}, nil)
+    end)
   end
 
   @doc false
