@@ -10,7 +10,9 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   item is acknowledged right away (the queue's unacknowledged lease is a
   few seconds, shorter than a VM resume) and handed to
   `Tuist.Sandboxes.Router.dispatch/2` on a supervised task so the loop
-  keeps polling. Anything that is not a session is force-stopped. Errors
+  keeps polling; one no node has room for yet is acknowledged as well and
+  held by `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` until one does.
+  Anything that is not a session is force-stopped. Errors
   back the loop off exponentially up to 30s. The environment row is
   re-read every 30s so a rotated key or a disabled environment takes
   effect without a restart.
@@ -22,6 +24,7 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   alias Tuist.Sandboxes.Anthropic.Client
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
+  alias Tuist.Sandboxes.Workers.DispatchWorkItemWorker
 
   require Logger
 
@@ -138,22 +141,16 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
     end
   end
 
-  # An item whose sandbox would not fit on any node stays in the queue
-  # unacknowledged: the queue re-offers it after its lease and the loop
-  # backs off, so a pause elsewhere is what lets it through, not a forced
-  # stop that would hold the turn until the session's next event.
+  # An item whose sandbox would not fit on any node is acknowledged too and
+  # held by a `DispatchWorkItemWorker` until a node has room. Leaving it
+  # unacknowledged does not work: the queue offers it three times, five
+  # seconds apart, then stops, and the turn hangs.
   defp handle_item(%{"id" => work_id, "data" => %{"type" => "session", "id" => session_id}} = item, agent_environment)
        when is_binary(session_id) do
     if Capacity.admissible?(Router.session_environment(agent_environment, item), session_id) do
       ack_and_dispatch(work_id, item, agent_environment)
     else
-      Logger.info("sandboxes: no capacity for work item, leaving it queued",
-        agent_environment_id: agent_environment.id,
-        work_id: work_id,
-        session_id: session_id
-      )
-
-      :backoff
+      ack_and_defer(work_id, item, agent_environment)
     end
   end
 
@@ -190,6 +187,36 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
     )
 
     :ok
+  end
+
+  # The job is persisted before the acknowledgement, so an item Anthropic
+  # considers taken is never only in this process's memory. A failed
+  # acknowledgement cancels the job and leaves the item to the queue's
+  # next offer.
+  defp ack_and_defer(work_id, item, agent_environment) do
+    {:ok, job} = agent_environment |> DispatchWorkItemWorker.new_for(item) |> Oban.insert()
+
+    case Client.ack(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id) do
+      {:ok, _acknowledged} ->
+        Logger.info("sandboxes: no capacity for work item, holding it until a node has room",
+          agent_environment_id: agent_environment.id,
+          work_id: work_id,
+          session_id: get_in(item, ["data", "id"])
+        )
+
+        :ok
+
+      {:error, reason} ->
+        _ = Oban.cancel_job(job)
+
+        Logger.warning("sandboxes: failed to acknowledge work item",
+          agent_environment_id: agent_environment.id,
+          work_id: work_id,
+          reason: inspect(reason)
+        )
+
+        :backoff
+    end
   end
 
   defp ack_and_dispatch(work_id, item, agent_environment) do

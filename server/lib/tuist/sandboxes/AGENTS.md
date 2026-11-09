@@ -59,8 +59,16 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Rows decide rather than the report, which lags: a delete frees its
   reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
-  filesystem. `admissible?/2` is the check the poller runs before
-  acknowledging a work item. A node that reports no capacity or no disk
+  filesystem. `admissible?/2` is the check the poller runs on a work
+  item: it dispatches an admissible item at once and otherwise
+  acknowledges it and enqueues
+  `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
+  in the args), which rechecks every 5 s and dispatches once it passes,
+  force-stopping the item after 30 minutes. Never leave an item
+  unacknowledged to wait for room: Anthropic offers it three times, 5 s
+  apart, then stops; it stays `queued`, can no longer be acknowledged, and
+  a new message does not requeue it (a stopped one is requeued by the
+  session's next message). A node that reports no capacity or no disk
   budget is not budgeted on that resource.
 - Elastic carve-outs (`Capacity.grow/3`, `Capacity.shrink/1`): a node whose
   daemon reports `elastic` with a ceiling above its floor is grown in place
