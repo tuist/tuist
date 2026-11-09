@@ -95,7 +95,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   key. `TUIST_ANTHROPIC_API_URL` overrides the base URL.
 - `Tuist.Sandboxes.Anthropic.ControlPlane`: Req client for `/v1/agents`
   and `/v1/sessions` (`create_agent`, `create_session`, `get_session`,
-  `list_events`, `send_message`, `archive_session`). Every call takes a
+  `list_events`, `send_message`, `archive_session`, `get_environment`).
+  `list_events` fetches one page (`limit`, `order`, `page`,
+  `created_at_gte` / `created_at_gt`) and returns `%{data, next_page}`.
+  Non-2xx answers become `{:error, %{status, message}}`. Every call takes a
   credential, `{:api_key, key}` (sent as `x-api-key`) or
   `{:bearer, token}` (sent as `Authorization: Bearer`). `AgentSessions`
   resolves it from the environment row, read scoped to the caller's
@@ -120,15 +123,15 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   work queue (`Anthropic.Client`) still uses the environment key: whether
   federated tokens work on the environments work endpoints is untested.
 - Connecting from the dashboard (`TuistWeb.Components.ClaudeIntegration`,
-  Settings → Integrations): the four ids are checked with
-  `Federation.verify/2` and the self-hosted environment is created with
-  `Sandboxes.create_anthropic_environment/3` before any agent environment
-  row exists, so both sign with the setup subject `account:<id>:setup`
-  (admitted by the recommended `account:<id>:*` prefix). The environment
-  key, which only the Console generates, goes from the last form straight
-  into the row and never into socket assigns. `list_events` fetches one page (`limit`, `order`, `page`,
-  `created_at_gte` / `created_at_gt`) and returns `%{data, next_page}`.
-  Non-2xx answers become `{:error, %{status, message}}`.
+  Settings → Integrations) is one form: the customer creates the
+  self-hosted environment and its key in the Console (only the Console
+  generates environment keys) and pastes them with an API key (the
+  default) or the four federation ids. `Sandboxes.fetch_anthropic_environment/3`
+  fetches the environment with that credential before the row is written,
+  so a federated check signs with the setup subject `account:<id>:setup`
+  (admitted by the recommended `account:<id>:*` prefix). The secrets go
+  from the submitted form straight into the row and never into socket
+  assigns.
 - `Tuist.Sandboxes.Anthropic.Supervisor`: task supervisor + dynamic
   supervisor of the `Poller`s this replica started (one per enabled
   agent environment across the cluster, registered as

@@ -38,13 +38,13 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   end
 
   @doc """
-  Creates a self-hosted environment named `name`. Its environment key can
-  only be generated in the Claude Console.
+  Fetches an environment (`id`, `name`, `config.type`, ...). A 404 means
+  the credential's workspace has no environment with that id.
   """
-  def create_environment(credential, name) when is_binary(name) do
+  def get_environment(credential, environment_id) do
     credential
     |> request()
-    |> Req.post(url: "/v1/environments", json: %{name: name, config: %{type: "self_hosted"}})
+    |> Req.get(url: "/v1/environments/#{encode(environment_id)}")
     |> handle_response()
   end
 

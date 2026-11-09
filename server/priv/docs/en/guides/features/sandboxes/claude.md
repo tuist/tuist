@@ -29,14 +29,24 @@ export TUIST_TOKEN=$(tuist auth token)
 
 ### Connect an environment {#managed-agents-connect}
 
-Connect from your account's **Settings → Integrations → Claude**, or from **Connect** on the Claude tile of the Sandboxes page. Tuist authenticates with Anthropic's [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation), so you never give it an Anthropic API key. You need the admin role in your Anthropic organization.
+Connect from your account's **Settings → Integrations → Claude**. The form asks for a self-hosted environment and the credential Tuist starts its sessions with:
 
-1. **Trust Tuist.** Tuist shows your account's issuer URL and subject prefix. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation), click **Connect workload**, choose **Custom OIDC**, and enter them with the scope `workspace:developer`. Add the service account the wizard creates to the workspace that should run the sessions.
-2. **Paste the IDs.** Paste the exchange snippet from the federation rule's page, or enter the organization, workspace, service account and rule IDs. None of them is a secret. Tuist exchanges a token right away to check the setup; if Anthropic rejects it, the Console's [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) shows why.
-3. **Create the environment.** Tuist creates a self-hosted environment in your workspace.
-4. **Paste the environment key.** Anthropic only generates environment keys in the Console: open the environment on the [Environments](https://platform.claude.com/environments) page, click **Generate environment key**, paste it into Tuist and choose the platform and shape of the environment's sandboxes. Tuist stores the key encrypted and never shows it again.
+1. **Create the environment.** In the Claude Console, create a self-hosted environment on the [Environments](https://platform.claude.com/environments) page, open it and click **Generate environment key**. Anthropic only generates environment keys in the Console.
+2. **Pick a credential** with the selector at the top of the form (see below).
+3. **Paste the environment ID and key** and choose the platform and shape of the environment's sandboxes.
 
-Within a minute, Tuist starts serving the environment's sessions. See <.localized_link href="/guides/features/sandboxes#platforms">Linux and macOS</.localized_link> for the shapes.
+Tuist fetches the environment with the credential before it saves anything, so a wrong credential, ID or workspace fails in the form. It stores the keys encrypted and never shows them again. Within a minute, Tuist starts serving the environment's sessions. See <.localized_link href="/guides/features/sandboxes#platforms">Linux and macOS</.localized_link> for the shapes.
+
+#### With an API key {#managed-agents-connect-api-key}
+
+The default, and the quickest way to try sandboxes out. Paste an API key with the developer role in the environment's workspace. The integration marks environments that use an API key; before you rely on one, connect it with a federated identity instead, so Tuist holds no long-lived key.
+
+#### With a federated identity {#managed-agents-connect-federated}
+
+Tuist authenticates with Anthropic's [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation), so you never give it an Anthropic API key. You need the admin role in your Anthropic organization.
+
+1. **Trust Tuist.** The form shows your account's issuer URL and subject prefix. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation), click **Connect workload**, choose **Custom OIDC**, and enter them with the scope `workspace:developer`. Add the service account the wizard creates to the environment's workspace.
+2. **Enter the IDs.** The organization ID is under **Settings → Organization** and the workspace ID under **Settings → Workspaces**. Connect workload shows the service account and federation rule IDs when it finishes, and the rule's page in Workload identity shows them again. None of them is a secret. If Anthropic rejects Tuist's token, the Console's [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) shows why.
 
 #### With the API {#managed-agents-connect-api}
 

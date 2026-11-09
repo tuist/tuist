@@ -1,19 +1,21 @@
 defmodule TuistWeb.Components.ClaudeIntegration do
   @moduledoc """
   Connects Claude Managed Agents environments from Settings → Integrations
-  without an Anthropic API key, through Workload Identity Federation
-  (`Tuist.Sandboxes.Anthropic.Federation`):
+  in one form. The customer creates a self-hosted environment and its key
+  in the Claude Console (only the Console generates environment keys) and
+  pastes both with the credential Tuist starts sessions with, picked by the
+  selector at the top:
 
-  1. Trust Tuist: the account's issuer and subject to enter in the Claude
-     Console's Connect workload wizard.
-  2. Paste the federation ids (or the rule's exchange snippet); Tuist runs a
-     test exchange.
-  3. Tuist creates the self-hosted environment with a federated token.
-  4. Paste the environment key, which only the Console can generate, and
-     pick the sandbox shape.
+  - An Anthropic API key, the default because it is the quickest to try,
+    stored as the row's `anthropic_api_key`.
+  - A federated identity (`Tuist.Sandboxes.Anthropic.Federation`): the form
+    shows the account's issuer and subject to trust in the Console and takes
+    the four federation ids, so Tuist stores no API key.
 
-  The environment key goes straight from the last form into the agent
-  environment row and is never assigned to the socket.
+  Tuist fetches the environment with the credential before writing the row,
+  so a wrong credential, environment id or workspace fails in the form. The
+  secrets go from the submitted form straight into the row and are never
+  assigned to the socket.
   """
   use TuistWeb, :live_component
   use Noora
@@ -46,99 +48,105 @@ defmodule TuistWeb.Components.ClaudeIntegration do
     {:noreply, socket |> reset() |> push_event("close-modal", %{id: "connect-claude-modal"})}
   end
 
-  def handle_event("go", %{"step" => step}, socket) do
-    {:noreply, assign(socket, step: String.to_integer(step), error: nil, rejected: false)}
+  def handle_event("auth", %{"mode" => mode}, socket) do
+    auth = if mode == "federation", do: :federation, else: :api_key
+    {:noreply, assign(socket, auth: auth, error: nil, rejected: false, field_errors: %{})}
   end
 
-  def handle_event("ids-change", params, socket) do
-    pasted =
-      params
-      |> Map.get("snippet", "")
-      |> Federation.parse_ids()
-      |> Map.new(fn {key, value} -> {"anthropic_#{key}", value} end)
-
-    ids = params |> Map.take(@id_fields) |> Map.merge(pasted)
-    {:noreply, assign(socket, ids: ids, id_errors: %{})}
+  # Keeps the federation ids across switches of the selector. The secrets
+  # in `params` are dropped.
+  def handle_event("change", params, socket) do
+    {:noreply, assign(socket, ids: Map.merge(socket.assigns.ids, Map.take(params, @id_fields)))}
   end
 
-  def handle_event("verify", params, socket) do
+  def handle_event("connect", params, socket) do
     account = authorized_account!(socket)
-    ids = Map.take(params, @id_fields)
-    changeset = AgentEnvironment.federation_changeset(ids)
+    auth = socket.assigns.auth
+    environment_id = trimmed(params, "environment_id")
+    {platform, vcpus, memory_mb} = parse_shape(Map.get(params, "shape", ""))
+    socket = if auth == :federation, do: assign(socket, ids: Map.take(params, @id_fields)), else: socket
 
-    with {:ok, struct} <- Ecto.Changeset.apply_action(changeset, :validate),
-         {:ok, _token} <- Federation.verify(account.id, Federation.ids(struct)) do
-      {:noreply, assign(socket, ids: ids, id_errors: %{}, error: nil, rejected: false, step: 3)}
+    with {:ok, credential, credential_attrs} <- credential(auth, params),
+         {:ok, environment} <- Sandboxes.fetch_anthropic_environment(account, credential, environment_id),
+         attrs =
+           Map.merge(credential_attrs, %{
+             kind: :managed_agents,
+             anthropic_environment_id: environment_id,
+             environment_key: trimmed(params, "environment_key"),
+             name: String.slice(environment["name"] || environment_id, 0, 100),
+             platform: platform,
+             vcpus: vcpus,
+             memory_mb: memory_mb
+           }),
+         {:ok, _agent_environment} <- Sandboxes.create_agent_environment(account, attrs) do
+      {:noreply, socket |> reset() |> load() |> push_event("close-modal", %{id: "connect-claude-modal"})}
     else
+      {:field_errors, errors} ->
+        {:noreply, assign(socket, field_errors: errors, error: nil, rejected: false)}
+
+      # Never assign the submitted secrets or their changeset to the LiveView.
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, ids: ids, id_errors: field_errors(changeset), error: nil)}
+        message =
+          if changeset.errors[:anthropic_environment_id],
+            do: dgettext("dashboard_integrations", "Could not connect the environment. It may already be connected."),
+            else: dgettext("dashboard_integrations", "Could not connect the environment.")
+
+        {:noreply, assign(socket, field_errors: %{}, error: message, rejected: false)}
 
       {:error, reason} ->
         {:noreply,
          assign(socket,
-           ids: ids,
-           id_errors: %{},
-           error: exchange_error(reason),
+           field_errors: %{},
+           error: connect_error(auth, reason),
            rejected: match?({:federation_rejected, _}, reason)
          )}
     end
   end
 
-  def handle_event("create-environment", %{"name" => name}, socket) do
-    account = authorized_account!(socket)
-    name = if String.trim(name) == "", do: "tuist", else: String.trim(name)
+  # Checks every field Tuist needs before calling Anthropic and returns the
+  # credential to fetch the environment with and the row's credential
+  # attributes.
+  defp credential(auth, params) do
+    missing =
+      for field <- ["environment_id", "environment_key"], trimmed(params, field) == "", into: %{} do
+        {field, dgettext("dashboard_integrations", "can't be blank")}
+      end
 
-    case Sandboxes.create_anthropic_environment(account, federation_ids(socket), name) do
-      {:ok, environment_id} ->
-        {:noreply, assign(socket, anthropic_environment_id: environment_id, environment_name: name, error: nil, step: 4)}
-
-      {:error, reason} ->
-        {:noreply, assign(socket, environment_name: name, error: exchange_error(reason))}
+    case {credential_fields(auth, params), missing} do
+      {{:ok, credential, attrs}, missing} when missing == %{} -> {:ok, credential, attrs}
+      {{:ok, _credential, _attrs}, missing} -> {:field_errors, missing}
+      {{:field_errors, errors}, missing} -> {:field_errors, Map.merge(errors, missing)}
     end
   end
 
-  def handle_event("connect", %{"environment_key" => key, "shape" => shape}, socket) do
-    account = authorized_account!(socket)
-    {platform, vcpus, memory_mb} = parse_shape(shape)
-
-    attrs =
-      Map.merge(
-        %{
-          kind: :managed_agents,
-          anthropic_environment_id: socket.assigns.anthropic_environment_id,
-          environment_key: String.trim(key),
-          name: socket.assigns.environment_name,
-          platform: platform,
-          vcpus: vcpus,
-          memory_mb: memory_mb
-        },
-        Map.new(socket.assigns.ids, fn {key, value} -> {String.to_existing_atom(key), value} end)
-      )
-
-    case Sandboxes.create_agent_environment(account, attrs) do
-      {:ok, _agent_environment} ->
-        {:noreply, socket |> reset() |> load() |> push_event("close-modal", %{id: "connect-claude-modal"})}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        # Never assign the submitted key or its changeset to the LiveView.
-        message =
-          if changeset.errors[:environment_key],
-            do: dgettext("dashboard_integrations", "Paste the environment key you generated in the Claude Console."),
-            else: dgettext("dashboard_integrations", "Could not connect the environment. It may already be connected.")
-
-        {:noreply, assign(socket, error: message)}
+  defp credential_fields(:api_key, params) do
+    case trimmed(params, "api_key") do
+      "" -> {:field_errors, %{"api_key" => dgettext("dashboard_integrations", "can't be blank")}}
+      api_key -> {:ok, {:api_key, api_key}, %{anthropic_api_key: api_key}}
     end
   end
+
+  defp credential_fields(:federation, params) do
+    ids = Map.new(@id_fields, &{&1, trimmed(params, &1)})
+
+    case ids |> AgentEnvironment.federation_changeset() |> Ecto.Changeset.apply_action(:validate) do
+      {:ok, struct} ->
+        {:ok, Federation.ids(struct), Map.new(ids, fn {key, value} -> {String.to_existing_atom(key), value} end)}
+
+      {:error, changeset} ->
+        {:field_errors, Map.new(changeset.errors, fn {field, {message, _opts}} -> {to_string(field), message} end)}
+    end
+  end
+
+  defp trimmed(params, key), do: params |> Map.get(key, "") |> to_string() |> String.trim()
 
   defp reset(socket) do
     assign(socket,
-      step: 1,
+      auth: :api_key,
       ids: Map.new(@id_fields, &{&1, ""}),
-      id_errors: %{},
+      field_errors: %{},
       error: nil,
       rejected: false,
-      anthropic_environment_id: nil,
-      environment_name: "tuist",
       form_version: Map.get(socket.assigns, :form_version, 0) + 1
     )
   end
@@ -170,44 +178,54 @@ defmodule TuistWeb.Components.ClaudeIntegration do
     account
   end
 
-  defp federation_ids(socket) do
-    ids = socket.assigns.ids
-
-    %{
-      organization_id: ids["anthropic_organization_id"],
-      workspace_id: ids["anthropic_workspace_id"],
-      service_account_id: ids["anthropic_service_account_id"],
-      federation_rule_id: ids["anthropic_federation_rule_id"]
-    }
-  end
-
-  defp field_errors(changeset) do
-    Map.new(changeset.errors, fn {field, {message, _opts}} -> {to_string(field), message} end)
-  end
-
-  defp exchange_error({:federation_rejected, %{status: 401}}) do
+  defp connect_error(_auth, {:federation_rejected, %{status: 401}}) do
     dgettext(
       "dashboard_integrations",
-      "Anthropic rejected the token. Check that the rule uses the issuer URL and subject prefix from step 1 and names this service account. The authentication history in the Claude Console shows the reason."
+      "Anthropic rejected the token. Check that the rule uses the issuer URL and subject prefix above and names this service account. The authentication history in the Claude Console shows the reason."
     )
   end
 
-  defp exchange_error({:federation_rejected, %{message: message}}) do
+  defp connect_error(_auth, {:federation_rejected, %{message: message}}) do
     dgettext("dashboard_integrations", "Anthropic rejected the request: %{message}", message: message)
   end
 
-  defp exchange_error(%{status: 403}) do
+  defp connect_error(_auth, :not_self_hosted) do
     dgettext(
       "dashboard_integrations",
-      "Anthropic refused to create the environment. Set the federation rule's scope to workspace:developer."
+      "This environment is not self-hosted. Create a self-hosted environment in the Claude Console."
     )
   end
 
-  defp exchange_error(%{status: status, message: message}) do
+  defp connect_error(:api_key, %{status: 401}) do
+    dgettext("dashboard_integrations", "Anthropic rejected the API key. Check that you copied all of it.")
+  end
+
+  defp connect_error(:api_key, %{status: 403}) do
+    dgettext(
+      "dashboard_integrations",
+      "This API key cannot read the environment. Use a key with the developer role in the environment's workspace."
+    )
+  end
+
+  defp connect_error(:federation, %{status: 403}) do
+    dgettext(
+      "dashboard_integrations",
+      "Anthropic refused the federated token. Set the federation rule's scope to workspace:developer."
+    )
+  end
+
+  defp connect_error(_auth, %{status: 404}) do
+    dgettext(
+      "dashboard_integrations",
+      "Anthropic has no environment with this ID in the credential's workspace. Check the ID, and that the credential belongs to the environment's workspace."
+    )
+  end
+
+  defp connect_error(_auth, %{status: status, message: message}) do
     dgettext("dashboard_integrations", "Anthropic answered %{status}: %{message}", status: status, message: message)
   end
 
-  defp exchange_error(_reason) do
+  defp connect_error(_auth, _reason) do
     dgettext("dashboard_integrations", "Could not reach Anthropic. Try again.")
   end
 
@@ -228,12 +246,42 @@ defmodule TuistWeb.Components.ClaudeIntegration do
     end
   end
 
-  defp authentication(%AgentEnvironment{} = agent_environment) do
+  # Federated environments need no badge; the others are flagged so admins
+  # move them to federation.
+  defp authentication_badge(%AgentEnvironment{} = agent_environment) do
     cond do
-      Federation.federated?(agent_environment) -> dgettext("dashboard_integrations", "Federated")
-      is_binary(agent_environment.anthropic_api_key) -> dgettext("dashboard_integrations", "API key")
-      true -> dgettext("dashboard_integrations", "No credentials")
+      Federation.federated?(agent_environment) -> nil
+      is_binary(agent_environment.anthropic_api_key) -> {dgettext("dashboard_integrations", "API key"), "warning"}
+      true -> {dgettext("dashboard_integrations", "No credentials"), "destructive"}
     end
+  end
+
+  attr :text, :string, required: true, doc: "A translated sentence with a `%{link}` placeholder"
+  attr :href, :string, required: true
+  attr :label, :string, required: true
+
+  # Renders a sentence with a Claude Console link in place of `%{link}`,
+  # keeping the sentence one translatable string.
+  defp linked_sentence(assigns) do
+    assigns = assign(assigns, :parts, String.split(assigns.text, "%{link}", parts: 2))
+
+    ~H"""
+    <p>
+      <%= case @parts do %>
+        <% [before, rest] -> %>
+          {before}<.link_button
+            href={@href}
+            target="_blank"
+            rel="noopener noreferrer"
+            label={@label}
+            variant="primary"
+            underline
+          />{rest}
+        <% [text] -> %>
+          {text}
+      <% end %>
+    </p>
+    """
   end
 
   attr :id, :string, required: true
@@ -269,13 +317,7 @@ defmodule TuistWeb.Components.ClaudeIntegration do
       assign(assigns,
         console_wif_url: @console_wif_url,
         console_environments_url: @console_environments_url,
-        history_url: Federation.authentication_history_url(),
-        step_titles: %{
-          1 => dgettext("dashboard_integrations", "Trust Tuist in the Claude Console"),
-          2 => dgettext("dashboard_integrations", "Paste the federation IDs"),
-          3 => dgettext("dashboard_integrations", "Create the environment"),
-          4 => dgettext("dashboard_integrations", "Finish")
-        }
+        history_url: Federation.authentication_history_url()
       )
 
     ~H"""
@@ -291,7 +333,7 @@ defmodule TuistWeb.Components.ClaudeIntegration do
           <span data-part="subtitle">
             {dgettext(
               "dashboard_integrations",
-              "Run Claude Managed Agents sessions on Tuist sandboxes, without an Anthropic API key."
+              "Run Claude Managed Agents sessions on Tuist sandboxes."
             )}
           </span>
         </div>
@@ -305,7 +347,7 @@ defmodule TuistWeb.Components.ClaudeIntegration do
                 do: dgettext("dashboard_integrations", "Connect"),
                 else: dgettext("dashboard_integrations", "Connect environment")
             }
-            variant={if @environments == [], do: "primary", else: "secondary"}
+            variant="primary"
             phx-click="open"
             phx-target={@myself}
           />
@@ -322,8 +364,9 @@ defmodule TuistWeb.Components.ClaudeIntegration do
             )} GB
           </span>
           <.badge
-            label={authentication(environment)}
-            color={if Federation.federated?(environment), do: "success", else: "neutral"}
+            :for={{label, color} <- List.wrap(authentication_badge(environment))}
+            label={label}
+            color={color}
             style="light-fill"
           />
         </li>
@@ -338,242 +381,214 @@ defmodule TuistWeb.Components.ClaudeIntegration do
           <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
         </:trigger>
         <.line_divider />
-        <div data-part="claude-wizard" data-step={@step}>
-          <span data-part="step-indicator">
-            {dgettext("dashboard_integrations", "Step %{step} of 4", step: @step)} · {@step_titles[
-              @step
-            ]}
-          </span>
-          <.alert
-            :if={@error}
-            id="claude-wizard-error"
-            status="error"
-            type="secondary"
-            size="small"
-            title={@error}
-          />
-          <.link_button
-            :if={@error && @rejected && @step == 2}
-            href={@history_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            label={dgettext("dashboard_integrations", "Open the authentication history")}
-            variant="primary"
-            underline
-          />
-
-          <div :if={@step == 1} data-part="step">
-            <p>
-              {dgettext(
-                "dashboard_integrations",
-                "In the Claude Console, open Workload identity, click Connect workload and choose Custom OIDC. Use these values, keep the default discovery JWKS source, and add the service account to the workspace that should run the sessions."
-              )}
-            </p>
-            <.copy_row
-              id="claude-issuer"
-              label={dgettext("dashboard_integrations", "Issuer URL")}
-              value={@issuer}
+        <div data-part="claude-connect">
+          <.button_group id="claude-auth-selector" size="medium">
+            <.button_group_item
+              label={dgettext("dashboard_integrations", "API key")}
+              phx-click="auth"
+              phx-value-mode="api_key"
+              phx-target={@myself}
+              data-selected={@auth == :api_key}
             />
-            <.copy_row
-              id="claude-subject"
-              label={dgettext("dashboard_integrations", "Subject prefix")}
-              value={@subject_prefix}
+            <.button_group_item
+              label={dgettext("dashboard_integrations", "Federated identity")}
+              phx-click="auth"
+              phx-value-mode="federation"
+              phx-target={@myself}
+              data-selected={@auth == :federation}
             />
-            <.copy_row
-              id="claude-audience"
-              label={dgettext("dashboard_integrations", "Audience")}
-              value={Federation.audience()}
-            />
-            <.copy_row
-              id="claude-scope"
-              label={dgettext("dashboard_integrations", "Scope")}
-              value="workspace:developer"
-            />
-            <div data-part="actions">
-              <.button
-                type="button"
-                variant="secondary"
-                label={dgettext("dashboard_integrations", "Open the Claude Console")}
-                href={@console_wif_url}
-                target="_blank"
-                rel="noopener noreferrer"
-              />
-              <.button
-                type="button"
-                variant="primary"
-                label={dgettext("dashboard_integrations", "Next")}
-                phx-click="go"
-                phx-value-step="2"
-                phx-target={@myself}
-              />
-            </div>
-          </div>
+          </.button_group>
 
           <form
-            :if={@step == 2}
-            id={"claude-ids-form-#{@form_version}"}
-            data-part="step"
-            phx-change="ids-change"
-            phx-submit="verify"
-            phx-target={@myself}
-            autocomplete="off"
-          >
-            <p>
-              {dgettext(
-                "dashboard_integrations",
-                "The federation rule's page in the Claude Console shows an exchange snippet with all four IDs. Paste it here, or enter the IDs below. None of them is a secret."
-              )}
-            </p>
-            <.text_area
-              id={"claude-snippet-#{@form_version}"}
-              name="snippet"
-              value=""
-              label={dgettext("dashboard_integrations", "Exchange snippet")}
-              rows={3}
-              max_length={4000}
-              show_character_count={false}
-              placeholder="fdrl_…  svac_…  wrkspc_…"
-            />
-            <.text_input
-              id="claude-organization-id"
-              name="anthropic_organization_id"
-              value={@ids["anthropic_organization_id"]}
-              label={dgettext("dashboard_integrations", "Organization ID")}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              error={@id_errors["anthropic_organization_id"]}
-            />
-            <.text_input
-              id="claude-workspace-id"
-              name="anthropic_workspace_id"
-              value={@ids["anthropic_workspace_id"]}
-              label={dgettext("dashboard_integrations", "Workspace ID")}
-              placeholder="wrkspc_…"
-              error={@id_errors["anthropic_workspace_id"]}
-            />
-            <.text_input
-              id="claude-service-account-id"
-              name="anthropic_service_account_id"
-              value={@ids["anthropic_service_account_id"]}
-              label={dgettext("dashboard_integrations", "Service account ID")}
-              placeholder="svac_…"
-              error={@id_errors["anthropic_service_account_id"]}
-            />
-            <.text_input
-              id="claude-federation-rule-id"
-              name="anthropic_federation_rule_id"
-              value={@ids["anthropic_federation_rule_id"]}
-              label={dgettext("dashboard_integrations", "Federation rule ID")}
-              placeholder="fdrl_…"
-              error={@id_errors["anthropic_federation_rule_id"]}
-            />
-            <div data-part="actions">
-              <.button
-                type="button"
-                variant="secondary"
-                label={dgettext("dashboard_integrations", "Back")}
-                phx-click="go"
-                phx-value-step="1"
-                phx-target={@myself}
-              />
-              <.button
-                type="submit"
-                variant="primary"
-                label={dgettext("dashboard_integrations", "Test connection")}
-                phx-disable-with={dgettext("dashboard_integrations", "Testing…")}
-              />
-            </div>
-          </form>
-
-          <form
-            :if={@step == 3}
-            id={"claude-environment-form-#{@form_version}"}
-            data-part="step"
-            phx-submit="create-environment"
-            phx-target={@myself}
-            autocomplete="off"
-          >
-            <.alert
-              status="success"
-              type="secondary"
-              size="small"
-              title={dgettext("dashboard_integrations", "Anthropic accepted Tuist's token.")}
-            />
-            <p>
-              {dgettext(
-                "dashboard_integrations",
-                "Tuist creates a self-hosted environment in your Claude workspace and runs every session started on it in a Tuist sandbox."
-              )}
-            </p>
-            <.text_input
-              id="claude-environment-name"
-              name="name"
-              value={@environment_name}
-              label={dgettext("dashboard_integrations", "Environment name")}
-            />
-            <div data-part="actions">
-              <.button
-                type="button"
-                variant="secondary"
-                label={dgettext("dashboard_integrations", "Back")}
-                phx-click="go"
-                phx-value-step="2"
-                phx-target={@myself}
-              />
-              <.button
-                type="submit"
-                variant="primary"
-                label={dgettext("dashboard_integrations", "Create environment")}
-                phx-disable-with={dgettext("dashboard_integrations", "Creating…")}
-              />
-            </div>
-          </form>
-
-          <form
-            :if={@step == 4}
-            id={"claude-finish-form-#{@form_version}"}
-            data-part="step"
+            id={"claude-connect-form-#{@form_version}"}
+            phx-change="change"
             phx-submit="connect"
             phx-target={@myself}
             autocomplete="off"
           >
-            <.copy_row
-              id="claude-environment-id"
-              label={dgettext("dashboard_integrations", "Environment ID")}
-              value={@anthropic_environment_id}
+            <.alert
+              :if={@error}
+              id="claude-connect-error"
+              status="error"
+              type="secondary"
+              size="small"
+              title={@error}
             />
-            <p>
-              {dgettext(
-                "dashboard_integrations",
-                "Anthropic only lets you generate the environment key in the Claude Console. Open the environment, click Generate environment key and paste it below."
-              )}
-            </p>
             <.link_button
-              href={@console_environments_url}
+              :if={@error && @rejected}
+              href={@history_url}
               target="_blank"
               rel="noopener noreferrer"
-              label={dgettext("dashboard_integrations", "Open environments in the Claude Console")}
+              label={dgettext("dashboard_integrations", "Open the authentication history")}
               variant="primary"
               underline
             />
-            <.text_input
-              id={"claude-environment-key-#{@form_version}"}
-              name="environment_key"
-              type="password"
-              input_type="password"
-              label={dgettext("dashboard_integrations", "Environment key")}
-              value=""
-              required
-              show_required
-              hint={dgettext("dashboard_integrations", "Stored encrypted and never shown again.")}
-            />
-            <.select
-              id="claude-shape"
-              name="shape"
-              value="linux-2-4096"
-              label={dgettext("dashboard_integrations", "Sandbox shape")}
-            >
-              <:item :for={{value, label} <- shape_options()} value={value} label={label} />
-            </.select>
+
+            <div :if={@auth == :api_key} data-part="group">
+              <.text_input
+                id={"claude-api-key-#{@form_version}"}
+                name="api_key"
+                type="password"
+                input_type="password"
+                label={dgettext("dashboard_integrations", "Anthropic API key")}
+                placeholder="sk-ant-api03-…"
+                value=""
+                show_required
+                error={@field_errors["api_key"]}
+                label_tooltip={
+                  dgettext(
+                    "dashboard_integrations",
+                    "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
+                  )
+                }
+              />
+            </div>
+
+            <div :if={@auth == :federation} data-part="group">
+              <.linked_sentence
+                text={
+                  dgettext(
+                    "dashboard_integrations",
+                    "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace.",
+                    link: "%{link}"
+                  )
+                }
+                href={@console_wif_url}
+                label={dgettext("dashboard_integrations", "Workload identity")}
+              />
+              <div data-part="grid">
+                <.copy_row
+                  id="claude-issuer"
+                  label={dgettext("dashboard_integrations", "Issuer URL")}
+                  value={@issuer}
+                />
+                <.copy_row
+                  id="claude-subject"
+                  label={dgettext("dashboard_integrations", "Subject prefix")}
+                  value={@subject_prefix}
+                />
+                <.copy_row
+                  id="claude-audience"
+                  label={dgettext("dashboard_integrations", "Audience")}
+                  value={Federation.audience()}
+                />
+                <.copy_row
+                  id="claude-scope"
+                  label={dgettext("dashboard_integrations", "Scope")}
+                  value="workspace:developer"
+                />
+              </div>
+              <div data-part="grid">
+                <.text_input
+                  id="claude-organization-id"
+                  name="anthropic_organization_id"
+                  value={@ids["anthropic_organization_id"]}
+                  label={dgettext("dashboard_integrations", "Organization ID")}
+                  label_tooltip={
+                    dgettext(
+                      "dashboard_integrations",
+                      "Settings → Organization in the Claude Console."
+                    )
+                  }
+                  placeholder="00000000-0000-…"
+                  error={@field_errors["anthropic_organization_id"]}
+                />
+                <.text_input
+                  id="claude-workspace-id"
+                  name="anthropic_workspace_id"
+                  value={@ids["anthropic_workspace_id"]}
+                  label={dgettext("dashboard_integrations", "Workspace ID")}
+                  label_tooltip={
+                    dgettext(
+                      "dashboard_integrations",
+                      "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
+                    )
+                  }
+                  placeholder="wrkspc_…"
+                  error={@field_errors["anthropic_workspace_id"]}
+                />
+                <.text_input
+                  id="claude-service-account-id"
+                  name="anthropic_service_account_id"
+                  value={@ids["anthropic_service_account_id"]}
+                  label={dgettext("dashboard_integrations", "Service account ID")}
+                  label_tooltip={
+                    dgettext(
+                      "dashboard_integrations",
+                      "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
+                    )
+                  }
+                  placeholder="svac_…"
+                  error={@field_errors["anthropic_service_account_id"]}
+                />
+                <.text_input
+                  id="claude-federation-rule-id"
+                  name="anthropic_federation_rule_id"
+                  value={@ids["anthropic_federation_rule_id"]}
+                  label={dgettext("dashboard_integrations", "Federation rule ID")}
+                  label_tooltip={
+                    dgettext(
+                      "dashboard_integrations",
+                      "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
+                    )
+                  }
+                  placeholder="fdrl_…"
+                  error={@field_errors["anthropic_federation_rule_id"]}
+                />
+              </div>
+            </div>
+
+            <div data-part="group">
+              <span data-part="group-title">
+                {dgettext("dashboard_integrations", "Self-hosted environment")}
+              </span>
+              <.linked_sentence
+                text={
+                  dgettext(
+                    "dashboard_integrations",
+                    "Create one in the %{link}, open it and click Generate environment key.",
+                    link: "%{link}"
+                  )
+                }
+                href={@console_environments_url}
+                label={dgettext("dashboard_integrations", "Claude Console")}
+              />
+              <div data-part="grid">
+                <.text_input
+                  id={"claude-environment-id-#{@form_version}"}
+                  name="environment_id"
+                  value=""
+                  label={dgettext("dashboard_integrations", "Environment ID")}
+                  placeholder="env_…"
+                  show_required
+                  error={@field_errors["environment_id"]}
+                />
+                <.text_input
+                  id={"claude-environment-key-#{@form_version}"}
+                  name="environment_key"
+                  type="password"
+                  input_type="password"
+                  label={dgettext("dashboard_integrations", "Environment key")}
+                  value=""
+                  show_required
+                  error={@field_errors["environment_key"]}
+                />
+              </div>
+              <div data-part="grid">
+                <div data-part="field">
+                  <.label label={dgettext("dashboard_integrations", "Sandbox shape")} />
+                  <.select
+                    id="claude-shape"
+                    name="shape"
+                    value="linux-2-4096"
+                    label={dgettext("dashboard_integrations", "Sandbox shape")}
+                  >
+                    <:item :for={{value, label} <- shape_options()} value={value} label={label} />
+                  </.select>
+                </div>
+              </div>
+            </div>
+
             <div data-part="actions">
               <.button
                 type="button"

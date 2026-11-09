@@ -71,22 +71,6 @@ defmodule Tuist.Sandboxes.Anthropic.FederationTest do
     end
   end
 
-  describe "parse_ids/1" do
-    test "picks the four ids out of a pasted exchange snippet" do
-      snippet = ~s({"federation_rule_id": "fdrl_01Rule", "organization_id": "00000000-0000-4000-8000-000000000001",
-        "service_account_id": "svac_01Account", "workspace_id": "wrkspc_01Space"})
-
-      assert Federation.parse_ids(snippet) == %{
-               organization_id: "00000000-0000-4000-8000-000000000001",
-               workspace_id: "wrkspc_01Space",
-               service_account_id: "svac_01Account",
-               federation_rule_id: "fdrl_01Rule"
-             }
-
-      assert Federation.parse_ids("svac_01Account only") == %{service_account_id: "svac_01Account"}
-    end
-  end
-
   describe "openid_configuration/1" do
     test "names the account's issuer and its JWKS" do
       configuration = Federation.openid_configuration(42)

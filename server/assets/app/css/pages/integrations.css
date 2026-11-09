@@ -740,44 +740,80 @@
 }
 
 #connect-claude-modal > [data-part="positioner"] > [data-part="content"] {
-  width: min(600px, 92vw);
+  width: min(640px, 92vw);
+  /* The federated form is tall; scroll it on short windows. */
+  max-height: 92vh;
+  overflow-y: auto;
 }
 
-#connect-claude-modal [data-part="claude-wizard"] {
+#connect-claude-modal [data-part="claude-connect"] {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-5);
+  gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-6) var(--noora-spacing-4);
   color: var(--noora-surface-label-secondary);
   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
-  & > [data-part="step-indicator"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  /* Equal-width halves, like the github.com / Enterprise server toggle. */
+  & > .noora-button-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    & > .noora-button-group-item {
+      justify-content: center;
+      white-space: nowrap;
+    }
+  }
+
+  & > form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > .noora-alert {
+      align-self: flex-start;
+    }
   }
 
   & .noora-link-button {
     align-self: flex-start;
   }
 
-  & > [data-part="step"] {
+  & [data-part="group"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="group-title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
 
     & p {
       margin: 0;
     }
+  }
 
-    & > .noora-alert {
-      align-self: flex-start;
-    }
+  & [data-part="grid"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--noora-spacing-5);
 
-    & > [data-part="actions"] {
-      display: flex;
-      justify-content: flex-end;
-      gap: var(--noora-spacing-4);
+    & > * {
+      min-width: 0;
     }
+  }
+
+  & [data-part="field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
   }
 
   & [data-part="copy-row"] {

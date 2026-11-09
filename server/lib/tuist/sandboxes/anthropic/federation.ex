@@ -163,27 +163,6 @@ defmodule Tuist.Sandboxes.Anthropic.Federation do
   end
 
   @doc """
-  Picks the federation ids out of text a customer pastes, such as the
-  exchange snippet on a federation rule's page in the Claude Console.
-  Returns a map with the ids it found; missing ones are absent.
-  """
-  def parse_ids(text) when is_binary(text) do
-    [
-      organization_id: ~r/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
-      workspace_id: ~r/\bwrkspc_[A-Za-z0-9_-]+/,
-      service_account_id: ~r/\bsvac_[A-Za-z0-9_-]+/,
-      federation_rule_id: ~r/\bfdrl_[A-Za-z0-9_-]+/
-    ]
-    |> Enum.flat_map(fn {key, pattern} ->
-      case Regex.run(pattern, text) do
-        [match] -> [{key, match}]
-        nil -> []
-      end
-    end)
-    |> Map.new()
-  end
-
-  @doc """
   Returns a cached Anthropic access token for the agent environment,
   exchanging a new one when there is none or it expires within
   #{@refresh_before_expiry_seconds} seconds.
