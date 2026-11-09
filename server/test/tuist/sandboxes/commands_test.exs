@@ -175,6 +175,31 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert [_pause] = all_enqueued(worker: PauseSandboxWorker)
     end
 
+    test "on a node shared with CI, pauses 20 seconds after the last command, and at once after other work" do
+      Repo.insert!(%Tuist.Sandboxes.SandboxNode{
+        name: "node-a",
+        pod_name: "sandboxd-a",
+        memory_limit_bytes: 1_073_741_824
+      })
+
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "commands")
+      command = running_command(sandbox)
+
+      expect(Nodes, :call, guest_read("exited 0 0 0 -", ""))
+      assert {:ok, %{status: "exited"}} = Commands.read(sandbox, command.id)
+
+      assert [%Oban.Job{scheduled_at: scheduled_at}] = all_enqueued(worker: PauseSandboxWorker)
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) in 15..20
+
+      other = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "amp:orb")
+      assert {:ok, _} = Sandboxes.end_residency(other.id, "amp:orb")
+
+      assert %Oban.Job{scheduled_at: scheduled_at} =
+               Enum.find(all_enqueued(worker: PauseSandboxWorker), &(&1.args["sandbox_id"] == other.id))
+
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) <= 0
+    end
+
     test "leaves another residency alone" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "amp:orb")
       command = running_command(sandbox)

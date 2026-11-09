@@ -23,6 +23,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
@@ -38,6 +39,7 @@ defmodule Tuist.Sandboxes do
   @default_template "default"
   @default_shape %{vcpus: 2, memory_mb: 4096, workspace_gb: 10}
   @default_pause_grace_seconds 30
+  @shared_command_pause_grace_seconds 20
   @create_timeout to_timeout(second: 120)
   @resume_timeout to_timeout(second: 120)
   # A restore downloads the archive before it boots. Amp's dispatch allows
@@ -1090,7 +1092,7 @@ defmodule Tuist.Sandboxes do
            inc: [residency_epoch: 1]
          ) do
       {1, [%Sandbox{state: :running} = updated]} ->
-        with {:ok, _job} <- schedule_pause(updated), do: {:ok, updated}
+        with {:ok, _job} <- schedule_pause(updated, work_id), do: {:ok, updated}
 
       {1, [updated]} ->
         {:ok, updated}
@@ -1179,17 +1181,26 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp schedule_pause(%Sandbox{} = sandbox) do
+  defp schedule_pause(%Sandbox{} = sandbox, ended_residency \\ nil) do
     %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
     |> PauseSandboxWorker.new(
-      schedule_in:
-        if(sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name),
-          do: 0,
-          else: pause_grace_seconds(sandbox)
-        ),
+      schedule_in: pause_delay_seconds(sandbox, ended_residency),
       replace: [scheduled: [:args, :scheduled_at], available: [:args, :scheduled_at]]
     )
     |> Oban.insert()
+  end
+
+  # Hosts shared with CI get their memory back at once, except after the
+  # last command ends: commands come in runs, such as a sync and then a
+  # build, and a command started while its sandbox pauses waits for the
+  # pause and a resume. The macOS host hold is still released at once, and
+  # CI pressure pauses an idle sandbox before its grace is up.
+  defp pause_delay_seconds(%Sandbox{} = sandbox, ended_residency) do
+    cond do
+      not (sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name)) -> pause_grace_seconds(sandbox)
+      ended_residency == Commands.residency() -> @shared_command_pause_grace_seconds
+      true -> 0
+    end
   end
 
   defp pause_grace_seconds(%Sandbox{agent_environment_id: nil}), do: @default_pause_grace_seconds
