@@ -440,7 +440,7 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run tests
-        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -parallel-testing-enabled NO
+        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
 
   # Compiles the coverage-based test selection acceptance tests without running
   # them: canary doesn't serve the selection endpoints yet, so they can't join

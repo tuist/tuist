@@ -91,7 +91,8 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
     }
 
     /// The fixture's Swift Testing suites have TestCoverageAttribution's `.coverageAttribution` trait,
-    /// so their tests record per-test evidence and the trait cancels the ones selection skips.
+    /// so their tests record per-test evidence. Nothing in AppTests is selected here, so CartTests is
+    /// skipped with its module; the source change covers a single Swift Testing test the trait cancels.
     private func swiftTestingChangeRunsTheTestsThatExecutedIt(_ shop: Shop) async throws {
         try shop.git.run("checkout", "-q", "-b", "feature/search")
         try shop.git.edit(
