@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,10 @@ type Worker struct {
 	CAS   *CAS
 	Root  string
 	Image string
+	// MemoryGB is the guest memory of the VM; zero means DefaultMemoryGB.
+	MemoryGB int
+	// OOMKills reads the kernel's OOM kill counter; nil reads /proc/vmstat.
+	OOMKills func() (int64, bool)
 	// Production always drops to the unprivileged build user. Tests run as
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
@@ -160,9 +165,11 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	if err != nil {
 		return nil, false, err
 	}
+	errLog := &limitedLog{file: stderr}
 	cmd := &exec.Cmd{Path: program, Args: command.Arguments, Dir: filepath.Join(w.Root, working), Env: env,
-		Stdout: &limitedLog{file: stdout}, Stderr: &limitedLog{file: stderr},
+		Stdout: &limitedLog{file: stdout}, Stderr: errLog,
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true, Credential: w.Credential}, WaitDelay: time.Second}
+	oomBefore, oomKnown := w.oomKills()
 	started := time.Now()
 	if err = w.start(cmd); err != nil {
 		return nil, false, err
@@ -196,6 +203,15 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	result := &re.ActionResult{ExitCode: int32(exitCode), ExecutionMetadata: metadata}
 	if timedOut {
 		result.ExitCode = 124
+	} else if result.ExitCode != 0 {
+		oomAfter, ok := w.oomKills()
+		killed := int64(0)
+		if oomKnown && ok {
+			killed = oomAfter - oomBefore
+		}
+		// Neither the OOM killer nor a signal leaves a message of its own, and
+		// wrappers such as rules_rust's process_wrapper exit 1 without one.
+		_, _ = errLog.Write([]byte(w.failureNote(cmd.ProcessState, killed)))
 	}
 	uploads := newOutputUploads(w.CAS)
 	if result.StdoutDigest, err = uploads.log(stdout); err != nil {
@@ -252,8 +268,19 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 		}
 		properties[p.Name] = p.Value
 	}
-	if len(properties) != 3 || properties["OSFamily"] != "Linux" || properties["Arch"] != "amd64" || properties["tuist-image"] != w.Image || w.Image == "" {
+	memory, err := MemoryGB(platform)
+	if err != nil {
+		return err
+	}
+	required := 3
+	if _, ok := properties[MemoryProperty]; ok {
+		required++
+	}
+	if len(properties) != required || properties["OSFamily"] != "Linux" || properties["Arch"] != "amd64" || properties["tuist-image"] != w.Image || w.Image == "" {
 		return status.Error(codes.FailedPrecondition, "unsupported execution platform")
+	}
+	if memory > w.memoryGB() {
+		return status.Error(codes.FailedPrecondition, "the action needs a larger VM")
 	}
 	seen := map[string]bool{}
 	for _, v := range c.EnvironmentVariables {
@@ -266,6 +293,81 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 		return status.Error(codes.InvalidArgument, "mixed output declarations")
 	}
 	return nil
+}
+
+// MemoryProperty sizes the VM an action runs in: the guest memory in GB, with
+// two vCPUs per 4 GB. Actions without it run with DefaultMemoryGB.
+const MemoryProperty = "tuist-memory-gb"
+
+const DefaultMemoryGB = 4
+
+// MemorySizesGB are the VM sizes workers offer, smallest first.
+var MemorySizesGB = []int{4, 8, 16}
+
+// MemoryGB returns the VM memory a platform asks for.
+func MemoryGB(p *re.Platform) (int, error) {
+	value, found := "", false
+	for _, property := range p.GetProperties() {
+		if property.Name != MemoryProperty {
+			continue
+		}
+		if found {
+			return 0, status.Error(codes.InvalidArgument, "duplicate platform property")
+		}
+		value, found = property.Value, true
+	}
+	if !found {
+		return DefaultMemoryGB, nil
+	}
+	gb, err := strconv.Atoi(value)
+	if err != nil || strconv.Itoa(gb) != value || !slices.Contains(MemorySizesGB, gb) {
+		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 4, 8 or 16")
+	}
+	return gb, nil
+}
+
+func (w *Worker) memoryGB() int {
+	if w.MemoryGB == 0 {
+		return DefaultMemoryGB
+	}
+	return w.MemoryGB
+}
+
+func (w *Worker) oomKills() (int64, bool) {
+	if w.OOMKills != nil {
+		return w.OOMKills()
+	}
+	b, err := os.ReadFile("/proc/vmstat")
+	if err != nil {
+		return 0, false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "oom_kill "); ok {
+			n, err := strconv.ParseInt(v, 10, 64)
+			return n, err == nil
+		}
+	}
+	return 0, false
+}
+
+// failureNote explains a failed command that the OOM killer or a signal
+// ended, for the client to print with the action's stderr.
+func (w *Worker) failureNote(state *os.ProcessState, oomKilled int64) string {
+	memory := w.memoryGB()
+	if oomKilled > 0 {
+		note := fmt.Sprintf("\ntuist: this action ran out of memory: the kernel's OOM killer ended %d of its processes in a remote execution VM with %d GB.", oomKilled, memory)
+		if i := slices.Index(MemorySizesGB, memory); i >= 0 && i+1 < len(MemorySizesGB) {
+			larger := MemorySizesGB[i+1]
+			note += fmt.Sprintf(" Run it in a larger VM by adding exec_properties = {%q: %q} to its target.", MemoryProperty, strconv.Itoa(larger))
+		} else {
+			note += " That is the largest VM size."
+		}
+		return note + "\n"
+	}
+	if ws, ok := state.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		return fmt.Sprintf("\ntuist: the action's command was killed by signal %d (%s).\n", int(ws.Signal()), ws.Signal())
+	}
+	return ""
 }
 
 func relative(p string, empty bool) bool {

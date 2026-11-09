@@ -26,6 +26,8 @@ type request struct {
 	Size     int64  `json:"size"`
 	Image    string `json:"image"`
 	Inputs   string `json:"inputs"`
+	// The VM's memory; leases and older control planes omit it for the default.
+	MemoryGB int `json:"memory_gb"`
 }
 
 const actionMemoryLimit = 256 << 20
@@ -66,7 +68,7 @@ func (s *Session) Run(parent context.Context, requestJSON, token string) (string
 	ctx, cancel := context.WithTimeout(parent, 12*time.Minute)
 	defer cancel()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token, "x-tuist-account-handle", r.Account))
-	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}, Start: startWithoutNewPrivileges}
+	w := worker.Worker{CAS: worker.NewCAS(conn, r.Instance), Root: actionRoot, Image: r.Image, MemoryGB: r.MemoryGB, Credential: &syscall.Credential{Uid: 1000, Gid: 1000}, Start: startWithoutNewPrivileges}
 	w.CAS.Seed(r.Inputs)
 	w.CAS.Host = hostBlobs{dial: dialHost}
 	response, cacheable := w.Execute(ctx, &re.Digest{Hash: r.Hash, SizeBytes: r.Size})

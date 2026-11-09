@@ -347,6 +347,84 @@ func TestWorkerRequiresImageAndExplicitEnvironment(t *testing.T) {
 	}
 }
 
+func withProperty(t *testing.T, m *memoryCAS, d *re.Digest, name, value string) *re.Digest {
+	t.Helper()
+	var a re.Action
+	if err := proto.Unmarshal(m.blobs[d.Hash], &a); err != nil {
+		t.Fatal(err)
+	}
+	a.Platform.Properties = append(a.Platform.Properties, &re.Platform_Property{Name: name, Value: value})
+	return m.message(t, &a)
+}
+
+func TestWorkerRunsOnlyInAVMOfTheRequestedSize(t *testing.T) {
+	for _, test := range []struct {
+		name, value string
+		vm          int
+		code        codes.Code
+	}{
+		{"default VM is the smallest size", "4", 0, codes.OK},
+		{"larger VM", "8", 8, codes.OK},
+		{"smaller VM than requested", "8", 4, codes.FailedPrecondition},
+		{"default VM for a larger request", "16", 0, codes.FailedPrecondition},
+		{"unoffered size", "6", 16, codes.InvalidArgument},
+		{"non-canonical size", "08", 16, codes.InvalidArgument},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w, m := harness(t)
+			w.MemoryGB = test.vm
+			d := withProperty(t, m, action(t, m, "touch executed", &re.Directory{}, nil), MemoryProperty, test.value)
+			r, _ := w.Execute(context.Background(), d)
+			if r.Status.Code != int32(test.code) {
+				t.Fatalf("response: %v", r)
+			}
+			if _, err := os.Stat(filepath.Join(w.Root, "executed")); (err == nil) != (test.code == codes.OK) {
+				t.Fatalf("executed: %v", err)
+			}
+		})
+	}
+	w, m := harness(t)
+	d := withProperty(t, m, action(t, m, "true", &re.Directory{}, nil), "other", "x")
+	if r, _ := w.Execute(context.Background(), d); r.Status.Code != int32(codes.FailedPrecondition) {
+		t.Fatalf("unknown property: %v", r)
+	}
+}
+
+func TestWorkerExplainsOOMKillsAndSignals(t *testing.T) {
+	for _, test := range []struct {
+		name, cmd string
+		vm        int
+		kills     int64
+		exit      int32
+		stderr    string
+	}{
+		// A wrapper whose child the OOM killer ended, like rules_rust's process_wrapper.
+		{"oom kill behind a wrapper", "printf partial >&2; exit 1", 0, 2, 1, "partial\ntuist: this action ran out of memory: the kernel's OOM killer ended 2 of its processes in a remote execution VM with 4 GB. Run it in a larger VM by adding exec_properties = {\"tuist-memory-gb\": \"8\"} to its target.\n"},
+		{"oom kill in the largest VM", "exit 1", 16, 1, 1, "\ntuist: this action ran out of memory: the kernel's OOM killer ended 1 of its processes in a remote execution VM with 16 GB. That is the largest VM size.\n"},
+		{"oom kill without failure", "printf ok >&2", 0, 1, 0, "ok"},
+		{"signal", "kill -TERM $$", 0, 0, 128, "\ntuist: the action's command was killed by signal 15 (terminated).\n"},
+		{"plain failure", "printf failed >&2; exit 3", 0, 0, 3, "failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w, m := harness(t)
+			w.MemoryGB = test.vm
+			reads := int64(40)
+			w.OOMKills = func() (int64, bool) {
+				n := reads
+				reads += test.kills
+				return n, true
+			}
+			r, _ := w.Execute(context.Background(), action(t, m, test.cmd, &re.Directory{}, nil))
+			if r.Status.Code != 0 || r.Result.GetExitCode() != test.exit {
+				t.Fatalf("response: %v", r)
+			}
+			if got := string(m.blobs[r.Result.GetStderrDigest().GetHash()]); got != test.stderr {
+				t.Fatalf("stderr: %q, want %q", got, test.stderr)
+			}
+		})
+	}
+}
+
 func TestCASReadsOutputFromStart(t *testing.T) {
 	w, m := harness(t)
 	f, err := os.CreateTemp(t.TempDir(), "log")

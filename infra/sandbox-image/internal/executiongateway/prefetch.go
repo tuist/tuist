@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -18,11 +19,13 @@ import (
 )
 
 const (
-	endpointTTL      = 5 * time.Minute
-	prefetchTimeout  = 50 * time.Millisecond
-	prefetchBytes    = 255 << 10
-	prefetchFile     = 64 << 10
-	prefetchPerBatch = 128
+	endpointTTL     = 5 * time.Minute
+	prefetchTimeout = 50 * time.Millisecond
+	// Reading the action when the prefetch did not, for its VM size.
+	actionReadTimeout = 10 * time.Second
+	prefetchBytes     = 255 << 10
+	prefetchFile      = 64 << 10
+	prefetchPerBatch  = 128
 	// The control plane accepts at most this much encoded input per action.
 	prefetchEncoded = 349_528
 	// Upper bound on one entry's protobuf framing around its data.
@@ -65,12 +68,61 @@ func (g *Gateway) endpoint(account, project string) string {
 	return e.url
 }
 
+// learnEndpoint asks the control plane for the project's cache endpoint when
+// this gateway does not know it: clients check capabilities once per build,
+// and a build can outlive endpointTTL.
+func (g *Gateway) learnEndpoint(ctx context.Context, account, project, auth string) error {
+	if g.endpoint(account, project) != "" {
+		return nil
+	}
+	op, err := g.call(ctx, http.MethodGet, account, project, "/capabilities", auth, nil)
+	if err != nil {
+		return err
+	}
+	g.remember(account, project, op.CASEndpoint, op.Leases)
+	return nil
+}
+
+// memory returns the VM memory the action asks for, reading the action when
+// the prefetch did not. Running an action in a smaller VM than it asked for
+// only fails it, so a failed read fails the call and Bazel retries it. A
+// missing action runs at the default size, where the VM reports it missing
+// and Bazel uploads it again.
+func (g *Gateway) memory(parent context.Context, account, project, auth string, digest *re.Digest, action *re.Action) (int, error) {
+	if action == nil {
+		url := g.endpoint(account, project)
+		if url == "" {
+			return worker.DefaultMemoryGB, nil
+		}
+		conn, err := g.conn(url)
+		if err != nil {
+			return 0, err
+		}
+		ctx, cancel := context.WithTimeout(parent, actionReadTimeout)
+		defer cancel()
+		ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account))
+		response, err := re.NewContentAddressableStorageClient(conn).BatchReadBlobs(ctx, &re.BatchReadBlobsRequest{InstanceName: project, Digests: []*re.Digest{digest}, DigestFunction: re.DigestFunction_SHA256})
+		switch {
+		case err == nil && len(response.Responses) == 1 && response.Responses[0].GetStatus().GetCode() == int32(codes.NotFound):
+			return worker.DefaultMemoryGB, nil
+		case err != nil || len(response.Responses) != 1 || !matches(response.Responses[0], digest):
+			return 0, status.Error(codes.Unavailable, "reading the action")
+		}
+		action = &re.Action{}
+		if proto.Unmarshal(response.Responses[0].Data, action) != nil {
+			return 0, status.Error(codes.InvalidArgument, "invalid action")
+		}
+	}
+	return worker.MemoryGB(action.Platform)
+}
+
 // prefetch reads the action, its command and its input tree's directories and
 // small files with the client's credential, one to a few round trips from here
 // instead of one per blob from inside a fresh VM. The VM verifies every blob
 // against its digest. It is best-effort: it stops at the byte budget, and any
-// failure leaves the VM to read from the cache itself.
-func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) (encoded string) {
+// failure leaves the VM to read from the cache itself. It also returns the
+// action when it read it.
+func (g *Gateway) prefetch(parent context.Context, account, project, auth string, action *re.Digest) (encoded string, parsed *re.Action) {
 	result := "skipped"
 	defer func() {
 		if encoded == "" && result != "skipped" {
@@ -80,12 +132,12 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 	}()
 	url := g.endpoint(account, project)
 	if url == "" {
-		return ""
+		return "", nil
 	}
 	result = "failed"
 	conn, err := g.conn(url)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	ctx, cancel := context.WithTimeout(parent, prefetchTimeout)
 	defer cancel()
@@ -137,12 +189,12 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 	// cache returns the action alone, and the tree is read below.
 	first := take(nil, action, prefetchFile)
 	if len(first) == 0 {
-		return ""
+		return "", nil
 	}
 	response, err := cas.BatchReadBlobs(metadata.AppendToOutgoingContext(ctx, actionInputsHeader, actionInputsLimits), &re.BatchReadBlobsRequest{InstanceName: project, Digests: first, DigestFunction: re.DigestFunction_SHA256})
 	var a re.Action
 	if err != nil || len(response.Responses) == 0 || !matches(response.Responses[0], action) || proto.Unmarshal(response.Responses[0].Data, &a) != nil {
-		return ""
+		return "", nil
 	}
 	seed.Requests = append(seed.Requests, &re.BatchUpdateBlobsRequest_Request{Digest: action, Data: response.Responses[0].Data})
 	if inputs := response.Responses[1:]; len(inputs) > 0 {
@@ -152,7 +204,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 			}
 		}
 		result = "inputs"
-		return encode()
+		return encode(), &a
 	}
 	if worker.ValidDigest(a.InputRootDigest) && g.treeSupported(url) {
 		// The whole input tree in one call, beside the command.
@@ -164,7 +216,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 				read(seedTree(dirs, a.InputRootDigest, seed, take))
 			}
 			result = "tree"
-			return encode()
+			return encode(), &a
 		}
 	}
 	result = "walk"
@@ -176,7 +228,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 	for len(next) > 0 {
 		blobs, ok := read(next)
 		if !ok {
-			return encode()
+			return encode(), &a
 		}
 		var queue []*re.Digest
 		for i, d := range next {
@@ -199,7 +251,7 @@ func (g *Gateway) prefetch(parent context.Context, account, project, auth string
 		}
 		next = queue
 	}
-	return encode()
+	return encode(), &a
 }
 
 // seedTree seeds the directories GetTree returned that the tree references by
