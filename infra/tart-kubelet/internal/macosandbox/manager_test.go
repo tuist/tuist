@@ -333,6 +333,37 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatalf("resume admitted while CI queued: %v", err)
 	}
 }
+
+// A running VM already holds its charge, so commands into it (log reads,
+// stdin, cancel) work while CI holds the grant. Resuming one still needs it.
+func TestExecIntoRunningSandboxNeedsNoGrantButResumeDoes(t *testing.T) {
+	m, _, c, a := harness(t)
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "commands"); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if _, err := m.Exec(ctx, protocol.ExecArgs{SandboxID: a.SandboxID}, nil); err != nil {
+		t.Fatalf("exec into a running sandbox needed the grant: %v", err)
+	}
+	if err := m.Release(a.SandboxID, "commands"); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = true
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if _, err := m.Exec(ctx, protocol.ExecArgs{SandboxID: a.SandboxID}, nil); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("exec resumed a paused sandbox without the grant: %v", err)
+	}
+	if m.Snapshot()[0].State != "paused" {
+		t.Fatal("refused exec changed the sandbox's state")
+	}
+}
 func TestConcurrentCreatesCannotOverbookLastSlot(t *testing.T) {
 	m, r, c, a := harness(t)
 	var wg sync.WaitGroup
