@@ -1,9 +1,11 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistHasher
 
+@Suite(.coverageAttribution)
 struct DynamicPackageDependencyHashTests {
     @Test(arguments: [false, true])
     func linkageAndEmbeddingRolesHaveDistinctFingerprints(withTraits: Bool) async throws {

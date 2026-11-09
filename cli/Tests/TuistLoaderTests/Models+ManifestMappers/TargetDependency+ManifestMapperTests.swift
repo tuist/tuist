@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -296,6 +297,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct ExternalDependencyStatusManifestMapperTests {
     private let externalDependencies: [String: [XcodeGraph.TargetDependency]] = [
         "MCP": [

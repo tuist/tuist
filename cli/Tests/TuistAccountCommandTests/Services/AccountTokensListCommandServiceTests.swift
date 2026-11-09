@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistEnvironmentTesting
@@ -9,6 +10,7 @@ import TuistServer
 
 @testable import TuistAccountCommand
 
+@Suite(.coverageAttribution)
 struct AccountTokensListCommandServiceTests {
     private let subject: AccountTokensListCommandService
     private let listAccountTokensService = MockListAccountTokensServicing()

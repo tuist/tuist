@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PBXBuildRuleMapperTests {
     let mapper = PBXBuildRuleMapper()
 

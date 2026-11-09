@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistConfig
@@ -12,6 +13,7 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct XcodeCachePrefixMappingWorkspaceMapperTests {
     private let repository = try! AbsolutePath(validating: "/Users/dev/app") // swiftlint:disable:this force_try
 

@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import TuistTesting
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct DelayProviderTests {
     @Test(.withMockedEnvironment()) func keeps_a_100_millisecond_base_delay_by_default() {
         let subject = DelayProvider()

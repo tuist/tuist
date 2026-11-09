@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistTesting
@@ -9,6 +10,7 @@ import TuistXcodeBuildProducts
 
 @testable import TuistXcodeBuildProducts
 
+@Suite(.coverageAttribution)
 struct DerivedDataLocatorTests {
     private let subject = DerivedDataLocator()
 

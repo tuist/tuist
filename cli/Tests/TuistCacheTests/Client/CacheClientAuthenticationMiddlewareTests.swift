@@ -2,12 +2,14 @@ import Foundation
 import HTTPTypes
 import Mockable
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistHTTP
 import TuistServer
 
 @testable import TuistCache
 
+@Suite(.coverageAttribution)
 struct CacheClientAuthenticationMiddlewareTests {
     private var subject: CacheClientAuthenticationMiddleware!
     private var mockServerAuthenticationController: MockServerAuthenticationControlling!

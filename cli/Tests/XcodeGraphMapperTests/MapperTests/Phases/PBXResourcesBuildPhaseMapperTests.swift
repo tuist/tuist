@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PBXResourcesBuildPhaseMapperTests {
     @Test("Maps resources (like xcassets) from resources phase")
     func mapResources() async throws {

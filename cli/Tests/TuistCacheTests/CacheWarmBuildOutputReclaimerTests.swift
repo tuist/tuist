@@ -2,10 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistCache
 
+@Suite(.coverageAttribution)
 struct CacheWarmBuildOutputReclaimerTests {
     private let fileSystem = FileSystem()
     private let subject = CacheWarmBuildOutputReclaimer()

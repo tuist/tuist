@@ -1,11 +1,13 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistEnvironmentTesting
 
 @testable import TuistHTTP
 
+@Suite(.coverageAttribution)
 struct RetryMiddlewareTests {
     @Test(arguments: [429, 503])
     func retries_unforwarded_cache_upload_with_intact_body(statusCode: Int) async throws {

@@ -1,11 +1,13 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 
 @testable import TuistLaunchctl
 
+@Suite(.coverageAttribution)
 struct LaunchctlControllerTests {
     private let subject: LaunchctlController
     private let commandRunner = MockCommandRunning()

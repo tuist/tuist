@@ -2,10 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct MultipartUploadArtifactServiceTests {
     @Test(.inTemporaryDirectory)
     func multipartUploadArtifact_uploadsCompleteParts() async throws {

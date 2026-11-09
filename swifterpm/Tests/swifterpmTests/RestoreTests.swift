@@ -2,7 +2,11 @@ import Foundation
 import Synchronization
 import Testing
 @testable import SwifterPMCore
+#if canImport(TestCoverageAttribution)
+    import TestCoverageAttribution
+#endif
 
+@Suite(.coverageAttribution)
 struct RestoreTests {
     @Test
     func restorePackageWithNoPinsUsesScopedScratchAndCache() async throws {

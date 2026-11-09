@@ -1,9 +1,11 @@
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct CacheHashingGraphMapperTests {
     @Test func map_stores_normalized_hashing_graph_without_mutating_returned_graph() async throws {
         // Given

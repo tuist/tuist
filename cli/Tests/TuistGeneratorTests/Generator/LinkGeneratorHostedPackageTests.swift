@@ -1,10 +1,12 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct LinkGeneratorHostedPackageTests {
     @Test(arguments: [GraphDependency.PackageProductType.runtimeDynamic, .runtimeDynamicEmbedded])
     func hostedTestsLinkDynamicProductsWithoutEmbeddingThem(type: GraphDependency.PackageProductType) throws {

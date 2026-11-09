@@ -3,11 +3,13 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistTestSupport
 import XCResultParser
 @testable import TuistXCResultService
 
+@Suite(.coverageAttribution)
 struct XCResultServiceTests {
     @Test(.inTemporaryDirectory)
     func parseTestXCResult() async throws {

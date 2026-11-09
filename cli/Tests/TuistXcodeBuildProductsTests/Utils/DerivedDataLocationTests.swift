@@ -1,7 +1,9 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 
+@Suite(.coverageAttribution)
 struct DerivedDataLocationTests {
     @Test func init_returns_default_for_an_empty_value() {
         #expect(DerivedDataLocation("") == .default)

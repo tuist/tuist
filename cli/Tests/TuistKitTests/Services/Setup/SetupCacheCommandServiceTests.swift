@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistAlert
@@ -22,6 +23,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct SetupCacheCommandServiceTests {
     private var subject: SetupCacheCommandService { makeService() }
     private let launchAgentService = MockLaunchAgentServicing()

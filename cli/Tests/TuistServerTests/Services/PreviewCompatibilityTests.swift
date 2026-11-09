@@ -1,12 +1,14 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistTesting
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct PreviewCompatibilityTests {
     @Test(.withMockedEnvironment(), arguments: [false, true])
     func uploads_preserve_the_legacy_request_and_only_send_known_architectures(native: Bool) async throws {

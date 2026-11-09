@@ -1,10 +1,12 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistHTTP
 
+@Suite(.coverageAttribution)
 struct VerboseLoggingMiddlewareTests {
     @Test func redacts_authorization_header() {
         let headers: HTTPFields = [

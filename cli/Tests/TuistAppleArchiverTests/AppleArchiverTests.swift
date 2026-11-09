@@ -2,9 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAppleArchiver
 
+@Suite(.coverageAttribution)
 struct AppleArchiverTests {
     let subject = AppleArchiver()
 

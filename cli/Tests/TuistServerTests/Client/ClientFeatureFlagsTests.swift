@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ClientFeatureFlagsTests {
     @Test func header_value_is_nil_when_no_flag_variable_is_set() async {
         let environment = Environment(

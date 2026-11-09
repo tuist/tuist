@@ -3,10 +3,12 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct SDKDeploymentTargetsProviderTests {
     private let commandRunner = MockCommandRunning()
     private let fileSystem = FileSystem()

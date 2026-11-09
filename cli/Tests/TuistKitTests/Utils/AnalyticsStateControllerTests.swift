@@ -3,10 +3,12 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCASAnalytics
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct AnalyticsStateControllerTests {
     private let fileSystem = FileSystem()
     private let database = MockCASAnalyticsDatabasing()

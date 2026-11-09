@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistConfig
@@ -12,7 +13,7 @@ import XCResultParser
 
 @testable import TuistKit
 
-@Suite
+@Suite(.coverageAttribution)
 struct TestQuarantineServiceTests {
     private let subject = TestQuarantineService()
 

@@ -3,6 +3,7 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Synchronization
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistHTTP
@@ -12,6 +13,7 @@ import TuistTesting
 
 /// Sends a request whose expired credentials are refreshed through `/api/auth/refresh_token`, with the server
 /// client's retries on both the request and the refresh.
+@Suite(.coverageAttribution)
 struct TokenRefreshRetryTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
 

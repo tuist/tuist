@@ -3,9 +3,11 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 
+@Suite(.coverageAttribution)
 struct GenerationMetadataStoreTests {
     private let fileSystem = FileSystem()
     private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()

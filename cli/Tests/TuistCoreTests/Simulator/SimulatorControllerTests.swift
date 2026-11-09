@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TSCUtility
 
@@ -10,6 +11,7 @@ import TSCUtility
 @testable import TuistSupport
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct SimulatorControllerTests {
     private var subject: SimulatorController!
     private let commandRunner = MockCommandRunner()

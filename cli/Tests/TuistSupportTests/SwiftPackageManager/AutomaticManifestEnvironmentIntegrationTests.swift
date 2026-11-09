@@ -2,10 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct AutomaticManifestEnvironmentIntegrationTests {
     @Test(.inTemporaryDirectory, arguments: [true, false], [true, false])
     func automatic_resolves_authenticated_git_dependencies_without_overrides(embedded: Bool, update: Bool) async throws {

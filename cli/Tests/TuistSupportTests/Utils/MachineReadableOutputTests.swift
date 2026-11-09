@@ -1,6 +1,8 @@
+import TestCoverageAttribution
 import Testing
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct MachineReadableOutputTests {
     @Test func isEnabled_whenJSONFlagIsPresent() {
         let arguments = ["tuist", "--json", "generate"]

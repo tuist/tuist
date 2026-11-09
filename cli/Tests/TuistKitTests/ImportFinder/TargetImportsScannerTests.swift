@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 import TuistTesting
@@ -8,6 +9,7 @@ import XcodeGraph
 @testable import TuistInspectCommand
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TargetImportsScannerTests {
     private let fileSystem = FileSystem()
 

@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -10,6 +11,7 @@ import XcodeGraph
 
 @testable import TuistHasher
 
+@Suite(.coverageAttribution)
 struct AdditionalHashingInputsHasherTests {
     private let contentHasher = MockContentHashing()
     private let commandRunner = MockCommandRunner()

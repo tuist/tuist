@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import SnapshotTesting
+import TestCoverageAttribution
 import Testing
 import TuistAndroid
 import TuistAutomation
@@ -23,7 +24,7 @@ import XcodeGraph
 
 @testable import TuistShareCommand
 
-@Suite(.snapshots)
+@Suite(.coverageAttribution, .snapshots)
 struct ShareCommandServiceTests {
     private let subject: ShareCommandService
     private let buildProductService: MockBuildProductServicing

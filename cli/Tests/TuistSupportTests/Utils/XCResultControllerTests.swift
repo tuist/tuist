@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistSupport
@@ -9,6 +10,7 @@ import TuistTesting
 
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct XCResultControllerTests {
     private var subject: XCResultToolController!
     private let commandRunner = MockCommandRunner()

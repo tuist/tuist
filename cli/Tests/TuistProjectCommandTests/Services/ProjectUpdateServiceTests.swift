@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistConstants
@@ -9,6 +10,7 @@ import TuistServer
 
 @testable import TuistProjectCommand
 
+@Suite(.coverageAttribution)
 struct ProjectUpdateServiceTests {
     private let opener = MockOpening()
     private let configLoader = MockConfigLoading()

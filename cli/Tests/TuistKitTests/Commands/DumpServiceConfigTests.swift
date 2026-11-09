@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistLoggerTesting
 import TuistLogging
@@ -8,6 +9,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct DumpServiceConfigTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func printsTheConfigManifest() async throws {

@@ -2,6 +2,7 @@ import ArgumentParser
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistBuildCommand
 import TuistCacheCommand
@@ -14,6 +15,7 @@ import TuistTestCommand
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CommandArgumentsTests {
     enum Invocation: CaseIterable {
         case generate, generateRun, cache, cacheWarm, edit, install, build, buildRun, test, testRun

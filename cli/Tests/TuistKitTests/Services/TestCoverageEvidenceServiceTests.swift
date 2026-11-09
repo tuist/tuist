@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistEnvironment
@@ -9,6 +10,7 @@ import XcodeGraph
 import XCResultParser
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TestCoverageEvidenceServiceTests {
     private func output(_ records: [CoverageObserverOutput.Record]) -> CoverageObserverOutput {
         CoverageObserverOutput(

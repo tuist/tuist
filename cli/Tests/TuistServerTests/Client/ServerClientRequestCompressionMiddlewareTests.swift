@@ -2,10 +2,12 @@
     import Foundation
     import HTTPTypes
     import OpenAPIRuntime
+    import TestCoverageAttribution
     import Testing
 
     @testable import TuistServer
 
+    @Suite(.coverageAttribution)
     struct ServerClientRequestCompressionMiddlewareTests {
         private let subject = ServerClientRequestCompressionMiddleware()
         private let url = URL(string: "https://tuist.dev")!

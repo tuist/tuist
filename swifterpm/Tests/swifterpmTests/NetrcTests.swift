@@ -1,7 +1,11 @@
 import Foundation
 import Testing
 @testable import SwifterPMCore
+#if canImport(TestCoverageAttribution)
+    import TestCoverageAttribution
+#endif
 
+@Suite(.coverageAttribution)
 struct NetrcTests {
     @Test
     func parserMatchesHostAndFallsBackToDefault() throws {

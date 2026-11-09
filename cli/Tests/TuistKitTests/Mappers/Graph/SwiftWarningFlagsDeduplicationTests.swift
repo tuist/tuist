@@ -1,7 +1,9 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct SwiftWarningFlagsDeduplicationTests {
     @Test(arguments: ["-Werror", "-Wwarning"])
     func deduplicatesRepeatedFrontendWarningSequences(flag: String) {

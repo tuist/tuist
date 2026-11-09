@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XCTest
@@ -776,6 +777,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TreeShakePrunedTargetsGraphMapperSchemeReparentingTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
 
@@ -972,6 +974,7 @@ struct TreeShakePrunedTargetsGraphMapperSchemeReparentingTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
 
@@ -1217,6 +1220,7 @@ struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TreeShakePrunedTargetsGraphMapperPackageTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
 
@@ -1278,6 +1282,7 @@ struct TreeShakePrunedTargetsGraphMapperPackageTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TreeShakePrunedTargetsGraphMapperBuildForTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
 
@@ -1314,6 +1319,7 @@ struct TreeShakePrunedTargetsGraphMapperBuildForTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TreeShakePrunedTargetsGraphMapperExecutableTests {
     private let subject = TreeShakePrunedTargetsGraphMapper()
     private let path = AbsolutePath.root.appending(component: "project")
@@ -1404,6 +1410,7 @@ struct TreeShakePrunedTargetsGraphMapperExecutableTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GeneratedTestPlanCoveragePruningTests {
     @Test(arguments: [([], true, []), (["Cached"], false, []), (["Cached", "Source"], true, ["Source"])])
     func pruning_does_not_broaden_coverage(

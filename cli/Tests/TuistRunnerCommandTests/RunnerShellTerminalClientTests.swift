@@ -1,7 +1,9 @@
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistRunnerCommand
 
+@Suite(.coverageAttribution)
 struct RunnerShellTerminalClientTests {
     @Test func exitStatusReturnsZeroForSuccessfulExitFrames() {
         #expect(RunnerShellTerminalClient.exitStatus(for: #"{"type":"exit","status":0}"#) == 0)

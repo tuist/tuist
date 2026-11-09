@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistNavigation
 
+@Suite(.coverageAttribution)
 struct AppNavigationTests {
     private let production = URL(string: "https://tuist.dev")!
 

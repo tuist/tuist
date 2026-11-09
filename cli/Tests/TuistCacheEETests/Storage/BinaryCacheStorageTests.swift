@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import SwiftProtobuf
+import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCore
@@ -16,6 +17,7 @@ import XcodeGraph
 
 @testable import TuistCacheEE
 
+@Suite(.coverageAttribution)
 struct BinaryCacheStorageTests {
     private let fingerprints = ["ios-device": "device-inputs", "ios-simulator": "simulator-inputs", "macos-device": "mac-inputs"]
 

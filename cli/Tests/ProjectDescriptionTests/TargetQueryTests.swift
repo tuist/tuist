@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistTesting
 @testable import ProjectDescription
 
+@Suite(.coverageAttribution)
 struct TargetQueryTests {
     @Test func toJSON() throws {
         let queries: [TargetQuery] = [

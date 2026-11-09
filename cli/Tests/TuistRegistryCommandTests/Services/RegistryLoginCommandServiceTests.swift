@@ -3,6 +3,7 @@
     import FileSystemTesting
     import Foundation
     import Mockable
+    import TestCoverageAttribution
     import Testing
     import TuistConfigLoader
     import TuistEnvironment
@@ -14,6 +15,7 @@
     import TuistTesting
     @testable import TuistRegistryCommand
 
+    @Suite(.coverageAttribution)
     struct RegistryLoginCommandServiceTests {
         private let subject: RegistryLoginCommandService
         private let createAccountTokenService = MockCreateAccountTokenServicing()

@@ -1,10 +1,12 @@
 import FileSystem
 import FileSystemTesting
+import TestCoverageAttribution
 import Testing
 import TuistTesting
 
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct SwiftBackDeploymentLibrariesProviderTests {
     @Test func runpathSearchPaths_alwaysEmitsSwift62Fallback_whenToolchainDiscoveryFails() async throws {
         // The canonical `swift-6.2` segment must be emitted even when the toolchain can't be

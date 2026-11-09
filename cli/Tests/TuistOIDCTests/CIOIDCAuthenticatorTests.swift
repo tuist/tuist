@@ -1,11 +1,13 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
 
 @testable import TuistOIDC
 
+@Suite(.coverageAttribution)
 struct CIOIDCAuthenticatorTests {
     private let oidcTokenFetcher: MockOIDCTokenFetching
     private let subject: CIOIDCAuthenticator

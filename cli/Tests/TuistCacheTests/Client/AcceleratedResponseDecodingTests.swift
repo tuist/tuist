@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistCache
@@ -11,6 +12,7 @@ import Testing
 /// content type before it decodes the status: a mismatch is rejected as a transport
 /// error, which makes the typed case unreachable on that path even though the status is
 /// right.
+@Suite(.coverageAttribution)
 struct AcceleratedResponseDecodingTests {
     private struct StubTransport: ClientTransport {
         let response: HTTPResponse

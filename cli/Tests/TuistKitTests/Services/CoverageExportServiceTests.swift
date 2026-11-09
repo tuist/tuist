@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XCResultParser
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageExportServiceTests {
     private let lcov = """
     SF:/repo/Sources/Lib/Calculator.swift

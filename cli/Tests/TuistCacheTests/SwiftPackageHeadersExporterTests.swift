@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistCache
 
+@Suite(.coverageAttribution)
 struct SwiftPackageHeadersExporterTests {
     enum ModuleKind: CaseIterable {
         case custom, umbrellaHeader, directory, multipleModules, aliasedModule
@@ -225,6 +227,7 @@ struct SwiftPackageHeadersExporterTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct SwiftPackageCachedHeadersMapperTests {
     @Test(.inTemporaryDirectory) func ordinaryBinaryDependenciesDoNotChangeTargets() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
@@ -335,6 +338,7 @@ struct SwiftPackageCachedHeadersMapperTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct SwiftPackageProcessedHeadersTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func multipleLibrariesShareProductsWithoutCollisionsOrRedefinitions(directoryModule: Bool) async throws {

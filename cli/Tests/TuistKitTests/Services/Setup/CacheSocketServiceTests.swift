@@ -5,10 +5,12 @@ import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CacheSocketServiceTests {
     private let fileSystem = FileSystem()
     private let subject = CacheSocketService()

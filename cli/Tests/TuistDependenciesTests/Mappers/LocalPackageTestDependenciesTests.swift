@@ -1,4 +1,5 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -6,6 +7,7 @@ import XcodeGraph
 
 @testable import TuistDependencies
 
+@Suite(.coverageAttribution)
 struct LocalPackageTestDependenciesTests {
     @Test(arguments: [false, true])
     func preservesTestOnlyDependenciesAcrossPackages(crossPackageRuntime: Bool) async throws {

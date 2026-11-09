@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistServer
@@ -7,6 +8,7 @@ import TuistTesting
 
 @testable import TuistCAS
 
+@Suite(.coverageAttribution)
 struct CacheURLStoreTests {
     private let service = MockGetCacheEndpointServicing()
     private let subject: CacheURLStore

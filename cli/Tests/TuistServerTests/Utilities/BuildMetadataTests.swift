@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct BuildMetadataTests {
     @Test func explicitValuesAreNeverEvictedOrOverwritten() {
         let explicit = Dictionary(uniqueKeysWithValues: (1 ... 20).map { ("customer.\($0)", "value") })

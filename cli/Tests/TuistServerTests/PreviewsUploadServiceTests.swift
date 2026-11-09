@@ -4,6 +4,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAndroid
 import TuistCore
@@ -14,6 +15,7 @@ import TuistTesting
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct PreviewsUploadServiceTests {
     private let subject: PreviewsUploadService
 

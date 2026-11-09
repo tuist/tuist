@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -10,6 +11,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct BuildableFolderExceptionManifestMapperTests {
     private let fileSystem = FileSystem()
 

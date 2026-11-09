@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
@@ -10,6 +11,7 @@ import TuistSupport
 @testable import TuistGenerator
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct EnvironmentLinterTests {
     private var rootDirectoryLocator: MockRootDirectoryLocating!
     var subject: EnvironmentLinter!

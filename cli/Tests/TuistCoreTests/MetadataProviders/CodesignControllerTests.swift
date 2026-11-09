@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistProcess
@@ -10,7 +11,7 @@ import TuistTesting
 @testable import TuistCore
 @testable import TuistTesting
 
-@Suite struct CodesignControllerTests {
+@Suite(.coverageAttribution) struct CodesignControllerTests {
     private let commandRunner = MockCommandRunning()
     private let subject: CodesignController
     private let unsignedPath: AbsolutePath

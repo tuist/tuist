@@ -1,7 +1,9 @@
 import ArgumentParser
+import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct XcodeBuildCommandReordererTests {
     @Test(arguments: [
         ["-workspace", "App.xcworkspace", "-scheme", "App", "-testPlan", "All", "clean", "build", "test"],

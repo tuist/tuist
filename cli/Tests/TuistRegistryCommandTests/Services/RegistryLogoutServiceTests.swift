@@ -2,6 +2,7 @@
     import FileSystem
     import Foundation
     import Mockable
+    import TestCoverageAttribution
     import Testing
     import TuistConfigLoader
     import TuistLoader
@@ -10,6 +11,7 @@
 
     @testable import TuistRegistryCommand
 
+    @Suite(.coverageAttribution)
     struct RegistryLogoutServiceTests {
         private let serverEnvironmentService = MockServerEnvironmentServicing()
         private let configLoader = MockConfigLoading()

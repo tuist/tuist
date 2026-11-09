@@ -1,7 +1,9 @@
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistCore
 
+@Suite(.coverageAttribution)
 struct DenseIndexSetTests {
     @Test func insert_keepsIndicesOnBothSidesOfWordBoundaries() {
         var set = DenseIndexSet()

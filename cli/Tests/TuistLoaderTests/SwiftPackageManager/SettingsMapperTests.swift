@@ -1,5 +1,6 @@
 import Path
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistCore
@@ -378,6 +379,7 @@ final class SettingsMapperTests: XCTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct SettingsMapperConditionalTests {
     @Test
     func mapSettingsDoesNotRepeatInjectedHeaderSearchPathsInPlatformCondition() throws {
@@ -581,6 +583,7 @@ extension PackageInfo.Platform {
     static var visionos = PackageInfo.Platform(platformName: "visionos", version: "1.0", options: [])
 }
 
+@Suite(.coverageAttribution)
 struct SettingsMapperSwiftLanguageModeTests {
     @Test func set_OTHER_SWIFT_FLAGS_without_swift_version_flag() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [

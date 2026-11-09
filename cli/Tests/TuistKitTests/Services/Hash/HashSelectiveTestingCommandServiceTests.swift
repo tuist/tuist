@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -17,6 +18,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct HashSelectiveTestingCommandServiceTests {
     @Test func run_outputsTheHashes_fromMapperEnvironment() async throws {
         try await withMockedDependencies {

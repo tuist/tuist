@@ -1,9 +1,11 @@
 import FileSystem
 import FileSystemTesting
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct CacheWarmScratchDirectoryPreparerTests {
     private let fileSystem = FileSystem()
 

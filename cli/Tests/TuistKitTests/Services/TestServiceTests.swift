@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistAlert
@@ -8334,7 +8335,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct TestServiceShardingTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [false, true])
     func without_building_restores_context_without_replaying_binary_cache_lookups(sharded: Bool) async throws {
@@ -9100,7 +9101,7 @@ private struct TestServiceShardingFixture {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct TestServiceSchemePlanningTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_with_passthrough_destination_validates_explicit_platform() async throws {
@@ -9694,6 +9695,7 @@ private struct SchemePlanningScenario {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestServiceBinaryCacheCoverageTests {
     /// `tuist test` reads the variant resolved from `TUIST_COVERAGE_ENABLED` and `Tuist.swift`, never from the run's
     /// `-enableCodeCoverage`, which only decides whether the run collects coverage.
@@ -9739,6 +9741,7 @@ struct TestServiceBinaryCacheCoverageTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestServiceCacheDestinationTests {
     @Test(
         .inTemporaryDirectory,
@@ -10057,7 +10060,7 @@ extension [String] {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct TestServiceStressNewTestsTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [StressNewTestsMode.report, .enforce])
     func run_withholds_the_hash_of_a_target_with_a_flaky_new_test(mode: StressNewTestsMode) async throws {
@@ -10459,6 +10462,7 @@ extension StressNewTestsResult {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestServiceCoverageEnabledTests {
     @Test(.withMockedEnvironment())
     func isFalseWhenTuistDoesNotUploadCoverage() {
@@ -10565,6 +10569,7 @@ private final class LockedValue<Value>: @unchecked Sendable {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestServiceTargetQueryTests {
     private enum Failure: Error {
         case unexpectedTestExecution

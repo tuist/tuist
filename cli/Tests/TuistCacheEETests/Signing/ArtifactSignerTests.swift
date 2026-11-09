@@ -1,4 +1,5 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -54,6 +55,7 @@ final class ArtifactSignerTests: TuistTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct ArtifactSigningCacheTests {
     @Test func reusesEncryptionWhileResolvingScopeForEverySignature() throws {
         let payload = MockArtifactSignaturePayloadProvider()

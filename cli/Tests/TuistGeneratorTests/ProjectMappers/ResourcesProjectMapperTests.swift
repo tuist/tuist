@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistCore
@@ -13,6 +14,7 @@ import XcodeGraph
 private let irrelevantBundleName = ""
 
 // swiftlint:disable:next type_body_length
+@Suite(.coverageAttribution)
 struct ResourcesProjectMapperTests {
     private let contentHasher: MockContentHashing
     private let buildableFolderChecker: MockBuildableFolderChecking

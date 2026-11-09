@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCAS
@@ -352,6 +353,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct CleanServiceRemoteTests {
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()

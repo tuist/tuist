@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironmentTesting
 import TuistHTTP
@@ -7,6 +8,7 @@ import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
+@Suite(.coverageAttribution)
 struct RunnerVolumeShowCommandServiceTests {
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: ["configured/project", "invalid", "configured/project/extra"])
     func explicitAccountOverridesConfiguredHandle(fullHandle: String) async throws {

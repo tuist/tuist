@@ -1,4 +1,5 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -6,6 +7,7 @@ import TuistTesting
 
 @testable import TuistCI
 
+@Suite(.coverageAttribution)
 struct CIControllerTests {
     private var subject: CIController
 

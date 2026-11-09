@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct InstrumentedBinaryCacheWarmTests {
     @Test func sourceRoots_addTheOtherSpellingOfPrivateDirectories() {
         #expect(InstrumentedBinaryCacheWarm.sourceRoots(["/private/tmp/checkout", "/tmp/checkout"]) == [

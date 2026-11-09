@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistCore
@@ -14,7 +15,7 @@ import XCResultParser
 
 @testable import TuistKit
 
-@Suite
+@Suite(.coverageAttribution)
 struct StressNewTestsServiceTests {
     private let planService = MockCreateStressPlanServicing()
     private let xcResultService = MockXCResultServicing()
@@ -404,7 +405,7 @@ private actor PassRecorder {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct StressPassArgumentsTests {
     @Test
     func xcodebuildStressPassReplacesActionSelectionAndRepetitionOptions() throws {

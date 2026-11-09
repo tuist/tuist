@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistConfig
@@ -14,6 +15,7 @@ import XcodeGraph
 
 /// Coverage-off adds no instrumentation dimension. Frozen keys use the current artifact format, whose
 /// intentional version bumps invalidate products independently of the coverage option.
+@Suite(.coverageAttribution)
 struct BinaryCacheCoverageHashTests {
     private let repositoryPath = try! AbsolutePath(validating: "/repo")
     private let packagePath = try! AbsolutePath(validating: "/repo/Tuist/.build/checkouts/Package")

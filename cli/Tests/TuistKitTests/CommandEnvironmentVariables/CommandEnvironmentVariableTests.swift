@@ -1,6 +1,7 @@
 import ArgumentParser
 import Difference
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistEnvironment
@@ -19,6 +20,7 @@ import TuistVersionCommand
 @testable import TuistTestCommand
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct CommandEnvironmentVariableTests {
     private var tuistVariables: [String: String] {
         get {

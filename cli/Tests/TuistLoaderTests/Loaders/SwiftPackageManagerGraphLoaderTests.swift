@@ -5,6 +5,7 @@ import Path
 import struct ProjectDescription.Project
 import enum ProjectDescription.TargetDependency
 import Synchronization
+import TestCoverageAttribution
 import Testing
 import TSCBasic
 import TuistConstants
@@ -111,6 +112,7 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
     }
 }
 
+@Suite(.coverageAttribution)
 struct SwiftPackageManagerGraphLoaderTests {
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
     private let packageInfoMapper = MockPackageInfoMapping()

@@ -1,9 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import TuistServer
 
 @testable import TuistPreviews
 
-@Suite struct PreviewReleaseNotesTests {
+@Suite(.coverageAttribution) struct PreviewReleaseNotesTests {
     @Test(arguments: [nil, "", " \t\n\r\n"] as [String?])
     func empty_notes_have_no_summary(notes: String?) {
         #expect(ServerPreview.test(releaseNotes: notes).releaseNotesSummary == nil)

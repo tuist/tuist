@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -10,6 +11,7 @@ import TuistNooraTesting
 import TuistServer
 @testable import TuistSandboxCommand
 
+@Suite(.coverageAttribution)
 struct SandboxCommandServiceTests {
     private static let serverURL = URL(string: "https://sandbox-tests.tuist.dev")!
     private static let id = "a57a427c-1ffc-476f-9282-558ff3f61585"

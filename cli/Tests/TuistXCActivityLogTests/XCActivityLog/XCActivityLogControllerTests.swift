@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -10,6 +11,7 @@ import TuistTestSupport
 @testable import TuistTesting
 @testable import TuistXCActivityLog
 
+@Suite(.coverageAttribution)
 struct XCActivityLogControllerTests {
     private let fileSystem = FileSystem()
     private let subject: XCActivityLogController

@@ -1,11 +1,13 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 import TuistTestSupport
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoTestReportTests {
     private let targets = [
         CargoTestTarget(

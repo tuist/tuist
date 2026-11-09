@@ -3,6 +3,7 @@ import Foundation
 import Logging
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistAutomation
@@ -25,7 +26,7 @@ import XCResultParser
 
 @testable import TuistKit
 
-@Suite
+@Suite(.coverageAttribution)
 struct XcodeBuildTestCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcodeBuildController = MockXcodeBuildControlling()

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -7,6 +8,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct InstrumentedBinaryCacheWarmGraphMapperTests {
     @Test func map_marksTheRepositoryBinariesOnly() async throws {
         let localPath = try AbsolutePath(validating: "/local")

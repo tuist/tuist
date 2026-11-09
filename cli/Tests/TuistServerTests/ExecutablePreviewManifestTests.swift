@@ -1,9 +1,11 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ExecutablePreviewManifestTests {
     @Test(.inTemporaryDirectory)
     func detectsArtifactTargetRatherThanUploadHost() throws {

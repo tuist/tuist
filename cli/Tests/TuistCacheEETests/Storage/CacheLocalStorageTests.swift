@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -13,6 +14,7 @@ import TuistServer
 @testable import TuistSupport
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct CacheLocalStorageErrorTests {
     @Test func type() {
         #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type == .abort)
@@ -26,6 +28,7 @@ struct CacheLocalStorageErrorTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct CacheLocalStorageTests {
     private let fileSystem = FileSystem()
 

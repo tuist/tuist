@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -125,6 +126,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct SettingsContentHasherBaseDebugTests {
     @Test func hash_includesBaseDebugSettings() async throws {
         // Given
@@ -157,6 +159,7 @@ struct SettingsContentHasherBaseDebugTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct SettingsContentHasherCompilationCacheTests {
     private func makeSubject() -> SettingsContentHasher {
         let contentHasher = MockContentHashing()

@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistLogging
@@ -8,6 +9,7 @@ import TuistServer
 
 @testable import TuistOrganizationCommand
 
+@Suite(.coverageAttribution)
 struct OrganizationShowServiceTests {
     private let getOrganizationService: MockGetOrganizationServicing
     private let getOrganizationUsageService: MockGetOrganizationUsageServicing

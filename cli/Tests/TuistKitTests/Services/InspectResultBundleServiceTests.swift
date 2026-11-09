@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistAutomation
@@ -24,6 +25,7 @@ import XCResultParser
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct UploadResultBundleServiceTests {
     private let subject: UploadResultBundleService
     private let machineEnvironment = MockMachineEnvironmentRetrieving()

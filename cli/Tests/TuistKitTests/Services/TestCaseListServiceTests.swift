@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistServer
@@ -8,7 +9,7 @@ import TuistTesting
 
 @testable import TuistKit
 
-@Suite
+@Suite(.coverageAttribution)
 struct TestCaseListServiceTests {
     private let listTestCasesService = MockListTestCasesServicing()
     private let subject: TestCaseListService

@@ -5,6 +5,7 @@
     import Mockable
     import Path
     import Synchronization
+    import TestCoverageAttribution
     import Testing
     import TuistAlert
     import TuistAutomation
@@ -26,6 +27,7 @@
     @testable import TuistKit
     @testable import TuistTesting
 
+    @Suite(.coverageAttribution)
     struct CacheWarmCommandServiceTests {
         private let config = Tuist.test()
         private let cacheStorage = MockCacheStoring()

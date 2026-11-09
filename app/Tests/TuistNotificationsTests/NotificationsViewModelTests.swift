@@ -1,12 +1,13 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistServer
 
 @testable import TuistNotifications
 
 @MainActor
-@Suite struct NotificationsViewModelTests {
+@Suite(.coverageAttribution) struct NotificationsViewModelTests {
     private let rulesService = MockNotificationRulesServicing()
     private let listPushDevicesService = MockListPushDevicesServicing()
     private let listProjectsService = MockListProjectsServicing()

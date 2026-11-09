@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
@@ -9,6 +10,7 @@ import TuistTesting
 
 @testable import TuistMachineMetrics
 
+@Suite(.coverageAttribution)
 struct MachineMetricsReaderTests {
     private let fileSystem = FileSystem()
 

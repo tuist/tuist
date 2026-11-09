@@ -1,6 +1,7 @@
 import FileSystem
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistSimulator
 import TuistXcodeBuildProducts
@@ -8,6 +9,7 @@ import XcodeGraph
 
 @testable import TuistXcodeBuildProducts
 
+@Suite(.coverageAttribution)
 struct BuildProductServiceTests {
     private let fileSystem = FileSystem()
     private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()

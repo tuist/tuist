@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -9,6 +10,7 @@ import TuistServer
 
 @testable import TuistAccountCommand
 
+@Suite(.coverageAttribution)
 struct AccountUpdateServiceTests {
     private let subject: AccountUpdateService
     private let configLoader = MockConfigLoading()

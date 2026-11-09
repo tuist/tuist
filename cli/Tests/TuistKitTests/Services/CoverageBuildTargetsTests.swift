@@ -1,10 +1,12 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageBuildTargetsTests {
     @Test func listsTheSchemesClosureWithCachedTargetsSlices() throws {
         let projectPath = try AbsolutePath(validating: "/repo/App")

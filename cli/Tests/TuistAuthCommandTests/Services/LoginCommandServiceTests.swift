@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistEnvironment
@@ -17,6 +18,7 @@ import TuistUserInputReader
 
 @testable import TuistAuthCommand
 
+@Suite(.coverageAttribution)
 struct LoginCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let serverSessionController: MockServerSessionControlling

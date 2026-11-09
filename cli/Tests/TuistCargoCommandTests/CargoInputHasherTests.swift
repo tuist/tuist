@@ -1,10 +1,12 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistREAPI
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoInputHasherTests {
     @Test(.inTemporaryDirectory) func reusesUnchangedInputsWithinOneInvocation() throws {
         let file = try input()

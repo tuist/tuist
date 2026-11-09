@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ReportActorCompatibilityTests {
     @Test(arguments: [0, 1, 2])
     func report_responses_accept_absent_null_and_future_actor_metadata(state: Int) throws {

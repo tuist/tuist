@@ -2,10 +2,12 @@ import ArgumentParser
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoTests {
     @Test func helpRecommendsNativeCargoTests() {
         let help = CargoCommand.helpMessage().split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -109,6 +111,7 @@ struct CargoTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct CargoReportingTests {
     @Test(.inTemporaryDirectory) func omitsNewMetadataUntilClusterWideSupportIsAdvertised() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -359,7 +362,7 @@ struct CargoReportingTests {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct CargoNextestReportTests {
     @Test func separatesRustNamespaceFromName() {
         let nested = NextestReport.identity("tests::parser::unicode")

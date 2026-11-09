@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistEnvironment
@@ -8,6 +9,7 @@ import TuistEnvironmentTesting
 
 @testable import TuistJobSummary
 
+@Suite(.coverageAttribution)
 struct RunReportServiceTests {
     private let fileSystem = FileSystem()
     private let subject = RunReportService()

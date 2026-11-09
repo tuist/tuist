@@ -3,7 +3,11 @@ import Foundation
 import Path
 import Testing
 @testable import SwifterPMCore
+#if canImport(TestCoverageAttribution)
+    import TestCoverageAttribution
+#endif
 
+@Suite(.coverageAttribution)
 struct FileSystemSupportTests {
     @Test
     func readsWritesListsAndRemovesFiles() async throws {

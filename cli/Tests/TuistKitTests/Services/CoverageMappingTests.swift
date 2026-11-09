@@ -1,9 +1,11 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageMappingTests {
     private func uleb(_ value: UInt64) -> [UInt8] {
         var value = value

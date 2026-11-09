@@ -1,11 +1,13 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistHTTP
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ListPreviewsSearchServiceTests {
     private let serverURL = URL(string: "https://self-hosted.example.com")!
 

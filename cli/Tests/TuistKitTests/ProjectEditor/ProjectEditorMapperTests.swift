@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TSCUtility
 import TuistConstants
@@ -15,6 +16,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!

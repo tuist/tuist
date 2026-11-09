@@ -1,8 +1,10 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import TuistCore
 
+@Suite(.coverageAttribution)
 struct GraphTraverserHostedPackageTests {
     @Test(arguments: [GraphDependency.PackageProductType.runtimeDynamic, .runtimeDynamicEmbedded])
     func hostedTestsRetainSharedDynamicProducts(type: GraphDependency.PackageProductType) throws {

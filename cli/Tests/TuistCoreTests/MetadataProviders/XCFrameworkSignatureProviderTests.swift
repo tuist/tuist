@@ -1,12 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 
 @testable import TuistCore
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct XCFrameworkSignatureProviderTests {
     private var subject: XCFrameworkSignatureProvider!
 

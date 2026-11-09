@@ -1,6 +1,8 @@
+import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct AtomicCoverageCountersTests {
     @Test
     func addsSettingsThatOnlyResolveWhenXcodeBuildsWithCoverage() {

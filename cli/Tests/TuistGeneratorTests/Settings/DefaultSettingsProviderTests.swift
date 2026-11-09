@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Mockable
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -9,6 +10,7 @@ import XcodeGraph
 @testable import TuistGenerator
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct DefaultSettingsProvider_iOSTests {
     private var subject: DefaultSettingsProvider!
 
@@ -1125,7 +1127,7 @@ struct DefaultSettingsProvider_iOSTests {
     }
 }
 
-@Suite
+@Suite(.coverageAttribution)
 struct DefaultSettingsProvider_MacosTests {
     private var subject: DefaultSettingsProvider!
 

@@ -2,12 +2,14 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 
 @testable import TuistGenerator
 
 // swiftlint:disable line_length
+@Suite(.coverageAttribution)
 struct SynthesizedResourceInterfacesGeneratorTests {
     @Test(.inTemporaryDirectory)
     func render_plistWithDictionaryValues_includesNonisolatedUnsafe() async throws {

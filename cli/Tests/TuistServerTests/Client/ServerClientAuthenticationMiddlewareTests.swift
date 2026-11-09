@@ -3,6 +3,7 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Synchronization
+import TestCoverageAttribution
 import Testing
 import TuistHTTP
 import TuistSupport
@@ -10,6 +11,7 @@ import TuistTesting
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ServerClientAuthenticationMiddlewareTests {
     private var subject: ServerClientAuthenticationMiddleware!
     private var serverAuthenticationController: MockServerAuthenticationControlling!

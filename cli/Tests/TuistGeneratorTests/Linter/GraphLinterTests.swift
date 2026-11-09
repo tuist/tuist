@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistConfig
@@ -13,6 +14,7 @@ import XcodeGraph
 
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct GraphLinterTests {
     private var subject: GraphLinter!
     private var graphTraverser: MockGraphTraversing!

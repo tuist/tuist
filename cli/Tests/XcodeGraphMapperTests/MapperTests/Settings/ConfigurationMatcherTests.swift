@@ -1,7 +1,9 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct ConfigurationMatcherTests {
     let configurationMatcher: ConfigurationMatching
 

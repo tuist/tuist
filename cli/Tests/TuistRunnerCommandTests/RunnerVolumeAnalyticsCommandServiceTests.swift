@@ -1,11 +1,13 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
+@Suite(.coverageAttribution)
 struct RunnerVolumeAnalyticsCommandServiceTests {
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
     func forwardsResolvedContextAndRendersResponse(json: Bool) async throws {

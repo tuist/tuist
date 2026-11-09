@@ -1,4 +1,5 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistDependencies
@@ -8,6 +9,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct LocalPackageTestFocusTests {
     @Test(arguments: [false, true])
     func preservesTestDependencyClosureUnlessExplicitlyFocused(explicitFocus: Bool) throws {

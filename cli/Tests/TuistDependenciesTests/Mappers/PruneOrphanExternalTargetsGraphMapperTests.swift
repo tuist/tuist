@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -7,6 +8,7 @@ import XcodeGraph
 
 @testable import TuistDependencies
 
+@Suite(.coverageAttribution)
 struct PruneOrphanExternalTargetsGraphMapperTests {
     @Test func map_when_external_targets_to_prune() async throws {
         let subject = PruneOrphanExternalTargetsGraphMapper()

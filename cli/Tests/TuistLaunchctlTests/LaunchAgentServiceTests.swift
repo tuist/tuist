@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Synchronization
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
@@ -66,6 +67,7 @@ private final class BootstrapTimes: Sendable {
     }
 }
 
+@Suite(.coverageAttribution)
 struct LaunchAgentServiceTests {
     private let subject: LaunchAgentService
     private let fileSystem = FileSystem()

@@ -2,10 +2,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct VolumeSpaceTests {
     @Test(.inTemporaryDirectory)
     func readReportsTheVolumeBackingAnExistingDirectory() throws {

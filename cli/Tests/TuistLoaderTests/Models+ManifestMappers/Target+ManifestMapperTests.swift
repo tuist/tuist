@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -30,6 +31,7 @@ final class TargetManifestMapperErrorTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TargetManifestMapperAdditionalHashingInputsTests {
     private let fileSystem = FileSystem()
 
@@ -304,6 +306,7 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GeneratedSourceIdentityMappingTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func generatedSourcesKeepTheirPathFingerprintButMarkItAsAPlaceholder(exists: Bool) async throws {
@@ -330,6 +333,7 @@ struct GeneratedSourceIdentityMappingTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct LocalPackageTestDependencyDiagnosticTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func missingDependencyExplainsRootPackageRequirement(isLocalPackageTest: Bool) async throws {

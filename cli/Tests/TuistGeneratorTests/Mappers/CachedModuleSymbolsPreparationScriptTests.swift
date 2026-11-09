@@ -2,9 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct CachedModuleSymbolsPreparationScriptTests {
     @Test(.inTemporaryDirectory)
     func writesModuleScopedMappingsWithoutChangingDebugBytes() async throws {

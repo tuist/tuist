@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoBuildReportingTests {
     private let started = Date(timeIntervalSince1970: 1000)
     private let marker = "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s\n"

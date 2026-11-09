@@ -2,12 +2,14 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
 
 @testable import TuistLoader
 
+@Suite(.coverageAttribution)
 struct TuistGeneratedProjectManifestMapperTests {
     private let fileSystem = FileSystem()
 

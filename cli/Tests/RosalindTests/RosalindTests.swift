@@ -2,10 +2,12 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import Rosalind
 
+@Suite(.coverageAttribution)
 struct RosalindTests {
     private let fileSystem = FileSystem()
     private let appBundleLoader = MockAppBundleLoading()

@@ -1,9 +1,11 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct REAPIChunkingTests {
     /// Chunk lengths the `fastcdc` crate's v2020 chunker (3.2.1) cuts with 128 KiB / 512 KiB / 2 MiB at
     /// normalization level 2, the parameters the cache plugin and Kura use.

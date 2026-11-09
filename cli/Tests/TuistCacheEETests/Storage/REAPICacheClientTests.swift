@@ -6,6 +6,7 @@ import GRPCNIOTransportHTTP2
 import Path
 import SwiftProtobuf
 import Synchronization
+import TestCoverageAttribution
 import Testing
 import TuistCache
 import TuistCore
@@ -15,6 +16,7 @@ import TuistServer
 @testable import TuistCacheEE
 @testable import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct REAPICacheClientTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: ["pem", "der", "bundle"])
     func loadsCustomCertificateThroughFileSystem(format: String) async throws {

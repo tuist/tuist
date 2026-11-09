@@ -1,9 +1,11 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistREAPI
 import TuistServer
 @testable import TuistBazelCommand
 
+@Suite(.coverageAttribution)
 struct BazelrcFileTests {
     @Test func remote_execution_is_opt_in_and_survives_cache_migration() throws {
         let image = "sha-" + String(repeating: "a", count: 40)

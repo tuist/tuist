@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
 
+@Suite(.coverageAttribution)
 struct LintingIssuePromotingWarningsTests {
     @Test func promotingWarnings_none_keepsWarnings() {
         let issues = [

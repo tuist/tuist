@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistCore
@@ -13,6 +14,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageBuildSourcesServiceTests {
     private let gitController = MockGitControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()

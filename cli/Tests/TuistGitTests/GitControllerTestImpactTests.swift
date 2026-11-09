@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistProcess
@@ -10,6 +11,7 @@ import TuistProcess
 
 /// Coverage-based test selection reads the diff between the baseline and the checkout from git,
 /// so these run against real repositories rather than stubbed output.
+@Suite(.coverageAttribution)
 struct GitControllerTestImpactTests {
     @Test(.inTemporaryDirectory) func changedFiles_lists_what_the_commits_changed_since_the_baseline() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)

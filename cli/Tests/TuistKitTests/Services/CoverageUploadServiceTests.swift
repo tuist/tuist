@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistServer
@@ -11,6 +12,7 @@ import TuistXCResultService
 import XCResultParser
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageUploadServiceTests {
     private let xcResultService = MockXCResultServicing()
     private let settingsService = MockGetCoverageSettingsServicing()

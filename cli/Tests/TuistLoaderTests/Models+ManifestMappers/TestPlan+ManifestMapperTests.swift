@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 
 @testable import TuistLoader
 
+@Suite(.coverageAttribution)
 struct TestPlanManifestMapperTests {
     private let fileSystem = FileSystem()
 
@@ -170,6 +172,7 @@ struct TestPlanManifestMapperTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GeneratedTestPlanCompatibilityTests {
     @Test func legacy_patterns_factories_and_json_are_preserved() throws {
         let factory: (String, [ProjectDescription.TestableTarget], ProjectDescription.Path?) -> ProjectDescription.TestPlan =

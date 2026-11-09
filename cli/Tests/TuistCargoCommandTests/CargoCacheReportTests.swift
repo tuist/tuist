@@ -1,10 +1,12 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoCacheReportTests {
     @Test(.inTemporaryDirectory)
     func sumsOnlyVersionedBoundedMeasurements() throws {

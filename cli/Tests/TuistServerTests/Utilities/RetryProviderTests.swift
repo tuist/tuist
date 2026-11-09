@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistHTTP
 import TuistTesting
@@ -135,6 +136,7 @@ private actor OperationCounter {
     }
 }
 
+@Suite(.coverageAttribution)
 struct RetryProviderErrorClassificationTests {
     private let subject: RetryProviding
 

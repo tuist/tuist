@@ -1,10 +1,12 @@
 #if os(macOS)
     import Foundation
     import Path
+    import TestCoverageAttribution
     import Testing
     import TuistTesting
     @testable import TuistPlugin
 
+    @Suite(.coverageAttribution)
     struct PluginServiceReleaseDownloadTests {
         private let fileClient = MockFileClient()
         private let releaseURL = URL(string: "https://github.com/acme/plugin/releases/download/1.0.0/Plugin.tuist-plugin.zip")!

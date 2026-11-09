@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
@@ -8,6 +9,7 @@ import XcodeGraph
 
 @testable import TuistHasher
 
+@Suite(.coverageAttribution)
 struct TargetContentHasherTests {
     private var contentHasher: MockContentHashing!
     private var coreDataModelsContentHasher: MockCoreDataModelsContentHashing!

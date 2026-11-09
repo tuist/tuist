@@ -1,9 +1,11 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct DynamicPackageDependencyMappingTests {
     @Test(arguments: [false, true])
     func mapsDynamicHintsToGraphRoles(embedded: Bool) async throws {

@@ -1,10 +1,12 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistServer
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TestImpactSkipListTests {
     @Test func splits_whole_modules_from_single_tests() {
         let skipList = TestImpactSkipList([

@@ -2,11 +2,12 @@
     import Foundation
     import Mockable
     import Path
+    import TestCoverageAttribution
     import Testing
     import TuistProcess
     @testable import Rosalind
 
-    @Suite struct AssetUtilControllerTests {
+    @Suite(.coverageAttribution) struct AssetUtilControllerTests {
         private let commandRunner = MockCommandRunning()
         private let subject: AssetUtilController
 

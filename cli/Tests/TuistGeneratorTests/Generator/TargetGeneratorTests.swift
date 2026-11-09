@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -9,6 +10,7 @@ import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct TargetGeneratorTests {
     var path: AbsolutePath!
     var subject: TargetGenerator!

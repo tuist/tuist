@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PBXCopyFilesBuildPhaseMapperTests {
     @Test("Maps copy files actions, verifying code-sign-on-copy attributes")
     func mapCopyFiles() async throws {

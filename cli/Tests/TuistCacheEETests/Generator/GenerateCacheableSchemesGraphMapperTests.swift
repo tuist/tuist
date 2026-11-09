@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
@@ -180,6 +181,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateCacheableSchemesGraphMapperSourceDependenciesTests {
     @Test(.inTemporaryDirectory) func binariesSchemeIncludesSourceDependenciesOfTheTargetsToCache() async throws {
         // Given

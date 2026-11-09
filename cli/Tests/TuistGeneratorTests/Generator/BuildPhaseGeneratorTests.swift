@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -12,6 +13,7 @@ import XcodeProj
 @testable import TuistGenerator
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct BuildPhaseGenerationErrorTests {
     @Test(
         .withMockedSwiftVersionProvider,
@@ -33,6 +35,7 @@ struct BuildPhaseGenerationErrorTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildPhaseGeneratorTests {
     var subject: BuildPhaseGenerator!
 

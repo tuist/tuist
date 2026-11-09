@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 import XCTest
@@ -129,6 +130,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct ProjectDescriptionHelpersBuilderRecencyTests {
     private let fileSystem = FileSystem()
     private let projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()

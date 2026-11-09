@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -12,6 +13,7 @@ import XcodeProj
 @testable import TuistGenerator
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct ConfigGeneratorTests {
     var pbxproj: PBXProj!
     var subject: ConfigGenerator!

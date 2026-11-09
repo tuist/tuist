@@ -3,10 +3,12 @@ import Foundation
 import Path
 import Rosalind
 import SnapshotTesting
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 import TuistTestSupport
 
+@Suite(.coverageAttribution)
 struct RosalindAcceptanceTests {
     private let fileSystem = FileSystem()
     private let subject = Rosalind()

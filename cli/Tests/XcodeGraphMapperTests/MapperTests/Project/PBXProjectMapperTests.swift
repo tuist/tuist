@@ -1,11 +1,13 @@
 import FileSystem
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PBXProjectMapperTests {
     private let fileSystem = FileSystem()
 

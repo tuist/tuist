@@ -2,12 +2,14 @@ import FileSystem
 import Foundation
 import Path
 @_spi(TuistLoader) import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
 @testable import TuistLoader
 
+@Suite(.coverageAttribution)
 struct PackageManifestMapperTests {
     @Test func existingPackageDeclarationsRemainSourceAndSerializationCompatible() throws {
         let package = ProjectDescription.Package.package(path: "Package")

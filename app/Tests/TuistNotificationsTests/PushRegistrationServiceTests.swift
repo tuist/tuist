@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistAuthentication
@@ -7,7 +8,7 @@ import TuistServer
 
 @testable import TuistNotifications
 
-@Suite struct PushRegistrationServiceTests {
+@Suite(.coverageAttribution) struct PushRegistrationServiceTests {
     private let registerService = MockRegisterPushDeviceServicing()
     private let unregisterService = MockUnregisterPushDeviceServicing()
     private let appStorage = InMemoryAppStorage()

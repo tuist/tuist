@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -9,6 +10,7 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct CachedMacroPrefixMappingGraphMapperTests {
     private let cached =
         try! AbsolutePath(validating: "/Users/a/.cache/tuist/Binaries/3f9c/Stringify.macro") // swiftlint:disable:this force_try

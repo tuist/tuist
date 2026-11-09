@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistCache
@@ -11,6 +12,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct CacheStorageFactoryingLocalFallbackTests {
     private let cacheStorageFactory = MockCacheStorageFactorying()
     private let localCacheStorage = MockCacheStoring()

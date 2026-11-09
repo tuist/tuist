@@ -1,10 +1,12 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageInstrumentationTests {
     @Test func tellsTheHitsWhoseBinariesCarryCoverageCounters() throws {
         let projectPath = try AbsolutePath(validating: "/repo")

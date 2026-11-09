@@ -1,8 +1,10 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeMetadata
 
+@Suite(.coverageAttribution)
 struct FrameworkMetadataProviderTests {
     var subject: FrameworkMetadataProvider
 

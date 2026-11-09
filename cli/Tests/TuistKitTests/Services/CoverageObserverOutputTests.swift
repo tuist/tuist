@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageObserverOutputTests {
     private func u32(_ value: UInt32) -> Data { withUnsafeBytes(of: value.littleEndian) { Data($0) } }
     private func u64(_ value: UInt64) -> Data { withUnsafeBytes(of: value.littleEndian) { Data($0) } }

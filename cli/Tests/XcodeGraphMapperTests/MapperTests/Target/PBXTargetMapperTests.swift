@@ -1,12 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
 // swiftlint:disable:next type_body_length
+@Suite(.coverageAttribution)
 struct PBXTargetMapperTests {
     private let fileSystem = FileSystem()
 

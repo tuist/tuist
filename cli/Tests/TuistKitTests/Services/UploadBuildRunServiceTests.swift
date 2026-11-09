@@ -3,6 +3,7 @@ import Foundation
 import HTTPTypes
 import Mockable
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistAutomation
 import TuistCI
@@ -21,6 +22,7 @@ import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct UploadBuildRunServiceTests {
     private let subject: UploadBuildRunService
     private let fileSystem = FileSystem()

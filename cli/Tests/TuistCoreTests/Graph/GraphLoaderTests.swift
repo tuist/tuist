@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 import XcodeGraph
@@ -824,6 +825,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GraphLoaderXCFrameworkSignatureTests {
     private let signature = XCFrameworkSignature.signedWithAppleCertificate(teamIdentifier: "TEAM", teamName: "Vendor")
     private let path: AbsolutePath = "/Frameworks/SDK.xcframework"

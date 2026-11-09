@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -11,6 +12,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CoverageReadCommandServiceTests {
     private let coverageService = MockCoverageServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistConfig
@@ -17,6 +18,7 @@ import XcodeGraph
 @testable import TuistInspectCommand
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct InspectDependenciesCommandServiceTests {
     private let configLoader: MockConfigLoading
     private let generatorFactory: MockGeneratorFactorying

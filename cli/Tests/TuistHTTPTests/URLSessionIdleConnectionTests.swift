@@ -1,10 +1,12 @@
 #if os(macOS)
     import Foundation
+    import TestCoverageAttribution
     import Testing
     import TuistEnvironmentTesting
 
     @testable import TuistHTTP
 
+    @Suite(.coverageAttribution)
     struct URLSessionIdleConnectionTests {
         @Test(.withMockedEnvironment())
         func configuration_closes_idle_connections_before_the_server_does() {

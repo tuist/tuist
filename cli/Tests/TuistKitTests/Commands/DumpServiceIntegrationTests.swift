@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import TuistConstants
 import TuistLoggerTesting
@@ -15,6 +16,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistLoader
 
+@Suite(.coverageAttribution)
 struct DumpServiceProjectTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func printsTheProjectManifest() async throws {

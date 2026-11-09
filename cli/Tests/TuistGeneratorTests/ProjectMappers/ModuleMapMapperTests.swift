@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistGenerator
@@ -9,6 +10,7 @@ import XcodeGraph
 
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct ModuleMapMapperTests {
     private var subject: ModuleMapMapper { ModuleMapMapper() }
 

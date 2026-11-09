@@ -1,9 +1,11 @@
 import GRPCCore
 import GRPCNIOTransportHTTP2
+import TestCoverageAttribution
 import Testing
 import TuistEnvironmentTesting
 @testable import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct RemoteCacheProbeServiceTests {
     enum Consumer: CaseIterable {
         case probe, moduleCache

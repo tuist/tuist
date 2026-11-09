@@ -1,9 +1,11 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import XcodeMetadata
 
+@Suite(.coverageAttribution)
 struct PrecompiledMetadataProviderTests {
     var subject: PrecompiledMetadataProvider
 

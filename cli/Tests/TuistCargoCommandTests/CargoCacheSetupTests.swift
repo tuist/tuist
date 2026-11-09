@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCAS
 import TuistCore
@@ -9,6 +10,7 @@ import TuistProcess
 import TuistServer
 @testable import TuistCargoCommand
 
+@Suite(.coverageAttribution)
 struct CargoCacheSetupTests {
     @Test(.inTemporaryDirectory) func preparesPrivateCredentialsAndUsesTheSharedCacheDirectory() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)

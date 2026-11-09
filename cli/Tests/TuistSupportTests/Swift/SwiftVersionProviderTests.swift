@@ -1,9 +1,11 @@
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistProcess
 @testable import TuistSupport
 
+@Suite(.coverageAttribution)
 struct SwiftVersionProviderTests {
     private let commandRunner = MockCommandRunning()
     private let subject: SwiftVersionProvider

@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Path
 import ProjectDescription
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 
 @testable import TuistLoader
 
+@Suite(.coverageAttribution)
 struct BuildActionManifestMapperTests {
     @Test
     func repeatedTargetsCombineBuildForOptions() {

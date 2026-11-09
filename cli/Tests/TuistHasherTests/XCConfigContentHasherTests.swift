@@ -3,10 +3,12 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 @testable import TuistHasher
 
+@Suite(.coverageAttribution)
 struct XCConfigContentHasherTests {
     private var subject: XCConfigContentHasher!
     private var contentHasher: MockContentHashing!

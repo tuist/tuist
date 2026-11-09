@@ -1,12 +1,14 @@
 import ArgumentParser
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
+@Suite(.coverageAttribution)
 struct RunnerProfileCommandTests {
     private static let profile = """
     {"id":1,"name":"ci","platform":"macos","vcpus":6,"memory_gb":14,"xcode_version":"26.5","protected":false,

@@ -4,10 +4,14 @@ import Foundation
 import Synchronization
 import Testing
 @testable import SwifterPMCore
+#if canImport(TestCoverageAttribution)
+    import TestCoverageAttribution
+#endif
 
 #if canImport(Security)
     import Security
 
+    @Suite(.coverageAttribution)
     struct KeychainAuthorizationTests {
         @Test(arguments: [true, false])
         func queriesMatchNativeAttributesWithoutCredentialURLs(includeData: Bool) throws {

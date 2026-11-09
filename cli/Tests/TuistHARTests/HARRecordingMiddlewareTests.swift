@@ -4,10 +4,12 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 import Path
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistHAR
 
+@Suite(.coverageAttribution)
 struct HARRecordingMiddlewareTests {
     @Test(.inTemporaryDirectory)
     func intercept_recordsResponseInDetachedTask() async throws {

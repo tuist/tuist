@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 
 @testable import TuistCacheEE
 
+@Suite(.coverageAttribution)
 struct CacheSigningGrantVerifierTests {
     /// A throwaway Ed25519 keypair (private seed = bytes 0...31) generated only
     /// for these tests. It is NOT any real environment's key, so the tokens

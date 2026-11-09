@@ -3,11 +3,13 @@ import FileSystemTesting
 import Foundation
 import Path
 import SwiftyJSON
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct RegistryConfigurationGeneratorTests {
     private let subject = RegistryConfigurationGenerator()
 

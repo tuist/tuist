@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistSupport
@@ -9,6 +10,7 @@ import XcodeGraph
 
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct BuildInsightsActionMapperTests {
     private let subject: BuildInsightsActionMapper
 

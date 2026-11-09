@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -343,6 +344,7 @@ final class SchemeLinterTests: TuistUnitTestCase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GeneratedTestPlanCoverageLinterTests {
     @Test func missing_local_coverage_target_is_flagged_but_external_reference_is_allowed() async throws {
         let projectPath = try AbsolutePath(validating: "/Project")

@@ -1,9 +1,11 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistGenerator
 
+@Suite(.coverageAttribution)
 struct GenerateTargetScriptFileListProjectMapperTests {
     @Test
     func map_returns_sideEffectsToCreateGeneratedFileLists() throws {

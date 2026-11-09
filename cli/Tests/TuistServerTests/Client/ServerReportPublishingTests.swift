@@ -2,12 +2,14 @@ import Foundation
 import HTTPTypes
 import Mockable
 import OpenAPIRuntime
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistHTTP
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct ServerReportPublishingTests {
     @Test(arguments: [
         (#"{"network_trusted_cache_access":true,"network_trusted_report_publishing":false}"#, true),

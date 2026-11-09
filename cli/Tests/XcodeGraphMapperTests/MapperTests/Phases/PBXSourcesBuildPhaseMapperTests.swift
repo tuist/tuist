@@ -1,8 +1,10 @@
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PBXSourcesBuildPhaseMapperTests {
     @Test("Maps Swift source files with compiler flags from sources phase")
     func mapSources() async throws {

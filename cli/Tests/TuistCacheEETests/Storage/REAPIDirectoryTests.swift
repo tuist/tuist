@@ -3,9 +3,11 @@ import FileSystemTesting
 import Foundation
 import Path
 import SwiftProtobuf
+import TestCoverageAttribution
 import Testing
 import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct REAPIDirectoryTests {
     @Test(.inTemporaryDirectory) func preservesVersionedFrameworkSymlinksAndExecutableBits() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)

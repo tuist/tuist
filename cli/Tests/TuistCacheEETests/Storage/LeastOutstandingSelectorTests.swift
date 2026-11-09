@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct LeastOutstandingSelectorTests {
     private final class FakeClient: Sendable { let id: Int; init(_ id: Int) { self.id = id } }
 

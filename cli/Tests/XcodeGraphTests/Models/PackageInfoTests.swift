@@ -1,7 +1,9 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 @testable import XcodeGraph
 
+@Suite(.coverageAttribution)
 struct PackageInfoTests {
     @Test
     func packageInfo_codable() throws {

@@ -1,7 +1,9 @@
+import TestCoverageAttribution
 import Testing
 import TuistGenerator
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct GeneratedProjectFileCleanupOrderingTests {
     @Test func cleanupRunsAfterEveryPreservedFileGenerator() throws {
         let mappers = ProjectMapperFactory().default(tuist: .default)

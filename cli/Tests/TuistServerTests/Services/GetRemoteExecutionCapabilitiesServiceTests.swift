@@ -1,10 +1,12 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistTesting
 
 @testable import TuistServer
 
+@Suite(.coverageAttribution)
 struct GetRemoteExecutionCapabilitiesServiceTests {
     private let serverURL = URL(string: "https://tuist.dev")!
 

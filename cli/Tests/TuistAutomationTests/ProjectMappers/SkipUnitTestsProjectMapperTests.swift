@@ -1,4 +1,5 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TSCBasic
 import TuistCore
@@ -8,6 +9,7 @@ import XcodeGraph
 @testable import TuistAutomation
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct SkipUnitTestsProjectMapperTests {
     private var subject: SkipUnitTestsProjectMapper!
 

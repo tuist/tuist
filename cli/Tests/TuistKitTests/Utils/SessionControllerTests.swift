@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct SessionControllerTests {
     private let fileSystem = FileSystem()
     private let subject = SessionController()

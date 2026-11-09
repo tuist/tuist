@@ -4,10 +4,12 @@
     import Foundation
     import Mockable
     import Path
+    import TestCoverageAttribution
     import Testing
     import TuistAndroid
     import TuistProcess
 
+    @Suite(.coverageAttribution)
     struct APKMetadataServiceTests {
         private let subject: APKMetadataService
         private let commandRunner = MockCommandRunning()

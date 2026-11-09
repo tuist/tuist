@@ -1,9 +1,11 @@
 import FileSystem
 import Foundation
+import TestCoverageAttribution
 import Testing
 import XcodeGraph
 @testable import XcodeGraphMapper
 
+@Suite(.coverageAttribution)
 struct PackageMapperTests {
     private let fileSystem = FileSystem()
 

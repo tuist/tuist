@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistEnvironment
 import TuistLaunchctl
@@ -12,6 +13,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TeardownInsightsCommandServiceTests {
     private let subject: TeardownInsightsCommandService
     private let launchAgentService = MockLaunchAgentServicing()

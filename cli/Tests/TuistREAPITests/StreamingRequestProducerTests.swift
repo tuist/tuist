@@ -1,7 +1,9 @@
 import Synchronization
+import TestCoverageAttribution
 import Testing
 @testable import TuistREAPI
 
+@Suite(.coverageAttribution)
 struct StreamingRequestProducerTests {
     @Test func stopWaitsForParkedWritesToEnd() async throws {
         let producer = StreamingRequestProducer()

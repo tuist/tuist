@@ -4,6 +4,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAndroid
 import TuistAutomation
@@ -23,6 +24,7 @@ import TuistKit
 @testable import TuistRunCommand
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct RunCommandServiceErrorTests {
     @Test
     func test_description() {
@@ -41,6 +43,7 @@ struct RunCommandServiceErrorTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct RunCommandServiceTests {
     private let generator = MockGenerating()
     private let generatorFactory = MockGeneratorFactorying()

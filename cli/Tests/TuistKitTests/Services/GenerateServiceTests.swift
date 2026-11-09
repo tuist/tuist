@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistCache
@@ -21,6 +22,7 @@ import XcodeProj
 @testable import TuistLoader
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct GenerateServiceTests {
     private var subject: GenerateService!
     private var opener: MockOpening!
@@ -672,6 +674,7 @@ struct GenerateServiceTests {
 /// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
 /// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
 /// execution. Until that's investigated upstream, the outdated-dependency cases live here.
+@Suite(.coverageAttribution)
 struct GenerateServiceOutdatedDependenciesTests {
     private var subject: GenerateService!
     private var generator: MockGenerating!

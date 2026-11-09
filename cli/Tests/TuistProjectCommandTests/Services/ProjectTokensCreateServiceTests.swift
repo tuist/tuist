@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TestCoverageAttribution
 import Testing
 import TuistConfigLoader
 import TuistNooraTesting
@@ -7,6 +8,7 @@ import TuistServer
 
 @testable import TuistProjectCommand
 
+@Suite(.coverageAttribution)
 struct ProjectTokensCreateServiceTests {
     private let createProjectTokenService = MockCreateProjectTokenServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()

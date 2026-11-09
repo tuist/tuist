@@ -2,11 +2,13 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import XcodeGraph
 @testable import TuistCache
 
+@Suite(.coverageAttribution)
 struct CachedModuleDebuggingMetadataTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func restoresSourcePathsWithoutProducerInputs(mapped: Bool) async throws {

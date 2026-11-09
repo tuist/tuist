@@ -7,10 +7,12 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistProcess
 @testable import TuistCAS
 
+@Suite(.coverageAttribution)
 struct XcodeCacheInstallationStoreTests {
     @Test(.inTemporaryDirectory)
     func generation_does_not_install_a_launcher() async throws {
@@ -200,6 +202,7 @@ struct XcodeCacheInstallationStoreTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeCacheLauncherLifecycleTests {
     @Test(
         .inTemporaryDirectory,

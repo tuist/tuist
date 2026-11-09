@@ -5,6 +5,7 @@ import HTTPTypes
 import Mockable
 import OpenAPIRuntime
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAlert
 import TuistAppleArchiver
@@ -22,6 +23,7 @@ import XcodeGraph
 @testable import TuistSupport
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct ModuleCacheRemoteStorageTests {
     private struct TestError: Equatable, Error, LocalizedError {
         var description: String

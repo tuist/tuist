@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import TestCoverageAttribution
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -12,6 +13,7 @@ import XcodeGraph
 @testable import TuistTesting
 @testable import XcodeProj
 
+@Suite(.coverageAttribution)
 struct ProjectDescriptorGeneratorTests {
     var subject: ProjectDescriptorGenerator!
 
