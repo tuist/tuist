@@ -3529,8 +3529,11 @@ filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
 When the installer omits the data mount/fstab entry, bootstrap accepts exactly
 one unmounted XFS md filesystem and inspects it read-only; ambiguous devices,
 populated filesystems and a populated unmounted `/data` directory are refused.
-`controllers/linux/kura_lvm_setup.sh` creates a 128 GiB XFS `data` LV with
-`prjquota`; the remaining extents back CSI volumes. It journals the source
+`controllers/linux/kura_lvm_setup.sh` creates an 80 GiB XFS `data` LV with
+`prjquota` (128 GiB on hosts converted before 2026-11-09); the remaining
+extents back CSI volumes. `/data` then holds only containerd's store, capped by
+its 64 GiB project quota below the kubelet's 85% image GC and eviction line,
+and the kubelet root. It journals the source
 before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
 filesystem or an already-joined legacy host. Existing nodes require a reinstall.
 Before any destructive step it also installs `thin-provisioning-tools` (LVM
@@ -3542,7 +3545,7 @@ do not run this script.
 The Vultr conversion uses the same function for its detached non-ESP RAID leg;
 the root still loses its mirror, and conversion gates require the VG. Existing
 successful Vultr conversion records are not invalidated by this change.
-Explicitly enrolled rack storage installs create the same VG and 128 GiB data LV directly through
+Explicitly enrolled rack storage installs create the same VG with a 128 GiB data LV directly through
 curtin in `internal/rackinstall/seed.go`, for both USB and resident-installer
 layouts. Existing rack disks are never converted by bootstrap or drift. Machine deletion also reaps claims pinned
 by `topology.kura-volumes.tuist.dev/node`. Evacuate workloads and retained claims

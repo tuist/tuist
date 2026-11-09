@@ -137,7 +137,8 @@ client test seals with an independent server-side implementation against an
 `kura-lvm-nvme` selects `encryption: none`, which requires the VG and refuses
 LUKS headers; the encrypted class retains its existing immutable parameters.
 The driver advertises `tuist.dev/kura-disk` as VG size minus non-Kura LVs,
-including the 128 GiB `data` LV. It advertises total reservable capacity, not
+including the `data` LV (80 GiB on rented hosts converted from 2026-11-09,
+128 GiB on earlier ones and rack hosts). It advertises total reservable capacity, not
 free extents: kube-scheduler subtracts pod reservations. The server additionally
 accounts for retained volumes. The driver removes capacity on nodes without the
 VG and does not silently use files for plain volumes. Prepare replacement LVM
