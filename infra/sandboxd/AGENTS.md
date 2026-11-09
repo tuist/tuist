@@ -1,4 +1,4 @@
-| `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup and counted in `disk.templates_bytes`; see "Guest to host: blob cache". `0` disables it. |
+| `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup; see "Guest to host: blob cache". It comes out of `DISK_BUDGET_GIB`: the daemon reports the budget less the cache, so placement never counts on the cache's bytes, and refuses to start unless the cache is smaller. Its usage is reported in `disk.templates_bytes`. `0` disables it. || `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup and counted in `disk.templates_bytes`; see "Guest to host: blob cache". `0` disables it. |
 # sandboxd
 
 Per-node daemon that runs Firecracker microVM sandboxes for coding-agent
@@ -276,8 +276,10 @@ A read answers `{"ok":true}` and exactly `L` bytes of the blob from `O`, or
 downloads the whole blob with the exec's credential, verifies its digest, and
 serves every concurrent request for it from that one download. Blobs are kept
 per CAS scope (endpoint, account, instance), so a hit never serves another
-project's blob, and the least recently used are evicted to stay within the
-budget. `seal` ends serving for the exec; the executor sends it before the
+project's blob. The least recently used are evicted to stay within the
+budget and to leave 20% of the data filesystem free, which the cache shares
+with runner cache volumes, containerd and kubelet (kubelet evicts Pods below
+15%); when nothing is left to evict, the guest reads that blob from the CAS. `seal` ends serving for the exec; the executor sends it before the
 action's command starts, so the build cannot read the project's CAS through
 the host.
 

@@ -90,6 +90,17 @@ func main() {
 		logger.Error("BLOB_CACHE_GIB must not be negative", "value", blobCacheGiB)
 		os.Exit(1)
 	}
+	// The blob cache comes out of the disk budget: the server places sandboxes
+	// against the budget the daemon reports, so it never counts on the bytes
+	// the cache may hold.
+	sandboxBudgetGiB := diskBudgetGiB
+	if diskBudgetGiB > 0 && blobCacheGiB > 0 {
+		if blobCacheGiB >= diskBudgetGiB {
+			logger.Error("BLOB_CACHE_GIB must be below DISK_BUDGET_GIB", "blob_cache_gib", blobCacheGiB, "disk_budget_gib", diskBudgetGiB)
+			os.Exit(1)
+		}
+		sandboxBudgetGiB -= blobCacheGiB
+	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
@@ -322,7 +333,7 @@ func main() {
 
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
-		BlobCacheDir: filepath.Join(dataDir, "blobs"), BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+		BlobCacheDir: filepath.Join(dataDir, "blobs"), BudgetBytes: uint64(sandboxBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
 	}
 	diskReport := func() protocol.DiskReport {
 		report, err := disk.Report()

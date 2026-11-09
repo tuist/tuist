@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,6 +88,7 @@ func setup(t *testing.T, budget int64) (*Cache, *fakeCAS, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.Filesystem = func(string) (uint64, uint64, error) { return 1 << 40, 1 << 40, nil }
 	return c, cas, "grpc://" + l.Addr().String()
 }
 
@@ -249,5 +251,32 @@ func TestSealEndsServing(t *testing.T) {
 	}
 	if _, err := guestRead(socket, Request{Op: "read", Hash: hash, Size: size, Length: size}); err == nil {
 		t.Fatal("read served after the seal")
+	}
+}
+
+func TestCacheStepsAsideWhenTheDiskIsShort(t *testing.T) {
+	c, cas, endpoint := setup(t, 1<<20)
+	var available atomic.Uint64
+	available.Store(500)
+	c.Filesystem = func(string) (uint64, uint64, error) { return 1000, available.Load(), nil }
+	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+	first, size := cas.put("first-blob")
+	if _, err := readAll(t, c, s, first, size); err != nil {
+		t.Fatal(err)
+	}
+	// Runners filled the disk to 81%: the cache gives back what it holds and
+	// sends the guest to the CAS rather than write more.
+	available.Store(190)
+	second, _ := cas.put("other-blob")
+	if _, err := readAll(t, c, s, second, size); !errors.Is(err, ErrFull) {
+		t.Fatalf("download under disk pressure: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(c.Dir(), s.key(), first+"-10")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cached blob kept under disk pressure: %v", err)
+	}
+	// 211 free leaves 201 after the write, above the 200 floor.
+	available.Store(211)
+	if got, err := readAll(t, c, s, second, size); err != nil || got != "other-blob" {
+		t.Fatalf("after the pressure: %q %v", got, err)
 	}
 }

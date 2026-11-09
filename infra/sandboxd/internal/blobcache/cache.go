@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,9 +36,15 @@ const MaxBlob = 1 << 30
 // action, whose cancellation must not fail the other actions waiting on it.
 const fillTimeout = 5 * time.Minute
 
+// minFreeFraction is the share of the data filesystem the cache leaves free.
+// It shares the filesystem with runner cache volumes, containerd and kubelet,
+// and kubelet evicts Pods below 15% free, so the cache steps aside first.
+const minFreeFraction = 0.20
+
 var (
 	ErrInvalid = errors.New("invalid blob request")
-	// ErrFull means every cached byte belongs to a download in flight; the
+	// ErrFull means the blob does not fit: every cached byte belongs to a
+	// download in flight, or the data filesystem is short of free space. The
 	// guest reads that blob from the CAS itself.
 	ErrFull = errors.New("blob cache full")
 )
@@ -75,7 +82,7 @@ type Metrics struct {
 func NewMetrics(registry prometheus.Registerer) *Metrics {
 	m := &Metrics{
 		Requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "sandboxd_blob_cache_requests_total", Help: "Guest blob reads by outcome: hit, miss (downloaded or waited for a download) or error.",
+			Name: "sandboxd_blob_cache_requests_total", Help: "Guest blob reads by outcome: hit, miss (downloaded or waited for a download), full (no room in the budget or on disk; the guest reads the CAS) or error.",
 		}, []string{"result"}),
 		FetchedBytes: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "sandboxd_blob_cache_fetched_bytes_total", Help: "Bytes the blob cache downloaded from CAS endpoints.",
@@ -97,11 +104,15 @@ type Cache struct {
 	metrics *Metrics
 	// Dial opens a CAS connection; tests replace it.
 	Dial func(endpoint string) (*grpc.ClientConn, error)
+	// Filesystem reports the data filesystem's size and free bytes; tests
+	// replace it.
+	Filesystem func(path string) (total, available uint64, err error)
 
 	mu      sync.Mutex
 	entries map[string]*entry
 	lru     list.List // ready entries, least recently used first
 	used    int64     // ready and reserved bytes
+	pending int64     // reserved bytes not yet on disk
 	conns   map[string]*grpc.ClientConn
 	tmp     int
 }
@@ -118,7 +129,7 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
+	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
 }
 
 // Dir is where the cache keeps its files, for disk accounting.
@@ -132,6 +143,7 @@ func (c *Cache) Open(ctx context.Context, s Scope, hash string, size int64) (*os
 		return nil, ErrInvalid
 	}
 	if size > c.budget {
+		c.count("full")
 		return nil, ErrFull
 	}
 	ns := s.key()
@@ -145,7 +157,7 @@ func (c *Cache) Open(ctx context.Context, s Scope, hash string, size int64) (*os
 			var err error
 			if e, err = c.reserve(key, filepath.Join(c.dir, ns, name), size); err != nil {
 				c.mu.Unlock()
-				c.count("error")
+				c.count("full")
 				return nil, err
 			}
 			go c.fill(e, s, hash)
@@ -191,12 +203,14 @@ func (c *Cache) count(result string) {
 	}
 }
 
-// reserve evicts least recently used blobs until size fits and records a
-// download in flight. c.mu is held.
+// reserve evicts least recently used blobs until size fits within the budget
+// and the filesystem keeps its free share, and records a download in flight.
+// c.mu is held.
 func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
-	for c.used+size > c.budget {
+	for c.used+size > c.budget || c.shortOfDisk(size) {
 		oldest := c.lru.Front()
 		if oldest == nil {
+			c.gauge()
 			return nil, ErrFull
 		}
 		victim := oldest.Value.(*entry)
@@ -210,8 +224,20 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	e := &entry{key: key, path: path, size: size, ready: make(chan struct{})}
 	c.entries[key] = e
 	c.used += size
+	c.pending += size
 	c.gauge()
 	return e, nil
+}
+
+// shortOfDisk reports whether writing size more bytes, beside the downloads
+// still in flight, would leave the data filesystem under its free share. An
+// unreadable filesystem counts as short.
+func (c *Cache) shortOfDisk(size int64) bool {
+	total, available, err := c.Filesystem(c.dir)
+	if err != nil {
+		return true
+	}
+	return float64(available)-float64(c.pending+size) < minFreeFraction*float64(total)
 }
 
 func (c *Cache) gauge() {
@@ -226,6 +252,7 @@ func (c *Cache) fill(e *entry, s Scope, hash string) {
 	err := c.download(ctx, e, s, hash)
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.pending -= e.size
 	if err != nil {
 		// Forget it so the next request downloads again.
 		delete(c.entries, e.key)

@@ -198,8 +198,11 @@ in a batch). The guest asks sandboxd for each such blob over vsock; sandboxd
 downloads it once per node with the action's own scope and credential, verifies
 it and serves it, and the guest verifies it again while writing it to the
 workspace. A blob is kept per project CAS scope and is never served to another
-project. Any failure falls back to reading that blob, and the rest of the
-action's inputs, from Kura.
+project. The cache comes out of the workers' disk budget and leaves 20% of
+the host's data filesystem free, evicting its own blobs first, so it never
+crowds out runner cache volumes or pushes kubelet into evictions. Any failure,
+or no room, falls back to reading that blob, and the rest of the action's
+inputs, from Kura.
 
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel
