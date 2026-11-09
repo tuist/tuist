@@ -313,7 +313,7 @@ server:
         # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
         # Meter has to exist before this key does; the empty id reports without
         # charging.
-        runner_cache_volume_megabyte_months: ""
+        runner_cache_volume_megabyte_months: "price_1UZpgYLlKoN51ecz4XXUYIn7"
       retired_runners:
         runner_macos_compute_unit_milliseconds:
           - "price_1UXNkKLlKoN51eczld0hbV1t"
