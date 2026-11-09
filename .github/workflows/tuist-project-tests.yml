@@ -214,11 +214,8 @@ jobs:
       # increments lose counts. The option's `prefixMapping` keeps Xcode's prefix
       # mapping in coverage builds, so the compilation cache replays across
       # runners; the CLI maps the covered paths back.
-      # `-parallel-testing-enabled NO` overrides the scheme's per-target setting:
-      # Xcode has no option that serializes Swift Testing while XCTest stays
-      # parallel, and every scheme tested here mixes both.
       - name: Run tests
-        run: tuist test TuistUnitTests ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 -parallel-testing-enabled NO
+        run: tuist test TuistUnitTests ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4
 
   # Like unit-tests. The app's dependencies are the same targets with or without
   # TuistCacheEE, so this job runs without it and still hits the warm.
@@ -262,6 +259,10 @@ jobs:
         uses: tuist/install@v1
         with:
           cache-key: app-macos-workspace-app-test
+      # `-parallel-testing-enabled NO` overrides the scheme's per-target setting, so the Swift
+      # Testing suites' `.coverageAttribution` trait records each test on its own: tests that
+      # overlap in one process get no evidence. Xcode has no option that serializes Swift Testing
+      # while XCTest stays parallel.
       - name: Run tests
         run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 -parallel-testing-enabled NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
@@ -394,7 +395,8 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      # Serial, like the unit tests. Acceptance tests each shell out to their own nested
+      # Serial, like the app tests, so the Swift Testing suites' `.coverageAttribution` trait
+      # records each test on its own. Acceptance tests each shell out to their own nested
       # xcodebuild, so parallel runners also multiplied compiler processes: uncapped on a 6-core
       # runner that reached 78 concurrent swift-frontend processes
       # (https://github.com/tuist/tuist/issues/12512).
