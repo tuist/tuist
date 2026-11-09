@@ -76,4 +76,53 @@ defmodule TuistWeb.Noora.Pages.Button do
     </.button>
     """
   end
+
+  # Dev only, temporary: every size, state, and variant at once, in a light
+  # and a dark panel, laid out like the Figma component sheet. Hover,
+  # pressed, and focus are forced with `data-preview` (see the
+  # `.noora-docs-button-matrix` rules in routes/noora.css). Never compiled
+  # outside dev.
+  if Mix.env() == :dev do
+    example "All buttons (dev only)",
+      description: "Every size, state, and variant. Rows per size: default, hover, pressed, focus, disabled.",
+      layout: :column do
+      ~H"""
+      <div class="noora-docs-button-matrix">
+        <div :for={scheme <- ["light", "dark"]} data-part="panel" data-scheme={scheme}>
+          <div :for={size <- ["large", "medium", "small"]} data-part="size">
+            <div
+              :for={state <- ["default", "hover", "pressed", "focus", "disabled"]}
+              data-part="row"
+            >
+              <%= for variant <- ["primary", "secondary", "destructive"] do %>
+                <.button
+                  label="Button"
+                  variant={variant}
+                  size={size}
+                  data-preview={state}
+                  disabled={state == "disabled"}
+                  tabindex="-1"
+                >
+                  <:icon_left><.chevron_left /></:icon_left>
+                  <:icon_right><.chevron_right /></:icon_right>
+                </.button>
+                <.button
+                  icon_only
+                  variant={variant}
+                  size={size}
+                  data-preview={state}
+                  disabled={state == "disabled"}
+                  tabindex="-1"
+                  aria-label="Next"
+                >
+                  <.chevron_right />
+                </.button>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+      """
+    end
+  end
 end

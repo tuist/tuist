@@ -1020,7 +1020,7 @@
        global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
-      outline-offset: -2px;
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
       border-radius: var(--noora-radius-2);
     }
 

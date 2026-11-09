@@ -191,8 +191,8 @@
 
       /* The input drops its own outline; the field shows the docs ring. */
       &:has(input:focus-visible) {
-        outline: 2px solid var(--noora-surface-label-brand);
-        outline-offset: 2px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       & svg {
@@ -264,7 +264,7 @@
          the next item's background; it sits on the item's own edge instead,
          following its 6px radius. */
       &:focus-visible {
-        outline-offset: -2px;
+        outline-offset: calc(-1 * var(--noora-focus-ring-width));
       }
     }
 
@@ -896,7 +896,7 @@
     &:focus-visible::after {
       position: absolute;
       inset: calc(var(--noora-spacing-2) * -1);
-      border: 2px solid var(--noora-surface-label-brand);
+      border: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
       border-radius: var(--noora-radius-3);
       pointer-events: none;
       content: "";
@@ -1150,19 +1150,19 @@
   }
 }
 
-/* Default focus ring for the docs frame: 2px brand purple, 2px out. It
+/* Default focus ring for the docs frame: the Noora focus ring as an outline. It
    overrides the site-wide :focus-visible (marketing.css) by qualifying the
    element type, and everything else sits in :where(), so any component's
    own `.component:focus-visible` style still wins. Live previews are
    excluded so they show each component's real focus state. */
 :where(.noora-docs)
   :where(:not([data-part="preview"] *)):is(a, button, input, select, textarea, summary, div):focus-visible {
-  outline: 2px solid var(--noora-surface-label-brand);
-  outline-offset: 2px;
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
 }
 
-/* Docs links have no radius of their own; 4px draws the ring 2px out with
-   6px corners. */
+/* Docs links have no radius of their own; 4px gives the ring rounded
+   corners. */
 :where(.noora-docs) :is([data-part="brand"], h2 a, p a):focus-visible {
   border-radius: var(--noora-radius-2);
 }
@@ -1260,4 +1260,100 @@
   overflow: hidden;
   resize: horizontal;
   font: var(--noora-font-code-medium);
+}
+
+/* Dev only, temporary: the "All buttons" sheet on the Button page
+   (pages/button.ex, compiled only in dev). Each row forces one state with
+   `data-preview`, reusing the state tokens of button.css, so the sheet
+   follows any token change. Pressed shows the pressed colors without the
+   press scale. The dark panel switches the light-dark() tokens with
+   `color-scheme`; the two tokens defined only under `:root[data-theme="dark"]`
+   keep the page theme's value. */
+.noora-docs-button-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  gap: var(--noora-spacing-6);
+  width: 100%;
+  overflow-x: auto;
+
+  & > [data-part="panel"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-9);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-8);
+    color: var(--noora-surface-label-primary);
+
+    &[data-scheme="light"] {
+      color-scheme: light;
+    }
+
+    &[data-scheme="dark"] {
+      color-scheme: dark;
+    }
+  }
+
+  & [data-part="size"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="row"] {
+    display: grid;
+    grid-template-columns: repeat(3, max-content max-content);
+    align-items: center;
+    justify-items: start;
+    gap: var(--noora-spacing-6) var(--noora-spacing-8);
+  }
+
+  & .noora-button {
+    &[data-variant="primary"] {
+      &[data-preview="hover"] {
+        box-shadow: var(--noora-button-border-primary-hover);
+        background: var(--noora-button-background-primary-hover);
+      }
+
+      &[data-preview="pressed"] {
+        box-shadow: var(--noora-button-border-primary-active);
+        background: var(--noora-button-background-primary-active);
+      }
+
+      &[data-preview="focus"] {
+        box-shadow: var(--noora-button-border-focus);
+      }
+    }
+
+    &[data-variant="secondary"] {
+      &[data-preview="hover"] {
+        background: var(--noora-button-background-secondary-hover);
+      }
+
+      &[data-preview="pressed"] {
+        box-shadow: var(--noora-button-border-secondary-active);
+        background: var(--noora-button-background-secondary-active);
+      }
+
+      &[data-preview="focus"] {
+        box-shadow: var(--noora-button-border-focus);
+      }
+    }
+
+    &[data-variant="destructive"] {
+      &[data-preview="hover"] {
+        box-shadow: var(--noora-button-border-destructive-hover);
+        background: var(--noora-button-background-destructive-hover);
+      }
+
+      &[data-preview="pressed"] {
+        box-shadow: var(--noora-button-border-destructive-active);
+        background: var(--noora-button-destructive-background);
+      }
+
+      &[data-preview="focus"] {
+        box-shadow: var(--noora-button-border-focus);
+      }
+    }
+  }
 }

@@ -302,7 +302,7 @@
 
     &:focus-visible {
       outline: none;
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     @media (max-width: 640px) {
@@ -470,7 +470,7 @@
 
             &:focus-visible {
               outline: none;
-              box-shadow: var(--noora-button-border-secondary-focus);
+              box-shadow: var(--noora-button-border-focus);
             }
           }
 

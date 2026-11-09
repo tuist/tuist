@@ -1897,8 +1897,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       &:hover {
@@ -2214,8 +2214,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       & > img {
@@ -2371,8 +2371,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       & > [data-part="background"] {
@@ -2744,8 +2744,8 @@
           }
 
           &:focus-visible {
-            outline: 2px solid var(--noora-purple-500);
-            outline-offset: -2px;
+            outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+            outline-offset: calc(-1 * var(--noora-focus-ring-width));
           }
         }
 

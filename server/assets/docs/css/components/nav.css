@@ -90,7 +90,7 @@
       }
 
       &:focus-visible {
-        box-shadow: var(--noora-button-border-secondary-focus);
+        box-shadow: var(--noora-button-border-focus);
         background: var(--noora-button-background-secondary-hover);
       }
     }
