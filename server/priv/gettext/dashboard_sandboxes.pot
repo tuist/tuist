@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:132
-#: lib/tuist_web/live/sandboxes_live.ex:887
+#: lib/tuist_web/live/sandboxes_live.ex:874
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
@@ -25,7 +25,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:170
 #: lib/tuist_web/live/sandbox_live.html.heex:117
-#: lib/tuist_web/live/sandboxes_live.ex:863
+#: lib/tuist_web/live/sandboxes_live.ex:850
 #: lib/tuist_web/live/sandboxes_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Created"
@@ -42,7 +42,7 @@ msgstr ""
 msgid "Delete sandbox"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:895
+#: lib/tuist_web/live/sandboxes_live.ex:882
 #, elixir-autogen, elixir-format
 msgid "Deleting"
 msgstr ""
@@ -54,39 +54,39 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:113
 #: lib/tuist_web/live/sandboxes_live.ex:183
-#: lib/tuist_web/live/sandboxes_live.ex:847
+#: lib/tuist_web/live/sandboxes_live.ex:834
 #, elixir-autogen, elixir-format
 msgid "Disk"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:138
-#: lib/tuist_web/live/sandboxes_live.ex:894
+#: lib/tuist_web/live/sandboxes_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
-#: lib/tuist_web/live/sandboxes_live.ex:889
+#: lib/tuist_web/live/sandboxes_live.ex:876
 #, elixir-autogen, elixir-format
 msgid "Idle"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
 #: lib/tuist_web/live/sandbox_live.html.heex:123
-#: lib/tuist_web/live/sandboxes_live.ex:852
+#: lib/tuist_web/live/sandboxes_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "Last active"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.html.heex:109
 #: lib/tuist_web/live/sandboxes_live.ex:171
-#: lib/tuist_web/live/sandboxes_live.ex:844
+#: lib/tuist_web/live/sandboxes_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:172
-#: lib/tuist_web/live/sandboxes_live.ex:831
+#: lib/tuist_web/live/sandboxes_live.ex:818
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -98,7 +98,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:136
 #: lib/tuist_web/live/sandbox_live.html.heex:129
-#: lib/tuist_web/live/sandboxes_live.ex:892
+#: lib/tuist_web/live/sandboxes_live.ex:879
 #, elixir-autogen, elixir-format
 msgid "Paused"
 msgstr ""
@@ -114,7 +114,7 @@ msgid "Resume"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:135
-#: lib/tuist_web/live/sandboxes_live.ex:891
+#: lib/tuist_web/live/sandboxes_live.ex:878
 #, elixir-autogen, elixir-format
 msgid "Resuming"
 msgstr ""
@@ -158,13 +158,13 @@ msgid "Something went wrong. Please retry."
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
-#: lib/tuist_web/live/sandboxes_live.ex:890
+#: lib/tuist_web/live/sandboxes_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "Starting"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:128
-#: lib/tuist_web/live/sandboxes_live.ex:837
+#: lib/tuist_web/live/sandboxes_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -207,14 +207,14 @@ msgstr ""
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:105
 #: lib/tuist_web/live/sandboxes_live.ex:159
-#: lib/tuist_web/live/sandboxes_live.ex:841
+#: lib/tuist_web/live/sandboxes_live.ex:828
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
 #: lib/tuist_web/live/sandbox_live.html.heex:135
-#: lib/tuist_web/live/sandboxes_live.ex:893
+#: lib/tuist_web/live/sandboxes_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr ""
@@ -444,7 +444,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:872
+#: lib/tuist_web/live/sandboxes_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "No sandboxes found"
 msgstr ""
@@ -454,7 +454,7 @@ msgstr ""
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.ex:873
+#: lib/tuist_web/live/sandboxes_live.ex:860
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
 msgstr ""
