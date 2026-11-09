@@ -194,6 +194,22 @@ defmodule Atlas.Labels do
     %{"ok" => true}
   end
 
+  # The signed-in owner's own connection page gets a fresh relay capability when the
+  # private link's fragment did not survive (sign-in round trips drop it). Rotating it
+  # never takes over a relay tab that is still active.
+  defp act(:relay_token, s, data, user, "dashboard") do
+    ensure(
+      !fresh?(s) or s.relay["clientId"] == data["clientId"],
+      409,
+      "Another Chrome relay tab is active. Close it and wait 35 seconds."
+    )
+
+    token = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    Repo.update!(Ecto.Changeset.change(s, relay_token_hash: hash(token)))
+    audit!(user, "dashboard", s, "relay_token_issued")
+    %{"relayToken" => token}
+  end
+
   defp act(:print, s, data, user, interface) do
     ids = data["jobIds"]
     all = jobs(s)

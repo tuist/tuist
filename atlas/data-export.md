@@ -22,7 +22,7 @@ Sessions expire after eight hours, approvals after ten minutes and unstarted
 queued batches after their start deadline, but rows are
 not swept on expiry: jobs, images and consumed dispatch history remain until
 owner deletion and follow existing backup retention. An expired session cannot
-read or dispatch. `label.created`, `.submitted`, `.queued`, `.approval_requested`,
+read or dispatch. `label.created`, `.relay_token_issued`, `.submitted`, `.queued`, `.approval_requested`,
 `.approved`, `.dispatched`, `.result` and `.halted` audit events keep
 actor/interface, session/job or batch IDs, label counts and dashboard path, not
 text/images/capabilities. They follow existing audit retention

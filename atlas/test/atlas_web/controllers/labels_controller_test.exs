@@ -253,6 +253,34 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert {:error, 409, _} = claim(id, token, r, cut)
   end
 
+  test "the owner's connection page issues a relay credential when the link lost it", c do
+    {id, token, r, _} = connected_session(c, ~w(R02-A R02-B R02-C))
+    {:ok, view, _} = live(c.browser, "/operations/labels/#{id}")
+
+    # Rows are numbered by position in the session, not by a batch they are not in yet.
+    positions =
+      view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query("#session-labels [data-part='label-position']")
+
+    assert Enum.map(positions, &LazyHTML.text/1) == ~w(1 2 3)
+
+    # The relay tab that reported moments ago keeps the printer.
+    render_hook(view, "relay_token", %{"clientId" => "a-different-relay-tab"})
+    assert_reply(view, %{error: "Another Chrome relay tab is active." <> _})
+    assert {:ok, _} = Labels.relay(:status, id, token)
+
+    # The same tab, or any tab once the relay went quiet, gets a fresh credential.
+    render_hook(view, "relay_token", %{"clientId" => r["clientId"]})
+    assert_reply(view, %{token: fresh})
+    assert {:error, 401, _} = Labels.relay(:status, id, token)
+    assert {:ok, %{"id" => ^id}} = Labels.relay(:status, id, fresh)
+
+    {other_browser, _} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
+    {:ok, other_view, _} = live(other_browser, "/operations/labels/#{id}")
+    render_hook(other_view, "relay_token", %{"clientId" => r["clientId"]})
+    assert_reply(other_view, %{error: _})
+    assert {:ok, _} = Labels.relay(:status, id, fresh)
+  end
+
   test "MCP is personal, schema checked and cannot approve", c do
     conn = build_conn() |> assign(:current_user, c.user) |> assign(:audit_interface, "mcp")
 
