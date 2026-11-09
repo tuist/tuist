@@ -173,37 +173,51 @@ defmodule Tuist.Sandboxes.Commands do
       timeout_ms = params |> Map.get(:timeout_ms, @default_timeout_ms) |> max(1) |> min(@max_timeout_ms)
       prune_finished(running)
 
-      # The row exists before the sandbox is held, so a command finishing
-      # concurrently sees it and keeps the residency.
-      command =
-        Repo.insert!(%SandboxCommand{
-          id: Ecto.UUID.generate(),
-          sandbox_id: running.id,
-          account_id: running.account_id,
-          command: script,
-          cwd: Map.get(params, :cwd),
-          stdin: Map.get(params, :stdin) == true,
-          deadline_at: DateTime.add(DateTime.utc_now(:second), div(timeout_ms, 1000) + 1)
-        })
+      case start_on(running, params, script, env, timeout_ms) do
+        # An idle sandbox's pause can reach the node before the row says
+        # paused. Like `Sandboxes.exec/3`, wait for it and start on the
+        # resumed sandbox.
+        {:error, "sandbox is being paused" <> _} ->
+          with {:ok, resumed} <- Sandboxes.await_pause(running),
+               do: start_on(resumed, params, script, env, timeout_ms)
 
-      case hold_and_launch(running, command, env) do
-        {:ok, held} ->
-          {:ok, _job} =
-            %{
-              sandbox_id: held.id,
-              command_id: command.id,
-              deadline_ms: DateTime.to_unix(command.deadline_at, :millisecond)
-            }
-            |> CommandWatchWorker.new(schedule_in: 15)
-            |> Oban.insert()
-
-          {:ok, serialize(command)}
-
-        {:error, reason} ->
-          Repo.delete!(command)
-          release_if_idle(running)
-          {:error, reason}
+        result ->
+          result
       end
+    end
+  end
+
+  defp start_on(sandbox, params, script, env, timeout_ms) do
+    # The row exists before the sandbox is held, so a command finishing
+    # concurrently sees it and keeps the residency.
+    command =
+      Repo.insert!(%SandboxCommand{
+        id: Ecto.UUID.generate(),
+        sandbox_id: sandbox.id,
+        account_id: sandbox.account_id,
+        command: script,
+        cwd: Map.get(params, :cwd),
+        stdin: Map.get(params, :stdin) == true,
+        deadline_at: DateTime.add(DateTime.utc_now(:second), div(timeout_ms, 1000) + 1)
+      })
+
+    case hold_and_launch(sandbox, command, env) do
+      {:ok, held} ->
+        {:ok, _job} =
+          %{
+            sandbox_id: held.id,
+            command_id: command.id,
+            deadline_ms: DateTime.to_unix(command.deadline_at, :millisecond)
+          }
+          |> CommandWatchWorker.new(schedule_in: 15)
+          |> Oban.insert()
+
+        {:ok, serialize(command)}
+
+      {:error, reason} ->
+        Repo.delete!(command)
+        release_if_idle(sandbox)
+        {:error, reason}
     end
   end
 
