@@ -109,6 +109,24 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert %Sandbox{residency_work_id: "amp:orb"} = Repo.reload!(sandbox)
     end
 
+    test "waits out a pause the start raced with, then resumes the sandbox and starts the command" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+
+      # The idle pause reached the node first; by the time the start retries,
+      # the row says paused.
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts ->
+        sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+        {:error, "sandbox is being paused: #{sandbox.id}"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, started())
+
+      assert {:ok, %{id: id, status: "running"}} = Commands.start(sandbox, %{command: "true"})
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
+      assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
+    end
+
     test "gives the sandbox back when the command cannot start" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
 
