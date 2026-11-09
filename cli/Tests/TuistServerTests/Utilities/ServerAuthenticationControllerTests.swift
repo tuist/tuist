@@ -947,7 +947,7 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
-    ) func executeRefresh_renews_an_expiring_amp_orb_session() async throws {
+    ) func executeRefresh_renews_an_expiring_workload_identity_session() async throws {
         let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
         let subject = ServerAuthenticationController(
             refreshAuthTokenService: refreshAuthTokenService,
@@ -956,8 +956,7 @@ struct ServerAuthenticationControllerTests {
             cachedValueStore: CachedValueStore(backend: .inSystemProcess)
         )
         let mockEnvironment = try #require(Environment.mocked)
-        // The orb's `amp orb id-token` output, supplied through the variable the authenticator reads first.
-        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
@@ -968,7 +967,7 @@ struct ServerAuthenticationControllerTests {
             let renewedToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
             given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
             given(exchangeOIDCTokenService)
-                .exchangeOIDCToken(oidcToken: .value("amp-identity-token"), serverURL: .value(serverURL))
+                .exchangeOIDCToken(oidcToken: .value("workload-identity-token"), serverURL: .value(serverURL))
                 .willReturn(renewedToken.token)
 
             // When
@@ -994,7 +993,7 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
-    ) func authenticationToken_signs_a_signed_out_amp_orb_in_with_its_identity() async throws {
+    ) func authenticationToken_signs_in_with_the_workload_identity_when_signed_out() async throws {
         let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
         let subject = ServerAuthenticationController(
             refreshAuthTokenService: refreshAuthTokenService,
@@ -1003,7 +1002,7 @@ struct ServerAuthenticationControllerTests {
             cachedValueStore: CachedValueStore(backend: .inSystemProcess)
         )
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
         let date = Date()
         let serverURL: URL = .test()
         let serverCredentialsStore = MockServerCredentialsStoring()
@@ -1014,7 +1013,7 @@ struct ServerAuthenticationControllerTests {
             credentialsBox.value = credentials
         }
         given(exchangeOIDCTokenService)
-            .exchangeOIDCToken(oidcToken: .value("amp-identity-token"), serverURL: .value(serverURL))
+            .exchangeOIDCToken(oidcToken: .value("workload-identity-token"), serverURL: .value(serverURL))
             .willReturn(accessToken.token)
 
         // When
@@ -1037,7 +1036,7 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
-    ) func authenticationToken_leaves_an_amp_orb_signed_out_when_its_workspace_is_not_connected() async throws {
+    ) func authenticationToken_stays_signed_out_when_the_workload_identity_is_refused() async throws {
         let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
         let subject = ServerAuthenticationController(
             refreshAuthTokenService: refreshAuthTokenService,
@@ -1046,7 +1045,7 @@ struct ServerAuthenticationControllerTests {
             cachedValueStore: CachedValueStore(backend: .inSystemProcess)
         )
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = ["AMP_ORB": "1", "TUIST_OIDC_TOKEN": "amp-identity-token"]
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
         let serverURL: URL = .test()
         let serverCredentialsStore = MockServerCredentialsStoring()
         given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(nil)

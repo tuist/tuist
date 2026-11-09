@@ -46,7 +46,7 @@ For GitHub Actions, CircleCI, and Bitrise:
 
 1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
-2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login` before any commands that require authentication. The CLI will automatically detect the CI environment and authenticate using OIDC.
+2. **Grant the identity token**: on GitHub Actions, give the job `permissions: id-token: write`; on CircleCI and Bitrise, enable OIDC for the project. When the CLI isn't signed in and no `TUIST_TOKEN` is set, it detects the CI environment and exchanges the identity token on its first request, so no login step is needed. You can still run `tuist auth login` to sign in explicitly and fail early when the exchange is refused.
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 
@@ -107,7 +107,7 @@ Tuist grants access only for policies whose own JWKS URL holds the key that sign
 
 1. Request an identity token from your provider with the policy's audience.
 2. Set `TUIST_OIDC_TOKEN` to that token and `TUIST_OIDC_ACCOUNT` to the handle of the Tuist account that owns the project. The account is required for every trust policy exchange. It only selects where to look and grants nothing by itself.
-3. Run `tuist auth login`. For Elixir projects, you can use `mix tuist.login` instead, or let the Elixir integration exchange the token automatically when no `TUIST_TOKEN` or valid stored credentials are available.
+3. Run Tuist. When no `TUIST_TOKEN` or valid stored credentials are available, the CLI and the Elixir integration exchange the token automatically. `tuist auth login` and `mix tuist.login` do the same exchange explicitly.
 
 The resulting Tuist access token has only the `ci` scope group and covers all current and future projects owned by the selected account. Exchanges fail if more than 20 policies in the account match the same token or if they use more than two different JWKS URLs.
 
