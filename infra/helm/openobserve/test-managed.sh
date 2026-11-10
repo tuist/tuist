@@ -54,11 +54,11 @@ if helm template openobserve "$chart" -n observability > "$tmp/missing.log" 2>&1
   echo "FAIL: missing storage configuration accepted" >&2
   exit 1
 fi
-rg -q 'storage.bucket is required' "$tmp/missing.log"
+grep -Fq 'storage.bucket is required' "$tmp/missing.log"
 if helm template openobserve "$chart" -n observability -f "$chart/values-production.yaml" \
   --set storage.prefix=tenants/ > "$tmp/prefix.log" 2>&1; then
   echo "FAIL: Pulse namespace accepted" >&2
   exit 1
 fi
-rg -q 'storage.prefix must be openobserve/' "$tmp/prefix.log"
+grep -Fq 'storage.prefix must be openobserve/' "$tmp/prefix.log"
 echo 'PASS: private OSS deployment, metadata credentials, S3 isolation and fail-closed storage guards'
