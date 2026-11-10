@@ -45,6 +45,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.CommitParent
+  alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Repository
   alias Tuist.IngestRepo
@@ -565,6 +566,7 @@ defmodule Tuist.GitHistory do
               touched = advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
               observe(ref, observed_at)
               sync_coverage(repository_id, touched)
+              FileChanges.enqueue_moved(repository_id, touched)
           end
 
           :ok
@@ -619,6 +621,7 @@ defmodule Tuist.GitHistory do
             end)
 
           sync_coverage(repository_id)
+          FileChanges.enqueue_moved(repository_id)
 
           owned =
             Repo.aggregate(from(c in Commit, where: c.repository_id == ^repository_id and not is_nil(c.ref_id)), :count)
@@ -633,6 +636,44 @@ defmodule Tuist.GitHistory do
 
   defp lock_refs(repository_id),
     do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+
+  @doc "Runs `fun` holding the repository's ref lock, so no commit changes place meanwhile."
+  def with_refs_lock(repository_id, fun) do
+    {:ok, result} =
+      Repo.transaction(
+        fn ->
+          lock_refs(repository_id)
+          fun.()
+        end,
+        timeout: to_timeout(minute: 5)
+      )
+
+    result
+  end
+
+  @doc """
+  A place's chain as ranges of positions per ref, nearest first: its ref up
+  to the position (`:at`) or just below it (`:below`), then each ref it
+  forks from up to the fork.
+  """
+  def chain({ref_id, position}, which) do
+    hi = if which == :at, do: position, else: position - 1
+    chain(ref_id, hi, MapSet.new([ref_id]))
+  end
+
+  defp chain(ref_id, hi, seen) do
+    segment = %{ref_id: ref_id, hi: hi}
+
+    case Repo.get(Ref, ref_id) do
+      %Ref{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
+        if MapSet.member?(seen, parent_id),
+          do: [segment],
+          else: [segment | chain(parent_id, fork, MapSet.put(seen, parent_id))]
+
+      _ ->
+        [segment]
+    end
+  end
 
   defp stale?(%Ref{head_observed_at: %DateTime{} = current}, %DateTime{} = observed_at),
     do: DateTime.before?(observed_at, current)
@@ -1118,6 +1159,8 @@ defmodule Tuist.GitHistory do
           ),
         conflict_target: [:repository_id, :sha]
       )
+
+      if not Keyword.get(opts, :truncated, false), do: FileChanges.enqueue(repository_id, sha)
     end
 
     :ok

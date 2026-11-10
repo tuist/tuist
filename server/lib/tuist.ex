@@ -250,6 +250,8 @@ defmodule Tuist do
       GitHistory.Ref,
       GitHistory.Commit,
       GitHistory.CommitFile,
+      GitHistory.FileChange,
+      GitHistory.FileChanges,
       GitHistory.CommitListing,
       GitHistory.CommitParent,
       GitHistory.Repository,
