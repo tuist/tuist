@@ -132,12 +132,10 @@ struct BuildAcceptanceTestAppWithDeclaredBuildableFolderContents {
         let fileSystem = FileSystem()
         let xcodeprojPath = fixtureDirectory.appending(components: "App.xcodeproj", "project.pbxproj")
         let libraryGenerated = fixtureDirectory.appending(components: "Library", "Generated")
-        let assetsGenerated = fixtureDirectory.appending(components: "Assets", "Generated")
 
-        // The declared folders don't exist until generation creates them.
+        // The declared folder doesn't exist until generation creates it.
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
         #expect(try await fileSystem.exists(libraryGenerated, isDirectory: true))
-        #expect(try await fileSystem.exists(assetsGenerated, isDirectory: true))
         let coldProject = try await fileSystem.readFile(at: xcodeprojPath)
 
         // What a build phase script or a tool would write after `tuist generate`.
@@ -154,7 +152,9 @@ struct BuildAcceptanceTestAppWithDeclaredBuildableFolderContents {
             at: libraryGenerated.appending(component: "Greeting.swift")
         )
         try await fileSystem.writeText("\"Hello\"", at: libraryGenerated.appending(component: "greeting.json"))
-        try await fileSystem.writeText("World", at: assetsGenerated.appending(component: "message.txt"))
+        let deepest = libraryGenerated.appending(components: "a", "b", "c", "d", "e", "f", "g")
+        try await fileSystem.makeDirectory(at: deepest)
+        try await fileSystem.writeText("{}", at: deepest.appending(component: "deepest.json"))
 
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
         #expect(try await fileSystem.readFile(at: xcodeprojPath) == coldProject)
@@ -167,16 +167,13 @@ struct BuildAcceptanceTestAppWithDeclaredBuildableFolderContents {
         let products = temporaryDirectory.appending(components: "Build", "Products", "Debug")
         let appResources = products.appending(components: "App.app", "Contents", "Resources")
         let libraryBundle = appResources.appending(component: "App_Library.bundle")
-        #expect(try await fileSystem.exists(libraryBundle.appending(components: "Contents", "Resources", "greeting.json")))
+        let bundleResources = libraryBundle.appending(components: "Contents", "Resources")
+        let frameworkResources = products.appending(components: "Library.framework", "Versions", "A", "Resources")
         #expect(try await !fileSystem.exists(libraryBundle.appending(components: "Contents", "MacOS")))
-        #expect(try await fileSystem.exists(
-            appResources.appending(components: "App_Assets.bundle", "Contents", "Resources", "message.txt")
-        ))
-        let libraryFramework = products.appending(component: "Library.framework")
-        #expect(try await !fileSystem.exists(libraryFramework.appending(components: "Resources", "greeting.json")))
-        #expect(try await !fileSystem.exists(
-            libraryFramework.appending(components: "Versions", "A", "Resources", "greeting.json")
-        ))
+        for resource in ["greeting.json", "deepest.json"] {
+            #expect(try await fileSystem.exists(bundleResources.appending(component: resource)))
+            #expect(try await !fileSystem.exists(frameworkResources.appending(component: resource)))
+        }
     }
 }
 

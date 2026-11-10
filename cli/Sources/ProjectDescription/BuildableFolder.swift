@@ -12,8 +12,8 @@ public struct BuildableFolder: Sendable, Codable, Equatable, ExpressibleByString
     ///
     /// Tuist looks at a buildable folder's files to decide, among other things, whether the target needs a Sources
     /// phase and whether it needs a resource bundle. When the files only appear after `tuist generate` (for example,
-    /// a build phase script or a tool like SwiftGen, Sourcery or protoc writes them), declare `contents` so those
-    /// decisions don't depend on what is on disk when you generate:
+    /// a build phase script or another tool writes them), declare `contents` so those decisions don't depend on what
+    /// is on disk when you generate:
     ///
     /// ```swift
     /// .target(
@@ -79,7 +79,7 @@ public enum BuildableFolderContent: String, Sendable, Codable, Hashable {
     /// Files Xcode copies into the product, such as images, string catalogs or JSON files.
     ///
     /// In a static target, Tuist moves them to the companion resource bundle it generates for the target. A folder that
-    /// also declares `.sources` is added to both targets, and build settings route its files by type: up to four
+    /// also declares `.sources` is added to both targets, and build settings route its files by type: up to eight
     /// directory levels deep, resources are only copied into the bundle; deeper ones are also copied into the static
     /// target.
     case resources

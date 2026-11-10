@@ -1,4 +1,3 @@
-import Assets
 import Library
 
-print(Greeting.message, AssetsMessage.message)
+print(Greeting.message ?? "")

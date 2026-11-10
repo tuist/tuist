@@ -37,19 +37,14 @@ struct ResourcesProjectMapperDeclaredContentsTests {
         let targetExcluded = try listSetting("EXCLUDED_SOURCE_FILE_NAMES", in: target)
         let targetIncluded = try listSetting("INCLUDED_SOURCE_FILE_NAMES", in: target)
         let bundleExcluded = try listSetting("EXCLUDED_SOURCE_FILE_NAMES", in: bundle)
-        #expect(targetExcluded == [
-            "$(inherited)",
-            "\"$(SRCROOT)/Generated/*\"",
-            "\"$(SRCROOT)/Generated/*/*\"",
-            "\"$(SRCROOT)/Generated/*/*/*\"",
-            "\"$(SRCROOT)/Generated/*/*/*/*\"",
-        ])
-        #expect(targetIncluded.contains("\"$(SRCROOT)/Generated/*.swift\""))
-        #expect(targetIncluded.contains("\"$(SRCROOT)/Generated/*/*/*/*.swift\""))
-        #expect(targetIncluded.contains("\"$(SRCROOT)/Generated/*.h\""))
-        #expect(targetIncluded.contains("\"$(SRCROOT)/Generated/*.xcassets\""))
-        #expect(!targetIncluded.contains("\"$(SRCROOT)/Generated/*.metal\""))
-        #expect(!targetIncluded.contains("\"$(SRCROOT)/Generated/*.json\""))
+        let levels = (0 ..< 8).map { "$(SRCROOT)/Module/Generated" + String(repeating: "/*", count: $0) }
+        #expect(targetExcluded == ["$(inherited)"] + levels.map { "\"\($0)/*\"" })
+        #expect(targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*.swift\""))
+        #expect(targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*/*/*/*/*/*/*/*.swift\""))
+        #expect(targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*.h\""))
+        #expect(targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*.xcassets\""))
+        #expect(!targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*.metal\""))
+        #expect(!targetIncluded.contains("\"$(SRCROOT)/Module/Generated/*.json\""))
         #expect(bundleExcluded.contains("*.swift"))
         #expect(bundleExcluded.contains("*.h"))
         #expect(!bundleExcluded.contains("*.xcassets"))
@@ -104,6 +99,22 @@ struct ResourcesProjectMapperDeclaredContentsTests {
         #expect(sideEffects.count == 1)
     }
 
+    @Test
+    func staticTargetWithDeclaredContents_keepsThemWhenAnExplicitCatalogIsExcluded() async throws {
+        // Given
+        let folder = generatedFolder(contents: [.sources, .resources], files: ["Assets.xcassets"])
+        let catalog = folder.path.appending(component: "Assets.xcassets")
+
+        // When
+        let (project, _) = try await map(product: .staticFramework, folder: folder, resources: [.file(path: catalog)])
+
+        // Then
+        let target = try #require(project.targets["Framework"])
+        let bundle = try #require(project.targets["Project_Framework"])
+        #expect(target.buildableFolders.map(\.contents) == [[.sources]])
+        #expect(bundle.buildableFolders.map(\.contents) == [[.resources]])
+    }
+
     @Test(arguments: [Product.staticFramework, .framework, .app])
     func declaredFolder_mapsTheSameEmptyAndFilled(product: Product) async throws {
         for contents: Set<BuildableFolderContent> in [[.sources], [.resources], [.sources, .resources]] {
@@ -127,7 +138,7 @@ struct ResourcesProjectMapperDeclaredContentsTests {
     // MARK: - Helpers
 
     private func generatedFolder(contents: Set<BuildableFolderContent>, files: [String] = []) -> BuildableFolder {
-        let path = projectPath.appending(component: "Generated")
+        let path = projectPath.appending(components: "Module", "Generated")
         return BuildableFolder(
             path: path,
             exceptions: BuildableFolderExceptions(exceptions: []),
@@ -136,12 +147,16 @@ struct ResourcesProjectMapperDeclaredContentsTests {
         )
     }
 
-    private func map(product: Product, folder: BuildableFolder) async throws -> (Project, [SideEffectDescriptor]) {
+    private func map(
+        product: Product,
+        folder: BuildableFolder,
+        resources: [ResourceFileElement] = []
+    ) async throws -> (Project, [SideEffectDescriptor]) {
         let target = Target.test(
             name: "Framework",
             product: product,
             sources: [],
-            resources: ResourceFileElements([]),
+            resources: ResourceFileElements(resources),
             buildableFolders: [folder]
         )
         let project = Project.test(path: projectPath, sourceRootPath: projectPath, name: "Project", targets: [target])

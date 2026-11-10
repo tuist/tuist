@@ -309,29 +309,34 @@ struct BuildPhaseGeneratorTests {
         .withMockedXcodeController,
         .inTemporaryDirectory,
         arguments: [
-            (nil, false),
-            ([.resources], false),
-            ([.sources], true),
-        ] as [(Set<BuildableFolderContent>?, Bool)]
-    ) func generateBuildPhases_whenAppSourcesFolderIsEmpty(
+            (.app, nil, false, false),
+            (.app, [.resources], false, false),
+            (.app, [.sources], true, false),
+            (.framework, [.resources], true, false),
+            (.framework, [.sources], true, true),
+        ] as [(Product, Set<BuildableFolderContent>?, Bool, Bool)]
+    ) func generateBuildPhases_whenTheOnlyFolderHoldsAHeader(
+        product: Product,
         contents: Set<BuildableFolderContent>?,
-        expectsSourcesPhase: Bool
+        expectsSourcesPhase: Bool,
+        expectsHeadersPhase: Bool
     ) async throws {
         // Given
-        let pbxTarget = PBXNativeTarget(name: "App")
+        let pbxTarget = PBXNativeTarget(name: "Target")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
         let directory = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = directory.appending(component: "Generated")
         let target = Target.test(
-            name: "App",
-            product: .app,
+            name: "Target",
+            product: product,
             sources: [SourceFile](),
             resources: ResourceFileElements([]),
             buildableFolders: [
                 BuildableFolder(
-                    path: directory.appending(component: "Generated"),
+                    path: folderPath,
                     exceptions: [],
-                    resolvedFiles: [],
+                    resolvedFiles: [BuildableFolderFile(path: folderPath.appending(component: "Header.h"), compilerFlags: nil)],
                     contents: contents
                 ),
             ]
@@ -349,51 +354,6 @@ struct BuildPhaseGeneratorTests {
 
         // Then
         #expect(pbxTarget.buildPhases.contains { $0 is PBXSourcesBuildPhase } == expectsSourcesPhase)
-    }
-
-    @Test(
-        .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory,
-        arguments: [
-            ([.resources], false),
-            ([.sources], true),
-        ] as [(Set<BuildableFolderContent>, Bool)]
-    ) func generateBuildPhases_whenFrameworkFolderDeclaresContents(
-        contents: Set<BuildableFolderContent>,
-        expectsHeadersPhase: Bool
-    ) async throws {
-        // Given
-        let pbxTarget = PBXNativeTarget(name: "Framework")
-        let pbxproj = PBXProj()
-        pbxproj.add(object: pbxTarget)
-        let directory = try #require(FileSystem.temporaryTestDirectory)
-        let target = Target.test(
-            name: "Framework",
-            product: .framework,
-            sources: [SourceFile](),
-            resources: ResourceFileElements([]),
-            buildableFolders: [
-                BuildableFolder(
-                    path: directory.appending(component: "Generated"),
-                    exceptions: [],
-                    resolvedFiles: [],
-                    contents: contents
-                ),
-            ]
-        )
-
-        // When
-        try await subject.generateBuildPhases(
-            path: directory,
-            target: target,
-            graphTraverser: GraphTraverser(graph: Graph.test(path: directory)),
-            pbxTarget: pbxTarget,
-            fileElements: ProjectFileElements(),
-            pbxproj: pbxproj
-        )
-
-        // Then
         #expect(pbxTarget.buildPhases.contains { $0 is PBXHeadersBuildPhase } == expectsHeadersPhase)
     }
 

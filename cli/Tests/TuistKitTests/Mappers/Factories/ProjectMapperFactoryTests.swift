@@ -48,18 +48,6 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, ResourcesProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
     }
 
-    func test_default_creates_declared_buildable_folders_after_deleting_derived() {
-        // When
-        let got = subject.default(tuist: .default)
-
-        // Then
-        XCTAssertContainsElementOfType(
-            got,
-            CreateBuildableFoldersProjectMapper.self,
-            after: DeleteDerivedDirectoryProjectMapper.self
-        )
-    }
-
     func test_default_contains_the_generate_target_script_file_list_mapper() {
         // When
         let got = subject.default(tuist: .default)

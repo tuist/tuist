@@ -72,7 +72,7 @@ let target: Target = .target(
 
 #### Folders filled after generation {#buildable-folders-declared-contents}
 
-Tuist looks at a buildable folder's files to decide whether a target needs a Sources phase or a resource bundle. If the files only appear after `tuist generate`, for example because a build phase script or a tool like SwiftGen, Sourcery or protoc writes them, declare what the folder will contain:
+Tuist looks at a buildable folder's files to decide whether a target needs a Sources phase or a resource bundle. If the files only appear after `tuist generate`, for example because a build phase script or another tool writes them, declare what the folder will contain:
 
 ```swift
 .target(

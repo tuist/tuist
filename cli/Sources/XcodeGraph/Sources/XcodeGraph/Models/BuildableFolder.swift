@@ -35,7 +35,7 @@ public struct BuildableFolder: Sendable, Codable, Equatable, Hashable {
     public var resolvedFiles: [BuildableFolderFile]
 
     /// What the folder declares it will contain. When set, generation classifies the folder by it instead of by
-    /// `resolvedFiles`, so the result doesn't depend on whether the files exist yet.
+    /// `resolvedFiles`.
     public var contents: Set<BuildableFolderContent>?
 
     /// Creates a new `BuildableFolder` instance.

@@ -30,7 +30,6 @@ extension XcodeGraph.BuildableFolder {
         let fileSystem = FileSystem()
         let contents = manifest.contents.map { Set($0.map(XcodeGraph.BuildableFolderContent.from(manifest:))) }
 
-        // `optional` applies only to folders without declared contents.
         let exists = try await fileSystem.exists(path)
         if !exists, contents == nil {
             if manifest.optional {

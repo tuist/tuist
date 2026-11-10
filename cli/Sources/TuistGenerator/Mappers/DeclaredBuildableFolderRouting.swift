@@ -8,7 +8,7 @@ import XcodeGraph
 /// build phase, but `*` doesn't match `/` and `**` isn't supported. The static target's patterns therefore go one level
 /// at a time down to `maximumDepth`, and deeper resources are also copied into it.
 struct DeclaredBuildableFolderRouting {
-    static let maximumDepth = 4
+    static let maximumDepth = 8
 
     private static let excludedKey = "EXCLUDED_SOURCE_FILE_NAMES"
     private static let includedKey = "INCLUDED_SOURCE_FILE_NAMES"
