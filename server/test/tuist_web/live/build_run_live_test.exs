@@ -377,7 +377,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       |> JSON.decode!()
 
     assert [
-             %{"name" => "Used", "data" => [375.0, 500.0, 0.0, nil, nil]},
+             %{"name" => "Used", "data" => [375.0, 500.0, +0.0, nil, nil]},
              %{"name" => "Total", "data" => [500.0, 500.0, 500.0, nil, 500.0]}
            ] = options["series"]
   end
