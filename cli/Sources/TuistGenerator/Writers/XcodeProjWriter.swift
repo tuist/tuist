@@ -192,7 +192,9 @@ public struct XcodeProjWriter: XcodeProjWriting {
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
-        let sortedSchemes = schemes.sorted(by: { $0.xcScheme.name < $1.xcScheme.name })
+        let sortedSchemes = schemes.sorted {
+            ($0.orderHint ?? .max, $0.xcScheme.name) < ($1.orderHint ?? .max, $1.xcScheme.name)
+        }
         return sortedSchemes.reduceWithIndex(into: [String: Int]()) { $0[$1.xcScheme.name] = $2 }
     }
 
