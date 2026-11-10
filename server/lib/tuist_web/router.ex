@@ -1865,6 +1865,7 @@ defmodule TuistWeb.Router do
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
       live "/settings/ai", AISubscriptionsSettingsLive
+      live "/settings/ai/routing", OrganizationAISettingsLive
     end
   end
 

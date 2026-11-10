@@ -351,6 +351,36 @@ operations; retain them until an administrator removes them.
 - SCIM provenance (`users.provisioned_by_organization_id`): the organization whose SCIM provisioning created the account, if any. It lets that organization's single sign-on provider link the account on first sign-in, is exportable, and is cleared if the organization is deleted.
 - User account lifecycle timestamps (`users` table): `last_sign_in_at`, the moment the user most recently authenticated by any means, recorded on session sign-in, application programming interface token use, and remember-me resumption, and written at most once every twelve hours per user; and `disabled_at`, the moment the account was suspended, which is set only for suspended accounts and is what the inactivity control measures its retirement window from. Both are exportable and are retained for the life of the account. `credentials_revoked_at` records the last password reset or first mailbox proof that revoked the user's credentials; tokens that act for the user and were signed in at or before it are rejected. It is exportable and retained for the life of the account.
 - Organization records (account handle/name, creator relationship, and timestamps)
+- Organization AI routing (PostgreSQL): organization-owned named connections, configured models and an explicitly selected default for server-side inference. `FeatureFlags.organization_ai_enabled?(account)` strictly checks the organization account's `:ai` flag for all settings reads, writes and inference in every environment, without personal AI's enabled environment defaults. All configuration writes serialize on the organization row. Foreign keys enforce organization ownership of connections, models and defaults. No prompts, completions, conversation sessions, OAuth sessions or refresh tokens are persisted by routing; there is no inference fallback or new object-storage location.
+  - **Connections** (`organization_ai_connections`): `id`, `organization_id`, `name`, `base_url` (public HTTPS OpenAI-compatible API endpoint including any version prefix), Vault AES-GCM-encrypted `api_key`, and `inserted_at`/`updated_at`. Named provider choices supply their name and endpoint; Custom exposes editable fields. The selector's identifier is not stored. Multiple connections may use the same endpoint, and each connection may serve several models. A blank key preserves the existing credential only when the base URL is unchanged; changing that URL requires entering the key again. Key rotation replaces the old ciphertext and affects every model on that connection. Never export `api_key`, including its ciphertext. Export metadata scoped to the requested account (`$1`) with:
+
+    ```sql
+    SELECT c.id, c.organization_id, c.name, c.base_url, c.inserted_at, c.updated_at
+    FROM organization_ai_connections c
+    JOIN accounts a ON a.organization_id = c.organization_id
+    WHERE a.id = $1;
+    ```
+
+  - **Configured models** (`organization_ai_models`): `id`, `organization_id`, `connection_id` referencing the owning organization's connection, display `name`, `model_id` containing the exact upstream model ID, and `inserted_at`/`updated_at`. Credentials are held only on the connection. Export with:
+
+    ```sql
+    SELECT m.id, m.organization_id, m.connection_id, m.name, m.model_id,
+           m.inserted_at, m.updated_at
+    FROM organization_ai_models m
+    JOIN accounts a ON a.organization_id = m.organization_id
+    WHERE a.id = $1;
+    ```
+
+  - **Default selection** (`organization_ai_defaults`): `id`, unique `organization_id`, `model_id` referencing a configured model's `id` within that organization (not its upstream model ID), and `inserted_at`/`updated_at`. Creating a connection or model never implicitly selects a default. Export with:
+
+    ```sql
+    SELECT d.id, d.organization_id, d.model_id, d.inserted_at, d.updated_at
+    FROM organization_ai_defaults d
+    JOIN accounts a ON a.organization_id = d.organization_id
+    WHERE a.id = $1;
+    ```
+
+  - **Retention and deletion:** No time-based expiry applies. Configuration remains until explicitly removed or the organization is deleted, which cascades all three tables. Removing a connection deletes its local credential and cascades its models and any default referencing one of them. Removing the default model deletes the default row without choosing a replacement; inference is unavailable until a default is explicitly selected. Disabling `:ai` retains configuration but blocks access and new inference. Key rotation or connection removal does not revoke the provider's upstream key, and already-dispatched inference may finish. Exports include only records still retained at export time.
 - Organization memberships and roles (user, organization, role, and timestamps). A role is one of `admin`, `user`, or `viewer`; `viewer` is read-only and grants no write access to any resource.
 - Pending organization invitations (`invitations` table): the invitee email address, the inviting user, the organization, the role the invitee is granted on acceptance (`admin`, `user`, or `viewer`), and timestamps. The invitation token is excluded as authentication material. Rows are deleted when the invitation is accepted or revoked.
 - Email-abuse counters use the existing limiter store (Valkey when configured, otherwise approximate node-local counters synchronized through PubSub). Invitation create, bulk and resend (charged to the user who resends) share a recipient bucket (one email per five minutes across organizations, keyed by SHA-256 of the trimmed lowercase email), and organization/inviter buckets (burst 50, refill 50/hour, keyed by numeric ID). Cancellation does not refund these counters; duplicates are rejected before charging, while other rejected or rolled-back attempts may conservatively consume budget. No-mail installations do not consume invitation quotas. Hosted password-reset requests share a requester bucket (burst ten, refill one/minute), keyed by the address resolved by `RemoteIp`, before account lookup; known and unknown addresses receive the same success response. The address travels in the signed LiveView session, not a new database field. Configured shared-store failures deny sending. Valkey retains only bucket level and last-update time, expiring after full refill plus sixty seconds (up to 61 minutes for invitations, 11 minutes for resets). Retrieve relevant transient counters by the documented prefixes (`invitation:recipient:`, `invitation:organization:`, `invitation:inviter:`, `password-reset:requester:`) under `TuistWeb.RateLimit.PersistentTokenBucket:`; calculate recipient hashes from the export subject's known email; requester keys use the address itself. These are counters, not an email or request history; do not include unrelated recipients or requesters in an export.

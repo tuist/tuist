@@ -648,6 +648,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
       <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
+      <% organization_ai? = not is_nil(@selected_account.organization_id) %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -673,12 +674,19 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.tab_menu_horizontal_item
         :if={
-          @selected_account.user_id == @current_user.id and
-            FeatureFlags.ai_enabled?(@current_user)
+          if organization_ai?,
+            do:
+              Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
+                FeatureFlags.organization_ai_enabled?(@selected_account),
+            else:
+              @selected_account.user_id == @current_user.id and
+                FeatureFlags.ai_enabled?(@current_user)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}
-        navigate={ai_path}
+        navigate={
+          if organization_ai?, do: ~p"/#{@selected_account.name}/settings/ai/routing", else: ai_path
+        }
       />
     </.tab_menu_horizontal>
     """
