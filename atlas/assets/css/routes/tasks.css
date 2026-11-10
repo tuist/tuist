@@ -58,10 +58,6 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="scroll-container"] {
-    overflow: visible;
-  }
-
   @media (max-width: 768px) {
     & > [data-part="header"] {
       flex-direction: column;
