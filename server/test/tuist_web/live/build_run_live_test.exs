@@ -299,7 +299,9 @@ defmodule TuistWeb.BuildRunLiveTest do
       network_bytes_in: 100,
       network_bytes_out: 200,
       disk_bytes_read: 300,
-      disk_bytes_written: 400
+      disk_bytes_written: 400,
+      disk_total_bytes: 500_000_000_000,
+      disk_available_bytes: 0
     }
 
     {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, machine_metrics: [metric])
@@ -311,6 +313,16 @@ defmodule TuistWeb.BuildRunLiveTest do
     assert has_element?(lv, "#build-timeline")
     assert has_element?(lv, "[data-metric=cpu]")
     assert has_element?(lv, "[data-metric=memory]")
+    assert has_element?(lv, "[data-metric=disk-space]", "Disk space")
+    refute has_element?(lv, "[data-metric=disk-space]", "(Data volume)")
+    assert has_element?(lv, "[data-metric=disk-space] [data-series=primary]", "Used")
+
+    {:ok, loaded_build} = Tuist.Builds.get_build(build.id)
+    loaded_build = Tuist.ClickHouseRepo.preload(loaded_build, :machine_metrics)
+
+    assert %{machine_metrics: [%{disk_total_bytes: 500_000_000_000, disk_available_bytes: 0}]} =
+             TuistWeb.BuildTimelineLoader.bootstrap(loaded_build)
+
     refute has_element?(lv, "a", "Machine Metrics")
     assert has_element?(lv, "[data-part=empty][hidden]")
     refute has_element?(lv, "#build-timeline[data-machine-metrics]")
@@ -339,7 +351,35 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     assert has_element?(lv, "a", "Machine Metrics")
     assert has_element?(lv, "#cpu-usage-chart")
+    refute has_element?(lv, "#disk-space-chart")
     refute has_element?(lv, "#build-timeline")
+
+    samples =
+      Enum.with_index(
+        [
+          %{disk_total_bytes: 500_000_000_000, disk_available_bytes: 125_000_000_000},
+          %{disk_total_bytes: 500_000_000_000, disk_available_bytes: 0},
+          %{disk_total_bytes: 500_000_000_000, disk_available_bytes: 500_000_000_000},
+          %{disk_total_bytes: nil, disk_available_bytes: 125_000_000_000},
+          %{disk_total_bytes: 500_000_000_000, disk_available_bytes: nil}
+        ],
+        fn capacity, index ->
+          metric |> Map.merge(capacity) |> Map.put(:timestamp, metric.timestamp + index)
+        end
+      )
+
+    options =
+      (&TuistWeb.Components.MachineMetricsCharts.machine_metrics_charts/1)
+      |> render_component(metrics: samples)
+      |> Floki.parse_document!()
+      |> Floki.find("#disk-space-chart [data-part=data]")
+      |> Floki.text()
+      |> Jason.decode!()
+
+    assert [
+             %{"name" => "Used", "data" => [375.0, 500.0, 0.0, nil, nil]},
+             %{"name" => "Total", "data" => [500.0, 500.0, 500.0, nil, 500.0]}
+           ] = options["series"]
   end
 
   test "timeline mounts without loading steps or analytics for other tabs", %{
