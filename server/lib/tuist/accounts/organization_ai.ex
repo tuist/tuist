@@ -148,14 +148,14 @@ defmodule Tuist.Accounts.OrganizationAI do
          {:ok, %{body: response}} <-
            PinnedHTTP.request("POST", url,
              headers: [{"authorization", "Bearer " <> route.api_key}, {"content-type", "application/json"}],
-             body: Jason.encode!(%{model: route.model_id, messages: messages, stream: false}),
+             body: JSON.encode!(%{model: route.model_id, messages: messages, stream: false}),
              accept_status: 200,
              connect_options: Keyword.put(SSRFGuard.connect_options(hostname), :timeout, 5_000),
              receive_timeout: 60_000,
              total_timeout: 60_000,
              max_body_bytes: 4 * 1024 * 1024
            ),
-         {:ok, %{"choices" => choices} = body} when is_list(choices) <- Jason.decode(response) do
+         {:ok, %{"choices" => choices} = body} when is_list(choices) <- JSON.decode(response) do
       {:ok, body}
     else
       {:error, {:unexpected_status, status}} -> {:error, {:provider_error, status}}

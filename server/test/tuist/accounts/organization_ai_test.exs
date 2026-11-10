@@ -100,7 +100,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
       stub(PinnedHTTP, :request, fn "POST", ^pinned, opts ->
         assert opts[:headers] == [{"authorization", "Bearer #{provider}-key"}, {"content-type", "application/json"}]
 
-        assert Jason.decode!(opts[:body]) == %{
+        assert JSON.decode!(opts[:body]) == %{
                  "model" => upstream_id,
                  "messages" => [%{"role" => "user", "content" => "Explain this build failure"}],
                  "stream" => false
@@ -110,7 +110,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
         assert opts[:connect_options][:transport_opts][:verify] == :verify_peer
         assert opts[:accept_status] == 200
         assert opts[:max_body_bytes] == 4 * 1024 * 1024
-        {:ok, %{status: 200, body: Jason.encode!(body)}}
+        {:ok, %{status: 200, body: JSON.encode!(body)}}
       end)
 
       assert {:ok, ^body} = OrganizationAI.complete(account, messages)
@@ -122,7 +122,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
 
       stub(PinnedHTTP, :request, fn "POST", ^pinned, opts ->
         assert {"authorization", "Bearer rotated-key"} in opts[:headers]
-        assert Jason.decode!(opts[:body])["model"] == "other-model"
+        assert JSON.decode!(opts[:body])["model"] == "other-model"
         {:error, {:unexpected_status, 401}}
       end)
 
