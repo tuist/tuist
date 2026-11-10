@@ -23,7 +23,9 @@ defmodule Tuist.GitHistory.FileChanges do
   rows are at least the paths that differ between them.
 
   The place a commit's rows were written for is kept on its listing
-  (`changes_ref_id`, `changes_position`). A commit whose place changed (a
+  (`changes_ref_id`, `changes_position`), with how many rows it holds
+  (`changes_count`): what a ref's commits add up to since some position is
+  what reading its files from there costs. A commit whose place changed (a
   fast-forward, a rebuild of the refs) is queued again and written at the
   new place from its listing, or, once the listing expired, from the rows it
   left at the old one.
@@ -116,7 +118,7 @@ defmodule Tuist.GitHistory.FileChanges do
 
       is_nil(place) ->
         if written, do: retire(listing, written)
-        mark(listing, nil, nil)
+        mark(listing, nil, nil, nil)
         :pending
 
       staged?(listing) ->
@@ -151,9 +153,9 @@ defmodule Tuist.GitHistory.FileChanges do
       if written, do: retire(listing, written)
       vacate(listing, commit.place)
       expires_at = expires_at(listing.repository_id, commit.place)
-      insert_changes(listing, commit, expires_at)
+      count = insert_changes(listing, commit, expires_at)
       preserve_above(listing, commit.place, :below)
-      mark(listing, commit.place, expires_at)
+      mark(listing, commit.place, expires_at, count)
       :written
     else
       :unavailable
@@ -204,29 +206,30 @@ defmodule Tuist.GitHistory.FileChanges do
     vacate(listing, place)
     expires_at = expires_at(listing.repository_id, place)
 
-    insert(
-      """
-      SELECT repository_id, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, sha, path, git_blob_id, mode,
-        {expires_at:DateTime}, #{version_sql(place)}, 0
-      FROM git_file_changes FINAL
-      WHERE repository_id = {repository_id:Int64} AND ref_id = {old_ref_id:Int64} AND position = {old_position:UInt32}
-        AND sha = {sha:String} AND expires_at > now()
-      """,
-      %{
-        repository_id: listing.repository_id,
-        ref_id: ref_id,
-        position: position,
-        generation: commit.generation,
-        sha: listing.sha,
-        expires_at: expires_at,
-        old_ref_id: old_ref_id,
-        old_position: old_position
-      }
-    )
+    count =
+      insert(
+        """
+          SELECT repository_id, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, sha, path, git_blob_id, mode,
+          {expires_at:DateTime}, #{version_sql(place)}, 0
+        FROM git_file_changes FINAL
+        WHERE repository_id = {repository_id:Int64} AND ref_id = {old_ref_id:Int64} AND position = {old_position:UInt32}
+          AND sha = {sha:String} AND expires_at > now()
+        """,
+        %{
+          repository_id: listing.repository_id,
+          ref_id: ref_id,
+          position: position,
+          generation: commit.generation,
+          sha: listing.sha,
+          expires_at: expires_at,
+          old_ref_id: old_ref_id,
+          old_position: old_position
+        }
+      )
 
     preserve_above(listing, place, :below)
     retire(listing, written)
-    mark(listing, place, expires_at)
+    mark(listing, place, expires_at, count)
   end
 
   # Retires the rows the commit left at a place it no longer holds.
@@ -263,31 +266,39 @@ defmodule Tuist.GitHistory.FileChanges do
       {above_ref_id, above_position} = commit.place
       at = "repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}"
 
-      insert(
-        """
-        SELECT {repository_id:Int64}, {above_ref_id:Int64}, {above_position:UInt32}, {generation:UInt32}, {sha:String},
-          p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
-        FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
-        LEFT JOIN (
-          #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
-        ) AS s ON s.path = p.path
-        WHERE p.path NOT IN (
-          SELECT path FROM git_file_changes FINAL
-          WHERE repository_id = {repository_id:Int64} AND ref_id = {above_ref_id:Int64}
-            AND position = {above_position:UInt32} AND expires_at > now()
+      added =
+        insert(
+          """
+          SELECT {repository_id:Int64}, {above_ref_id:Int64}, {above_position:UInt32}, {generation:UInt32}, {sha:String},
+            p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
+          FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
+          LEFT JOIN (
+            #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
+          ) AS s ON s.path = p.path
+          WHERE p.path NOT IN (
+            SELECT path FROM git_file_changes FINAL
+            WHERE repository_id = {repository_id:Int64} AND ref_id = {above_ref_id:Int64}
+              AND position = {above_position:UInt32} AND expires_at > now()
+          )
+          """,
+          %{
+            repository_id: listing.repository_id,
+            ref_id: ref_id,
+            position: position,
+            above_ref_id: above_ref_id,
+            above_position: above_position,
+            generation: commit.generation,
+            sha: commit.sha,
+            expires_at: commit.expires_at
+          }
         )
-        """,
-        %{
-          repository_id: listing.repository_id,
-          ref_id: ref_id,
-          position: position,
-          above_ref_id: above_ref_id,
-          above_position: above_position,
-          generation: commit.generation,
-          sha: commit.sha,
-          expires_at: commit.expires_at
-        }
-      )
+
+      if added > 0 do
+        Repo.update_all(
+          from(l in CommitListing, where: l.repository_id == ^listing.repository_id and l.sha == ^commit.sha),
+          inc: [changes_count: added]
+        )
+      end
     end
   end
 
@@ -363,12 +374,12 @@ defmodule Tuist.GitHistory.FileChanges do
     end)
   end
 
-  defp mark(listing, place, expires_at) do
+  defp mark(listing, place, expires_at, count) do
     {ref_id, position} = place || {nil, nil}
 
     Repo.update_all(
       from(l in CommitListing, where: l.repository_id == ^listing.repository_id and l.sha == ^listing.sha),
-      set: [changes_ref_id: ref_id, changes_position: position, changes_expires_at: expires_at]
+      set: [changes_ref_id: ref_id, changes_position: position, changes_expires_at: expires_at, changes_count: count]
     )
   end
 
@@ -400,7 +411,9 @@ defmodule Tuist.GitHistory.FileChanges do
     """
   end
 
+  # Returns how many rows were written.
   defp insert(select, params) do
-    IngestRepo.query!("INSERT INTO git_file_changes (#{@columns}) #{select}", params, settings: @consistent)
+    IngestRepo.query!("INSERT INTO git_file_changes (#{@columns}) #{select}", params, settings: @consistent).num_rows ||
+      0
   end
 end

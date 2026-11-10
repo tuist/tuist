@@ -111,8 +111,12 @@ defmodule Tuist.GitHistory.FileChangesTest do
            }
 
     main = ref_id(repository, "main")
-    assert %{changes_ref_id: ^main, changes_position: 2, changes_expires_at: expires_at} = listing(repository, "b")
+
+    assert %{changes_ref_id: ^main, changes_position: 2, changes_expires_at: expires_at, changes_count: 4} =
+             listing(repository, "b")
+
     assert expires_at.year == 2100
+    assert %{changes_count: 3} = listing(repository, "a")
     assert Enum.all?(rows(repository), &(&1.ref_id == main and &1.generation == &1.position))
   end
 
@@ -124,7 +128,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "b", %{"A.swift" => "a1"})
 
     assert changes(repository, "b") == %{}
-    assert %{changes_position: 2} = listing(repository, "b")
+    assert %{changes_position: 2, changes_count: 0} = listing(repository, "b")
     assert FileChanges.write(repository, "b") == :current
   end
 
@@ -141,6 +145,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "a", a)
     list(repository, "c", c)
     assert changes(repository, "c") == %{"Changed.swift" => "x2"}
+    assert %{changes_count: 1} = listing(repository, "c")
 
     list(repository, "b", b)
 
@@ -151,6 +156,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     # What `c` no longer reads from below it is now its own change: at least
     # the paths that differ between the two commits.
     assert changes(repository, "c") == %{"Reverted.swift" => "r1", "Changed.swift" => "x2", "Added.swift" => ""}
+    assert %{changes_count: 3} = listing(repository, "c")
   end
 
   test "a truncated listing is never written, and the next commit compares with the one below it", %{
@@ -298,7 +304,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert FileChanges.write(repository, "f1") == :moved
 
     main = ref_id(repository, "main")
-    assert %{changes_ref_id: ^main, changes_position: 2} = listing(repository, "f1")
+    assert %{changes_ref_id: ^main, changes_position: 2, changes_count: 2} = listing(repository, "f1")
     assert Enum.all?(rows(repository), &(&1.ref_id == main))
     assert files(repository, "f1") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
   end
@@ -316,7 +322,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "g1", %{"A.swift" => "a1", "G.swift" => "g1"})
 
     assert changes(repository, "f1") == %{}
-    assert %{changes_ref_id: nil, changes_position: nil} = listing(repository, "f1")
+    assert %{changes_ref_id: nil, changes_position: nil, changes_count: nil} = listing(repository, "f1")
     assert changes(repository, "g1") == %{"G.swift" => "g1"}
     assert files(repository, "g1") == with_mode(%{"A.swift" => "a1", "G.swift" => "g1"})
   end

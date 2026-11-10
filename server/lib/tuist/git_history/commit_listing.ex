@@ -9,7 +9,8 @@ defmodule Tuist.GitHistory.CommitListing do
 
   `changes_ref_id` and `changes_position` are the place the commit's file
   changes were written for (`Tuist.GitHistory.FileChanges`), nil until they
-  are, and `changes_expires_at` until when those rows are kept.
+  are, `changes_expires_at` until when those rows are kept, and
+  `changes_count` how many rows the place holds.
   """
   use Ecto.Schema
 
@@ -23,5 +24,6 @@ defmodule Tuist.GitHistory.CommitListing do
     field :changes_ref_id, :integer
     field :changes_position, :integer
     field :changes_expires_at, :utc_datetime
+    field :changes_count, :integer
   end
 end
