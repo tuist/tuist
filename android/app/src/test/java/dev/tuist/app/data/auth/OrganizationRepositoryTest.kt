@@ -188,7 +188,7 @@ class OrganizationRepositoryTest {
                     if (request.path == "/api/organizations") return organizations(listOf("shared"))
                     if (request.getHeader("Authorization") == "Bearer ${jwt("alice", "rotation-1")}") return MockResponse().setResponseCode(401)
                     assertEquals("Bearer ${jwt("alice", "rotation-2")}", request.getHeader("Authorization"))
-                    return MockResponse().setBody("other-origin-jam-data")
+                    return MockResponse().setBody("other-origin-thread-data")
                 }
             }
             TokenStorage(prefs, other.url("/").toString(), "other-origin-client").storeTokens(jwt("alice"), "alice-refresh")
@@ -205,8 +205,8 @@ class OrganizationRepositoryTest {
             val selected = choices.organizations.single { it.origin == other.url("/").toString() }
             tokens.selectOrganization(selected.logins.single().id, selected.name)
             val firstRequests = first.requestCount
-            val body = http.newCall(Request.Builder().url(first.url("/api/accounts/alice/jams")).build()).execute().use { it.body!!.string() }
-            assertEquals("other-origin-jam-data", body)
+            val body = http.newCall(Request.Builder().url(first.url("/api/accounts/alice/threads")).build()).execute().use { it.body!!.string() }
+            assertEquals("other-origin-thread-data", body)
             assertEquals(firstRequests, first.requestCount)
             assertEquals(2, refreshes.get())
             assertEquals(other.url("/").toString(), tokens.snapshot().origin)

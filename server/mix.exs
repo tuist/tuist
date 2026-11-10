@@ -1,7 +1,7 @@
 defmodule Tuist.MixProject do
   use Mix.Project
 
-  # Jams uses Tuist's remote sandboxes, never Condukt's native backends.
+  # Threads uses Tuist's remote sandboxes, never Condukt's native backends.
   System.put_env("CONDUKT_BASHKIT_DISABLE", "1")
   System.put_env("CONDUKT_MICROSANDBOX_DISABLE", "1")
 

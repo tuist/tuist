@@ -73,7 +73,7 @@ class ProfileRequestIsolationTest {
             tokens.storeTokens("header.$payload.signature", "alice-refresh")
             tokens.selectOrganization(tokens.snapshot().profileId!!, "legacy-org")
             val client = OkHttpClient.Builder().addInterceptor(AuthInterceptor(tokens)).build()
-            for (collection in listOf("jams", "threads")) {
+            for (collection in listOf("threads", "jams")) {
                 repeat(2) { server.enqueue(MockResponse().setBody("personal history")) }
                 client.newCall(Request.Builder().url(server.url("/api/accounts/alice/$collection")).build()).execute().use {
                     assertEquals("personal history", it.body!!.string())
