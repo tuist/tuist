@@ -1401,6 +1401,72 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:test_failed]
   end
 
+  # The base as Swift Testing tests running in parallel record it: each test's
+  # files without lines, and the target's lines from its processes.
+  defp parallel_base_run(project, account) do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0])],
+      %{
+        git_commit_sha: "base",
+        test_modules: modules([test_case("adds()", "MathTests"), test_case("trims()", "TextTests")]),
+        coverage_evidence: %{
+          paths: ["Sources/Math.swift", "Sources/Text.swift"],
+          scopes: [
+            %{kind: "test", module: "AppTests", suite: "MathTests", name: "adds()", files: [0]},
+            %{kind: "test", module: "AppTests", suite: "TextTests", name: "trims()", files: [1]},
+            %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1], lines: [[1, 2], [1, 3]]}
+          ]
+        }
+      }
+    )
+  end
+
+  # The head skipped the target whole, as coverage-based test selection prunes it.
+  defp target_skipped_head_run(project, account, files) do
+    CoverageFixtures.run_with_coverage(project, account, files, %{
+      git_commit_sha: "head",
+      partial: true,
+      test_modules: [],
+      skip_test_identifiers: ["AppTests"]
+    })
+  end
+
+  test "carries a target skipped whole, whose tests have files without lines, when what it executed is unchanged", %{
+    project: project,
+    account: account
+  } do
+    parallel_base_run(project, account)
+
+    target_skipped_head_run(project, account, [
+      file("Sources/Math.swift", [0, 0, 0]),
+      file("Sources/Text.swift", [0, 0, 0, 0])
+    ])
+
+    assert %{kind: "reported", covered_lines: 5, executable_lines: 7, skipped_tests_count: 2, carried_tests_count: 2} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == []
+  end
+
+  test "carries a target skipped whole test by test when a file it executed changed", %{
+    project: project,
+    account: account
+  } do
+    parallel_base_run(project, account)
+
+    target_skipped_head_run(project, account, [
+      file("Sources/Math.swift", [0, 0, 0]),
+      file("Sources/Text.swift", [0, 0, 0, 0], git_blob_id: "blob-changed")
+    ])
+
+    assert %{kind: "partial", covered_lines: 0, skipped_tests_count: 2, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:evidence_without_lines, :executed_file_changed]
+  end
+
   test "evidence without lines for a file that counts is a gap", %{project: project, account: account} do
     base_run(project, account, trim_lines: [])
     head_run(project, account, head_files())

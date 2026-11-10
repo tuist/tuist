@@ -165,14 +165,9 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
                 .map { output in
-                    var output = output
-                    for (index, image) in output.images {
-                        output.images[index]?.path = Self.buildProduct(
-                            ofInstalledImage: image.path,
-                            productsDirectories: productsDirectories
-                        ) ?? image.path
+                    output.mappingImagePaths {
+                        Self.buildProduct(ofInstalledImage: $0, productsDirectories: productsDirectories) ?? $0
                     }
-                    return output
                 }
             let launches = processes.flatMap { CoverageObserverOutput.launches(directory: $0) }
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
@@ -214,7 +209,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             var filesByFunction: [String: [String: Set<String>]] = [:]
             var mappings: [String: VerifiedCoverageMapping] = [:]
             let profileCounts = await profileCounts(profile: profile)
-            let images = Set(outputs.flatMap { $0.images.values.map(\.path) })
+            let functionImages = Set(outputs.flatMap(\.functionImages.values))
+            let images = Set(outputs.flatMap { $0.images.values.map(\.path) }).union(functionImages)
             let architecture = CoverageExportService.architecture(ofImages: images.sorted())
             for image in images {
                 let target = CompilationPrefixMaps.targetName(ofProduct: image)
@@ -225,13 +221,18 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
+            var symbols: [String: ImageSymbols] = [:]
+            for image in functionImages {
+                symbols[image] = ImageSymbols(imagePath: image)
+            }
             let processCoverage = await fromProcesses
             var evidence = Self.reduce(
                 outputs: outputs,
                 filesByFunction: filesByFunction,
                 mappings: mappings,
                 targets: processCoverage.targets,
-                launched: processCoverage.launched
+                launched: processCoverage.launched,
+                symbols: symbols
             )
             evidence.status = evidence.scopes.isEmpty ? .failed : .collected
             return evidence
@@ -251,12 +252,21 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     /// it takes those instead of the union of its records. `launched` holds what the processes a
     /// scope launched executed, the app a UI test drives: it joins the test's scope (the suite's,
     /// for a launch outside a test) and its target's.
+    ///
+    /// A Swift Testing test whose counter record overlapped another test's takes its files from its
+    /// function records instead, when its code was built with function-entry tracking (`symbols`
+    /// holds the symbols of each image they name): the functions its task entered, the process's
+    /// floor (what no test's task ran), and what the counters saw run among the process's Swift
+    /// Testing tests that function tracking didn't see, such as a dynamic framework built without
+    /// it. Every test of the process may depend on the last two. Function records name no lines, so
+    /// such a test's scope holds files only.
     static func reduce(
         outputs: [CoverageObserverOutput],
         filesByFunction: [String: [String: Set<String>]],
         mappings: [String: VerifiedCoverageMapping] = [:],
         targets: [String: [String: IndexSet]] = [:],
-        launched: [CoverageObserverOutput.Launch.Scope: [String: IndexSet]] = [:]
+        launched: [CoverageObserverOutput.Launch.Scope: [String: IndexSet]] = [:],
+        symbols: [String: ImageSymbols] = [:]
     ) -> TestCoverageEvidence {
         struct Key: Hashable {
             let kind: TestCoverageEvidence.Kind
@@ -275,16 +285,19 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             }
         }
 
+        var functionAttributed: Set<Key> = []
+        let filesBySymbol = TaskFiles.filesBySymbol(filesByFunction)
+
         for output in outputs {
+            var overlappedInProcess: Set<Key> = []
+            // What the counters saw run from the process's first Swift Testing test on.
+            var swiftTestingFiles: Set<String> = []
+            var inSwiftTesting = false
             for record in output.records {
                 let recordLines = output.lines(of: record, mappings: mappings)
-                var recordFiles: Set<String> = []
-                for (image, functions) in output.functions(of: record) {
-                    guard let table = filesByFunction[image] else { continue }
-                    for function in functions {
-                        recordFiles.formUnion(table[function] ?? [])
-                    }
-                }
+                let recordFiles = output.files(of: record, filesByFunction: filesByFunction)
+                if record.kind == .swiftTesting { inSwiftTesting = true }
+                if inSwiftTesting, record.kind != .xctest { swiftTestingFiles.formUnion(recordFiles) }
                 if !record.module.isEmpty, targets[record.module] == nil {
                     add(recordFiles, recordLines, to: Key(kind: .target, module: record.module, suite: "", name: ""))
                 }
@@ -297,11 +310,26 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     let key = Key(kind: .test, module: record.module, suite: record.suite, name: name)
                     if record.overlapped {
                         overlapped.insert(key)
+                        overlappedInProcess.insert(key)
                     } else {
                         add(recordFiles, recordLines, to: key)
                     }
                 }
             }
+
+            guard !overlappedInProcess.isEmpty,
+                  let tasks = TaskFiles(of: output, symbols: symbols, filesBySymbol: filesBySymbol)
+            else { continue }
+            for (test, testFiles) in tasks.files(beside: swiftTestingFiles) {
+                let key = Key(kind: .test, module: test.module, suite: test.suite, name: test.name)
+                guard overlappedInProcess.contains(key) else { continue }
+                add(testFiles, [:], to: key)
+                functionAttributed.insert(key)
+            }
+        }
+        // Lines a test's clean cases recorded don't tell those of its overlapped cases.
+        for key in functionAttributed {
+            lines[key] = nil
         }
 
         for (module, targetLines) in targets {
