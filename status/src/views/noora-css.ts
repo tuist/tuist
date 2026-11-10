@@ -369,7 +369,7 @@ export const NOORA_CSS = String.raw`
   --noora-button-background-secondary:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.02)),
       light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
@@ -1683,6 +1683,29 @@ export const NOORA_CSS = String.raw`
   }
   &[data-status="in_progress"] [data-part="icon"] {
     color: var(--noora-badge-status-in-progress);
+  }
+
+  /* A running dot blinks, between half and full opacity. */
+  &[data-status="in_progress"][data-type="dot"] [data-part="icon"] {
+    animation: noora-status-badge-blink 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes noora-status-badge-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-status-badge[data-status="in_progress"][data-type="dot"]
+    [data-part="icon"] {
+    animation: none;
   }
 }
 
