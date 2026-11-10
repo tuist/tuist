@@ -123,7 +123,7 @@ enum PinnedSourceSnapshot {
             customEnvironment: gitEnvironment
         )
         try await SystemProcess.run(
-            "/usr/bin/git", ["-C", destination.path, "fetch", "--depth", "1", "--", source, revision],
+            "/usr/bin/git", ["-C", destination.path, "fetch", "--no-auto-maintenance", "--depth", "1", "--", source, revision],
             customEnvironment: gitEnvironment
         )
         let tags = try await SystemProcess.output(
@@ -137,7 +137,7 @@ enum PinnedSourceSnapshot {
         })
         if !pinnedTags.isEmpty {
             try await SystemProcess.run(
-                "/usr/bin/git", ["-C", destination.path, "fetch", "--depth", "1", "--", source] + pinnedTags.sorted(),
+                "/usr/bin/git", ["-C", destination.path, "fetch", "--no-auto-maintenance", "--depth", "1", "--", source] + pinnedTags.sorted(),
                 customEnvironment: gitEnvironment
             )
         }
@@ -148,7 +148,7 @@ enum PinnedSourceSnapshot {
         let allowsFileProtocol = try await PackageResolver.localSourceControlPackageLocation(origin) != nil
         try await SystemProcess.run(
             "/usr/bin/git",
-            ["-C", destination.path] + (allowsFileProtocol ? ["-c", "protocol.file.allow=always"] : [])
+            ["-C", destination.path, "-c", "maintenance.auto=false"] + (allowsFileProtocol ? ["-c", "protocol.file.allow=always"] : [])
                 + ["submodule", "update", "--init", "--recursive"],
             customEnvironment: gitEnvironment
         )

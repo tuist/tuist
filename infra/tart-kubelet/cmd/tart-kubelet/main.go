@@ -389,7 +389,13 @@ func main() {
 	}
 	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
 	nodeLabels[macosandbox.WarmHostLabel] = "v1"
-	sandboxService := &macosandbox.Service{Kube: typedClient, Node: nodeName, Root: filepath.Join(tartClient.UserDataDir, ".macos-sandboxes")}
+	// The CI client inherits Tart's default store, as the CLI resolves it.
+	ciStore := os.Getenv("TART_HOME")
+	if ciStore == "" {
+		home, _ := os.UserHomeDir()
+		ciStore = filepath.Join(home, ".tart")
+	}
+	sandboxService := &macosandbox.Service{Kube: typedClient, Node: nodeName, Root: filepath.Join(tartClient.UserDataDir, ".macos-sandboxes"), CIStore: ciStore}
 	tartClient.LaunchGuard = sandboxService.LaunchGuard
 	if err := mgr.Add(sandboxService); err != nil {
 		setupLog.Error(err, "add macOS sandbox service")

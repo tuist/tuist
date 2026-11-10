@@ -127,6 +127,7 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -499,6 +500,10 @@ func main() {
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
+	flag.DurationVar(&ovhPoolPrepInterval, "ovh-pool-prep-interval", 5*time.Minute,
+		"How often the OVH pool prep pass looks for boxes named prep-<adoptDisplayNamePrefix> "+
+			"and moves them on. Each pass reads every unclaimed box's displayName; an install "+
+			"takes 20 to 40 minutes. 0 disables it.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -1063,6 +1068,24 @@ func main() {
 			os.Exit(1)
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		if ovhPoolPrepInterval > 0 {
+			if err := mgr.Add(&linux.OVHPoolPrep{
+				Client:    mgr.GetClient(),
+				APIReader: mgr.GetAPIReader(),
+				OVH:       ovhClient,
+				FleetKey: func(ctx context.Context, fleet string) (string, error) {
+					return linux.FleetPublicKey(ctx, credsManager, fleet)
+				},
+				Recorder:          mgr.GetEventRecorderFor("ovh-pool-prep"),
+				Interval:          ovhPoolPrepInterval,
+				DefaultDatacenter: "vin",
+				DefaultOS:         "ubuntu_24.04",
+				Log:               ctrl.Log.WithName("ovh-pool-prep"),
+			}); err != nil {
+				setupLog.Error(err, "setup OVHPoolPrep")
+				os.Exit(1)
+			}
+		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 

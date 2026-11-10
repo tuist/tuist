@@ -70,6 +70,24 @@ Do this on one staging box before canary:
 
 ## Pod-level resource managers (kubelet v1.36)
 
+**Do not combine exclusive CPUs with nested KVM on current kubelets.**
+[Kubernetes #143490](https://github.com/kubernetes/kubernetes/issues/143490)
+identifies a missing device allocation in pod-level admission. Containers then
+allocate devices concurrently at startup, racing in the device manager and
+panicking kubelet. The proposed [upstream fix](https://github.com/kubernetes/kubernetes/pull/143494)
+is not yet merged. Helm and the runners-controller reject pools with both
+`exclusiveCPUs: true` and `nestedVirtualization: true`. Managed pools keep KVM
+and container-level CPU/memory budgets; exclusive CPU isolation remains available
+only to pools that turn nested virtualization off. Do not remove these guards
+until a verified upstream fix is installed on every eligible host.
+
+This prevents new Pods from taking the broken admission path; it does not repair
+an already-inconsistent CPU checkpoint. Recover a damaged host separately after
+checking its live runtime workloads. Never reset allocation state automatically
+under running jobs. Production's OnDelete fleets do not upgrade existing hosts
+when `kubernetesVersion` changes, so check live kubelet versions rather than
+assuming every host runs the chart's version.
+
 A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
 and the shell bridge. On v1.34 the static policy can only pin a container whose
 own requests equal its limits, so the Pod stays Burstable on the shared pool

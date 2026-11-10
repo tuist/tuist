@@ -104,6 +104,8 @@ export default {
       out: this.el.dataset.metricOut,
       read: this.el.dataset.metricRead,
       write: this.el.dataset.metricWrite,
+      used: this.el.dataset.metricUsed,
+      total: this.el.dataset.metricTotal,
     });
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
     for (const track of this.metrics.tracks) {

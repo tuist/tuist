@@ -10,6 +10,9 @@ bucket: shards
 # keeps archives in each account's own storage. Never rename it on an
 # existing target.
 archiveBucket: ""
+# Shared sandbox archive budget across all accounts on this store. New uploads
+# overflow to account storage; this is not a filesystem quota or retention rule.
+archiveBudgetGiB: 100
 # Start with 1 in every environment; 3 is an optional future topology. Never change
 # this on an existing release: create a new store and immutable target instead.
 replicas: 1

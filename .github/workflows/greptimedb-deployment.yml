@@ -1,0 +1,219 @@
+name: GreptimeDB Staging Pilot
+
+on:
+  pull_request:
+    paths:
+      - infra/helm/greptimedb/**
+      - .github/workflows/greptimedb-deployment.yml
+      - .github/scripts/greptimedb*
+      - .github/scripts/openobserve-capacity.mjs
+      - .github/scripts/openobserve-storage-check.sh
+      - .github/scripts/openobserve-preflight.test.mjs
+  push:
+    branches: [main]
+    paths:
+      - infra/helm/greptimedb/**
+      - .github/workflows/greptimedb-deployment.yml
+      - .github/scripts/greptimedb*
+      - .github/scripts/openobserve-capacity.mjs
+      - .github/scripts/openobserve-storage-check.sh
+      - .github/scripts/openobserve-preflight.test.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm jq yq node"
+          cache: "false"
+      - name: Validate isolated staging configuration and shared prerequisites
+        run: |
+          set -euo pipefail
+          bash infra/helm/greptimedb/test-managed.sh
+          node --check .github/scripts/greptimedb-smoke.mjs
+          node --test .github/scripts/openobserve-preflight.test.mjs
+          mkdir -p "$RUNNER_TEMP/greptimedb-chart"
+          helm package infra/helm/greptimedb --destination "$RUNNER_TEMP/greptimedb-chart"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greptimedb-chart
+          path: ${{ runner.temp }}/greptimedb-chart/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  staging:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    needs: validate
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    environment:
+      name: server-k8s-staging
+    concurrency:
+      group: server-deploy-staging-observability
+      cancel-in-progress: false
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/greptimedb-config
+      STORAGE_POD: greptimedb-storage-${{ github.run_id }}-${{ github.run_attempt }}
+      SMOKE_POD: greptimedb-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl jq yq node"
+          cache: "false"
+      - uses: actions/download-artifact@v4
+        with:
+          name: greptimedb-chart
+          path: ${{ runner.temp }}/greptimedb-deploy
+      - name: Render qualified chart
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          helm template greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" -n observability > "$dir/rendered.yaml"
+          yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
+      - uses: 1password/install-cli-action@v4
+      - name: Load staging deployment identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get 'kubeconfig: tuist-staging' --vault tuist-k8s-staging --output "$KUBECONFIG"
+      - name: Check prerequisites, ownership and capacity before creating backend resources
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          kubectl --request-timeout=10s get --raw /version > /dev/null
+          kubectl get namespace observability > /dev/null
+          kubectl get storageclass hcloud-volumes > /dev/null
+          kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
+          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
+          jq -r '.[] | [.kind, .metadata.name] | @tsv' "$dir/resources.json" > "$dir/resources.tsv"
+          while IFS=$'\t' read -r kind name; do
+            case "$kind" in ConfigMap|Service|StatefulSet|ExternalSecret|NetworkPolicy) ;; *) exit 1 ;; esac
+            existing=$(kubectl -n observability get "$kind" "$name" --ignore-not-found \
+              -o 'jsonpath={.metadata.name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-namespace}{"\t"}{.metadata.labels.app\.kubernetes\.io/managed-by}')
+            if [[ -n "$existing" && "$existing" != "$(printf '%s\tgreptimedb\tobservability\tHelm' "$name")" ]]; then
+              echo "::error::GreptimeDB resource ownership conflict: $kind/$name"
+              exit 1
+            fi
+          done < "$dir/resources.tsv"
+          kubectl -n observability get externalsecrets -o json | jq -e '
+            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-credentials" or
+              .metadata.name == "greptimedb-credentials") and
+            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-auth")' > /dev/null
+          kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
+          kubectl get pods -A -o json > "$dir/pods.json"
+          node .github/scripts/openobserve-capacity.mjs "$dir/nodes.json" "$dir/pods.json" "$dir/resources.json"
+          rm -f "$dir/nodes.json" "$dir/pods.json"
+      - name: Verify shared S3 lifecycle, privacy and isolated prefix access
+        run: |
+          set -euo pipefail
+          jq -n --arg name "$STORAGE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-staging" \
+            --rawfile script .github/scripts/openobserve-storage-check.sh '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:300,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:65532,fsGroup:65532,seccompProfile:{type:"RuntimeDefault"}},
+              volumes:[{name:"scratch",emptyDir:{sizeLimit:"1Mi"}}],
+              containers:[{name:"probe",image:"curlimages/curl:8.12.1",command:["sh","-c",$script],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
+                resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"64Mi"}},
+                env:[{name:"DEPLOY_ENV",value:"staging"},{name:"STORAGE_PREFIX",value:"greptimedb"},
+                  {name:"CHECK_RUN",value:$run},
+                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_ACCESS_KEY_ID"}}},
+                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_SECRET_ACCESS_KEY"}}}]
+              }]}}
+          ' > "$RUNNER_TEMP/greptimedb-deploy/storage.json"
+          kubectl create -f "$RUNNER_TEMP/greptimedb-deploy/storage.json" > /dev/null
+          deadline=$((SECONDS + 300))
+          phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n observability get pod "$STORAGE_POD" -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 5
+          done
+          # Only our credential-safe prerequisite output, not application logs.
+          kubectl -n observability logs "$STORAGE_POD" || true
+          [[ "$phase" == Succeeded ]]
+          kubectl -n observability delete pod "$STORAGE_POD" --wait=true --timeout=30s > /dev/null
+      - name: Bootstrap pilot authentication without rotating an existing identity
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          printf 'pilot=%s\n' "$(openssl rand -hex 32)" > "$dir/passwd"
+          if ! kubectl -n observability create secret generic greptimedb-auth --from-file=passwd="$dir/passwd" > "$dir/auth.log" 2>&1; then
+            grep -q 'secrets "greptimedb-auth" already exists' "$dir/auth.log"
+          fi
+          rm -f "$dir/passwd" "$dir/auth.log"
+      - name: Install private backend, retaining state on failure
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          if ! helm upgrade --install greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" \
+            -n observability --timeout 10m --wait > "$dir/helm.log" 2>&1; then
+            echo '::error::GreptimeDB rollout failed; state retained for diagnosis.'
+            exit 1
+          fi
+          kubectl -n observability wait --for=condition=Ready externalsecret/greptimedb-credentials --timeout=60s
+      - name: Require OTLP metrics, error logs and traces, then reread after restart without rewriting
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          jq -n --arg name "$SMOKE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-staging" \
+            --rawfile script .github/scripts/greptimedb-smoke.mjs '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:180,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:1000,fsGroup:1000,seccompProfile:{type:"RuntimeDefault"}},
+              volumes:[{name:"auth",secret:{secretName:"greptimedb-auth",defaultMode:288}}],
+              containers:[{name:"probe",image:"node:22.14.0-alpine3.21",command:["node","--input-type=module","-e",$script],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                volumeMounts:[{name:"auth",mountPath:"/auth",readOnly:true}],
+                resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"128Mi"}},
+                env:[{name:"GREPTIMEDB_URL",value:"http://greptimedb.observability:4000"},
+                  {name:"SMOKE_RUN",value:$run},{name:"GREPTIMEDB_AUTH_FILE",value:"/auth/passwd"}]
+              }]}}
+          ' > "$dir/smoke.json"
+          kubectl create -f "$dir/smoke.json" > /dev/null
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability logs "$SMOKE_POD"
+          kubectl -n observability delete pod "$SMOKE_POD" --wait=true --timeout=30s > /dev/null
+          kubectl -n observability rollout restart statefulset/greptimedb
+          kubectl -n observability rollout status statefulset/greptimedb --timeout=180s
+          jq '.spec.containers[0].env += [{name:"SMOKE_READ_ONLY",value:"true"}]' "$dir/smoke.json" > "$dir/read.json"
+          kubectl create -f "$dir/read.json" > /dev/null
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability logs "$SMOKE_POD"
+      - name: Sanitized failure diagnostics
+        if: failure()
+        run: |
+          kubectl -n observability get pods -l app.kubernetes.io/instance=greptimedb \
+            -o custom-columns=NAME:.metadata.name,PHASE:.status.phase --no-headers || true
+      - name: Remove disposable probes and CI-local files only
+        if: always()
+        run: |
+          set -euo pipefail
+          trap 'rm -rf "$RUNNER_TEMP/greptimedb-deploy"; rm -f "$KUBECONFIG"' EXIT
+          if [[ -f "$KUBECONFIG" ]]; then
+            kubectl -n observability delete pod "$SMOKE_POD" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
+          fi

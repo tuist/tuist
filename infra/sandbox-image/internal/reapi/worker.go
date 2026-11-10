@@ -157,9 +157,27 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	}
 	runCtx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	env := make([]string, 0, len(command.EnvironmentVariables))
+	// The guest's /tmp is a tmpfs in VM memory, half its size. Temporary files
+	// go next to the input root instead, on the workspace disk, unless the
+	// action chooses its own directory.
+	tmp, err := os.MkdirTemp(filepath.Dir(w.Root), filepath.Base(w.Root)+".tmp-")
+	if err != nil {
+		return nil, false, err
+	}
+	defer os.RemoveAll(tmp)
+	if w.Credential != nil {
+		if err = os.Chown(tmp, int(w.Credential.Uid), int(w.Credential.Gid)); err != nil {
+			return nil, false, err
+		}
+	}
+	env := make([]string, 0, len(command.EnvironmentVariables)+1)
+	ownTmp := false
 	for _, v := range command.EnvironmentVariables {
 		env = append(env, v.Name+"="+v.Value)
+		ownTmp = ownTmp || v.Name == "TMPDIR"
+	}
+	if !ownTmp {
+		env = append(env, "TMPDIR="+tmp)
 	}
 	program, err := commandPath(command.Arguments[0], env, filepath.Join(w.Root, working))
 	if err != nil {

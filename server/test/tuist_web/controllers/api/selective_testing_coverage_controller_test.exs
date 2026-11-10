@@ -80,7 +80,12 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
     test "returns the reason there's no baseline", %{conn: conn, user: user, project: project} do
       stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
 
-      repository_id = CoverageFixtures.seed_history(user.account, [CoverageFixtures.commit("base", [], 0)])
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
       CoverageFixtures.commit_coverage(project, repository_id, "base", runs: [[platform: "macos"]])
       path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
 
@@ -89,6 +94,11 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
 
       assert conn |> post(path, %{build_system: "xcode", commit_sha: "unknown", platform: "ios"}) |> json_response(:ok) ==
                %{"baseline_sha" => nil, "reason" => "history_unknown", "diff_cached" => false}
+
+      CoverageFixtures.commit_coverage(project, repository_id, "head", listing: :truncated)
+
+      assert conn |> post(path, %{build_system: "xcode", commit_sha: "head", platform: "ios"}) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "no_baseline", "diff_cached" => false}
     end
 
     test "requires the build system and the checked-out commit", %{conn: conn, user: user, project: project} do

@@ -112,8 +112,14 @@ after eviction, so the server releases its reservation after the host's fence.
 The isolated disk budget counts complete writable root disks and two memory
 images per environment, including evicted environments, against half the host
 filesystem. Save/restore admission also leaves 20 GiB free beyond two memory
-images. A cold template pull requires 100 GiB beyond the CI preparation floor
-of 30% free disk. These are conservative admission checks on a shared filesystem,
+images. When the kubelet's CI store has already pulled the template image, as a
+CI pool on the same image does, preparation clones its cached record and the
+disk files it names into the isolated store (`seed.go`). The APFS clones share
+the CI copy's blocks, so the template costs no disk while CI holds the image,
+and they keep those blocks after CI collects its copy. Only otherwise does
+preparation pull, and a cold template pull requires 100 GiB beyond the CI
+preparation floor of 30% free disk, which a rack host filled to its planned
+cache and golden budgets never has. These are conservative admission checks on a shared filesystem,
 not a dedicated host filesystem quota. Guest workspaces have an APFS quota;
 root disks retain the image's fixed logical ceiling. Automatic Tart pruning is
 turned off in the isolated store so it cannot decide environment retention.

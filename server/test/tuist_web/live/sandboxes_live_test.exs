@@ -82,7 +82,8 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
       refute has_element?(lv, "#sandboxes-empty-state")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
-      assert has_element?(lv, "#sandboxes-concurrency-disk", "84 GB of 420 GB on nodes now")
+      # Six sandboxes of a 10 GB workspace, a 4 GB memory image and 64 MiB of snapshot state.
+      assert has_element?(lv, "#sandboxes-concurrency-disk", "84.4 GB of 420 GB on nodes now")
     end
 
     test "charts the account's sandbox history", %{conn: conn, account: account} do
@@ -297,7 +298,19 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute Repo.get(Sandbox, sandbox.id)
     end
 
-    test "archives a paused sandbox and resumes it from the archive", %{conn: conn, account: account} do
+    test "queues a paused sandbox with a full in-rack budget and shows its archive progress", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(
+        account: AccountsFixtures.account_fixture(),
+        state: :archived,
+        node_name: nil,
+        archive_store: "gra-v1",
+        archive_bytes: 500 * 1024 * 1024 * 1024,
+        archived_at: DateTime.utc_now()
+      )
+
       sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
