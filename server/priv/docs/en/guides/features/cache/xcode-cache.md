@@ -253,7 +253,7 @@ let tuist = Tuist(
 )
 ```
 
-While no build is running, Tuist checks each of the project's stores every 10 minutes. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+Tuist checks each of the project's stores when its cache proxy starts, before any build uses them, and every 10 minutes while no build is running. `tuist setup cache` starts the proxy when it isn't running, so a CI job that runs `tuist setup cache` before its builds and `tuist teardown cache` after them bounds a long-lived runner's stores at the start of every job. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
 
 ### Module cache hashes {#module-cache-hashes}
 

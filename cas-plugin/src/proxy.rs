@@ -4850,6 +4850,37 @@ impl Proxy {
         }
     }
 
+    /// Prunes every registered store that has grown past its size limit, for a
+    /// proxy that is starting and holds no handle yet. `bound_stores` waits for an
+    /// idle machine, which one that starts the proxy for each job and stops it
+    /// after (`tuist setup cache` ... `tuist teardown cache` on CI) never is, so
+    /// its stores grew until llcas's fixed-size mappings filled and every build
+    /// crashed the build system with "LLVM ERROR: Cannot allocate memory".
+    pub fn bound_registered_stores(&self) {
+        let paths: Vec<String> = self.path_instances.lock().unwrap().keys().cloned().collect();
+        for cas_path in paths {
+            let Some(limit) = self.store_size_limit(&cas_path) else { continue };
+            // See `bound_store`.
+            if spool_records(&cas_path) > 0 {
+                continue;
+            }
+            let size = directory_size(&cas_path);
+            if size <= limit {
+                continue;
+            }
+            match prune_store(&cas_path, generation_limit(limit)) {
+                Ok(pruned) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: pruning at startup reclaimed {} bytes{}",
+                    pruned.reclaimed,
+                    if pruned.held_open { " (held open elsewhere, so not rotated)" } else { "" }
+                )),
+                Err(message) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: prune at startup failed: {message}"
+                )),
+            }
+        }
+    }
+
     /// The size limit of the store at `cas_path`: the smallest limit set by any
     /// project that has used it. Stores are shared (Xcode's default store by
     /// every project on the machine), so the limit of whichever project built
@@ -10238,6 +10269,39 @@ mod tests {
             "a restart remembers every project that used the path"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A CI machine that starts the proxy for each job and stops it after is
+    /// never idle while the proxy runs, so only a pass at startup bounds it.
+    #[test]
+    fn a_registered_store_past_its_limit_is_pruned_as_the_proxy_starts() {
+        const LIMIT: usize = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-at-start");
+        let registry = dir.0.join("registry");
+        let bounded = store_in(&dir, "bounded");
+        let unbounded = store_in(&dir, "unbounded");
+        let spooled = store_in(&dir, "spooled");
+        for store in [&bounded, &unbounded, &spooled] {
+            write_generation(Path::new(store), 1, "v8.data", LIMIT + 1024 * 1024);
+        }
+        std::fs::create_dir_all(spool_dir(&spooled)).unwrap();
+        std::fs::write(spool_dir(&spooled).join("1234-0"), b"record").unwrap();
+        std::fs::write(
+            &registry,
+            format!("{bounded}\ttuist/bounded\n{unbounded}\ttuist/unbounded\n{spooled}\ttuist/bounded\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            sources_path_for(&registry),
+            format!(r#"{{"tuist/bounded":{{"storeSizeLimit":{LIMIT}}},"tuist/unbounded":{{}}}}"#),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).bound_registered_stores();
+
+        assert_eq!(generations_at(Path::new(&bounded)), vec!["v1.2"]);
+        assert_eq!(generations_at(Path::new(&unbounded)), vec!["v1.1"], "no project bounded it");
+        assert_eq!(generations_at(Path::new(&spooled)), vec!["v1.1"], "it still owes publications");
     }
 
     fn registry_proxy(registry: &Path) -> &'static Proxy {
