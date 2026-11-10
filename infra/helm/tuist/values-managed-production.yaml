@@ -1922,26 +1922,6 @@ rackLinuxFleet:
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
       amt: {activate: true}
-    # larch's three ASUS RS501A units. Uncomment only once racked: a declared
-    # unit installs itself. The UUID and TPM check code are read on site
-    # (`sudo rack-node check-code`, or `rack-bmc inventory`); primeLine's
-    # e3b0-c442-98fc-1c14 is the SHA-256 of empty input, not a TPM.
-    # larch-store-a's address and publicAddress come from the activation work.
-    # - uuid: <SMBIOS UUID, read on site>
-    #   hostname: larch-edge-a
-    #   role: edge
-    #   site: larch
-    #   tpmCheckCode: <read on site>
-    # - uuid: <SMBIOS UUID, read on site>
-    #   hostname: larch-edge-b
-    #   role: edge
-    #   site: larch
-    #   tpmCheckCode: <read on site>
-    # - uuid: <SMBIOS UUID, read on site>
-    #   hostname: larch-store-a
-    #   role: storage
-    #   site: larch
-    #   tpmCheckCode: <read on site>
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
