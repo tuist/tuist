@@ -150,6 +150,14 @@ selector matcher cannot match:
 - `=~".*"` adds no constraint. `!~".*"` matches nothing.
 - `__name__` regex and prefix matchers, such as `{__name__=~"prefix_.*"}`.
 
+Matchers on the same label must accept the **same value**. For example,
+`queue=~"process_build|default",queue!="default"` skips a segment whose complete
+queue set is only `""` and `"default"`, before byte admission or object GETs.
+Different labels are still independent: their value sets cannot prove that
+values belong to the same sample. Unknown summaries or unrecognized regex
+shapes never supply exclusion evidence. This changes query planning only;
+stored summaries, safety limits and charging for retained sources are unchanged.
+
 A remote-write batch often holds more than 128 metric names. Its entry then
 carries a bloom filter of up to 2,048 names instead (16 bits per name, at most
 1 KiB, so no larger than the list it replaces). The filter decides `__name__`
@@ -175,6 +183,28 @@ Flags such as `(?i)`, `\Q...\E`, and patterns with no literal prefix (such as
 cardinality, long values) are always scanned. Every selector still filters
 rows after download. Pruning only avoids reading segments that cannot match.
 The segments that remain count against the per-query budget of 1,024 segments.
+
+## Bounded PromQL aggregation
+
+Aggregates over a selector or supported range function fold one series at a
+time into per-group, per-step state. The same path handles a direct selector
+compared with a literal scalar on either side, using `==`, `!=`, `<`, `>`, `<=`
+or `>=`, with or without `bool`. This includes the Pulse page's health widgets
+`sum(up == bool 1)` / `sum(up == bool 0)` and Grafana filtered counts such as
+`count(up{job="tuist-macos-tart-kubelet"} == 1)`.
+
+Comparisons reuse normal scalar/vector semantics: filters retain sample values
+and metric names; `bool` returns zero/one and drops the metric name. Invalid
+histogram comparisons retain their notices and do not become zero-valued
+samples. Potential output-label collisions use the materialized path so
+duplicate-label errors cannot disappear inside an aggregate.
+
+This avoids retaining a full series-by-step comparison matrix. It does not
+stream samples out of storage, save object GETs or bytes, change scan/sample/
+work/deadline/result limits, or remove the heap ceiling. Per-series comparison
+work remains charged and can be higher than evaluating one shared scalar
+vector. More complex arithmetic, vector joins and nonliteral scalar expressions
+are unchanged; this is not a general expression-fusion or capacity guarantee.
 
 ## Bounded native query acceleration
 
@@ -230,8 +260,25 @@ automatic semantic cross-encoder recovery remains unimplemented. See
 [keyed ingestion](keyed-ingestion.md). Existing
 and older-compatible readers can ignore the footer; index-free writers only lose
 acceleration. This release's local native startup check requires metric API tuple
-`{2,2,1,1,1}` (metadata/start timestamps, OTLP, postings, discovery, footer planning). That check does not fence other serving nodes;
+`{2,2,1,1,1,1}` (metadata/start timestamps, OTLP, postings, discovery, footer planning, streaming reads). That check does not fence other serving nodes;
 the separate all-participant rich-metadata upgrade requirements below still apply.
+
+### Bounded metric decoding
+
+PromQL's ordinary S3 selector scans fold at most 4,096 input rows per native
+decode call instead of materializing a whole compacted object as records.
+This reduces transient query-heap pressure without increasing any sample,
+work, scan, result, heap or deadline limit. Matching samples remain charged
+across chunks and selectors; exhausting a budget fails the whole query.
+Time/postings pruning, stored samples and keyed encoder bytes are unchanged.
+Arrow buffers and retained series still consume memory, so bounded decoding
+does not guarantee that every admitted query fits its heap.
+
+Streaming reads require metric reader capability 1 in each serving app/native
+pair. Rebuild or install matching artifacts before starting the application.
+This addition alone has no stored-format migration; earlier source-start and
+keyed-publication upgrade requirements still apply. The optional single-selector
+footer-first path and rollup decoding are not changed by this streaming path.
 
 ## Discover labels and series
 
@@ -288,7 +335,7 @@ keys can therefore return permanent `409 keyed_content_mismatch`. Do not delete,
 overwrite, change keys or resend unkeyed/subsets to bypass this. Historical
 projections are not repaired automatically. Parquet/envelope formats, shared wire
 capability 3 are unchanged by that projection correction; the current metric codec
-tuple is `{2,2,1,1,1}` including remote-write source starts. Local native
+tuple is `{2,2,1,1,1,1}` including remote-write source starts and streaming reads. Local native
 checks cannot fence an older application implementing the previous projection.
 
 ## Delta temporality
@@ -459,7 +506,7 @@ boundary, drain in-flight requests and finish pending keyed retries on the old
 fleet. Stop **all** old metric writers (including recording evaluators), readers
 and compactors before starting any upgraded participant. Do not leave an old
 compactor running against the shared bucket. Resume delivery only after every
-participant has matching app/native metric tuple `{2,2,1,1,1}`. Pausing only
+participant has matching app/native metric tuple `{2,2,1,1,1,1}`. Pausing only
 compaction does not prevent mixed-ingress keyed duplicates, and a per-node
 `Recreate` restart does not coordinate a multi-deployment fleet.
 
@@ -493,7 +540,7 @@ obsolete codec artifacts, not older running application versions.
 
 Before sending histograms/summaries, upgrade **every serving ingestion instance**
 to the application/native pair requiring OTLP metric decoder capability 2
-(current metric tuple `{2,2,1,1,1}`). An older application may reject these points
+(current metric tuple `{2,2,1,1,1,1}`). An older application may reject these points
 rather than store them, so a load balancer can otherwise make acceptance depend
 on routing. Startup checks only fence the local artifact, not another pool.
 The OTLP decoder addition did not change the Parquet schema or scalar keyed encoder.

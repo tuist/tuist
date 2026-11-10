@@ -183,8 +183,8 @@ HTTP errors: 400 invalid parameters, 401 unauthorized, 429 busy, 422 resource
 limits, 500 invalid stored data/execution failure, 503 storage failure and 504
 query timeout. Errors have no partial `data` result.
 
-Serving applications require matching metric codec API `{2,2,1,1,1}` (metadata/start timestamps,
-OTLP, postings, discovery, footer planning). Upgrade every serving app/native pair before using
+Serving applications require matching metric codec API `{2,2,1,1,1,1}` (metadata/start timestamps,
+OTLP, postings, discovery, footer planning, streaming reads). Upgrade every serving app/native pair before using
 these routes with pooled routing. Series catalogs additionally require metric catalog
 API 1 on every instance that serves discovery or runs metrics maintenance; they add
 an object type but change no existing segment format, and need no metadata migration.

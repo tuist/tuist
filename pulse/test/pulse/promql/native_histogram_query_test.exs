@@ -96,6 +96,16 @@ defmodule Pulse.PromQL.NativeHistogramQueryTest do
     assert {:ok, %{"data" => %{"result" => []}}} = instant("abs(latency_seconds)", tenant)
     assert {:ok, %{"data" => %{"result" => []}}} = instant("latency_seconds > 1", tenant)
 
+    for comparison <- ["latency_seconds > 1", "latency_seconds == bool 1", "1 != bool latency_seconds"] do
+      assert {:ok, ordinary} = instant(comparison, tenant)
+      assert {:ok, folded} = instant("sum(#{comparison})", tenant)
+      assert folded["data"]["result"] == []
+      assert Map.take(folded, ["infos", "warnings"]) == Map.take(ordinary, ["infos", "warnings"])
+    end
+
+    assert {:ok, folded} = instant(~s<sum({__name__=~"latency_seconds|up"} == bool 1)>, tenant)
+    assert folded["data"]["result"] == [%{"metric" => %{}, "value" => [60.0, "1"]}]
+
     for {name, expected} <- [
           {"ceil", "1"},
           {"sqrt", "1"},

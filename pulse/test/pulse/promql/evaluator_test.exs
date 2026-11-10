@@ -305,6 +305,67 @@ defmodule Pulse.PromQL.EvaluatorTest do
     assert {:ok, _} = Evaluator.query("rate(c[30s]) + rate(c[20s])", "acme", opts)
   end
 
+  test "Pulse health widgets and filtered counts fold comparisons before materializing all series" do
+    for i <- 1..12 do
+      points = for t <- [30, 60, 90], do: {t, rem(i + div(t, 30), 3)}
+      append("up", points, %{"instance" => "#{i}", "cluster" => if(i <= 6, do: "canary", else: "production")})
+    end
+
+    opts = %{start_ts_ns: 30_000_000_000, end_ts_ns: 90_000_000_000, step_ns: 30_000_000_000}
+    Pulse.Runtime.put_env(:pulse, Evaluator, max_materialized_samples: 6)
+
+    for {query, expected} <- [
+          {"sum(up == bool 1)", "4"},
+          {"sum(up == bool 0)", "4"},
+          {"sum(1 == bool up)", "4"},
+          {"count(up == 1)", "4"},
+          {"sum(up > 0)", "12"},
+          {"sum(1 < up)", "8"},
+          {"sum(up < 1)", "0"},
+          {"count(up != 1)", "8"},
+          {"sum(up <= bool 1)", "8"},
+          {"sum(up >= bool 1)", "8"}
+        ] do
+      assert {:ok, result} = Evaluator.query(query, "acme", opts), query
+      assert [%{"metric" => %{}, "values" => points}] = result["data"]["result"]
+      assert points == [[30.0, expected], [60.0, expected], [90.0, expected]], query
+    end
+
+    # Bool comparisons drop the metric name before grouping, filters retain it.
+    for {comparison, metric} <- [
+          {"up == bool 1", %{"cluster" => "canary"}},
+          {"up == 1", %{"cluster" => "canary", "__name__" => "up"}}
+        ] do
+      assert {:ok, result} = Evaluator.query("sum by (__name__, cluster) (#{comparison})", "acme", opts)
+      assert [canary, production] = Enum.sort_by(result["data"]["result"], & &1["metric"]["cluster"])
+      assert canary == %{"metric" => metric, "values" => [[30.0, "2"], [60.0, "2"], [90.0, "2"]]}
+      assert production["metric"] == Map.put(metric, "cluster", "production")
+      assert production["values"] == canary["values"]
+    end
+
+    Pulse.Runtime.put_env(:pulse, Evaluator, max_materialized_samples: 2)
+    assert {:error, :query_intermediate_limit} = Evaluator.query("sum(up == bool 1)", "acme", opts)
+  end
+
+  test "folded scalar comparisons preserve duplicate label errors and disjoint stale series" do
+    records = [
+      %MetricSample{timestamp_ns: 30_000_000_000, value: 1.0, labels: %{"__name__" => "left"}},
+      %MetricSample{timestamp_ns: 30_000_000_000, value: 1.0, labels: %{"__name__" => "right"}},
+      %MetricSample{timestamp_ns: 60_000_000_000, value: :stale, labels: %{"__name__" => "left"}},
+      %MetricSample{timestamp_ns: 60_000_000_000, value: :nan, labels: %{"__name__" => "right"}}
+    ]
+
+    assert :ok = Storage.append(:metrics, "acme", records)
+    selector = ~S<{__name__=~"left|right"}>
+    assert {:error, :duplicate_result_label_sets} = instant("sum(#{selector} == bool 1)", 30)
+    assert {:ok, filtered} = instant("count(#{selector} == 1)", 30)
+    assert values(filtered) == [[30.0, "2"]]
+    assert {:ok, result} = instant("sum(#{selector} != bool 1)", 60)
+    assert values(result) == [[60.0, "1"]]
+    assert {:ok, result} = instant("sum(#{selector} == bool 1)", 60)
+    assert values(result) == [[60.0, "0"]]
+  end
+
   test "topk over histogram_quantile holds the summed buckets, not every pod's rates" do
     # Two routes x three buckets x four pods: rate() yields 24 series, the
     # sum by (path, le) 6. Pod p adds p * n per 10 s to a bucket of count n,

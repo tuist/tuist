@@ -89,6 +89,51 @@ defmodule Pulse.Storage.S3.MetricLabelSummaryTest do
     assert MetricLabelSummary.build(records) == %{"job" => ["otel"]}
   end
 
+  test "conjoined matchers preserve native matches, missing values and unknown evidence" do
+    records = [
+      sample(%{"__name__" => "api", "job" => "worker"}),
+      sample(%{"__name__" => "worker", "job" => "api"}, 2),
+      sample(%{"__name__" => "api-1"}, 3)
+    ]
+
+    segment = Segment.build("x", 1, 3, 3) |> Segment.summarize_metrics(records)
+    {:ok, payload, _, _} = S3.encode_segment(:metrics, records)
+
+    tests = [
+      [eq: "api", neq: "api"],
+      [re: "api|worker", neq: "worker"],
+      [re: "api|worker", nre: "api|worker"],
+      [re: "api|", neq: "api"],
+      [re: "api.*", nre: "api-.*"],
+      [re: "", neq: ""],
+      [re: "api[0-9]", neq: "worker"],
+      [re: "(?i)API", neq: "worker"],
+      [nre: "api[0-9]", eq: "api"]
+    ]
+
+    for name <- ["job", "__name__"], tests <- tests do
+      matchers =
+        Enum.map(tests, fn {op, value} ->
+          {name, op, if(op in [:re, :nre], do: Pulse.QueryRegex.anchor(value), else: value)}
+        end)
+
+      {:ok, found} = S3.decode_segment(:metrics, payload, nil, nil, matchers: matchers)
+      kept? = Segment.matches_metrics?(segment, matchers)
+      assert found == [] or kept?, inspect(matchers)
+
+      if Enum.all?(tests, fn {_op, value} -> value not in ["api[0-9]", "(?i)API"] end) do
+        assert kept? == (found != []), inspect(matchers)
+      end
+
+      unknown = %{segment | metric_names: nil, metric_labels: nil}
+      assert Segment.matches_metrics?(unknown, matchers)
+    end
+
+    # Independent label sets cannot prove that two values belong to the same
+    # sample: api/api does not exist here, but must remain scan-eligible.
+    assert Segment.matches_metrics?(segment, [{"job", :eq, "api"}, {"__name__", :eq, "api"}])
+  end
+
   # Values and patterns chosen to catch anchoring, quantifier, escaping,
   # empty-value and flag mistakes. Each pattern is anchored as PromQL does.
   @values ["api", "ap", "api-1", "apix", "", "kura-a-1", "kura-", "a.b", "axb", "a|b", "line\nbreak", "ünï", "API"]

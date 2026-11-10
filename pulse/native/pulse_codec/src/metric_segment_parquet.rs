@@ -40,7 +40,8 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use parquet::arrow::arrow_reader::{
-    ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReaderBuilder,
+    ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReader,
+    ParquetRecordBatchReaderBuilder,
 };
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, Encoding, ZstdLevel};
@@ -768,6 +769,15 @@ pub fn decode<'a>(
     filter: &Filter<'_>,
 ) -> Result<Term<'a>, DecodeError> {
     let regex_cache = compile_regexes(&filter.matchers)?;
+    let (reader, columns) = build_reader(blob, filter, 1024)?;
+    materialize(env, reader, columns, filter, &regex_cache)
+}
+
+fn build_reader(
+    blob: &Binary<'_>,
+    filter: &Filter<'_>,
+    batch_size: usize,
+) -> Result<(ParquetRecordBatchReader, [Option<usize>; 4]), DecodeError> {
     let bytes = crate::erlang_bytes::from_binary(*blob);
 
     // Preserve the label dictionary instead of expanding identical bytes
@@ -841,16 +851,26 @@ pub fn decode<'a>(
     let metadata = builder.metadata().clone();
     let surviving = surviving_row_groups(&metadata, filter);
 
-    if surviving.is_empty() {
-        return Ok(Vec::<Term<'a>>::new().encode(env));
-    }
-
     let reader = builder
         .with_projection(projection)
         .with_row_groups(surviving)
+        .with_batch_size(batch_size)
         .build()
         .map_err(|_| DecodeError::Reader)?;
 
+    Ok((
+        reader,
+        [otlp_index, histogram_index, exemplars_index, start_index],
+    ))
+}
+
+fn materialize<'a>(
+    env: Env<'a>,
+    reader: impl Iterator<Item = Result<RecordBatch, arrow::error::ArrowError>>,
+    [otlp_index, histogram_index, exemplars_index, start_index]: [Option<usize>; 4],
+    filter: &Filter<'_>,
+    regex_cache: &[Option<regex::Regex>],
+) -> Result<Term<'a>, DecodeError> {
     let mut records: Vec<Term<'a>> = Vec::new();
 
     let keys = [
@@ -971,7 +991,7 @@ pub fn decode<'a>(
                 parse_canonical_pairs(row_bytes, &mut label_pairs)
                     .map_err(|_| DecodeError::Reader)?;
                 previous_labels = Some(row_bytes);
-                previous_matches = labels_match(&label_pairs, &filter.matchers, &regex_cache);
+                previous_matches = labels_match(&label_pairs, &filter.matchers, regex_cache);
                 previous_term = None;
             }
 
@@ -1110,6 +1130,70 @@ pub fn decode<'a>(
     }
 
     Ok(records.encode(env))
+}
+
+/// The ordinary decoder's projection, pruning and materialization, with at
+/// most 4096 input rows expanded per call. Only Arrow state and owned matcher
+/// bytes survive calls; no query-process terms are retained by the resource.
+pub struct Reader {
+    reader: ParquetRecordBatchReader,
+    columns: [Option<usize>; 4],
+    start: Option<i128>,
+    end: Option<i128>,
+    matchers: Vec<(Vec<u8>, MatcherOp, Vec<u8>)>,
+    regex_cache: Vec<Option<regex::Regex>>,
+}
+
+impl Reader {
+    pub fn new(blob: &Binary<'_>, filter: &Filter<'_>) -> Result<Self, DecodeError> {
+        let regex_cache = compile_regexes(&filter.matchers)?;
+        let (reader, columns) = build_reader(blob, filter, 4096)?;
+        Ok(Self {
+            reader,
+            columns,
+            start: filter.start,
+            end: filter.end,
+            matchers: filter
+                .matchers
+                .iter()
+                .map(|m| (m.name.to_vec(), m.op, m.value.to_vec()))
+                .collect(),
+            regex_cache,
+        })
+    }
+
+    pub fn next<'a>(
+        &mut self,
+        env: Env<'a>,
+        max_samples: usize,
+    ) -> Result<Option<Term<'a>>, DecodeError> {
+        let Some(batch) = self.reader.next() else {
+            return Ok(None);
+        };
+        let filter = Filter {
+            start: self.start,
+            end: self.end,
+            matchers: self
+                .matchers
+                .iter()
+                .map(|(name, op, value)| Matcher {
+                    name,
+                    op: *op,
+                    value,
+                })
+                .collect(),
+            max_samples: Some(max_samples),
+            exemplars_only: false,
+        };
+        materialize(
+            env,
+            std::iter::once(batch),
+            self.columns,
+            &filter,
+            &self.regex_cache,
+        )
+        .map(Some)
+    }
 }
 
 pub(super) fn surviving_row_groups(

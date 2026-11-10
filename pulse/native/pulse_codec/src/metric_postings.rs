@@ -18,6 +18,7 @@ const LEGACY_KEY: &str = "pulso.metric.postings.v1";
 const LEGACY_MAGIC: &[u8; 8] = b"PULSOMP1";
 const MAX_TEXT: usize = 65_536;
 const MAX_RAW: usize = MAX_TEXT / 2;
+const COMPRESSED: &str = "s1:";
 const MAX_SERIES: usize = 512;
 const MAX_GROUPS: usize = 128;
 const MAX_ROWS: usize = 100_000;
@@ -219,9 +220,23 @@ fn encode(index: &Index) -> String {
     // a writer forging metadata. Like Parquet statistics, coverage derives
     // from the first-party writer, not from this noncryptographic checksum.
     out.extend_from_slice(&xxh64(&out, 0).to_le_bytes());
+    // Parquet column compression does not compress key/value footer metadata.
+    // Small indexes keep their old encoding; larger ones use bounded raw
+    // Snappy only when the complete versioned envelope is actually smaller.
+    if out.len() >= 1024 {
+        if let Ok(compressed) = snap::raw::Encoder::new().compress_vec(&out) {
+            if COMPRESSED.len() + compressed.len() * 2 < out.len() * 2 {
+                return format!("{COMPRESSED}{}", hex(&compressed));
+            }
+        }
+    }
+    hex(&out)
+}
+
+fn hex(raw: &[u8]) -> String {
     let hex = b"0123456789abcdef";
-    let mut text = String::with_capacity(out.len() * 2);
-    for byte in out {
+    let mut text = String::with_capacity(raw.len() * 2);
+    for byte in raw {
         text.push(hex[(byte >> 4) as usize] as char);
         text.push(hex[(byte & 15) as usize] as char);
     }
@@ -260,7 +275,14 @@ impl<'a> Cursor<'a> {
 }
 
 fn parse(text: &str) -> Option<Index> {
-    if text.len() > MAX_TEXT || !text.len().is_multiple_of(2) || text.len() < 16 {
+    if text.len() > MAX_TEXT {
+        return None;
+    }
+    let (compressed, text) = match text.strip_prefix(COMPRESSED) {
+        Some(payload) => (true, payload),
+        None => (false, text),
+    };
+    if !text.len().is_multiple_of(2) || text.len() < 16 {
         return None;
     }
     let raw: Vec<u8> = text
@@ -277,6 +299,16 @@ fn parse(text: &str) -> Option<Index> {
             Some(nibble(pair[0])? * 16 + nibble(pair[1])?)
         })
         .collect::<Option<_>>()?;
+    let raw = if compressed {
+        // Inspect the declared decoded length before allocating. Compression
+        // never expands the index's original independent 32 KiB admission cap.
+        if snap::raw::decompress_len(&raw).ok()? > MAX_RAW {
+            return None;
+        }
+        snap::raw::Decoder::new().decompress_vec(&raw).ok()?
+    } else {
+        raw
+    };
     let body = raw.get(..raw.len().checked_sub(8)?)?;
     let digest = u64::from_le_bytes(raw.get(body.len()..)?.try_into().ok()?);
     if xxh64(body, 0) != digest {
@@ -444,6 +476,111 @@ mod tests {
             value,
             op: MatcherOp::Eq,
         }
+    }
+
+    #[test]
+    fn large_complete_postings_use_less_footer_text_and_keep_exact_candidates() {
+        let rows: Vec<Vec<u8>> = (0..256)
+            .map(|i| {
+                let mut row = Vec::new();
+                for bit in 0..8 {
+                    row.extend_from_slice(&[b'a' + bit, 0xff, b'0' + ((i >> bit) & 1) as u8, 0xff]);
+                }
+                row
+            })
+            .collect();
+        let text = build(rows.iter().map(Vec::as_slice), 16).unwrap();
+        assert!(
+            text.starts_with("s1:"),
+            "uncompressed footer: {} bytes",
+            text.len()
+        );
+        let compressed: Vec<u8> = text.as_bytes()[COMPRESSED.len()..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        let raw = snap::raw::Decoder::new()
+            .decompress_vec(&compressed)
+            .unwrap();
+        let legacy = hex(&raw);
+        assert!(text.len() < legacy.len() / 2);
+        // Isolate footer cost: identical compressed data pages and row groups,
+        // with only the optional metadata text changed between the two files.
+        let files = [&legacy, &text].map(|text| {
+            use arrow::array::{ArrayRef, Int64Array, RecordBatch};
+            use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ArrowWriter};
+            use parquet::file::properties::WriterProperties;
+            let values: ArrayRef = std::sync::Arc::new(Int64Array::from_iter_values(0..256));
+            let batch = RecordBatch::try_from_iter([("value", values)]).unwrap();
+            let props = WriterProperties::builder()
+                .set_compression(parquet::basic::Compression::ZSTD(
+                    parquet::basic::ZstdLevel::try_new(6).unwrap(),
+                ))
+                .set_max_row_group_size(16)
+                .set_key_value_metadata(Some(vec![parquet::format::KeyValue {
+                    key: KEY.into(),
+                    value: Some(text.to_string()),
+                }]))
+                .build();
+            let mut bytes = Vec::new();
+            let mut writer = ArrowWriter::try_new(&mut bytes, batch.schema(), Some(props)).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+            let size = bytes.len();
+            let reader =
+                ParquetRecordBatchReaderBuilder::try_new(bytes::Bytes::from(bytes)).unwrap();
+            let metadata = reader.metadata().clone();
+            let batches = reader
+                .build()
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            (size, metadata, batches)
+        });
+        assert!(files[1].0 < files[0].0);
+        assert_eq!(files[1].2, files[0].2);
+        eprintln!(
+            "postings text: {} -> {} bytes; isolated Parquet: {} -> {} bytes",
+            legacy.len(),
+            text.len(),
+            files[0].0,
+            files[1].0
+        );
+        let index = parse(&text).unwrap();
+        let old_index = parse(&legacy).unwrap();
+        for (bit, name) in (b'a'..=b'h').enumerate() {
+            for value in 0..=1 {
+                let expected: Vec<bool> = (0..256)
+                    .collect::<Vec<_>>()
+                    .chunks(16)
+                    .map(|group| group.iter().any(|i| ((i >> bit) & 1) == value))
+                    .collect();
+                let name = [name];
+                let value = [b'0' + value as u8];
+                let matchers = [eq(&name, &value)];
+                assert_eq!(index.candidates(&matchers), Some(expected.clone()));
+                assert_eq!(index.candidates(&matchers), old_index.candidates(&matchers));
+                assert_eq!(candidate_groups(&files[0].1, &matchers), Some(expected));
+                assert_eq!(
+                    candidate_groups(&files[0].1, &matchers),
+                    candidate_groups(&files[1].1, &matchers)
+                );
+            }
+        }
+        for end in 0..compressed.len() {
+            assert!(parse(&format!("{COMPRESSED}{}", hex(&compressed[..end]))).is_none());
+        }
+        let mut corrupt = raw;
+        corrupt[30] ^= 1;
+        let damaged = snap::raw::Encoder::new().compress_vec(&corrupt).unwrap();
+        assert!(parse(&format!("{COMPRESSED}{}", hex(&damaged))).is_none());
+        let oversized = snap::raw::Encoder::new()
+            .compress_vec(&vec![0; MAX_RAW + 1])
+            .unwrap();
+        assert!(parse(&format!("{COMPRESSED}{}", hex(&oversized))).is_none());
+        assert!(parse(&text.replacen(COMPRESSED, "s2:", 1)).is_none());
     }
 
     #[test]

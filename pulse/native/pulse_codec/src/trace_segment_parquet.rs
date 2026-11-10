@@ -589,10 +589,15 @@ pub fn compact_split<'a>(
     let service: &StringArray = column(&loaded.merged, "service")?;
     let trace: &StringArray = column(&loaded.merged, "trace_id")?;
     let payload: &StringArray = column(&loaded.merged, "payload")?;
+    let strings = STRINGS
+        .iter()
+        .map(|name| column::<StringArray>(&loaded.merged, name))
+        .collect::<Res<Vec<_>>>()?;
     let mut groups: Vec<Vec<u32>> = Vec::new();
     let mut current: Vec<u32> = Vec::new();
     let mut ids = std::collections::HashSet::new();
     let mut bytes = 0usize;
+    let mut column_bytes = 0usize;
     let key = |i: usize| {
         (
             (!service.is_null(i)).then(|| service.value(i)),
@@ -602,24 +607,31 @@ pub fn compact_split<'a>(
     for &i in order.values() {
         let row = i as usize;
         let id = trace.value(row);
+        let row_bytes = payload.value(row).len();
+        let row_column_bytes: usize = strings.iter().map(|values| values.value(row).len()).sum();
         let cap = if flagged.value(row) {
             max_flagged_ids
         } else {
             max_ids
         };
+        // Reserve half of each decoded input budget for a future partner.
+        // A valid row larger than that target remains a lossless singleton.
         let split = current.last().is_some_and(|&last| {
             key(last as usize) != key(row)
                 || current.len() >= max_output_rows
-                || bytes >= MAX_PAYLOAD_BYTES / 2
+                || bytes + row_bytes > MAX_PAYLOAD_BYTES / 2
+                || column_bytes + row_column_bytes > MAX_PAYLOAD_BYTES
                 || (!ids.contains(id) && ids.len() >= cap)
         });
         if split {
             groups.push(std::mem::take(&mut current));
             ids.clear();
             bytes = 0;
+            column_bytes = 0;
         }
         ids.insert(id);
-        bytes += payload.value(row).len();
+        bytes += row_bytes;
+        column_bytes += row_column_bytes;
         current.push(i);
     }
     if !current.is_empty() {

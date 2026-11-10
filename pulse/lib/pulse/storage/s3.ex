@@ -956,18 +956,54 @@ defmodule Pulse.Storage.S3 do
         end
 
       index, {:ok, state} ->
-        %{selector: {matchers, start, finish}} = elem(selectors, index)
-        decode_opts = Keyword.put(remaining_budget(opts, %{max_records: state.count}), :matchers, matchers)
-
-        case decode_segment(:metrics, blob, start, finish, decode_opts) do
-          {:ok, batch} ->
-            batches = add_selector_batch(state.batches, index, batch, opts[:metric_fold])
-            {:cont, {:ok, %{state | batches: batches, count: state.count + length(batch)}}}
+        case decode_selector(blob, index, elem(selectors, index).selector, opts, state) do
+          {:ok, state} ->
+            {:cont, {:ok, state}}
 
           {:error, _} = error ->
             {:halt, error}
         end
     end)
+  end
+
+  defp decode_selector(blob, index, {matchers, start, finish}, opts, state) do
+    if opts[:metric_fold] do
+      case NIF.metric_segment_reader_new(blob, start, finish, matchers) do
+        {:ok, reader} -> fold_metric_chunks(reader, index, opts, state)
+        :fallback -> {:error, {:decode_failed, :parquet_decoder_rejected_input}}
+      end
+    else
+      decode_opts = Keyword.put(remaining_budget(opts, %{max_records: state.count}), :matchers, matchers)
+
+      with {:ok, batch} <- decode_segment(:metrics, blob, start, finish, decode_opts) do
+        batches = add_selector_batch(state.batches, index, batch, nil)
+        {:ok, %{state | batches: batches, count: state.count + length(batch)}}
+      end
+    end
+  end
+
+  # Compacted objects may contain an entire selector's sample budget. Fold
+  # bounded native batches so decoded records and transient NIF allocations
+  # can be collected between calls, rather than holding a whole object.
+  defp fold_metric_chunks(reader, index, opts, state) do
+    max = if opts[:max_records], do: max(0, opts[:max_records] - state.count), else: 4096
+
+    with :ok <- check_deadline(opts[:deadline_ms]) do
+      case NIF.metric_segment_reader_next(reader, max) do
+        {:ok, batch} ->
+          batches = add_selector_batch(state.batches, index, batch, opts[:metric_fold])
+          fold_metric_chunks(reader, index, opts, %{state | batches: batches, count: state.count + length(batch)})
+
+        :done ->
+          {:ok, state}
+
+        {:error, _} = error ->
+          error
+
+        :fallback ->
+          {:error, {:decode_failed, :parquet_decoder_rejected_input}}
+      end
+    end
   end
 
   defp decode_rollups(blob, served, matchers, opts, state) do

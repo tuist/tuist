@@ -6,7 +6,9 @@ defmodule Pulse.Codec.MetricSegmentParquetTest do
   use Pulse.Test.Case, async: true
 
   alias Pulse.Codec.NIF
+  alias Pulse.Record.Exemplar
   alias Pulse.Record.MetricSample
+  alias Pulse.Record.NativeHistogram
   alias Pulse.Runtime.Task
   alias Pulse.Storage.S3
 
@@ -41,6 +43,34 @@ defmodule Pulse.Codec.MetricSegmentParquetTest do
     assert decoded.labels == s.labels
     # series_id is populated from StableHash on encode when the caller leaves it nil
     assert is_integer(decoded.series_id)
+  end
+
+  test "compressed optional postings preserve complete metric decoding and selective footer plans" do
+    records =
+      for ts <- 1..4, i <- 0..255 do
+        labels =
+          Map.new(0..7, fn bit -> {"bit#{bit}", "#{Bitwise.band(Bitwise.bsr(i, bit), 1)}"} end)
+
+        sample(ts * 1000 + i, (ts * 1000 + i) / 1, Map.merge(labels, %{"__name__" => "up", "instance" => "#{i}"}))
+      end
+
+    assert {:ok, payload, _, _, 1024} = NIF.encode_metric_segment_parquet_indexed_v1(records)
+    assert :binary.match(payload, "s1:") != :nomatch
+
+    ordered = fn rows ->
+      rows |> Enum.map(&Map.delete(&1, :series_id)) |> Enum.sort_by(&{&1.timestamp_ns, &1.labels})
+    end
+
+    assert ordered.(decode!(payload)) == ordered.(records)
+
+    matchers = [{"instance", :eq, "17"}, {"bit0", :eq, "1"}]
+    selected = Enum.filter(records, &(&1.labels["instance"] == "17" and &1.timestamp_ns >= 2000))
+    decoded = decode!(payload, start_ts: 2000, matchers: matchers)
+    assert ordered.(decoded) == ordered.(selected)
+    assert {:ok, 1024, false} = NIF.metric_segment_footer_plan(payload, byte_size(payload), 2000, nil, matchers)
+
+    assert {:ok, 1024, true} =
+             NIF.metric_segment_footer_plan(payload, byte_size(payload), nil, nil, [{"instance", :eq, "missing"}])
   end
 
   test "bounded footer statistics do not truncate long Unicode labels or time bounds" do
@@ -295,6 +325,56 @@ defmodule Pulse.Codec.MetricSegmentParquetTest do
     kept = decode!(payload, start_ts: 7_000, end_ts: 13_000)
     kept_ts = kept |> Enum.map(& &1.timestamp_ns) |> Enum.sort()
     assert kept_ts == Enum.to_list(7_000..13_000)
+  end
+
+  test "streamed metric reads preserve complete samples across chunks and apply the ordinary filters" do
+    samples =
+      for ts <- 1..9000 do
+        histogram =
+          if rem(ts, 7) == 0 do
+            %NativeHistogram{
+              count: 1.0,
+              sum: 0.75,
+              positive_spans: [{0, 1}],
+              positive_buckets: [1.0]
+            }
+          end
+
+        %MetricSample{
+          series_id: 42,
+          labels: %{"__name__" => "metric", "svc" => Enum.at(~w(api web worker), rem(ts, 3))},
+          timestamp_ns: ts,
+          start_timestamp_ms: -100,
+          value: if(!histogram, do: Enum.at([:stale, :nan, -0.0, :infinity, 1.5], rem(ts, 5))),
+          histogram: histogram,
+          otlp: %{"name" => "original", "attributes" => [%{"key" => "zone", "value" => %{"stringValue" => "é"}}]},
+          exemplars: [%Exemplar{labels: %{"trace_id" => "abc"}, value: ts * 1.0, timestamp_ns: ts}]
+        }
+      end
+
+    {payload, _, _, _} = encode!(samples)
+
+    for {start, finish, matchers} <- [
+          {nil, nil, []},
+          {3999, 8201, [{"svc", :re, "^(api|worker)$"}]},
+          {20_000, 30_000, []}
+        ] do
+      expected = decode!(payload, start_ts: start, end_ts: finish, matchers: matchers)
+      assert {:ok, reader} = NIF.metric_segment_reader_new(payload, start, finish, matchers)
+
+      streamed =
+        Stream.repeatedly(fn -> NIF.metric_segment_reader_next(reader, 4096) end)
+        |> Enum.take_while(&(&1 != :done))
+        |> Enum.flat_map(fn {:ok, batch} -> batch end)
+
+      # Bit-exact equality includes signed zero, histogram/OTLP fields and
+      # exemplar metadata, not only values used by the PromQL fold.
+      assert :erlang.term_to_binary(streamed, [:deterministic]) ==
+               :erlang.term_to_binary(expected, [:deterministic])
+    end
+
+    assert {:ok, reader} = NIF.metric_segment_reader_new(payload, nil, nil, [])
+    assert {:error, :query_sample_limit} = NIF.metric_segment_reader_next(reader, 4095)
   end
 
   test "encode->decode->encode->decode is idempotent on bytes from the second decode on" do

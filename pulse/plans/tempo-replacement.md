@@ -4,9 +4,9 @@
 
 This application-specific track is compatibility evidence, not Pulse's product
 boundary. Generic full public-protocol breadth is tracked in
-[protocol breadth](protocol-breadth.md). The latest independent metrics increment
-retains remote-write 2.0 source starts and advances the metric artifact tuple to
-`{2,2,1,1,1}`; trace `{2,1,3,4,12}` is unchanged. See the generic workstream for
+[protocol breadth](protocol-breadth.md). The current independent metrics tuple
+includes remote-write 2.0 source starts and streaming reads:
+`{2,2,1,1,1,1}`; trace `{2,1,3,4,12}` is unchanged. See the generic workstream for
 the current object-store tuple and fleet-wide upgrade requirements.
 Older metric tuples below describe historical checkpoints.
 
