@@ -399,6 +399,176 @@
           "purpose": "management"
         }
       ]
+    },
+    {
+      "name": "larch-runner-a01",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a01",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 1,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:e1:35:a5"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a02",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a02",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 2,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ab:e4:18"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a03",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a03",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 3,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b0:76:53"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a04",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a04",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 4,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ae:d2:51"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-a05",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-a05",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-a",
+          "port": 5,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b1:3f:85"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b01",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b01",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 1,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b9:79:6e"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b02",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b02",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 2,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:a8:0f:4e"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b03",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b03",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 3,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b8:a0:ec"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b04",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b04",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 4,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:bd:c9:bd"
+        }
+      ]
+    },
+    {
+      "name": "larch-runner-b05",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "larch-runner-b05",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "larch-tor-b",
+          "port": 5,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ac:5a:25"
+        }
+      ]
     }
   ]
 }
