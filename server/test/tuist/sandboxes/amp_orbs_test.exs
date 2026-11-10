@@ -284,18 +284,23 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
   end
 
-  test "a macOS Orb's pause saves no disk snapshot and is never archived", %{account: account} do
-    sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
+  test "a macOS Orb's pause refuses a project snapshot and is never archived", %{account: account} do
+    sandbox =
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
 
     expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 1}} end)
     expect(Nodes, :call, fn "mac-a", "pause", _args, _opts -> {:ok, %{"resident" => true}} end)
 
-    assert {:ok, paused} =
+    # The Orb still pauses, but Amp must not record a snapshot Tuist never saved.
+    assert {:error, :snapshot_not_saved} =
              AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj:snap"})
 
+    paused = Repo.reload!(sandbox)
     assert paused.state == :paused
     refute Repo.exists?(DiskSnapshot)
-    refute Tuist.Sandboxes.Archives.archivable?(Repo.reload!(paused))
+    refute Tuist.Sandboxes.Archives.archivable?(paused)
+
+    assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
   end
 
   test "bootstrap failure drops the residency and never returns guest output", %{account: account} do
