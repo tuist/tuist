@@ -522,6 +522,12 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     # measured, the generated file is excluded, the test file was measured,
     # and the manifests are source no product compiles.
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
+
+    # The same from the commit's file changes, once they are written.
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("abc123", [], 0)], branch_heads: [{"main", "abc123"}])
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+    assert GitHistory.FileChanges.current(repository, "abc123")
+    assert %{unmeasured_files_count: 1} = Commits.recompute(project, "abc123")
   end
 
   test "a run schedules its commit's fold whether its checkout was dirty or not, and one without a commit none", %{

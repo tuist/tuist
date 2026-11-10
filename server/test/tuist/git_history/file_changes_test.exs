@@ -7,8 +7,10 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @mode 0o100644
   @executable 0o100755
@@ -332,5 +334,170 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
     assert settle().success == 0
     assert rows(repository) == before
+  end
+
+  describe "reading a commit's files" do
+    @listings %{
+      "a" => %{
+        "Package.resolved" => "pins1",
+        "Project.swift" => "project1",
+        "Sources/A.swift" => "a1",
+        "Sources/B.swift" => "b1",
+        "Tests/ATests.swift" => "at1",
+        "README.md" => "readme1"
+      },
+      "b" => %{
+        "Package.resolved" => "pins2",
+        "Project.swift" => "project1",
+        "Sources/A.swift" => "a2",
+        "Tests/ATests.swift" => "at1",
+        "Tests/BTests.swift" => "bt1",
+        "README.md" => "readme1"
+      },
+      "c" => %{
+        "Package.resolved" => "pins1",
+        "Project.swift" => "project1",
+        "Sources/A.swift" => "a2",
+        "Sources/Nested/C.swift" => "c1",
+        "Tests/ATests.swift" => "at2",
+        "README.md" => "readme1"
+      },
+      "f1" => %{
+        "Package.resolved" => "pins2",
+        "Project.swift" => "project2",
+        "Sources/A.swift" => "a2",
+        "Sources/F.swift" => "f1",
+        "Tests/ATests.swift" => "at1",
+        "Tests/BTests.swift" => "bt1"
+      },
+      "f2" => %{
+        "Package.resolved" => "pins2",
+        "Project.swift" => "project1",
+        "Sources/A.swift" => "a3",
+        "Sources/F.swift" => "f1",
+        "Tests/BTests.swift" => "bt2"
+      },
+      "p1" => %{
+        "Package.resolved" => "pins3",
+        "Project.swift" => "project2",
+        "Sources/A.swift" => "a2",
+        "Sources/P.swift" => "p1",
+        "Tests/ATests.swift" => "at1",
+        "Tests/BTests.swift" => "bt1"
+      }
+    }
+
+    @shas ["a", "b", "c", "f1", "f2", "p1", "truncated", "unlisted"]
+
+    # main: a, b, c, truncated, unlisted. feature forks at b: f1, f2. pull/1
+    # forks from feature at f1: p1.
+    defp seed(repository) do
+      commits(repository, [
+        {"a", []},
+        {"b", ["a"]},
+        {"c", ["b"]},
+        {"truncated", ["c"]},
+        {"unlisted", ["truncated"]},
+        {"f1", ["b"]},
+        {"f2", ["f1"]},
+        {"p1", ["f1"]}
+      ])
+
+      head(repository, "main", "unlisted")
+      head(repository, "feature", "f2")
+      GitHistory.advance_ref(repository, "pull/1", "feature", "p1")
+    end
+
+    defp record(repository, sha, files, opts \\ []) do
+      files = Enum.map(files, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: @mode} end)
+      GitHistory.record_listing(repository, sha, files, Keyword.put_new(opts, :files_count, length(files)))
+    end
+
+    # Every read of the commits' files, and of what differs between each two.
+    defp answers(repository, project) do
+      tracked = ExcludedPaths.pattern(GitHistory.settings(project).tracked_file_globs)
+      directories = ["Sources", "Tests", ".", "Missing"]
+      paths = ["Sources/A.swift", "Sources/B.swift", "Sources/Nested/C.swift", "Package.resolved", "Missing.swift"]
+
+      commits =
+        for sha <- @shas, into: %{} do
+          {sha,
+           %{
+             complete: GitHistory.listing_complete?(repository, sha),
+             files: GitHistory.commit_files(repository, sha),
+             matched: GitHistory.commit_files(repository, sha, match: tracked),
+             tracked: GitHistory.tracked_files(project, repository, sha),
+             in_directories: repository |> GitHistory.files_in(sha, directories) |> Enum.sort_by(& &1.path),
+             blobs: GitHistory.blobs_at(repository, sha, paths)
+           }}
+        end
+
+      changed =
+        for from <- @shas, to <- @shas, into: %{} do
+          {{from, to},
+           %{
+             all: GitHistory.changed_files(repository, from, to),
+             matched: GitHistory.changed_files(repository, from, to, match: tracked),
+             in_directories: GitHistory.changed_files(repository, from, to, directories: directories),
+             paths: GitHistory.changed_files(repository, from, to, paths: paths)
+           }}
+        end
+
+      %{commits: commits, changed: changed}
+    end
+
+    test "the file changes answer what the listings answered", %{repository: repository} do
+      project = ProjectsFixtures.project_fixture()
+      seed(repository)
+
+      # Out of order, so some commits are written below others.
+      for sha <- ["c", "p1", "a", "f2", "b", "f1"], do: record(repository, sha, @listings[sha])
+      record(repository, "truncated", %{"Sources/A.swift" => "a9"}, truncated: true, files_count: 6)
+
+      for sha <- @shas, do: assert(FileChanges.current(repository, sha) == nil)
+      listed = answers(repository, project)
+
+      settle()
+
+      for sha <- @shas, do: assert(is_nil(FileChanges.current(repository, sha)) == sha in ["truncated", "unlisted"])
+      assert answers(repository, project) == listed
+
+      # And they are the listings.
+      for {sha, files} <- @listings do
+        assert listed.commits[sha].complete
+        assert Map.new(listed.commits[sha].files, &{&1.path, &1.git_blob_id}) == files
+      end
+
+      refute listed.commits["truncated"].complete
+      assert listed.changed[{"a", "truncated"}].all == :unknown
+
+      assert listed.changed[{"b", "f2"}].all == [
+               %{path: "README.md", from: "readme1", to: nil},
+               %{path: "Sources/A.swift", from: "a2", to: "a3"},
+               %{path: "Sources/F.swift", from: nil, to: "f1"},
+               %{path: "Tests/ATests.swift", from: "at1", to: nil},
+               %{path: "Tests/BTests.swift", from: "bt1", to: "bt2"}
+             ]
+
+      assert listed.changed[{"c", "p1"}].matched == [
+               %{path: "Package.resolved", from: "pins1", to: "pins3"},
+               %{path: "Project.swift", from: "project1", to: "project2"}
+             ]
+    end
+
+    test "more paths than one request binds are read from the whole state", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}])
+      head(repository, "main", "b")
+      files = for index <- 1..1_200, into: %{}, do: {"Sources/File#{index}.swift", "blob#{index}"}
+
+      record(repository, "a", files)
+      record(repository, "b", Map.put(files, "Sources/File7.swift", "changed"))
+      listed = GitHistory.blobs_at(repository, "b", ["Missing.swift" | Map.keys(files)])
+      settle()
+
+      assert FileChanges.current(repository, "b")
+      assert GitHistory.blobs_at(repository, "b", ["Missing.swift" | Map.keys(files)]) == listed
+      assert listed == Map.put(files, "Sources/File7.swift", "changed")
+    end
   end
 end

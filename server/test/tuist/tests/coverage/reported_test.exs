@@ -142,6 +142,16 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   defp reasons(%{gap_reasons: mask}), do: GapReasons.decode(mask)
 
+  # Once the listed commits' file changes are written the listings are read
+  # from them, and the answer must not change.
+  defp assert_same_from_file_changes(project) do
+    listed = Reported.compute(project, "head")
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+
+    assert Tuist.Repo.exists?(from(l in Tuist.GitHistory.CommitListing, where: not is_nil(l.changes_ref_id)))
+    assert Reported.compute(project, "head") == listed
+  end
+
   # A skipped test without evidence of its own: what the base's run collected
   # tells why.
   defp missing_evidence_runs(project, account, status, target_scope?, opts \\ []) do
@@ -286,6 +296,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     trim = Enum.find(input.tests, &(&1.name == "testTrim()"))
     assert %{reproduced: %{sha: "base", run_id: run_id}} = Input.evidence(input, trim.test_case_id)
     assert run_id == base.id
+
+    assert_same_from_file_changes(project)
   end
 
   test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
@@ -1012,6 +1024,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-Tests/AppTests.swift"}])
 
     assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "a skipped target whose test files changed since the baseline is a gap", %{project: project, account: account} do
@@ -1019,6 +1033,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert :test_list_changed in reasons(reported)
+
+    assert_same_from_file_changes(project)
   end
 
   test "a skipped target with a test file added beside its own since the baseline is a gap", %{
@@ -1032,6 +1048,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert :test_list_changed in reasons(reported)
+
+    assert_same_from_file_changes(project)
   end
 
   test "carries a test from the run whose version of it the commit reproduces, on another branch", %{
@@ -1505,6 +1523,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:tracked_file_changed]
     refute_received :window_walk
+
+    assert_same_from_file_changes(project)
   end
 
   test "without the first parent's listing, each source is checked for changed tracked files", %{
@@ -1527,6 +1547,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "head", listing, files_count: 1)
 
     assert %{kind: "reported", carried_tests_count: 1, carried_from: ["root"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "a merge commit carries from the merged side that made its tracked-file change", %{
@@ -1550,6 +1572,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
 
     assert %{kind: "reported", carried_tests_count: 1, carried_from: ["feature"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
@@ -1566,6 +1590,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
+
+    assert_same_from_file_changes(project)
   end
 
   test "a truncated listing cannot say a tracked file is unchanged, and nothing is carried", %{
@@ -1583,6 +1609,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
+
+    assert_same_from_file_changes(project)
   end
 
   test "keeps an unchanged file no run at the commit compiled, with what was carried into it", %{
@@ -1599,6 +1627,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", covered_lines: 5, executable_lines: 7, gap_files_count: 0} =
              Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "lists as without coverage data only the unbuilt files the reported coverage does not keep", %{
