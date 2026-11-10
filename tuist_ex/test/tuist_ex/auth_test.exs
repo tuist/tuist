@@ -701,8 +701,8 @@ defmodule TuistEx.AuthTest do
     assert_received {:slept, 2_000}
   end
 
-  test "gives up on the OpenID Connect exchange after repeated timeouts", context do
-    expect(HTTP, :request, 5, fn :post, "https://tuist.example/api/auth/oidc/token", _ ->
+  test "gives up on the OpenID Connect exchange after three timeouts", context do
+    expect(HTTP, :request, 3, fn :post, "https://tuist.example/api/auth/oidc/token", _ ->
       {:error, :timeout}
     end)
 

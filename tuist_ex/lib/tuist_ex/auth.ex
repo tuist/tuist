@@ -4,7 +4,10 @@ defmodule TuistEx.Auth do
   alias TuistEx.Analytics.Config
   alias TuistEx.{HTTP, Lock}
 
-  @transient_attempts 5
+  @github_identity_token_attempts 5
+  # Every uncached token lookup, the compile cache's included, waits this out
+  # when the server hangs, so it stays shorter than the identity token's.
+  @exchange_attempts 3
 
   def login(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
@@ -359,7 +362,11 @@ defmodule TuistEx.Auth do
 
     request = fn -> HTTP.request(:post, server_url <> "/api/auth/oidc/token", body) end
 
-    case retry_transient(request, Keyword.get(options, :sleep, &Process.sleep/1)) do
+    case retry_transient(
+           request,
+           Keyword.get(options, :sleep, &Process.sleep/1),
+           @exchange_attempts
+         ) do
       {:ok, 200, %{"access_token" => access}} when is_binary(access) -> {:ok, access}
       response -> {:error, request_error("OpenID Connect authentication", response)}
     end
@@ -413,19 +420,19 @@ defmodule TuistEx.Auth do
         HTTP.request(:get, url, nil, [{"authorization", "Bearer " <> request_token}])
       end
 
-      case retry_transient(request, sleep) do
+      case retry_transient(request, sleep, @github_identity_token_attempts) do
         {:ok, 200, %{"value" => value}} when is_binary(value) -> {:ok, value}
         response -> {:error, request_error("GitHub Actions identity token request", response)}
       end
     end
   end
 
-  defp retry_transient(request, sleep, attempt \\ 1) do
+  defp retry_transient(request, sleep, attempts, attempt \\ 1) do
     response = request.()
 
-    if attempt < @transient_attempts and transient?(response) do
+    if attempt < attempts and transient?(response) do
       sleep.(1_000 * 2 ** (attempt - 1))
-      retry_transient(request, sleep, attempt + 1)
+      retry_transient(request, sleep, attempts, attempt + 1)
     else
       response
     end
