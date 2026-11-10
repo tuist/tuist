@@ -347,6 +347,30 @@ func TestWorkerRequiresImageAndExplicitEnvironment(t *testing.T) {
 	}
 }
 
+func TestWorkerKeepsTemporaryFilesOnTheWorkspaceDisk(t *testing.T) {
+	w, m := harness(t)
+	d := action(t, m, `printf x > "$TMPDIR/scratch" && printf '%s' "$TMPDIR"`, &re.Directory{}, nil)
+	r, _ := w.Execute(context.Background(), d)
+	if r.Status.Code != 0 || r.Result.ExitCode != 0 {
+		t.Fatalf("execution: %v", r)
+	}
+	tmp := string(m.blobs[r.Result.StdoutDigest.Hash])
+	// Beside the input root, so on its disk, but never collected as an output.
+	if filepath.Dir(tmp) != filepath.Dir(w.Root) || tmp == w.Root {
+		t.Fatalf("TMPDIR %q; want a directory beside %q", tmp, w.Root)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("TMPDIR %q outlived the action: %v", tmp, err)
+	}
+
+	w, m = harness(t)
+	c := &re.Command{Arguments: []string{"/bin/sh", "-c", `printf '%s' "$TMPDIR"`}, EnvironmentVariables: []*re.Command_EnvironmentVariable{{Name: "PATH", Value: "/usr/bin:/bin"}, {Name: "TMPDIR", Value: "/chosen"}}}
+	d = m.message(t, &re.Action{CommandDigest: m.message(t, c), InputRootDigest: m.message(t, &re.Directory{}), Platform: &re.Platform{Properties: []*re.Platform_Property{{Name: "OSFamily", Value: "Linux"}, {Name: "Arch", Value: "amd64"}, {Name: "tuist-image", Value: "sha-test"}}}})
+	if r, _ = w.Execute(context.Background(), d); r.Status.Code != 0 || string(m.blobs[r.Result.StdoutDigest.Hash]) != "/chosen" {
+		t.Fatalf("an action's own TMPDIR must win: %v", r)
+	}
+}
+
 func withProperty(t *testing.T, m *memoryCAS, d *re.Digest, name, value string) *re.Digest {
 	t.Helper()
 	var a re.Action
