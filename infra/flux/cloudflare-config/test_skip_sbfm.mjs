@@ -136,6 +136,12 @@ test('existing machine paths remain exempt', () => {
   assert.equal(exempt(apiRule, '/search', 'POST', 'search.tuist.dev'), true);
 });
 
+test('federation issuer discovery and keys are readable by Anthropic', () => {
+  checkPaths(['/oidc/accounts/3/.well-known/openid-configuration', '/oidc/accounts/3/jwks.json'],
+    (p, m) => exempt(apiRule, p, m), true, methods);
+  checkPaths(['/oidc/accounts/3/jwks.json'], (p, m) => exempt(apiRule, p, m), false, writes);
+});
+
 test('marketing route shapes across locales and guide roots', () => {
   const pages = ['/blog', '/blog/2026/09/09/bazel', '/blog/2026/09/09/bazel/iframe.html',
     '/changelog', '/changelog/2026.09.05-bazel-build-insights', '/customers', '/cache', '/previews', '/pricing',
