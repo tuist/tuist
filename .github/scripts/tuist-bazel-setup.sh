@@ -1,28 +1,16 @@
 #!/usr/bin/env bash
 # Configures the Tuist remote cache for the Bazel workspace in the current directory and, when the
 # account has Linux remote execution capacity, the remote executor too. Without capacity (flag off,
-# no worker with a ready template, no cache) the workspace stays cache-only, so a merge never waits
-# on remote execution being available.
+# no worker with a ready template, no cache) setup warns and stays cache-only, so a merge never
+# waits on remote execution being available.
 set -euo pipefail
 
 tuist auth login
-tuist bazel setup
+tuist bazel setup --remote-execution
 
-server_url="${TUIST_URL:-https://tuist.dev}"
-project="$(sed -n 's/^project = "\(.*\)"$/\1/p' tuist.toml)"
-token="$(tuist bazel credential-helper get </dev/null | jq -r '.headers.Authorization[0]')"
-
-if ! capabilities="$(curl -fsS --max-time 30 -H "Authorization: ${token}" \
-  "${server_url}/api/remote-execution/${project}/capabilities")"; then
-  echo "::notice::Remote execution is unavailable for ${project}; building locally against the remote cache."
-  exit 0
-fi
-
-endpoint="$(jq -r '.endpoint' <<<"${capabilities}")"
-image="$(jq -r '.image' <<<"${capabilities}")"
-tuist bazel setup --remote-executor "${endpoint}" --execution-image "${image}"
-# A workspace that defines this config registers the execution environment's toolchains with it.
-if grep -q '^build:tuist-remote-execution ' .bazelrc 2>/dev/null; then
+# A workspace that defines this config registers the execution environment's toolchains with it,
+# which only work when actions run remotely.
+if grep -q '^build --remote_executor=' .bazelrc.tuist &&
+  grep -q '^build:tuist-remote-execution ' .bazelrc 2>/dev/null; then
   echo "build --config=tuist-remote-execution" >>.bazelrc.tuist
 fi
-echo "Remote execution: ${endpoint} with image ${image}, up to $(jq -r '.max_concurrency' <<<"${capabilities}") concurrent actions."
