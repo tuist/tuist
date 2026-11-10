@@ -601,6 +601,42 @@ defmodule Tuist.GitHistory.FileChangesTest do
              ]
     end
 
+    test "two commits read from different sources are compared all the same", %{repository: repository} do
+      project = ProjectsFixtures.project_fixture()
+      seed(repository)
+      for sha <- ["a", "b", "c", "f1", "f2", "p1"], do: record(repository, sha, @listings[sha])
+      listed = answers(repository, project).changed
+
+      # Only some commits' file changes are written, as while a backfill runs.
+      for sha <- ["a", "c", "f1"], do: assert(FileChanges.write(repository, sha) == :written)
+      assert is_nil(FileChanges.current(repository, "b"))
+      assert FileChanges.current(repository, "c")
+
+      assert answers(repository, project).changed == listed
+    end
+
+    test "paths too long for one request are read in several", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}])
+      head(repository, "main", "b")
+      directory = String.duplicate("Directory/", 20)
+      files = for index <- 1..900, into: %{}, do: {"#{directory}File#{index}.swift", "blob#{index}"}
+      changed = "#{directory}File7.swift"
+
+      record(repository, "a", files)
+      record(repository, "b", Map.put(files, changed, "changed"))
+      settle()
+
+      paths = Map.keys(files)
+      assert GitHistory.blobs_at(repository, "b", paths) == Map.put(files, changed, "changed")
+
+      assert GitHistory.changed_files(repository, "a", "b", paths: paths) == [
+               %{path: changed, from: "blob7", to: "changed"}
+             ]
+
+      assert GitHistory.changed_files(repository, "a", "b", directories: [String.trim_trailing(directory, "/")]) ==
+               [%{path: changed, from: "blob7", to: "changed"}]
+    end
+
     test "more paths than one request binds are read from the whole state", %{repository: repository} do
       commits(repository, [{"a", []}, {"b", ["a"]}])
       head(repository, "main", "b")

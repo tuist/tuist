@@ -784,14 +784,15 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       call_original(GitHistory, :ancestors, [repository_id, sha])
     end)
 
-    stub(GitHistory, :tracked_files, fn project, repository_id, sha ->
-      send(test_pid, {:tracked_files, sha})
-      call_original(GitHistory, :tracked_files, [project, repository_id, sha])
+    stub(GitHistory, :changed_files, fn repository_id, from_sha, to_sha, opts ->
+      send(test_pid, {:tracked_files, from_sha})
+      call_original(GitHistory, :changed_files, [repository_id, from_sha, to_sha, opts])
     end)
 
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
 
     refute_received :window_walk
+    assert_received {:tracked_files, "base"}
     refute_received {:tracked_files, "root"}
   end
 

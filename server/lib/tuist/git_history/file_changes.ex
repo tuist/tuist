@@ -491,9 +491,11 @@ defmodule Tuist.GitHistory.FileChanges do
     )
   end
 
-  # One HTTP form field per bound path or directory, and ClickHouse refuses a
-  # request over `http_max_fields` (1000 by default).
+  # An `in` list is bound as one array parameter, which ClickHouse refuses
+  # past 128 KiB: a chunk holds this many values at most, and fewer when
+  # they are long.
   @bound_paths 900
+  @bound_bytes 100_000
 
   @doc """
   The files of the commit at `place` with their blobs, as
@@ -573,7 +575,7 @@ defmodule Tuist.GitHistory.FileChanges do
         [&where(&1, [c], fragment("match(?, ?)", c.path, ^pattern))]
 
       {:directories, directories} ->
-        for chunk <- directories |> Enum.uniq() |> Enum.chunk_every(@bound_paths),
+        for chunk <- bound(directories),
             do:
               &where(
                 &1,
@@ -582,11 +584,30 @@ defmodule Tuist.GitHistory.FileChanges do
               )
 
       {:paths, paths} ->
-        for chunk <- paths |> Enum.uniq() |> Enum.chunk_every(@bound_paths), do: &where(&1, [c], c.path in ^chunk)
+        for chunk <- bound(paths), do: &where(&1, [c], c.path in ^chunk)
 
       _ ->
         [& &1]
     end
+  end
+
+  defp bound(values) do
+    values
+    |> Enum.uniq()
+    |> Enum.chunk_while(
+      {[], 0, 0},
+      fn value, {chunk, count, bytes} ->
+        size = byte_size(value) + 3
+
+        if count == @bound_paths or (count > 0 and bytes + size > @bound_bytes),
+          do: {:cont, chunk, {[value], 1, size}},
+          else: {:cont, {[value | chunk], count + 1, bytes + size}}
+      end,
+      fn
+        {[], _count, _bytes} = acc -> {:cont, acc}
+        {chunk, _count, _bytes} = acc -> {:cont, chunk, acc}
+      end
+    )
   end
 
   # Each path's newest row along the chain, the nearest ref first, without

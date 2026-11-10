@@ -6,9 +6,9 @@ defmodule Tuist.Repo.Migrations.EnqueueGitFileChangesBackfill do
   changes yet, each repository's lowest position first so a commit is
   compared with the one below it.
 
-  This only inserts the jobs, naming the worker by string. They land on the
-  `coverage_deltas` queue, which only a release with the worker runs. By
-  hand, for one repository:
+  This only inserts the jobs, naming the worker by string. A server from
+  before the worker existed puts them back without running them
+  (`Tuist.Oban.Engine`). By hand, for one repository:
 
       bin/tuist rpc "Tuist.GitHistory.FileChanges.enqueue_moved(<repository id>)"
   """
