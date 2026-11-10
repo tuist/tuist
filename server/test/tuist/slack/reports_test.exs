@@ -69,17 +69,17 @@ defmodule Tuist.Slack.ReportsTest do
           inserted_at: DateTime.add(now, -1, :hour)
         )
 
-      report = project |> Reports.report() |> Jason.encode!()
+      report = project |> Reports.report() |> JSON.encode!()
       assert report =~ "50.0 MB"
       assert report =~ "+2.0 MB"
       assert report =~ current.id
       assert report =~ previous.id
       refute report =~ debug.id
 
-      report = %{project | report_bundle_tag: "missing"} |> Reports.report() |> Jason.encode!()
+      report = %{project | report_bundle_tag: "missing"} |> Reports.report() |> JSON.encode!()
       refute report =~ "Bundle Size"
 
-      report = project |> Reports.report(last_report_at: DateTime.add(now, -4, :day)) |> Jason.encode!()
+      report = project |> Reports.report(last_report_at: DateTime.add(now, -4, :day)) |> JSON.encode!()
       assert report =~ "50.0 MB"
       refute report =~ "previous period>"
     end
