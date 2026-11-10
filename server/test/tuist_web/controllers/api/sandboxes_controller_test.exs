@@ -10,6 +10,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
 
@@ -711,6 +712,42 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       conn
       |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "true"})
       |> json_response(:forbidden)
+    end
+
+    test "a member creates an upload, which is deleted once its URLs expire", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      other_sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      prefix = "sandbox-uploads/#{account.id}/#{sandbox.id}/"
+      reject(&Nodes.call/4)
+
+      expect(Tuist.Storage, :generate_upload_url, fn key, %{id: account_id}, [expires_in: 3600] ->
+        assert account_id == account.id
+        assert String.starts_with?(key, prefix)
+        "https://storage/#{key}?put"
+      end)
+
+      expect(Tuist.Storage, :generate_download_url, fn key, _account, [expires_in: 3600] ->
+        "https://storage/#{key}?get"
+      end)
+
+      assert %{"upload_url" => "https://storage/" <> upload, "download_url" => "https://storage/" <> download} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/uploads")
+               |> json_response(:ok)
+
+      key = String.trim_trailing(upload, "?put")
+      assert download == key <> "?get"
+      assert [%Oban.Job{args: args, scheduled_at: scheduled_at}] = all_enqueued(worker: DeleteUploadWorker)
+      assert args == %{"account_id" => account.id, "key" => key}
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) > 3600
+
+      expect(Tuist.Storage, :delete_object, fn ^key, %{id: account_id} when account_id == account.id -> :ok end)
+      assert :ok = perform_job(DeleteUploadWorker, args)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{other_sandbox.id}/uploads")
+      |> json_response(:not_found)
     end
 
     test "writes the decoded stdin bytes to the command", %{conn: conn, account: account} do
