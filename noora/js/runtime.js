@@ -13,6 +13,8 @@ import NooraModal from "./Modal.js";
 import NooraPopover from "./Popover.js";
 import NooraScrollArea from "./ScrollArea.js";
 import NooraSelect from "./Select.js";
+// Defines the <noora-spinner> element.
+import "./Spinner.js";
 import NooraTable from "./Table.js";
 import NooraTabs from "./Tabs.js";
 import NooraTagsInput from "./TagsInput.js";

@@ -5,6 +5,7 @@ defmodule Noora.Badge do
   use Phoenix.Component
 
   import Noora.Icon
+  import Noora.Spinner
   import Noora.Utils
 
   @badge_appearances ~w(fill light-fill)
@@ -91,7 +92,7 @@ defmodule Noora.Badge do
 
   def status_badge(assigns) do
     ~H"""
-    <span class="noora-status-badge" data-status={@status} {@rest}>
+    <span class="noora-status-badge" data-status={@status} data-type={@type} {@rest}>
       <span data-part="icon">
         <.status_icon :if={@type == "icon"} status={@status} />
         <.large_dot :if={@type == "dot"} />
@@ -131,9 +132,10 @@ defmodule Noora.Badge do
     """
   end
 
+  # The label already says what's happening, so the spinner is decorative.
   def status_icon(%{status: "in_progress"} = assigns) do
     ~H"""
-    <.circle_dashed />
+    <.spinner aria-hidden="true" />
     """
   end
 
