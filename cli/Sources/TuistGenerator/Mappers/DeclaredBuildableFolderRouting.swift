@@ -2,19 +2,11 @@ import Path
 import XcodeGraph
 
 /// Splits a buildable folder that declares both sources and resources between a static target and its companion
-/// resource bundle without knowing the folder's files.
+/// resource bundle.
 ///
-/// Both targets reference the whole folder, and `EXCLUDED_SOURCE_FILE_NAMES` / `INCLUDED_SOURCE_FILE_NAMES` route its
-/// files by type, including files written after generation. Xcode matches those `fnmatch(3)` patterns against each
-/// file's path in every build phase, synchronized folder members included, but `*` doesn't match `/` and `**` isn't
-/// supported, so:
-///   - the bundle excludes sources and headers by file name, at any depth. It compiles nothing but `.metal` files, so
-///     the patterns don't need a path;
-///   - the static target excludes the folder's files and re-includes sources, headers and catalogs, with one pattern
-///     per directory level down to `maximumDepth`. Deeper resources are also copied into the static target;
-///     deeper sources are still compiled only there.
-///
-/// This matches how `BuildableFolderResourcePartitioner` routes files it can see.
+/// Xcode applies `EXCLUDED_SOURCE_FILE_NAMES` / `INCLUDED_SOURCE_FILE_NAMES` to synchronized folder members in every
+/// build phase, but `*` doesn't match `/` and `**` isn't supported. The static target's patterns therefore go one level
+/// at a time down to `maximumDepth`, and deeper resources are also copied into it.
 struct DeclaredBuildableFolderRouting {
     static let maximumDepth = 4
 
@@ -60,8 +52,7 @@ struct DeclaredBuildableFolderRouting {
 }
 
 extension Target {
-    /// Appends `values` to the list settings in `additions`, in the base settings and in every configuration that
-    /// overrides them, keeping what the target already sets.
+    /// Keeps what the target already sets.
     func appendingListSettings(_ additions: [String: [String]]) -> Target {
         guard !additions.isEmpty else { return self }
 
@@ -77,9 +68,13 @@ extension Target {
         }
 
         var base = settings?.base ?? SettingsDictionary()
+        var baseDebug = settings?.baseDebug ?? SettingsDictionary()
         var configurations = settings?.configurations ?? [:]
         for (key, values) in additions {
             base[key] = appending(values, to: base[key])
+            if baseDebug[key] != nil {
+                baseDebug[key] = appending(values, to: baseDebug[key])
+            }
             for (buildConfiguration, configuration) in configurations {
                 guard var configuration, configuration.settings[key] != nil else { continue }
                 configuration.settings[key] = appending(values, to: configuration.settings[key])
@@ -91,7 +86,7 @@ extension Target {
         target.settings = settings.map {
             Settings(
                 base: base,
-                baseDebug: $0.baseDebug,
+                baseDebug: baseDebug,
                 configurations: configurations,
                 defaultSettings: $0.defaultSettings,
                 defaultConfiguration: $0.defaultConfiguration

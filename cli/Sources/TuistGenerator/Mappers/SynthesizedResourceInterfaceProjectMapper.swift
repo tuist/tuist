@@ -233,8 +233,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
         let resourcePaths = target.resources.resources.map(\.path)
         let coreDataModelPaths = target.coreDataModels.map(\.path)
         let extensions = project.resourceSynthesizers.map(\.extensions).flatMap(Array.init)
-        // Accessors are generated from file contents, which a folder with declared contents doesn't promise at
-        // generation time. Skipping it keeps the generated project the same before and after the folder is filled.
+        // Accessors are generated from file contents a declared folder may not have yet.
         let buildableFolderResources = target.buildableFolders.filter { $0.contents == nil }.flatMap { buildableFolder in
             return buildableFolder.resolvedFiles.compactMap { buildableFolderFile -> AbsolutePath? in
                 guard extensions.contains(buildableFolderFile.path.extension ?? "") else { return nil }

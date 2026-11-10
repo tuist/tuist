@@ -249,8 +249,6 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 let publicHeaders = buildableFolder.exceptions.flatMap(\.publicHeaders)
                 let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
 
-                // Declared contents change how the folder is generated, so they are part of the hash. Folders without
-                // a declaration hash as before.
                 let declaredContentsHashes = try buildableFolder.contents.map {
                     [try contentHasher.hash(["declared-contents"] + $0.map(\.rawValue).sorted())]
                 } ?? []

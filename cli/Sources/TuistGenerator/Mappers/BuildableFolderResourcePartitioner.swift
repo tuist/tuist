@@ -16,9 +16,7 @@ struct BuildableFolderResourcePartition {
     /// Folders (or per-folder views) that move to the companion resource bundle.
     var bundleTargetFolders: [BuildableFolder] = []
 
-    /// Folders that declare both sources and resources, and therefore sit on both targets without per-file
-    /// exclusions. Their files are routed by file type through build settings instead
-    /// (see `DeclaredBuildableFolderRouting`).
+    /// Folders on both targets whose files `DeclaredBuildableFolderRouting` routes by type.
     var declaredMixedFolders: [AbsolutePath] = []
 }
 
@@ -106,10 +104,7 @@ extension BuildableFolder {
         )
     }
 
-    /// A folder that declares its contents is routed as a whole, without looking at its files, so the result is the
-    /// same before and after the folder is filled. A folder with both sources and resources goes to both targets
-    /// with its declared contents narrowed to what each target takes; its files are routed by type through build
-    /// settings, because per-file exclusions need file names.
+    /// Narrows the declared contents to what each target takes.
     private func declaredContentsPartition(_ contents: Set<BuildableFolderContent>) -> SingleFolderPartition {
         guard contents.contains(.resources) else {
             return SingleFolderPartition(originalTargetFolder: self, bundleTargetFolder: nil)

@@ -876,6 +876,56 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         XCTAssertTrue(plistNames.value.contains("XML.plist"))
     }
 
+    func testMap_whenBuildableFolderDeclaresContents() async throws {
+        // Given
+        let plistNames = ThreadSafe<[String]>([])
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
+            plistNames.mutate { $0.append(contentsOf: paths.map(\.basename)) }
+            return ""
+        }
+        let projectPath = try temporaryPath()
+        let declaredPlist = projectPath.appending(components: "Generated", "Declared.plist")
+        let scannedPlist = projectPath.appending(components: "Resources", "Scanned.plist")
+        let plistData = try PropertyListSerialization.data(
+            fromPropertyList: ["key": "value"],
+            format: .xml,
+            options: 0
+        )
+        for plist in [declaredPlist, scannedPlist] {
+            try await fileSystem.makeDirectory(at: plist.parentDirectory)
+            try plistData.write(to: URL(fileURLWithPath: plist.pathString))
+        }
+        let target = Target.test(
+            name: "TargetA",
+            buildableFolders: [
+                BuildableFolder(
+                    path: declaredPlist.parentDirectory,
+                    exceptions: [],
+                    resolvedFiles: [BuildableFolderFile(path: declaredPlist, compilerFlags: nil)],
+                    contents: [.resources]
+                ),
+                BuildableFolder(
+                    path: scannedPlist.parentDirectory,
+                    exceptions: [],
+                    resolvedFiles: [BuildableFolderFile(path: scannedPlist, compilerFlags: nil)]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [target],
+            resourceSynthesizers: [
+                .init(parser: .plists, parserOptions: [:], extensions: ["plist"], template: .defaultTemplate("Plists")),
+            ]
+        )
+
+        // When
+        _ = try await subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(plistNames.value, ["Scanned.plist"])
+    }
+
     func testMap_usesValidSwiftIdentifiersForGeneratedResourceInterfaces() async throws {
         // Given
         let names = ThreadSafe<[String]>([])

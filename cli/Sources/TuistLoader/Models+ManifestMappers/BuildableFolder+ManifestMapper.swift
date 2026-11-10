@@ -30,8 +30,7 @@ extension XcodeGraph.BuildableFolder {
         let fileSystem = FileSystem()
         let contents = manifest.contents.map { Set($0.map(XcodeGraph.BuildableFolderContent.from(manifest:))) }
 
-        // Declared contents classify the folder without its files, so it is kept (and created during generation)
-        // even though nothing has written to it yet. `optional` only applies to folders classified by their files.
+        // `optional` applies only to folders without declared contents.
         let exists = try await fileSystem.exists(path)
         if !exists, contents == nil {
             if manifest.optional {

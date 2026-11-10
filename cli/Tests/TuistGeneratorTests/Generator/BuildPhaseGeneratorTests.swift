@@ -351,6 +351,52 @@ struct BuildPhaseGeneratorTests {
         #expect(pbxTarget.buildPhases.contains { $0 is PBXSourcesBuildPhase } == expectsSourcesPhase)
     }
 
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory,
+        arguments: [
+            ([.resources], false),
+            ([.sources], true),
+        ] as [(Set<BuildableFolderContent>, Bool)]
+    ) func generateBuildPhases_whenFrameworkFolderDeclaresContents(
+        contents: Set<BuildableFolderContent>,
+        expectsHeadersPhase: Bool
+    ) async throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Framework")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(
+            name: "Framework",
+            product: .framework,
+            sources: [SourceFile](),
+            resources: ResourceFileElements([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: directory.appending(component: "Generated"),
+                    exceptions: [],
+                    resolvedFiles: [],
+                    contents: contents
+                ),
+            ]
+        )
+
+        // When
+        try await subject.generateBuildPhases(
+            path: directory,
+            target: target,
+            graphTraverser: GraphTraverser(graph: Graph.test(path: directory)),
+            pbxTarget: pbxTarget,
+            fileElements: ProjectFileElements(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        #expect(pbxTarget.buildPhases.contains { $0 is PBXHeadersBuildPhase } == expectsHeadersPhase)
+    }
+
     @Test(.withMockedSwiftVersionProvider, .withMockedXcodeController, .inTemporaryDirectory) func generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
