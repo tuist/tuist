@@ -16,10 +16,6 @@ defmodule Atlas.MCP.Tools.UpdateTask do
           "type" => ["string", "null"],
           "format" => "date",
           "description" => "Task due date, or null to remove it."
-        },
-        "remind_at" => %{
-          "type" => ["string", "null"],
-          "description" => "ISO 8601 date and time with offset, or null to remove the reminder."
         }
       }
     },
@@ -38,7 +34,7 @@ defmodule Atlas.MCP.Tools.UpdateTask do
          {:ok, updated} <-
            Tasks.update_task(
              task,
-             Map.take(args, ["title", "description", "assignee_id", "account_id", "due_on", "remind_at"]),
+             Map.take(args, ["title", "description", "assignee_id", "account_id", "due_on"]),
              Tool.current_user(conn),
              interface: Tool.audit_interface(conn)
            ) do

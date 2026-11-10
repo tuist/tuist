@@ -48,6 +48,11 @@ aube install
 aube run build
 popd >/dev/null
 
+# Compile through the cache-aware alias before discovering database tasks.
+# On a cold checkout, discovering db.create first compiles dependencies before
+# the alias has a chance to restore them.
+mix compile
+
 # Fresh worktrees use isolated database names, so bootstrap missing repos independently.
 if ! postgres_database_exists; then
   bootstrap_postgres_database

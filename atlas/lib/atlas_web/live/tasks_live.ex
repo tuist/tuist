@@ -2,7 +2,7 @@ defmodule AtlasWeb.TasksLive do
   use AtlasWeb, :live_view
   use Noora
 
-  import AtlasWeb.CoreComponents, only: [input: 1]
+  import AtlasWeb.CoreComponents, only: [input: 1], warn: false
   import Ecto.Query, only: [from: 2]
   import Noora.Filter
 
@@ -29,8 +29,6 @@ defmodule AtlasWeb.TasksLive do
      |> assign(:uri, URI.parse("?"))
      |> assign(:search_form, search_form(""))
      |> assign(:editing_task, nil)
-     |> assign(:form_reset, 0)
-     |> assign(:remind_local_value, nil)
      |> assign_form(Tasks.change_task(%Task{assignee_id: socket.assigns.current_user.id}))}
   end
 
@@ -85,7 +83,6 @@ defmodule AtlasWeb.TasksLive do
         {:noreply,
          socket
          |> assign(:editing_task, task)
-         |> assign(:remind_local_value, task.remind_at && DateTime.to_iso8601(task.remind_at))
          |> assign_form(Tasks.change_task(task))
          |> push_event("open-modal", %{id: "task-modal"})}
 
@@ -119,7 +116,6 @@ defmodule AtlasWeb.TasksLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
-         |> assign(:remind_local_value, attrs["remind_at"])
          |> assign_form(changeset)}
 
       {:error, _reason} ->
@@ -143,14 +139,14 @@ defmodule AtlasWeb.TasksLive do
         <div data-part="text">
           <h1 data-part="title">{gettext("Tasks")}</h1>
           <p data-part="description">
-            {gettext("Track work for yourself or a teammate, with optional due dates and reminders.")}
+            {gettext("Track work for yourself or a teammate, with optional due dates.")}
           </p>
         </div>
         <div :if={!Demo.enabled?()} data-part="header-actions">
           <.modal
             id="task-modal"
             title={gettext("Task details")}
-            description={gettext("Assign work, set a due date, and add a reminder when needed.")}
+            description={gettext("Assign work and set a due date when needed.")}
             header_type="icon"
             header_size="large"
             on_dismiss="close_task_modal"
@@ -176,8 +172,6 @@ defmodule AtlasWeb.TasksLive do
                 id="task-form"
                 data-part="task-form"
                 phx-submit="save"
-                phx-hook=".TaskReminder"
-                data-reset={@form_reset}
               >
                 <.text_input
                   id="task-title-input"
@@ -224,18 +218,6 @@ defmodule AtlasWeb.TasksLive do
                   label={gettext("Due date")}
                   show_suffix={false}
                 />
-                <div data-part="reminder-field">
-                  <.text_input
-                    id="task-remind-local"
-                    name="remind_local"
-                    input_type="datetime-local"
-                    label={gettext("Remind")}
-                    sublabel={gettext("Optional")}
-                    show_suffix={false}
-                    data-utc={@remind_local_value}
-                  />
-                  <.input id="task-remind-at" type="hidden" name="task[remind_at]" value="" />
-                </div>
               </.form>
             </div>
 
@@ -303,21 +285,6 @@ defmodule AtlasWeb.TasksLive do
             <:col :let={{_id, task}} label={gettext("Due date")}>
               <.text_cell label={format_due_on(task.due_on)} />
             </:col>
-            <:col :let={{_id, task}} label={gettext("Reminder")}>
-              <div data-part="task-reminder-cell">
-                <time
-                  :if={task.remind_at}
-                  id={"task-reminder-#{task.id}-#{task.reminder_version}"}
-                  phx-hook=".LocalReminderTime"
-                  phx-update="ignore"
-                  datetime={DateTime.to_iso8601(task.remind_at)}
-                  data-utc={DateTime.to_iso8601(task.remind_at)}
-                >
-                  {format_reminder(task.remind_at)}
-                </time>
-                <span :if={!task.remind_at}>—</span>
-              </div>
-            </:col>
             <:col :let={{_id, task}} :if={!Demo.enabled?()} label={gettext("Actions")}>
               <.button_cell>
                 <:button>
@@ -348,7 +315,6 @@ defmodule AtlasWeb.TasksLive do
             <:col label={gettext("Account")} />
             <:col label={gettext("Assigned to")} />
             <:col label={gettext("Due date")} />
-            <:col label={gettext("Reminder")} />
             <:col label={gettext("Actions")} />
             <:empty_state>
               <.table_empty_state
@@ -360,47 +326,6 @@ defmodule AtlasWeb.TasksLive do
           </.table>
         </.card_section>
       </.card>
-
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".TaskReminder">
-        export default {
-          mounted() {
-            this.local = this.el.querySelector("#task-remind-local")
-            this.utc = this.el.querySelector("#task-remind-at")
-            this.lastReset = this.el.dataset.reset
-            this.handleEvent("reset-task-form", () => this.el.reset())
-            this.setLocalFromUtc()
-            this.el.addEventListener("submit", () => {
-              this.utc.value = this.local.value ? new Date(this.local.value).toISOString() : ""
-            })
-          },
-          updated() { this.setLocalFromUtc() },
-          setLocalFromUtc() {
-            if (this.el.dataset.reset !== this.lastReset) {
-              this.local.value = ""
-              this.lastReset = this.el.dataset.reset
-            }
-            const value = this.local.dataset.utc
-            if (value && value !== this.lastUtc) {
-              const date = new Date(value)
-              const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-              this.local.value = local.toISOString().slice(0, 16)
-            } else if (!value && this.lastUtc) {
-              this.local.value = ""
-            }
-            this.lastUtc = value
-          }
-        }
-      </script>
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".LocalReminderTime">
-        export default {
-          mounted() {
-            this.el.textContent = new Intl.DateTimeFormat(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            }).format(new Date(this.el.dataset.utc))
-          }
-        }
-      </script>
     </section>
     """
   end
@@ -476,15 +401,10 @@ defmodule AtlasWeb.TasksLive do
   defp reset_form(socket) do
     socket
     |> assign(:editing_task, nil)
-    |> update(:form_reset, &(&1 + 1))
-    |> assign(:remind_local_value, nil)
     |> assign_form(Tasks.change_task(%Task{assignee_id: socket.assigns.current_user.id}))
-    |> push_event("reset-task-form", %{})
   end
 
   defp assign_form(socket, changeset), do: assign(socket, :form, to_form(changeset, as: :task))
-
-  defp format_reminder(date_time), do: Calendar.strftime(date_time, "%d %b %Y, %H:%M UTC")
 
   defp format_due_on(nil), do: "—"
   defp format_due_on(date), do: Calendar.strftime(date, "%b %-d, %Y")

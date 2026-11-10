@@ -24,6 +24,53 @@ import (
 
 const dockerDataRoot = "/var/lib/docker"
 
+// dindMemoryFile is where the sidecar publishes its cgroup's memory for the
+// runner's vitals.sh. /var/run is the dind-sock volume both containers mount;
+// the runner cannot read the sidecar's cgroup, where job containers live.
+const dindMemoryFile = "/var/run/tuist-dind-memory"
+
+// publishDindMemory rewrites dindMemoryFile every three seconds, vitals.sh's
+// default interval, for the life of the sidecar. Best-effort: a sample it
+// cannot read or write is skipped, never an error.
+func publishDindMemory() {
+	for {
+		if line := dindMemory("/sys/fs/cgroup"); line != "" {
+			if os.WriteFile(dindMemoryFile+".tmp", []byte(line+"\n"), 0o644) == nil {
+				_ = os.Rename(dindMemoryFile+".tmp", dindMemoryFile)
+			}
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+// dindMemory renders the cgroup v2 memory of the cgroup at path as vitals.sh
+// fields, in bytes like the runner's own mem.* fields.
+func dindMemory(path string) string {
+	read := func(name string) string {
+		data, _ := os.ReadFile(filepath.Join(path, name))
+		return strings.TrimSpace(string(data))
+	}
+	keyed := func(name string) map[string]string {
+		values := map[string]string{}
+		for _, line := range strings.Split(read(name), "\n") {
+			if key, value, ok := strings.Cut(line, " "); ok {
+				values[key] = value
+			}
+		}
+		return values
+	}
+	current := read("memory.current")
+	if current == "" {
+		return ""
+	}
+	fields := []string{"dind.mem.current=" + current, "dind.mem.peak=" + read("memory.peak")}
+	stat := keyed("memory.stat")
+	for _, key := range []string{"anon", "file", "shmem", "file_dirty", "file_writeback", "kernel"} {
+		fields = append(fields, "dind.mem."+key+"="+stat[key])
+	}
+	return strings.Join(append(fields, "dind.oom_kill="+keyed("memory.events")["oom_kill"]), " ")
+}
+
 // dockerLedgerFile is where a data root mounted at root keeps its ledger.
 func dockerLedgerFile(root string) string { return filepath.Join(root, "tuist", "ledger.json") }
 
@@ -101,6 +148,7 @@ func runDind(args []string) error {
 		return err
 	}
 	_ = os.Remove(args[0])
+	go publishDindMemory()
 	go func() {
 		if err := serveMounts(args[0], args[1], d.handle); err != nil {
 			fmt.Fprintf(os.Stderr, "mount helper stopped: %v\n", err)

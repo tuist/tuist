@@ -21562,6 +21562,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/cpu_usage_percent`.
                 public var cpu_usage_percent: Swift.Double
+                /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_available_bytes`.
+                public var disk_available_bytes: Swift.Int?
                 /// Disk bytes read per second.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_read`.
@@ -21570,6 +21574,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_written`.
                 public var disk_bytes_written: Swift.Int
+                /// Total capacity in bytes of the macOS system Data volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_total_bytes`.
+                public var disk_total_bytes: Swift.Int?
                 /// Total memory in bytes.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/memory_total_bytes`.
@@ -21594,8 +21602,10 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                 ///   - disk_bytes_read: Disk bytes read per second.
                 ///   - disk_bytes_written: Disk bytes written per second.
+                ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                 ///   - memory_total_bytes: Total memory in bytes.
                 ///   - memory_used_bytes: Memory used in bytes.
                 ///   - network_bytes_in: Network bytes received per second.
@@ -21603,8 +21613,10 @@ public enum Components {
                 ///   - timestamp: Unix timestamp in seconds.
                 public init(
                     cpu_usage_percent: Swift.Double,
+                    disk_available_bytes: Swift.Int? = nil,
                     disk_bytes_read: Swift.Int,
                     disk_bytes_written: Swift.Int,
+                    disk_total_bytes: Swift.Int? = nil,
                     memory_total_bytes: Swift.Int,
                     memory_used_bytes: Swift.Int,
                     network_bytes_in: Swift.Int,
@@ -21612,8 +21624,10 @@ public enum Components {
                     timestamp: Swift.Double
                 ) {
                     self.cpu_usage_percent = cpu_usage_percent
+                    self.disk_available_bytes = disk_available_bytes
                     self.disk_bytes_read = disk_bytes_read
                     self.disk_bytes_written = disk_bytes_written
+                    self.disk_total_bytes = disk_total_bytes
                     self.memory_total_bytes = memory_total_bytes
                     self.memory_used_bytes = memory_used_bytes
                     self.network_bytes_in = network_bytes_in
@@ -21622,8 +21636,10 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case cpu_usage_percent
+                    case disk_available_bytes
                     case disk_bytes_read
                     case disk_bytes_written
+                    case disk_total_bytes
                     case memory_total_bytes
                     case memory_used_bytes
                     case network_bytes_in
@@ -79600,10 +79616,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
                         public var disk_bytes_read: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
                         public var memory_total_bytes: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/memory_used_bytes`.
@@ -79620,8 +79640,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes:
                         ///   - disk_bytes_read:
                         ///   - disk_bytes_written:
+                        ///   - disk_total_bytes:
                         ///   - memory_total_bytes:
                         ///   - memory_used_bytes:
                         ///   - network_bytes_in:
@@ -79629,8 +79651,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int? = nil,
                             disk_bytes_written: Swift.Int? = nil,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int? = nil,
@@ -79638,8 +79662,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -79648,8 +79674,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -99289,6 +99317,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -99297,6 +99329,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// Total capacity in bytes of the macOS system Data volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -99321,8 +99357,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -99330,8 +99368,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -99339,8 +99379,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -99349,8 +99391,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -131331,6 +131375,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -131339,6 +131387,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// Total capacity in bytes of the macOS system Data volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -131363,8 +131415,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -131372,8 +131426,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -131381,8 +131437,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -131391,8 +131449,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -166561,6 +166621,8 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -166569,6 +166631,8 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -166593,8 +166657,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes:
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes:
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -166602,8 +166668,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -166611,8 +166679,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -166621,8 +166691,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in

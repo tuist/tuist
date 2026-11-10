@@ -9,6 +9,7 @@ defmodule TuistWeb.API.SandboxesController do
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Query
   alias Tuist.Sandboxes.Schemas, as: SandboxSchemas
+  alias Tuist.Sandboxes.Uploads
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -36,6 +37,7 @@ defmodule TuistWeb.API.SandboxesController do
     :stream_command_logs,
     :write_command_stdin,
     :cancel_command,
+    :create_upload,
     :pause,
     :resume,
     :delete
@@ -866,6 +868,34 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, reason} -> sandbox_error(conn, reason)
       end
     end)
+  end
+
+  operation(:create_upload,
+    summary: "Create an upload for a sandbox.",
+    description:
+      "Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.",
+    operation_id: "createSandboxUpload",
+    parameters: @sandbox_parameters,
+    responses:
+      Map.merge(@error_responses, %{
+        ok:
+          {"Upload", "application/json",
+           %Schema{
+             title: "SandboxUpload",
+             type: :object,
+             properties: %{
+               upload_url: %Schema{type: :string, description: "Presigned URL to PUT the file to."},
+               download_url: %Schema{type: :string, description: "Presigned URL to GET the file from in the sandbox."},
+               expires_at: %Schema{type: :string, format: :"date-time"}
+             },
+             required: [:upload_url, :download_url, :expires_at]
+           }},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def create_upload(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, &json(conn, Uploads.create(account, &1)))
   end
 
   operation(:pause,

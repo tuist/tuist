@@ -551,6 +551,9 @@ spec:
   nestedVirtualization: true
   {{- end }}
   {{- if $exclusive }}
+  {{- if $nested }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs cannot be combined with nestedVirtualization: kubelet device allocation during pod-level admission is broken (kubernetes/kubernetes#143490)" $name) }}
+  {{- end }}
   {{- if ne $runtimeClass "kata-qemu" }}
   {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs requires runtimeClass kata-qemu" $name) }}
   {{- end }}
@@ -692,6 +695,9 @@ spec:
   nestedVirtualization: true
   {{- end }}
   {{- if $exclusive }}
+  {{- if $nested }}
+  {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs cannot be combined with nestedVirtualization: kubelet device allocation during pod-level admission is broken (kubernetes/kubernetes#143490)" $shapeKey) }}
+  {{- end }}
   {{- if ne $shapeRuntimeClass "kata-qemu" }}
   {{- fail "exclusive CPUs require runnersFleetLinux.shapeRuntimeClass kata-qemu" }}
   {{- end }}

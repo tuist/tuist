@@ -65,7 +65,8 @@ defmodule TuistWeb.Endpoint do
     from: :tuist,
     gzip: true,
     cache_control_for_etags: "public, max-age=0, must-revalidate",
-    only: TuistWeb.static_paths()
+    only: TuistWeb.static_paths(),
+    only_matching: TuistWeb.static_path_prefixes()
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

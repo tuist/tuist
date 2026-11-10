@@ -63,7 +63,9 @@ for environment in staging canary production; do
     canary) server_namespace=tuist-canary vrack=pn-2024092 ;;
     production) server_namespace=tuist vrack=pn-2024093 ;;
   esac
-  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" '
+  archive_budget_bytes=$((100 * 1024 * 1024 * 1024))
+  if [[ "$environment" == production ]]; then archive_budget_bytes=$((500 * 1024 * 1024 * 1024)); fi
+  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" '
     any(.[]; .kind == "StatefulSet" and
       .spec.template.spec.nodeSelector["tuist.dev/private-network"] == $vrack) and
     any(.[]; .kind == "Password" and .metadata.name == "shard-storage-seed") and
@@ -79,6 +81,7 @@ for environment in staging canary production; do
       .spec.target.name == "shard-storage-targets" and
       (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
         .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
+        .archive_bucket == "sandbox-archives" and .archive_budget_bytes == $archive_budget_bytes and
         .endpoint == "http://shard-storage.kura.svc.cluster.local:3900" and
         .access_key_id == "{{ .access_key_id }}" and .secret_access_key == "{{ .secret_access_key }}"))
   ' "$WORK/$environment.json" >/dev/null
@@ -157,3 +160,10 @@ for field in expirationDays abortMultipartDays; do
   done
 done
 echo 'Lifecycle: nonpositive and fractional retention rejected'
+for budget in 0 -1 1.5; do
+  if helm template shard-storage "$CHART" --namespace kura --set enabled=true --set externalSecrets.item=SHARD_STORAGE --set "archiveBudgetGiB=$budget" >/dev/null 2>&1; then
+    echo "Invalid archive budget $budget accepted" >&2
+    exit 1
+  fi
+done
+echo 'Archive budgets: environment-specific byte limits published; nonpositive and fractional budgets rejected'

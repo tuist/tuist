@@ -97,13 +97,6 @@ struct AtlasDesktopBusinessTable: View {
                 TableColumn("Due date", sortUsing: AtlasDesktopRecordSort(field: "due_on")) {
                     Text(AtlasBusinessFormatting.date($0["due_on"]))
                 }.width(min: 90, ideal: 110)
-                TableColumn("Reminder", sortUsing: AtlasDesktopRecordSort(field: "remind_at")) { item in
-                    Text(item["remind_at"].isEmpty ? "" : AtlasBusinessFormatting.dateTime(item["remind_at"]))
-                        .foregroundStyle(item["reminder_group"] == "overdue" ? Color.red : Color.primary)
-                }.width(min: 110, ideal: 170)
-                TableColumn("Reminder group") {
-                    Text(AtlasTaskReminderGroup(rawValue: $0["reminder_group"])?.title ?? "")
-                }.width(min: 120, ideal: 150)
             }
         case .invoices:
             Table(records, selection: $selection, sortOrder: $sortOrder) {
@@ -128,13 +121,7 @@ struct AtlasDesktopBusinessTable: View {
     }
 
     private var items: [AtlasBusinessRecord] {
-        let records = (model.page?.items ?? []).map { model.records[$0.id] ?? $0 }.sorted(using: sortOrder)
-        guard model.filters["group_by"] == "reminder" else { return records }
-        let groups = AtlasTaskReminderGroup.allCases.map(\.rawValue)
-        return records.sorted {
-            (groups.firstIndex(of: $0["reminder_group"]) ?? groups.count)
-                < (groups.firstIndex(of: $1["reminder_group"]) ?? groups.count)
-        }
+        (model.page?.items ?? []).map { model.records[$0.id] ?? $0 }.sorted(using: sortOrder)
     }
 
     private func title(_ item: AtlasBusinessRecord, lastID: String?) -> some View {

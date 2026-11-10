@@ -411,6 +411,13 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  @doc """
+  The template reports of every connected node as one node, to size a
+  sandbox's disk ceiling without knowing its node, as the account disk
+  limit does (`Tuist.Sandboxes.Concurrency`).
+  """
+  def fleet_node, do: %{templates: Enum.flat_map(Nodes.connected_nodes(), &Map.get(&1, :templates, []))}
+
   def disk_budget_bytes(%{disk: %{budget_bytes: budget}}) when is_integer(budget) and budget > 0, do: budget
   def disk_budget_bytes(_node), do: :unbounded
 
@@ -628,8 +635,11 @@ defmodule Tuist.Sandboxes.Capacity do
   Picks and reserves the node a new sandbox boots on: the connected node
   with the template ready, disk for the sandbox and the most free memory.
   When no node has room, idle sandboxes are paused on the node that can
-  free the most. Returns `{:error, :no_node}` when no connected node has
-  the template and `{:error, :no_capacity}` when none has room.
+  free the most. When no node has disk, the oldest paused Orb on them is
+  archived (`Tuist.Sandboxes.Archives.make_node_room/1`), so a retry finds
+  room once the upload completes. Returns `{:error, :no_node}` when no
+  connected node has the template and `{:error, :no_capacity}` when none
+  has room.
   """
   def place(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.place(sandbox)
   def place(%Sandbox{} = sandbox), do: place(sandbox, fn _node -> true end)
@@ -652,9 +662,15 @@ defmodule Tuist.Sandboxes.Capacity do
     candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 
     cond do
-      ready == [] -> {:error, :no_node}
-      candidates == [] -> {:error, :no_capacity}
-      true -> place_on(candidates, sandbox)
+      ready == [] ->
+        {:error, :no_node}
+
+      candidates == [] ->
+        ready |> Enum.map(& &1.name) |> Archives.make_node_room()
+        {:error, :no_capacity}
+
+      true ->
+        place_on(candidates, sandbox)
     end
   end
 
@@ -842,6 +858,7 @@ defmodule Tuist.Sandboxes.Capacity do
 
       nodes ->
         with_disk = Enum.filter(nodes, &disk_room?(&1, agent_environment))
+        if with_disk == [], do: nodes |> Enum.map(& &1.name) |> Archives.make_node_room()
         Enum.any?(with_disk, &memory_room?(&1, agent_environment)) or grown_in_time?(with_disk, agent_environment)
     end
   end

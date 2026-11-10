@@ -159,6 +159,52 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
              ]
     end
 
+    test "falls back when the baseline's listing was truncated, instead of selecting the tests past the cut" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("c1", [], 0),
+        CoverageFixtures.commit("c2", ["c1"], 1)
+      ])
+
+      # The client stopped at the file limit before Sources/Core.swift.
+      CoverageFixtures.seed_listing(account, "c1", ["Sources/Math.swift"], truncated: true)
+
+      test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
+
+      scope = fn suite, name, file ->
+        %{kind: "test", module: "AppTests", suite: suite, name: name, files: [file], lines: [[1, 1]]}
+      end
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        Enum.map(["Sources/Math.swift", "Sources/Core.swift"], &CoverageFixtures.file(&1, [1])),
+        %{
+          git_commit_sha: "c1",
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [test_case.("testAdd()", "MathTests"), test_case.("testCore()", "CoreSuite")]
+            }
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Core.swift"],
+            scopes: [scope.("MathTests", "testAdd()", 0), scope.("CoreSuite", "testCore()", 1)]
+          }
+        }
+      )
+
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}], changed_files: []}))
+
+      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "no_baseline", nil}
+      assert selected(project, run) == []
+    end
+
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
       modules = [
         %{name: "AppTests", skipped: false},

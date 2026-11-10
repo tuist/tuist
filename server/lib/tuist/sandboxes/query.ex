@@ -145,9 +145,6 @@ defmodule Tuist.Sandboxes.Query do
   def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 
-  def error(:archive_storage_full),
-    do: {:conflict, "The account's archive storage is full. Delete archived sandboxes first."}
-
   def error(:archive_store_unavailable),
     do:
       {:service_unavailable,

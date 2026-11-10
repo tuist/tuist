@@ -10581,6 +10581,13 @@ components:
                 type: number
                 x-struct:
                 x-validate:
+              disk_available_bytes:
+                description: Available bytes on the macOS system Data volume, excluding purgeable space.
+                minimum: 0
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
               disk_bytes_read:
                 description: Disk bytes read per second.
                 type: integer
@@ -10588,6 +10595,13 @@ components:
                 x-validate:
               disk_bytes_written:
                 description: Disk bytes written per second.
+                type: integer
+                x-struct:
+                x-validate:
+              disk_total_bytes:
+                description: Total capacity in bytes of the macOS system Data volume.
+                minimum: 0
+                nullable: true
                 type: integer
                 x-struct:
                 x-validate:
@@ -34840,6 +34854,13 @@ paths:
                         type: number
                         x-struct:
                         x-validate:
+                      disk_available_bytes:
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
                       disk_bytes_read:
                         maximum: 9223372036854775807
                         minimum: 0
@@ -34849,6 +34870,13 @@ paths:
                       disk_bytes_written:
                         maximum: 9223372036854775807
                         minimum: 0
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_total_bytes:
+                        maximum: 9223372036854775807
+                        minimum: 0
+                        nullable: true
                         type: integer
                         x-struct:
                         x-validate:
@@ -42484,6 +42512,13 @@ paths:
                         type: number
                         x-struct:
                         x-validate:
+                      disk_available_bytes:
+                        description: Available bytes on the macOS system Data volume, excluding purgeable space.
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
                       disk_bytes_read:
                         description: Disk bytes read per second.
                         type: integer
@@ -42491,6 +42526,13 @@ paths:
                         x-validate:
                       disk_bytes_written:
                         description: Disk bytes written per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_total_bytes:
+                        description: Total capacity in bytes of the macOS system Data volume.
+                        minimum: 0
+                        nullable: true
                         type: integer
                         x-struct:
                         x-validate:
@@ -53579,6 +53621,13 @@ paths:
                         type: number
                         x-struct:
                         x-validate:
+                      disk_available_bytes:
+                        description: Available bytes on the macOS system Data volume, excluding purgeable space.
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
                       disk_bytes_read:
                         description: Disk bytes read per second.
                         type: integer
@@ -53586,6 +53635,13 @@ paths:
                         x-validate:
                       disk_bytes_written:
                         description: Disk bytes written per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_total_bytes:
+                        description: Total capacity in bytes of the macOS system Data volume.
+                        minimum: 0
+                        nullable: true
                         type: integer
                         x-struct:
                         x-validate:
@@ -65770,6 +65826,12 @@ paths:
                         type: number
                         x-struct:
                         x-validate:
+                      disk_available_bytes:
+                        minimum: 0
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
                       disk_bytes_read:
                         description: Disk bytes read per second.
                         type: integer
@@ -65777,6 +65839,12 @@ paths:
                         x-validate:
                       disk_bytes_written:
                         description: Disk bytes written per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_total_bytes:
+                        minimum: 0
+                        nullable: true
                         type: integer
                         x-struct:
                         x-validate:

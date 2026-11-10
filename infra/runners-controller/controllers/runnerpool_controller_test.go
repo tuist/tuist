@@ -745,6 +745,46 @@ func TestReconcile_RollsStaleRuntimeClassRevisionAtConfiguredCap(t *testing.T) {
 	}
 }
 
+// Turning exclusiveCPUs on changes the Pod template without touching the
+// image or the RuntimeClass revision. The roll must still replace idle
+// warm Pods, or the pool keeps container-level Pods forever.
+func TestReconcile_RollsIdlePodsWhenExclusiveCPUsTurnsOn(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 1, 4)
+	pool.Spec.PodCPUMilli = 2000
+	pool.Spec.PodMemoryMB = 8192
+	pool.Spec.ExclusiveCPUs = true
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	node.Labels[podtemplate.PodLevelResourceManagersNodeLabel] = "true"
+	old := warmLinuxRunnerPod("p-runner-old", pool.Spec.Image, pool.Name, "")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, old).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:              c,
+		Scheme:              scheme,
+		DispatchURL:         "http://dispatch",
+		DispatchInternalURL: "http://dispatch-internal",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 1 || pods.Items[0].Name == old.Name {
+		t.Fatalf("pods = %v, want only a replacement for %s", podNames(pods.Items), old.Name)
+	}
+	if pods.Items[0].Spec.Resources == nil {
+		t.Fatal("replacement has no Pod-level budget")
+	}
+}
+
 func TestReconcile_LeavesClaimedAndRunningPodsWithStaleRuntimeClassRevisionAlone(t *testing.T) {
 	scheme := mustScheme(t)
 	pool := newLinuxKataPool("p", 2, 4)

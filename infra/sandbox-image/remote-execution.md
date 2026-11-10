@@ -189,6 +189,12 @@ host-CID vsock connections. This is VM isolation for untrusted code, not network
 hermeticity: the initial policy permits public HTTPS and the scoped cache and
 control services.
 
+The guest's `/tmp` is a tmpfs in VM memory, sized at half the VM. Unless an
+action sets `TMPDIR` itself, the executor points it at a private directory
+beside the input root on the workspace disk, removed after the action, so
+temporary files neither use the action's memory nor see a smaller filesystem
+than on a local build.
+
 The trusted Bazel template formats and unmounts an empty workspace once before
 snapshotting. Equal-size action workspaces are private reflinks of that image.
 The template's optional `sbx-template-prepare` hook warms image-owned executor and

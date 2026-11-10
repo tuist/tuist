@@ -14,6 +14,7 @@ func sendDocker(socket string, message dockerMessage) (string, error) {
 	return "", errors.New("the Docker cache requires Linux")
 }
 func runDind(args []string) error { return errors.New("the Docker cache requires Linux") }
+func publishDindMemory()          {}
 func mountWorker(bool) error      { return errors.New("cache volume bind mounts require Linux") }
 func bindCheckout(socket, source, workspace, target string) error {
 	return errors.New("cached checkouts require Linux")

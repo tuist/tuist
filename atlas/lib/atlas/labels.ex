@@ -19,11 +19,12 @@ defmodule Atlas.Labels do
   alias Atlas.Users
   alias Atlas.Users.User
 
-  @ttl 8 * 60 * 60
+  @idle_ttl 8 * 60 * 60
   @stale 35_000
   @approval_ttl 600_000
   @start_window 600_000
   @per_label 60_000
+  @direct_limit 20
 
   def create(user, interface) do
     transact(fn ->
@@ -44,7 +45,7 @@ defmodule Atlas.Labels do
         Repo.insert!(%Session{
           owner_id: user.id,
           relay_token_hash: hash(token),
-          expires_at: DateTime.add(DateTime.utc_now(), @ttl)
+          expires_at: DateTime.add(DateTime.utc_now(), @idle_ttl)
         })
 
       audit!(user, interface, session, "created")
@@ -64,6 +65,12 @@ defmodule Atlas.Labels do
       session = session!(id)
       ensure(session.owner_id == user.id, 404, "Label session not found.")
       expire!(session)
+      # Dashboard status/image requests include automatic refreshes, not owner activity.
+      session =
+        if interface in ~w(api mcp) or operation not in [:status, :image],
+          do: renew!(session),
+          else: session
+
       act(operation, session, data, user, interface)
     end)
   end
@@ -83,6 +90,9 @@ defmodule Atlas.Labels do
       user = Users.get_user(session.owner_id)
       authorize!(user, operation, "relay")
       expire!(session)
+      # Disconnected tabs still report and poll status. Only a connected report
+      # renews the capability; validation failures roll back the renewal too.
+      session = if operation == :relay and data["connected"] == true, do: renew!(session), else: session
       act(operation, session, data, user, "relay")
     end)
   end
@@ -95,6 +105,12 @@ defmodule Atlas.Labels do
     session = Repo.one(from s in Session, where: s.id == ^id, lock: "FOR UPDATE")
     ensure(session && DateTime.after?(session.expires_at, DateTime.utc_now()), 404, "Label session missing or expired.")
     session
+  end
+
+  # Called only after authorization and expiry checks, under the session row lock.
+  # Renew the existing deadline without rotating the owner's connected relay token.
+  defp renew!(session) do
+    Repo.update!(Ecto.Changeset.change(session, expires_at: DateTime.add(DateTime.utc_now(), @idle_ttl)))
   end
 
   defp authorize!(user, operation, interface) do
@@ -132,9 +148,9 @@ defmodule Atlas.Labels do
     current = jobs(s)
 
     ensure(
-      is_list(items) and length(items) in 1..50 and length(items) + length(current) <= 100,
+      is_list(items) and length(items) in 1..50,
       400,
-      "Submit 1–50 labels; at most 100 per session."
+      "Submit 1–50 labels."
     )
 
     ensure(
@@ -171,6 +187,8 @@ defmodule Atlas.Labels do
 
     zones = data["zoneDimensions"]
 
+    ensure(data["mediaIsDieCut"] in [nil, true, false], 400, "Invalid continuous media flag.")
+
     ensure(
       zones == nil or ((is_list(zones) or is_map(zones)) and byte_size(Jason.encode!(zones)) <= 4000),
       400,
@@ -186,6 +204,7 @@ defmodule Atlas.Labels do
         "seenAt" => now(),
         "connected" => data["connected"] == true,
         "cutReady" => data["cutReady"] == true,
+        "mediaIsDieCut" => data["mediaIsDieCut"],
         "zoneDimensions" => zones
       })
 
@@ -221,6 +240,8 @@ defmodule Atlas.Labels do
         ensure(is_list(ids) and length(ids) <= 100 and ids == Enum.uniq(ids), 400, "Pass 1–100 distinct job IDs.")
         Enum.map(ids, &job!(s, &1))
       end
+
+    ensure(length(selected) <= 100, 400, "Choose at most 100 labels per batch using job IDs.")
 
     ensure(
       selected != [] and Enum.all?(selected, &(&1.action == "print" and &1.state == "preview-only")),
@@ -332,6 +353,34 @@ defmodule Atlas.Labels do
   # connected relay directly. Either way the batch records the exact printer and supply.
   defp queue!(s, jobs, extra, approval?, user, interface) do
     ready!(s, extra["cut"] == true or Enum.any?(jobs, &(&1.action == "cut")))
+
+    # Unreviewed output stays small: one batch of at most @direct_limit labels at a time,
+    # so an agent cannot start a long run without the owner reviewing it.
+    if !approval? do
+      ensure(
+        length(jobs) <= @direct_limit,
+        400,
+        "Without approval a batch holds at most #{@direct_limit} labels; pass approval: true for the owner to review a larger one."
+      )
+
+      ensure(
+        !Enum.any?(jobs(s), &(&1.state in ~w(queued dispatched))),
+        409,
+        "Another batch is still queued or printing; wait for it to finish."
+      )
+    end
+
+    # No printable zone means no physical-size promise, so bound continuous feed.
+    continuous? = continuous?(s.relay)
+
+    for job <- jobs, continuous? and job.action == "print" do
+      ensure(
+        sizing(job, s.relay)["nominalLengthMm"] <= 200,
+        400,
+        "Continuous bitmap length exceeds 200 mm; shorten its aspect ratio."
+      )
+    end
+
     batch = Atlas.UUIDv7.generate()
     count = length(jobs)
     t = now()
@@ -358,7 +407,11 @@ defmodule Atlas.Labels do
             "queuedAt" => t,
             "printer" => s.relay["name"],
             "supply" => s.relay["supply"],
-            "zoneDimensions" => s.relay["zoneDimensions"]
+            "zoneDimensions" => s.relay["zoneDimensions"],
+            "supplyWidth" => s.relay["supplyWidth"],
+            "supplyHeight" => s.relay["supplyHeight"],
+            "mediaIsDieCut" => s.relay["mediaIsDieCut"],
+            "sizing" => sizing(job, s.relay)
           })
 
         Repo.update!(
@@ -378,7 +431,12 @@ defmodule Atlas.Labels do
       "Connect an M211 and report printer/supply first."
     )
 
-    ensure(valid_zones?(s.relay["zoneDimensions"]), 409, "Positive printable zone dimensions are required.")
+    ensure(
+      valid_zones?(s.relay["zoneDimensions"]) or continuous?(s.relay),
+      409,
+      "Positive printable zones or explicit continuous media with zero height and a known width are required. Reload the relay if needed."
+    )
+
     ensure(!cuts? or s.relay["cutReady"] == true, 409, "Cut-capable relay required.")
   end
 
@@ -389,7 +447,11 @@ defmodule Atlas.Labels do
       "state" => first.state,
       "cut" => first.action == "cut" or first.data["cut"] == true,
       "approvalUrl" => if(first.state == "awaiting-approval", do: batch_url(s.id, first.data["batchId"])),
-      "jobs" => Enum.map(jobs, &%{"id" => &1.id, "title" => &1.data["title"], "state" => &1.state})
+      "jobs" =>
+        Enum.map(
+          jobs,
+          &%{"id" => &1.id, "title" => &1.data["title"], "state" => &1.state, "sizing" => &1.data["sizing"]}
+        )
     }
   end
 
@@ -461,6 +523,7 @@ defmodule Atlas.Labels do
   defp serialize(j, s) do
     j.data
     |> Map.drop(~w(dispatchedBy))
+    |> Map.put("sizing", if(j.state == "preview-only", do: sizing(j, s.relay), else: j.data["sizing"]))
     |> Map.merge(%{
       "id" => j.id,
       "jobId" => j.id,
@@ -473,7 +536,52 @@ defmodule Atlas.Labels do
   defp connected?(s, j),
     do:
       fresh?(s) and s.relay["connected"] == true and s.relay["model"] == "M211" and s.relay["name"] == j.data["printer"] and
-        s.relay["supply"] == j.data["supply"] and s.relay["zoneDimensions"] == j.data["zoneDimensions"]
+        s.relay["supply"] == j.data["supply"] and
+        Enum.all?(~w(zoneDimensions supplyWidth supplyHeight mediaIsDieCut), &(s.relay[&1] == j.data[&1]))
+
+  defp continuous?(relay) when is_map(relay) do
+    relay["zoneDimensions"] == [] and relay["mediaIsDieCut"] == false and
+      number(relay["supplyHeight"]) == 0 and number(relay["supplyWidth"]) > 0 and
+      number(relay["supplyWidth"]) <= 0.75
+  end
+
+  defp continuous?(_), do: false
+
+  defp sizing(%Job{action: "cut"}, _), do: nil
+
+  defp sizing(job, relay) do
+    <<_::binary-size(16), width::32, height::32, _::binary>> = job.png
+
+    if continuous?(relay) do
+      %{
+        "mode" => "continuous",
+        "bitmapWidthPx" => width,
+        "bitmapHeightPx" => height,
+        "nominalLengthMm" => width / height * min(number(relay["supplyWidth"]), 0.63) * 25.4,
+        "notice" =>
+          "Continuous tape: no printable zones. Bitmap aspect ratio sets length, not the requested mm size. M211 limits width to 16 mm before margins; feed/trailer adds tape. Physical size is not guaranteed. Measure one test label before printing a batch."
+      }
+    else
+      %{
+        "mode" => "printable-zone",
+        "bitmapWidthPx" => width,
+        "bitmapHeightPx" => height,
+        "notice" =>
+          "The SDK fits the bitmap to the printable zone, preserving aspect ratio; preview mm are not a physical-size guarantee."
+      }
+    end
+  end
+
+  defp number(value) when is_number(value), do: value
+
+  defp number(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, ""} -> number
+      _ -> -1
+    end
+  end
+
+  defp number(_), do: -1
 
   defp valid_zones?(zones) when is_list(zones) and zones != [] do
     Enum.all?(zones, fn

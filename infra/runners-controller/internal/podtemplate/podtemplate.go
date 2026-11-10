@@ -193,6 +193,12 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	}
 
 	if pool.Spec.ExclusiveCPUs {
+		// Pod-level admission skips device allocation in current kubelets.
+		// Concurrent KVM allocations at container start can panic the host:
+		// https://github.com/kubernetes/kubernetes/issues/143490.
+		if pool.Spec.NestedVirtualization {
+			return nil, fmt.Errorf("refusing to build runner Pod: pool %q exclusiveCPUs cannot be combined with nestedVirtualization until kubelet supports device allocation during pod-level admission", pool.Name)
+		}
 		if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu" {
 			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 		}

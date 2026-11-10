@@ -53,10 +53,19 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         let included = target.project.targets.values.filter { $0.name != target.target.name }
             .flatMap(\.buildableFolders).flatMap(\.exceptions)
             .filter { $0.target == target.target.name }.flatMap(\.included).filter(filter.callAsFunction)
+        let compiledExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions +
+            Target.validHeaderExtensions).subtracting(["docc"])
+        let folderSources = (folders + included).filter { path in
+            !path.components.contains(where: { $0.lowercased().hasSuffix(".docc") }) ||
+                compiledExtensions.contains(path.extension?.lowercased() ?? "")
+        }
+        // Catalogs enter the sources build phase for DocC, not for the module's debug information.
+        // Explicit compiled sources and headers remain validated even beneath a catalog.
+        let sources = target.target.sources.filter { $0.path.extension?.lowercased() != "docc" }
         let headers = (target.target.headers?.public ?? []) + (target.target.headers?.private ?? []) +
             (target.target.headers?.project ?? [])
         var declared: [String: SourceFile] = [:]
-        for source in target.target.sources + (folders + included + headers).map({ SourceFile(path: $0) }) {
+        for source in sources + (folderSources + headers).map({ SourceFile(path: $0) }) {
             let relative = source.path.relative(to: target.project.sourceRootPath).pathString
             if let previous = declared[relative]?.contentHash {
                 guard source.contentHash == nil || source.contentHash == previous else {

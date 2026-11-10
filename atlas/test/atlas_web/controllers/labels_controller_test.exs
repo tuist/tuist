@@ -96,6 +96,106 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert byte_size(Repo.get!(Session, s["id"]).relay_token_hash) == 32
   end
 
+  test "sessions accept more than 100 labels while retaining submission and batch limits", c do
+    {id, _token, _r, [first]} = connected_session(c, ["LABEL-1"])
+    job = Repo.get!(Job, first)
+
+    # Fill the session to the old lifetime cap without rendering the same fixture 99 times.
+    Repo.insert_all(
+      Job,
+      for _ <- 2..100 do
+        %{
+          id: Atlas.UUIDv7.generate(),
+          session_id: id,
+          action: job.action,
+          state: job.state,
+          png: job.png,
+          data: job.data,
+          inserted_at: job.inserted_at,
+          updated_at: job.updated_at
+        }
+      end
+    )
+
+    assert mcp(c.mcp, "submit", %{"session_id" => id, "items" => [%{"text" => "LABEL-101"}]}) ==
+             %{"queued" => 1, "state" => "preview-only"}
+
+    status = mcp(c.mcp, "status", %{"session_id" => id})
+    assert length(status["jobs"]) == 101
+    assert status["counts"] == %{"preview-only" => 101}
+    assert List.last(status["jobs"])["title"] == "LABEL-101"
+
+    assert {:error, 400, _} = Labels.request(c.user, :submit, id, %{"items" => []})
+
+    assert {:error, 400, _} =
+             Labels.request(c.user, :submit, id, %{"items" => List.duplicate(%{"text" => "TOO MANY"}, 51)})
+
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{"approval" => true})
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{})
+
+    assert {:ok, %{"count" => 1, "state" => "queued"}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => [List.last(status["jobs"])["id"]]})
+  end
+
+  test "connected reports keep the same relay capability alive past its original deadline", c do
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    s = session(c.mcp)
+    path = "/api/labels/relay/sessions/#{s["id"]}"
+    original_expiry = DateTime.to_unix(~U[2026-11-10 16:05:00Z], :millisecond)
+    assert s["expiresAt"] == original_expiry
+    r = report()
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    assert api(s["relayToken"], :post, path <> "/relay", r).status == 200
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 16:05:00.000000Z] end)
+    status = json_response(api(s["relayToken"], :get, path), 200)
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-10 23:05:00Z], :millisecond)
+
+    # Exact deadline is expired: neither a late report nor the owner can revive it.
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 23:05:00.000000Z] end)
+    assert api(s["relayToken"], :post, path <> "/relay", r).status == 404
+    assert api(s["relayToken"], :get, path).status == 404
+    assert {:error, 404, _} = Labels.request(c.user, :status, s["id"])
+  end
+
+  test "successful agent activity and explicit owner actions renew the idle deadline", c do
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    s = session(c.mcp)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    status = mcp(c.mcp, "status", %{"session_id" => s["id"]})
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-10 23:05:00Z], :millisecond)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 22:05:00.000000Z] end)
+    assert {:ok, %{"relayToken" => token}} = Labels.request(c.user, :relay_token, s["id"], %{}, "dashboard")
+    assert {:ok, status} = Labels.relay(:status, s["id"], token)
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-11 06:05:00Z], :millisecond)
+    assert {:error, 401, _} = Labels.relay(:status, s["id"], s["relayToken"])
+  end
+
+  test "passive polling, disconnected reports and rejected requests do not renew sessions", c do
+    {_, other} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    {id, token, r, [job]} = connected_session(c, ["IDLE"])
+    expiry = DateTime.to_unix(~U[2026-11-10 16:05:00Z], :millisecond)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    assert {:ok, _} = Labels.relay(:relay, id, token, %{r | "connected" => false})
+    assert {:ok, _} = Labels.relay(:image, id, token, %{"jobId" => job})
+    assert {:ok, _} = Labels.request(c.user, :image, id, %{"jobId" => job}, "dashboard")
+    assert {:ok, %{"expiresAt" => ^expiry}} = Labels.request(c.user, :status, id, %{}, "dashboard")
+    assert {:error, 404, _} = Labels.request(other, :status, id)
+    assert {:error, 401, _} = Labels.relay(:relay, id, "invalid", r)
+    assert {:error, 400, _} = Labels.relay(:relay, id, token, %{r | "clientId" => "invalid"})
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{}, "mcp")
+    assert {:ok, %{"expiresAt" => ^expiry}} = Labels.relay(:status, id, token)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 16:05:00.000000Z] end)
+    assert {:error, 404, _} = Labels.relay(:relay, id, token, r)
+    assert {:error, 404, _} = Labels.request(c.user, :status, id)
+  end
+
   defp connected_session(c, texts) do
     {:ok, s} = Labels.create(c.user, "api")
     r = report()
@@ -139,6 +239,23 @@ defmodule AtlasWeb.LabelsControllerTest do
 
     # Printed labels are not printed again; reprinting needs a new submission.
     assert %{"isError" => true} = ManageLabelSession.call(c.mcp, %{"action" => "print", "session_id" => id})
+  end
+
+  test "unreviewed output is one batch of at most 20 labels at a time", c do
+    {id, _token, _r, ids} = connected_session(c, for(n <- 1..21, do: "R02-#{n}"))
+    {first, [last]} = Enum.split(ids, 20)
+
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{}, "mcp")
+    assert states(id) == List.duplicate("preview-only", 21)
+
+    assert {:ok, %{"state" => "queued", "count" => 20}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => first}, "mcp")
+
+    # No further unreviewed output while that batch is queued or printing; review still works.
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{"jobIds" => [last]}, "mcp")
+
+    assert {:ok, %{"state" => "awaiting-approval"}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => [last], "approval" => true}, "mcp")
   end
 
   test "an uncertain label stops the rest of the batch and reports each label honestly", c do
@@ -201,6 +318,105 @@ defmodule AtlasWeb.LabelsControllerTest do
 
     {:ok, connection, _} = live(c.browser, "/operations/labels/#{id}")
     assert has_element?(connection, "#session-labels")
+  end
+
+  test "zoneless continuous nylon review shows bitmap sizing and freezes the supply", c do
+    {id, token, r, [a]} = connected_session(c, ["larch-runner-a01"])
+
+    nylon =
+      Map.merge(r, %{
+        "supply" => "M21-750-499",
+        "dimensions" => "0 x 0.75",
+        "supplyWidth" => "0.75",
+        "supplyHeight" => "0",
+        "mediaIsDieCut" => false,
+        "zoneDimensions" => []
+      })
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    preview = mcp(c.mcp, "preview", %{"session_id" => id, "job_id" => a})
+    assert %{"mode" => "continuous", "bitmapWidthPx" => 400, "bitmapHeightPx" => 96} = preview["sizing"]
+    assert_in_delta preview["sizing"]["nominalLengthMm"], 66.675, 0.001
+
+    batch = mcp(c.mcp, "print", %{"session_id" => id, "approval" => true})
+    assert batch["state"] == "awaiting-approval"
+    assert {:error, 409, _} = claim(id, token, nylon, a)
+    assert {:error, 400, _} = Labels.request(c.user, :approve, id, %{"batchId" => batch["batchId"]}, "mcp")
+    {:ok, view, _} = live(c.browser, URI.parse(batch["approvalUrl"]).path)
+    assert has_element?(view, "#batch-labels [data-part='label-sizing']", "Physical size is not guaranteed")
+    assert has_element?(view, "#batch-labels [data-part='label-sizing']", "66.7 mm")
+
+    for change <- [
+          %{"supplyWidth" => "0.5"},
+          %{"supplyHeight" => "0.5"},
+          %{"mediaIsDieCut" => true},
+          %{"zoneDimensions" => r["zoneDimensions"]},
+          %{"supply" => r["supply"]}
+        ] do
+      assert {:ok, _} = Labels.relay(:relay, id, token, Map.merge(nylon, change))
+      assert {:error, 409, _} = Labels.request(c.user, :approve, id, %{"batchId" => batch["batchId"]}, "dashboard")
+    end
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    view |> element("#approve-label") |> render_click()
+    assert {:ok, _} = Labels.relay(:relay, id, token, %{nylon | "supplyWidth" => "0.5"})
+    assert {:error, 409, _} = claim(id, token, nylon, a)
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    assert {:ok, %{"zoneDimensions" => [], "sizing" => sizing}} = claim(id, token, nylon, a)
+    assert sizing == preview["sizing"]
+    assert {:ok, %{"state" => "uncertain"}} = finish(id, token, nylon, a, %{"success" => false})
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{})
+  end
+
+  test "missing or invalid zones only pass for explicitly continuous zero-height media", c do
+    {id, token, r, _} = connected_session(c, ~w(TEST))
+
+    continuous =
+      Map.merge(r, %{"zoneDimensions" => [], "supplyWidth" => 0.75, "supplyHeight" => 0, "mediaIsDieCut" => false})
+
+    for change <- [
+          %{"mediaIsDieCut" => nil},
+          %{"mediaIsDieCut" => true},
+          %{"supplyHeight" => nil},
+          %{"supplyHeight" => "invalid"},
+          %{"supplyHeight" => "0.1"},
+          %{"supplyWidth" => "0"},
+          %{"supplyWidth" => "0.76"},
+          %{"supplyWidth" => "0.75in"},
+          %{"zoneDimensions" => nil},
+          %{"zoneDimensions" => [%{"Width" => 0, "Height" => 0}]}
+        ] do
+      assert {:ok, _} = Labels.relay(:relay, id, token, Map.merge(continuous, change))
+      assert {:error, 409, _} = Labels.request(c.user, :print, id, %{})
+    end
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, continuous)
+    assert {:ok, %{"state" => "queued"}} = Labels.request(c.user, :print, id, %{})
+  end
+
+  test "continuous feed limit uses uploaded bitmap aspect ratio, not requested preview mm", c do
+    {id, token, r, _} = connected_session(c, ~w(TEST))
+
+    continuous =
+      Map.merge(r, %{"zoneDimensions" => [], "supplyWidth" => "0.75", "supplyHeight" => "0", "mediaIsDieCut" => false})
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, continuous)
+
+    # 200 x 5 produces a 40:1 bitmap, about 640 mm on this tape, not 200 mm.
+    mcp(c.mcp, "submit", %{"session_id" => id, "items" => [%{"text" => "LONG"}], "width_mm" => 200, "height_mm" => 5})
+    {:ok, %{"jobs" => [_, long]}} = Labels.request(c.user, :status, id)
+    preview = mcp(c.mcp, "preview", %{"session_id" => id, "job_id" => long["id"]})
+
+    mcp(c.mcp, "submit", %{
+      "session_id" => id,
+      "items" => [%{"png" => preview["png"]}],
+      "width_mm" => 50,
+      "height_mm" => 10
+    })
+
+    {:ok, %{"jobs" => [_, _, uploaded]}} = Labels.request(c.user, :status, id)
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{"jobIds" => [uploaded["id"]]})
+    assert states(id) == ~w(preview-only preview-only preview-only)
   end
 
   test "printer or supply changes, lease loss and expiry block output", c do

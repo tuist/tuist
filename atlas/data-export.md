@@ -7,18 +7,33 @@ Atlas's personal LLM connections are separate from Tuist Server customer data an
 `label_sessions` belongs to an Atlas `users.id` through `owner_id` (cascade
 deletion), storing session expiry, a SHA-256 relay capability hash and latest
 relay report: browser client ID, heartbeat, connection claim, printer model/name,
-cartridge, printable zones/dimensions and bounded status/message. `label_jobs`
+cartridge, printable zones/dimensions, the SDK die-cut/continuous flag and bounded status/message. `label_jobs`
 belongs to a session (cascade deletion), storing the exact preview PNG in
 PostgreSQL, title/text, preview dimensions, action/state, batch ID/position/size,
-cut choice, whether review was requested, queued printer/supply/zones, approval
+cut choice, whether review was requested (required above 20 labels per batch),
+queued printer/supply/zones plus supply width/height and die-cut flag, sizing mode,
+actual bitmap pixel dimensions, nominal continuous page length and sizing warning, approval
 expiry and start deadline, dispatch client/time, separate print and cut outcomes,
 result time, bounded SDK result and a note explaining why a label returned to
 preview unprinted. Unclaimed standalone cut rows are deleted when they lapse. These may
 contain rack/asset identifiers and text supplied by the owner. No object storage
 or Tuist Server account data is added. PNGs are not encrypted separately from
-the existing database/backups.
+the existing database/backups. Sessions have no lifetime label-count cap; each
+submission accepts up to 50 labels and total stored preview images remain bounded
+to 16 MB per session. Existing jobs and consumed dispatch history are retained
+when more labels are submitted; no pruning or replay is introduced.
 
-Sessions expire after eight hours, approvals after ten minutes and unstarted
+Sessions and relay credentials expire after eight hours of inactivity. Successful
+connected relay reports, personal owner API/MCP requests (including status/previews)
+and explicit dashboard approval/credential-recovery actions reset `expires_at` to
+eight hours from that activity. Automatic dashboard status/image refreshes, relay
+status/image reads, disconnected reports and failed requests do not extend it.
+An open relay reporting a connected printer counts as active even between prints;
+after reports stop or disconnect, access ends within eight hours unless the owner
+or agent continues using the session. Expired sessions cannot be renewed. Existing
+unexpired rows use this rule without a backfill or credential rotation; already
+expired rows remain inaccessible. No activity history or new fields are stored.
+Approvals expire after ten minutes and unstarted
 queued batches after their start deadline, but rows are
 not swept on expiry: jobs, images and consumed dispatch history remain until
 owner deletion and follow existing backup retention. An expired session cannot
