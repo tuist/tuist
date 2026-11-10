@@ -6,6 +6,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
+  alias Tuist.GitHistory.Workers.FileChangesWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -343,6 +344,79 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_ref_id: ^main, changes_position: 2, changes_count: 2} = listing(repository, "f1")
     assert Enum.all?(rows(repository), &(&1.ref_id == main))
     assert files(repository, "f1") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
+  end
+
+  describe "commits that move together after their listings expired" do
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}, {"f1", ["a"]}, {"f2", ["f1"]}])
+      head(repository, "main", "a")
+      head(repository, "feature", "f2")
+
+      list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b1"})
+      list(repository, "f1", %{"A.swift" => "a2", "B.swift" => "b1"})
+      list(repository, "f2", %{"A.swift" => "a2", "B.swift" => "b2"})
+
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha in ["f1", "f2"]),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      )
+
+      head(repository, "main", "f2")
+      :ok
+    end
+
+    test "keep their files when the child's write runs first", %{repository: repository} do
+      # It comes back after its parent's.
+      assert FileChanges.write(repository, "f2") == :deferred
+      assert :ok = perform_job(FileChangesWorker, %{repository_id: repository, sha: "f2"})
+      assert %{changes_ref_id: feature} = listing(repository, "f2")
+      assert feature == ref_id(repository, "feature")
+
+      Oban.drain_queue(queue: :coverage_deltas, with_scheduled: true, with_recursion: true, with_safety: false)
+
+      main = ref_id(repository, "main")
+      assert %{changes_ref_id: ^main, changes_position: 3} = listing(repository, "f2")
+      assert files(repository, "f1") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
+      assert files(repository, "f2") == with_mode(%{"A.swift" => "a2", "B.swift" => "b2"})
+      assert changes(repository, "f2") == %{"B.swift" => "b2"}
+    end
+
+    test "a child is not copied above a parent that is not going to move", %{repository: repository} do
+      # credo:disable-for-next-line ExcellentMigrations.CredoCheck.MigrationsSafety
+      Repo.delete_all(Oban.Job)
+
+      assert FileChanges.write(repository, "f2") == :skipped
+      assert listing(repository, "f2").changes_ref_id == ref_id(repository, "feature")
+    end
+  end
+
+  test "renewing a ref never takes it past a ref it forks from", %{repository: repository} do
+    commits(repository, [{"a", []}, {"d1", ["a"]}, {"p1", ["d1"]}, {"p2", ["p1"]}])
+    head(repository, "main", "a")
+    head(repository, "development", "d1")
+    GitHistory.advance_ref(repository, "pull/1", "development", "p1")
+
+    list(repository, "a", %{"A.swift" => "a1"})
+    list(repository, "d1", %{"A.swift" => "a2"})
+    list(repository, "p1", %{"A.swift" => "a3"})
+
+    expires_in = fn days -> DateTime.utc_now() |> DateTime.add(days, :day) |> DateTime.truncate(:second) end
+
+    expire = fn sha, at ->
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [changes_expires_at: at]
+      )
+    end
+
+    development = expires_in.(60)
+    expire.("d1", development)
+    expire.("p1", expires_in.(10))
+
+    GitHistory.advance_ref(repository, "pull/1", "development", "p2")
+    list(repository, "p2", %{"A.swift" => "a4"})
+
+    assert listing(repository, "p1").changes_expires_at == development
+    assert listing(repository, "p2").changes_expires_at == development
+    assert listing(repository, "d1").changes_expires_at == development
   end
 
   test "a rewritten branch retires the rows of the commits it dropped", %{repository: repository} do

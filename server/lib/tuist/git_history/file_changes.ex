@@ -89,10 +89,12 @@ defmodule Tuist.GitHistory.FileChanges do
   @doc """
   Writes the commit's file changes at the place it holds, retiring the rows
   it left at a place it no longer holds. Returns `:written`; `:moved` when
-  the rows were copied from its old place; `:current` when they are already
-  there; `:pending` while no ref owns the commit; `:unavailable` when its
-  listing's rows do not add up to its file count; or `:skipped` when it has
-  no whole listing to write from.
+  the rows were copied from its old place, or `:deferred` while a commit
+  below it is queued to move first; `:current` when they are already there;
+  `:pending` while no ref owns the commit; `:unavailable` when its listing's
+  rows do not add up to its file count; or `:skipped` when it has no whole
+  listing to write from, or would be copied above a commit that is not
+  going to move.
   """
   def write(repository_id, sha) do
     GitHistory.with_refs_lock(repository_id, fn ->
@@ -127,8 +129,7 @@ defmodule Tuist.GitHistory.FileChanges do
         write_listing(listing, commit, written)
 
       written ->
-        copy(listing, commit, written)
-        :moved
+        move(listing, commit, written)
 
       true ->
         :skipped
@@ -198,6 +199,40 @@ defmodule Tuist.GitHistory.FileChanges do
         sha: listing.sha,
         expires_at: expires_at
       }
+    )
+  end
+
+  defp move(listing, commit, written) do
+    case moving_below(listing.repository_id, commit.place) do
+      [] ->
+        copy(listing, commit, written)
+        :moved
+
+      shas ->
+        if FileChangesWorker.queued?(listing.repository_id, shas), do: :deferred, else: :skipped
+    end
+  end
+
+  # The commits below the place that are still to move there. Rows copied
+  # above one of them would be read over a chain that lacks it, and stay
+  # wrong once it lands.
+  defp moving_below(repository_id, place) do
+    below =
+      place
+      |> GitHistory.chain(:below)
+      |> Enum.reduce(dynamic(false), fn %{ref_id: ref_id, hi: hi}, acc ->
+        dynamic([l, c], ^acc or (c.ref_id == ^ref_id and c.position <= ^hi))
+      end)
+
+    Repo.all(
+      from(l in CommitListing,
+        join: c in Commit,
+        on: c.repository_id == l.repository_id and c.sha == l.sha,
+        where: l.repository_id == ^repository_id and not l.truncated and l.changes_expires_at > ^DateTime.utc_now(),
+        where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
+        where: ^below,
+        select: l.sha
+      )
     )
   end
 
@@ -307,46 +342,75 @@ defmodule Tuist.GitHistory.FileChanges do
   # The commits whose rows were written over what the place holds: the next
   # written commit above it on its ref, and the first written commit of each
   # ref that forks from it at or above the place and below that one, through
-  # the forks that have none of their own.
-  defp above(repository_id, {ref_id, position}, sha, seen \\ MapSet.new()) do
+  # the forks that have none of their own. Only commits written where they
+  # sit: one that is still to move reads nothing at its old place. The forks
+  # are read in one query: a default branch has a ref per pull request.
+  defp above(repository_id, {ref_id, position}, sha) do
     now = DateTime.utc_now()
 
     next =
       Repo.one(
         from(l in CommitListing,
-          left_join: c in Commit,
+          join: c in Commit,
           on: c.repository_id == l.repository_id and c.sha == l.sha,
           where: l.repository_id == ^repository_id and l.sha != ^sha and l.changes_expires_at > ^now,
           where: l.changes_ref_id == ^ref_id and l.changes_position > ^position,
+          where: c.ref_id == l.changes_ref_id and c.position == l.changes_position,
           order_by: [asc: l.changes_position],
           limit: 1,
           select: %{
             sha: l.sha,
             place: {l.changes_ref_id, l.changes_position},
             expires_at: l.changes_expires_at,
-            generation: coalesce(c.generation, 0)
+            generation: c.generation
           }
         )
       )
 
-    forks = from(r in Ref, where: r.parent_ref_id == ^ref_id and r.fork_position >= ^position)
-    forks = if next, do: where(forks, [r], r.fork_position < ^elem(next.place, 1)), else: forks
-    seen = MapSet.put(seen, ref_id)
+    first_written = """
+    LEFT JOIN LATERAL (
+      SELECT l.sha, l.changes_position, l.changes_expires_at, c.generation
+      FROM git_commit_listings l
+      JOIN git_commits c ON c.repository_id = l.repository_id AND c.sha = l.sha
+        AND c.ref_id = l.changes_ref_id AND c.position = l.changes_position
+      WHERE l.repository_id = $1 AND l.changes_ref_id = r.id AND l.changes_expires_at > $2 AND l.sha <> $3
+      ORDER BY l.changes_position
+      LIMIT 1
+    ) f ON true
+    """
+
+    %{rows: forks} =
+      Repo.query!(
+        """
+        WITH RECURSIVE forks (ref_id, sha, position, expires_at, generation) AS (
+          SELECT r.id, f.sha, f.changes_position, f.changes_expires_at, f.generation
+          FROM git_refs r
+          #{first_written}
+          WHERE r.parent_ref_id = $4 AND r.fork_position >= $5 AND ($6::integer IS NULL OR r.fork_position < $6)
+          UNION
+          SELECT r.id, f.sha, f.changes_position, f.changes_expires_at, f.generation
+          FROM forks x
+          JOIN git_refs r ON r.parent_ref_id = x.ref_id AND r.id <> $4
+            AND (x.position IS NULL OR r.fork_position < x.position)
+          #{first_written}
+        )
+        SELECT sha, ref_id, position, expires_at, generation FROM forks WHERE sha IS NOT NULL
+        """,
+        [repository_id, now, sha, ref_id, position, next && elem(next.place, 1)]
+      )
 
     List.wrap(next) ++
-      for(
-        fork <- Repo.all(forks),
-        not MapSet.member?(seen, fork.id),
-        commit <- above(repository_id, {fork.id, fork.fork_position}, sha, seen),
-        do: commit
-      )
+      for [sha, ref_id, position, expires_at, generation] <- forks do
+        %{sha: sha, place: {ref_id, position}, expires_at: DateTime.truncate(expires_at, :second), generation: generation}
+      end
   end
 
   # Kept on a ref that forks from none. On any other, no later than the rows
   # below it on the refs of its chain that fork: its files read them all. A
   # ref among those whose rows have less than half the retention left is
-  # given the whole of it again first, so a ref that keeps receiving commits
-  # keeps its rows, and one that stops loses them together.
+  # renewed first, as far as the other refs of the chain allow, so a ref
+  # that keeps receiving commits keeps its rows, and one that stops loses
+  # them together.
   defp expires_at(repository_id, place) do
     chain = GitHistory.chain(place, :below)
     refs = Enum.map(chain, & &1.ref_id)
@@ -373,8 +437,9 @@ defmodule Tuist.GitHistory.FileChanges do
           )
 
         {renewed, kept} = Enum.split_with(below, fn {_ref_id, expires_at} -> DateTime.before?(expires_at, renewable) end)
-        renew(repository_id, Enum.map(renewed, &elem(&1, 0)), own)
-        Enum.min([own | Enum.map(kept, &elem(&1, 1))], DateTime)
+        expires_at = Enum.min([own | Enum.map(kept, &elem(&1, 1))], DateTime)
+        renew(repository_id, Enum.map(renewed, &elem(&1, 0)), expires_at)
+        expires_at
     end
   end
 
