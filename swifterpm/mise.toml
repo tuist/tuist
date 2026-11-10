@@ -7,5 +7,5 @@ buck2 = { version = "2026-06-01", version_prefix = "" }
 git-cliff = "2.12.0"
 hyperfine = "1.19.0"
 "1password-cli" = "2.32.0"
-jq = "1.8.1"
+jq = "1.8.2"
 shellspec = "0.28.1"

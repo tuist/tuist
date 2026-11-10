@@ -1,7 +1,7 @@
 [tools]
 "github:tuist/once" = "0.77.5"
 rust = "1.98.1"
-jq = "1.8.1"
+jq = "1.8.2"
 yq = "4.52.5"
 
 # Desktop tool installation must not run the monorepo's CLI bootstrap hook.
