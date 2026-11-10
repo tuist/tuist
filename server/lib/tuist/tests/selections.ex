@@ -778,13 +778,12 @@ defmodule Tuist.Tests.Selections do
       from(f in CoverageFile,
         where: f.project_id == ^project_id and f.scope_kind == "test" and f.scope_id == ^scope_id,
         where:
-          f.git_commit_sha == ^baseline_sha or
-            f.test_run_id in subquery(
-              from(r in CoverageRun,
-                where: r.project_id == ^project_id and r.git_commit_sha == ^baseline_sha,
-                select: r.test_run_id
-              )
-            ),
+          f.test_run_id in subquery(
+            from(t in Test.query(),
+              where: t.project_id == ^project_id and t.git_commit_sha == ^baseline_sha,
+              select: t.id
+            )
+          ),
         distinct: true,
         select: f.path,
         order_by: f.path

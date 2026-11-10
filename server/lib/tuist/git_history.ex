@@ -75,7 +75,7 @@ defmodule Tuist.GitHistory do
       "**/Cartfile.resolved",
       ".xcode-version"
     ],
-    commit_file_limit: 50_000
+    commit_file_limit: 200_000
   }
 
   @insert_chunk_size 5_000
