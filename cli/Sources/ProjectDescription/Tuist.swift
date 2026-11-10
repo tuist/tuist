@@ -77,14 +77,15 @@ public struct Tuist: Codable, Equatable, Sendable {
         /// The size the project's local compilation cache stores settle at. When no build is running, a store that
         /// occupies more than this size has its oldest cached outputs pruned, and a store can be larger than this
         /// size while builds run. When several projects share a store, the smallest of their limits applies. When
-        /// `nil` (default), stores aren't pruned.
+        /// `nil` (default) for every project that shares a store, the limit Xcode sets for it applies
+        /// (`COMPILATION_CACHE_LIMIT_SIZE` or `COMPILATION_CACHE_LIMIT_PERCENT`, half the free disk space by default).
         public let storeSizeLimit: Size?
 
         /// Creates Xcode Cache options.
         /// - Parameters:
         ///   - upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
         ///   - storeSizeLimit: The size the project's local compilation cache stores settle at. Defaults to
-        ///     `nil`, which doesn't prune them.
+        ///     `nil`, which applies the limit Xcode sets for them.
         public static func xcodeCache(upload: Bool = true, storeSizeLimit: Size? = nil) -> Self {
             XcodeCache(upload: upload, storeSizeLimit: storeSizeLimit)
         }

@@ -48,6 +48,9 @@
 //! status 0 = it is still owed and the proxy finishes it in the background,
 //! status 2 = the proxy could not run it (an older proxy answers `bad op`, and
 //! the caller falls back to PUBLISH). See `Proxy::publish_and_wait`.
+//! SIZE_LIMIT (op 9): payload = u64 big-endian bytes, the size limit Xcode set on
+//! the store at `cas_path` (zero = no limit). status 1 = recorded. An older proxy
+//! answers `bad op`, which the plugin ignores. See `Proxy::record_xcode_limit`.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -101,6 +104,12 @@ pub const OP_PREPARE_ACTION: u8 = 7;
 /// proxy that predates it answers `bad op`, and the plugin then sends an
 /// ordinary PUBLISH.
 pub const OP_PUBLISH_WAIT: u8 = 8;
+/// The size limit Xcode's build system set on this path's store, which the
+/// plugin forwards to llcas but which only takes effect when the store's last
+/// handle closes, and on a machine running the proxy that handle is the proxy's.
+/// The proxy bounds the store with it when no project set `storeSizeLimit`.
+/// Additive like OP_DRAIN.
+pub const OP_SIZE_LIMIT: u8 = 9;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -273,6 +282,28 @@ impl ProxyClient {
             STATUS_HIT => Ok(true),
             STATUS_MISS => Ok(false),
             _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
+    /// Best-effort report of the size limit Xcode set on the store at `cas_path`.
+    pub fn report_size_limit(&self, cas_path: &str, limit: u64) -> Result<(), String> {
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_SIZE_LIMIT,
+                cas_path: cas_path.to_string(),
+                instance: String::new(),
+                payload: limit.to_be_bytes().to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        if status == STATUS_HIT {
+            Ok(())
+        } else {
+            Err(format!("proxy size limit: {}", String::from_utf8_lossy(&body)))
         }
     }
 
@@ -546,6 +577,20 @@ mod tests {
             ))
         );
         assert_eq!(parse_publish_wait_payload(&[0x00, 0x01]), None);
+    }
+
+    #[test]
+    fn a_size_limit_request_carries_xcodes_limit_and_no_instance() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_SIZE_LIMIT,
+            cas_path: "/dd/CompilationCache.noindex/plugin".to_string(),
+            instance: String::new(),
+            payload: 42_949_672_960u64.to_be_bytes().to_vec(),
+        });
+        assert_eq!(read.op, OP_SIZE_LIMIT);
+        assert_eq!(read.instance, "");
+        assert_eq!(read.payload, 42_949_672_960u64.to_be_bytes().to_vec());
     }
 
     /// The prune rides the same frame layout too, and carries no instance: a

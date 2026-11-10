@@ -910,6 +910,15 @@ pub unsafe extern "C" fn llcas_cas_set_ondisk_size_limit(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = set_limit(state.cas, size_limit, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
+    // `false` is success. The limit only takes effect when the store's last
+    // handle closes, which on a machine running the proxy is the proxy's own.
+    if !result {
+        if let Some(cas_dir) = &state.cas_dir {
+            let _ = state
+                .proxy
+                .report_size_limit(&cas_dir.to_string_lossy(), size_limit.max(0) as u64);
+        }
+    }
     result
 }
 
