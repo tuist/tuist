@@ -36,10 +36,12 @@ defmodule Tuist.Repo.Migrations.EnqueueGitFileChangesBackfillTest do
     # The writer already wrote `a`; `e`'s files expired.
     assert FileChanges.write(repository, "a") == :written
 
+    # credo:disable-for-next-line ExcellentMigrations.CredoCheck.MigrationsSafety
     Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "e"),
       set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
     )
 
+    # credo:disable-for-next-line ExcellentMigrations.CredoCheck.MigrationsSafety
     Repo.delete_all(Oban.Job)
 
     EnqueueGitFileChangesBackfill.enqueue_backfills!(Repo)
