@@ -1,0 +1,69 @@
+name: OpenObserve Deployment
+
+on:
+  pull_request:
+    paths:
+      - infra/helm/openobserve/**
+      - .github/workflows/openobserve*.yml
+      - .github/scripts/openobserve*
+  push:
+    branches: [main]
+    paths:
+      - infra/helm/openobserve/**
+      - .github/workflows/openobserve*.yml
+      - .github/scripts/openobserve*
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Last environment to qualify (canary always requires staging)
+        type: choice
+        options: [staging, canary]
+        default: staging
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate and package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm jq yq node"
+          cache: "false"
+      - name: Build locked dependencies and check isolated deployment
+        run: |
+          set -euo pipefail
+          helm repo add openobserve https://charts.openobserve.ai
+          helm dependency build infra/helm/openobserve
+          bash infra/helm/openobserve/test-managed.sh
+          node --test .github/scripts/openobserve-smoke.test.mjs .github/scripts/openobserve-preflight.test.mjs
+          mkdir -p "$RUNNER_TEMP/openobserve-chart"
+          helm package infra/helm/openobserve --destination "$RUNNER_TEMP/openobserve-chart"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openobserve-chart
+          path: ${{ runner.temp }}/openobserve-chart/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  staging:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    needs: validate
+    uses: ./.github/workflows/openobserve-instance-deployment.yml
+    with:
+      environment: staging
+    secrets: inherit
+
+  canary:
+    if: inputs.target == 'canary'
+    needs: staging
+    uses: ./.github/workflows/openobserve-instance-deployment.yml
+    with:
+      environment: canary
+    secrets: inherit
