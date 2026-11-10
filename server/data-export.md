@@ -115,6 +115,22 @@ compatibility readers preserve historical rollups without rewriting objects.
 Respect the cutover and rollback boundaries described in
 [Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
 
+### GreptimeDB staging evaluation
+
+The prepared GreptimeDB staging pilot adds an independent `greptimedb/` prefix
+inside `tuist-pulso-staging` for GreptimeDB-managed data/indexes and disposable
+`greptimedb/ci-preflight/<run>` storage probes. Its retained 10 GiB Kubernetes PVC
+holds local WAL and standalone state. CI writes only synthetic metric values,
+ERROR logs and error-status spans identified by a CI run ID; no collector fan-out,
+customer ingestion, account mapping or customer export integration is enabled.
+Synthetic samples have no time-based expiry and remain until explicitly removed;
+the storage probe deletes only its own run-scoped key. State is retained after a
+failed rollout. This is desired configuration, not evidence of deployment or an
+S3 restore. Before collecting real telemetry, document its subject attribution,
+bounded retention and an exercised subject-filtered SQL/export procedure here;
+do not treat a Pulse or Grafana export as covering GreptimeDB's separate copy.
+Authentication and object-store credentials are excluded from exports.
+
 ### Managed outbound email delivery
 
 Managed Tuist Server (staging, canary and production), Atlas and Slack invitation

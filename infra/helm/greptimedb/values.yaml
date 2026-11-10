@@ -1,0 +1,16 @@
+# Deliberately staging-only. No production ingestion, ingress or dashboard cutover.
+image: docker.io/greptime/greptimedb:v1.3.0
+storage:
+  bucket: tuist-pulso-staging
+  endpoint: https://t3.storage.dev
+  region: auto
+  prefix: greptimedb/
+persistence:
+  storageClass: hcloud-volumes
+  size: 10Gi
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi

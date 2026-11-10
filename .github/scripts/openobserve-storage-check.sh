@@ -3,9 +3,11 @@
 set -eu
 case "$DEPLOY_ENV" in staging|canary) ;; *) exit 1 ;; esac
 case "$CHECK_RUN" in ''|*[!a-zA-Z0-9-]*) exit 1 ;; esac
+prefix="${STORAGE_PREFIX:-openobserve}"
+case "$prefix" in openobserve|greptimedb) ;; *) exit 1 ;; esac
 bucket="tuist-pulso-$DEPLOY_ENV"
 url="https://t3.storage.dev/$bucket"
-key="openobserve/ci-preflight/$CHECK_RUN"
+key="$prefix/ci-preflight/$CHECK_RUN"
 work=$(mktemp -d)
 created=false
 request() {
@@ -18,7 +20,7 @@ cleanup() {
   if [ "$created" = true ]; then
     code=$(request -X DELETE "$url/$key") || code=000
     if [ "$code" != 204 ] && [ "$code" != 200 ]; then
-      echo 'FAIL: could not remove the run-scoped OpenObserve storage probe' >&2
+      echo 'FAIL: could not remove the run-scoped storage probe' >&2
       status=1
     fi
   fi
@@ -45,7 +47,7 @@ else
   printf 'FAIL: shared bucket lifecycle could not be verified (HTTP %s, S3 %s)\n' "$code" "$error" >&2
   exit 1
 fi
-code=$(request "$url?list-type=2&prefix=openobserve%2F&max-keys=1")
+code=$(request "$url?list-type=2&prefix=$prefix%2F&max-keys=1")
 [ "$code" = 200 ]
 grep -q 'ListBucketResult' "$work/response"
 printf 'openobserve-preflight-17' > "$work/payload"

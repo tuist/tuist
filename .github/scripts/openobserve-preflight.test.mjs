@@ -31,8 +31,9 @@ test('capacity retains a server surge slot, counts init peaks and excludes unava
   } finally { rmSync(work, { recursive: true, force: true }); }
 });
 
+for (const prefix of ['openobserve', 'greptimedb']) {
 for (const scenario of ['success', 'lifecycle rules', 'lifecycle unavailable', 'public bucket', 'corrupt read', 'failed delete']) {
-  test(`storage: ${scenario}`, () => {
+  test(`storage ${prefix}: ${scenario}`, () => {
     const work = mkdtempSync(join(tmpdir(), 'openobserve-storage-'));
     try {
       // Fake only the external S3 transport; exercise the real executable and its cleanup.
@@ -52,7 +53,7 @@ if (url.searchParams.has('lifecycle')) {
   else { code = 404; body = '<Error><Code>NoSuchLifecycleConfiguration</Code></Error>'; }
 } else if (url.searchParams.has('list-type')) body = '<ListBucketResult/>';
 else {
-  if (url.pathname !== '/tuist-pulso-staging/openobserve/ci-preflight/test-run') process.exit(91);
+  if (url.pathname !== '/tuist-pulso-staging/' + process.env.STORAGE_PREFIX + '/ci-preflight/test-run') process.exit(91);
   if (method === 'PUT') writeFileSync(object, readFileSync(args[args.indexOf('--data-binary') + 1].slice(1)));
   else if (method === 'DELETE') {
     if (scenario === 'failed delete') code = 403;
@@ -65,7 +66,8 @@ process.stdout.write(String(code));
 `, { mode: 0o755 });
       const result = spawnSync('sh', ['.github/scripts/openobserve-storage-check.sh'], { encoding: 'utf8', env: {
         ...process.env, PATH: `${work}:${process.env.PATH}`, FIXTURE: work, SCENARIO: scenario,
-        DEPLOY_ENV: 'staging', CHECK_RUN: 'test-run', AWS_ACCESS_KEY_ID: 'test-key', AWS_SECRET_ACCESS_KEY: 'test-secret',
+        DEPLOY_ENV: 'staging', CHECK_RUN: 'test-run', STORAGE_PREFIX: prefix,
+        AWS_ACCESS_KEY_ID: 'test-key', AWS_SECRET_ACCESS_KEY: 'test-secret',
       } });
       assert.equal(result.status, scenario === 'success' ? 0 : 1, result.stdout + result.stderr);
       assert.equal(existsSync(join(work, 'object')), scenario === 'failed delete');
@@ -73,4 +75,5 @@ process.stdout.write(String(code));
       if (scenario === 'lifecycle unavailable') assert.match(result.stderr, /HTTP 403, S3 AccessDenied/);
     } finally { rmSync(work, { recursive: true, force: true }); }
   });
+}
 }
