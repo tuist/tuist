@@ -9,7 +9,7 @@ public struct WhoamiCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "whoami",
             _superCommandName: "auth",
-            abstract: "Display the user's email identity currently authenticated and in use."
+            abstract: "Display the identity currently authenticated and in use."
         )
     }
 
