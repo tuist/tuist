@@ -4,9 +4,11 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.GitHistory.CommitListing
+  alias Tuist.GitHistory.CommitParent
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Workers.FileChangesWorker
+  alias Tuist.GitHistory.Workers.RepairWorker
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -450,6 +452,171 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
     assert settle().success == 0
     assert rows(repository) == before
+  end
+
+  describe "a commit that arrives after its child" do
+    # `late` changes one file and adds another; its child `c` has both back
+    # as they were, so neither is among the paths `c` changed from `b`.
+    @late %{
+      "a" => %{"A.swift" => "a1", "B.swift" => "b1", "C.swift" => "c1"},
+      "b" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c1"},
+      "late" => %{"A.swift" => "a2", "B.swift" => "b2", "C.swift" => "c1", "Late.swift" => "l1"},
+      "c" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c2"},
+      "d" => %{"A.swift" => "a1", "B.swift" => "b3", "C.swift" => "c2", "D.swift" => "d1"},
+      "e" => %{"A.swift" => "a3", "B.swift" => "b3", "C.swift" => "c2"},
+      "p1" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c2", "P.swift" => "p1"}
+    }
+
+    # main: a, b, then c, d, e above a parent of c that is not stored yet.
+    # pull/1 forks at c: p1.
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}])
+      head(repository, "main", "b")
+      commits(repository, [{"c", ["late"]}, {"d", ["c"]}, {"e", ["d"]}, {"p1", ["c"]}])
+      head(repository, "main", "e")
+      GitHistory.advance_ref(repository, "pull/1", "main", "p1")
+
+      for sha <- ["a", "b", "c", "d", "e", "p1"], do: list(repository, sha, @late[sha])
+      :ok
+    end
+
+    defp arrive(repository, sha, parents) do
+      GitHistory.record_commits(repository, "sha1", [CoverageFixtures.commit(sha, parents, 30)])
+      for job <- all_enqueued(worker: RepairWorker), do: assert(:ok = perform_job(RepairWorker, job.args))
+      Oban.drain_queue(queue: :coverage_deltas, with_scheduled: true, with_recursion: true, with_safety: false)
+    end
+
+    defp expire(repository, shas) do
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha in ^shas),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      )
+    end
+
+    # Each of `listings`' commits is written where it sits and reads the files
+    # of its listing, the `unknown` ones have no rows left, and no place
+    # holds a row of a commit that is not there.
+    defp assert_settled(repository, listings, unknown \\ []) do
+      for {sha, files} <- Map.drop(listings, unknown) do
+        assert {sha, FileChanges.current(repository, sha)} == {sha, GitHistory.position(repository, sha)}
+        assert {sha, files(repository, sha)} == {sha, with_mode(files)}
+        assert {sha, Map.new(GitHistory.commit_files(repository, sha), &{&1.path, &1.git_blob_id})} == {sha, files}
+      end
+
+      for sha <- unknown do
+        assert {sha, FileChanges.current(repository, sha), changes(repository, sha)} == {sha, nil, %{}}
+        assert %{changes_ref_id: nil, changes_position: nil} = listing(repository, sha)
+        refute GitHistory.listing_complete?(repository, sha)
+      end
+
+      for row <- rows(repository) do
+        assert {row.sha, GitHistory.position(repository, row.sha)} == {row.sha, {row.ref_id, row.position}}
+      end
+    end
+
+    test "is written once the ref owns it, and the commits above it keep their files", %{repository: repository} do
+      main = ref_id(repository, "main")
+      assert GitHistory.position(repository, "c") == {main, 3}
+      assert changes(repository, "c") == %{"C.swift" => "c2"}
+
+      arrive(repository, "late", ["b"])
+
+      assert GitHistory.position(repository, "late") == {main, 3}
+      assert GitHistory.position(repository, "c") == {main, 4}
+      assert GitHistory.position(repository, "p1") == {ref_id(repository, "pull/1"), 5}
+      assert_settled(repository, Map.delete(@late, "late"))
+
+      list(repository, "late", @late["late"])
+
+      assert changes(repository, "late") == %{"A.swift" => "a2", "Late.swift" => "l1"}
+      assert_settled(repository, @late)
+      # What `c` read from `b` until `late` was written below it.
+      assert changes(repository, "c") == %{"A.swift" => "a1", "C.swift" => "c2", "Late.swift" => ""}
+    end
+
+    test "is written from a listing that came before it had a place", %{repository: repository} do
+      list(repository, "late", @late["late"])
+      assert FileChanges.current(repository, "late") == nil
+
+      arrive(repository, "late", ["b"])
+
+      assert_settled(repository, @late)
+    end
+
+    # Their rows would be copied up the ref, each onto the rows of the next.
+    test "leaves the commits above it whose listings expired without files, not with another commit's", %{
+      repository: repository
+    } do
+      expire(repository, ["c", "d", "e", "p1"])
+
+      arrive(repository, "late", ["b"])
+      assert_settled(repository, Map.delete(@late, "late"), ["c", "d", "e", "p1"])
+
+      list(repository, "late", @late["late"])
+      assert_settled(repository, @late, ["c", "d", "e", "p1"])
+
+      # A commit listed again is written again.
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "d"),
+        set: [inserted_at: DateTime.utc_now(:second)]
+      )
+
+      assert FileChanges.write(repository, "d") == :written
+      assert_settled(repository, @late, ["c", "e", "p1"])
+    end
+
+    test "leaves the commits whose listings are stored their files among others that expired", %{
+      repository: repository
+    } do
+      expire(repository, ["d", "p1"])
+      list(repository, "late", @late["late"])
+
+      arrive(repository, "late", ["b"])
+
+      assert_settled(repository, @late, ["d", "p1"])
+    end
+
+    for seed <- 1..6 do
+      test "settles the same whichever of the moved commits is written first (#{seed})", %{repository: repository} do
+        expire(repository, ["d"])
+        list(repository, "late", @late["late"])
+        GitHistory.record_commits(repository, "sha1", [CoverageFixtures.commit("late", ["b"], 30)])
+        assert [repair] = all_enqueued(worker: RepairWorker)
+        assert :ok = perform_job(RepairWorker, repair.args)
+
+        :rand.seed(:exsss, {unquote(seed), 2, 3})
+        queued = Enum.shuffle(all_enqueued(worker: FileChangesWorker))
+        assert queued |> Enum.map(& &1.args["sha"]) |> Enum.sort() == ~w(c d e late p1)
+        for job <- queued, do: assert(:ok = perform_job(FileChangesWorker, job.args))
+
+        assert_settled(repository, @late, ["d"])
+      end
+    end
+
+    for order <- [["late", "later"], ["later", "late"]], expired <- [[], ["d", "p1"]] do
+      test "two of them arriving as #{Enum.join(order, ", ")}, #{length(expired)} listings above expired", %{
+        repository: repository
+      } do
+        # `c`'s parent is now `later`, whose parent is `late`.
+        Repo.update_all(from(p in CommitParent, where: p.repository_id == ^repository and p.child_sha == "c"),
+          set: [parent_sha: "later"]
+        )
+
+        parents = %{"late" => ["b"], "later" => ["late"]}
+        listings = Map.put(@late, "later", %{"A.swift" => "a2", "B.swift" => "b9", "C.swift" => "c1"})
+        expire(repository, unquote(expired))
+
+        for sha <- unquote(order) do
+          arrive(repository, sha, parents[sha])
+          list(repository, sha, listings[sha])
+        end
+
+        main = ref_id(repository, "main")
+
+        assert Enum.map(~w(late later c e), &GitHistory.position(repository, &1)) ==
+                 [{main, 3}, {main, 4}, {main, 5}, {main, 7}]
+
+        assert_settled(repository, listings, unquote(expired))
+      end
+    end
   end
 
   describe "reading a commit's files" do

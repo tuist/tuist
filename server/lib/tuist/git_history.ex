@@ -339,9 +339,11 @@ defmodule Tuist.GitHistory do
   (`late_children/2`) while that commit was not stored: each such ref
   releases its commits from the lowest such child up and advances again from
   its own head, now through the arrived commit down to where it really
-  connects, and so does every ref forked from a released commit. Heads and observation times stay as they
-  are, so no ref moves back; the coverage copies follow
-  (`Tuist.GitHistory.Workers.RepairWorker` runs it).
+  connects, and so does every ref forked from a released commit. Heads and
+  observation times stay as they are, so no ref moves back; the coverage
+  copies follow, and the commits that changed place are queued to have
+  their file changes written there (`Tuist.GitHistory.FileChanges`).
+  `Tuist.GitHistory.Workers.RepairWorker` runs it.
   """
   def replace_children(repository_id, shas) do
     {:ok, :ok} =
@@ -360,6 +362,7 @@ defmodule Tuist.GitHistory do
 
           touched = replace(repository_id, Map.new(pending), MapSet.new(), [])
           sync_coverage(repository_id, touched)
+          FileChanges.enqueue_moved(repository_id, touched)
         end,
         timeout: to_timeout(minute: 2)
       )

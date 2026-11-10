@@ -28,7 +28,10 @@ defmodule Tuist.GitHistory.FileChanges do
   what reading its files from there costs. A commit whose place changed (a
   fast-forward, a rebuild of the refs) is queued again and written at the
   new place from its listing, or, once the listing expired, from the rows it
-  left at the old one.
+  left at the old one. Only rows that would move up their own ref (a commit
+  that arrived late was slotted in below them) are not copied but retired:
+  every commit above would be copied onto the rows of the next, so those
+  commits' files are unknown until they are listed again.
 
   The rows of a ref that forks from none are kept. Any other ref's rows
   expire together, since a commit's files read every row below it:
@@ -95,7 +98,7 @@ defmodule Tuist.GitHistory.FileChanges do
   `:pending` while no ref owns the commit; `:unavailable` when its listing's
   rows do not add up to its file count; or `:skipped` when it has no whole
   listing to write from, or would be copied above a commit that is not
-  going to move.
+  going to move, or up its own ref (its rows are retired).
   """
   def write(repository_id, sha) do
     GitHistory.with_refs_lock(repository_id, fn ->
@@ -201,6 +204,16 @@ defmodule Tuist.GitHistory.FileChanges do
         expires_at: expires_at
       }
     )
+  end
+
+  # Rows that move up their own ref (a commit was slotted in below them)
+  # cannot be copied a commit at a time: they would land on, or be read
+  # over, the rows the commits above are still to copy. Retired, they leave
+  # the commit's files unknown rather than another commit's.
+  defp move(listing, %{place: {ref_id, position}}, {ref_id, old_position} = written) when position > old_position do
+    retire(listing, written)
+    mark(listing, nil, nil, nil)
+    :skipped
   end
 
   defp move(listing, commit, written) do
