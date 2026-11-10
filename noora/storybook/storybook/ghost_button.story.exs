@@ -1,20 +1,20 @@
-defmodule TuistWeb.Storybook.NeutralButton do
+defmodule TuistWeb.Storybook.GhostButton do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &Noora.Button.neutral_button/1
+  def function, do: &Noora.Button.ghost_button/1
   def imports, do: [{Noora.Icon, chevron_right: 1, chevron_left: 1}]
 
   def variations do
     [
       %VariationGroup{
         id: :sizes,
-        description: "Neutral button sizes from small to large",
+        description: "Ghost button sizes from small to large",
         variations: [
           %Variation{
             id: :small,
             attributes: %{
-              id: "neutral-button-small",
+              id: "ghost-button-small",
               size: "small"
             },
             slots: [
@@ -26,7 +26,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :medium,
             attributes: %{
-              id: "neutral-button-medium",
+              id: "ghost-button-medium",
               size: "medium"
             },
             slots: [
@@ -38,7 +38,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :large,
             attributes: %{
-              id: "neutral-button-large",
+              id: "ghost-button-large",
               size: "large"
             },
             slots: [
@@ -56,7 +56,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :default,
             attributes: %{
-              id: "neutral-button-default",
+              id: "ghost-button-default",
               size: "medium"
             },
             slots: [
@@ -68,7 +68,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :disabled,
             attributes: %{
-              id: "neutral-button-disabled",
+              id: "ghost-button-disabled",
               size: "medium",
               disabled: true
             },
@@ -87,7 +87,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :text_small,
             attributes: %{
-              id: "neutral-button-text-small",
+              id: "ghost-button-text-small",
               size: "small",
               label: "Button"
             }
@@ -95,7 +95,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :text_medium,
             attributes: %{
-              id: "neutral-button-text-medium",
+              id: "ghost-button-text-medium",
               size: "medium",
               label: "Button"
             }
@@ -103,7 +103,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :text_large,
             attributes: %{
-              id: "neutral-button-text-large",
+              id: "ghost-button-text-large",
               size: "large",
               label: "Button"
             }
@@ -117,7 +117,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :text_with_icons,
             attributes: %{
-              id: "neutral-button-text-with-icons",
+              id: "ghost-button-text-with-icons",
               size: "large",
               label: "Button"
             },
@@ -133,7 +133,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :text_disabled,
             attributes: %{
-              id: "neutral-button-text-disabled",
+              id: "ghost-button-text-disabled",
               size: "large",
               label: "Button",
               disabled: true
@@ -143,12 +143,12 @@ defmodule TuistWeb.Storybook.NeutralButton do
       },
       %VariationGroup{
         id: :different_icons,
-        description: "Neutral buttons with various icon types",
+        description: "Ghost buttons with various icon types",
         variations: [
           %Variation{
             id: :chevron_left,
             attributes: %{
-              id: "neutral-button-chevron-left",
+              id: "ghost-button-chevron-left",
               size: "medium"
             },
             slots: [
@@ -160,7 +160,7 @@ defmodule TuistWeb.Storybook.NeutralButton do
           %Variation{
             id: :chevron_right,
             attributes: %{
-              id: "neutral-button-chevron-right",
+              id: "ghost-button-chevron-right",
               size: "medium"
             },
             slots: [

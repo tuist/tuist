@@ -6,6 +6,7 @@ defmodule Noora.Button do
   use Phoenix.Component
 
   @button_variants ~w(primary secondary destructive)
+  @ghost_button_variants ~w(primary secondary destructive outline)
   @button_sizes ~w(small medium large)
   @default_variant "primary"
   @default_size "large"
@@ -13,6 +14,7 @@ defmodule Noora.Button do
   @size_doc "Controls the button dimensions and text size."
 
   def button_variants, do: @button_variants
+  def ghost_button_variants, do: @ghost_button_variants
   def button_sizes, do: @button_sizes
 
   attr(:label, :string, default: "", doc: "The text displayed in the button.")
@@ -92,9 +94,9 @@ defmodule Noora.Button do
   end
 
   attr(:variant, :string,
-    values: @button_variants,
+    values: @ghost_button_variants,
     default: @default_variant,
-    doc: @variant_doc
+    doc: "#{@variant_doc} Outline is secondary with a border."
   )
 
   attr(:size, :string,
@@ -122,11 +124,11 @@ defmodule Noora.Button do
 
   attr(:rest, :global, include: ~w(phx-click disabled target rel))
 
-  def neutral_button(assigns) do
+  def ghost_button(assigns) do
     ~H"""
     <%= if @href || @navigate || @patch do %>
       <.link
-        class="noora-neutral-button"
+        class="noora-ghost-button"
         href={@href}
         navigate={@navigate}
         patch={@patch}
@@ -145,7 +147,7 @@ defmodule Noora.Button do
       </.link>
     <% else %>
       <button
-        class="noora-neutral-button"
+        class="noora-ghost-button"
         data-variant={@variant}
         data-size={@size}
         data-with-label={!is_nil(@label)}

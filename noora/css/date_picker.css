@@ -2,7 +2,7 @@
   /* Component-level semantic colors */
   --noora-datepicker-range-background: light-dark(
     var(--noora-purple-50),
-    oklch(from var(--noora-purple-500) l c h / 0.24)
+    var(--noora-alpha-purple-24)
   );
   --noora-datepicker-selected-background: var(--noora-purple-500);
   --noora-datepicker-selected-text: var(--noora-neutral-light-50);

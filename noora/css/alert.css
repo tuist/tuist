@@ -13,7 +13,7 @@
   );
   --noora-alert-error-secondary-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-alert-success-icon: light-dark(
     var(--noora-green-500),
@@ -21,7 +21,7 @@
   );
   --noora-alert-success-secondary-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
   --noora-alert-warning-icon: light-dark(
     var(--noora-orange-500),
@@ -29,7 +29,7 @@
   );
   --noora-alert-warning-secondary-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
   --noora-alert-information-icon: light-dark(
     var(--noora-azure-500),
@@ -37,7 +37,7 @@
   );
   --noora-alert-information-secondary-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   display: flex;
   /* Everything lines up with the title's first line, so a wrapping title

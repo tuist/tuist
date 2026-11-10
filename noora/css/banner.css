@@ -17,12 +17,12 @@
   );
   --noora-banner-error-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-banner-error-border: var(--noora-red-500);
   --noora-banner-success-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
   --noora-banner-success-border: light-dark(
     var(--noora-green-600),
@@ -30,7 +30,7 @@
   );
   --noora-banner-warning-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
   --noora-banner-warning-border: light-dark(
     var(--noora-orange-600),
@@ -38,7 +38,7 @@
   );
   --noora-banner-information-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   --noora-banner-information-border: var(--noora-azure-500);
   /* The primary banner's dither wave, shallow to deep. */
