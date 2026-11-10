@@ -18,9 +18,13 @@
 #
 # Scope note: the cgroup mem.* / oom_kill fields are THIS (runner)
 # container only. The heavy build steps often run in the dind sidecar,
-# so vm.mem.* (guest-wide /proc/meminfo), the PSI fields, and the
-# /dev/kmsg OOM watcher are what catch a Docker/buildkit OOM or
-# starvation living in the sidecar / pod / VM boundary.
+# so vm.mem.* (guest-wide /proc/meminfo, broken down into anon, page
+# cache, shmem, dirty and slab so a full guest says what filled it),
+# dind.* (the sidecar's cgroup, job containers included, which
+# tuist-cache-volume publishes to $dind_file on cache-volume pools),
+# the PSI fields, and the /dev/kmsg OOM watcher are what catch a
+# Docker/buildkit OOM or starvation living in the sidecar / pod / VM
+# boundary.
 #
 # Dependency-free and best-effort: unreadable files (PSI disabled in
 # the guest kernel, cgroup v1, restricted /dev/kmsg) degrade to empty
@@ -40,11 +44,26 @@ cg="/sys/fs/cgroup"
 # Read a single cgroup/proc value, stripped of its trailing newline.
 field() { [ -r "$1" ] && tr -d '\n' <"$1" 2>/dev/null || true; }
 
-# Guest-wide memory (kB) from /proc/meminfo. Unlike the cgroup memory.*
-# fields, which are scoped to this container, /proc/meminfo covers the
-# whole microVM, so it reflects the dind sidecar's dockerd/buildkit
-# usage too.
-meminfo() { awk -v k="$1" '$1==k":"{print $2}' /proc/meminfo 2>/dev/null || true; }
+# The dind sidecar's cgroup memory, one line of dind.* fields that
+# tuist-cache-volume rewrites every 3s on the shared /var/run volume.
+dind_file="/var/run/tuist-dind-memory"
+
+# Guest-wide memory (kB) from /proc/meminfo, as vm.mem.<name>.kb fields.
+# Unlike the cgroup memory.* fields, which are scoped to this container,
+# /proc/meminfo covers the whole microVM, so it reflects the dind
+# sidecar's dockerd/buildkit usage too. total and avail come first and
+# keep their names; a key the kernel lacks is omitted.
+vm_mem() {
+  awk '
+    BEGIN {
+      n = split("MemTotal:total MemAvailable:avail MemFree:free Cached:cached AnonPages:anon Shmem:shmem Dirty:dirty Writeback:writeback SReclaimable:slab.reclaimable SUnreclaim:slab.unreclaimable PageTables:pagetables", m, " ")
+      for (i = 1; i <= n; i++) { split(m[i], kv, ":"); key[i] = kv[1] ":"; name[i] = kv[2] }
+    }
+    { v[$1] = $2 }
+    END {
+      for (i = 1; i <= n; i++) if (key[i] in v) printf "%svm.mem.%s.kb=%s", (out++ ? " " : ""), name[i], v[key[i]]
+    }' /proc/meminfo 2>/dev/null || true
+}
 
 # Pull a named counter out of cgroup v2 memory.events (e.g. oom_kill).
 events() {
@@ -98,9 +117,14 @@ while :; do
   prev_idle="${cur_idle}"
 
   line="$(date -u +%FT%TZ) RUNNER_VITALS"
-  line="${line} vm.mem.total.kb=$(meminfo MemTotal) vm.mem.avail.kb=$(meminfo MemAvailable)"
+  line="${line} $(vm_mem)"
   line="${line} mem.current=$(field "$cg/memory.current") mem.peak=$(field "$cg/memory.peak") mem.max=$(field "$cg/memory.max") mem.swap=$(field "$cg/memory.swap.current")"
   line="${line} oom=$(events oom) oom_kill=$(events oom_kill)"
+  # dind.age.s says how stale the sidecar's last write is: a sidecar
+  # that died or stalled leaves its final sample behind.
+  if [ -r "${dind_file}" ]; then
+    line="${line} $(field "${dind_file}") dind.age.s=$(($(date +%s) - $(stat -c %Y "${dind_file}" 2>/dev/null || date +%s)))"
+  fi
   [ -n "${cpu_busy}" ] && line="${line} cpu.busy.pct=${cpu_busy}"
   # PSI fields only when the guest kernel exposes them (psi=1 on the
   # kata cmdline). Omitted otherwise so we don't log empty noise.
