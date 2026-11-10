@@ -17,8 +17,8 @@ defmodule Tuist.Push.APNs do
     "sandbox" => "https://api.sandbox.push.apple.com"
   }
 
-  # APNs rejects provider tokens older than an hour and throttles a key that
-  # mints new ones more often than every 20 minutes.
+  # APNs rejects provider tokens older than an hour, and refuses a connection
+  # that switches to a new token more often than every 20 minutes.
   @token_lifetime_seconds 50 * 60
 
   # Undelivered notifications are dropped after a day: a preview that old is no
@@ -86,21 +86,17 @@ defmodule Tuist.Push.APNs do
 
   defp reason(_body), do: "unknown"
 
-  # APNs counts token updates per key, not per sender, so every replica (and
-  # every replica a deploy starts) has to present the same token. It is shared
-  # through Redis, signed under a lock by whichever replica misses first, and
-  # expires before APNs would reject it. Without Redis it falls back to a
-  # per-node cache.
+  # Each node sends through one HTTP/2 connection per endpoint, and APNs answers
+  # `TooManyProviderTokenUpdates` when a connection sees a new token within 20
+  # minutes of the last. The node-local cache coalesces concurrent misses, so the
+  # push queue's parallel jobs share one token instead of each signing its own.
   defp provider_token do
-    opts = token_cache_opts()
-
-    KeyValueStore.get(token_key(), opts) ||
-      KeyValueStore.get_or_update(token_key(), opts, fn -> sign(System.system_time(:second)) end)
+    KeyValueStore.get_or_update(token_key(), token_cache_opts(), fn -> sign(System.system_time(:second)) end)
   end
 
   defp token_key, do: [__MODULE__, "provider_token", Environment.apns_team_id(), Environment.apns_key_id()]
 
-  defp token_cache_opts, do: [ttl: to_timeout(second: @token_lifetime_seconds), persist_across_deployments: true]
+  defp token_cache_opts, do: [ttl: to_timeout(second: @token_lifetime_seconds)]
 
   defp sign(issued_at) do
     {_, token} =

@@ -7,6 +7,7 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Push
+  alias Tuist.Push.APNs
   alias Tuist.Push.Installation
   alias Tuist.Push.Workers.DeliveryWorker
   alias Tuist.Repo
@@ -129,6 +130,34 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
     assert_received {:authorization, reused}
     assert renewed != expired
     assert reused == renewed
+  end
+
+  test "concurrent deliveries on a cold node share one provider token", %{token: token} do
+    test_pid = self()
+    pem = Environment.apns_private_key()
+
+    # Slow signing down so every delivery misses the cache before any finishes.
+    stub(Environment, :apns_private_key, fn ->
+      Process.sleep(50)
+      pem
+    end)
+
+    stub(Req, :post, fn _url, opts ->
+      send(test_pid, {:authorization, Map.new(opts[:headers])["authorization"]})
+      {:ok, %Req.Response{status: 200, body: ""}}
+    end)
+
+    1..10
+    |> Enum.map(fn _ -> Task.async(fn -> APNs.deliver("sandbox", token, @payload) end) end)
+    |> Task.await_many()
+
+    authorizations =
+      for _ <- 1..10 do
+        assert_received {:authorization, authorization}
+        authorization
+      end
+
+    assert authorizations |> Enum.uniq() |> length() == 1
   end
 
   test "skips a registration retired after the job was queued", %{installation: installation} do
