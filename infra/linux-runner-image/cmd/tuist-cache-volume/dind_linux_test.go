@@ -206,3 +206,26 @@ func TestTeardownRebasesADataRootThatAlreadyHoldsTheSavedHead(t *testing.T) {
 		t.Fatalf("report %+v", report)
 	}
 }
+
+// vitals.sh appends the published line verbatim, so its field names and
+// byte units are what the runner's death forensics read.
+func TestDindMemoryRendersTheSidecarCgroupAsVitalsFields(t *testing.T) {
+	cgroup := t.TempDir()
+	for name, content := range map[string]string{
+		"memory.current": "36000000000\n",
+		"memory.peak":    "36500000000\n",
+		"memory.stat":    "anon 30000000000\nfile 5000000000\nkernel 400000000\nshmem 7000\nfile_dirty 120000\nfile_writeback 0\nanon_thp 0\n",
+		"memory.events":  "low 0\nhigh 0\nmax 0\noom 2\noom_kill 1\noom_group_kill 0\n",
+	} {
+		if err := os.WriteFile(filepath.Join(cgroup, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := "dind.mem.current=36000000000 dind.mem.peak=36500000000 dind.mem.anon=30000000000 dind.mem.file=5000000000 dind.mem.shmem=7000 dind.mem.file_dirty=120000 dind.mem.file_writeback=0 dind.mem.kernel=400000000 dind.oom_kill=1"
+	if got := dindMemory(cgroup); got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+	if got := dindMemory(t.TempDir()); got != "" {
+		t.Fatalf("a cgroup without memory accounting published %q", got)
+	}
+}

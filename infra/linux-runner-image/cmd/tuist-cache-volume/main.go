@@ -65,6 +65,7 @@ func main() {
 		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
 			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
+			go publishDindMemory()
 			err = serveMounts(os.Args[2], os.Args[3], nil)
 		} else {
 			err = errors.New("invalid mount helper arguments")
