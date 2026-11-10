@@ -1,0 +1,125 @@
+name: mise lock
+
+# The release and deploy workflows install the root toolset with
+# MISE_GITHUB_ATTESTATIONS=0 (#9797, to save GitHub API quota), and mise
+# refuses to install a locked tool whose entry records
+# `provenance = "github-attestations"` while that setting is off (its
+# downgrade-attack guard). A local `mise install` or `mise lock` with default
+# settings records that line for jq, so the check job rejects it in the root
+# lock. Pushes to main are checked too because agents commit lockfile changes
+# there directly.
+#
+# Renovate records it as well, and nothing in the repository can stop that:
+# the hosted app runs `mise lock` with MISE_SAFE=1, which ignores [settings]
+# in mise.toml, and it does not accept custom environment variables. So the
+# strip job deletes the line from Renovate's branches and pushes the result
+# as the Tuist Automation app, whose commits trigger checks. renovate.json
+# lists that author in gitIgnoredAuthors so Renovate keeps updating the
+# branch afterwards.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - mise.lock
+      - .github/workflows/mise-lock.yml
+  pull_request:
+    paths:
+      - mise.lock
+      - .github/workflows/mise-lock.yml
+  # Runs main's copy of this file, never the branch's.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - mise.lock
+
+permissions:
+  contents: read
+
+jobs:
+  attestation-provenance:
+    name: Root mise.lock has no github-attestations provenance
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: mise.lock
+          sparse-checkout-cone-mode: false
+      - name: Check mise.lock
+        run: |
+          lines="$(grep -n '^provenance = "github-attestations"$' mise.lock | cut -d: -f1 || true)"
+          [ -z "$lines" ] && exit 0
+          for line in $lines; do
+            echo "::error file=mise.lock,line=$line::Delete this line. Release and deploy workflows install with MISE_GITHUB_ATTESTATIONS=0, and mise refuses a lock entry that requires github-attestations provenance while that setting is off."
+          done
+          exit 1
+
+  strip-renovate-provenance:
+    name: Strip github-attestations provenance from Renovate's mise.lock
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.repository == 'tuist/tuist' &&
+      github.event.pull_request.user.login == 'renovate[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'renovate/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: mise-lock-strip-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Check Renovate's mise.lock
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          count="$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/mise.lock?ref=$HEAD_SHA" \
+            | grep -c '^provenance = "github-attestations"$' || true)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+      - uses: 1password/install-cli-action@v2
+        if: steps.check.outputs.count != '0'
+      - name: Load GitHub App credentials from 1Password
+        if: steps.check.outputs.count != '0'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "APP_ID=$(op read 'op://tuist/Tuist Automation GitHub App/app-id')"
+            echo "APP_PRIVATE_KEY<<__OP_PEM__"
+            op read 'op://tuist/Tuist Automation GitHub App/private-key'
+            echo "__OP_PEM__"
+          } >> "$GITHUB_ENV"
+      - name: Mint a GitHub App token
+        id: app-token
+        if: steps.check.outputs.count != '0'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_PRIVATE_KEY }}
+      # Only sed and git touch the branch's content; nothing from it runs.
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.count != '0'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          sparse-checkout: mise.lock
+          sparse-checkout-cone-mode: false
+      - name: Delete the provenance lines and push
+        if: steps.check.outputs.count != '0'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          sed -i '/^provenance = "github-attestations"$/d' mise.lock
+          git config user.name "tuist-automation[bot]"
+          git config user.email "294819955+tuist-automation[bot]@users.noreply.github.com"
+          git commit -m "chore(deps): drop github-attestations provenance from mise.lock" -- mise.lock
+          # Not forced: if Renovate pushed in the meantime, the push is
+          # rejected and the run for Renovate's new commit strips it instead.
+          git push origin "HEAD:refs/heads/$HEAD_REF"
