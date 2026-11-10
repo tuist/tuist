@@ -366,7 +366,7 @@
   --noora-button-background-secondary:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.02)),
       light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
