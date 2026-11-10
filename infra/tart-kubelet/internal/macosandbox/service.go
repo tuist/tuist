@@ -41,11 +41,14 @@ type Config struct {
 type Service struct {
 	Kube              kubernetes.Interface
 	Node, Root, Tools string
-	mu                sync.Mutex
-	manager           *Manager
-	capacity          *KubeCapacity
-	ready             bool
-	err               error
+	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
+	// image preparation clones instead of pulling it again.
+	CIStore  string
+	mu       sync.Mutex
+	manager  *Manager
+	capacity *KubeCapacity
+	ready    bool
+	err      error
 }
 
 func (s *Service) NeedLeaderElection() bool { return false }
@@ -356,7 +359,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		}
 		if runtime, ok := m.Runtime.(*TartRuntime); ok {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, runtime.Client, cfg.Image)
+				return ensureImage(prepareCtx, runtime.Client, s.CIStore, cfg.Image)
 			}); err != nil {
 				return err
 			}
