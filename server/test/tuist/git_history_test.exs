@@ -675,7 +675,7 @@ defmodule Tuist.GitHistoryTest do
                window_commits: 5_000,
                upload_batch_size: 500,
                tracked_file_globs: ["**/Package.resolved" | _],
-               commit_file_limit: 50_000
+               commit_file_limit: 200_000
              } = GitHistory.settings(project)
 
       {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})

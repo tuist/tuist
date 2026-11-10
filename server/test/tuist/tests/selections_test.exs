@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Tuist.IngestRepo
+  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Selections
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -302,6 +304,35 @@ defmodule Tuist.Tests.SelectionsTest do
                Selections.get_run_test(run, test_run.id, skipped.test_case_id)
 
       assert {:error, :not_found} = Selections.get_run_test(run, test_run.id, UUIDv7.generate())
+    end
+  end
+
+  describe "baseline_covered_paths/3" do
+    test "lists the files the test executed in the baseline commit's runs", %{project: project} do
+      baseline = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b1")
+      other = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b2")
+
+      evidence = fn run, path ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          test_run_id: run.id,
+          scope_kind: "test",
+          scope_id: "AuthTests\x1FSessionTests\x1Ftest_refresh()",
+          path: path,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      end
+
+      IngestRepo.insert_all(CoverageFile, [
+        evidence.(baseline, "Sources/Session.swift"),
+        evidence.(baseline, "Sources/Auth.swift"),
+        evidence.(other, "Sources/Other.swift")
+      ])
+
+      test = %{module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
+
+      assert Selections.baseline_covered_paths(project.id, "b1", test) == ["Sources/Auth.swift", "Sources/Session.swift"]
     end
   end
 
