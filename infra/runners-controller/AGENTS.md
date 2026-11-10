@@ -1523,8 +1523,10 @@ fractional CPU count, since the hosts allocate whole two-thread cores.
 
 Keep every container free of its own CPU and memory: a container with its own
 Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
-on an empty shared pool, which the kubelet rejects. Device resources such as
-`devices.tuist.dev/kvm` stay on the runner container. Code that sizes a Pod
+on an empty shared pool, which the kubelet rejects. Keep nested KVM pools on
+container-level budgets: Build and Helm reject `exclusiveCPUs` together with
+`nestedVirtualization` until kubelet's pod-level device allocation is fixed
+(kubernetes/kubernetes#143490). Code that sizes a Pod
 (`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
 budget when it is set, or a running job looks nearly free.
 `isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
