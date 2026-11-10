@@ -2941,7 +2941,22 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    ```
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-ovh` (also used to re-name a box).
-   Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
+
+   Or let the operator prep it (`controllers/linux/ovh_pool_prep.go`): rename
+   the box `prep-<adoptDisplayNamePrefix>` and nothing else. Every five minutes
+   (`--ovh-pool-prep-interval`) the leader finds such boxes for every
+   `OVHDedicatedMachineTemplate`, checks the box is in the fleet's datacenter
+   and offer and that no Machine holds it, and waits out any pending OVH task.
+   It then renames the box `prepping-<id>-<prefix>`, where `<id>` is the newest
+   install task the box already had, and installs it with the fleet's key and
+   the `/data` plan. Once the first install after `<id>` is done and nothing is
+   pending, it renames the box `<prefix>`, which the fleet adopts. A failed
+   install leaves it `prep-failed-<prefix>`; renaming it `prep-<prefix>` again
+   retries. The state is the displayName alone, so a restart resumes from
+   OVH, and none of the markers starts with a prefix, so no fleet adopts a box
+   mid-prep. Its events are on the fleet's template. This is how agents prep:
+   one approved rename through Atlas (infra/AGENTS.md, "From an Amp orb"),
+   never this task, which reads the `OVH_API` token.
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one

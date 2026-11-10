@@ -25,9 +25,10 @@
 # <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
 # selects the entity (default ovh-us).
 #
-# This task is for people. Agents prep a box through the Atlas MCP's
-# approval-gated ovh-servers__reinstall-dedicated-server instead (see
-# infra/AGENTS.md, "From an Amp orb"), so the OVH_API token never reaches them.
+# This task is for people. The CAPI operator also preps a box renamed
+# prep-<adoptDisplayNamePrefix> (controllers/linux/ovh_pool_prep.go), which is
+# how agents prep: one approved rename through Atlas (infra/AGENTS.md, "From an
+# Amp orb"), so the OVH_API token never reaches them.
 
 set -euo pipefail
 
