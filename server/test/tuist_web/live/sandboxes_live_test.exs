@@ -82,7 +82,8 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
       refute has_element?(lv, "#sandboxes-empty-state")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
-      assert has_element?(lv, "#sandboxes-concurrency-disk", "84 GB of 420 GB on nodes now")
+      # Six sandboxes of a 10 GB workspace, a 4 GB memory image and 64 MiB of snapshot state.
+      assert has_element?(lv, "#sandboxes-concurrency-disk", "84.4 GB of 420 GB on nodes now")
     end
 
     test "charts the account's sandbox history", %{conn: conn, account: account} do

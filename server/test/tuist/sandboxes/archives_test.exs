@@ -151,6 +151,50 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
   end
 
+  describe "making room on nodes without disk" do
+    setup do
+      # Room for two default Orbs (18 GiB and 64 MiB each on @node), not three.
+      stub(Nodes, :connected_nodes, fn -> [Map.put(@node, :disk, %{budget_bytes: 40 * @gib})] end)
+      :ok
+    end
+
+    test "a create queues the archive of the least recently paused idle Orb there, any account's",
+         %{account: account} do
+      paused_orb(account, paused_at: hours_ago(1))
+      oldest = paused_orb(account_fixture(), paused_at: hours_ago(3))
+      capped = account_fixture()
+      archived_orb(capped, archive_bytes: Archives.max_archived_bytes_per_account())
+      paused_orb(capped, paused_at: hours_ago(5))
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
+      assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == oldest.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
+    end
+
+    test "a held Managed Agents work item makes room too, unless an archive already uploads there",
+         %{account: account} do
+      uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
+      paused_orb(account_fixture())
+      environment = agent_environment_fixture(account: account)
+
+      assert {:error, :no_room} = Capacity.admission(environment, "new-session")
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      Repo.update!(Ecto.Changeset.change(uploading, archive_upload_id: nil))
+      assert {:error, :no_room} = Capacity.admission(environment, "new-session")
+      assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
   describe "request/1" do
     test "queues the archive of a sandbox the hourly run would leave alone", %{account: account} do
       # Not an Amp Orb and paused for minutes, far below the threshold.
@@ -416,7 +460,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
 
     test "archived Orbs do not charge the disk limit, a restore does", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      # A default sandbox reserves 18 GiB and 64 MiB on @node.
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 19})
       for n <- 1..3, do: archived_orb(account, amp_orb_id: "archived-#{n}")
       expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})

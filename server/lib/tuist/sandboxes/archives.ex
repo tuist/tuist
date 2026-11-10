@@ -5,8 +5,9 @@ defmodule Tuist.Sandboxes.Archives do
   A paused Orb holds its memory image and disks on one node, reserving its
   full disk ceiling there. Once it has been paused for longer than
   `Tuist.Environment.sandbox_archive_after_hours/0`, or its account's
-  disk quota refuses a create or restore (`make_room/1`, least recently
-  paused first), its node uploads the
+  disk quota refuses a create or restore (`make_room/1`), or no node has
+  disk left for a new sandbox (`make_node_room/1`), least recently paused
+  first, its node uploads the
   kernel, rootfs and workspace (not the memory image) through presigned
   multipart URLs to the in-rack store at its node's site, or to the
   account's object storage when there is none, and the row becomes
@@ -137,8 +138,35 @@ defmodule Tuist.Sandboxes.Archives do
       Repo.exists?(from s in Sandbox, where: s.account_id == ^account_id and not is_nil(s.archive_upload_id)) ->
         true
 
-      archived_bytes(account_id) < @max_archived_bytes_per_account and Repo.exists?(archivable(account_id)) ->
+      archived_bytes(account_id) < @max_archived_bytes_per_account and
+          Repo.exists?(where(archivable(), [s], s.account_id == ^account_id)) ->
         {:ok, _job} = %{account_id: account_id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+        true
+
+      true ->
+        false
+    end
+  end
+
+  @doc """
+  Makes room on nodes whose disk refused a new sandbox, any account's:
+  queues the archive of the least recently paused idle Orb on them. Answers
+  whether room is on its way, which is also the case while an archive is
+  uploading from one of them. Answers false when archiving is off or they
+  hold no Orb to archive.
+  """
+  def make_node_room(node_names) when is_list(node_names) do
+    node_names = node_names |> Enum.uniq() |> Enum.sort()
+
+    cond do
+      !Environment.sandbox_archive_after_hours() or node_names == [] ->
+        false
+
+      Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id)) ->
+        true
+
+      Repo.exists?(on_nodes(archivable(), node_names)) ->
+        {:ok, _job} = %{node_names: node_names} |> ArchiveSandboxesWorker.new() |> Oban.insert()
         true
 
       true ->
@@ -151,18 +179,37 @@ defmodule Tuist.Sandboxes.Archives do
   `make_room/1`.
   """
   def archive_oldest(account_id) do
-    case account_id |> archivable() |> order_by([s], asc: s.paused_at, asc: s.id) |> limit(1) |> Repo.one() do
+    archivable() |> where([s], s.account_id == ^account_id) |> archive_first()
+  end
+
+  @doc """
+  Archives the least recently paused idle Orb on the nodes, of an account
+  under its archive storage cap, queued by `make_node_room/1`.
+  """
+  def archive_oldest_on(node_names) when is_list(node_names) do
+    archivable() |> on_nodes(node_names) |> archive_first()
+  end
+
+  defp archive_first(query) do
+    query
+    |> order_by([s], asc: s.paused_at, asc: s.id)
+    |> limit(@per_run)
+    |> Repo.all()
+    |> Enum.find(&(archived_bytes(&1.account_id) < @max_archived_bytes_per_account))
+    |> case do
       nil -> {:ok, :skipped}
       sandbox -> archive(sandbox)
     end
   end
 
-  defp archivable(account_id) do
+  defp on_nodes(query, node_names), do: where(query, [s], s.node_name in ^node_names)
+
+  defp archivable do
     retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
 
     from s in idle_paused_orbs(),
       where:
-        s.account_id == ^account_id and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+        is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
           (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
   end
 
