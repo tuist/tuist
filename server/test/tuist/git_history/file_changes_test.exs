@@ -265,6 +265,42 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert changes(repository, "p1") == %{"A.swift" => "a1", "B.swift" => "b2"}
   end
 
+  test "a branch that keeps receiving commits keeps its rows", %{repository: repository} do
+    commits(repository, [{"a", []}, {"f1", ["a"]}, {"f2", ["f1"]}, {"f3", ["f2"]}])
+    head(repository, "main", "a")
+    head(repository, "feature", "f2")
+
+    list(repository, "a", %{"A.swift" => "a1"})
+    list(repository, "f1", %{"A.swift" => "a2"})
+    list(repository, "f2", %{"A.swift" => "a2"})
+
+    # Most of the branch's retention is gone.
+    soon = DateTime.utc_now() |> DateTime.add(10, :day) |> DateTime.truncate(:second)
+
+    Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha in ["f1", "f2"]),
+      set: [changes_expires_at: soon]
+    )
+
+    head(repository, "feature", "f3")
+    list(repository, "f3", %{"A.swift" => "a2", "B.swift" => "b1"})
+
+    for sha <- ["f1", "f2", "f3"] do
+      assert_in_delta DateTime.diff(listing(repository, sha).changes_expires_at, DateTime.utc_now(), :day), 90, 1
+    end
+
+    feature = ref_id(repository, "feature")
+
+    for row <- rows(repository) do
+      if row.ref_id == feature,
+        do: assert_in_delta(NaiveDateTime.diff(row.expires_at, NaiveDateTime.utc_now(), :day), 90, 1),
+        else: assert(row.expires_at.year == 2100)
+    end
+
+    assert changes(repository, "f1") == %{"A.swift" => "a2"}
+    assert files(repository, "f3") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
+    assert %{changes_count: 1} = listing(repository, "f1")
+  end
+
   test "a fast-forward moves a branch's rows onto the default branch", %{repository: repository} do
     commits(repository, [{"a", []}, {"f1", ["a"]}, {"f2", ["f1"]}])
     head(repository, "main", "a")

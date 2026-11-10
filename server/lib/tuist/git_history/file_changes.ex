@@ -31,9 +31,11 @@ defmodule Tuist.GitHistory.FileChanges do
   left at the old one.
 
   The rows of a ref that forks from none are kept. Any other ref's rows
-  expire together, the file retention after the oldest of them was written,
-  since a commit's files read every row below it: `changes_expires_at` on
-  the listing says until when.
+  expire together, since a commit's files read every row below it:
+  `changes_expires_at` on the listing says until when. That is the file
+  retention after the ref was last renewed: a write on a ref whose rows have
+  less than half of it left gives them all of it again, so a branch that
+  keeps receiving commits (a development or release branch) keeps its rows.
 
   One repository's writes run one at a time, under its ref lock, so a
   commit's place holds while its rows are written against what is stored
@@ -342,7 +344,10 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   # Kept on a ref that forks from none. On any other, no later than the rows
-  # below it on the refs of its chain that fork: its files read them all.
+  # below it on the refs of its chain that fork: its files read them all. A
+  # ref among those whose rows have less than half the retention left is
+  # given the whole of it again first, so a ref that keeps receiving commits
+  # keeps its rows, and one that stops loses them together.
   defp expires_at(repository_id, place) do
     chain = GitHistory.chain(place, :below)
     refs = Enum.map(chain, & &1.ref_id)
@@ -354,19 +359,48 @@ defmodule Tuist.GitHistory.FileChanges do
 
       forked ->
         now = DateTime.truncate(DateTime.utc_now(), :second)
-        own = DateTime.add(now, Environment.coverage_retention_days().files, :day)
+        days = Environment.coverage_retention_days().files
+        own = DateTime.add(now, days, :day)
+        renewable = DateTime.add(now, div(days * 86_400, 2), :second)
 
         below =
-          Repo.one(
+          Repo.all(
             from(l in CommitListing,
               where: l.repository_id == ^repository_id and l.changes_expires_at > ^now,
               where: ^within(forked),
-              select: min(l.changes_expires_at)
+              group_by: l.changes_ref_id,
+              select: {l.changes_ref_id, min(l.changes_expires_at)}
             )
           )
 
-        if below && DateTime.before?(below, own), do: below, else: own
+        {renewed, kept} = Enum.split_with(below, fn {_ref_id, expires_at} -> DateTime.before?(expires_at, renewable) end)
+        renew(repository_id, Enum.map(renewed, &elem(&1, 0)), own)
+        Enum.min([own | Enum.map(kept, &elem(&1, 1))], DateTime)
     end
+  end
+
+  # Extending is the safe direction: whichever version of a row a merge
+  # keeps, none of them expires before the rows that read it.
+  defp renew(_repository_id, [], _expires_at), do: :ok
+
+  defp renew(repository_id, ref_ids, expires_at) do
+    insert(
+      """
+      SELECT repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, {expires_at:DateTime},
+        row_version + 1, 0
+      FROM git_file_changes FINAL
+      WHERE repository_id = {repository_id:Int64} AND ref_id IN {ref_ids:Array(Int64)} AND expires_at > now()
+      """,
+      %{repository_id: repository_id, ref_ids: ref_ids, expires_at: expires_at}
+    )
+
+    Repo.update_all(
+      from(l in CommitListing,
+        where: l.repository_id == ^repository_id and l.changes_ref_id in ^ref_ids,
+        where: l.changes_expires_at > ^DateTime.utc_now()
+      ),
+      set: [changes_expires_at: expires_at]
+    )
   end
 
   defp within(segments) do
