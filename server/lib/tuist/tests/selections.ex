@@ -395,16 +395,14 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   What an impact run's tests add up to: requested, selected and skipped
-  tests, the skipped tests' estimated duration from the baseline, and
-  whether `test_run_id` is there to report the selected tests' results.
+  tests, the skipped tests' estimated duration from the baseline, the tests
+  per module (`targets`, as `run_targets/1` lists them) and whether
+  `test_run_id` is there to report the selected tests' results. The duration
+  and the modules come from one read of the baseline; a run without one has
+  neither.
   """
   def run_summary(%Run{} = run, test_run_id) do
-    skipped_duration =
-      run
-      |> skipped_queries()
-      |> Enum.sum_by(fn query ->
-        from(t in subquery(query), select: sum(t.duration)) |> ClickHouseRepo.one() |> to_integer()
-      end)
+    modules = if has_baseline?(run), do: module_rows(run), else: []
 
     %{
       reported: not is_nil(test_run_id),
@@ -416,7 +414,8 @@ defmodule Tuist.Tests.Selections do
       skipped_modules: map_size(run.skipped_modules),
       modules: length(run.requested_modules) + map_size(run.skipped_modules),
       skip_rate: skip_rate(run),
-      skipped_duration: skipped_duration
+      skipped_duration: Enum.sum_by(modules, & &1.estimated_skipped_duration),
+      targets: targets(modules)
     }
   end
 
@@ -431,6 +430,8 @@ defmodule Tuist.Tests.Selections do
   """
   def run_tests(%Run{} = run, test_run_id, opts \\ []) do
     plan = shard_plan(run)
+    page = max(Keyword.get(opts, :page, 1), 1)
+    page_size = Keyword.get(opts, :page_size, 20)
 
     query =
       run
@@ -438,8 +439,23 @@ defmodule Tuist.Tests.Selections do
       |> filter_shard(Keyword.get(opts, :shard), plan)
       |> sort_tests(Keyword.get(opts, :sort_by, "decision"), Keyword.get(opts, :sort_order, "asc"), plan)
 
-    {rows, meta} = paginate(query, opts)
-    {Enum.map(rows, &normalize_test/1), meta}
+    rows =
+      query
+      |> select_merge([t], %{total_count: over(count())})
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> ClickHouseRepo.all()
+
+    total_count =
+      case rows do
+        [%{total_count: total_count} | _] -> to_integer(total_count)
+        # A page past the last one has no row to carry the count.
+        [] when page > 1 -> count_rows(query)
+        [] -> 0
+      end
+
+    {Enum.map(rows, &normalize_test/1),
+     %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
   end
 
   @doc "One of an impact run's tests, by its test case id, with its outcome in `test_run_id`."
@@ -460,178 +476,178 @@ defmodule Tuist.Tests.Selections do
     from(t in RunTest, where: t.project_id == ^project_id and t.test_impact_run_id == ^id)
   end
 
-  # The baseline run's tests in `modules` (by default the requested ones),
-  # with their average duration there.
-  defp baseline_tests_query(%Run{project_id: project_id} = run, modules \\ nil) do
+  # The baseline's tests in `modules`, with their average duration there and
+  # whether selective testing skipped their module by hash: all of them, or
+  # the one `test_case_id` names.
+  defp baseline_tests_query(%Run{project_id: project_id} = run, modules, test_case_id) do
+    skipped_modules = Map.keys(run.skipped_modules)
+
     query =
       from(c in TestCaseRun,
         where: c.project_id == ^project_id and not is_nil(c.test_case_id),
-        where: c.test_run_id in subquery(baseline_test_runs(run)),
+        where: ^in_baseline_runs(run),
+        where: c.module_name in ^modules,
         group_by: fragment("assumeNotNull(?)", c.test_case_id),
         select: %{
-          # Typed so derived rows carry the UUID string, whichever branch of a
-          # union comes first.
+          # Typed so derived rows carry the UUID string.
           test_case_id: type(fragment("assumeNotNull(?)", c.test_case_id), Ecto.UUID),
           module_name: fragment("any(?)", c.module_name),
           suite_name: fragment("any(?)", c.suite_name),
           name: fragment("any(?)", c.name),
-          duration: fragment("toInt64(avg(?))", c.duration)
+          duration: fragment("toInt64(avg(?))", c.duration),
+          module_skipped: fragment("has(?, any(?))", type(^skipped_modules, {:array, :string}), c.module_name)
         }
       )
 
-    where(query, [c], c.module_name in ^(modules || run.requested_modules))
+    filter_test_case(query, test_case_id)
   end
 
-  defp baseline_test_runs(%Run{project_id: project_id, baseline_sha: baseline_sha, build_context: context}) do
+  # The baseline's runs are the ones the decision read, which the impact run
+  # stores. A fallback that found its baseline stores none, so its baseline's
+  # runs are the baseline commit's coverage runs of its scheme.
+  defp in_baseline_runs(%Run{baseline_run_ids: [_ | _] = run_ids}), do: dynamic([c], c.test_run_id in ^run_ids)
+
+  defp in_baseline_runs(%Run{project_id: project_id, baseline_sha: baseline_sha, build_context: context}) do
     query =
       from(r in CoverageRun,
         where: r.project_id == ^project_id and r.git_commit_sha == ^baseline_sha,
         select: r.test_run_id
       )
 
-    case Map.get(context || %{}, "scheme", "") do
-      "" -> query
-      scheme -> where(query, [r], r.scheme == ^scheme)
-    end
+    query =
+      case Map.get(context || %{}, "scheme", "") do
+        "" -> query
+        scheme -> where(query, [r], r.scheme == ^scheme)
+      end
+
+    dynamic([c], c.test_run_id in subquery(query))
   end
 
-  defp skipped_queries(run), do: for({true, branch} <- branches(run, [decision: "skipped"], [], nil), do: branch.())
-
-  # The requested modules' baseline tests a fallback that found its baseline
-  # ran, under its reason.
-  defp fallback_selected_query(run, filters) do
-    from(b in subquery(baseline_tests_query(run)))
-    |> filter_branch(filters)
-    |> select([b], %{
-      test_case_id: b.test_case_id,
-      module_name: b.module_name,
-      suite_name: b.suite_name,
-      name: b.name,
-      decision: fragment("'selected'"),
-      reason: fragment("?", ^run.reason),
-      matched_path: fragment("?", ^run.matched_path),
-      duration: b.duration
-    })
-  end
-
-  # The requested modules' baseline tests coverage didn't select.
-  defp unaffected_query(run, filters) do
-    selected_ids = select(selected_query(run), [t], t.test_case_id)
-
-    skipped_branch(
-      from(b in subquery(baseline_tests_query(run)), where: b.test_case_id not in subquery(selected_ids)),
-      filters,
-      "unaffected"
-    )
-  end
-
-  # The baseline tests of the modules selective testing skipped by hash.
-  defp module_skipped_query(run, filters) do
-    skipped_branch(
-      from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules)))),
-      filters,
-      "module_skipped"
-    )
-  end
-
-  defp skipped_branch(query, filters, reason) do
-    query
-    |> filter_branch(filters)
-    |> select([b], %{
-      test_case_id: b.test_case_id,
-      module_name: b.module_name,
-      suite_name: b.suite_name,
-      name: b.name,
-      decision: fragment("'skipped'"),
-      reason: fragment("?", ^reason),
-      matched_path: fragment("''"),
-      duration: b.duration
-    })
-  end
-
-  # Filters apply inside each branch of the union: ClickHouse fails to push
-  # an outer filter into the skipped branch's subqueries.
+  # The run's tests the options include, each with its decision and reason.
+  # The baseline is read once, whichever of them the options include.
   defp requested_query(run, opts) do
+    test_case_id = Keyword.get(opts, :test_case_id)
+    selected? = selected?(run, opts)
+    skipped = included_skipped_reasons(run, opts)
+
+    modules =
+      if(selected? or "unaffected" in skipped, do: run.requested_modules, else: []) ++
+        if("module_skipped" in skipped, do: Map.keys(run.skipped_modules), else: [])
+
+    from(t in subquery(decided_query(run, modules, test_case_id)))
+    |> filter_decided(selected?, Keyword.get(opts, :reason), skipped)
+    |> filter_test_search(Keyword.get(opts, :search))
+    |> filter_test_case(test_case_id)
+  end
+
+  defp filter_decided(query, selected?, reason, skipped) do
+    selected =
+      cond do
+        not selected? -> dynamic(false)
+        reason in [nil, "", "any"] -> dynamic([t], t.decision == "selected")
+        true -> dynamic([t], t.decision == "selected" and t.reason == ^reason)
+      end
+
+    where(query, ^dynamic([t], ^selected or (t.decision == "skipped" and t.reason in ^skipped)))
+  end
+
+  # Whether the options include the tests that ran: the selected ones, or
+  # the requested modules' for a fallback that found its baseline, which a
+  # shard filter leaves out.
+  defp selected?(run, opts) do
     reason = Keyword.get(opts, :reason)
-    filters = Keyword.take(opts, [:search, :test_case_id])
-    selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
 
-    branches = for {included?, branch} <- branches(run, opts, filters, selected), included?, do: branch.()
-
-    case branches do
-      [] -> where(selected, false)
-      [first | rest] -> Enum.reduce(rest, first, &union_all(&2, ^&1))
-    end
-  end
-
-  # Each branch of the union, whether the options include it, and how to
-  # build it.
-  defp branches(run, opts, filters, selected) do
-    [
-      {selected_branch?(opts) and not counted_fallback?(run), fn -> selected end},
-      {counted_fallback?(run) and fallback_selected_branch?(run, opts), fn -> fallback_selected_query(run, filters) end},
-      {skipped_branch?(run, opts, "unaffected") and not fallback?(run), fn -> unaffected_query(run, filters) end},
-      {skipped_branch?(run, opts, "module_skipped") and run.skipped_modules != %{} and
-         Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
-    ]
-  end
-
-  defp selected_branch?(opts),
-    do:
-      Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and Keyword.get(opts, :reason) not in @skipped_reasons
-
-  # Skipped tests never ran, so they sit on no shard.
-  defp fallback_selected_branch?(run, opts) do
     Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and
-      Keyword.get(opts, :reason) in [nil, "", "any", run.reason] and not is_integer(Keyword.get(opts, :shard))
+      if counted_fallback?(run),
+        do: reason in [nil, "", "any", run.reason] and not is_integer(Keyword.get(opts, :shard)),
+        else: reason not in @skipped_reasons
   end
 
-  defp skipped_branch?(run, opts, reason) do
-    has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
-      Keyword.get(opts, :reason) in [nil, "", "any", reason] and
-      not is_integer(Keyword.get(opts, :shard))
-  end
-
-  defp selected_branch(run, filters) do
-    query = filter_branch(selected_query(run), filters)
-
-    if has_baseline?(run) do
-      from(t in query,
-        left_join: b in subquery(baseline_tests_query(run)),
-        on: b.test_case_id == t.test_case_id,
-        select: %{
-          test_case_id: t.test_case_id,
-          module_name: t.module_name,
-          suite_name: t.suite_name,
-          name: t.name,
-          decision: fragment("'selected'"),
-          reason: fragment("toString(?)", t.reason),
-          matched_path: t.matched_path,
-          duration: fragment("ifNull(?, 0)", b.duration)
-        }
-      )
+  # Why the skipped tests the options include were skipped. They never ran,
+  # so they sit on no shard.
+  defp included_skipped_reasons(run, opts) do
+    if has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
+         not is_integer(Keyword.get(opts, :shard)) do
+      for {reason, true} <- [{"unaffected", not fallback?(run)}, {"module_skipped", run.skipped_modules != %{}}],
+          Keyword.get(opts, :reason) in [nil, "", "any", reason],
+          do: reason
     else
-      from(t in query,
-        select: %{
-          test_case_id: t.test_case_id,
-          module_name: t.module_name,
-          suite_name: t.suite_name,
-          name: t.name,
-          decision: fragment("'selected'"),
-          reason: fragment("toString(?)", t.reason),
-          matched_path: t.matched_path,
-          duration: fragment("toInt64(0)")
-        }
-      )
+      []
     end
   end
 
-  defp filter_branch(query, filters) do
-    Enum.reduce(filters, query, fn
-      {:search, search}, query -> filter_test_search(query, search)
-      {:test_case_id, id}, query -> where(query, [x], x.test_case_id == ^id)
-      {:reason, reason}, query -> where(query, [x], x.reason == ^reason)
-    end)
+  defp filter_test_case(query, nil), do: query
+  defp filter_test_case(query, test_case_id), do: where(query, [t], t.test_case_id == ^test_case_id)
+
+  # Every test the run decided in `modules`, before any filter: the tests it
+  # selected, which it stores, and the baseline's other tests in `modules`,
+  # which it skipped, by coverage (`unaffected`) or with their whole module
+  # (`module_skipped`).
+  defp decided_query(run, modules, test_case_id) do
+    stored = run |> selected_query() |> filter_test_case(test_case_id)
+
+    cond do
+      not has_baseline?(run) ->
+        from(t in stored,
+          select: %{
+            test_case_id: t.test_case_id,
+            module_name: t.module_name,
+            suite_name: t.suite_name,
+            name: t.name,
+            decision: fragment("'selected'"),
+            reason: fragment("toString(?)", t.reason),
+            matched_path: t.matched_path,
+            duration: fragment("toInt64(0)")
+          }
+        )
+
+      # A fallback that found its baseline stores no test: the requested
+      # modules' baseline tests ran, under its reason.
+      counted_fallback?(run) ->
+        from(b in subquery(baseline_tests_query(run, modules, test_case_id)),
+          select: %{
+            test_case_id: b.test_case_id,
+            module_name: b.module_name,
+            suite_name: b.suite_name,
+            name: b.name,
+            decision: fragment("if(?, 'skipped', 'selected')", b.module_skipped),
+            reason: fragment("if(?, 'module_skipped', ?)", b.module_skipped, ^run.reason),
+            matched_path: fragment("if(?, '', ?)", b.module_skipped, ^run.matched_path),
+            duration: b.duration
+          }
+        )
+
+      true ->
+        stored =
+          from(t in stored,
+            select: %{
+              test_case_id: t.test_case_id,
+              module_name: t.module_name,
+              suite_name: t.suite_name,
+              name: t.name,
+              reason: fragment("toString(?)", t.reason),
+              matched_path: t.matched_path,
+              stored: fragment("toUInt8(1)")
+            }
+          )
+
+        # A full join, as a selected test may be new since the baseline.
+        from(b in subquery(baseline_tests_query(run, modules, test_case_id)),
+          full_join: t in subquery(stored),
+          on: t.test_case_id == b.test_case_id,
+          select: %{
+            test_case_id: type(fragment("if(? = 1, ?, ?)", t.stored, t.test_case_id, b.test_case_id), Ecto.UUID),
+            module_name: fragment("if(? = 1, ?, ?)", t.stored, t.module_name, b.module_name),
+            suite_name: fragment("if(? = 1, ?, ?)", t.stored, t.suite_name, b.suite_name),
+            name: fragment("if(? = 1, ?, ?)", t.stored, t.name, b.name),
+            decision: fragment("if(? = 1, 'selected', 'skipped')", t.stored),
+            reason:
+              fragment("multiIf(? = 1, ?, ?, 'module_skipped', 'unaffected')", t.stored, t.reason, b.module_skipped),
+            matched_path: fragment("ifNull(?, '')", t.matched_path),
+            duration: fragment("ifNull(?, 0)", b.duration)
+          }
+        )
+    end
   end
 
   defp tests_query(run, plan, test_run_id, opts) do
@@ -740,11 +756,23 @@ defmodule Tuist.Tests.Selections do
   skipped tests' estimated duration and why the selected ones run, most
   selected first.
   """
-  def run_targets(%Run{} = run) do
-    from(t in subquery(requested_query(run, module_skipped: false)),
-      group_by: t.module_name,
+  def run_targets(%Run{} = run), do: run |> module_rows() |> targets()
+
+  defp targets(modules) do
+    modules
+    |> Enum.reject(& &1.module_skipped)
+    |> Enum.map(&Map.delete(&1, :module_skipped))
+    |> Enum.sort_by(&{-&1.selected, &1.module_name})
+  end
+
+  # The run's tests per module, the modules hashing skipped (`module_skipped`)
+  # apart from those it left.
+  defp module_rows(run) do
+    from(t in subquery(requested_query(run, [])),
+      group_by: [t.module_name, fragment("? = 'module_skipped'", t.reason)],
       select: %{
         module_name: t.module_name,
+        module_skipped: fragment("? = 'module_skipped'", t.reason),
         requested: count(),
         selected: fragment("countIf(? = 'selected')", t.decision),
         skipped: fragment("countIf(? = 'skipped')", t.decision),
@@ -756,13 +784,13 @@ defmodule Tuist.Tests.Selections do
     |> Enum.map(fn row ->
       %{
         row
-        | requested: to_integer(row.requested),
+        | module_skipped: row.module_skipped == 1,
+          requested: to_integer(row.requested),
           selected: to_integer(row.selected),
           skipped: to_integer(row.skipped),
           estimated_skipped_duration: to_integer(row.estimated_skipped_duration)
       }
     end)
-    |> Enum.sort_by(&{-&1.selected, &1.module_name})
   end
 
   @doc """
@@ -824,13 +852,7 @@ defmodule Tuist.Tests.Selections do
     page = max(Keyword.get(opts, :page, 1), 1)
     page_size = Keyword.get(opts, :page_size, 20)
 
-    total_count =
-      query
-      |> exclude(:order_by)
-      |> exclude(:select)
-      |> select([x], count())
-      |> ClickHouseRepo.one()
-      |> to_integer()
+    total_count = count_rows(query)
 
     rows =
       query
@@ -839,6 +861,15 @@ defmodule Tuist.Tests.Selections do
       |> ClickHouseRepo.all()
 
     {rows, %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
+  end
+
+  defp count_rows(query) do
+    query
+    |> exclude(:order_by)
+    |> exclude(:select)
+    |> select([x], count())
+    |> ClickHouseRepo.one()
+    |> to_integer()
   end
 
   defp paginate_list(rows, opts) do
