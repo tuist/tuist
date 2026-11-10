@@ -374,7 +374,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       |> Floki.parse_document!()
       |> Floki.find("#disk-space-chart [data-part=data]")
       |> Floki.text()
-      |> Jason.decode!()
+      |> JSON.decode!()
 
     assert [
              %{"name" => "Used", "data" => [375.0, 500.0, 0.0, nil, nil]},
