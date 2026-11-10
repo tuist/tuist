@@ -824,6 +824,19 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
+    test "returns error without sending when the email is missing or not a string", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for params <- [%{}, %{"email" => ["test@example.com"]}, %{"email" => %{"a" => "b"}}] do
+        conn = post(conn, ~p"/newsletter", params)
+
+        assert json_response(conn, 400) == %{
+                 "success" => false,
+                 "message" => "Something went wrong. Please try again."
+               }
+      end
+    end
+
     test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
       email = "test@example.com"
       expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
