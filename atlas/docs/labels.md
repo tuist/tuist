@@ -21,13 +21,14 @@ separate CLI, Labels dashboard, sidebar entry or browser label-preparation workf
    page gets a fresh relay credential whenever no other relay tab is active.
 3. The agent reads `status` and `preview`, inspects the PNGs, printer, supply
    and printable zones, then calls `print`. **While the tab is connected the agent
-   operates the printer directly** for supplies with printable zones, unless review
-   was requested. Zoneless continuous tape always waits for owner review.
+   operates the printer directly**, unless review was requested: at most 20 labels
+   per batch, and only once the session's previous batch has finished. A larger
+   batch waits for owner review.
    Disconnecting or closing the tab stops it.
 4. Watch the labels come out. The connection page lists every label in the session
    with its print and cut result; the agent reads the same through `status`.
 
-**Review is optional for supplies with printable zones, mandatory for zoneless continuous tape.** When you want to see a batch before it prints, ask the agent
+**Review is optional for batches of up to 20 labels and required above that.** When you want to see a batch before it prints, ask the agent
 to pass `approval: true`. It then sends an Atlas review link that shows every label
 in the batch, in print order, with its preview, the printer, the supply and the
 count. One click on **Approve** prints the whole batch. Only the signed-in owner can
@@ -37,7 +38,7 @@ Unapproved batches return to preview ten minutes after the request.
 ## Batches and cutting
 
 `print` takes `job_ids` in print order (default: every preview-only label in
-submission order), at most 100. A batch is printed **one label at a time**: the
+submission order), at most 100; more than 20 needs `approval: true`. A batch is printed **one label at a time**: the
 relay claims a label, calls `printBitmap` for exactly that image with one copy and
 the SDK cut option *Never*, then, unless the batch was queued with `cut: false`,
 calls `cut()`. Only then does it claim the next label. The installed M21-750-427 is
@@ -89,8 +90,7 @@ width, height and that flag as well as printer/supply/zones, checking them at
 approval, claim and immediately before SDK output. Reconnect the exact approved
 snapshot or make a new request/review; a different snapshot cannot use the old approval.
 
-Every zoneless print request returns `awaiting-approval` and an owner-only
-`approvalUrl`, even if the caller omitted `approval` or set it false. Review and
+Zoneless prints follow the same review rules as any other supply. Review and
 session previews show the actual bitmap size, nominal SDK page length and the
 physical-size warning. Atlas rejects nominal lengths above 200 mm based on actual
 PNG pixels, including uploads; declaring smaller preview mm cannot bypass this.

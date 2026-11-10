@@ -24,6 +24,7 @@ defmodule Atlas.Labels do
   @approval_ttl 600_000
   @start_window 600_000
   @per_label 60_000
+  @direct_limit 20
 
   def create(user, interface) do
     transact(fn ->
@@ -335,10 +336,25 @@ defmodule Atlas.Labels do
   # connected relay directly. Either way the batch records the exact printer and supply.
   defp queue!(s, jobs, extra, approval?, user, interface) do
     ready!(s, extra["cut"] == true or Enum.any?(jobs, &(&1.action == "cut")))
-    # No printable zone means no physical-size promise. Require owner review,
-    # even when the agent requested direct output, and bound continuous feed.
+
+    # Unreviewed output stays small: one batch of at most @direct_limit labels at a time,
+    # so an agent cannot start a long run without the owner reviewing it.
+    if !approval? do
+      ensure(
+        length(jobs) <= @direct_limit,
+        400,
+        "Without approval a batch holds at most #{@direct_limit} labels; pass approval: true for the owner to review a larger one."
+      )
+
+      ensure(
+        !Enum.any?(jobs(s), &(&1.state in ~w(queued dispatched))),
+        409,
+        "Another batch is still queued or printing; wait for it to finish."
+      )
+    end
+
+    # No printable zone means no physical-size promise, so bound continuous feed.
     continuous? = continuous?(s.relay)
-    approval? = approval? or (continuous? and Enum.any?(jobs, &(&1.action == "print")))
 
     for job <- jobs, continuous? and job.action == "print" do
       ensure(

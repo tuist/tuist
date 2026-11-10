@@ -141,6 +141,23 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert %{"isError" => true} = ManageLabelSession.call(c.mcp, %{"action" => "print", "session_id" => id})
   end
 
+  test "unreviewed output is one batch of at most 20 labels at a time", c do
+    {id, _token, _r, ids} = connected_session(c, for(n <- 1..21, do: "R02-#{n}"))
+    {first, [last]} = Enum.split(ids, 20)
+
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{}, "mcp")
+    assert states(id) == List.duplicate("preview-only", 21)
+
+    assert {:ok, %{"state" => "queued", "count" => 20}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => first}, "mcp")
+
+    # No further unreviewed output while that batch is queued or printing; review still works.
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{"jobIds" => [last]}, "mcp")
+
+    assert {:ok, %{"state" => "awaiting-approval"}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => [last], "approval" => true}, "mcp")
+  end
+
   test "an uncertain label stops the rest of the batch and reports each label honestly", c do
     {id, token, r, [a, b, cc]} = connected_session(c, ~w(R02-A R02-B R02-C))
     assert {:ok, %{"count" => 3}} = Labels.request(c.user, :print, id, %{}, "mcp")
@@ -203,7 +220,7 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert has_element?(connection, "#session-labels")
   end
 
-  test "zoneless continuous nylon requires owner review with bitmap sizing and a frozen supply", c do
+  test "zoneless continuous nylon review shows bitmap sizing and freezes the supply", c do
     {id, token, r, [a]} = connected_session(c, ["larch-runner-a01"])
 
     nylon =
@@ -221,8 +238,7 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert %{"mode" => "continuous", "bitmapWidthPx" => 400, "bitmapHeightPx" => 96} = preview["sizing"]
     assert_in_delta preview["sizing"]["nominalLengthMm"], 66.675, 0.001
 
-    # Even direct-output requests must stop at the owner's browser review.
-    batch = mcp(c.mcp, "print", %{"session_id" => id, "approval" => false})
+    batch = mcp(c.mcp, "print", %{"session_id" => id, "approval" => true})
     assert batch["state"] == "awaiting-approval"
     assert {:error, 409, _} = claim(id, token, nylon, a)
     assert {:error, 400, _} = Labels.request(c.user, :approve, id, %{"batchId" => batch["batchId"]}, "mcp")
@@ -275,7 +291,7 @@ defmodule AtlasWeb.LabelsControllerTest do
     end
 
     assert {:ok, _} = Labels.relay(:relay, id, token, continuous)
-    assert {:ok, %{"state" => "awaiting-approval"}} = Labels.request(c.user, :print, id, %{})
+    assert {:ok, %{"state" => "queued"}} = Labels.request(c.user, :print, id, %{})
   end
 
   test "continuous feed limit uses uploaded bitmap aspect ratio, not requested preview mm", c do

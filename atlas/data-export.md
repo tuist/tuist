@@ -10,7 +10,7 @@ relay report: browser client ID, heartbeat, connection claim, printer model/name
 cartridge, printable zones/dimensions, the SDK die-cut/continuous flag and bounded status/message. `label_jobs`
 belongs to a session (cascade deletion), storing the exact preview PNG in
 PostgreSQL, title/text, preview dimensions, action/state, batch ID/position/size,
-cut choice, whether review was requested (or required for zoneless continuous tape),
+cut choice, whether review was requested (required above 20 labels per batch),
 queued printer/supply/zones plus supply width/height and die-cut flag, sizing mode,
 actual bitmap pixel dimensions, nominal continuous page length and sizing warning, approval
 expiry and start deadline, dispatch client/time, separate print and cut outcomes,

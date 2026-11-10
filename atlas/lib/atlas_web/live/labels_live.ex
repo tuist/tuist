@@ -136,7 +136,7 @@ defmodule AtlasWeb.LabelsLive do
           <.card title="While this tab is connected" icon="lock_open_2">
             <.card_section>
               <p>
-                Your agent can print batches and cut through this tab without asking, except printing on zoneless continuous tape always requires your review. Disconnect or close the tab to stop it.
+                Your agent can print batches of up to 20 labels and cut through this tab without asking, one batch at a time; a larger batch waits for your review. Disconnect or close the tab to stop it.
               </p>
               <p>
                 Labels print one at a time in order and are cut after each label unless the agent turns cutting off. When your agent asks for a review, it sends an Atlas link showing the whole batch first.
