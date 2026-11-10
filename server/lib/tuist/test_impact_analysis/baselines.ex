@@ -1,8 +1,8 @@
 defmodule Tuist.TestImpactAnalysis.Baselines do
   @moduledoc """
   Resolves the baseline of coverage-based test selection: the nearest
-  ancestor of the checked-out commit with a full run of the requested scope,
-  within the evidence window.
+  ancestor of the checked-out commit with a full run of the requested scope
+  and a complete file listing, within the evidence window.
 
   The walk starts from the checked-out commit, or, when the server's history
   doesn't have it (GitHub's synthetic merge commit), from the parents the
@@ -27,14 +27,21 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   `no_evidence` rule, as Swift Testing tests and targets that don't link
   TestCoverageAttribution always are.
 
+  The commit also needs a complete file listing
+  (`Tuist.GitHistory.listing_complete?/2`), which the baseline's blobs are
+  read from: a commit with a full run but a missing, expired or truncated
+  listing is passed over, and the walk goes on to the next ancestor.
+
   A commit's measured set is only written once its runs' coverage is folded,
   so a run still being processed isn't eligible yet.
   """
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
+  alias Tuist.GitHistory.CommitListing
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
@@ -55,9 +62,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   - `:history_unknown`: the history has none of the checked-out commit, the
     parents and the ancestors sent, so the walk can't start. The client
     deepens its checkout and repeats the request with `ancestor_shas`;
-  - `:no_baseline`: no full run on the platform is an ancestor within the
-    history window, or the project has no coverage to walk from;
-  - `:baseline_too_old`: the nearest full run is more than #{@window_measured_commits}
+  - `:no_baseline`: no full run on the platform at a commit with a complete
+    file listing is an ancestor within the history window, or the project
+    has no coverage to walk from;
+  - `:baseline_too_old`: the nearest such run is more than #{@window_measured_commits}
     commits with coverage back.
 
   `scope` has the `commit_sha`, and optionally `parent_shas`,
@@ -142,7 +150,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     ancestors = ancestors(repository_id, starts, depth)
     exhausted = deeper == [] or Enum.all?(ancestors, fn {_sha, d} -> d < depth end)
 
-    case decide(project, ancestors, scope, fixed, exhausted) do
+    case decide(project, repository_id, ancestors, scope, fixed, exhausted) do
       :undecided -> walk(project, repository_id, starts, scope, fixed, deeper, max_depth)
       {:ok, baseline} -> {:ok, Map.put(baseline, :repository_id, repository_id)}
       {:error, _reason} = error -> error
@@ -161,10 +169,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     |> Enum.sort_by(fn {sha, d} -> {d, sha} end)
   end
 
-  defp decide(project, ancestors, scope, fixed, exhausted) do
+  defp decide(project, repository_id, ancestors, scope, fixed, exhausted) do
     {ranked, counted} = rank(ancestors, measured(project.id, Enum.map(ancestors, &elem(&1, 0))))
     candidates = Enum.filter(ranked, &(candidate?(&1.commit, scope) and (is_nil(fixed) or &1.sha == fixed)))
-    runs = full_runs(project.id, candidates, scope)
+    runs = project.id |> full_runs(candidates, scope) |> with_complete_listing(repository_id)
     {within, beyond} = Enum.split_with(candidates, &(&1.rank <= @window_measured_commits))
 
     case Enum.find(within, &Map.has_key?(runs, &1.sha)) do
@@ -250,6 +258,32 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   end
 
   defp chunked(ids, fun), do: ids |> Coverage.id_chunks(1) |> Enum.flat_map(fun)
+
+  # Selection reads the baseline's blobs from its file listing, so a path the
+  # listing lacks would read as changed and select every test that ran it.
+  # The filter is `Tuist.GitHistory.listing_complete?/2`'s, for every commit
+  # with a full run at once.
+  defp with_complete_listing(runs, _repository_id) when runs == %{}, do: runs
+
+  defp with_complete_listing(runs, repository_id) do
+    days = Environment.coverage_retention_days().files
+    cutoff = DateTime.add(DateTime.utc_now(), -(days - 1) * 86_400, :second)
+
+    complete =
+      runs
+      |> Map.keys()
+      |> Coverage.id_chunks(2)
+      |> Enum.flat_map(fn shas ->
+        Repo.all(
+          from(l in CommitListing,
+            where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff and not l.truncated,
+            select: l.sha
+          )
+        )
+      end)
+
+    Map.take(runs, complete)
+  end
 
   defp whole_runs(project_id, run_ids, scope) do
     query =

@@ -64,7 +64,7 @@ The Xcode client's names are under [Configuration](#names-in-the-xcode-client).
 
 | Concept | What it is |
 | --- | --- |
-| **Baseline** | The nearest ancestor of the checked-out commit with a full run of the requested scope on the same platform, within the evidence window. See [Baselines](#baselines). |
+| **Baseline** | The nearest ancestor of the checked-out commit with a full run of the requested scope on the same platform and a complete file listing, within the evidence window. See [Baselines](#baselines). |
 | **Evidence window** | The checked-out commit's ancestors back to the baseline. Commits without coverage are walked but not counted; at most 20 commits with coverage, the baseline included, may sit in it. It bounds only how far back the baseline can be, not which evidence counts. |
 | **Evidence** | A test's evidence is its newest version the checkout reproduces: the files the test and its suite's setup executed, all with the blob they had then, on any branch and at any commit. `Tuist.Tests.Coverage.TestEvidence` is the one place coverage carry and selection get it from, so the two always agree; only the blobs they hand it differ. |
 | **Diff** | The changed files between the baseline and the commit that is actually checked out, with each file's status, blob and affected test modules: at most 5,000 entries plus the total count. Keyed by checked-out commit and baseline, so it's computed once and reused by every invocation on that commit. A dirty checkout's diff is never stored. |
@@ -81,6 +81,8 @@ A commit is a baseline when it has a **full run**, a run at the commit that:
 - ran it whole: its `coverage_runs` row isn't `partial`, so no filter narrowed it and every shard reported;
 - ran on the requested platform (`coverage_runs.platform`; see [Scope and platform](#scope-and-platform)).
 
+The commit also needs a **complete file listing**: stored, within the file retention and not truncated at `commit_file_limit`, which is what `GitHistory.listing_complete?/2` answers. Selection reads the baseline's blobs from the listing (`GitHistory.blobs_at/3`), so a path the listing lacks has no blob, and every test that executed it would reproduce none of its versions and be selected by `impacted` with nothing changed. A commit with a full run but no complete listing is passed over like one without a full run: it still counts toward the window, and the walk goes on to the next ancestor. The walk reads `git_commit_listings` once for all the commits with a full run it has reached, not once per commit.
+
 The run needn't have uploaded test-scoped evidence. The baseline supplies the tests in scope (its `test_case_runs`), the diff's base and its target-level evidence; each test's evidence comes from `coverage_test_sources`, whichever run recorded it, and a test without any is selected by `no_evidence`.
 
 A commit's measured set is only written once its runs' coverage is folded, so a run still being processed isn't eligible yet. The baseline isn't gated on `coverage_commits.complete`, which only exists where the pipeline runs `tuist coverage complete`.
@@ -89,10 +91,10 @@ A commit's measured set is only written once its runs' coverage is folded, so a 
 
 | Result | When |
 | --- | --- |
-| The baseline, with its full runs (`run_ids`) and the window's commits (`window_shas`) | A full run within 20 commits with coverage |
-| `baseline_too_old` | The nearest full run is more than 20 commits with coverage back |
+| The baseline, with its full runs (`run_ids`) and the window's commits (`window_shas`) | A full run at a commit with a complete listing, within 20 commits with coverage |
+| `baseline_too_old` | The nearest full run at a commit with a complete listing is more than 20 commits with coverage back |
 | `history_unknown` | The history has none of the checked-out commit and the parents and ancestors the client sent, so the walk can't start |
-| `no_baseline` | No full run on the platform in the history window, or the project has no coverage to walk from |
+| `no_baseline` | No full run on the platform at a commit with a complete listing in the history window, or the project has no coverage to walk from |
 
 The runs request resolves the same baseline again (`baseline_sha:` fixed) to confirm it and read its full runs, and records the baseline's runs on the impact run (`baseline_run_ids`), so every shard read later derives its skip list from the tests the decision saw.
 
@@ -241,7 +243,7 @@ Selection fails open to default selective testing, as the quarantine fetch does.
 
 | Situation | Result |
 | --- | --- |
-| No full run in reach, or none on the requested platform | `no_baseline`, from the baseline request: default selective testing |
+| No full run in reach, none on the requested platform, or none at a commit with a complete file listing | `no_baseline`, from the baseline request: default selective testing |
 | The history has none of the checked-out commit, its parents and its ancestors, even after the client deepened by 100 commits and sent `ancestor_shas` | `history_unknown`, from the baseline request: default selective testing |
 | The nearest full run is more than 20 commits with coverage back | `baseline_too_old`, from the baseline request: default selective testing |
 | More than 5,000 changed files | `diff_too_large`: default selective testing |
@@ -284,6 +286,7 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 - **A named default strategy, a "none" strategy, or environment overrides.** Leaving the strategy out already means the default, and the existing switch for selective testing already turns selection off; a second way to say either could disagree with the first.
 - **Platform-aware evidence.** Recording the exact device and OS version on each test's evidence would let another platform's baseline serve, but a same-platform baseline is nearly always there.
 - **Dry-run, shadow or comparison modes.** They add flags, columns and a scoring pipeline; full runs on the default branch remain the safety net.
+- **A reason of its own for a baseline without a complete listing.** The walk passes such a commit over, so an older baseline still selects, and when none is left the run has no usable baseline, which `no_baseline` already says. A new reason would reach the API, the CLI's output and the UI for a case the user can't act on differently.
 - **Diffing full file listings on the server.** The payload grows with the repository and large listings are truncated by `commit_file_limit`. The client diff sends only what changed.
 - **Caching verdicts per commit.** Verdicts depend on evidence, which can still arrive after the first run, and on the rules version. Only the diff is per commit.
 - **A per-baseline path index.** It would copy the test-scoped evidence a second time and need a worker and a backfill; `coverage_test_sources` already holds what each test version executed.
