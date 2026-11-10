@@ -21,12 +21,13 @@ separate CLI, Labels dashboard, sidebar entry or browser label-preparation workf
    page gets a fresh relay credential whenever no other relay tab is active.
 3. The agent reads `status` and `preview`, inspects the PNGs, printer, supply
    and printable zones, then calls `print`. **While the tab is connected the agent
-   operates the printer directly**: the batch starts without an approval step.
+   operates the printer directly** for supplies with printable zones, unless review
+   was requested. Zoneless continuous tape always waits for owner review.
    Disconnecting or closing the tab stops it.
 4. Watch the labels come out. The connection page lists every label in the session
    with its print and cut result; the agent reads the same through `status`.
 
-**Review is optional.** When you want to see a batch before it prints, ask the agent
+**Review is optional for supplies with printable zones, mandatory for zoneless continuous tape.** When you want to see a batch before it prints, ask the agent
 to pass `approval: true`. It then sends an Atlas review link that shows every label
 in the batch, in print order, with its preview, the printer, the supply and the
 count. One click on **Approve** prints the whole batch. Only the signed-in owner can
@@ -64,7 +65,59 @@ after that; labels the relay did not reach by then return to preview unprinted.
 Up to 50 previews can be submitted per request, 100 per session. Sessions expire
 after eight hours and relay reports after 35 seconds. Text previews use 203 dpi;
 their dimensions are not a physical-size guarantee. The SDK scales each image to the
-supply preserving aspect ratio.
+supply preserving aspect ratio. MCP `preview` and `status` include `sizing` alongside
+the PNG/job: actual bitmap pixels, sizing mode, a warning, and (for zoneless
+continuous tape) a nominal page length before margin adjustments and feed/trailer.
+
+## Zoneless continuous tape (M21-750-499)
+
+SDK 3.3.3 reports this nylon tape as width 0.75 inches, height 0 and no printable
+zones. Zero height is not a zero-length label: the SDK paginator derives continuous
+page length from bitmap width / bitmap height × adjusted tape width. On the M211,
+`adjustLabelPosition` caps that width at 0.63 inches (16.002 mm) and applies
+orientation/margin adjustments. `setupBanding` fits the image preserving aspect
+ratio. `printPageStart` sends the derived page size at 203 dpi and enables the
+M211 trailer. **Length follows bitmap aspect ratio, not PNG DPI metadata or the
+requested preview millimetres.** Physical cut length includes printer feed/trailer
+and must be measured; the nominal page length is not a cut-length guarantee.
+
+Atlas accepts an empty zone list only with an explicit SDK `mediaIsDieCut: false`,
+zero supply height and positive width at most 0.75 inches. Missing/invalid metadata,
+die-cut supplies and nonempty invalid zones still fail closed. The relay must be
+reloaded after upgrading so it reports the continuous-media flag. Atlas snapshots
+width, height and that flag as well as printer/supply/zones, checking them at
+approval, claim and immediately before SDK output. Reconnect the exact approved
+snapshot or make a new request/review; a different snapshot cannot use the old approval.
+
+Every zoneless print request returns `awaiting-approval` and an owner-only
+`approvalUrl`, even if the caller omitted `approval` or set it false. Review and
+session previews show the actual bitmap size, nominal SDK page length and the
+physical-size warning. Atlas rejects nominal lengths above 200 mm based on actual
+PNG pixels, including uploads; declaring smaller preview mm cannot bypass this.
+Standalone cuts retain their existing optional review. Ordering, single-flight
+dispatch and uncertain-output handling are unchanged.
+
+For the first `larch-runner-a01` hardware test, request **one** label, review its
+preview and approve it yourself in Chrome. A 50×10 mm text preview is 400×80 px:
+its 5:1 aspect ratio makes the nominal SDK page about **80 mm**, not 50 mm, before
+feed/trailer. For approximately 50 mm artwork length with a 10 mm content band,
+prepare a PNG with the content centered on a roughly 50×16 mm white canvas
+(about 400×128 px); do not merely request 50×10 mm. The tape itself remains
+19.05 mm wide: a finished 10 mm-high label requires manual trimming or narrower
+stock, not a bitmap setting. First measure the artwork
+length/height, total cut tape length and leading/trailing margins, check orientation,
+legibility and edge clipping, and confirm exactly one print and one cut with no
+duplicate output. Adjust the bitmap only after measuring. If either result is
+uncertain, inspect the printer and never retry automatically. This PR alone does
+not enable production: normal review, merge and deployment must happen first.
+
+Source: the pinned npm package
+[`@bradycorporation/brady-web-sdk@3.3.3`](https://www.npmjs.com/package/@bradycorporation/brady-web-sdk/v/3.3.3),
+`dist/bundle.js`: `printBitmap` → `printBitmaps`, paginator
+`findFirstPrintableZoneAndLabelHeight` / `adjustLabelPosition`, `setupBanding`,
+and `printPageStart`. The [public API documentation](https://sdk.bradyid.com/web_api_documentation/#printbitmap-printbitmaps)
+describes aspect-preserving zone fitting but omits this zoneless fallback; the
+package implementation, not an invented printable zone, is the source for it.
 
 MCP actions: `create`; `status` with `session_id`; `submit` with `session_id`,
 `items: [{text: "RACK-02-SW01"}]` (or base64 `png`), optional `width_mm`/`height_mm`;
