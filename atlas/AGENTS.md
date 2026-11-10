@@ -213,8 +213,8 @@ The iOS share-sheet inbox, reviewable server inference and replay-safe native/MC
 
 ## Tasks
 
-- General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
-- The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
+- General tasks live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
+- The task page is `/tasks`. Tasks may optionally reference an account and have a due date, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
 
 ## Native API
 

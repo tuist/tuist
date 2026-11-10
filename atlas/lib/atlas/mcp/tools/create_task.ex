@@ -11,11 +11,7 @@ defmodule Atlas.MCP.Tools.CreateTask do
         "description" => %{"type" => "string"},
         "assignee_id" => %{"type" => "string", "description" => "Atlas user id. Defaults to the caller."},
         "account_id" => %{"type" => "string"},
-        "due_on" => %{"type" => "string", "format" => "date", "description" => "Task due date."},
-        "remind_at" => %{
-          "type" => "string",
-          "description" => "ISO 8601 date and time with offset, for a Slack reminder."
-        }
+        "due_on" => %{"type" => "string", "format" => "date", "description" => "Task due date."}
       }
     },
     output_schema: Atlas.MCP.Serializers.Tasks.response_schema()
@@ -25,15 +21,14 @@ defmodule Atlas.MCP.Tools.CreateTask do
   alias Atlas.Tasks
 
   @impl EMCP.Tool
-  def description,
-    do: "Create a task for an Atlas user, optionally linked to an account and scheduled for a Slack reminder."
+  def description, do: "Create a task for an Atlas user, optionally linked to an account and with a due date."
 
   def execute(conn, args) do
     with :ok <- Tool.authorize_authenticated(conn, "Task tools"),
          actor = Tool.current_user(conn),
          attrs =
            args
-           |> Map.take(["title", "description", "assignee_id", "account_id", "due_on", "remind_at"])
+           |> Map.take(["title", "description", "assignee_id", "account_id", "due_on"])
            |> Map.put_new("assignee_id", actor.id),
          {:ok, task} <- Tasks.create_task(attrs, actor, interface: Tool.audit_interface(conn)) do
       {:ok, %{task: TaskSerializer.task(task)}}
