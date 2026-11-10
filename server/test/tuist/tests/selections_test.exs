@@ -388,27 +388,21 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "run_targets/1" do
+  describe "run_summary/2 targets" do
     test "add up the run's tests per module", %{project: project} do
-      %{run: run, plan: plan} = run(project)
+      %{run: run, test_run: test_run, plan: plan} = run(project)
 
       assert Selections.shard_plan(run).id == plan.id
 
       assert [
                %{module_name: "SearchTests", requested: 2, selected: 2, skipped: 0},
                %{module_name: "AuthTests", requested: 2, selected: 0, skipped: 2, estimated_skipped_duration: 700}
-             ] = Selections.run_targets(run)
+             ] = Selections.run_summary(run, test_run.id).targets
 
       assert Selections.skipped_modules(run) == [
                %{module_name: "BillingTests", tests: 3},
                %{module_name: "ProfileTests", tests: 1}
              ]
-    end
-
-    test "come with the summary, from its one read of the baseline", %{project: project} do
-      %{run: run, test_run: test_run} = run(project)
-
-      assert Selections.run_summary(run, test_run.id).targets == Selections.run_targets(run)
     end
   end
 

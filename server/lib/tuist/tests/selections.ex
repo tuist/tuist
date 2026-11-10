@@ -396,10 +396,11 @@ defmodule Tuist.Tests.Selections do
   @doc """
   What an impact run's tests add up to: requested, selected and skipped
   tests, the skipped tests' estimated duration from the baseline, the tests
-  per module (`targets`, as `run_targets/1` lists them) and whether
-  `test_run_id` is there to report the selected tests' results. The duration
-  and the modules come from one read of the baseline; a run without one has
-  neither.
+  per module of those hashing left (`targets`: requested, selected and
+  skipped, the skipped tests' estimated duration and why the selected ones
+  run, most selected first) and whether `test_run_id` is there to report the
+  selected tests' results. The duration and the modules come from one read
+  of the baseline; a run without one has neither.
   """
   def run_summary(%Run{} = run, test_run_id) do
     modules = if has_baseline?(run), do: module_rows(run), else: []
@@ -751,13 +752,9 @@ defmodule Tuist.Tests.Selections do
     )
   end
 
-  @doc """
-  An impact run's tests per module: requested, selected and skipped, the
-  skipped tests' estimated duration and why the selected ones run, most
-  selected first.
-  """
-  def run_targets(%Run{} = run), do: run |> module_rows() |> targets()
-
+  # The tests per module of those hashing left: requested, selected and
+  # skipped, the skipped tests' estimated duration and why the selected ones
+  # run, most selected first.
   defp targets(modules) do
     modules
     |> Enum.reject(& &1.module_skipped)
