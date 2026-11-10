@@ -1,3 +1,5 @@
+internal import Foundation
+
 /// A path represents to a file, directory, or a group of files represented by a glob expression.
 ///
 /// Paths can be relative and absolute. We discourage using absolute paths because they create a dependency with the environment
@@ -46,9 +48,16 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable, Sendabl
 
     // MARK: - ExpressibleByStringInterpolation
 
-    /// Initializer uses `.relativeToRoot` if path starts with `//` otherwise it is `.relativeToManifest` by default
+    /// Initializer uses `.relativeToRoot` if the path starts with `//` or `~`; otherwise it is `.relativeToManifest` by default.
     public init(stringLiteral: String) {
-        if stringLiteral.starts(with: "//") {
+        if stringLiteral == "~" || stringLiteral.hasPrefix("~/") {
+            let pathString = stringLiteral == "~"
+                ? FileManager.default.homeDirectoryForCurrentUser.path
+                : FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(String(stringLiteral.dropFirst(2)))
+                .path
+            self.init(pathString, type: .relativeToRoot)
+        } else if stringLiteral.starts(with: "//") {
             self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)
         } else {
             self.init(stringLiteral, type: .relativeToManifest)
