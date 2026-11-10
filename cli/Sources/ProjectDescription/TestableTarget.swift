@@ -28,19 +28,25 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
     public var parallelization: Parallelization
     public var isRandomExecutionOrdering: Bool
     public var simulatedLocation: SimulatedLocation?
+    public var selectedTags: [String]
+    public var skippedTags: [String]
 
     init(
         target: TargetReference,
         isSkipped: Bool,
         parallelization: Parallelization,
         isRandomExecutionOrdering: Bool,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        selectedTags: [String] = [],
+        skippedTags: [String] = []
     ) {
         self.target = target
         self.isSkipped = isSkipped
         self.parallelization = parallelization
         self.isRandomExecutionOrdering = isRandomExecutionOrdering
         self.simulatedLocation = simulatedLocation
+        self.selectedTags = selectedTags
+        self.skippedTags = skippedTags
     }
 
     /// Returns a testable target.
@@ -69,7 +75,9 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
             isSkipped: isSkipped,
             parallelization: isParallelizable ? .enabled : .disabled,
             isRandomExecutionOrdering: isRandomExecutionOrdering,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            selectedTags: [],
+            skippedTags: []
         )
     }
 
@@ -83,19 +91,29 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
     ///   - isRandomExecutionOrdering: Whether to test in random order.
     ///   - simulatedLocation: The simulated GPS location to use when testing this target.
     ///   Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project’s resources.
+    ///   - selectedTags: Swift Testing tag names to restrict this target's run to. They apply to this target only, and are
+    /// written as the target's `selectedTags` into a plan produced by `TestPlan.generated(...)`. Scheme test actions
+    /// (`TestAction.targets`) ignore them. The leading dot is optional: `"contract"` and `".contract"` are equivalent.
+    ///   - skippedTags: Swift Testing tag names to exclude from this target's run. They apply to this target only, and are
+    /// written as the target's `skippedTags` into a plan produced by `TestPlan.generated(...)`. Scheme test actions
+    /// (`TestAction.targets`) ignore them. The leading dot is optional: `"contract"` and `".contract"` are equivalent.
     public static func testableTarget(
         target: TargetReference,
         isSkipped: Bool = false,
         parallelization: Parallelization = .disabled,
         isRandomExecutionOrdering: Bool = false,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        selectedTags: [String] = [],
+        skippedTags: [String] = []
     ) -> Self {
         self.init(
             target: target,
             isSkipped: isSkipped,
             parallelization: parallelization,
             isRandomExecutionOrdering: isRandomExecutionOrdering,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            selectedTags: selectedTags,
+            skippedTags: skippedTags
         )
     }
 
@@ -105,7 +123,9 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
             isSkipped: false,
             parallelization: .disabled,
             isRandomExecutionOrdering: false,
-            simulatedLocation: nil
+            simulatedLocation: nil,
+            selectedTags: [],
+            skippedTags: []
         )
     }
 }
