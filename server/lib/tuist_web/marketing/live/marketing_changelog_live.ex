@@ -97,9 +97,17 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
   defp parse_page(params) do
     case Map.get(params, "page") do
-      nil -> 1
-      page when is_binary(page) -> String.to_integer(page)
-      page when is_integer(page) -> page
+      page when is_integer(page) and page > 0 ->
+        page
+
+      page when is_binary(page) ->
+        case Integer.parse(page) do
+          {num, ""} when num > 0 -> num
+          _ -> 1
+        end
+
+      _ ->
+        1
     end
   end
 end

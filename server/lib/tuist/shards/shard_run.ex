@@ -2,6 +2,10 @@ defmodule Tuist.Shards.ShardRun do
   @moduledoc false
   use Ecto.Schema
 
+  def query do
+    Ecto.Queryable.to_query({"shard_run_summaries", __MODULE__})
+  end
+
   @primary_key false
   schema "shard_runs" do
     field :shard_plan_id, Ch, type: "UUID"

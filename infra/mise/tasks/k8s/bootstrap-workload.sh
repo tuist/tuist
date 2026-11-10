@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, and app bits when needed). Idempotent."
-#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest)"
-#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview | pentest)"
+#USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-pentest)"
+#USAGE arg "<env>" help="Helm values overlay (staging | canary | production | pentest)"
 #USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
 
 # End-to-end workload-cluster bootstrap. Run AFTER:
@@ -36,8 +36,8 @@ set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
-  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-pentest" >&2
-  echo "  env:              staging | canary | production | preview | pentest" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-pentest" >&2
+  echo "  env:              staging | canary | production | pentest" >&2
   echo "  kubeconfig_item:  optional 1Password document title, defaults to 'kubeconfig: tuist-<env>'" >&2
   exit 64
 fi
@@ -52,8 +52,8 @@ MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
 
 case "$ENV" in
-  staging|canary|production|preview|pentest) ;;
-  *) echo "ERROR: env must be one of staging|canary|production|preview|pentest" >&2; exit 64 ;;
+  staging|canary|production|pentest) ;;
+  *) echo "ERROR: env must be one of staging|canary|production|pentest" >&2; exit 64 ;;
 esac
 
 # Map env -> 1Password vault name.
@@ -61,7 +61,6 @@ case "$ENV" in
   staging)    VAULT_NAME="tuist-k8s-staging"    ;  OP_TOKEN_ID="4yaimkh5gcxwopssmkod5er2fm" ;;
   canary)     VAULT_NAME="tuist-k8s-canary"     ;  OP_TOKEN_ID="6o5lcwgudi6qtt2754svzh7jka" ;;
   production) VAULT_NAME="tuist-k8s-production" ;  OP_TOKEN_ID="gunhzznxo73w2p3hy6t46nihym" ;;
-  preview)    VAULT_NAME="tuist-k8s-preview"    ;  OP_TOKEN_ID="skxlwhsvmnqqvrmiqzlxs7fqru" ;;
   # Pentest credentials must be created specifically for this environment;
   # do not reuse another environment's 1Password service account. The item
   # identifier is supplied by the operator after provisioning the vault.
@@ -204,7 +203,14 @@ log "Step 4/13: install hcloud-cloud-controller-manager"
 helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
 helm repo update hcloud >/dev/null
 
+flags=()
+if [[ "${HCCM_INTERNALIP_TARGETS_QUALIFIED:-}" == 1 ]]; then
+  flags+=(--acknowledged)
+fi
+KUBECONFIG="$WL_KUBECONFIG" bash "$BOOTSTRAP_DIR/../../../certificate-trust/guard.sh" hccm "${flags[@]}"
+
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
+  --version 1.39.1 \
   --namespace kube-system \
   -f "$BOOTSTRAP_DIR/hccm-values.yaml" \
   --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${REGION}" \
@@ -351,7 +357,12 @@ log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
 # cert-issued certs). Platform install in step 7 brought it
 # up, so we're good to install here.
 
-CAPI_CORE_VERSION="v1.10.4"
+# Keep in step with CAPI_VERSION in
+# .github/workflows/capi-in-cluster-upgrade.yml, which upgrades existing
+# clusters. The kubeadm bootstrap and control-plane providers are pinned to the
+# same version below: KCP needs the bootstrap provider at its own version, and
+# unpinned they would follow clusterctl's latest release.
+CAPI_CORE_VERSION="v1.13.8"
 CLUSTERCTL_BIN="$RUNNER_TEMP/clusterctl"
 
 if [ -z "${RUNNER_TEMP:-}" ]; then
@@ -377,7 +388,9 @@ fi
 # present at the same version. We swallow the exit and verify
 # the deployment is Available afterwards rather than parsing
 # the error text.
-KUBECONFIG="$WL_KUBECONFIG" "$CLUSTERCTL_BIN" init --core "cluster-api:${CAPI_CORE_VERSION}" 2>/dev/null || true
+KUBECONFIG="$WL_KUBECONFIG" "$CLUSTERCTL_BIN" init --core "cluster-api:${CAPI_CORE_VERSION}" \
+  --bootstrap "kubeadm:${CAPI_CORE_VERSION}" \
+  --control-plane "kubeadm:${CAPI_CORE_VERSION}" 2>/dev/null || true
 
 # 10 min budget: cert-manager has to issue the webhook serving
 # cert, the controller image pulls from registry.k8s.io. A cold
@@ -562,7 +575,6 @@ to point at $LB_IP.
   staging   -> staging.tuist.dev
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
-  preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
   pentest   -> pentest.tuist.dev
 
 Verify the certificate and ingress on the new cluster (domain cut not needed for this):

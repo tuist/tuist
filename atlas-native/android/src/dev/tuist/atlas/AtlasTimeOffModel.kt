@@ -44,6 +44,10 @@ class AtlasTimeOffModel(
         private set
     var busy = false
         private set
+
+    // A request, edit, or cancellation is in flight. Navigation links must not leave it.
+    var saving = false
+        private set
     var error: String? = null
         private set
     var draft: Draft? = null
@@ -157,9 +161,11 @@ class AtlasTimeOffModel(
     private fun mutate(action: JSONObject) {
         if (busy) return
         busy = true
+        saving = true
         error = null
         listener?.invoke()
         request(action) { result ->
+            saving = false
             result.fold({
                 draft = null
                 listener?.invoke()

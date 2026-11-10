@@ -1,0 +1,9 @@
+## Customize flags given to the VM: https://www.erlang.org/doc/man/erl.html
+## -mode/-name/-sname/-setcookie are configured via env vars, do not set them here
+
+## Do not cache freed memory segments. By default each allocator instance
+## keeps up to ten freed segments mapped for reuse, of any size. Large process
+## heaps (manifest owners, query workers) live in single-block segments of tens
+## of megabytes, so the cache kept hundreds of megabytes resident that no
+## allocator reported. See docs/scaling.md#memory-breakdown.
++MMmcs 0

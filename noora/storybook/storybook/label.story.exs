@@ -41,6 +41,15 @@ defmodule TuistWeb.Storybook.Label do
               required: true,
               sublabel: "(Must be a work email address)"
             }
+          },
+          %Variation{
+            id: :with_tooltip,
+            attributes: %{
+              id: "label-with-tooltip",
+              label: "API access token",
+              tooltip: "Lets merge request pipelines save cache volumes. Needs the read_api scope.",
+              tooltip_id: "label-with-tooltip-help"
+            }
           }
         ]
       },

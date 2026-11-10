@@ -10,6 +10,7 @@ defmodule TuistWeb.ProjectsLive do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.ResourceCard
   alias TuistWeb.Utilities.Query
 
   @pagination_threshold 6
@@ -171,7 +172,7 @@ defmodule TuistWeb.ProjectsLive do
               source="empty-state"
               selected_build_system={@selected_build_system}
             />
-            <.project_background />
+            <ResourceCard.background />
           </div>
           <div
             :for={project <- @all_projects}
@@ -179,7 +180,7 @@ defmodule TuistWeb.ProjectsLive do
             phx-click="navigate"
             phx-value-project={project.name}
           >
-            <.project_background />
+            <ResourceCard.background />
             <div data-part="title">
               <span>{project.name}</span>
               <.badge
@@ -228,7 +229,7 @@ defmodule TuistWeb.ProjectsLive do
               phx-click="navigate"
               phx-value-project={project.name}
             >
-              <.project_background />
+              <ResourceCard.background />
               <div data-part="title">
                 <span>{project.name}</span>
                 <.badge
@@ -295,7 +296,7 @@ defmodule TuistWeb.ProjectsLive do
                 source="empty-state"
                 selected_build_system={@selected_build_system}
               />
-              <.project_background />
+              <ResourceCard.background />
             </div>
             <div
               :for={project <- @all_projects}
@@ -303,7 +304,7 @@ defmodule TuistWeb.ProjectsLive do
               phx-click="navigate"
               phx-value-project={project.name}
             >
-              <.project_background />
+              <ResourceCard.background />
               <div data-part="title">
                 <span>{project.name}</span>
                 <.badge
@@ -518,65 +519,6 @@ defmodule TuistWeb.ProjectsLive do
   defp build_system_badge(:cargo), do: %{label: "Cargo", color: "information"}
   defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
   defp build_system_badge(_), do: nil
-
-  defp project_background(assigns) do
-    unique_id = UUIDv7.generate()
-
-    assigns =
-      assigns
-      |> assign(:mask_id, "mask0_#{unique_id}")
-      |> assign(:radial_gradient_id, "paint0_radial_#{unique_id}")
-
-    ~H"""
-    <svg viewBox="0 0 292 196" fill="none" xmlns="http://www.w3.org/2000/svg" data-part="background">
-      <mask
-        id={@mask_id}
-        style="mask-type:alpha"
-        maskUnits="userSpaceOnUse"
-        x="0"
-        y="-1"
-        width="292"
-        height="198"
-      >
-        <rect
-          x="0.5"
-          y="-0.5"
-          width="291"
-          height="197"
-          fill={"url(##{@radial_gradient_id})"}
-          fill-opacity="0.2"
-        />
-      </mask>
-      <g mask={"url(##{@mask_id})"}>
-        <path d="M11 149.75H281" />
-        <path d="M11 98H281" />
-        <path d="M11 46.25H281" />
-        <path d="M197.751 233V-37" />
-        <path d="M146 233V-37" />
-        <path d="M94.2501 233V-37" />
-        <path d="M281 233L11 -37" />
-        <path d="M11 233L281 -37" />
-        <rect x="29" y="-19" width="234" height="234" />
-        <circle cx="146" cy="98" r="51.75" />
-        <circle cx="146" cy="98" r="74.25" />
-        <circle cx="146" cy="98" r="117" />
-      </g>
-      <defs>
-        <radialGradient
-          id={@radial_gradient_id}
-          cx="0"
-          cy="0"
-          r="1"
-          gradientUnits="userSpaceOnUse"
-          gradientTransform="translate(146 98) rotate(90) scale(99 146)"
-        >
-          <stop stop-color="white" />
-          <stop offset="1" stop-color="white" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-    </svg>
-    """
-  end
 
   # Signed-out visitors on a public account see the account's public
   # projects only; private project names stay hidden.

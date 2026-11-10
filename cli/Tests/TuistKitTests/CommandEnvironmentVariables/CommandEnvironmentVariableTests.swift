@@ -483,6 +483,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testDevice, value: "iPhone")
         setVariable(.testPlatform, value: "iOS")
         setVariable(.testOS, value: "14.5")
+        setVariable(.testDestination, value: "simulator")
         setVariable(.testRosetta, value: "true")
         setVariable(.testConfiguration, value: "Debug")
         setVariable(.testSkipUITests, value: "true")
@@ -513,6 +514,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.device == "iPhone")
         #expect(testCommandWithEnvVars.platform == "iOS")
         #expect(testCommandWithEnvVars.os == "14.5")
+        #expect(testCommandWithEnvVars.destination == .simulator)
         #expect(testCommandWithEnvVars.rosetta == true)
         #expect(testCommandWithEnvVars.configuration == "Debug")
         #expect(testCommandWithEnvVars.skipUITests == true)
@@ -546,6 +548,7 @@ struct CommandEnvironmentVariableTests {
             "--device", "iPad",
             "--platform", "macOS",
             "--os", "15.0",
+            "--destination", "device",
             "--no-rosetta",
             "--configuration", "Release",
             "--no-skip-ui-tests",
@@ -573,6 +576,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.device == "iPad")
         #expect(testCommandWithArgs.platform == "macOS")
         #expect(testCommandWithArgs.os == "15.0")
+        #expect(testCommandWithArgs.destination == .device)
         #expect(testCommandWithArgs.rosetta == false)
         #expect(testCommandWithArgs.configuration == "Release")
         #expect(testCommandWithArgs.skipUITests == false)
@@ -595,6 +599,14 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.shardIndex == 3)
         #expect(testCommandWithArgs.shardSkipUpload == false)
         #expect(testCommandWithArgs.shardArchivePath == "/new/shards/bundle.aar")
+    }
+
+    @Test(.withMockedEnvironment()) func destinationOptionOfTestCommandDefaultsToAll() throws {
+        #expect(try TestRunCommand.parse([]).destination == .all)
+        #expect(try TestRunCommand.parse(["--destination", "simulator"]).destination == .simulator)
+        #expect(throws: (any Error).self) {
+            try TestRunCommand.parse(["--destination", "platform=iOS Simulator,name=iPhone 17"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
@@ -964,21 +976,17 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func hashCacheCommandUsesEnvVars() throws {
         setVariable(.hashCachePath, value: "/hash/path")
         setVariable(.hashCacheConfiguration, value: "Debug")
-        setVariable(.hashCacheCoverage, value: "true")
 
         let commandWithEnvVars = try HashCacheCommand.parse([])
         #expect(commandWithEnvVars.path == "/hash/path")
         #expect(commandWithEnvVars.configuration == "Debug")
-        #expect(commandWithEnvVars.coverage == true)
 
         let commandWithArgs = try HashCacheCommand.parse([
             "--path", "/other/path",
             "--configuration", "Release",
-            "--no-coverage",
         ])
         #expect(commandWithArgs.path == "/other/path")
         #expect(commandWithArgs.configuration == "Release")
-        #expect(commandWithArgs.coverage == false)
     }
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
@@ -991,10 +999,8 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheWarmScratchDirectory, value: "/cache/warm-scratch-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
-        setVariable(.cacheCoverage, value: "true")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
-        #expect(commandWithEnvVars.coverage == true)
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
@@ -1013,12 +1019,10 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
-            "--coverage",
             "--",
             "Fmk1", "Fmk2",
         ])
         #expect(commandWithArgs.externalOnly == true)
-        #expect(commandWithArgs.coverage == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.noUpload == true)

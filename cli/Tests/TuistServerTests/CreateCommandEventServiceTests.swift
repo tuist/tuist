@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import TuistCore
+import TuistTesting
 
 @testable import TuistServer
 

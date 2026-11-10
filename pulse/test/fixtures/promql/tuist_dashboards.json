@@ -1,0 +1,1896 @@
+{
+  "source_revision": "650d726f3831d80785b47eaaed311a648aa4408f",
+  "normalization": "Grafana duration macros use 5m/1m/1h; range_s uses 3600; custom range variables use 5m; dashboard label variables use api. This inventory covers checked-in panels, not deployed alerts or externally managed dashboards.",
+  "queries": [
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"api\", mode=\"idle\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(tuist_cache_xcode_download_disk_hits_total{instance=~\"api\"}[5m])) / sum(rate(tuist_cache_xcode_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"api\"}[5m])) / sum(rate(tuist_cache_xcode_module_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(cache_auth_cache_hit_total{instance=~\"api\"}[5m])) / (sum(rate(cache_auth_cache_hit_total{instance=~\"api\"}[5m])) + sum(rate(cache_auth_cache_miss_total{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(tuist_cache_s3_transfers_pending_total{instance=~\"api\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * (1 - (node_memory_MemAvailable_bytes{instance=~\"api\"} / node_memory_MemTotal_bytes{instance=~\"api\"}))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(node_filefd_allocated{instance=~\"api\"}) / sum(node_filefd_maximum{instance=~\"api\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "(sum(rate(cache_s3_head_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_upload_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_download_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_delete_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, method) (rate(cache_auth_authorized_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(cache_auth_cache_hit_total{instance=~\"api\"}[5m])) / (sum(rate(cache_auth_cache_hit_total{instance=~\"api\"}[5m])) + sum(rate(cache_auth_cache_miss_total{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(rate(cache_auth_server_error_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_auth_server_request_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, reason) (rate(cache_auth_server_error_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(cache_auth_server_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(cache_auth_server_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(cache_auth_server_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(cache_auth_server_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (method, path, instance) (rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (method, path, instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (method, path, instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (method, path, instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (method, path, instance, le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"api\"}[5m]))) "
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (status) (rate(cache_nginx_http_responses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (path_group, status) (rate(cache_nginx_http_responses_total{instance=~\"api\",status_class=\"5\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (path_group, status) (rate(cache_nginx_http_responses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_disk_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_disk_misses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_errors_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_s3_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_s3_misses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(tuist_cache_xcode_download_disk_hits_total{instance=~\"api\"}[5m])) / sum(rate(tuist_cache_xcode_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_cache_xcode_download_errors_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_s3_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_misses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_misses_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"api\"}[5m])) / sum(rate(tuist_cache_xcode_module_download_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_cache_xcode_module_download_errors_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_attempts_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_success_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_exists_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_errors_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_cancelled_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_upload_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_upload_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_upload_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_upload_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_upload_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_starts_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_parts_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_completions_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_parts_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_completed_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "tuist_cache_s3_transfers_pending_uploads{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "tuist_cache_s3_transfers_pending_downloads{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum(tuist_cache_s3_transfers_pending_total{instance=~\"api\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_download_s3_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_hits_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, result) (rate(cache_s3_head_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, result) (rate(cache_s3_upload_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, result) (rate(cache_s3_download_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_upload_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_upload_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_download_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_download_duration_milliseconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "(sum(rate(cache_s3_head_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_upload_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_download_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0)) + (sum(rate(cache_s3_delete_requests_total{instance=~\"api\", result=\"error\"}[5m])) or vector(0))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance, result) (rate(cache_s3_delete_requests_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum by (instance, url) (cache_prom_ex_finch_pool_in_use_connections{instance=~\"api\"}) / sum by (instance, url) (cache_prom_ex_finch_pool_size{instance=~\"api\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_get_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_get_hit_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_get_miss_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_put_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_put_success_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_put_errors_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * sum(rate(cache_kv_get_hit_total{instance=~\"api\"}[5m])) / sum(rate(cache_kv_get_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_get_bytes{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_put_entries{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_kv_db_file_size_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_kv_wal_file_size_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_kv_sqlite_in_use_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_kv_sqlite_reclaimable_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(cache_kv_eviction_entries_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_memory_allocated_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_memory_processes_total_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_memory_code_total_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_memory_ets_total_bytes{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_stats_process_count{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_stats_active_task_count{instance=~\"api\", type=\"normal\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "cache_prom_ex_beam_stats_active_task_count{instance=~\"api\", type=\"dirty\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"api\", mode=\"idle\"}[5m])))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * (1 - (node_memory_MemAvailable_bytes{instance=~\"api\"} / node_memory_MemTotal_bytes{instance=~\"api\"}))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(node_network_receive_bytes_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "1 - (node_filesystem_avail_bytes{instance=~\"api\", mountpoint=\"/\"} / node_filesystem_size_bytes{instance=~\"api\", mountpoint=\"/\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "1 - (node_filesystem_avail_bytes{instance=~\"api\", mountpoint=\"/cas\"} / node_filesystem_size_bytes{instance=~\"api\", mountpoint=\"/cas\"})"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(node_disk_written_bytes_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "sum by (instance) (rate(node_disk_read_bytes_total{instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_filefd_allocated{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_filefd_maximum{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "100 * node_filefd_allocated{instance=~\"api\"} / node_filefd_maximum{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_sockstat_TCP_alloc{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_sockstat_TCP_inuse{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_sockstat_TCP_tw{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "node_sockstat_sockets_used{instance=~\"api\"}"
+    },
+    {
+      "source": "cache-service.json",
+      "language": "promql",
+      "expression": "namedprocess_namegroup_open_filedesc{instance=~\"api\"}"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (queue) (tuist_oban_queue_length_count{job=\"api\", env=\"api\", name=\"api\", state=\"available\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "round(sum(increase(tuist_oban_job_processing_duration_milliseconds_count{env=\"api\", job=\"api\", name=\"api\"}[5m])))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "round(sum(increase(tuist_oban_job_exception_duration_milliseconds_count{env=\"api\", job=\"api\", name=\"api\"}[5m])))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "round(sum(increase(tuist_oban_producer_dispatched_count_count{env=\"api\", job=\"api\", name=\"api\"}[5m])))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_job_processing_duration_milliseconds_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_job_queue_time_milliseconds_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_processing_duration_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_processing_duration_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_queue_time_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_queue_time_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_complete_attempts_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_complete_attempts_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_job_exception_duration_milliseconds_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_job_exception_queue_time_milliseconds_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_exception_duration_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_exception_duration_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_exception_queue_time_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_exception_queue_time_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_job_exception_attempts_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_job_exception_attempts_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (queue) (tuist_oban_queue_length_count{job=\"api\", env=\"api\", name=\"api\", state=\"available\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (queue) (tuist_oban_queue_length_count{job=\"api\", env=\"api\", name=\"api\", state=\"completed\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (queue) (tuist_oban_queue_length_count{job=\"api\", env=\"api\", name=\"api\", state=\"executing\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (queue) (tuist_oban_queue_length_count{job=\"api\", env=\"api\", name=\"api\", state=\"retryable\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_producer_duration_milliseconds_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(irate(tuist_oban_producer_dispatched_count_bucket{job=\"api\", env=\"api\", name=\"api\"}[5m])) by (le)"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_producer_duration_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_producer_duration_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_producer_dispatched_count_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_producer_dispatched_count_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "irate(tuist_oban_producer_exception_duration_milliseconds_sum{job=\"api\", env=\"api\", name=\"api\"}[5m]) / irate(tuist_oban_producer_exception_duration_milliseconds_count{job=\"api\", env=\"api\", name=\"api\"}[5m])"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(increase(tuist_oban_circuit_trip_total{job=\"api\", env=\"api\", name=\"api\"}[1h]))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(tuist_oban_circuit_trip_total{job=\"api\", env=\"api\", name=\"api\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(increase(tuist_oban_circuit_open_total{job=\"api\", env=\"api\", name=\"api\"}[1h]))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum(tuist_oban_circuit_open_total{job=\"api\", env=\"api\", name=\"api\"})"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (circuit_breaker) (increase(tuist_oban_circuit_trip_total{job=\"api\", env=\"api\", name=\"api\"}[5m]))"
+    },
+    {
+      "source": "oban.json",
+      "language": "promql",
+      "expression": "sum by (circuit_breaker) (increase(tuist_oban_circuit_open_total{job=\"api\", env=\"api\", name=\"api\"}[5m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 200 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 200 | ms <= 800 [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.50, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.95, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" |~ \"Sent [0-9]+ in\" [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.50, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.95, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "page-load-apdex.json",
+      "language": "logql",
+      "expression": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [1m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "min(cnpg_collector_up{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "min(up{job=\"tuist-cnpg-operator\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "min(up{job=\"tuist-cnpg-pooler\", namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_backends_total{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pg_database_size_bytes{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (state) (cnpg_backends_total{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "100 * max(sum by (namespace, cnpg_cluster, pod) (cnpg_backends_total{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}) / on (namespace, cnpg_cluster, pod) clamp_min(max by (namespace, cnpg_cluster, pod) (cnpg_pg_settings_setting{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", name=\"max_connections\"}), 1))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "topk(10, max by (usename, application_name) (cnpg_backends_max_tx_duration_seconds{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_tup_inserted{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_tup_updated{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_tup_deleted{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (op) (rate(cnpg_tuist_query_stats_total_exec_time_ms{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m])) / sum by (op) (rate(cnpg_tuist_query_stats_calls{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (op) (rate(cnpg_tuist_query_stats_calls{instance_role=\"primary\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (pod) (cnpg_backends_waiting_total{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "100 * sum by (datname) (rate(cnpg_pg_stat_database_blks_hit{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m])) / clamp_min(sum by (datname) (rate(cnpg_pg_stat_database_blks_hit{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]) + rate(cnpg_pg_stat_database_blks_read{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m])), 1)"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (cnpg_pg_database_size_bytes{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "100 * max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace=~\"api\", persistentvolumeclaim=~\"api-[0-9]+\"}) / max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace=~\"api\", persistentvolumeclaim=~\"api-[0-9]+\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (datname) (rate(cnpg_pg_stat_database_temp_bytes{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", datname=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(cnpg_collector_wal_bytes{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (value) (cnpg_collector_pg_wal{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\", value=~\"count|min|keep|max\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (value) (cnpg_collector_pg_wal_archive_status{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"api\", container!=\"\", image!=\"\"}[5m]) * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"api\", container!=\"\", image!=\"\"} * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"api\"}[1h]) * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max by (pod) (cnpg_pg_replication_lag{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max by (pod) (cnpg_pg_replication_streaming_replicas{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max by (value) (cnpg_collector_sync_replicas{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_collector_nodes_used{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_collector_manual_switchover_required{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_collector_fencing_on{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_collector_last_collection_error{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max by (slot_name, database) (cnpg_pg_replication_slots_pg_wal_lsn_diff{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "1000 * max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "1000 * max(barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "1000 * max(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(rate(cnpg_pg_stat_archiver_archived_count{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(rate(cnpg_pg_stat_archiver_failed_count{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_pg_stat_archiver_seconds_since_last_archival{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max(cnpg_pg_stat_archiver_seconds_since_last_failure{namespace=~\"api\", cnpg_cluster=~\"api\", pod=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_cl_active{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_cl_waiting{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_lists_used_clients{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_lists_free_clients{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_sv_active{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_sv_idle{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_sv_used{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum(cnpg_pgbouncer_pools_sv_login{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "max by (pod, database, user) (cnpg_pgbouncer_pools_maxwait{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_query_count{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_xact_count{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_query_time{namespace=~\"api\", cnpg_pooler=~\"api\"}) / 1000"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_xact_time{namespace=~\"api\", cnpg_pooler=~\"api\"}) / 1000"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_wait_time{namespace=~\"api\", cnpg_pooler=~\"api\"}) / 1000"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_recv{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "postgresql-cnpg.json",
+      "language": "promql",
+      "expression": "sum by (database) (cnpg_pgbouncer_stats_avg_sent{namespace=~\"api\", cnpg_pooler=~\"api\"})"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "sum(rate(processor_prom_ex_phoenix_http_requests_total{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_prom_ex_phoenix_http_request_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"api\", instance=~\"api\", status=\"ok\"}[5m]))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"api\", instance=~\"api\", status!=\"ok\"}[5m])) or vector(0)"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "sum by (status) (increase(processor_build_total{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m]))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "processor-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"api\", instance=~\"api\"}[5m])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum(kube_deployment_status_replicas_ready{env=~\"api\", deployment=\"tuist-tuist-registry\"})"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "100 * (sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\", status_class=\"5xx\"}[5m])) or vector(0)) / clamp_min(sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\"}[5m])), 0.001)"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{env=~\"api\", pod=~\"api\"}[5m])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum(increase(tuist_registry_swift_download_total{env=~\"api\", pod=~\"api\"}[1h]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum(increase(tuist_registry_swift_manifest_total{env=~\"api\", pod=~\"api\"}[1h]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum by (env) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum by (env, status_class) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\", status_class=~\"4xx|5xx\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum by (method, path) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{env=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{env=~\"api\", pod=~\"api\"}[5m])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "topk(20, sum by (scope, name) (increase(tuist_registry_swift_download_total{env=~\"api\", pod=~\"api\"}[1h])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "topk(20, sum by (scope, name) (increase(tuist_registry_swift_manifest_total{env=~\"api\", pod=~\"api\"}[1h])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum by (env, result) (rate(tuist_registry_s3_head_requests_total{env=~\"api\", pod=~\"api\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (env, result, le) (rate(tuist_registry_s3_head_duration_milliseconds_bucket{env=~\"api\", pod=~\"api\"}[5m])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "100 * sum by (env, url) (tuist_registry_prom_ex_finch_pool_in_use_connections{env=~\"api\", pod=~\"api\"}) / clamp_min(sum by (env, url) (tuist_registry_prom_ex_finch_pool_size{env=~\"api\", pod=~\"api\"}), 1)"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_response_size_bytes_bucket{env=~\"api\", pod=~\"api\"}[5m])))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "tuist_registry_prom_ex_beam_memory_allocated_bytes{env=~\"api\", pod=~\"api\"}"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "tuist_registry_prom_ex_beam_memory_processes_total_bytes{env=~\"api\", pod=~\"api\"}"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum by (env, pod) (rate(container_cpu_usage_seconds_total{env=~\"api\", pod=~\"api\", container=\"registry\"}[5m]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "tuist_registry_prom_ex_beam_stats_process_count{env=~\"api\", pod=~\"api\"}"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "sum(increase(kube_pod_container_status_restarts_total{env=~\"api\", pod=~\"api\", container=\"registry\"}[1h]))"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "tuist_registry_prom_ex_beam_stats_active_task_count{env=~\"api\", pod=~\"api\", type=\"normal\"}"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "tuist_registry_prom_ex_beam_stats_active_task_count{env=~\"api\", pod=~\"api\", type=\"dirty\"}"
+    },
+    {
+      "source": "registry-service.json",
+      "language": "promql",
+      "expression": "{env=~\"api\", pod=~\"api\", container=\"registry\"}"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\", env=\"api\"}))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\", env=\"api\"}))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(max by (fleet) (tuist_runners_pool_replicas_desired{env=\"api\"}))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "count(up{job=\"tuist-macos-tart-kubelet\", env=\"api\"} == 1)"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_runners_webhook_count{action=\"queued\", outcome=\"queued\"}[5m]))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_runners_webhook_count{action=\"completed\", outcome=\"completed\"}[5m]))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*api.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.90, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-linux.*\", pool=~\".*api.*\", phase=~\"Pending|Running\", env=\"api\"})"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-macos.*\", pool=~\".*api.*\", phase=\"Running\", env=\"api\"})"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-macos.*\", pool=~\".*api.*\", phase=\"Pending\", env=\"api\"})"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*api.*\", lifecycle_state=\"running\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(label_replace(count(up{job=\"tuist-macos-tart-kubelet\", env=\"api\"} == 1), \"platform\", \"macos\", \"__name__\", \".*\") or max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*linux.*\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*api.*\", lifecycle_state=\"running\", env=\"api\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (outcome) (rate(tuist_runners_dispatch_request_count[5m]))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\", env=\"api\"}) or vector(0)"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_warm_deficit_replicas{pool=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_target_replicas{pool=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "runners.json",
+      "language": "promql",
+      "expression": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_allocated_replicas{pool=~\".*api.*\", env=\"api\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "up{job=\"kura\", cluster=~\"api\", instance=~\"api\", pod=~\"kura-(api)-.*\"}"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) ((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (outcome, pod) ((rate(kura_replication_apply_results_total_total{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))) or on() vector(0)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))) or on() vector(0)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"api\", instance=~\"api\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))) or on() vector(0)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{cluster=~\"api\", instance=~\"api\", route=~\"/_internal/.*\"}[5m])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"}))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kura_rocksdb_block_cache_usage_bytes{cluster=~\"api\", instance=~\"api\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"api\", instance=~\"api\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kura_rocksdb_block_cache_capacity_bytes{cluster=~\"api\", instance=~\"api\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kura_rocksdb_write_buffer_usage_bytes{cluster=~\"api\", instance=~\"api\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"api\", instance=~\"api\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sort_desc(max by (pod) ((kura_rocksdb_block_cache_usage_bytes{cluster=~\"api\", instance=~\"api\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"api\", instance=~\"api\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sort_desc(max by (pod) ((kura_rocksdb_write_buffer_usage_bytes{cluster=~\"api\", instance=~\"api\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"api\", instance=~\"api\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"api\", tenant_id=~\"api\", instance=~\"api\", region=~\"api\"})))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\"}[5m]))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (container_memory_working_set_bytes{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\"}) / sum by (pod) (kube_pod_container_resource_limits{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\", resource=\"memory\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(container_fs_reads_bytes_total{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\"}[5m]) + rate(container_fs_writes_bytes_total{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\"}[5m]))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"kura\", pod=~\"kura-(api)-.*\", cluster=~\"api\"}[5m]))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"kura\", pod=~\"kura-(api)-.*\", cluster=~\"api\"}[5m]))"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"kura\", container=\"kura\", cluster=~\"api\", pod=~\"kura-(api)-.*\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "logql",
+      "expression": "{cluster=~\"api\", namespace=\"kura\", container=\"kura\", pod=~\"api\"} |~ \"\\\"kura\\\\.tenant_id\\\":\\\"(api)\\\"\" | json"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (region) (\n  sum by (pod) (rate(kura_http_requests_total_total{cluster=~\"api\", tenant_id=~\"api\"}[5m]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info)\n) or sum by (region) (max by (pod, region) (kura_node_geo_info) * 0)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "max by (region) (kura_node_geo_info)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "(sum by (instance) (rate(node_network_receive_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[5m])) + sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[5m]))) * 8"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (device) (rate(node_network_receive_bytes_total{instance=~\".*kura-fleet.*\", device=~\"e(n|th).*\"}[5m]) + rate(node_network_transmit_bytes_total{instance=~\".*kura-fleet.*\", device=~\"e(n|th).*\"}[5m])) * 8"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kubelet_volume_stats_used_bytes{namespace=\"kura\", cluster=~\"api\", persistentvolumeclaim=~\"data-kura-(api)-(api)-.*\"} / kubelet_volume_stats_capacity_bytes{namespace=\"kura\", cluster=~\"api\", persistentvolumeclaim=~\"data-kura-(api)-(api)-.*\"}"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "kubelet_volume_stats_used_bytes{namespace=\"kura\", cluster=~\"api\", persistentvolumeclaim=~\"data-kura-(api)-(api)-.*\"}"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "(\n  sum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\", cluster=~\"api\"}[5m]))\n  / on(instance)\n  count by (instance) (node_cpu_seconds_total{mode=\"idle\", cluster=~\"api\"})\n  * 100\n)\n* on(instance) group_left()\nlabel_replace(\n  group by (node) (kube_pod_info{namespace=\"kura\", pod=~\"kura-(api)-(api)-.*\", cluster=~\"api\"}),\n  \"instance\", \"$1\", \"node\", \"(.*)\"\n)"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "label_replace(rate(node_network_transmit_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[5m]) * 8 / 1e6, \"node\", \"$1\", \"instance\", \"(.+)\")\n/ on(node) group_left()\nmax by (node) (kube_node_status_capacity{resource=~\"tuist.*egress.*mbps\"})"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "rate(node_network_transmit_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[5m]) * 8"
+    },
+    {
+      "source": "tuist-kura.json",
+      "language": "promql",
+      "expression": "sum by (node) (kube_pod_container_resource_requests{resource=~\"tuist.*egress.*mbps\"})\n/ on(node) group_left()\nmax by (node) (kube_node_status_capacity{resource=~\"tuist.*egress.*mbps\"})"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "count(up{job=~\"api\"} == 1)"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "max(sum by (instance) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "sum(rate(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=\"success\"}[5m])) * 60"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "sum(increase(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=\"discarded\"}[30m]))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "max by (state) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|executing|retryable\"})"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "sum by (error) (rate(tuist_oban_job_exception_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m]))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "sum by (state) (rate(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=~\"discarded|cancelled\"}[5m]))"
+    },
+    {
+      "source": "xcresult-processor.json",
+      "language": "promql",
+      "expression": "max by (instance, vm) (tart_kubelet_guest_disk_usage_percent)"
+    }
+  ]
+}

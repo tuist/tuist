@@ -6,8 +6,10 @@ defmodule Tuist.SCIMTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Authorization
   alias Tuist.SCIM
   alias Tuist.SCIM.Workers.AttachmentNotifierWorker
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :verify_on_exit!
 
@@ -94,13 +96,15 @@ defmodule Tuist.SCIMTest do
 
   describe "users" do
     setup do
-      organization = organization_fixture()
+      organization =
+        organization_fixture(sso_login_domain: "scim-example.com", sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z])
+
       %{organization: organization}
     end
 
     test "provision_user/2 creates a new user and adds them to the org as user", %{organization: org} do
-      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
-      assert user.email == "alice@example.com"
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@scim-example.com"})
+      assert user.email == "alice@scim-example.com"
       assert user.active == true
       assert user.provisioned_by_organization_id == org.id
       assert Accounts.belongs_to_organization?(user, org)
@@ -108,18 +112,115 @@ defmodule Tuist.SCIMTest do
     end
 
     test "provision_user/2 promotes role on an existing user", %{organization: org} do
-      existing = user_fixture(email: "bob@example.com")
+      existing = user_fixture(email: "bob@scim-example.com")
       :ok = Accounts.add_user_to_organization(existing, org, role: :user)
 
-      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "bob@example.com", role: :admin})
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "bob@scim-example.com", role: :admin})
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
     end
 
+    for role <- [:user, :admin, :viewer] do
+      @role role
+
+      test "provision_user/2 without a role preserves an existing #{@role} and its publication permissions", %{
+        organization: org
+      } do
+        default_role = if @role == :viewer, do: "user", else: "viewer"
+        {:ok, org} = Accounts.update_organization(org, %{sso_default_role: default_role})
+        existing = user_fixture()
+        :ok = Accounts.add_user_to_organization(existing, org, role: @role)
+        project = ProjectsFixtures.project_fixture(account: org.account)
+
+        for _ <- 1..2 do
+          assert {:ok, user} = SCIM.provision_user(org, %{user_name: existing.email})
+          assert user.id == existing.id
+          assert %{name: role} = Accounts.get_user_role_in_organization(user, org)
+          assert role == Atom.to_string(@role)
+
+          expected = if @role == :viewer, do: {:error, :forbidden}, else: :ok
+          assert Authorization.authorize(:run_create, user, project) == expected
+          assert Authorization.authorize(:build_create, user, project) == expected
+        end
+
+        refute_enqueued(worker: AttachmentNotifierWorker)
+      end
+    end
+
+    test "provision_user/2 preserves an existing role when the supplied role is nil or unrecognized", %{
+      organization: org
+    } do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      existing = user_fixture()
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      for role <- [nil, "Owner", :owner] do
+        assert {:ok, _} = SCIM.provision_user(org, %{user_name: existing.email, role: role})
+        assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
+      end
+    end
+
+    test "provision_user/2 honors an explicit downgrade of an existing admin", %{organization: org} do
+      existing = user_fixture()
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: existing.email, role: :viewer})
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(existing, org)
+    end
+
+    test "provision_user/2 honors a recognized string role for an existing member", %{organization: org} do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      existing = user_fixture()
+      :ok = Accounts.add_user_to_organization(existing, org, role: :viewer)
+
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: existing.email, role: "Users"})
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(existing, org)
+    end
+
+    test "provision_user/2 uses the enrollment default for new users with nil or unrecognized roles", %{
+      organization: org
+    } do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+
+      for role <- [nil, "Owner", :owner] do
+        email = "new-#{System.unique_integer([:positive])}@scim-example.com"
+        assert {:ok, user} = SCIM.provision_user(org, %{user_name: email, role: role})
+        assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+      end
+    end
+
+    test "provision_user/2 uses the enrollment default when attaching an existing non-member", %{
+      organization: org
+    } do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      existing = user_fixture(email: "non-member-#{System.unique_integer([:positive])}@scim-example.com")
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: existing.email})
+      assert user.id == existing.id
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+
+      assert_enqueued(
+        worker: AttachmentNotifierWorker,
+        args: %{"user_id" => existing.id, "organization_id" => org.id}
+      )
+    end
+
+    test "provision_user/2 uses the enrollment default after deprovisioning instead of restoring old privileges", %{
+      organization: org
+    } do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      {:ok, existing} = SCIM.provision_user(org, %{user_name: "returning@scim-example.com", role: :admin})
+      assert {:ok, _} = SCIM.deactivate_user(org, existing.id)
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: existing.email, active: true})
+      assert user.id == existing.id
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
     test "provision_user/2 attaches an existing Tuist user to the organization", %{organization: org} do
-      existing = user_fixture(email: "outsider@example.com")
+      existing = user_fixture(email: "outsider@scim-example.com")
       refute Accounts.belongs_to_organization?(existing, org)
 
-      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "outsider@example.com", role: :admin})
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "outsider@scim-example.com", role: :admin})
       assert user.id == existing.id
       assert is_nil(user.provisioned_by_organization_id)
       assert Accounts.belongs_to_organization?(user, org)
@@ -131,10 +232,21 @@ defmodule Tuist.SCIMTest do
       )
     end
 
+    test "provision_user/2 refuses to attach a user another organization provisioned", %{organization: org} do
+      other = organization_fixture()
+
+      {:ok, outsider} =
+        SCIM.provision_user(other, %{user_name: "outsider-#{System.unique_integer([:positive])}@corp.test"})
+
+      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: outsider.email})
+      refute Accounts.belongs_to_organization?(outsider, org)
+      refute_enqueued(worker: AttachmentNotifierWorker)
+    end
+
     test "provision_user/2 attaches a user when creation reports the email was taken after lookup", %{
       organization: org
     } do
-      email = "race@example.com"
+      email = "race@scim-example.com"
       existing = user_fixture(email: email)
       lookup_counter = start_supervised!({Agent, fn -> 0 end})
 
@@ -156,22 +268,22 @@ defmodule Tuist.SCIMTest do
     end
 
     test "provision_user/2 does not enqueue a notification when a brand-new user is created", %{organization: org} do
-      assert {:ok, _user} = SCIM.provision_user(org, %{user_name: "fresh@example.com"})
+      assert {:ok, _user} = SCIM.provision_user(org, %{user_name: "fresh@scim-example.com"})
 
       refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
     test "provision_user/2 does not re-notify an existing org member on idempotent calls", %{organization: org} do
-      existing = user_fixture(email: "member@example.com")
+      existing = user_fixture(email: "member@scim-example.com")
       :ok = Accounts.add_user_to_organization(existing, org, role: :user)
 
-      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "member@example.com", role: :admin})
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "member@scim-example.com", role: :admin})
 
       refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
     test "provision_user/2 with active: false does not add a brand-new user to the organization", %{organization: org} do
-      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "carol@example.com", active: false})
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "carol@scim-example.com", active: false})
       assert user.active == false
       assert Accounts.get_user_by_id(user.id).active == true
       refute Accounts.belongs_to_organization?(user, org)
@@ -180,36 +292,36 @@ defmodule Tuist.SCIMTest do
     test "provision_user/2 with active: false rejects an existing user who isn't a member of the org", %{
       organization: org
     } do
-      _existing = user_fixture(email: "stranger@example.com")
+      _existing = user_fixture(email: "stranger@scim-example.com")
 
       # 201 + Location for a user we never attach would point at a SCIM
       # resource that immediately 404s on GET. Reject with 409 so the IdP
       # uses PATCH (the verb actually meant for deactivation) instead.
       assert {:error, :email_taken} =
-               SCIM.provision_user(org, %{user_name: "stranger@example.com", active: false})
+               SCIM.provision_user(org, %{user_name: "stranger@scim-example.com", active: false})
     end
 
     test "provision_user/2 with active: false deactivates an existing member", %{organization: org} do
-      existing = user_fixture(email: "leaving@example.com")
+      existing = user_fixture(email: "leaving@scim-example.com")
       :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
 
-      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "leaving@example.com", active: false})
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "leaving@scim-example.com", active: false})
       assert user.active == false
       refute Accounts.belongs_to_organization?(existing, org)
     end
 
     test "list_users/2 paginates with a userName filter", %{organization: org} do
-      {:ok, _} = SCIM.provision_user(org, %{user_name: "x@example.com"})
-      {:ok, _} = SCIM.provision_user(org, %{user_name: "y@example.com"})
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "x@scim-example.com"})
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "y@scim-example.com"})
 
       assert {:ok, page} = SCIM.list_users(org)
       assert page.total >= 2
       assert length(page.users) == page.total
-      assert "x@example.com" in Enum.map(page.users, & &1.email)
-      assert "y@example.com" in Enum.map(page.users, & &1.email)
+      assert "x@scim-example.com" in Enum.map(page.users, & &1.email)
+      assert "y@scim-example.com" in Enum.map(page.users, & &1.email)
 
-      assert {:ok, %{total: 1, users: [%{email: "x@example.com"}]}} =
-               SCIM.list_users(org, filter: %{attribute: "userName", op: :eq, value: "x@example.com"})
+      assert {:ok, %{total: 1, users: [%{email: "x@scim-example.com"}]}} =
+               SCIM.list_users(org, filter: %{attribute: "userName", op: :eq, value: "x@scim-example.com"})
     end
 
     test "list_users/2 rejects unsupported filter attributes", %{organization: org} do
@@ -218,7 +330,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 deactivates and removes role via replace active=false", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "d@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "d@scim-example.com"})
 
       ops = [%{"op" => "replace", "path" => "active", "value" => false}]
 
@@ -229,7 +341,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 deactivates and removes role via value-only replace (Azure-style)", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "e@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "e@scim-example.com"})
 
       ops = [%{"op" => "Replace", "value" => %{"active" => false}}]
 
@@ -240,7 +352,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 deactivates when Entra ID sends active as a string", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-leaver@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-leaver@scim-example.com"})
 
       ops = [%{"op" => "Replace", "path" => "active", "value" => "False"}]
 
@@ -250,7 +362,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 applies an app role Entra ID sends as a JSON-encoded assignment", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-admin@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-admin@scim-example.com"})
 
       ops = [
         %{
@@ -269,7 +381,7 @@ defmodule Tuist.SCIMTest do
     test "patch_user/3 applies the most privileged role when the identity provider sends several", %{
       organization: org
     } do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-role@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-role@scim-example.com"})
 
       ops = [
         %{
@@ -284,7 +396,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 applies the most privileged of several JSON-encoded app role assignments", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-assignment@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-assignment@scim-example.com"})
 
       ops = [
         %{
@@ -302,7 +414,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 ignores unrecognized roles when picking the most privileged one", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-unknown-role@example.com", role: :viewer})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-unknown-role@scim-example.com", role: :viewer})
 
       ops = [
         %{
@@ -317,7 +429,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 keeps the current role when no sent role is recognized", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-no-known-role@example.com", role: :admin})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-no-known-role@scim-example.com", role: :admin})
 
       ops = [
         %{
@@ -332,16 +444,16 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_user/3 returns a changeset when an email update conflicts", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@example.com"})
-      _taken = user_fixture(email: "taken-rename@example.com")
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@scim-example.com"})
+      _taken = user_fixture(email: "taken-rename@scim-example.com")
 
-      ops = [%{"op" => "replace", "path" => "userName", "value" => "taken-rename@example.com"}]
+      ops = [%{"op" => "replace", "path" => "userName", "value" => "taken-rename@scim-example.com"}]
 
       assert {:error, %Ecto.Changeset{}} = SCIM.patch_user(org, user.id, ops)
     end
 
     test "deactivate_user/2 returns inactive and removes role without flipping the global user flag", %{organization: org} do
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "f@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "f@scim-example.com"})
 
       assert {:ok, deactivated} = SCIM.deactivate_user(org, user.id)
       assert deactivated.active == false
@@ -357,7 +469,7 @@ defmodule Tuist.SCIMTest do
           sso_organization_id: "sso-deactivate-#{System.unique_integer([:positive])}.com"
         )
 
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-deactivate@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-deactivate@sso-corp.test"})
 
       {:ok, _oauth_identity} =
         Accounts.link_oauth_identity_to_user(user, %{
@@ -388,8 +500,8 @@ defmodule Tuist.SCIMTest do
   describe "groups" do
     setup do
       organization = organization_fixture()
-      {:ok, admin} = SCIM.provision_user(organization, %{user_name: "g-admin@example.com", role: :admin})
-      {:ok, regular} = SCIM.provision_user(organization, %{user_name: "g-user@example.com", role: :user})
+      {:ok, admin} = SCIM.provision_user(organization, %{user_name: "g-admin@scim-example.com", role: :admin})
+      {:ok, regular} = SCIM.provision_user(organization, %{user_name: "g-user@scim-example.com", role: :user})
       %{organization: organization, admin: admin, regular: regular}
     end
 
@@ -400,7 +512,7 @@ defmodule Tuist.SCIMTest do
       {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
 
       # When
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "g-default@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "g-default@scim-example.com"})
 
       # Then
       assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
@@ -413,7 +525,7 @@ defmodule Tuist.SCIMTest do
       {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
 
       # When — a named role is an instruction, not a default.
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "g-named@example.com", role: :admin})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "g-named@scim-example.com", role: :admin})
 
       # Then
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
@@ -421,7 +533,7 @@ defmodule Tuist.SCIMTest do
 
     test "provision_user/2 accepts the viewer role", %{organization: org} do
       # When
-      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@example.com", role: :viewer})
+      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@scim-example.com", role: :viewer})
 
       # Then
       assert %{name: "viewer"} = Accounts.get_user_role_in_organization(viewer, org)
@@ -510,7 +622,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_group/3 replace op demotes only the members left out", %{organization: org, admin: admin} do
-      {:ok, kept} = SCIM.provision_user(org, %{user_name: "g-kept@example.com", role: :admin})
+      {:ok, kept} = SCIM.provision_user(org, %{user_name: "g-kept@scim-example.com", role: :admin})
       ops = [%{"op" => "replace", "path" => "members", "value" => [%{"value" => to_string(kept.id)}]}]
 
       {:ok, _} = SCIM.patch_group(org, "admins", ops)
@@ -529,7 +641,7 @@ defmodule Tuist.SCIMTest do
     end
 
     test "patch_group/3 ignores an Okta group rename on the viewers group", %{organization: org} do
-      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@example.com", role: :viewer})
+      {:ok, viewer} = SCIM.provision_user(org, %{user_name: "g-viewer@scim-example.com", role: :viewer})
       ops = [%{"op" => "replace", "value" => %{"id" => "viewers", "displayName" => "Contractors"}}]
 
       {:ok, _} = SCIM.patch_group(org, "viewers", ops)
@@ -541,7 +653,7 @@ defmodule Tuist.SCIMTest do
       organization: org,
       admin: admin
     } do
-      {:ok, demoted} = SCIM.provision_user(org, %{user_name: "g-demoted@example.com", role: :admin})
+      {:ok, demoted} = SCIM.provision_user(org, %{user_name: "g-demoted@scim-example.com", role: :admin})
 
       ops = [
         %{

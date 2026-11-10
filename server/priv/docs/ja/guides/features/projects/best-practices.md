@@ -1,70 +1,68 @@
 ---
 {
-  "title": "Best practices",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the best practices for working with Tuist and Xcode projects."
+  "title": "ベストプラクティス",
+  "titleTemplate": ":title · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "Tuist で生成されたプロジェクトを扱う際のベストプラクティスを学びます。"
 }
 ---
-# ベストプラクティス{#best-practices}。
+# ベストプラクティス {#best-practices}
 
-長年、さまざまなチームやプロジェクトと作業する中で、私たちはTuistやXcodeプロジェクトで作業する際に従うことを推奨する一連のベストプラクティスを特定しました。これらのプラクティスは強制的なものではありませんが、維持と拡張を容易にする方法でプロジェクトを構造化するのに役立ちます。
+さまざまなチームやプロジェクトでの長年の経験から、Tuist と Xcode プロジェクトを扱う際に推奨するベストプラクティスを特定しました。これらのプラクティスは必須ではありませんが、プロジェクトの保守性と拡張性を高める構造にするのに役立ちます。
 
 ## Xcode {#xcode}
 
-### 落胆パターン{#discouraged-patterns}。
+### 非推奨のパターン {#discouraged-patterns}
 
-#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}。
+#### リモート環境をモデル化するための構成 {#configurations-to-model-remote-environments}
 
-多くの組織では、異なるリモート環境をモデル化するためにビルド構成を使用している（例：`Debug-Production` や`Release-Canary`
-）が、この方法にはいくつかの欠点がある：
+多くの組織では、異なるリモート環境（例: `Debug-Production` や `Release-Canary`）をモデル化するためにビルド構成を使用していますが、このアプローチにはいくつかの欠点があります。
 
-- **不整合：**
-  グラフ全体にコンフィギュレーションの不整合があると、ビルドシステムはターゲットによっては間違ったコンフィギュレーションを使用してしまうかもしれない。
-- **複雑さ：** プロジェクトは、推論や保守が困難なローカル設定やリモート環境の長いリストを抱えることになりかねない。
+- **不整合:** グラフ全体に構成の不整合がある場合、ビルドシステムが一部のターゲットに対して間違った構成を使用してしまう可能性があります。
+- **複雑さ:** プロジェクトには、理解や保守が困難なローカル構成とリモート環境の長いリストができあがる可能性があります。
 
-ビルド構成は、さまざまなビルド設定を具現化するために設計されており、プロジェクトが`Debug` と`Release`
-以上のものを必要とすることはほとんどない。異なる環境をモデル化する必要性は、さまざまな方法で達成できる：
+ビルド構成は異なるビルド設定を表すために設計されており、プロジェクトで必要なのは通常 `Debug` と `Release` だけです。異なる環境をモデル化する必要性は、別の方法で実現できます。
 
-- **デバッグビルドでは**
-  開発時にアクセス可能なすべてのコンフィギュレーションをアプリに含めることができます（エンドポイントなど）。切り替えは、スキーム起動環境変数を使用するか、アプリ内のUIで行うことができます。
-- **リリースビルドの場合：**
-  リリースの場合、リリースビルドがバインドしているコンフィギュレーションのみを含めることができ、コンパイラディレクティブを使用してコンフィギュレーションを切り替えるためのランタイムロジックを含めることはできません。
+- **Debug ビルドの場合:** 開発中にアクセス可能なすべての構成（エンドポイントなど）をアプリに含め、ランタイムで切り替えることができます。切り替えは、スキームの起動環境変数を使用するか、アプリ内の UI を介して行います。
+- **Release ビルドの場合:** リリース時には、リリースビルドに紐づく構成のみを含め、コンパイラディレクティブを使用して構成切り替えのランタイムロジックを含めないようにします。
 
 > [!NOTE]
-> **非標準のコンフィギュレーション**
+> **標準以外の構成**
 >
-> Tuistは非標準のコンフィギュレーションをサポートし、バニラXcodeプロジェクトと比較してそれらを管理しやすくしていますが、コンフィギュレーションが依存関係グラフ全体で一貫していない場合は警告が表示されます。これは、ビルドの信頼性を確保し、構成に関連する問題を防ぐのに役立ちます。
+> Tuist は標準以外の構成をサポートし、通常の Xcode プロジェクトと比較して管理を容易にしますが、依存関係グラフ全体で構成が一貫していない場合は警告が表示されます。これにより、ビルドの信頼性が確保され、構成関連の問題を防ぎます。
 
 
-## プロジェクト生成
+## 生成されたプロジェクト
 
-### 構築可能なフォルダ
+### ビルド可能フォルダ
 
-Tuist 4.62.0は、**ビルド可能なフォルダ** (Xcodeの同期グループ)のサポートを追加した。これはXcode
-16で導入された機能で、マージの衝突を減らすことができる。
+Tuist 4.62.0 では、マージ競合を減らすために Xcode 16 で導入された機能である **ビルド可能フォルダ**（Xcode の同期グループ）のサポートが追加されました。
 
-Tuistのワイルドカードパターン（例えば、`Sources/**/*.swift`
-）は、すでに生成されたプロジェクトにおけるマージ競合を排除しているが、ビルド可能なフォルダにはさらなる利点がある：
+Tuist のワイルドカードパターン（例: `Sources/**/*.swift`）はすでに生成されたプロジェクトでのマージ競合を排除していますが、ビルド可能フォルダにはさらに次の利点があります。
 
-- **自動同期** ：プロジェクト構造はファイルシステムと同期したまま-ファイルの追加や削除時に再生成は不要
-- **AIフレンドリーなワークフロー** ：コーディングアシスタントやエージェントは、プロジェクトの再生をトリガーすることなくコードベースを修正できる
-- **よりシンプルなコンフィギュレーション** ：明示的なファイルリストを管理する代わりにフォルダパスを定義する
+- **自動同期**: プロジェクト構造がファイルシステムと同期した状態を保ち、ファイルの追加や削除時に再生成が不要になります
+- **AI に適したワークフロー**: コーディングアシスタントやエージェントがプロジェクトの再生成をトリガーすることなくコードベースを変更できます
+- **シンプルな構成**: 明示的なファイルリストを管理する代わりにフォルダパスを定義します
 
-より合理的な開発体験のために、従来の`Target.sources` および`Target.resources`
-属性の代わりに、ビルド可能なフォルダを採用することを推奨する。
+よりスムーズな開発体験のために、従来の `Target.sources` および `Target.resources` 属性の代わりにビルド可能フォルダの採用を推奨します。
 
-コードグループ
+::: code-group
 
 ```swift [With buildable folders]
-let target = Target(
+let target: Target = .target(
   name: "App",
+  destinations: .iOS,
+  product: .app,
+  bundleId: "dev.tuist.App",
   buildableFolders: ["App/Sources", "App/Resources"]
 )
 ```
 
 ```swift [Without buildable folders]
-let target = Target(
+let target: Target = .target(
   name: "App",
+  destinations: .iOS,
+  product: .app,
+  bundleId: "dev.tuist.App",
   sources: ["App/Sources/**"],
   resources: ["App/Resources/**"]
 )
@@ -74,15 +72,103 @@ let target = Target(
 
 ### 依存関係
 
-#### CIで解決済みバージョンを強制する
+#### CI で解決済みバージョンを強制する
 
-Swift Package Manager の依存関係を CI
-にインストールするとき、決定論的なビルドを保証するために`--force-resolved-versions` フラグを使うことを推奨します：
+CI で Swift Package Manager の依存関係をインストールする際は、決定論的なビルドを保証するために `--force-resolved-versions` フラグの使用を推奨します。
 
 ```bash
 tuist install --force-resolved-versions
 ```
 
-このフラグは、`Package.resolved`
-で固定されている正確なバージョンを使って依存関係が解決されることを保証し、依存関係の解決における非決定性によって引き起こされる問題を排除します。これは、再現可能なビルドが重要な
-CI において特に重要です。
+このフラグにより、`Package.resolved` でピン留めされた正確なバージョンを使用して依存関係が解決され、依存関係解決の非決定性による問題が排除されます。再現可能なビルドが重要な CI では特に重要です。
+
+#### GitHub Actions での依存関係のキャッシュインストール {#dependency-cache-volumes}
+
+生成されたプロジェクトでは、[tuist/install](https://github.com/tuist/install) を使用して `Package.resolved` でピン留めされた依存関係をインストールし、実行間でキャッシュします。Tuist Runners では <.localized_link href="/guides/features/runners/cache-volumes">キャッシュボリューム</.localized_link> を、他のランナーでは GitHub のキャッシュを自動的に使用します。
+
+```yaml
+name: Generate project
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: tuist-macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: tuist/install@v1
+      - run: tuist generate --no-open
+```
+
+サブディレクトリにあるプロジェクトの場合は、チェックアウトからの相対パスを指定します。
+
+```yaml
+- uses: tuist/install@v1
+  with:
+    path: apps/ios
+```
+
+その他のオプションについては、[アクションリファレンス](https://github.com/tuist/install#usage) を参照してください。
+
+### エージェンティックコーディングとワークツリー {#agentic-coding-and-worktrees}
+
+コーディングエージェントと人間の貢献者はますます並行して作業しています。開発者はレビュー中の機能のためにワークツリーを開いたままにし、1 つ以上のエージェントは兄弟ワークツリー内の独自のブランチで反復作業を行います。いくつかのプロジェクト選択により、これを大幅にスムーズにできます。
+
+#### エージェント主導の編集にビルド可能フォルダを使用する {#worktrees-buildable-folders}
+
+エージェントがファイルを追加または削除する場合、`Project.swift` のファイルリストに依存するものは、プロジェクトが再びビルドされる前に `tuist generate` が必要です。[ビルド可能フォルダ](#buildable-folders) はその責任を Xcode の同期グループに委譲するため、ファイルツリーの編集が再生成をトリガーしなくなります。
+
+これを `generated-projects` <.localized_link href="/guides/features/agentic-coding/skills">スキル</.localized_link> と組み合わせます。このスキルは、エージェントに Tuist プロジェクトの日常的なワークフローを教えます。
+
+#### ワークツリーごとにキャッシュを分離しない {#worktrees-shared-cache}
+
+Tuist は <.localized_link href="/cli/directories">XDG Base Directory Specification</.localized_link> に従っているため、デフォルトでは同じマシン上のすべてのワークツリーが `~/.cache/tuist` と `~/.local/state/tuist` を共有します。これが望ましい状態です。あるワークツリーでコンパイルされたヘルパー、別のワークツリーでダウンロードされたプラグイン、3 つ目のワークツリーで取得されたモジュールキャッシュバイナリはすべて再利用可能です。
+
+ワークツリー間での並行する `tuist` 呼び出しは、並列実行しても安全です。特に分離が必要な場合を除き、`TUIST_XDG_CACHE_HOME` をワークツリーローカルのパスに向けないでください。そうすると、すべてのワークツリーでヘルパー、プラグイン、バイナリの再ウォームアップが強制されます。
+
+#### SwiftPM のスクラッチをワークツリーごとに保持する {#worktrees-swiftpm-scratch}
+
+Swift Package Manager には独自のパス制御があります。`--scratch-path` は変更可能な作業状態で、デフォルトは `.build` です。一方、`--cache-path` は共有キャッシュディレクトリです。複数のワークツリーがアクティブな場合、これら2つのパスを同じように扱ってはなりません。
+
+Tuist のデフォルトの `tuist install` 動作では、SwiftPM のスクラッチはパッケージディレクトリ下に保持されるため、各ワークツリーは独自の `.build` を持ちます。その分離を維持してください。単一の共有 SwiftPM スクラッチディレクトリを使用すると、無関係なブランチからのチェックアウト、ビルド中間ファイル、プラグイン、マクロ、およびロックファイルが混在する可能性があります。
+
+`tuist install -- ...` を介して、または `Tuist.swift` 内の `installOptions` を介して SwiftPM 引数を渡す場合、依存関係の取得を高速化したい場合は `--cache-path` を共有しますが、`--scratch-path` は未設定のままにするか、ワークツリーローカルのディレクトリを指定します:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        installOptions: .options(
+            passthroughSwiftPackageManagerArguments: [
+                "--cache-path",
+                "/Users/Shared/swiftpm/cache/xcode-16-macos",
+            ]
+        )
+    )
+)
+```
+
+Xcode、Swift ツールチェーン、またはプラットフォームによってキャッシュパスを変更する必要がある場合は、ラッパーまたは CI 環境変数を使用してください。共有 `--scratch-path` をリポジトリにコミットしないでください。
+
+あるワークツリーでのみ依存関係の状態が破損しているように見える場合は、そのワークツリーの `.build` ディレクトリを削除し、`tuist install` を再度実行してください。ワークツリー間で共有されている SwiftPM キャッシュ自体に疑わしい点がある場合は、依存関係を再インストールする前に `swift package purge-cache` を使用してください。
+
+#### モジュールキャッシュを活用する {#worktrees-module-cache}
+
+<.localized_link href="/guides/features/cache/module-cache">モジュールキャッシュ</.localized_link> こそが、並列ワークツリーの実現を可能にします。Tuist は各ターゲットに対して決定論的な <.localized_link href="/guides/features/projects/hashing">ハッシュ</.localized_link> を計算するため、履歴の大部分を共有するブランチを指す2つのワークツリーは同じバイナリをヒットします。CI から `main` へのすべてのコミットで `tuist cache` を実行します。ローカルでは、各ワークツリーでの `tuist generate` がキャッシュから可能なものをすべて取得し、ブランチが実際に変更した部分のみをビルドします。
+
+キャッシュヒットを期待していたのにワークツリーがソースビルドにフォールバックする場合は、<.localized_link href="/guides/features/projects/hashing#debugging">ハッシュのデバッグ手順</.localized_link> に従ってください。非決定論的なハッシュ（通常はプロジェクト内の絶対パスが原因）が最も一般的な原因であり、2つのワークツリーを比較すると顕著に現れます。
+
+#### レジストリを使用して Swift Package の解決を高速化する {#worktrees-registry}
+
+各ワークツリーは Swift パッケージを独立して解決します。大規模な依存関係グラフを持つプロジェクトでは、これがすぐに累積されます。<.localized_link href="/guides/features/package-registries/swift">Tuist Registry</.localized_link> に切り替えることで、git 履歴の再クローンを回避し、解決時間を数分から数秒に短縮できます。
+
+#### エージェントにプロジェクトのインサイトへのアクセス権を付与する {#worktrees-mcp}
+
+多くのワークツリーでビルドとテストが実行されると、エージェントが行える最も有用なことは、それらの実行のうち *どれ* が回帰したか、どのテストが不安定か、バンドルサイズがどのように変化したかを推論することです。Tuist はそのデータを <.localized_link href="/guides/features/agentic-coding/mcp">MCP サーバー</.localized_link> および <.localized_link href="/guides/features/agentic-coding/skills">Skills</.localized_link> パッケージを通じて公開しています。ワークフローごとに1つを選択し、それを一貫して使用してください。同じタスクで両方を混在させると、エージェントの動作に一貫性がなくなる傾向があります。

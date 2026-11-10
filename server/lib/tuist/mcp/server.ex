@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Server do
   alias Tuist.Environment
   alias Tuist.MCP.Components.Prompts
   alias Tuist.MCP.Components.Tools
+  alias Tuist.MCP.Feedback
 
   # Backed by the hosted Typesense search service, so only offered on the
   # Tuist-hosted installation.
@@ -20,6 +21,10 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.GetBazelIntegrationGuide,
+    Tools.QueryPulse,
+    Tools.GetPulseAnalytics,
+    Tools.GetPulseErrorIssue,
+    Tools.GetPulseErrorEvent,
     Tools.ListAccounts,
     Tools.GetOrganization,
     Tools.ListAccountTokens,
@@ -29,6 +34,18 @@ defmodule Tuist.MCP.Server do
     Tools.AddOrganizationMember,
     Tools.InviteOrganizationMember,
     Tools.CancelOrganizationInvitation,
+    Tools.ListAISubscriptions,
+    Tools.ConnectClaudeSubscription,
+    Tools.StartChatGPTSubscriptionLogin,
+    Tools.PollChatGPTSubscriptionLogin,
+    Tools.CancelChatGPTSubscriptionLogin,
+    Tools.DisconnectAISubscription,
+    Tools.ListNotificationEvents,
+    Tools.ListNotificationConditionOptions,
+    Tools.ListNotificationRules,
+    Tools.CreateNotificationRule,
+    Tools.UpdateNotificationRule,
+    Tools.DeleteNotificationRule,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -45,7 +62,20 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerVolumeJobs,
     Tools.ListRunnerJobVolumes,
     Tools.GetRunnerVolumeAnalytics,
-    Tools.ClearRunnerVolume,
+    Tools.DeleteRunnerVolume,
+    Tools.ListSandboxes,
+    Tools.GetSandbox,
+    Tools.CreateSandbox,
+    Tools.GetSandboxAnalytics,
+    Tools.PauseSandbox,
+    Tools.ResumeSandbox,
+    Tools.ArchiveSandbox,
+    Tools.DeleteSandbox,
+    Tools.ListAmpWorkspaceConnections,
+    Tools.ConnectAmpWorkspace,
+    Tools.DisconnectAmpWorkspace,
+    Tools.ListClaudeEnvironments,
+    Tools.ConnectClaudeEnvironment,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -56,6 +86,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildSteps,
     Tools.GetXcodeBuildStep,
+    Tools.GetBuildTrace,
     Tools.ListXcodeBuildIssues,
     Tools.ListXcodeBuildCacheTasks,
     Tools.ListXcodeBuildCASOutputs,
@@ -72,6 +103,12 @@ defmodule Tuist.MCP.Server do
     Tools.GetBazelInvocationLog,
     Tools.ListBazelCacheEvents,
     Tools.GetBazelCacheEvent,
+    Tools.ListCargoBuilds,
+    Tools.GetCargoBuild,
+    Tools.ListMixBuilds,
+    Tools.GetMixBuild,
+    Tools.ListOnceRuns,
+    Tools.GetOnceRun,
     Tools.ListBuildEntities,
     Tools.GetBuildEntity,
     Tools.ListBuildEntityHistory,
@@ -86,6 +123,9 @@ defmodule Tuist.MCP.Server do
     Tools.GetTestRun,
     Tools.GetTestCaseRun,
     Tools.ListTestCaseRunAttachments,
+    Tools.GetCoverage,
+    Tools.ListCoverageFiles,
+    Tools.GetCoverageFile,
     Tools.ListBundles,
     Tools.GetBundle,
     Tools.GetBundleArtifactTree,
@@ -104,6 +144,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjectTokens,
     Tools.StartProjectLogoUpload,
     Tools.CompleteProjectLogoUpload,
+    Tools.ConnectProjectRepository,
+    Tools.DisconnectProjectRepository,
     Tools.ListPreviews,
     Tools.GetPreview,
     Tools.GetLatestPreview
@@ -127,18 +169,18 @@ defmodule Tuist.MCP.Server do
     Prompts.AskTuist
   ]
 
-  @source_answer_instructions """
-  Use the relevant Tuist tool when its documentation or source results are needed to answer a Tuist question. `search_tuist` covers public explanations and terminology. When current behavior depends on implementation, `search_tuist_code`, `list_tuist_files`, and `read_tuist_file` provide a fixed source revision; inspect focused tests and call sites, treat truncated results as partial, and cite returned links and the source revision. Keep the answer focused on the user's question rather than describing the codebase.
+  @source_capabilities """
+  `search_tuist` searches public Tuist documentation, API reference, releases, and community content. `search_tuist_code`, `list_tuist_files`, and `read_tuist_file` return public Tuist source from a fixed revision, including the source revision and revision-pinned links. These source tools have bounded results; `truncated` and `truncation_reason` indicate partial results, and truncated file reads include `next_start_line` for continuation.
   """
 
-  @agent_workflow_instructions """
-  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Never invent credentials. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations. Verify the outcome of requested changes through the relevant Tuist tools before reporting success.
+  @authentication_information """
+  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations.
   """
 
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.37.0",
+      version: "1.57.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
@@ -150,16 +192,18 @@ defmodule Tuist.MCP.Server do
   defp tools do
     hosted_tools = if Environment.tuist_hosted?(), do: @hosted_tools, else: []
     codebase_tools = if codebase_search_enabled?(), do: @codebase_tools, else: []
-    hosted_tools ++ codebase_tools ++ @tools
+    # Reports are published to Atlas, Tuist's internal support system.
+    feedback_tools = if Environment.tuist_hosted?() and Feedback.enabled?(), do: [Tools.ReportFeedback], else: []
+    hosted_tools ++ codebase_tools ++ feedback_tools ++ @tools
   end
 
   defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)
 
   defp instructions do
     if codebase_search_enabled?() do
-      @source_answer_instructions <> "\n" <> @agent_workflow_instructions
+      @source_capabilities <> "\n" <> @authentication_information
     else
-      @agent_workflow_instructions
+      @authentication_information
     end
   end
 

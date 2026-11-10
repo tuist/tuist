@@ -110,6 +110,29 @@ fn the_build_service_reports_once_per_build_across_its_lookup_handles() {
     );
 }
 
+/// The Swift driver plans each module inside the build service, and asks a handle it
+/// opens from compiler flags, so without `remote-service-path`, whether every explicit
+/// module dependency is already built. Those lookups are local-only and run before the
+/// build system has materialized anything, so asking the remote made each one a serial
+/// round trip inside "Planning Swift module". A compiler frontend still reads through.
+#[test]
+fn a_local_only_lookup_in_the_build_service_never_asks_the_remote() {
+    let Some(env) = Fixture::new("planning") else {
+        return;
+    };
+
+    assert_eq!(
+        env.resolves(&env.build_service_binary(), "local-only"),
+        0,
+        "the build service runs its own key queries for whatever a local-only lookup misses"
+    );
+    assert_eq!(
+        env.resolves(&std::env::current_exe().unwrap(), "local-only"),
+        1,
+        "a compiler frontend's local-only lookup is the only way it finds a remote entry"
+    );
+}
+
 // --- Child ---------------------------------------------------------------------
 
 /// What each child process runs. A no-op when the suite itself runs.
@@ -126,6 +149,12 @@ fn child_runs_a_lookup_scenario() {
             print_lookup(cas.get(&cas.key_digest(b"first"), true));
             print_lookup(cas.get(&cas.key_digest(b"second"), true));
             print_lookup(cas.get(&cas.key_digest(b"local"), false));
+        }
+        "local-only" => {
+            let proxy = FakeProxy::listening(&socket);
+            let cas = PluginCas::open(&store);
+            print_lookup(cas.get(&cas.key_digest(b"planned dependency"), false));
+            println!("RESOLVES {}", proxy.resolves.load(Ordering::SeqCst));
         }
         "recovery" => {
             let cas = PluginCas::open(&store);
@@ -185,17 +214,52 @@ impl Fixture {
     }
 
     fn run_as_build_service(&self, scenario: &str) -> Vec<Lookup> {
+        self.run(&self.build_service_binary(), scenario)
+    }
+
+    fn build_service_binary(&self) -> PathBuf {
         let build_service = self.bin.path().join("SWBBuildService");
         std::fs::copy(std::env::current_exe().unwrap(), &build_service)
             .expect("copy the test binary");
-        self.run(&build_service, scenario)
+        build_service
     }
 
     fn run_as_compiler(&self, scenario: &str) -> Vec<Lookup> {
         self.run(&std::env::current_exe().unwrap(), scenario)
     }
 
+    fn resolves(&self, binary: &Path, scenario: &str) -> u64 {
+        self.output(binary, scenario)
+            .lines()
+            .find_map(|line| {
+                line.find("RESOLVES ")
+                    .map(|at| line[at + "RESOLVES ".len()..].trim().to_string())
+            })
+            .expect("the child reports the resolves its proxy received")
+            .parse()
+            .expect("resolve count")
+    }
+
     fn run(&self, binary: &Path, scenario: &str) -> Vec<Lookup> {
+        self.output(binary, scenario)
+            .lines()
+            // libtest prints the test's name without a newline before the test runs, so
+            // the first line a child prints can share a line with it.
+            .filter_map(|line| {
+                line.find("LOOKUP result=")
+                    .map(|at| &line[at + "LOOKUP result=".len()..])
+            })
+            .map(|rest| {
+                let (result, error) = rest.split_once(" error=").unwrap_or((rest, ""));
+                Lookup {
+                    result: result.parse().expect("lookup result"),
+                    error: error.to_string(),
+                }
+            })
+            .collect()
+    }
+
+    fn output(&self, binary: &Path, scenario: &str) -> String {
         let _ = &self.socket_dir;
         let output = Command::new(binary)
             .args([
@@ -218,22 +282,7 @@ impl Fixture {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            // libtest prints the test's name without a newline before the test runs, so
-            // the first line a child prints can share a line with it.
-            .filter_map(|line| {
-                line.find("LOOKUP result=")
-                    .map(|at| &line[at + "LOOKUP result=".len()..])
-            })
-            .map(|rest| {
-                let (result, error) = rest.split_once(" error=").unwrap_or((rest, ""));
-                Lookup {
-                    result: result.parse().expect("lookup result"),
-                    error: error.to_string(),
-                }
-            })
-            .collect()
+        String::from_utf8_lossy(&output.stdout).into_owned()
     }
 }
 
@@ -324,6 +373,7 @@ fn take_error(error: *mut c_char) -> String {
 struct FakeProxy {
     socket: PathBuf,
     stopping: Arc<AtomicBool>,
+    resolves: Arc<AtomicU64>,
 }
 
 impl FakeProxy {
@@ -331,7 +381,9 @@ impl FakeProxy {
         let _ = std::fs::remove_file(socket);
         let listener = UnixListener::bind(socket).expect("bind fake proxy socket");
         let stopping = Arc::new(AtomicBool::new(false));
+        let resolves = Arc::new(AtomicU64::new(0));
         let worker_stopping = stopping.clone();
+        let worker_resolves = resolves.clone();
         std::thread::spawn(move || {
             for stream in listener.incoming() {
                 if worker_stopping.load(Ordering::SeqCst) {
@@ -342,6 +394,7 @@ impl FakeProxy {
                     continue;
                 };
                 let status = if request.op == OP_RESOLVE {
+                    worker_resolves.fetch_add(1, Ordering::SeqCst);
                     STATUS_MISS
                 } else {
                     STATUS_HIT
@@ -352,6 +405,7 @@ impl FakeProxy {
         Self {
             socket: socket.to_path_buf(),
             stopping,
+            resolves,
         }
     }
 }

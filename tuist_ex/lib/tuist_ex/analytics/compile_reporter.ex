@@ -9,6 +9,8 @@ defmodule TuistEx.Analytics.CompileReporter do
 
   use GenServer
 
+  alias TuistEx.Analytics.BuildMetadata
+  alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
@@ -320,12 +322,20 @@ defmodule TuistEx.Analytics.CompileReporter do
       dependency_cache: state.dependency_cache |> Enum.reverse() |> Enum.take(5_000)
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
+    |> enrich_metadata(state.opts)
     |> fit_payload(Keyword.get(state.opts, :max_payload_bytes, @max_payload_bytes))
   end
 
   @trimmable [:files, :steps, :machine_metrics, :diagnostics, :dependency_cache]
 
   # Halves the longest list until the report fits, keeping the slowest files.
+  defp enrich_metadata(payload, opts) do
+    case Config.resolve(opts) do
+      {:ok, config} -> BuildMetadata.enrich(payload, config.url, opts)
+      _ -> payload
+    end
+  end
+
   defp fit_payload(payload, max_bytes) do
     largest = Enum.max_by(@trimmable, &length(Map.get(payload, &1, [])))
     entries = Map.get(payload, largest, [])

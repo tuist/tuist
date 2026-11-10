@@ -18,12 +18,10 @@ To start tracking local build times, you can leverage the `tuist inspect build` 
 > [!NOTE]
 > Set the "Provide build settings from" field to the executable or your main build target to capture build configuration.
 
-
 > [!NOTE]
 > The post-scheme action is not executed when the build fails.
-
 >
-> You can execute it in that case by setting `runPostActionsOnFailure` to `YES` in the relevant `project.pbxproj` `BuildAction`:
+> You can execute it in that case by setting `runPostActionsOnFailure` to `YES` on the `<BuildAction>` element of the scheme's `.xcscheme` file:
 >
 > ```diff
 > <BuildAction
@@ -52,92 +50,19 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-Actor claims are disabled by default. To configure one for a scheme post-action, set `TUIST_ACTOR_ID` in that script rather than relying on shell exports. Xcode launched from the Dock does not inherit variables from `~/.zshrc`. To explicitly suppress a configured claim with Homebrew, use:
-
-```sh
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-export TUIST_ACTOR_ID=""
-tuist inspect build
-```
-
-With Mise, override the value after Mise loads its environment:
-
-```sh
-$HOME/.local/bin/mise x -C "$SRCROOT" -- env TUIST_ACTOR_ID="" tuist inspect build
-```
-
-Use an explicit label instead of the empty value to opt in.
-
 Once logged in, local builds are tracked and available from the Tuist dashboard:
 
 > [!TIP]
 > To quickly access the dashboard, run `tuist project show --web` from the CLI.
 
-
 ![Dashboard with build insights](/images/guides/features/build-insights/builds-dashboard.png)
 
-## Build Insights in CI {#continuous-integration}
+<!-- @snippet: ./_xcode-ci -->
 
-To track build insights on CI, make sure CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+<!-- @snippet: ./_xcode-network-trusted -->
 
-For Xcodebuild-driven CI you need to:
-- Use <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` command.
+<!-- @snippet: ./_xcode-machine-metrics -->
 
-Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
+<!-- @snippet: ./_xcode-actor-claim -->
 
-## Machine metrics {#machine-metrics}
-
-Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:
-
-```bash
-tuist setup insights
-```
-
-This runs a local daemon that samples metrics in the background. The data is picked up automatically by `tuist inspect build` and uploaded with the build report.
-
-> [!TIP]
-> **Ci**
->
-> Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
-
-To stop collecting machine metrics, run:
-
-```bash
-tuist teardown insights
-```
-
-This unloads the daemon's LaunchAgent, removes its plist, and deletes the sampled metrics and daemon logs from `~/.local/state`, so nothing is left running in the background.
-
-
-## Report actor claim {#report-actor-claim}
-
-Report-creation requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label. No label is sent by default, and Tuist does not detect operating-system usernames.
-
-Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
-
-The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
-
-## Custom metadata {#custom-metadata}
-
-You can attach metadata to builds with environment variables to improve filtering.
-
-### Environment variables
-
-| Variable | Format | Description |
-|----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Comma-separated | Multiple tags in one variable. |
-| `TUIST_BUILD_VALUE_*` | Single value | Key-value pair where suffix is the key. |
-
-### Examples
-
-Set these values in CI or your shell before invoking your build:
-
-```sh
-export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-```
-
-```sh
-export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
-export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
-```
+<!-- @snippet: ./_xcode-custom-metadata -->

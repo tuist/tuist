@@ -183,9 +183,9 @@ func schemes() -> [Scheme] {
         // xcodebuild hands out one xctest worker per target, and Swift Testing parallelises the
         // suites and cases inside each. Two targets therefore run at two workers, which is the
         // ceiling TuistAcceptanceTests already runs at on the same fleet after the worker cap in
-        // cli.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
+        // tuist-project-tests.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
         // oversubscription that cap exists to prevent, but it measured the whole 207-test suite at
-        // 16x concurrency; this plan is 15 tests and does not add a worker beyond that ceiling.
+        // 16x concurrency; this plan is 16 tests and does not add a worker beyond that ceiling.
         testAction: .targets(
             [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
                 + (
@@ -196,8 +196,11 @@ func schemes() -> [Scheme] {
             postActions: [
                 inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
             ],
+            // Explicit, so Tuist.swift's `coverage` option doesn't turn it on: this plan sits on the
+            // production promotion path, where coverage's overhead buys nothing.
             options: .options(
-                language: "en"
+                language: "en",
+                coverage: false
             )
         ),
         runAction: .runAction(
@@ -225,6 +228,22 @@ func schemes() -> [Scheme] {
                 options: .options(
                     language: "en"
                 )
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
+                )
+            )
+        ))
+        // Not part of TuistAcceptanceTests or the deploy scheme yet: canary doesn't serve coverage-based
+        // test selection until the server side deploys.
+        schemes.append(.scheme(
+            name: "TuistCoverageSelectionAcceptanceTests",
+            buildAction: .buildAction(targets: [.target("TuistCoverageSelectionAcceptanceTests")]),
+            testAction: .targets(
+                [.testableTarget(target: .target("TuistCoverageSelectionAcceptanceTests"))],
+                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on.
+                options: .options(language: "en", coverage: false)
             ),
             runAction: .runAction(
                 arguments: .arguments(

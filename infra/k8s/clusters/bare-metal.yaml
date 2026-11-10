@@ -274,15 +274,17 @@ spec:
           pod_annotations = ["io.katacontainers.*"]
           [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
           ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-          # SystemdCgroup MUST be set here explicitly. The sed above only
-          # rewrites the occurrences present in `containerd config default`
-          # output, and this block is appended afterwards — so the kata-qemu
-          # handler silently kept the `false` default while kubelet ran
-          # `cgroupDriver: systemd`.
+          # SystemdCgroup is set here explicitly to match kubelet's
+          # `cgroupDriver: systemd`. The sed above only rewrites the
+          # occurrences present in `containerd config default` output, and
+          # this block is appended afterwards.
           #
-          # Under that mismatch the kata shim does not resolve the systemd
-          # cgroup parent kubelet hands it. It creates the slice name as a
-          # LITERAL directory at the cgroup root:
+          # It does NOT stop the cgroup leak below, which this comment once
+          # attributed to it. Kata 3.30 only resolves the systemd cgroup
+          # path kubelet hands it when sandbox_cgroup_only is on
+          # (NewSandboxResourceController); otherwise it treats the path as
+          # cgroupfs and creates the slice name as a LITERAL directory at
+          # the cgroup root:
           #   /sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>
           # instead of nesting it under kubepods.slice. Nothing owns those
           # directories — systemd never knew about them and the shim does not
@@ -313,14 +315,13 @@ spec:
           # the root-level leak above is one of TWO equally sized leaked
           # populations. The other is /sys/fs/cgroup/kata_overhead/<id>,
           # one per sandbox, also never reclaimed — 65478 and 65486
-          # respectively on the host that wedged. This setting explains
-          # and fixes the root-level one. Whether it also stops the
-          # kata_overhead leak is NOT established: the shim creates those
-          # cgroups either way, and only a host running this config can
-          # settle it. Check kata_overhead growth specifically on the
-          # first host provisioned after this lands. The cgroup-count
-          # alert covers both regardless, because it counts cgroups
-          # rather than matching a name.
+          # respectively on the host that wedged. Both come from the same
+          # code path: an OVH runner host with SystemdCgroup = true still
+          # had 3,351 of each after 8 days (staging, 2026-11-04), and with
+          # sandbox_cgroup_only = true a sandbox created neither. That
+          # setting is the 50-tuist-sandbox-cgroup.toml drop-in below. The
+          # cgroup-count alert covers both regardless, because it counts
+          # cgroups rather than matching a name.
           SystemdCgroup = true
           KATAQEMU
       # Two-label gate, both required for caph to claim an HBM:
@@ -401,6 +402,34 @@ spec:
             WantedBy=multi-user.target
           owner: root:root
           path: /etc/systemd/system/tuist-kata-shared-memory.service
+          permissions: "0644"
+        # Keep these in sync with controllers/linux/kata_virtiofs.go.
+        # virtiofsd's default file budget caps how many inodes a guest
+        # can keep cached; past it, guest opens fail with EMFILE.
+        # `sysctl --system` below applies the first file before
+        # containerd starts.
+        - content: |
+            fs.nr_open = 4194304
+          owner: root:root
+          path: /etc/sysctl.d/90-tuist-kata-virtiofs.conf
+          permissions: "0644"
+        - content: |
+            [hypervisor.qemu]
+            virtio_fs_extra_args = ["--thread-pool-size=1", "--announce-submounts", "--rlimit-nofile=4194304"]
+          owner: root:root
+          path: /opt/kata/share/defaults/kata-containers/config.d/50-tuist-virtiofs.toml
+          permissions: "0644"
+        # Keep in sync with controllers/linux/kata_sandbox_cgroup.go. Puts
+        # the shim, virtiofsd and QEMU in a systemd scope under the Pod's
+        # slice instead of cgroups at the root that nothing removes; see the
+        # kata-qemu handler block above. That also keeps them on the Pod's
+        # cpuset rather than on cores the static CPU manager gave another
+        # runner.
+        - content: |
+            [runtime]
+            sandbox_cgroup_only = true
+          owner: root:root
+          path: /opt/kata/share/defaults/kata-containers/config.d/50-tuist-sandbox-cgroup.toml
           permissions: "0644"
         # containerd's GitHub-released tarball does NOT ship a
         # systemd unit (the older cri-containerd-cni- bundle did,
@@ -483,13 +512,25 @@ spec:
           # graceful backstop (evict-with-event) before true host OOM.
           # Existing nodes only pick this up once the bare-metal MD is
           # rolled (the flags are baked into the kubelet at kubeadm-join).
+          #
+          # The daemons' CPU is reserved by id instead, as one whole core
+          # (cpu0 and its sibling) in the kubelet configuration patch that
+          # preKubeadmCommands writes, because the static CPU manager hands
+          # out whole cores; see kubeletReservationBlock in
+          # controllers/linux/linux_cloudinit.go, which the OVH runner hosts
+          # use.
           kubeletExtraArgs:
             - name: system-reserved
-              value: "cpu=1,memory=2Gi"
+              value: "memory=2Gi"
             - name: kube-reserved
-              value: "cpu=1,memory=2Gi"
+              value: "memory=2Gi"
             - name: eviction-hard
               value: "memory.available<10%,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%"
+        # The kubelet configuration patch preKubeadmCommands writes: the
+        # static CPU manager, so a runner Pod's integer CPU request gets
+        # whole physical cores to itself.
+        patches:
+          directory: /etc/kubeadm/patches
       preKubeadmCommands:
         # No `set -euo pipefail` here — CAPI's kubeadm-bootstrap
         # renders each `preKubeadmCommands` entry as its own
@@ -524,7 +565,7 @@ spec:
         - modprobe overlay
         - modprobe br_netfilter
         - 'printf "overlay\nbr_netfilter\n" > /etc/modules-load.d/k8s.conf'
-        - 'printf "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n" > /etc/sysctl.d/k8s.conf'
+        - 'printf "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\nnet.mptcp.enabled = 0\n" > /etc/sysctl.d/k8s.conf'
         - sysctl --system
         # cloud-init's write_files (above) drops the
         # containerd.service unit at /etc/systemd/system/, but
@@ -538,6 +579,13 @@ spec:
         - systemctl enable tuist-kata-shared-memory.service
         - systemctl start tuist-kata-shared-memory.service
         - systemctl enable --now containerd
+        # Reserve cpu0 and its hyperthread sibling for the host daemons and
+        # pin system.slice to them. Which CPU is cpu0's sibling depends on
+        # the box, so it is read from the topology here rather than written
+        # into the template.
+        - mkdir -p /etc/kubeadm/patches
+        - 'printf "reservedSystemCPUs: \"%s\"\ncpuManagerPolicy: static\ncpuManagerPolicyOptions:\n  full-pcpus-only: \"true\"\n" "$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)" > /etc/kubeadm/patches/kubeletconfiguration+merge.yaml'
+        - 'systemctl set-property system.slice AllowedCPUs="$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)"'
         - systemctl enable kubelet
       postKubeadmCommands:
         # Stamp the runner-pool + kata-runtime labels on the Node

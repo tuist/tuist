@@ -56,9 +56,9 @@ use std::time::Duration;
 /// Bumped on any incompatible change to the frame layout below — or to its
 /// semantics: v2 resolves reply before the value graph is materialized, which
 /// is only safe with a client that self-heals demand loads via FETCH_OBJECT.
-/// The proxy rejects a mismatched version (→ the plugin degrades to a local
-/// miss) instead of misparsing, so a stale proxy left running across a CLI
-/// upgrade can't corrupt a build.
+/// The proxy also accepts v1, whose layout is identical, materializing the
+/// complete graph before replying because those clients cannot self-heal.
+/// Unknown versions still degrade to a local miss rather than being misparsed.
 pub const PROTOCOL_VERSION: u8 = 2;
 
 pub const OP_RESOLVE: u8 = 1;

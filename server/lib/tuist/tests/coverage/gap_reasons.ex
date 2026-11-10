@@ -14,9 +14,12 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     collected evidence for its target (no `.coverageAttribution` trait, or
     the test didn't run there).
   - `collection_off`: no ancestor run collected evidence at all.
-  - `not_linked`: ancestor runs collected evidence, but none for the test's
-    target: the target doesn't link TestCoverageAttribution. A target whose
-    evidence only expired reads as this too when other evidence is live.
+  - `not_linked`: ancestor runs collected evidence, but no test-level
+    evidence (`test` or `suite` scopes) for the test's target: the target
+    doesn't link TestCoverageAttribution. Its `target` scope doesn't count,
+    since the client reads every target's from Xcode's raw profiles. A target
+    whose evidence only expired reads as this too when other evidence is
+    live.
   - `test_failed`: the test failed in the run its evidence comes from.
   - `evidence_without_lines`: the evidence names files but not the lines.
   - `executed_file_changed`: a file the test executed changed since.

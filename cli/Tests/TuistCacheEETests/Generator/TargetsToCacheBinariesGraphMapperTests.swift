@@ -20,6 +20,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
     private var cacheGraphMutator: MockCacheGraphMutating!
     private var subject: TargetsToCacheBinariesGraphMapper!
     private var config: Tuist!
+    private var debuggingMetadataReader: MockCachedModuleDebuggingMetadataReading!
 
     override func setUp() {
         super.setUp()
@@ -27,18 +28,22 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheStorage = MockCacheStoring()
         cacheGraphContentHasher = MockCacheGraphContentHashing()
         cacheGraphMutator = .init()
+        debuggingMetadataReader = MockCachedModuleDebuggingMetadataReading()
+        given(debuggingMetadataReader).sourceMappings(artifact: .any, target: .any).willReturn([])
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            debuggingMetadataReader: debuggingMetadataReader
         )
     }
 
     override func tearDown() {
         config = nil
+        debuggingMetadataReader = nil
         cacheStorage = nil
         cacheGraphContentHasher = nil
         cacheGraphMutator = nil
@@ -150,6 +155,48 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             gotEnvironment.initialGraphWithSources,
             inputGraph
         )
+    }
+
+    func test_map_recordsTheHashOfEachSubstitutedMacro() async throws {
+        let path = try temporaryPath()
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [macro, framework])
+        let macroGraphTarget = GraphTarget.test(path: path, target: macro, project: project)
+        let frameworkGraphTarget = GraphTarget.test(path: path, target: framework, project: project)
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage
+        )
+        let graph = Graph.test(projects: [path: project], dependencies: [
+            .target(name: framework.name, path: path): [.target(name: macro.name, path: path)],
+            .target(name: macro.name, path: path): [],
+        ])
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any,
+                coverage: .any
+            )
+            .willReturn([macroGraphTarget: .test(hash: "macro-hash"), frameworkGraphTarget: .test(hash: "framework-hash")])
+        let macroPath = path.appending(components: "Binaries", "a1b2", "MyMacros.macro")
+        given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([
+            .test(name: "MyMacros", hash: "macro-hash"): macroPath,
+        ])
+        given(cacheGraphMutator)
+            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(graph)
+
+        let (_, _, environment) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        XCTAssertEqual(environment.cachedMacroHashes, [macroPath: "macro-hash"])
     }
 
     func test_map_when_all_binaries_are_fetched_successfully() async throws {
@@ -789,14 +836,17 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         exceptions: Set<TargetQuery>,
         precomputedTargetHashes: [TargetReference: TargetContentHash]
     ) -> TargetsToCacheBinariesGraphMapper {
-        TargetsToCacheBinariesGraphMapper(
+        let debuggingMetadataReader = MockCachedModuleDebuggingMetadataReading()
+        given(debuggingMetadataReader).sourceMappings(artifact: .any, target: .any).willReturn([])
+        return TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: exceptions),
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage,
-            precomputedTargetHashes: precomputedTargetHashes
+            precomputedTargetHashes: precomputedTargetHashes,
+            debuggingMetadataReader: debuggingMetadataReader
         )
     }
 
@@ -829,7 +879,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             configuration: "Debug",
             cacheGraphMutator: cacheGraphMutator,
             cacheStorage: cacheStorage,
-            coverage: .scheme("App")
+            coverage: .on
         )
         let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
         let project = Project.test(path: path, targets: [framework])
@@ -850,7 +900,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         verify(cacheGraphContentHasher)
             .contentHashes(
                 for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .value(.scheme("App"))
+                coverage: .value(.on)
             )
             .called(1)
     }

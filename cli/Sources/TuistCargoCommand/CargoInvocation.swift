@@ -42,6 +42,10 @@ struct CargoInvocation: Equatable {
             && !changesDirectory && !arguments.contains("--help") && !arguments.contains("-h")
     }
 
+    var executesTests: Bool {
+        ["test", "t"].contains(command ?? "") && !arguments.prefix(while: { $0 != "--" }).contains("--no-run")
+    }
+
     var reportsBuild: Bool { observesBuild && command != "nextest" }
 
     static func filterset(modules: [String]) -> String {

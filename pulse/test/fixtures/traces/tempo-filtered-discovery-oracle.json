@@ -1,0 +1,253 @@
+[
+  {
+    "name": "resource-to-span",
+    "query": "{resource.service.name=\"worker\"}",
+    "target": "span.retries",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "7"
+        }
+      ]
+    }
+  },
+  {
+    "name": "span-to-resource",
+    "query": "{span.request.kind=\"api\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "name": "other-resource",
+    "query": "{resource.service.name=\"frontend\"}",
+    "target": "span.retries",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "9223372036854775807"
+        }
+      ]
+    }
+  },
+  {
+    "name": "same-span-conjunction",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"rpc\"}",
+    "target": "span.retries",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "7"
+        }
+      ]
+    }
+  },
+  {
+    "name": "no-cross-span-conjunction",
+    "query": "{span.pred.a=\"left\" \u0026\u0026 span.pred.b=\"right\"}",
+    "target": "span.retries",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "regex",
+    "query": "{span.request.kind=~\"a.*\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "name": "regex-full-anchoring",
+    "query": "{span.request.kind=~\"p\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "regex-newline",
+    "query": "{span.filter.text=~\"first.*second\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "name": "regex-alternation",
+    "query": "{span.request.kind=~\"api|rpc\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "name": "same-target-regex",
+    "query": "{span.request.kind=~\"a.*\"}",
+    "target": "span.request.kind",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "api"
+        }
+      ]
+    }
+  },
+  {
+    "name": "all-owner-spans",
+    "query": "{resource.service.name=~\"worker\"}",
+    "target": "span.request.kind",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "api"
+        },
+        {
+          "type": "string",
+          "value": "rpc"
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing-on-matching-span",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"api\"}",
+    "target": "span.only.sibling",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "present-on-matching-span",
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.request.kind=\"rpc\"}",
+    "target": "span.only.sibling",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "second"
+        }
+      ]
+    }
+  },
+  {
+    "name": "no-bool-string-coercion",
+    "query": "{span.cached=\"false\"}",
+    "target": "resource.service.name",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "bool-values",
+    "query": "{resource.service.name=\"worker\"}",
+    "target": "span.cached",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty-value",
+    "query": "{span.request.kind=\"api\"}",
+    "target": "span.empty",
+    "supported": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "name": "absent-value",
+    "query": "{span.request.kind=\"api\"}",
+    "target": "span.absent",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "no-match",
+    "query": "{resource.service.name=\"absent\"}",
+    "target": "span.retries",
+    "supported": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "name": "query-literal-shortcut",
+    "query": "{span.request.kind=\"invented\" \u0026\u0026 resource.service.name=\"absent\"}",
+    "target": "span.request.kind",
+    "supported": false,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "invented"
+        }
+      ]
+    }
+  }
+]

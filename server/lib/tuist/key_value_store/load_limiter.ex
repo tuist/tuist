@@ -2,6 +2,8 @@ defmodule Tuist.KeyValueStore.LoadLimiter do
   @moduledoc false
   use GenServer
 
+  alias Tuist.Observability
+
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
 
   def child_spec(opts) do
@@ -10,7 +12,8 @@ defmodule Tuist.KeyValueStore.LoadLimiter do
 
   def run(name, key, loader, timeout \\ :infinity) do
     if pid = Process.whereis(name) do
-      GenServer.call(pid, {:run, key, loader, [self() | Process.get(:"$callers", [])]}, timeout)
+      snapshot = Observability.snapshot()
+      GenServer.call(pid, {:run, key, loader, [self() | Process.get(:"$callers", [])], snapshot}, timeout)
     else
       {:error, :unavailable}
     end
@@ -38,7 +41,7 @@ defmodule Tuist.KeyValueStore.LoadLimiter do
   end
 
   @impl true
-  def handle_call({:run, key, loader, callers}, from, state) do
+  def handle_call({:run, key, loader, callers, snapshot}, from, state) do
     case state.loads[key] do
       nil when map_size(state.loads) >= state.max_pending_loads ->
         {:reply, {:error, :overloaded}, state}
@@ -51,6 +54,7 @@ defmodule Tuist.KeyValueStore.LoadLimiter do
           id: id,
           loader: loader,
           callers: callers,
+          observability: snapshot,
           waiters: [from],
           timer: timer,
           worker: nil,
@@ -141,6 +145,7 @@ defmodule Tuist.KeyValueStore.LoadLimiter do
           :erlang.spawn_opt(
             fn ->
               Process.put(:"$callers", load.callers)
+              Observability.attach(load.observability)
               send(parent, {:loaded, key, load.id, run_loader(load.loader, on_error)})
             end,
             [:link, :monitor]

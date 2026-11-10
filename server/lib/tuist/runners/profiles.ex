@@ -31,7 +31,7 @@ defmodule Tuist.Runners.Profiles do
 
   @max_per_account 10
 
-  @resource_fields ~w(vcpus memory_gb xcode_version)
+  @resource_fields ~w(vcpus memory_gb xcode_version os_version)
 
   @doc """
   Cap on profiles per account. Surfaced so the LiveView can disable
@@ -70,6 +70,7 @@ defmodule Tuist.Runners.Profiles do
   """
   def create(%{id: account_id}, attrs) do
     attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
+    attrs = if parse_platform(attrs) == :linux, do: put_default_os_version(attrs), else: attrs
 
     if count_for_account(account_id) >= @max_per_account do
       {:error, :max_profiles_reached}
@@ -119,6 +120,8 @@ defmodule Tuist.Runners.Profiles do
           "memory_gb" => default.memory_gb,
           "protected" => true
         }
+
+        attrs = put_default_os_version(attrs)
 
         %Profile{}
         |> Profile.changeset(attrs, catalog_opts_for(:linux))
@@ -183,15 +186,25 @@ defmodule Tuist.Runners.Profiles do
       |> Map.drop(["name", "account_id", "platform"])
 
     changeset =
-      if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
-        do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
-        else: Profile.cache_writer_changeset(profile, attrs)
+      if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)) do
+        # A Linux row an older replica wrote without an OS runs on the
+        # default; a resource edit records that rather than failing.
+        attrs =
+          if platform == :linux and is_nil(profile.os_version), do: put_default_os_version(attrs), else: attrs
+
+        Profile.changeset(profile, attrs, catalog_opts_for(platform))
+      else
+        Profile.cache_settings_changeset(profile, attrs)
+      end
 
     update_revoking_writers(changeset)
   end
 
   defp update_revoking_writers(changeset) do
-    if Enum.any?([:cache_writer_default_branch, :cache_writer_branches], &Map.has_key?(changeset.changes, &1)) do
+    if Enum.any?(
+         [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches],
+         &Map.has_key?(changeset.changes, &1)
+       ) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),
              :ok <- CacheVolumes.revoke_profile_writers(profile) do
@@ -229,7 +242,7 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  The runner catalog: the shapes and Xcode versions a profile can use, for API and agent clients.
+  The runner catalog: the shapes, Xcode versions and Linux OS versions a profile can use, for API and agent clients.
   """
   def catalog do
     %{
@@ -237,7 +250,8 @@ defmodule Tuist.Runners.Profiles do
         for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
           %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
         end,
-      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
+      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?}),
+      os_versions: Enum.map(Catalog.os_versions(), &%{os_version: &1.os_version, label: &1.label, default: &1.default?})
     }
   end
 
@@ -266,6 +280,9 @@ defmodule Tuist.Runners.Profiles do
         shapes = Enum.map_join(Catalog.shapes(platform), ", ", &"#{&1.vcpus} vCPU / #{&1.memory_gb} GB")
         "vcpus and memory_gb must match an available #{platform} shape: #{shapes}."
 
+      opts[:validation] == :os_version ->
+        "os_version must be one of: #{Enum.map_join(Catalog.os_versions(), ", ", & &1.os_version)}."
+
       opts[:validation] == :xcode_version ->
         "xcode_version must be one of: #{Enum.map_join(Catalog.xcode_versions(), ", ", & &1.xcode_version)}."
 
@@ -287,19 +304,27 @@ defmodule Tuist.Runners.Profiles do
   policy inside a transaction. Returns `nil` for labels that resolved to a
   legacy pool or a profile that no longer exists.
   """
-  def lock_for_dispatch_label(account_id, label) when is_binary(label) do
+  def lock_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(lock(query, "FOR SHARE"))
+  end
+
+  @doc """
+  The profile a job was dispatched to, or `nil` like `lock_for_dispatch_label/2`.
+  """
+  def get_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(query)
+  end
+
+  defp dispatch_label_query(account_id, label) when is_binary(label) do
     prefix = Profile.prefix()
 
     case label do
-      ^prefix <> name ->
-        Repo.one(from(p in Profile, where: p.account_id == ^account_id and p.name == ^name, lock: "FOR SHARE"))
-
-      _ ->
-        nil
+      ^prefix <> name -> from(p in Profile, where: p.account_id == ^account_id and p.name == ^name)
+      _ -> nil
     end
   end
 
-  def lock_for_dispatch_label(_account_id, _label), do: nil
+  defp dispatch_label_query(_account_id, _label), do: nil
 
   @doc """
   Resolve `(account, requested_labels)` → profile, mirroring the
@@ -345,7 +370,16 @@ defmodule Tuist.Runners.Profiles do
   # Mirror the schema default: an unset platform attr means Linux.
   defp parse_platform(_), do: :linux
 
-  defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
+  defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux), os_versions: Catalog.os_versions()]
 
   defp catalog_opts_for(:macos), do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
+
+  # A Linux profile that names no OS gets the catalog default.
+  defp put_default_os_version(attrs) do
+    case {Map.get(attrs, "os_version"), Catalog.default_os_version()} do
+      {os_version, _} when is_binary(os_version) and os_version != "" -> attrs
+      {_, nil} -> attrs
+      {_, default} -> Map.put(attrs, "os_version", default.os_version)
+    end
+  end
 end

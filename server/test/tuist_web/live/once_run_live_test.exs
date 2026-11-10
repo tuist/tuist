@@ -30,6 +30,40 @@ defmodule TuistWeb.OnceRunLiveTest do
     %{run: run, path: "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"}
   end
 
+  @tag :build_environment
+  test "existing Once version and host class belong to the build environment", %{conn: conn, path: path, run: run} do
+    {:ok, _} =
+      OnceEvents.upsert_run(%{
+        project_id: run.project_id,
+        run_id: run.run_id,
+        once_version: "0.5.0",
+        host_class: "linux-arm64"
+      })
+
+    {:ok, view, _} = live(conn, path)
+
+    for label <- ["Once version", "Host"] do
+      assert has_element?(view, "#build-environment-content[hidden]", label)
+      refute has_element?(view, "[data-part=build-details]", label)
+    end
+
+    assert has_element?(view, "#build-environment-content", "0.5.0")
+    assert has_element?(view, "#build-environment-content", "linux-arm64")
+    assert has_element?(view, "[data-part=build-details]", "Run identifier")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+
+    render_patch(view, path <> "/cache")
+    refute has_element?(view, "#build-environment")
+  end
+
+  @tag :build_environment
+  test "Once reports without environment fields do not acquire server host details", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=build-details]", "Run identifier")
+    refute has_element?(view, "#build-environment")
+  end
+
   test "display names and source files appear in both action views with legacy fallbacks", %{
     conn: conn,
     path: path,

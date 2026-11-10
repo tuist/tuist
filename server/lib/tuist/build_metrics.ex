@@ -35,7 +35,7 @@ defmodule Tuist.BuildMetrics do
   end
 
   def dimension_values(project_id, dimension, build_system \\ "gradle", opts \\ [lookback_days: 90])
-      when dimension in ["git_branch", "workload"] and build_system in ["gradle", "xcode", "bazel", "once"] do
+      when dimension in ["git_branch", "workload"] and build_system in ["gradle", "xcode", "bazel", "once", "cargo"] do
     {source, params} = source(project_id, build_system: build_system)
 
     {time_filter, params} =
@@ -91,12 +91,18 @@ defmodule Tuist.BuildMetrics do
       case system do
         "gradle" ->
           {"gradle_builds", "duration_ms", "coalesce(started_at, inserted_at)", "requested_tasks", workload_sql(),
-           "account_id", "toString(status)", ""}
+           "if(submission_auth = '', account_id, actor_account_id)", "toString(status)", ""}
+
+        "cargo" ->
+          {"cargo_builds", "duration_ms", "coalesce(started_at, inserted_at)", "[command]",
+           "if(custom_values['tuist.workload'] != '', custom_values['tuist.workload'], command)",
+           "if(submission_auth = '', account_id, actor_account_id)", "toString(status)",
+           "AND command != 'nextest' AND status IN ('success', 'failure')"}
 
         "xcode" ->
           {"build_runs FINAL", "toInt64(duration)", "inserted_at", "[scheme]",
            "if(custom_values['tuist.workload'] != '', custom_values['tuist.workload'], if(scheme != '', scheme, 'Other'))",
-           "account_id", "status", "AND status IN ('success', 'failure')"}
+           "if(submission_auth = '', account_id, actor_account_id)", "status", "AND status IN ('success', 'failure')"}
 
         "bazel" ->
           {"bazel_invocations FINAL", "duration_ms", "started_at", "target_patterns",
@@ -110,7 +116,7 @@ defmodule Tuist.BuildMetrics do
     """
     SELECT #{if system == "bazel", do: "invocation_id", else: "toString(id)"} AS id, #{duration} AS duration_ms, #{started} AS started_at,
       inserted_at, #{user} AS account_id, #{tasks} AS requested_tasks,
-      #{if system == "bazel", do: "custom_values['tuist.reported_user']", else: "''"} AS reported_user,
+      #{if system == "bazel", do: "custom_values['tuist.reported_user']", else: "claimed_actor_id"} AS reported_user,
       #{workload} AS workload, #{category} AS failure_category, git_branch, is_ci,
       #{status} AS status,
       if(match(custom_values['tuist.cache_time_saved_ms'], '^[0-9]+$')
@@ -245,6 +251,24 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp failure_evidence_sql("bazel", _opts), do: "command IN ('test', 'coverage') AND exit_code = 3"
+
+  defp failure_evidence_sql("cargo", opts) do
+    if Keyword.get(opts, :view) in ["failures", "recent_failures", "listing"] do
+      # A command or exit status alone cannot distinguish compiler errors from
+      # tooling failures. Only recorded failed rustc invocations are evidence.
+      """
+      toString(id) IN (SELECT toString(build_id) FROM cargo_compilations
+        WHERE project_id = {project_id:Int64} AND status = 'failure'
+          #{evidence_build_id(opts, "build_id")}
+          #{evidence_period(opts)}
+          AND build_id IN (SELECT id FROM cargo_builds
+            WHERE project_id = {project_id:Int64} AND status = 'failure' AND command != 'nextest'
+              #{evidence_period(opts)}))
+      """
+    else
+      "false"
+    end
+  end
 
   defp evidence_build_id(opts, field) do
     if Keyword.has_key?(opts, :build_id), do: "AND toString(#{field}) = {build_id:String}", else: ""
@@ -486,7 +510,15 @@ defmodule Tuist.BuildMetrics do
             build_system: params.build_system,
             started_at: started_at,
             duration_ms: duration,
-            user: Map.get(accounts, account_id, if(reported_user == "", do: "Unknown", else: reported_user)),
+            user:
+              Map.get(
+                accounts,
+                account_id,
+                if(Tuist.ReportActor.valid_identifier?(reported_user),
+                  do: "Unverified: " <> reported_user,
+                  else: "Unknown"
+                )
+              ),
             requested_tasks: tasks,
             workload: workload,
             failure_category: category,

@@ -132,6 +132,17 @@ defmodule Tuist.Runners.PromExPlugin do
             tags: [:fleet],
             unit: :millisecond
           ),
+          distribution(
+            @metric_prefix ++ [:job, :executor_queue, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_executed(),
+            measurement: :queue_time_ms,
+            description:
+              "Time between webhook enqueue and the claim of the runner that ran the job, " <>
+                "observed once per job. `limit_held` marks jobs their account's concurrency limit held back.",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet, :platform, :limit_held],
+            unit: :millisecond
+          ),
           counter(
             @metric_prefix ++ [:job, :running, :count],
             event_name: Telemetry.event_name_job_running(),
@@ -215,14 +226,12 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :count,
             description:
               "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
-                "One sample per COMMITTED dispatch, so it shares a denominator with the hosts' " <>
-                "materialize counter. `resident` (a likely-resident account's job was preferred) " <>
-                "and `head_resident` are the warm placements; `no_resident_candidate` means " <>
-                "nothing queued matched the node's masters, `head_overdue` means the starvation " <>
-                "bound took precedence, `no_residency` means the node has no recorded masters " <>
-                "yet, and `untrusted` means a fork job the host runs cold by design. A resident " <>
-                "share that tracks the hosts' warm materialize share means the model matches " <>
-                "reality.",
+                "One sample per COMMITTED dispatch. `resident` (a job with a resident custom " <>
+                "volume was preferred) and `head_resident` are the warm placements; " <>
+                "`no_resident_candidate` means nothing queued matched the node's masters, " <>
+                "`no_room` means queued jobs matched them but the node's cache disk cannot fit " <>
+                "their volumes, `head_overdue` means the starvation bound took precedence, and " <>
+                "`no_residency` means the node advertises no masters.",
             tags: [:fleet, :outcome]
           )
         ]

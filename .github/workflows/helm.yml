@@ -34,6 +34,15 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
+      - .github/scripts/pulse-render-contract.jq
+      - .github/workflows/pulse-instance-deployment.yml
+      - .github/workflows/server-deployment.yml
+      - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
       - .github/workflows/pentest-deployment.yml
@@ -46,6 +55,15 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/scripts/helm-adopt-release-objects*
+      - .github/scripts/helm-move-release-objects*
+      - .github/scripts/pulse-render-contract.jq
+      - .github/workflows/pulse-instance-deployment.yml
+      - .github/workflows/server-deployment.yml
+      - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
       - .github/workflows/pentest-deployment.yml
@@ -86,9 +104,11 @@ jobs:
             "kura/ops/helm/kura|"
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
+            "infra/helm/pulse|values-managed-production.yaml"
             "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
+            "infra/helm/tuist|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-pentest.yaml values-ci.yaml"
             "infra/helm/tuist|values-k3s-smoke.yaml"
@@ -97,6 +117,7 @@ jobs:
             "infra/helm/rack-nodes|"
             "infra/helm/xcresult-processor|"
             "infra/helm/rack-cache-gateways|"
+            "infra/helm/remote-execution|values-ci.yaml"
           )
           failed=()
           for entry in "${configs[@]}"; do
@@ -125,12 +146,30 @@ jobs:
         run: |
           mise use -g yq@4.52.5
           bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test Pulse ingestion and service graph metrics
+        run: |
+          bash infra/helm/pulse/test-managed.sh
+          bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test per-node Hubble collection with Alloy
+        run: bash infra/helm/k8s-monitoring/test-hubble-metrics.sh
+      - name: Test runner macOS host health alerts
+        run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
+      - name: Test runner host disk alert
+        run: bash infra/helm/k8s-monitoring/test-runner-host-disk-alert.sh
+      - name: Test runner queue time alert
+        run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
+      - name: Test remote execution alerts
+        run: bash infra/helm/k8s-monitoring/test-remote-execution-alerts.sh
+      - name: Test Kura thin pool alerts
+        run: |
+          mise use -g aqua:prometheus/alertmanager@0.28.1
+          bash infra/helm/k8s-monitoring/test-kura-thin-pool-alerts.sh
 
   render:
     name: Render
@@ -169,14 +208,16 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
+            "pulse (production)|infra/helm/pulse|pulse|values-managed-production.yaml"
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
+            "remote-execution (production)|infra/helm/remote-execution|remote-execution|values-managed-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
+            "tuist (clustered self-hosted)|infra/helm/tuist|cluster-validation|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "tuist (pentest)|infra/helm/tuist|pentest|values-pentest.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
-            "platform (preview)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-preview.yaml"
             "platform (pentest)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-pentest.yaml"
           )
           failed=()
@@ -232,11 +273,37 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+      # Check cookie ownership after the full manifest render validation.
+      - name: Test cluster cookie ownership and managed environment wiring
+        run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: Test SSO domain verification deployment policy
+        run: python3 infra/helm/tuist/test-sso-domain-verification.py
+      - name: Test ClickHouse tailnet Service exposure
+        run: python3 infra/helm/tuist/test-clickhouse-tailnet.py
+      - name: CNPG promotion stays in the environment write tier
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/pomerium/test-access-tiers.sh
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.
       - name: Rack workloads stay out of waited releases
         run: infra/mise/tasks/helm/rack-independence.sh
+      - name: Server pods drain and the edge retries only unsent requests
+        run: infra/mise/tasks/helm/server-rollout.sh
+      - name: Linux vRack rollout keeps runner cohorts isolated
+        run: infra/mise/tasks/helm/linux-vrack.sh
+      - name: KVM defaults and preparation gate
+        run: infra/mise/tasks/helm/nested-kvm.sh
+      - name: Linux images are staged before pools move
+        run: |
+          bash .github/scripts/linux-runner-image-prepare.test.sh
+          bash infra/mise/tasks/helm/linux-image-staging.sh
+          bash .github/scripts/ghcr-manifest-digest.test.sh
+      - name: Deploys adopt objects already annotated for their release
+        run: bash .github/scripts/helm-adopt-release-objects.test.sh
+      - name: Deploys move objects only from the release that owns them
+        run: bash .github/scripts/helm-move-release-objects.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.
@@ -256,7 +323,7 @@ jobs:
             kubeconform -strict -summary xcresult-processor.yaml
           done
       # The rack charts render with another chart's values, which the loop
-      # above cannot express.
+      # above cannot express. Deploys pass the CSI image; CI pins a placeholder.
       - name: kubeconform the rack charts
         run: |
           set -euo pipefail
@@ -264,7 +331,8 @@ jobs:
             helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
               -f infra/helm/tuist/values.yaml \
               -f infra/helm/tuist/values-managed-common.yaml \
-              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              --set kuraVolumesCSI.image.tag=validation > rack-nodes.yaml
             kubeconform -strict -summary rack-nodes.yaml
           done
           for overlay in values-tuist-staging.yaml values-tuist.yaml; do

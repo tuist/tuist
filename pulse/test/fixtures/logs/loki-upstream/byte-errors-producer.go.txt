@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: MIT
+// Error-table inputs: Copyright (c) 2005-2008 Dustin Sallings.
+// See go-humanize-LICENSE. Adapted for Pulse on 2026-10-27.
+// Source: go-humanize v1.1.0 (40736da3e8ed16369b5e6f109548f243d43a7e34)
+// bytes_test.go:63-84, plus Loki's 2qb input and local diagnostic controls.
+// Build with Go 1.27.3 and github.com/dustin/go-humanize v1.1.0, then pass
+// the original bytes_test.go as the executable's first argument.
+// Ordinary Elixir replay requires neither Go nor downloads.
+package main
+
+import (
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/dustin/go-humanize"
+)
+
+func main() {
+	f, err := parser.ParseFile(token.NewFileSet(), os.Args[1], nil, 0)
+	if err != nil {
+		panic(err)
+	}
+	inputs := []string{}
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "TestByteErrors" {
+			continue
+		}
+		ast.Inspect(fn, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name, ok := call.Fun.(*ast.Ident)
+			if !ok || name.Name != "ParseBytes" {
+				return true
+			}
+			input, err := strconv.Unquote(call.Args[0].(*ast.BasicLit).Value)
+			if err != nil {
+				panic(err)
+			}
+			inputs = append(inputs, input)
+			return false
+		})
+	}
+	if len(inputs) != 5 {
+		panic("expected the complete five-input upstream error table")
+	}
+	inputs = append(inputs, "2qb", "+5MB", "-5MB", " 5MB", "1..2B", ".B", ",B", "1,2..3B", "0x10B", "1e3B", "84 \tJB\r\n", "1İB", "1ΩΣ", "1\u200bKB", "1\ufeffKB", "1😀", "１２MB", "١٢B", "1١B", "١2B", "123٤٥6MB", "\U00011de0\U00011de1B", "18446744073709551615.0B", "18446744073709551616BOGUS", "18446744073709551616B", strings.Repeat("9", 400)+"bogus", "1\x00KB", "1\"KB", "1\\KB")
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	for _, input := range inputs {
+		_, err := humanize.ParseBytes(input)
+		if err == nil {
+			panic("expected invalid input")
+		}
+		if err := enc.Encode([2]string{input, err.Error()}); err != nil {
+			panic(err)
+		}
+	}
+}

@@ -16,10 +16,206 @@
     title={elem(@flash_message, 1)}
   />
 
+  <.alert
+    :for={kind <- [:info, :error]}
+    :if={Phoenix.Flash.get(@flash, kind)}
+    status={if kind == :error, do: "error", else: "information"}
+    type="secondary"
+    size="small"
+    title={Phoenix.Flash.get(@flash, kind)}
+  />
+
+  <.card_section
+    :if={
+      is_nil(@organization) and @selected_account.user_id == @current_user.id and
+        @passkeys_enabled?
+    }
+    id="passkeys-settings"
+    data-part="security-card-section"
+  >
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Passkeys")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Sign in without a password using a passkey saved in your password manager or on a security key."
+      )}</span>
+      <span data-part="status">{dngettext(
+        "dashboard_account",
+        "%{count} passkey added",
+        "%{count} passkeys added",
+        length(@passkeys)
+      )}</span>
+    </div>
+    <div data-part="content">
+      <TuistWeb.SSOLinkHTML.reauthentication_notice
+        :if={!@fresh_session?}
+        return_to={~p"/#{@selected_account.name}/settings/authentication"}
+      />
+      <.button
+        :if={@fresh_session?}
+        id="passkey-add"
+        type="button"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_auth", "Create a passkey")}
+        data-passkey-ceremony="register"
+        data-options-url={~p"/users/settings/passkeys/options"}
+        data-action-url={~p"/users/settings/passkeys"}
+        data-status="passkey-status"
+      />
+      <span
+        id="passkey-status"
+        role="status"
+        data-part="passkey-status"
+        data-cancelled={dgettext("dashboard_auth", "Adding the passkey was cancelled.")}
+        data-failed={dgettext("dashboard_auth", "The passkey could not be added. Try again.")}
+        data-already-registered={
+          dgettext("dashboard_auth", "This passkey is already registered.")
+        }
+        data-unsupported={dgettext("dashboard_auth", "This browser does not support passkeys.")}
+      ></span>
+      <noscript>{dgettext("dashboard_auth", "JavaScript is required to use passkeys.")}</noscript>
+    </div>
+    <div :if={@passkeys != []} data-part="security-details">
+      <TuistWeb.Components.UserSecurity.passkeys passkeys={@passkeys} editable={@fresh_session?} />
+    </div>
+  </.card_section>
+  <.card_section
+    :if={is_nil(@organization) and @selected_account.user_id == @current_user.id}
+    id="two-factor-settings"
+    data-part="security-card-section"
+  >
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Two-factor authentication")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Add an authenticator code to your password or SSO sign-in. Keep recovery codes as a backup."
+      )}</span>
+      <span data-part="status">{if @mfa_enabled?,
+        do: dgettext("dashboard_account", "Enabled"),
+        else: dgettext("dashboard_account", "Not enabled")}</span>
+    </div>
+    <div data-part="content">
+      <TuistWeb.Components.UserSecurity.mfa_controls
+        :if={@mfa_enabled? and @fresh_session?}
+        recovery_code_count={@recovery_code_count}
+        recovery_modal="mfa-recovery-modal"
+      />
+      <TuistWeb.SSOLinkHTML.reauthentication_notice
+        :if={@mfa_enabled? and !@fresh_session?}
+        return_to={~p"/#{@selected_account.name}/settings/authentication"}
+      />
+      <.modal
+        :if={!@mfa_enabled?}
+        id="setup-authenticator-modal"
+        on_dismiss="close_authenticator_modal"
+        on_open_change="authenticator_modal_change"
+        title={dgettext("dashboard_auth", "Set up authenticator app")}
+        description={
+          dgettext("dashboard_auth", "Scan the QR code, then enter the six-digit code.")
+        }
+      >
+        <:trigger :let={attrs}>
+          <.button
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_auth", "Set up authenticator app")}
+            phx-click="setup_authenticator"
+            {attrs}
+          />
+        </:trigger>
+        <div data-part="security-modal-body">
+          <TuistWeb.SSOLinkHTML.reauthentication_notice
+            :if={!@fresh_session?}
+            return_to={~p"/#{@selected_account.name}/settings/authentication"}
+          />
+          <div :if={@fresh_session? and @mfa_secret} data-part="authenticator-setup">
+            <img
+              id="mfa-setup-qr"
+              src={TuistWeb.UserMFAHTML.enrollment_qr(@mfa_secret, @current_user.email)}
+              width="200"
+              height="200"
+              alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
+            />
+            <details id="mfa-manual-setup">
+              <summary>{dgettext("dashboard_auth", "Can't scan the QR code?")}</summary>
+              <.text_input
+                id="mfa-setup-key"
+                name="setup_key"
+                value={Base.encode32(@mfa_secret, padding: false)}
+                label={dgettext("dashboard_auth", "Setup key")}
+                readonly
+                autocomplete="off"
+                data-1p-ignore
+                dir="ltr"
+                show_prefix={false}
+              />
+            </details>
+            <form
+              id="mfa-enrollment"
+              method="post"
+              action={~p"/users/settings/mfa/confirm"}
+              data-recovery-modal="mfa-recovery-modal"
+              data-source-modal="setup-authenticator-modal"
+              data-error={dgettext("dashboard_auth", "Something went wrong. Please try again.")}
+            >
+              <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+              <.text_input
+                id="mfa-code"
+                name="mfa_code"
+                value=""
+                label={dgettext("dashboard_auth", "Authentication code")}
+                show_prefix={false}
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                required
+              />
+              <span data-enrollment-status role="alert"></span>
+            </form>
+          </div>
+        </div>
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                variant="secondary"
+                label={dgettext("dashboard_auth", "Cancel")}
+                phx-click="close_authenticator_modal"
+              />
+              <.button
+                :if={@fresh_session? and @mfa_secret}
+                type="submit"
+                form="mfa-enrollment"
+                variant="primary"
+                label={dgettext("dashboard_auth", "Enable two-factor authentication")}
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+      <dialog id="mfa-recovery-modal" aria-labelledby="mfa-recovery-title" phx-update="ignore">
+        <h2 id="mfa-recovery-title">{dgettext("dashboard_auth", "Save your recovery codes")}</h2>
+        <p>
+          {dgettext(
+            "dashboard_auth",
+            "Save these codes somewhere safe. You won't see them again."
+          )}
+        </p>
+        <div data-recovery-content></div>
+      </dialog>
+    </div>
+  </.card_section>
+
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+  <.form
+    :if={@organization}
+    for={@form}
+    id="sso-form"
+    phx-submit="save_sso"
+    phx-change="validate_sso"
+  >
     <.card_section data-part="sso-card">
       <div data-part="header">
         <span data-part="title">
@@ -286,6 +482,10 @@
             </span>
             <%= if domain_verification_shown?(@organization, @form) do %>
               <%= cond do %>
+                <% @login_domain_trust == :instance -> %>
+                  <span data-part="domain-verification-status" data-status="instance">
+                    {dgettext("dashboard_account", "Trusted by instance configuration")}
+                  </span>
                 <% Accounts.sso_login_domain_expiring?(@organization) -> %>
                   <span data-part="domain-verification-status" data-status="expiring">
                     {dngettext(
@@ -307,7 +507,7 @@
             <% end %>
           </div>
           <span data-part="description">
-            <%= if @organization.sso_login_domain_verified_at do %>
+            <%= if @login_domain_trust in [:instance, :dns_verified] do %>
               {dgettext(
                 "dashboard_account",
                 "Used to find your provider and to decide which email addresses to trust."
@@ -318,7 +518,9 @@
                 "Once verified, used to find your provider and to decide which email addresses to trust."
               )}
             <% end %>
-            {domain_record_instruction(@organization, @form)}
+            <%= if @login_domain_trust != :instance or @login_domain_shared do %>
+              {domain_record_instruction(@organization, @form)}
+            <% end %>
           </span>
         </div>
         <div data-part="field">
@@ -330,7 +532,8 @@
           />
           <.button
             :if={
-              domain_verification_shown?(@organization, @form) and
+              (@login_domain_trust != :instance or @login_domain_shared) and
+                domain_verification_shown?(@organization, @form) and
                 Accounts.sso_login_domain_awaiting_record?(@organization)
             }
             id="verify-sso-login-domain-button"
@@ -347,7 +550,8 @@
         </div>
         <div
           :if={
-            domain_verification_shown?(@organization, @form) and
+            (@login_domain_trust != :instance or @login_domain_shared) and
+              domain_verification_shown?(@organization, @form) and
               (Accounts.sso_login_domain_awaiting_record?(@organization) or
                  not is_nil(@domain_verification_error))
           }
@@ -398,6 +602,20 @@
           </div>
         </div>
       </div>
+
+      <.alert
+        :if={@login_domain_shared}
+        id="sso-shared-login-domain"
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_account",
+            "Another organization uses this login domain. Email lookup prefers a DNS-verified organization; otherwise, use your organization's SSO sign-in link."
+          )
+        }
+      />
 
       <%!-- Okta domain field --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
@@ -582,7 +800,7 @@
         <div data-part="toggle-label">
           <.toggle
             id={
-              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_automatic_enrollment)}"
+              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_automatic_enrollment)}"
             }
             data-testid="sso-automatic-enrollment-toggle"
             checked={@sso_automatic_enrollment}
@@ -590,7 +808,7 @@
               automatic_enrollment_toggle_disabled?(
                 @selected_provider,
                 @organization,
-                @current_form_params,
+                @login_domain_trust,
                 @sso_automatic_enrollment
               )
             }
@@ -607,15 +825,15 @@
                     "dashboard_account",
                     "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
                   )}
-                <% @organization.sso_login_domain_verified_at -> %>
+                <% @login_domain_trust == :instance -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @login_domain_trust == :dns_verified -> %>
                   {dgettext(
                     "dashboard_account",
                     "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
-                  )}
-                <% @organization.sso_legacy_email_domain_fallback && @sso_automatic_enrollment -> %>
-                  {dgettext(
-                    "dashboard_account",
-                    "This existing configuration allows any email address reported by the provider to join automatically. Add and verify a login email domain to restrict enrollment."
                   )}
                 <% @sso_automatic_enrollment -> %>
                   {dgettext(
@@ -663,7 +881,7 @@
         <div data-part="toggle-label">
           <.toggle
             id={
-              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @current_form_params, @sso_enforced)}"
+              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_enforced)}"
             }
             data-testid="sso-enforced-toggle"
             checked={@sso_enforced}
@@ -671,7 +889,7 @@
               sso_enforcement_toggle_disabled?(
                 @selected_provider,
                 @organization,
-                @current_form_params,
+                @login_domain_trust,
                 @sso_enforced
               )
             }
@@ -683,8 +901,7 @@
             </span>
             <span data-part="description">
               <%= if oauth2_form_provider?(@selected_provider) and
-                       is_nil(@organization.sso_login_domain_verified_at) and
-                       not @organization.sso_legacy_email_domain_fallback and
+                       @login_domain_trust not in [:instance, :dns_verified] and
                        not @sso_enforced do %>
                 {dgettext(
                   "dashboard_account",
@@ -716,7 +933,7 @@
   <%!-- ============================================================ --%>
   <%!-- SCIM provisioning                                             --%>
   <%!-- ============================================================ --%>
-  <.card_section data-part="scim-card">
+  <.card_section :if={@organization} data-part="scim-card">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_account", "SCIM provisioning")}
@@ -912,4 +1129,6 @@
       </div>
     </div>
   </.card_section>
+
+  <WorkloadIdentities.workload_identities {assigns} />
 </div>

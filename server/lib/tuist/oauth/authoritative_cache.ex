@@ -1,25 +1,25 @@
 defmodule Tuist.OAuth.AuthoritativeCache do
   @moduledoc """
-  Boruta compatibility backend with authoritative reads and legacy invalidations.
+  Boruta backend with authoritative reads and no replicated entity operations.
 
-  Reads always fall through to the upstream Ecto adapters, and fills are ignored.
-  Invalidations still reach Boruta's replicated cache because older replicas and
-  rolled-back binaries may read entries already stored there. Invalidation errors
-  propagate rather than acknowledging a stale grant. Because fills no longer fail
-  before revocation, an invalidation failure can consume a code or refresh token
-  after the database commit without delivering its replacement; re-authorization
-  may be necessary. This release does not make the upstream sequence atomic.
+  Reads always fall through to the upstream Ecto adapters. Fills and invalidations
+  are no-ops, so OAuth entity mutations do not wait for replicated cache RPC/locks
+  after committing to PostgreSQL. Boruta still starts its cache and membership
+  processes; this backend does not remove their startup or lifecycle behavior.
 
-  Deploy this compatibility backend fleet-wide before separately removing the
-  legacy invalidations or changing cluster membership. This phase still depends
-  on Boruta's existing replicated invalidation and membership behavior; it does
-  not claim to solve legacy partitions or eliminate cluster-wide locks.
+  Upgrade every OAuth consumer, including background jobs, to the authoritative-
+  reading compatibility release (#14040) before deploying this version. It can
+  overlap and roll back to that release, but not to cache-reading binaries: their
+  retained entries can be stale after mutations here. To roll back further, first
+  stop every no-invalidation consumer, then clear or replace every retained cache
+  participant and prevent old participants from rejoining before readers start.
 
-  Immutable bcrypt proofs, bounded authentication subjects and issued Guardian
-  JWT revocation semantics are unchanged.
+  Upstream code redemption and refresh rotation are not made atomic. Immutable
+  bcrypt proofs, bounded authentication subjects and already-issued Guardian JWT
+  revocation semantics are unchanged.
   """
 
   def get(_key), do: nil
   def put(_key, _value, _opts \\ []), do: :ok
-  def delete(key), do: Boruta.Cache.delete(key)
+  def delete(_key), do: :ok
 end

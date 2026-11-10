@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for clamp_max, clamp_min(), and clamp().
+load 5m
+	test_clamp{src="clamp-a"}	-50
+	test_clamp{src="clamp-b"}	0
+	test_clamp{src="clamp-c"}	100
+	test_clamp{src="histogram"} {{schema:0 sum:1 count:1}}
+
+eval instant at 0m clamp_max(test_clamp, 75)
+	{src="clamp-a"}	-50
+	{src="clamp-b"}	0
+	{src="clamp-c"}	75
+
+eval instant at 0m clamp_min(test_clamp, -25)
+	{src="clamp-a"}	-25
+	{src="clamp-b"}	0
+	{src="clamp-c"}	100
+
+eval instant at 0m clamp(test_clamp, -25, 75)
+	{src="clamp-a"}	-25
+	{src="clamp-b"}	0
+	{src="clamp-c"}	75
+
+eval instant at 0m clamp_max(clamp_min(test_clamp, -20), 70)
+	{src="clamp-a"}	-20
+	{src="clamp-b"}	0
+	{src="clamp-c"}	70
+
+eval instant at 0m clamp_max((clamp_min(test_clamp, (-20))), (70))
+	{src="clamp-a"}	-20
+	{src="clamp-b"}	0
+	{src="clamp-c"}	70
+
+eval instant at 0m clamp(test_clamp, 0, NaN)
+	{src="clamp-a"}	NaN
+	{src="clamp-b"}	NaN
+	{src="clamp-c"}	NaN
+
+eval instant at 0m clamp(test_clamp, NaN, 0)
+	{src="clamp-a"}	NaN
+	{src="clamp-b"}	NaN
+	{src="clamp-c"}	NaN
+
+eval instant at 0m clamp_max(test_clamp, NaN)
+	{src="clamp-a"}	NaN
+	{src="clamp-b"}	NaN
+	{src="clamp-c"}	NaN
+
+eval instant at 0m clamp_min(test_clamp, NaN)
+	{src="clamp-a"}	NaN
+	{src="clamp-b"}	NaN
+	{src="clamp-c"}	NaN
+
+eval instant at 0m clamp_max(test_clamp, Inf)
+	{src="clamp-a"}	-50
+	{src="clamp-b"}	0
+	{src="clamp-c"}	100
+
+eval instant at 0m clamp_max(test_clamp, -Inf)
+	{src="clamp-a"}	-Inf
+	{src="clamp-b"}	-Inf
+	{src="clamp-c"}	-Inf
+
+eval instant at 0m clamp_min(test_clamp, -Inf)
+	{src="clamp-a"}	-50
+	{src="clamp-b"}	0
+	{src="clamp-c"}	100
+
+eval instant at 0m clamp_min(test_clamp, Inf)
+	{src="clamp-a"}	+Inf
+	{src="clamp-b"}	+Inf
+	{src="clamp-c"}	+Inf
+
+eval instant at 0m clamp(test_clamp, -Inf, Inf)
+	{src="clamp-a"}	-50
+	{src="clamp-b"}	0
+	{src="clamp-c"}	100
+
+eval instant at 0m clamp(test_clamp, 5, -5)
+
+clear
+
+load 1m
+	mixed_metric {{schema:0 sum:5 count:4 buckets:[1 2 1]}} 1 2 3 {{schema:0 sum:5 count:4 buckets:[1 2 1]}} {{schema:0 sum:8 count:6 buckets:[1 4 1]}}
+
+# clamp ignores any histograms
+eval range from 0 to 5m step 1m clamp(mixed_metric, 2, 5)
+	{} _ 2 2 3
+
+eval range from 0 to 5m step 1m clamp_min(mixed_metric, 2)
+	{} _ 2 2 3
+
+eval range from 0 to 5m step 1m clamp_max(mixed_metric, 2)
+	{} _ 1 2 2
+
+clear
+
+# Tests for clamp(), clamp_min() and clamp_max() on float-only input.
+load 5m
+  test_clamp{src="low"} -50
+  test_clamp{src="zero"} 0
+  test_clamp{src="high"} 100
+  test_clamp{src="nan"} NaN
+  rising 1+1x4
+
+# The metric name is dropped from the result.
+eval instant at 0m clamp_max(test_clamp, 75)
+  {src="low"} -50
+  {src="zero"} 0
+  {src="high"} 75
+  {src="nan"} NaN
+
+eval instant at 0m clamp_min(test_clamp, -25)
+  {src="low"} -25
+  {src="zero"} 0
+  {src="high"} 100
+  {src="nan"} NaN
+
+eval instant at 0m clamp(test_clamp, -25, 75)
+  {src="low"} -25
+  {src="zero"} 0
+  {src="high"} 75
+  {src="nan"} NaN
+
+# min == max collapses every value onto that bound. NaN input stays NaN.
+eval instant at 0m clamp(test_clamp, 10, 10)
+  {src="low"} 10
+  {src="zero"} 10
+  {src="high"} 10
+  {src="nan"} NaN
+
+# min > max returns an empty vector.
+eval instant at 0m clamp(test_clamp, 75, -25)
+
+eval instant at 0m clamp(test_clamp, 1, 0)
+
+# Range query: each step is clamped independently.
+eval range from 0 to 20m step 5m clamp(rising, 2, 4)
+  {} 2 2 3 4 4
+
+eval range from 0 to 20m step 5m clamp_min(rising, 3)
+  {} 3 3 3 4 5
+
+eval range from 0 to 20m step 5m clamp_max(rising, 3)
+  {} 1 2 3 3 3
+
+clear

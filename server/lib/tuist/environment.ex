@@ -275,9 +275,35 @@ defmodule Tuist.Environment do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
+  def network_trusted_report_publishing_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_report_publishing, false)
+      ) do
+    not hosted and enabled == true
+  end
+
+  def network_trusted_cache_access_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_cache_access, false)
+      ) do
+    not hosted and enabled == true
+  end
+
+  def sso_require_login_domain_verification?(
+        enabled \\ Application.get_env(:tuist, :sso_require_login_domain_verification, false)
+      ) do
+    enabled == true
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
+  # Before a downgrade, disable and drain in-flight reports before rolling back.
+  def expanded_build_metadata_enabled? do
+    truthy?(System.get_env("TUIST_EXPANDED_BUILD_METADATA_ENABLED", "0"))
   end
 
   def kura_capacity_admission_required? do
@@ -477,8 +503,57 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  # Verification is opt-in so upgrades keep connecting to databases whose
+  # certificates chain to a private CA (RDS, Cloud SQL, self-managed).
+  # Postgrex verifies the peer and hostname by default for `true` and keyword
+  # lists, and sets SNI from the host of each connection, so neither is pinned
+  # here. `true` also defers loading the OS trust store to connect time.
+  def database_ssl_options do
+    ca_cert_file = System.get_env("TUIST_DATABASE_SSL_CA_CERT_FILE")
+
+    cond do
+      not truthy?(System.get_env("TUIST_DATABASE_SSL_VERIFY", "0")) -> [verify: :verify_none]
+      ca_cert_file in [nil, ""] -> true
+      true -> [cacertfile: validate_database_ca_cert_file!(ca_cert_file)]
+    end
+  end
+
+  defp validate_database_ca_cert_file!(path) do
+    with {:ok, pem} <- File.read(path),
+         true <- Enum.any?(:public_key.pem_decode(pem), &match?({:Certificate, _, _}, &1)) do
+      path
+    else
+      _ ->
+        raise "TUIST_DATABASE_SSL_CA_CERT_FILE must point to a readable PEM file with CA certificates, got: #{inspect(path)}"
+    end
+  end
+
   def dev_use_remote_storage? do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
+  end
+
+  def kura_lvm_region_ids do
+    "TUIST_KURA_LVM_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_thin_region_ids do
+    "TUIST_KURA_THIN_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_thin_enrolled_region_ids do
+    "TUIST_KURA_THIN_ENROLLED_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   def kura_available_region_ids do
@@ -579,6 +654,11 @@ defmodule Tuist.Environment do
 
   def kura_tuist_base_url do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
+  end
+
+  @doc "The public gRPC endpoint of the remote execution gateways, such as `grpcs://execution.tuist.dev`."
+  def remote_execution_endpoint do
+    System.get_env("TUIST_REMOTE_EXECUTION_ENDPOINT")
   end
 
   @doc """
@@ -881,7 +961,23 @@ defmodule Tuist.Environment do
   verification. Defaults to `tuist.dev`.
   """
   def operator_email_domain(secrets \\ secrets()) do
-    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+    [:operator_email_domain] |> get(secrets, default_value: "tuist.dev") |> String.trim() |> String.downcase()
+  end
+
+  @doc "Whether the operator email domain is set explicitly instead of using the `tuist.dev` default."
+  def operator_email_domain_configured?(secrets \\ secrets()) do
+    case get([:operator_email_domain], secrets) do
+      domain when is_binary(domain) -> String.trim(domain) != ""
+      _ -> false
+    end
+  end
+
+  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  def shard_storage_targets do
+    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
+      {:ok, targets} when is_map(targets) -> targets
+      _ -> %{}
+    end
   end
 
   @doc """
@@ -1210,6 +1306,15 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
+  @doc """
+  OAuth client ID for personal ChatGPT connections
+  (`Tuist.Accounts.AISubscriptions.ChatGPT`). The client must have OpenAI's
+  device authorization enabled; without it, ChatGPT sign-in stays unavailable.
+  """
+  def chatgpt_client_id(secrets \\ secrets()) do
+    get([:chatgpt, :client_id], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
@@ -1393,8 +1498,45 @@ defmodule Tuist.Environment do
       apple_private_key_id(secrets) != nil and apple_private_key(secrets) != nil
   end
 
+  def apns_key_id(secrets \\ secrets()) do
+    get([:apns, :key_id], secrets)
+  end
+
+  def apns_team_id(secrets \\ secrets()) do
+    get([:apns, :team_id], secrets)
+  end
+
+  def apns_topic(secrets \\ secrets()) do
+    get([:apns, :topic], secrets)
+  end
+
+  def apns_private_key(secrets \\ secrets()) do
+    get([:apns, :private_key], secrets)
+  end
+
+  def apns_configured?(secrets \\ secrets()) do
+    apns_key_id(secrets) != nil and apns_team_id(secrets) != nil and apns_topic(secrets) != nil and
+      apns_private_key(secrets) != nil
+  end
+
+  @doc """
+  The Firebase service account JSON (as downloaded from Google Cloud) the server
+  sends Android notifications with.
+  """
+  def fcm_service_account(secrets \\ secrets()) do
+    get([:fcm, :service_account], secrets)
+  end
+
+  def fcm_configured?(secrets \\ secrets()) do
+    fcm_service_account(secrets) not in [nil, ""]
+  end
+
   def mailgun_api_key(secrets \\ secrets()) do
     get([:mailgun, :api_key], secrets)
+  end
+
+  def mailing_provider(secrets \\ secrets()) do
+    get([:mailing, :provider], secrets, default_value: "mailgun")
   end
 
   def mailing_domain(secrets \\ secrets()) do
@@ -1419,8 +1561,25 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    case mailing_provider(secrets) do
+      "mailgun" ->
+        mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+          mailing_from_address(secrets) != nil
+
+      "ses" ->
+        Enum.all?(
+          [
+            get([:ses, :region], secrets),
+            get([:ses, :access_key_id], secrets),
+            get([:ses, :secret_access_key], secrets),
+            mailing_from_address(secrets)
+          ],
+          &(&1 not in [nil, ""])
+        )
+
+      provider ->
+        raise ArgumentError, "unsupported mailing provider: #{inspect(provider)}"
+    end
   end
 
   def skip_email_confirmation?(secrets \\ secrets()) do
@@ -1442,18 +1601,6 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
-  # The in-cluster ClickHouse the workload is migrating onto, while
-  # `clickhouse_url/1` still points at the system of record. Set only for the
-  # duration of the migration: it is what the schema clone writes into, what
-  # the backfill fills, and what shadow writes are mirrored to. Absent
-  # everywhere else, which is what keeps all of that inert.
-  def clickhouse_bare_metal_url(secrets \\ secrets()) do
-    case get([:clickhouse, :bare_metal_url], secrets) do
-      url when is_binary(url) and url != "" -> url
-      _ -> nil
-    end
-  end
-
   def ops_clickhouse_url(secrets \\ secrets()) do
     get([:ops, :clickhouse_url], secrets) ||
       build_ops_clickhouse_url(
@@ -1473,6 +1620,18 @@ defmodule Tuist.Environment do
 
   def ops_clickhouse_role(secrets \\ secrets()) do
     get([:ops, :clickhouse_role], secrets)
+  end
+
+  def grafana_clickhouse_username(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_username], secrets)
+  end
+
+  def grafana_clickhouse_password(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_password], secrets)
+  end
+
+  def grafana_clickhouse_role(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_role], secrets)
   end
 
   def build_ops_clickhouse_url(application_url, username, password)
@@ -1514,39 +1673,6 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_OPS_CLICKHOUSE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
       _ -> 2
-    end
-  end
-
-  # Whether writes are mirrored onto the in-cluster ClickHouse. Separate from
-  # the URL being set, because the destination has to exist and hold the
-  # schema before it can accept a write: the schema clone runs after the
-  # release that first deploys the server, so a single switch would mirror
-  # writes into a database with no tables and log an error for each one.
-  def clickhouse_shadow_writes_enabled?(secrets \\ secrets()) do
-    not is_nil(clickhouse_bare_metal_url(secrets)) and
-      truthy?(get([:clickhouse, :shadow_writes_enabled], secrets, default_value: "0"))
-  end
-
-  # The instant that divides the two halves of the migration: the backfill
-  # copies rows from before it, and shadow writes carry everything from it on.
-  # It has to be named rather than inferred, because the only correct value is
-  # the moment dual writes were switched on, which this code cannot observe
-  # after the fact. Guessing it either way corrupts the copy: a cutoff before
-  # that moment loses the rows written in between, and one after it copies
-  # rows the dual write already delivered.
-  def clickhouse_backfill_cutoff(secrets \\ secrets()) do
-    with value when is_binary(value) and value != "" <- get([:clickhouse, :backfill_cutoff], secrets),
-         {:ok, cutoff, _offset} <- DateTime.from_iso8601(value) do
-      DateTime.truncate(cutoff, :second)
-    else
-      _ -> nil
-    end
-  end
-
-  def clickhouse_shadow_pool_size(_secrets \\ nil) do
-    case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
-      nil -> 5
-      value -> String.to_integer(value)
     end
   end
 
@@ -1842,17 +1968,7 @@ defmodule Tuist.Environment do
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
-    route_info = get_route_info(path)
-
-    default_route_type = Keyword.get(opts, :route_type)
-
-    type =
-      cond do
-        not is_nil(default_route_type) -> default_route_type
-        is_nil(route_info) -> :static_asset
-        Map.get(route_info, :type) == :marketing -> :marketing
-        true -> :app
-      end
+    type = Keyword.get_lazy(opts, :route_type, fn -> route_type(path) end)
 
     if type == :marketing and not Tuist.Environment.tuist_hosted?() do
       # When it's a marketing URL available presented somewhere in an
@@ -1871,10 +1987,11 @@ defmodule Tuist.Environment do
     end
   end
 
-  defp get_route_info(path) do
-    case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do
-      :error -> nil
-      route_info -> route_info
+  defp route_type(path) do
+    case Phoenix.Router.route_info(Tuist.Web.router(), "GET", path, "") do
+      :error -> :static_asset
+      %{type: :marketing} -> :marketing
+      _route_info -> :app
     end
   end
 
@@ -1985,6 +2102,23 @@ defmodule Tuist.Environment do
 
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
+  def atlas_url(secrets \\ secrets()) do
+    get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
+  end
+
+  def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
+  @doc """
+  Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
+  the server presents to Atlas' support ingest, where agent feedback reported
+  through the MCP server is published. Atlas verifies it against this cluster's
+  pinned JWKS, so there is no shared secret. The kubelet rotates the file in
+  place, and the `report_feedback` tool is only offered while it exists.
+  """
+  def atlas_support_ingest_token_path do
+    System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
@@ -2021,6 +2155,68 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Kubernetes namespace the sandboxd DaemonSet runs in. The node
+  WebSocket endpoint only accepts ServiceAccount tokens reviewed
+  into this namespace. Defaults to `tuist-sandboxes` (matches the
+  chart's `sandboxes.namespace`).
+  """
+  def sandboxes_namespace do
+    System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
+  end
+
+  @doc """
+  Hours an Amp Orb stays paused on its node before its disks are archived
+  to object storage and the node copy is deleted
+  (`Tuist.Sandboxes.Archives`). Unset or `0` keeps paused Orbs on their
+  nodes.
+  """
+  def sandbox_archive_after_hours do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_AFTER_HOURS", "")) do
+      {hours, ""} when hours > 0 -> hours
+      _ -> nil
+    end
+  end
+
+  def amp_provider_config do
+    %{
+      image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),
+      namespace: System.get_env("TUIST_AMP_PROVIDER_NAMESPACE", "tuist-amp-orbs"),
+      url: System.get_env("TUIST_AMP_PROVIDER_URL"),
+      node_selector: "TUIST_AMP_PROVIDER_NODE_SELECTOR" |> System.get_env("{}") |> JSON.decode!()
+    }
+  end
+
+  @doc """
+  Where Claude Code orchestrator workloads run: the Amp provider namespace,
+  URL and node selector, with their own image.
+  """
+  def claude_code_provider_config do
+    Map.put(amp_provider_config(), :image, System.get_env("TUIST_CLAUDE_CODE_PROVIDER_IMAGE"))
+  end
+
+  @doc """
+  Override for the Anthropic API base URL used by the sandbox work
+  poller, or `nil` to use the public API. Set `TUIST_ANTHROPIC_API_URL`
+  to point the poller and the in-guest worker at a stub.
+  """
+  def anthropic_api_url_override do
+    case System.get_env("TUIST_ANTHROPIC_API_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def anthropic_api_url do
+    anthropic_api_url_override() || "https://api.anthropic.com"
+  end
+
+  @doc """
   Prefix the dispatch path prepends to a shape key when addressing a
   Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
 
@@ -2054,6 +2250,114 @@ defmodule Tuist.Environment do
     "TUIST_RUNNERS_SITE_POOLS"
     |> System.get_env("")
     |> parse_runners_site_pools()
+  end
+
+  @doc """
+  Whether the env rents a macOS fleet to back its sites' pools with. Helm sets
+  `TUIST_RUNNERS_RENTED_MACOS_FLEET=false` when the env racks its macOS pools
+  at a site and rents no hosts, so dispatch keeps those pools' jobs at the site.
+  """
+  def runners_rented_macos_fleet?(environment \\ System.get_env()) do
+    Map.get(environment, "TUIST_RUNNERS_RENTED_MACOS_FLEET") != "false"
+  end
+
+  @doc """
+  Wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
+  The first wraps new shares; all entries decrypt.
+  Prepending a replacement does not rewrap existing shares. Use
+  `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
+
+  Outside canary/production an unset value derives a development root from
+  secret_key_base. Canary/production require explicit roots.
+  """
+  def kura_volume_root_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_root_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_root_keys(value)
+      _ -> fallback_kura_volume_root_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_root_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&parse_kura_volume_root_key/1)
+    ids = for {:ok, {id, _key}} <- entries, do: id
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, _}, &1)) and length(Enum.uniq(ids)) == length(ids) do
+      Enum.map(entries, fn {:ok, entry} -> entry end)
+    else
+      []
+    end
+  end
+
+  defp parse_kura_volume_root_key(entry) do
+    with [id, encoded] when id != "" <- entry |> String.trim() |> String.split(":", parts: 2),
+         {:ok, <<_::binary-size(32)>> = key} <- Base.decode64(String.trim(encoded)) do
+      {:ok, {id, key}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp fallback_kura_volume_root_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, _} when env in [:can, :prod] ->
+        []
+
+      {_env, base} when is_binary(base) and base != "" ->
+        [{"dev", :crypto.hash(:sha256, "kura-volume-root-key/dev|" <> base)}]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Static X25519 keys that authenticate sealed Kura volume-key responses
+  (`TUIST_KURA_VOLUME_TRANSPORT_KEYS`), as `[{public_key, private_key}]`. The
+  value is comma-separated base64 32-byte private keys. The CSI node plugin pins
+  one public key; keep the previous key listed until every plugin pins its
+  replacement.
+
+  Development and test derive a key from secret_key_base when unset; hosted
+  environments require explicit keys.
+  """
+  def kura_volume_transport_keys(secrets \\ secrets()) do
+    case get([:kura, :volume_transport_keys], secrets) do
+      value when is_binary(value) and value != "" -> parse_kura_volume_transport_keys(value)
+      _ -> fallback_kura_volume_transport_keys(secrets)
+    end
+  end
+
+  @doc false
+  def parse_kura_volume_transport_keys(value) do
+    entries = value |> String.split(",", trim: true) |> Enum.map(&(&1 |> String.trim() |> Base.decode64()))
+
+    if entries != [] and Enum.all?(entries, &match?({:ok, <<_::binary-size(32)>>}, &1)) do
+      Enum.map(entries, fn {:ok, private_key} -> :crypto.generate_key(:ecdh, :x25519, private_key) end)
+    else
+      []
+    end
+  end
+
+  defp fallback_kura_volume_transport_keys(secrets) do
+    case {env(), secret_key_base(secrets)} do
+      {env, base} when env in [:dev, :test] and is_binary(base) and base != "" ->
+        [:crypto.generate_key(:ecdh, :x25519, :crypto.hash(:sha256, "kura-volume-transport-key/dev|" <> base))]
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Username of the ServiceAccount the Kura volumes CSI node plugin presents to
+  `POST /_internal/kura/volume-keys` (`TUIST_KURA_VOLUMES_CSI_NODE_USERNAME`).
+  """
+  def kura_volumes_csi_node_username do
+    case System.get_env("TUIST_KURA_VOLUMES_CSI_NODE_USERNAME") do
+      username when is_binary(username) and username != "" -> username
+      _ -> "system:serviceaccount:kura-volumes:kura-volumes-csi-node"
+    end
   end
 
   @doc false

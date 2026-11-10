@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
+<html
+  lang={TuistWeb.Locale.language_tag(Gettext.get_locale())}
+  dir={TuistWeb.Locale.direction(Gettext.get_locale())}
+  class="[scrollbar-gutter:stable]"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="webmcp-endpoint" content={~p"/api/webmcp/public"} />
     <%!-- Prefetch marketing pages when a link is hovered (moderate
     eagerness), so the HTML is already in the cache by click time.
     Chromium-only; other engines ignore the script. Prefetch rather than
@@ -23,6 +28,7 @@
             "where": {
               "and": [
                 { "href_matches": "/*" },
+                { "not": { "selector_matches": "[data-language-switch]" } },
                 { "not": { "href_matches": "/users/*" } },
                 { "not": { "href_matches": "/docs*" } },
                 { "not": { "href_matches": "/api/*" } },
@@ -106,7 +112,6 @@
         }
         rel="alternate"
         type="text/markdown"
-        hreflang="en"
         href={
           Tuist.Environment.app_url(
             path:
@@ -116,29 +121,35 @@
           )
         }
       />
-      <!-- Language alternates for SEO -->
-      <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
-        <link
-          rel="alternate"
-          hreflang={locale}
-          href={
-            Tuist.Environment.app_url(
-              path:
+      <!-- Language alternates for SEO. English-only pages have none. -->
+      <%= unless assigns[:english_only] do %>
+        <%= for locale <- assigns[:head_available_locales] || TuistWeb.Marketing.Localization.all_locales() do %>
+          <link
+            rel="alternate"
+            hreflang={TuistWeb.Locale.language_tag(locale)}
+            href={
+              TuistWeb.Utilities.SEO.canonical_url(
                 TuistWeb.Marketing.Localization.localized_href(
                   TuistWeb.Marketing.Localization.current_path(assigns),
                   locale
                 )
+              )
+            }
+          />
+        <% end %>
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={
+            TuistWeb.Utilities.SEO.canonical_url(
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                "en"
+              )
             )
           }
         />
       <% end %>
-      <link
-        rel="alternate"
-        hreflang="x-default"
-        href={
-          Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
-        }
-      />
     <% end %>
     <script
       :for={

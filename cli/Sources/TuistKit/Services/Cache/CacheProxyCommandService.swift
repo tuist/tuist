@@ -7,6 +7,7 @@ import Foundation
 import Path
 import TuistCAS
 import TuistCASAnalytics
+import TuistConstants
 import TuistEnvironment
 import TuistLoader
 import TuistLogging
@@ -51,20 +52,27 @@ struct CacheProxyCommandService {
     func run(url: String?, accountHandle: String?) async throws {
         let serverURL = try resolveServerURL(url: url)
 
-        // When launched without credentials (e.g. logged out), exit cleanly so
-        // launchd does not respawn the proxy every few seconds.
-        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
+        let networkTrusted = try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        )
+        // Exit cleanly when neither credentials nor the instance policy permit
+        // startup, so launchd does not repeatedly respawn a signed-out proxy.
+        if !networkTrusted,
+           try await serverAuthenticationController.authenticationToken(serverURL: serverURL) == nil
+        {
             Logger.current.debug(
                 "Not authenticated against \(serverURL.absoluteString). The cache proxy will exit without starting."
             )
             return
         }
 
+        let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
+        if networkTrusted, let endpoint { try ServerReportPublishingMode.validateDestination(endpoint) }
+
         guard let proxyPath = try await resourceLocator.casProxy() else {
             throw CacheProxyCommandServiceError.proxyBinaryMissing
         }
         let tuistPath = try await resourceLocator.cliPath()
-        let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
 
         // Hand the proxy its config via the environment. The proxy fetches and
         // refreshes project-scoped bearers through `tuist cache config --json`
@@ -72,6 +80,12 @@ struct CacheProxyCommandService {
         setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint?.absoluteString ?? "", 1)
         setenv("TUIST_CAS_SERVER_URL", serverURL.absoluteString, 1)
         setenv("TUIST_CAS_TUIST_BIN", tuistPath.pathString, 1)
+        setenv("TUIST_CAS_TUIST_VERSION", Constants.version, 1)
+        if let plugin = try await resourceLocator.casPlugin() {
+            setenv("TUIST_CAS_BUNDLED_PLUGIN", plugin.pathString, 1)
+        } else {
+            unsetenv("TUIST_CAS_BUNDLED_PLUGIN")
+        }
         // The proxy records per-node transfer analytics into this db, which the
         // build-report upload ships to the server — the same path and schema the
         // Swift CASAnalyticsDatabase defines, so the upload + server pipeline is unchanged.

@@ -133,14 +133,16 @@ defmodule Tuist.Slack.ClientTest do
                Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
     end
 
-    test "returns :webhook_revoked on Slack's permanent auth/team errors" do
+    test "returns :webhook_revoked on Slack's permanent destination errors" do
       cases = [
         {400, "invalid_token"},
         {401, "invalid_token"},
         {403, "action_prohibited"},
         {400, "team_disabled"},
         {400, "no_team"},
-        {400, "no_service_id"}
+        {400, "no_service_id"},
+        {410, "channel_is_archived"},
+        {410, "channel_is_archived\n"}
       ]
 
       for {status, reason} <- cases do

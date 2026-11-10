@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -67,12 +68,17 @@ type Maintainer struct {
 	// a full guest disk from the scheduler and from alerting. nil keeps
 	// the condition at its False default.
 	DiskPressure DiskPressureProbe
+	// Host pressure probes refresh conditions the node lifecycle controller
+	// otherwise leaves Unknown after a heartbeat gap. Failures report Unknown;
+	// native sandbox admission must not reuse a previous healthy reading.
+	MemoryPressure DiskPressureProbe
+	PIDPressure    DiskPressureProbe
 
 	// DynamicLabels are the agent-owned label sets that change at runtime,
 	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
 	// advertisements of which golden base VMs this host holds, and the
-	// `tuist.dev/cache-master-<account>` advertisements of which per-account
-	// cache masters are resident. They're merged alongside NodeLabels and
+	// `tuist.dev/cache-volume-<scope>` advertisements of which custom cache
+	// masters are resident. They're merged alongside NodeLabels and
 	// pruned the same way — a key that stops being returned (golden GC'd, or
 	// master evicted) is dropped on the next heartbeat.
 	//
@@ -88,6 +94,15 @@ type Maintainer struct {
 	// scheduling until released (see PrewarmGate). nil never taints, and
 	// either way a leftover prewarm taint is removed.
 	PrewarmGate *PrewarmGate
+
+	// RuntimeVersion, when non-nil, reports the Tart version the host runs.
+	// It is published as the Node's container runtime version
+	// (`tart://2.41.1`), which is where an in-place Tart upgrade shows it has
+	// reached a host. Read every heartbeat, since the operator replaces Tart
+	// under a running agent; a failed read keeps the last version read.
+	RuntimeVersion func(ctx context.Context) (string, error)
+
+	runtimeVersion string
 }
 
 // LabelAdvertisement is one named source of dynamic Node labels. The name is
@@ -142,18 +157,20 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
-		m.decidePrewarm(true)
+		m.decidePrewarm(ctx, true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
 		}
+		m.readRuntimeVersion(ctx)
 		m.configureNode(node, m.evalDynamicLabels(ctx))
+		m.applyHostPressure(ctx, node)
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
-	m.decidePrewarm(false)
+	m.decidePrewarm(ctx, false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -169,6 +186,14 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 }
 
 func (m *Maintainer) refresh(ctx context.Context) error {
+	// Capacity grants and node-lifecycle status share the Node resource version.
+	// A concurrent write is normal, including during startup, not a fatal error.
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return m.refreshOnce(ctx)
+	})
+}
+
+func (m *Maintainer) refreshOnce(ctx context.Context) error {
 	node := &corev1.Node{}
 	if err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node); err != nil {
 		return err
@@ -184,7 +209,18 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// metadata/spec first (merge patch persists label deletions as null),
 	// then update status.
 	base := node.DeepCopy()
+	m.readRuntimeVersion(ctx)
 	m.configureNode(node, m.evalDynamicLabels(ctx))
+	// Host/guest pressure probes can take seconds. Run them before the metadata
+	// patch returns a fresh resource version, keeping the status write's conflict
+	// window short even while capacity grants are being refreshed continuously.
+	m.applyDiskPressure(ctx, node)
+	m.applyHostPressure(ctx, node)
+	for i, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
+		}
+	}
 
 	// configureNode just set this Node's desired status (Ready=True,
 	// capacity, node info). client.Patch below replaces the in-memory node
@@ -203,13 +239,6 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 		return err
 	}
 	node.Status = *desiredStatus
-
-	m.applyDiskPressure(ctx, node)
-	for i, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady {
-			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
-		}
-	}
 	return m.Client.Status().Update(ctx, node)
 }
 
@@ -257,6 +286,25 @@ func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", detail)
 	} else {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", detail)
+	}
+}
+
+func (m *Maintainer) applyHostPressure(ctx context.Context, node *corev1.Node) {
+	for _, check := range []struct {
+		condition corev1.NodeConditionType
+		probe     DiskPressureProbe
+	}{{corev1.NodeMemoryPressure, m.MemoryPressure}, {corev1.NodePIDPressure, m.PIDPressure}} {
+		if check.probe == nil {
+			continue
+		}
+		pressured, detail, err := check.probe(ctx)
+		status, reason := corev1.ConditionFalse, "TartKubeletPressureNormal"
+		if err != nil {
+			status, reason, detail = corev1.ConditionUnknown, "TartKubeletPressureProbeFailed", err.Error()
+		} else if pressured {
+			status, reason = corev1.ConditionTrue, "TartKubeletHostPressure"
+		}
+		setCondition(&node.Status.Conditions, check.condition, status, reason, detail)
 	}
 }
 
@@ -385,6 +433,9 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 	node.Status.NodeInfo.Architecture = "arm64"
 	node.Status.NodeInfo.KubeletVersion = "tart-kubelet-v0"
 	node.Status.NodeInfo.ContainerRuntimeVersion = "tart"
+	if m.runtimeVersion != "" {
+		node.Status.NodeInfo.ContainerRuntimeVersion = "tart://" + m.runtimeVersion
+	}
 
 	if m.NodeIP != "" {
 		// Replace, not merge: a kubelet restart with a new NodeIP
@@ -441,8 +492,20 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 	})
 }
 
-func (m *Maintainer) decidePrewarm(created bool) {
+func (m *Maintainer) decidePrewarm(ctx context.Context, created bool) {
 	if m.PrewarmGate != nil {
-		m.PrewarmGate.decide(created)
+		m.PrewarmGate.decide(ctx, created)
 	}
+}
+
+func (m *Maintainer) readRuntimeVersion(ctx context.Context) {
+	if m.RuntimeVersion == nil {
+		return
+	}
+	version, err := m.RuntimeVersion(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "read tart version")
+		return
+	}
+	m.runtimeVersion = version
 }

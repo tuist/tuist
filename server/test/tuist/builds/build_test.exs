@@ -152,11 +152,11 @@ defmodule Tuist.Builds.BuildTest do
       assert changeset.valid?
     end
 
-    test "rejects more than 20 custom_values" do
-      values = Map.new(1..21, fn i -> {"key#{i}", "value#{i}"} end)
+    test "rejects more than 64 custom_values" do
+      values = Map.new(1..65, fn i -> {"key#{i}", "value#{i}"} end)
       attrs = Map.put(@valid_attrs, :custom_values, values)
       changeset = Build.create_changeset(%Build{}, attrs)
-      assert "cannot have more than 20 key-value pairs" in errors_on(changeset).custom_values
+      assert "cannot have more than 64 key-value pairs" in errors_on(changeset).custom_values
     end
 
     test "rejects custom_values with keys longer than 50 characters" do

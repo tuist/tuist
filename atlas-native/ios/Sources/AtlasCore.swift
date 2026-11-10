@@ -34,12 +34,20 @@ struct AtlasCatalog {
     let sections = AtlasCore.sections()
 
     var workspaceSections: [AtlasSection] {
-        sections.filter { section in groups.contains { $0.id == section.group && $0.placement == "workspace" } }
+        sections.filter { section in
+            ["tasks", "accounts", "invoices", "time-off", "people", "automation"].contains(section.screen)
+                && groups.contains { $0.id == section.group && $0.placement == "workspace" }
+        }
     }
     var shortcuts: [AtlasSection] { workspaceSections.filter(\.shortcut) }
 
     func children(of parent: String? = nil) -> [AtlasGroup] {
-        groups.filter { $0.parent == (parent ?? "") && $0.placement == "workspace" }
+        groups.filter { $0.parent == (parent ?? "") && $0.placement == "workspace" && hasNativeEntries($0.id) }
+    }
+
+    private func hasNativeEntries(_ group: String) -> Bool {
+        workspaceSections.contains { $0.group == group }
+            || groups.filter { $0.parent == group }.contains { hasNativeEntries($0.id) }
     }
 
     func entries(in group: String) -> [AtlasSection] { workspaceSections.filter { $0.group == group } }
@@ -66,6 +74,25 @@ struct AtlasCatalog {
 }
 
 enum AtlasCore {
+    static func destinations() -> [String: Bool] {
+        var result: [String: Bool] = [:]
+        for index in 0..<atlas_destination_count() {
+            guard let screen = atlas_destination_field(index, 0), let records = atlas_destination_field(index, 1) else { continue }
+            result[String(cString: screen)] = String(cString: records) == "1"
+        }
+        return result
+    }
+
+    static func destinationPaths(records: Bool = false) -> [String: String] {
+        var result: [String: String] = [:]
+        for index in 0..<atlas_destination_count() {
+            guard let screen = atlas_destination_field(index, 0),
+                  let path = atlas_destination_field(index, records ? 3 : 2) else { continue }
+            result[String(cString: screen)] = String(cString: path)
+        }
+        return result
+    }
+
     static func sections() -> [AtlasSection] {
         (0..<atlas_section_count()).compactMap { index in
             guard

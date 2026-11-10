@@ -16,6 +16,10 @@ defmodule Atlas.LLMs.LocalTransport do
   embeddings), fetches its bound token, and delegates to the same
   controller actions the public API uses. Response shape, streaming
   behavior, and usage accounting stay identical.
+
+  Callers that need a specific role pass it explicitly as
+  `{LocalTransport, role: :orbit}`. An explicit role only serves chat
+  completions and never falls back to another role's profile.
   """
 
   @behaviour Plug
@@ -33,9 +37,33 @@ defmodule Atlas.LLMs.LocalTransport do
   def init(opts), do: opts
 
   @impl true
-  def call(conn, _opts) do
-    role = role_for_path(conn.path_info)
+  def call(conn, opts) do
+    case Keyword.get(opts, :role) do
+      nil -> call_for_role(conn, role_for_path(conn.path_info))
+      role -> call_for_explicit_role(conn, role)
+    end
+  end
 
+  defp call_for_explicit_role(conn, role) do
+    if chat_completions?(conn.path_info) do
+      case Inference.fetch_atlas_role(role) do
+        {:ok, binding, token} ->
+          params = conn |> decode_params() |> Map.put("model", binding.name)
+
+          conn
+          |> assign(:inference_token, token)
+          |> assign(:inference_model_binding, binding)
+          |> dispatch(:inference, params)
+
+        {:error, :not_configured} ->
+          unavailable(conn, role)
+      end
+    else
+      unavailable(conn, role)
+    end
+  end
+
+  defp call_for_role(conn, role) do
     with %ModelBinding{} = binding <- Inference.get_atlas_profile(role),
          %Token{} = token <- fetch_role_token(binding, role) do
       # The profile marked with the atlas role IS the "default profile"

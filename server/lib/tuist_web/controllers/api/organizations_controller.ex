@@ -4,8 +4,11 @@ defmodule TuistWeb.API.OrganizationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.Runners.Allowance
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Organization
   alias TuistWeb.API.Schemas.OrganizationMember
@@ -46,17 +49,20 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def index(conn, _params) do
     organization_accounts =
-      case Authentication.current_user(conn) do
-        %Tuist.Accounts.User{} = user ->
+      case Authentication.current_user(conn) || Authentication.oauth_user(conn) do
+        %User{} = user ->
           Accounts.get_user_organization_accounts(user)
 
-        nil ->
-          account =
-            conn
-            |> Authentication.authenticated_subject_account()
-            |> Tuist.Repo.preload(:organization)
+        _ ->
+          case conn
+               |> Authentication.authenticated_subject_account()
+               |> Tuist.Repo.preload(:organization) do
+            %{organization: %{} = organization} = account ->
+              [%{organization: organization, account: account}]
 
-          [%{organization: account.organization, account: account}]
+            _ ->
+              []
+          end
       end
 
     organizations =
@@ -324,7 +330,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   operation(:usage,
     summary: "Shows the usage of an organization",
-    description: "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    description: "Returns the usage of the organization with the given identifier.",
     operation_id: "showOrganizationUsage",
     parameters: [
       organization_name: [
@@ -360,11 +366,50 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
-        json(conn, %{
-          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
-        })
+        json(conn, usage_response(organization.account))
     end
   end
+
+  defp usage_response(account) do
+    {period_start, period_end} = period = hd(Billing.recent_billing_periods(account, 1))
+    %{cache: cache, tests: tests} = UsagePricing.period_breakdown(account, period)
+    runners = Allowance.period_breakdown(account, period)
+    # Only Pro is billed on the cache and test meters: Air is cut off at the
+    # allowances, and enterprise and open source terms are flat.
+    metered? = Billing.effective_plan(account) == :pro
+    cache_charge = if metered?, do: cache.charge.amount, else: 0
+    tests_charge = if metered?, do: tests.charge.amount, else: 0
+
+    %{
+      current_month_remote_cache_hits: 0,
+      period: %{start: iso8601(period_start), end: iso8601(period_end)},
+      cache_egress: meter(cache.egress, metered?),
+      cache_requests: meter(cache.requests, metered?),
+      passing_test_cases: %{
+        used: tests.passed,
+        included: tests.included,
+        billable: tests.billable,
+        charge_cents: tests_charge
+      },
+      runner_minutes: %{
+        used: runners.minutes,
+        included: runners.free_minutes.macos,
+        charge_cents: runners.billed.amount
+      },
+      estimated_charge_cents: cache_charge + tests_charge + runners.billed.amount
+    }
+  end
+
+  defp meter(receipt, metered?) do
+    %{
+      used: receipt.metered,
+      included: receipt.included,
+      billable: receipt.billable,
+      charge_cents: if(metered?, do: receipt.charge.amount, else: 0)
+    }
+  end
+
+  defp iso8601(datetime), do: datetime |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   operation(:update,
     summary: "Updates an organization",
@@ -440,18 +485,21 @@ defmodule TuistWeb.API.OrganizationsController do
 
       sso_provider == "none" ->
         {:ok, organization} =
-          Accounts.update_organization(organization, %{
-            sso_provider: nil,
-            sso_organization_id: nil,
-            sso_enforced: false,
-            sso_login_domain: nil,
-            sso_automatic_enrollment: false,
-            oauth2_client_id: nil,
-            oauth2_encrypted_client_secret: nil,
-            oauth2_authorize_url: nil,
-            oauth2_token_url: nil,
-            oauth2_user_info_url: nil
-          })
+          Accounts.update_organization(
+            organization,
+            %{
+              sso_provider: nil,
+              sso_organization_id: nil,
+              sso_enforced: false,
+              sso_login_domain: nil,
+              sso_automatic_enrollment: false,
+              oauth2_client_id: nil,
+              oauth2_encrypted_client_secret: nil,
+              oauth2_authorize_url: nil,
+              oauth2_token_url: nil,
+              oauth2_user_info_url: nil
+            }
+          )
 
         json(conn, %{
           id: organization.id,
@@ -515,12 +563,15 @@ defmodule TuistWeb.API.OrganizationsController do
          sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
-    case Accounts.update_organization(organization, %{
-           sso_provider: sso_provider,
-           sso_organization_id: sso_organization_id,
-           sso_enforced: sso_enforced || false,
-           sso_automatic_enrollment: sso_automatic_enrollment
-         }) do
+    case Accounts.update_organization(
+           organization,
+           %{
+             sso_provider: sso_provider,
+             sso_organization_id: sso_organization_id,
+             sso_enforced: sso_enforced || false,
+             sso_automatic_enrollment: sso_automatic_enrollment
+           }
+         ) do
       {:ok, organization} ->
         json(conn, %{
           id: organization.id,

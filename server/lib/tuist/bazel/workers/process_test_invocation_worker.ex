@@ -43,6 +43,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
 
     with project when not is_nil(project) <- Projects.get_project_by_id(project_id),
          {:ok, invocation} <- Bazel.get_invocation(project_id, invocation_id) do
+      Tuist.Observability.set_selection(%{selected_project: project})
       test_results = Bazel.list_test_results(project_id, invocation_id)
       test_summaries = Bazel.list_test_summaries(project_id, invocation_id)
 
@@ -89,11 +90,15 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
       %{
         id: result.id,
         invocation_id: result.invocation_id,
+        # Even stdout sequence numbers identify test logs; Kura puts progress
+        # stdout on odd ones. The `source` log filter in `Tuist.Bazel` relies on it.
         sequence_number: result.sequence_number * 2,
         stream: "stdout",
         message:
           "[Bazel test log for #{result.target_label}]\n" <>
             Sanitizer.sanitize(result.log_content),
+        target_label: result.target_label,
+        status: result.status,
         project_id: project_id,
         observed_at: DateTime.to_naive(result.started_at)
       }

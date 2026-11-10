@@ -44,6 +44,8 @@ defmodule Tuist.Tests.TestModuleRun do
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
+  def query, do: Ecto.Queryable.to_query({"reported_test_module_runs", __MODULE__})
+
   def create_changeset(test_module_run, attrs) do
     test_module_run
     |> cast(attrs, [

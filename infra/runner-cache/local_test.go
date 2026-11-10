@@ -88,6 +88,7 @@ func TestLocalMastersWarmReuseAndPrivateBranches(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	if err := os.WriteFile(b.image(slot), []byte("saved cache"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -144,10 +145,8 @@ func TestFailedAndRejectedUploadsDoNotInstallMaster(t *testing.T) {
 		})
 	}
 }
-func TestColdHostDownloadsOnceAndRestartDoesNotReformat(t *testing.T) {
+func TestColdHostStartsEmptyAndRestartDoesNotReformat(t *testing.T) {
 	b, r := newLocal(t)
-	r.source = filepath.Join(t.TempDir(), "master")
-	os.WriteFile(r.source, []byte("remote bytes"), 0600)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	slot.BaseGeneration = 4
 	slot.ContentDigest = strings.Repeat("a", 64)
@@ -160,10 +159,114 @@ func TestColdHostDownloadsOnceAndRestartDoesNotReformat(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(b.image(slot))
-	if string(data) != "job writes" || r.downloads != 1 {
+	if string(data) != "job writes" || r.downloads != 0 || !b.Cold(slot) {
 		t.Fatal("retry lost writes", r.downloads)
 	}
 }
+func TestColdStartRecordsWhyTheHostHadNoCopy(t *testing.T) {
+	coldReason := func(t *testing.T, b *LocalImages, slot Slot) string {
+		t.Helper()
+		store, err := Open(b.Root, b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		if warm, err := store.Acquire(context.Background(), slot.Identity, "job", slot.PodUID); err != nil || warm {
+			t.Fatal("expected an empty start", warm, err)
+		}
+		slots, err := store.Snapshot()
+		if err != nil || len(slots) != 1 {
+			t.Fatal(slots, err)
+		}
+		return slots[0].ColdReason
+	}
+	next := func(id string, generation int64) Slot {
+		slot := warmSlot(id, "pod-"+id)
+		slot.Scope = strings.Repeat("a", 64)
+		slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head(generation).BaseGeneration, head(generation).ImageDigest, head(generation).ContentDigest
+		return slot
+	}
+
+	t.Run("never held", func(t *testing.T) {
+		b, _ := newLocal(t)
+		if reason := coldReason(t, b, next(first, 2)); reason != ColdNotOnHost {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+
+	t.Run("evicted", func(t *testing.T) {
+		b, _ := newLocal(t)
+		installMaster(t, b, second, strings.Repeat("a", 64), 1, time.Now().Add(-8*24*time.Hour))
+		if err := b.Maintain(); err != nil {
+			t.Fatal(err)
+		}
+		if reason := coldReason(t, b, next(first, 2)); reason != ColdEvicted+EvictExpired {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+
+	t.Run("evicted, then held again", func(t *testing.T) {
+		b, _ := newLocal(t)
+		installMaster(t, b, second, strings.Repeat("a", 64), 1, time.Now().Add(-8*24*time.Hour))
+		if err := b.Maintain(); err != nil {
+			t.Fatal(err)
+		}
+		installMaster(t, b, third, strings.Repeat("a", 64), 2, time.Now())
+		slot := next(first, 2)
+		if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil || b.Cold(slot) || b.ColdReason(slot) != "" {
+			t.Fatal("a warm attach reported a cold reason", err, b.ColdReason(slot))
+		}
+	})
+
+	t.Run("downloading", func(t *testing.T) {
+		b, _ := newLocal(t)
+		remote := &headTransfer{heads: map[string]Identity{}, errs: map[string]error{}, started: make(chan struct{}), release: make(chan struct{})}
+		b.Transfer = remote
+		slot := next(first, 2)
+		prefetched := make(chan error, 1)
+		go func() { prefetched <- b.Prefetch(context.Background(), slot) }()
+		<-remote.started
+		reason := coldReason(t, b, slot)
+		close(remote.release)
+		<-prefetched
+		if reason != ColdDownloading {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+}
+
+func TestSealTrimsABranchAfterItsWriteBackCheck(t *testing.T) {
+	var events []string
+	b, _ := newLocal(t)
+	b.Trim = func(string) error { events = append(events, "trim"); return nil }
+	b.Check = func(string, string) error { events = append(events, "check"); return nil }
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	// The check's syncfs must see any write-back error before anything else syncs.
+	if strings.Join(events, ",") != "check,trim" {
+		t.Fatal("trim must follow the write-back check on the mounted branch:", events)
+	}
+
+	b, remote := newLocal(t)
+	b.Trim = func(string) error { return errors.New("not supported") }
+	failed := Slot{Identity: identity(second), PodUID: "q"}
+	failedPath := t.TempDir()
+	if err := b.Attach(context.Background(), failed, failedPath); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, failedPath)
+	if err := b.Seal(failed, failedPath); err != nil || remote.uploads != 1 {
+		t.Fatal("a failed trim stopped publication", err, remote.uploads)
+	}
+}
+
 func TestRejectsFilesystemWithoutReflinksAndLowSpace(t *testing.T) {
 	b, _ := newLocal(t)
 	b.Run = func(context.Context, string, ...string) ([]byte, error) { return nil, errors.New("unsupported") }
@@ -208,6 +311,45 @@ func TestDeferredLoopDetachCannotPublishOrDeleteAnImage(t *testing.T) {
 	}
 }
 
+// Kubelet unmounts a pod's subPath mounts only on its next retry after the agent
+// unmounts the volume, so the loop device often outlives the agent's unmount by
+// up to half a minute. The verified branch waits for it instead of being discarded.
+func TestLingeringLoopReferenceDelaysPublicationWithoutDiscardingTheBranch(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	lingering := true
+	run := b.Run
+	b.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if lingering && name == "losetup" && args[0] == "--json" {
+			return []byte(`{"loopdevices":[{"name":"/dev/loop17"}]}`), nil
+		}
+		return run(ctx, name, args...)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) || errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	b.Check = func(string, string) error { t.Fatal("rechecked an unmounted filesystem"); return nil }
+	b.MeasureFS = func(string) (int64, int64, error) { return 0, 0, errors.New("volume not mounted") }
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal(err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded while another mount held the image")
+	}
+	lingering = false
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatal(remote.uploads)
+	}
+}
+
 func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 	b, _ := newLocal(t)
 	os.Remove(filepath.Join(b.Root, ".backend"))
@@ -224,10 +366,12 @@ func (invalidatedTransfer) Head(Slot) (Identity, error) { return Identity{BaseGe
 func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T) {
 	b, r := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	b.Transfer = invalidatedTransfer{r}
@@ -250,6 +394,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	checks := 0
 	b.Check = func(string, string) error { checks++; return errors.New("ENOSPC") }
 	if err := b.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
@@ -265,6 +410,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 		t.Fatal(checks, remote.uploads)
 	}
 	os.Remove(filepath.Join(path, ".tuist-volume"))
+	os.RemoveAll(filepath.Join(path, "data"))
 	if err := restarted.Delete(slot, path); err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +426,7 @@ func TestVerifiedImageRetriesUploadWithoutRecheckingUnmountedFilesystem(t *testi
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	remote.fail = true
 	if err := b.Seal(slot, path); err == nil {
 		t.Fatal("ignored upload failure")
@@ -321,19 +468,17 @@ func (*cancelledDownload) Download(ctx context.Context, _ Slot, path string) err
 	<-ctx.Done()
 	return ctx.Err()
 }
-func TestRestoreDeadlineRemovesPartialImagesWithoutMounting(t *testing.T) {
+func TestPrefetchDeadlineInstallsNoPartialMaster(t *testing.T) {
 	b, _ := newLocal(t)
 	b.Transfer = &cancelledDownload{}
-	b.Mount = func(string, string) error { t.Fatal("mounted incomplete restore"); return nil }
-	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	slot.BaseGeneration = 1
-	slot.ContentDigest = strings.Repeat("b", 64)
+	slot := warmSlot(first, "")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if err := b.Attach(ctx, slot, t.TempDir()); !errors.Is(err, context.DeadlineExceeded) {
+	if err := b.Prefetch(ctx, slot); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
 	}
-	for _, path := range []string{b.master(slot), b.master(slot) + ".tmp", b.image(slot), b.image(slot) + ".tmp"} {
+	staged, _ := filepath.Glob(filepath.Join(b.Root, "staging", "*"))
+	for _, path := range append(staged, b.master(slot), b.master(slot)+".json") {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("left restore artifact %s: %v", path, err)
 		}
@@ -391,15 +536,17 @@ func TestRestoreDeadlineCancelsFormatting(t *testing.T) {
 	}
 }
 
-func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
+func TestAttachmentTelemetryDistinguishesEmptyLocalOlderAndCold(t *testing.T) {
 	b, remote := newLocal(t)
 	var observations []Observation
 	b.Observe = func(o Observation) { observations = append(observations, o) }
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))
@@ -409,19 +556,23 @@ func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
 	slot.ID = second
 	slot.BaseGeneration = 1
 	slot.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
-	remote.source = filepath.Join(t.TempDir(), "remote")
-	if err := os.WriteFile(remote.source, []byte("remote contents"), 0600); err != nil {
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	newer := slot
+	newer.ID, newer.BaseGeneration = third, 2
+	if err := b.Attach(context.Background(), newer, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(masters[0]); err != nil {
 		t.Fatal(err)
 	}
-	slot.ID = third
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	newer.ID = fourth
+	if err := b.Attach(context.Background(), newer, t.TempDir()); err != nil {
 		t.Fatal(err)
+	}
+	if remote.downloads != 0 {
+		t.Fatal("downloaded inside an attach")
 	}
 	var sources []string
 	for _, o := range observations {
@@ -432,7 +583,7 @@ func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
 			}
 		}
 	}
-	if strings.Join(sources, ",") != "empty,local,remote" {
+	if strings.Join(sources, ",") != "empty,local,older,cold" {
 		t.Fatal(sources)
 	}
 }
@@ -467,5 +618,60 @@ func TestPrefetchOnlyInstallsMasterAndNextJobReusesIt(t *testing.T) {
 	}
 	if remote.downloads != 1 {
 		t.Fatal("redownloaded existing master")
+	}
+}
+
+// A speculative prefetch only uses free space above the reserve and a checkout
+// volume's capacity, never evicts a resident master, and marks a lineage no job used here as speculative until a
+// job clones it.
+func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
+	b, remote := newLocal(t)
+	remote.source = filepath.Join(t.TempDir(), "published")
+	if err := os.WriteFile(remote.source, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	resident := Slot{Identity: identity(first)}
+	resident.Scope = strings.Repeat("d", 64)
+	resident.BaseGeneration = 1
+	resident.ImageDigest = strings.Repeat("c", 40)
+	resident.ContentDigest = strings.Repeat("b", 64)
+	master := b.master(resident)
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("resident"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	wanted := Slot{Identity: identity(first), PodName: "job", PodUID: "pod"}
+	wanted.BaseGeneration = 1
+	wanted.ImageDigest = strings.Repeat("c", 40)
+	wanted.ContentDigest = strings.Repeat("b", 64)
+	wanted.HeadSizeBytes = 1_000
+	// The restore needs twice the head, 2,000 bytes, on top of a checkout
+	// volume's capacity, which is more than the 10-byte reserve.
+	var free uint64
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+
+	for _, refused := range []uint64{10 + 2_000, CheckoutCapacity + 1_999} {
+		free = refused
+		if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
+			t.Fatal("speculative prefetch without room for the restore above a checkout's capacity", free, err)
+		}
+	}
+	if !b.HasMaster(resident.Identity) || remote.downloads != 0 {
+		t.Fatal("speculative prefetch evicted a resident master or downloaded")
+	}
+	free = CheckoutCapacity + 2_000
+	if err := b.PrefetchSpare(context.Background(), wanted); err != nil {
+		t.Fatal(err)
+	}
+	if !b.HasMaster(wanted.Identity) || !b.HasMaster(resident.Identity) || !speculative(b.master(wanted)) {
+		t.Fatal("speculative prefetch did not install a speculative master beside the resident one")
+	}
+	if err := b.Attach(context.Background(), wanted, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if speculative(b.master(wanted)) || remote.downloads != 1 {
+		t.Fatal("a job's clone left the master speculative or downloaded again", remote.downloads)
 	}
 }

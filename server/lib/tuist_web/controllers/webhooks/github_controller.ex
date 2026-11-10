@@ -291,11 +291,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp enqueue_dispatch(conn, params, installation_id, delivery_guid) do
-    args = %{
-      "payload" => params,
-      "installation_id" => installation_id,
-      "delivery_guid" => delivery_guid
-    }
+    args =
+      Map.merge(
+        %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        },
+        bound_account_args(conn)
+      )
 
     case args |> DispatchWorker.new() |> Oban.insert() do
       {:ok, _job} ->
@@ -309,6 +313,19 @@ defmodule TuistWeb.Webhooks.GitHubController do
         conn
         |> put_status(:service_unavailable)
         |> json(%{status: "error", reason: "transient"})
+    end
+  end
+
+  # A delivery signed with an installation row's own secret (GitHub
+  # Enterprise Server) comes from a server its customer runs, so every body
+  # field, the installation id and repository owner included, is the
+  # sender's choice. The dispatch worker then takes the account from that
+  # row. github.com deliveries are signed with the Tuist App's secret, so
+  # their installation id is GitHub's word and the worker resolves from it.
+  defp bound_account_args(conn) do
+    case conn.assigns[:github_installation] do
+      nil -> %{}
+      installation -> %{"account_id" => installation.account_id}
     end
   end
 
@@ -560,7 +577,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         # past it).
         attrs =
           if is_nil(github_app_installation.installation_id) do
-            %{html_url: html_url, installation_id: installation_id}
+            %{html_url: html_url, installation_id: to_string(installation_id)}
           else
             %{html_url: html_url}
           end

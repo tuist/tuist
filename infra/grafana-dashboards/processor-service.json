@@ -1193,7 +1193,7 @@
           "name": "repo",
           "label": "Database repository",
           "type": "custom",
-          "query": "postgres,clickhouse_read,clickhouse_write,clickhouse_shadow_read,clickhouse_shadow_write,ops_clickhouse_read",
+          "query": "postgres,clickhouse_read,clickhouse_write,ops_clickhouse_read",
           "current": {
             "text": "postgres",
             "value": "postgres"

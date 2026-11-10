@@ -45,9 +45,57 @@ defmodule Tuist.BuildEntities.IdentityTest do
     assert :error == Identity.resolve(:gradle, :task)
   end
 
+  test "Bazel output and mnemonic distinguish actions within one target and retain configured paths" do
+    identity = %{"target_label" => "//app:lib", "mnemonic" => "CppCompile", "primary_output" => "bazel-out/debug/lib.o"}
+    id = Identity.id(1, :bazel, "action", identity)
+
+    for changes <- [
+          %{"target_label" => "//other:lib"},
+          %{"mnemonic" => "CppLink"},
+          %{"primary_output" => "bazel-out/release/lib.o"},
+          %{"primary_output" => "bazel-out/debug/other.o"}
+        ] do
+      refute id == Identity.id(1, :bazel, "action", Map.merge(identity, changes))
+    end
+
+    assert id ==
+             Identity.id(
+               1,
+               :bazel,
+               "action",
+               Map.put(identity, "action_digest", "changing-input-hash")
+             )
+  end
+
+  test "Cargo identity retains the exact recorded root, name and kind without inventing configuration" do
+    identity = %{"source" => "src/lib.rs", "name" => "widgets", "kind" => "lib"}
+    id = Identity.id(42, :cargo, "crate", identity)
+    assert id == "faa80433-8cc4-89ea-b408-9d0622ada24e"
+    assert Identity.fields(:cargo, "crate") == ~w(source name kind)
+
+    assert Identity.encode(:cargo, "crate", identity) ==
+             ~s({"source":"src/lib.rs","name":"widgets","kind":"lib"})
+
+    for changes <- [
+          %{"source" => "/checkout/src/lib.rs"},
+          %{"source" => "./src/lib.rs"},
+          %{"source" => "other/src/lib.rs"},
+          %{"name" => "other"},
+          %{"kind" => "test"}
+        ] do
+      refute id == Identity.id(42, :cargo, "crate", Map.merge(identity, changes))
+    end
+
+    refute id == Identity.id(43, :cargo, "crate", identity)
+    assert id == Identity.id(42, :cargo, "crate", Map.put(identity, "profile", "release"))
+
+    refute Identity.id(42, :cargo, "crate", %{"source" => "a:b", "name" => "c", "kind" => "lib"}) ==
+             Identity.id(42, :cargo, "crate", %{"source" => "a", "name" => "b:c", "kind" => "lib"})
+  end
+
   test "exact-key Xcode and Bazel cache actions have no identity contract" do
     assert :error == Identity.resolve(:xcode, "cache_action")
     assert :error == Identity.resolve(:bazel, "cache_action")
-    refute Map.has_key?(Identity.contracts(), :bazel)
+    assert Identity.fields(:bazel, "action") == ["target_label", "mnemonic", "primary_output"]
   end
 end

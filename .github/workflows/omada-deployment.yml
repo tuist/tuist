@@ -8,12 +8,13 @@ name: Rack Fleet Controller Deployment
 # switch controller reads the API client and the site's device account from
 # 1Password through ExternalSecrets.
 #
-# WHICH CLUSTER. The rack's site definition says: its kubernetes.namespace is
-# `tuist-<env>`, or `tuist` for production (`rack:fleet env`), and the deploy
-# goes to that env's cluster, with infra/helm/omada/values-<env>.yaml. The rack
-# switch controller's namespace, Omada site, controller address and 1Password
-# items, and the edge's site, come from the same file (`rack:fleet
-# helm-values`), so moving the rack is an edit to the site definition alone.
+# WHICH CLUSTER. The racks' site definitions say: each one's kubernetes.namespace
+# is `tuist-<env>`, or `tuist` for production (`rack:fleet env`), they all name
+# one env, and the deploy goes to that env's cluster, with
+# infra/helm/omada/values-<env>.yaml when a site has an Omada controller. The
+# rack switch controller's namespace, Omada site, controller address and
+# 1Password items, and each edge's site, come from the same files (`rack:fleet
+# helm-values`), so moving a rack is an edit to its site definition alone.
 # A dispatch can name another env, which installs the Omada controller there
 # and nothing else: the controller a rack moves to has to be running before the
 # switches are pointed at it, while the rack switch controller and the edge
@@ -24,10 +25,10 @@ name: Rack Fleet Controller Deployment
 # and production; staging gets a server deploy only when someone dispatches
 # one, and the rack's objects need their CRD where the rack is.
 #
-# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which puts the
-# rack's edge workload on each edge node, a RackLinuxMachine of this cluster, as
-# a kubelet static pod: the WAN, the switches' path into the tailnet and their
-# DHCP.
+# And it installs a rack-edge DaemonSet (infra/helm/rack-edge) per site, which
+# puts the site's edge workload on each of its edge nodes, a RackLinuxMachine of
+# this cluster, as a kubelet static pod: the WAN, the switches' path into the
+# tailnet and their DHCP.
 #
 # THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
 # `sha-<12 sha>` only for a push that changes their image's inputs, so the image
@@ -95,45 +96,69 @@ jobs:
     outputs:
       environment: ${{ steps.site.outputs.environment }}
       site: ${{ steps.site.outputs.site }}
+      omada: ${{ steps.site.outputs.omada }}
+      edge_sites: ${{ steps.site.outputs.edge_sites }}
       rack: ${{ steps.site.outputs.rack }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
-      - name: Read the site definition
+      - name: Read the site definitions
         id: site
         env:
           REQUESTED: ${{ inputs.environment }}
         run: |
           set -euo pipefail
-          # One Omada controller, so one site with a controller.
-          sites=()
+          # Every rack is in one env, whose rack switch controller reconciles
+          # all their switches. One Omada controller, so at most one site has
+          # a controller; a site whose switches are all PicOS has none.
+          environments=()
+          omada_site=""
+          edge_sites=()
+          first=""
           for file in infra/rack-switch-fleet/sites/*.json; do
+            site="$(basename "$file" .json)"
+            [ -n "$first" ] || first="$site"
+            environments+=("$(infra/rack-switch-fleet/fleet.sh --site "$site" env)")
             if jq -e '.management.controller != null' "$file" >/dev/null; then
-              sites+=("$(basename "$file" .json)")
+              if [ -n "$omada_site" ]; then
+                echo "::error::$omada_site and $site both have a management.controller; a switch can be adopted by only one Omada controller"
+                exit 1
+              fi
+              omada_site="$site"
+            fi
+            if jq -e '.management.edge.interface' "$file" >/dev/null; then
+              edge_sites+=("$site")
             fi
           done
-          if [ "${#sites[@]}" -ne 1 ]; then
-            echo "::error::expected one site with a management.controller, found ${#sites[@]}: ${sites[*]}"
+          mapfile -t environments < <(printf '%s\n' "${environments[@]}" | sort -u)
+          if [ "${#environments[@]}" -ne 1 ]; then
+            echo "::error::the racks are in ${environments[*]}; this deploys one env's rack switch controller"
             exit 1
           fi
-          site="${sites[0]}"
-          environment="$(infra/rack-switch-fleet/fleet.sh --site "$site" env)"
+          environment="${environments[0]}"
           rack=true
           if [ -n "$REQUESTED" ] && [ "$REQUESTED" != rack ] && [ "$REQUESTED" != "$environment" ]; then
-            echo "$site is in $environment; installing only the Omada controller in $REQUESTED"
+            if [ -z "$omada_site" ]; then
+              echo "::error::no site has an Omada controller to install in $REQUESTED"
+              exit 1
+            fi
+            echo "the racks are in $environment; installing only the Omada controller in $REQUESTED"
             environment="$REQUESTED"
             rack=false
           fi
-          if [ ! -f "$HELM_CHART_PATH/values-$environment.yaml" ]; then
+          if [ -n "$omada_site" ] && [ ! -f "$HELM_CHART_PATH/values-$environment.yaml" ]; then
             echo "::error::$environment has no Omada controller values ($HELM_CHART_PATH/values-$environment.yaml)"
             exit 1
           fi
-          echo "$site deploys to $environment (rack switch controller and edge: $rack)"
+          echo "deploying to $environment (Omada: ${omada_site:-none}; rack switch controller and edges of ${edge_sites[*]}: $rack)"
           {
             echo "environment=$environment"
-            echo "site=$site"
+            # Any of the env's sites names its controller's values.
+            echo "site=$first"
+            echo "omada=$([ -n "$omada_site" ] && echo true || echo false)"
+            echo "edge_sites=${edge_sites[*]}"
             echo "rack=$rack"
           } >> "$GITHUB_OUTPUT"
 
@@ -185,8 +210,10 @@ jobs:
           kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
           kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
       - name: Fetch the wrapped chart
+        if: needs.resolve.outputs.omada == 'true'
         run: helm dependency build "$HELM_CHART_PATH"
       - name: helm upgrade --install
+        if: needs.resolve.outputs.omada == 'true'
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -260,19 +287,27 @@ jobs:
       # one at a time when they are up, each held 90 s after its static pod
       # applied the new configuration; `kubectl -n omada rollout status
       # ds/rack-edge-<site>` follows it.
-      - name: helm upgrade --install the rack edge
+      # One release per site with edges. BER1's is `rack-edge`, named before
+      # there was a second site: a new name would be a second release taking
+      # over its DaemonSet.
+      - name: helm upgrade --install the rack edges
         if: needs.resolve.outputs.rack == 'true'
         env:
           TAG: ${{ steps.image.outputs.edge_tag }}
+          EDGE_SITES: ${{ needs.resolve.outputs.edge_sites }}
         run: |
           set -euo pipefail
-          infra/rack-switch-fleet/fleet.sh --site "$SITE" helm-values rack-edge > "$RUNNER_TEMP/edge-site.yaml"
-          helm upgrade --install "$EDGE_RELEASE_NAME" "$EDGE_CHART_PATH" \
-            --namespace "$NAMESPACE" \
-            -f "$EDGE_CHART_PATH/values.yaml" \
-            -f "$RUNNER_TEMP/edge-site.yaml" \
-            --set image.tag="$TAG" \
-            --wait=hookOnly
+          for site in $EDGE_SITES; do
+            release="$EDGE_RELEASE_NAME"
+            [ "$site" = ber1 ] || release="$EDGE_RELEASE_NAME-$site"
+            infra/rack-switch-fleet/fleet.sh --site "$site" helm-values rack-edge > "$RUNNER_TEMP/edge-$site.yaml"
+            helm upgrade --install "$release" "$EDGE_CHART_PATH" \
+              --namespace "$NAMESPACE" \
+              -f "$EDGE_CHART_PATH/values.yaml" \
+              -f "$RUNNER_TEMP/edge-$site.yaml" \
+              --set image.tag="$TAG" \
+              --wait=hookOnly
+          done
       - name: Diagnostics on failure
         if: failure()
         run: |
@@ -280,7 +315,9 @@ jobs:
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           helm history "$CONTROLLER_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
-          helm history "$EDGE_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          for release in $(helm list -n "$NAMESPACE" -q | grep "^$EDGE_RELEASE_NAME"); do
+            helm history "$release" -n "$NAMESPACE" --max 10 || true
+          done
           echo "::endgroup::"
           echo "::group::workload resources"
           kubectl -n "$NAMESPACE" get statefulset,deployment,daemonset,svc,pvc,pods,externalsecret -o wide || true

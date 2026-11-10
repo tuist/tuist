@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -15,8 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -66,7 +66,7 @@ func newKataHarness(t *testing.T, kataRuntime bool, nodeLabels map[string]string
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name:        machine.Name,
 		Labels:      nodeLabels,
-		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca)},
+		Annotations: map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca, "v1.34", kataRuntime)},
 	}}
 	node.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}
 
@@ -120,7 +120,7 @@ func (h *kataHarness) reconcile() {
 	if err != nil {
 		h.t.Fatalf("patch helper: %v", err)
 	}
-	if _, err := h.r.reconcileNormal(context.Background(), h.machine, helper); err != nil {
+	if _, err := h.r.reconcileNormal(context.Background(), h.machine, "", helper); err != nil {
 		h.t.Fatalf("reconcileNormal: %v", err)
 	}
 }
@@ -169,7 +169,7 @@ func TestKataRuntimeMissingIsSurfacedOnTheMachine(t *testing.T) {
 // correctly-bootstrapped runner box looks like, and it must cost nothing.
 func TestKataRuntimeReadyWhenNodeCarriesTheLabel(t *testing.T) {
 	h := newKataHarness(t, true, map[string]string{"katacontainers.io/kata-runtime": "true"})
-	h.node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(h.node)
+	h.node.Annotations[kataHostConfigAnnotation] = kataHostConfigRevision(h.node)
 	if err := h.client.Update(context.Background(), h.node); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestKataRuntimeRepairFailureNeverLabelsTheNode(t *testing.T) {
 	}
 
 	requeue, err := reconcileLinuxKataRuntimeDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err == nil {
 		t.Fatalf("expected the repair to fail against an unreachable host, got requeue=%v", requeue)
 	}
@@ -295,7 +295,7 @@ func TestRenderKataRuntimeRepairScript(t *testing.T) {
 // install block must not re-pull the ~250 MiB kata tarball on each attempt —
 // while a kataVersion bump must still reinstall.
 func TestKataInstallIsGuardedByAVersionStamp(t *testing.T) {
-	setup := kataSetup("sudo ", "sudo -E ", true)
+	setup := kataSetup("sudo ", "sudo -E ", true, false)
 	if !strings.Contains(setup, `if [ "$(cat `+kataVersionStampPath+` 2>/dev/null)" != "`+kataVersion+`" ]; then`) {
 		t.Fatalf("expected the kata download to be guarded by a version stamp, got:\n%s", setup)
 	}

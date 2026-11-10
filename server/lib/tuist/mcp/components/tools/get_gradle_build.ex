@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   @moduledoc """
-  Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/gradle/builds/{id}.
+  Get detailed information about a specific Gradle build run, including the failure messages of failed tasks and configuration. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/gradle/builds/{id}.
   """
 
   use Tuist.MCP.Tool,
@@ -21,8 +21,10 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "duration_ms" => %{"type" => "integer"},
         "status" => %{"type" => "string"},
+        "tuist_version" => %{"type" => ["string", "null"], "description" => "The reporting Tuist Gradle plugin version."},
         "gradle_version" => %{"type" => "string"},
         "java_version" => %{"type" => "string"},
         "is_ci" => %{"type" => "boolean"},
@@ -52,6 +54,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "cache_hit_rate" => %{"type" => ["number", "null"]},
         "cache_download_bytes" => %{"type" => "integer"},
         "cache_upload_bytes" => %{"type" => "integer"},
+        "failures" => Tuist.MCP.GradleSchemas.failures(),
         "inserted_at" => %{"type" => "string"}
       },
       "required" => [
@@ -79,6 +82,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "cache_hit_rate",
         "cache_download_bytes",
         "cache_upload_bytes",
+        "failures",
         "inserted_at"
       ],
       "additionalProperties" => false
@@ -91,7 +95,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
+      "Get detailed information about a specific Gradle build run, including the failure messages of failed tasks and configuration. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
 
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
@@ -104,14 +108,16 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
-      cache_aggregates = Gradle.task_cache_aggregates(build.id)
+      cache_aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
 
       {:ok,
        %{
          id: build.id,
+         actor: Tuist.ReportActor.actor(build),
          tasks_cache_hit_count: build.tasks_cache_hit_count,
          duration_ms: build.duration_ms,
          status: to_string(build.status),
+         tuist_version: if(build.tuist_version != "", do: build.tuist_version),
          gradle_version: build.gradle_version,
          java_version: build.java_version,
          is_ci: build.is_ci,
@@ -132,6 +138,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          cache_hit_rate: Gradle.cache_hit_rate(build),
          cache_download_bytes: cache_aggregates.cache_download_bytes,
          cache_upload_bytes: cache_aggregates.cache_upload_bytes,
+         failures: Gradle.list_failures(build),
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
        }}
     end

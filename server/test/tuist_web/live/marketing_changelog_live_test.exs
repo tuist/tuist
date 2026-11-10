@@ -28,6 +28,14 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
       assert html =~ latest_entry.title
     end
 
+    test "falls back to the first page when the page param is not a positive integer", %{conn: conn} do
+      for query <- ["page=1'%20ORDER%20BY%201--%20-", "page[]=1", "page=-1"] do
+        {:ok, _lv, html} = live(conn, "/changelog?#{query}")
+
+        assert length(find(html, ~s([data-part="timeline"] > [data-part="entry"]))) == 10
+      end
+    end
+
     test "load more appends the next page of entries", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/changelog")
 

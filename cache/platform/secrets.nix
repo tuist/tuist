@@ -1,9 +1,30 @@
-{config, ...}: {
+{
+  config,
+  lib,
+  ...
+}: let
+  hostName = config.networking.hostName;
+  env =
+    if lib.hasSuffix "-staging" hostName
+    then "staging"
+    else if lib.hasSuffix "-canary" hostName
+    then "canary"
+    else "production";
+in {
   services.onepassword-secrets = {
     enable = true;
     tokenFile = "/etc/opnix-token";
 
     secrets = {
+      pulseToken = {
+        reference = "op://tuist-k8s-${env}/PULSE_TOKEN/password";
+        path = "/run/secrets/pulse-token";
+        mode = "0400";
+        owner = config.systemd.services.grafana-alloy.serviceConfig.User or "root";
+        group = config.systemd.services.grafana-alloy.serviceConfig.Group or "root";
+        services = ["grafana-alloy"];
+      };
+
       grafanaCloudPromRemoteWriteUrl = {
         reference = "op://cache/Grafana-Alloy/GRAFANA_CLOUD_PROM_REMOTE_WRITE_URL";
         path = "/run/secrets/grafana-cloud-prom-remote-write-url";

@@ -7,7 +7,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   skipped would have covered lines too. The skipped tests are those Tuist
   skipped: every test of a target selective testing skipped (the command
   event names it as a hit, a scheme skipped whole included) and the tests
-  the runs' skip identifiers name (quarantine, `-skip-testing`). A target's tests are the ones it executed in the nearest
+  the runs' skip identifiers name (`--skip-test-targets`, `-skip-testing`),
+  less what another run of their scheme executed at the commit. A test
+  quarantine skipped is outside the suite: the client doesn't report it, so
+  it is neither carried nor a gap. A target's tests are the ones it executed in the nearest
   ancestor run that ran it, and per-test evidence
   (`Tuist.Tests.Coverage.Evidence`) says which lines each of them ran the
   last time it executed. What a caller's `-only-testing` left out was never
@@ -55,12 +58,13 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
+  alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestModuleRun
 
   # A lookup scoped to runs binds every run id as a query parameter too, so the
   # run ids are chunked first and each chunk is kept small enough that the ids
@@ -109,9 +113,10 @@ defmodule Tuist.Tests.Coverage.Reported do
       # A scheme skipped whole measured nothing, and its run's hits are all
       # that say which targets it skipped.
       hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
+      {hits, skips} = unexecuted(project.id, runs, hits, runs ++ clean)
 
       context = %{project: project, repository_id: repository_id, sha: sha}
-      skipping = skipping(context, {runs, hits, skip_identifiers(runs ++ clean), clean})
+      skipping = skipping(context, {runs, hits, skips, clean})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
       if skipping.skipped == [] and skipping.gaps == [] do
@@ -154,10 +159,12 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the coverage skipped; a run that didn't report it still counts.
   defp unmeasured_runs(project_id, sha) do
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
         group_by: t.id,
-        having: fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
+        having:
+          fragment("argMax(?, ?)", t.submission_auth, t.inserted_at) != "network_trusted" and
+            fragment("ifNull(argMax(?, ?), true)", t.coverage_enabled, t.inserted_at),
         select: %{
           test_run_id: t.id,
           scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
@@ -218,11 +225,9 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
 
   defp changes_tracked_files?(context) do
-    with now when now != :unknown <- tracked(context, context.sha),
-         [_ | _] = parents <- GitHistory.parents(context.repository_id, context.sha) do
-      Enum.all?(parents, &(tracked(context, &1) not in [now, :unknown]))
-    else
-      _ -> false
+    case GitHistory.parents(context.repository_id, context.sha) do
+      [] -> false
+      parents -> Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed))
     end
   end
 
@@ -244,6 +249,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp missing_evidence_reasons(%{repository_id: repository_id}, _tests) when repository_id in [nil, 0],
     do: [:no_ancestor]
 
+  # Mix collects no per-test evidence, whatever its ancestors ran, and its
+  # runs usually have no scheme to find a baseline by.
+  defp missing_evidence_reasons(%{project: %{build_system: :mix}}, _tests), do: [:collection_off]
+
   defp missing_evidence_reasons(context, tests) do
     source_runs = context.baseline
     collected = Enum.filter(source_runs, &(&1.coverage_evidence_status == "collected"))
@@ -262,14 +271,16 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       true ->
         project_id = context.project.id
-        observed = observed_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
+        linked = linked_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
         overlapped = overlapped_tests(project_id, Enum.map(tests, & &1.test_case_id), live)
 
+        # A target whose tests all overlapped records no test evidence either,
+        # so the overlap is told first.
         tests
         |> Enum.map(fn test ->
           cond do
-            not MapSet.member?(observed, test.module_name) -> :not_linked
             MapSet.member?(overlapped, test.test_case_id) -> :overlapped
+            not MapSet.member?(linked, test.module_name) -> :not_linked
             true -> :no_evidence
           end
         end)
@@ -298,19 +309,21 @@ defmodule Tuist.Tests.Coverage.Reported do
         do: id
   end
 
-  # The targets some of the runs recorded evidence for: a target that links
-  # TestCoverageAttribution always records its process's.
-  defp observed_targets(project_id, modules, run_ids) do
+  # The targets some of the runs recorded test-level evidence for. Only
+  # TestCoverageAttribution records `test` and `suite` scopes; every target has
+  # a `target` scope, which the client reads from Xcode's raw profiles. Their
+  # `scope_id` starts with the module (`Evidence.test_scope_id/3`).
+  defp linked_targets(project_id, modules, run_ids) do
     run_ids
     |> Enum.chunk_every(@run_id_chunk)
     |> Enum.flat_map(fn runs ->
       ClickHouseRepo.all(
         from(f in CoverageFile,
           where:
-            f.project_id == ^project_id and f.scope_kind == "target" and f.scope_id in ^modules and
-              f.test_run_id in ^runs,
+            f.project_id == ^project_id and f.test_run_id in ^runs and f.scope_kind in ["test", "suite"] and
+              fragment("splitByChar('\\x1F', ?)[1]", f.scope_id) in ^modules,
           distinct: true,
-          select: f.scope_id
+          select: fragment("splitByChar('\\x1F', ?)[1]", f.scope_id)
         )
       )
     end)
@@ -528,8 +541,9 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     # A target in several schemes is taken from the scheme that skipped it.
     executed =
-      project_id
-      |> executed_modules(Map.keys(by_id), modules)
+      by_id
+      |> Map.keys()
+      |> run_modules(modules)
       |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
       |> Map.new(fn {module, run_ids} ->
         {module, Enum.find(run_ids, hd(run_ids), &(by_id[&1].scheme in Map.get(skipped_in, module, [])))}
@@ -584,29 +598,13 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp changes(_repository_id, _from_sha, _to_sha, []), do: %{changed: MapSet.new(), added: MapSet.new()}
 
   defp changes(repository_id, from_sha, to_sha, directories) do
-    if GitHistory.listing_complete?(repository_id, from_sha) and GitHistory.listing_complete?(repository_id, to_sha) do
-      before = repository_id |> GitHistory.files_in(from_sha, directories) |> Map.new(&{&1.path, &1.git_blob_id})
-      now = GitHistory.files_in(repository_id, to_sha, directories)
+    case GitHistory.changed_files(repository_id, from_sha, to_sha, directories: directories) do
+      :unknown ->
+        :unknown
 
-      then(
-        %{
-          changed:
-            for(
-              %{path: path, git_blob_id: blob} <- now,
-              Map.get(before, path) not in [nil, blob],
-              into: MapSet.new(),
-              do: path
-            ),
-          added: for(%{path: path} <- now, not Map.has_key?(before, path), into: MapSet.new(), do: path)
-        },
-        fn changes ->
-          kept = MapSet.new(now, & &1.path)
-          removed = for {path, _blob} <- before, not MapSet.member?(kept, path), into: MapSet.new(), do: path
-          %{changes | changed: MapSet.union(changes.changed, removed)}
-        end
-      )
-    else
-      :unknown
+      files ->
+        {added, changed} = Enum.split_with(files, &is_nil(&1.from))
+        %{changed: MapSet.new(changed, & &1.path), added: MapSet.new(added, & &1.path)}
     end
   end
 
@@ -641,13 +639,93 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.filter(fn test -> Enum.any?(identifiers, &(hd(&1) == test.module_name and named?(test, &1))) end)
   end
 
-  # The runs' skip identifiers, split into their target, suite and test.
+  # The runs' skip identifiers, split into their target, suite and test. A
+  # suite or test name that holds a `/` (an ExUnit describe such as
+  # `create_order/2`) arrives percent-encoded, as does a `%`.
   defp skip_identifiers(runs) do
     runs
     |> Enum.flat_map(&Map.get(&1, :skip_test_identifiers, []))
     |> Enum.uniq()
-    |> Enum.map(&String.split(&1, "/", parts: 3))
+    |> Enum.map(fn identifier -> identifier |> String.split("/", parts: 3) |> Enum.map(&decode_part/1) end)
     |> Enum.reject(&(hd(&1) == ""))
+  end
+
+  defp decode_part(part) do
+    if String.contains?(part, "%"), do: URI.decode(part), else: part
+  rescue
+    ArgumentError -> part
+  end
+
+  # What a run that measured the commit executed is in the commit's figure,
+  # whichever other run skipped it, so it is neither carried nor a gap. A
+  # target a run executed, and that its `-only-testing` doesn't name, ran
+  # whole there, but for the tests that run's own skip identifiers name, which
+  # stay skipped. For a target only a run of the same scheme counts: another
+  # scheme's test plan can run other tests of the same target. A named test
+  # that ran counts in any scheme, as `ran/2` does for the rest. Decided before
+  # anything else, so a full run beside a selective one at the commit measures
+  # what the selective one skipped whatever the commit changed.
+  defp unexecuted(_project_id, [], hits, skipping), do: {hits, skip_identifiers(skipping)}
+
+  defp unexecuted(project_id, runs, hits, skipping) do
+    schemes = Map.new(runs ++ skipping, &{&1.test_run_id, &1.scheme})
+    skips = skipping |> Enum.flat_map(fn run -> Enum.map(skip_identifiers([run]), &{run.scheme, &1}) end) |> Enum.uniq()
+    by_id = Map.new(runs, &{&1.test_run_id, &1})
+    modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(skips, fn {_scheme, [module | _]} -> module end))
+    executed = run_modules(Map.keys(by_id), modules)
+
+    whole = whole_targets(executed, by_id, [:only_test_identifiers])
+    untouched = whole_targets(executed, by_id, [:only_test_identifiers, :skip_test_identifiers])
+
+    {named, by_target} = Enum.split_with(skips, &match?({_scheme, [_module, _suite, _name]}, &1))
+    by_target = Enum.reject(by_target, fn {scheme, [module | _]} -> MapSet.member?(untouched, {scheme, module}) end)
+
+    {Enum.reject(hits, &MapSet.member?(whole, {schemes[&1.test_run_id], &1.name})),
+     Enum.uniq(Enum.map(by_target, &elem(&1, 1)) ++ unexecuted_named(project_id, named, Map.keys(by_id)))}
+  end
+
+  # The targets each run executed, from its module rows: they are keyed by
+  # run, so this reads the runs' own rows, not the project's test history.
+  defp run_modules(run_ids, modules) do
+    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        modules <- Coverage.id_chunks(modules, length(runs)),
+        pair <-
+          ClickHouseRepo.all(
+            from(m in TestModuleRun,
+              where: m.test_run_id in ^runs and m.name in ^modules and m.test_case_count > 0,
+              distinct: true,
+              select: {m.test_run_id, m.name}
+            ),
+            settings: [select_sequential_consistency: 1]
+          ),
+        do: pair
+  end
+
+  # The scheme and target of each run's executed targets that none of the
+  # given identifiers of that run name.
+  defp whole_targets(executed, by_id, fields) do
+    for {run_id, module} <- executed,
+        run = by_id[run_id],
+        module not in Enum.flat_map(fields, &named_targets(Map.get(run, &1, []))),
+        into: MapSet.new(),
+        do: {run.scheme, module}
+  end
+
+  defp named_targets(identifiers), do: Enum.map(identifiers, &(&1 |> String.split("/", parts: 2) |> hd()))
+
+  # The identifiers naming a test none of the runs executed. One that names no
+  # known test skips nothing.
+  defp unexecuted_named(_project_id, [], _run_ids), do: []
+
+  defp unexecuted_named(project_id, named, run_ids) do
+    identifiers = named |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+    tests = named_tests(project_id, identifiers)
+    ran = ran(project_id, run_ids, tests |> Enum.map(& &1.test_case_id) |> Enum.uniq())
+    unexecuted = Enum.reject(tests, &MapSet.member?(ran, &1.test_case_id))
+
+    Enum.filter(identifiers, fn [module | _] = identifier ->
+      Enum.any?(unexecuted, &(&1.module_name == module and named?(&1, identifier)))
+    end)
   end
 
   # `-skip-testing` names an XCTest method with or without its parentheses.
@@ -666,21 +744,6 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
     |> Enum.flat_map(fn {run_id, run_modules} -> run_tests(project_id, run_id, run_modules) end)
     |> Enum.group_by(& &1.module_name)
-  end
-
-  defp executed_modules(project_id, run_ids, modules) do
-    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
-        modules <- Coverage.id_chunks(modules, length(runs)),
-        pair <-
-          ClickHouseRepo.all(
-            from(r in TestCaseRun,
-              where: r.project_id == ^project_id and r.test_run_id in ^runs and r.module_name in ^modules,
-              distinct: true,
-              select: {r.test_run_id, r.module_name}
-            ),
-            settings: [select_sequential_consistency: 1]
-          ),
-        do: pair
   end
 
   defp run_tests(project_id, run_id, modules) do
@@ -706,6 +769,22 @@ defmodule Tuist.Tests.Coverage.Reported do
     )
     |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
     |> MapSet.new()
+  end
+
+  # Which of the given tests the runs executed.
+  defp ran(project_id, run_ids, test_case_ids) do
+    for ids <- Coverage.id_chunks(test_case_ids, length(run_ids)),
+        id <-
+          ClickHouseRepo.all(
+            from(r in TestCaseRun,
+              where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.test_case_id in ^ids,
+              distinct: true,
+              select: r.test_case_id
+            ),
+            settings: [select_sequential_consistency: 1]
+          ),
+        into: MapSet.new(),
+        do: id
   end
 
   # Whether every run of a scheme executed only the tests its caller selected.
@@ -738,7 +817,6 @@ defmodule Tuist.Tests.Coverage.Reported do
       |> Map.new(&{&1.test_run_id, %{sha: &1.git_commit_sha, depth: &1.depth, ran_at: &1.ran_at}})
       |> Map.merge(Map.new(context.indexed, fn {_module, source} -> {source.run_id, Map.delete(source, :run_id)} end))
 
-    tracked_now = tracked(context, context.sha)
     hashes = Map.new(context.hits, &{&1.name, &1.hash})
     {in_hits, others} = Enum.split_with(skipped, &Map.has_key?(hashes, &1.module_name))
 
@@ -746,12 +824,12 @@ defmodule Tuist.Tests.Coverage.Reported do
       in_hits
       |> Enum.group_by(& &1.module_name)
       |> target_units(context, hashes, source_runs)
-      |> check(context, tracked_now)
+      |> check(context)
 
     carried_modules = MapSet.new(target_units, & &1.module)
 
     {test_units, test_reasons} =
-      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context, tracked_now)
+      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context)
 
     {target_units ++ test_units, Map.merge(target_reasons, test_reasons)}
   end
@@ -805,30 +883,32 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # Each skipped test not carried with its target, from the latest run whose
-  # version of it (`Tuist.Tests.Coverage.TestSources`) the commit's blobs
+  # version of it (`Tuist.Tests.Coverage.TestEvidence`) the commit's blobs
   # reproduce: that run executed exactly these files, so what it recorded
   # holds here, on whatever branch it ran. Then the test passed there, the
   # tracked files are the same, and its evidence has lines for every file
   # that counts. A test with versions none of which the commit reproduces
   # executed a file that changed since; one with none is explained by what
   # its ancestors collected (`missing_evidence_reasons/2`).
-  defp test_units([], _context, _tracked_now), do: {[], %{}}
+  defp test_units([], _context), do: {[], %{}}
 
-  defp test_units(tests, context, tracked_now) do
-    versions = TestSources.versions(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id))
-    paths = versions |> Map.values() |> Enum.concat() |> Enum.flat_map(& &1.paths) |> Enum.uniq()
-    missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
-    now = Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
+  defp test_units(tests, context) do
+    evidence =
+      TestEvidence.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
+        missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
+        Map.merge(blobs_now(context.repository_id, context.sha, missing), context.blobs)
+      end)
+
     depths = Map.new(context.baseline, &{&1.git_commit_sha, &1.depth})
 
     tests
-    |> Enum.map(&{&1, source_version(Map.get(versions, &1.test_case_id, []), now)})
+    |> Enum.map(&{&1, source_version(Map.get(evidence, &1.test_case_id))})
     |> Enum.reduce({[], %{}, %{}}, fn
       {_test, :none}, acc ->
         acc
 
       {test, source}, {units, reasons, validity} ->
-        validity = remember_validity(validity, context, tracked_now, source)
+        validity = remember_validity(validity, context, source)
 
         case version_failure(context, source, validity) do
           nil -> {[test_unit(test, source, depths) | units], reasons, validity}
@@ -840,21 +920,13 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # The latest version the commit reproduces, nil when it reproduces none,
   # and `:none` for a test without versions.
-  defp source_version([], _now), do: :none
+  defp source_version(nil), do: :none
+  defp source_version(%{reproduced: reproduced}), do: reproduced
 
-  defp source_version(versions, now),
-    do: versions |> Enum.filter(&reproduced?(&1, now)) |> Enum.max_by(&to_datetime(&1.ran_at), DateTime, fn -> nil end)
+  defp remember_validity(validity, _context, nil), do: validity
 
-  defp remember_validity(validity, _context, _tracked_now, nil), do: validity
-
-  defp remember_validity(validity, context, tracked_now, source),
-    do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, tracked_now, source.sha) end)
-
-  # Every file the version executed has, at the commit, the blob it had then.
-  defp reproduced?(version, now) do
-    Enum.all?(version.paths, &is_binary(now[&1])) and
-      TestSources.fingerprint(Enum.map(version.paths, &{&1, now[&1]})) == version.fingerprint
-  end
+  defp remember_validity(validity, context, source),
+    do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, source.sha) end)
 
   defp version_failure(_context, nil, _validity), do: :executed_file_changed
 
@@ -889,11 +961,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the evidence holds lines for every file that counts. The hash is trusted
   # for the rest: it covers the target's sources, its tests and every
   # dependency, so the files it executed are not compared blob by blob.
-  defp check([], _context, _tracked_now), do: {[], %{}}
+  defp check([], _context), do: {[], %{}}
 
-  defp check(units, context, tracked_now) do
+  defp check(units, context) do
     project_id = context.project.id
-    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity(context, tracked_now, &1)})
+    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity(context, &1)})
     failed = failed_units(project_id, units)
     without_lines = unlined_scopes(context, units)
 
@@ -1098,21 +1170,19 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  defp validity(_context, :unknown, _sha), do: :listing_missing
+  # Whether evidence from `sha` holds at the commit as far as the tracked
+  # files go: none of them differs between the two.
+  defp validity(%{project: project, repository_id: repository_id} = context, sha) do
+    case GitHistory.settings(project).tracked_file_globs do
+      [] ->
+        :ok
 
-  defp validity(context, now, sha) do
-    case tracked(context, sha) do
-      ^now -> :ok
-      :unknown -> :listing_missing
-      _changed -> :tracked_file_changed
-    end
-  end
-
-  defp tracked(%{project: project, repository_id: repository_id}, sha) do
-    cond do
-      GitHistory.settings(project).tracked_file_globs == [] -> []
-      GitHistory.listing_complete?(repository_id, sha) -> GitHistory.tracked_files(project, repository_id, sha)
-      true -> :unknown
+      globs ->
+        case GitHistory.changed_files(repository_id, sha, context.sha, match: ExcludedPaths.pattern(globs)) do
+          [] -> :ok
+          :unknown -> :listing_missing
+          _changed -> :tracked_file_changed
+        end
     end
   end
 

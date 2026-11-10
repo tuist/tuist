@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for label_join.
+load 5m
+  testmetric{src="a",src1="b",src2="c",dst="original-destination-value"} 0
+  testmetric{src="d",src1="e",src2="f",dst="original-destination-value"} 1
+  dup{label="a", this="a"} 1.0
+  dup{label="b", this="a"} 1.0
+
+# label_join joins all src values in order.
+eval instant at 0m label_join(testmetric, "dst", "-", "src", "src1", "src2")
+  testmetric{src="a",src1="b",src2="c",dst="a-b-c"} 0
+  testmetric{src="d",src1="e",src2="f",dst="d-e-f"} 1
+
+# label_join treats non existent src labels as empty strings.
+eval instant at 0m label_join(testmetric, "dst", "-", "src", "src3", "src1")
+  testmetric{src="a",src1="b",src2="c",dst="a--b"} 0
+  testmetric{src="d",src1="e",src2="f",dst="d--e"} 1
+
+# label_join overwrites the destination label even if the resulting dst label is empty string
+eval instant at 0m label_join(testmetric, "dst", "", "emptysrc", "emptysrc1", "emptysrc2")
+  testmetric{src="a",src1="b",src2="c"} 0
+  testmetric{src="d",src1="e",src2="f"} 1
+
+# test without src label for label_join
+eval instant at 0m label_join(testmetric, "dst", ", ")
+	  testmetric{src="a",src1="b",src2="c"} 0
+	  testmetric{src="d",src1="e",src2="f"} 1
+
+# test without dst label for label_join
+load 5m
+  testmetric1{src="foo",src1="bar",src2="foobar"} 0
+  testmetric1{src="fizz",src1="buzz",src2="fizzbuzz"} 1
+
+# label_join creates dst label if not present.
+eval instant at 0m label_join(testmetric1, "dst", ", ", "src", "src1", "src2")
+  testmetric1{src="foo",src1="bar",src2="foobar",dst="foo, bar, foobar"} 0
+  testmetric1{src="fizz",src1="buzz",src2="fizzbuzz",dst="fizz, buzz, fizzbuzz"} 1
+
+eval instant at 0m label_join(dup, "label", "", "this")
+  expect fail msg:vector cannot contain metrics with the same labelset
+
+clear
+
+clear
+load 20m
+  series{label="a", idx="1"} 2 _
+  series{label="a", idx="2"} _ 4
+
+# Test label_join with non-overlapping series.
+eval instant at 0 label_join(series, "idx", ",", "label", "label")
+  series{label="a", idx="a,a"} 2
+
+eval instant at 20m label_join(series, "idx", ",", "label", "label")
+  series{label="a", idx="a,a"} 4
+
+eval range from 0 to 20m step 20m label_join(series, "idx", ",", "label", "label")
+  series{label="a", idx="a,a"} 2 4
+
+clear
+load 1m
+  overlap{label="a", idx="1"} 1
+  overlap{label="a", idx="2"} 2
+
+# Test label_join failure with overlapping timestamps (same labelset at same time).
+eval_fail instant at 0 label_join(overlap, "idx", ",", "label", "label")
+

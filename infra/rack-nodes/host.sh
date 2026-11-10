@@ -53,3 +53,16 @@ rack_boot_server() {
   [ -n "$port" ] || port="$(yq -r '.rackLinuxFleet.boot.httpPort' "$root/infra/helm/tuist/values.yaml")"
   echo "http://$address:$port"
 }
+
+# Prints every site's static WAN, "<site> <address/prefix> <gateway> <vlan>"
+# per line, from the site definitions: what a preinstalled installer tries when
+# it is the first box of its site.
+# Sourced: rack_site_wans
+rack_site_wans() {
+  local root site
+  root="$(git rev-parse --show-toplevel)"
+  for site in "$root"/infra/rack-switch-fleet/sites/*.json; do
+    jq -r --arg site "$(basename "$site" .json)" \
+      '.management.edge.wan // empty | select(.address and .gateway and .vlan) | "\($site) \(.address) \(.gateway) \(.vlan)"' "$site"
+  done
+}

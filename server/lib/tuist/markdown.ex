@@ -10,14 +10,15 @@ defmodule Tuist.Markdown do
   Converts markdown text to sanitized HTML.
 
   This function uses MDEx to parse markdown and HtmlSanitizeEx to sanitize
-  the resulting HTML. If markdown parsing fails, the original text is returned.
+  the resulting HTML. If markdown parsing fails, the HTML-escaped original text
+  is returned.
   """
   def to_html(markdown) when is_binary(markdown) do
     markdown
     |> MDEx.to_html!()
     |> HtmlSanitizeEx.markdown_html()
   rescue
-    _ -> markdown
+    _ -> html_escape(markdown)
   end
 
   def to_html(_), do: ""

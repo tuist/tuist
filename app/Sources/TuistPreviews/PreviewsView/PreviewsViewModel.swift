@@ -16,9 +16,13 @@ enum PreviewsViewModelError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .trackFilteringUnsupported:
-            "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+            String(
+                localized: "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+            )
         case .searchUnsupported:
-            "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search."
+            String(
+                localized: "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search."
+            )
         }
     }
 }
@@ -30,6 +34,7 @@ final class PreviewsViewModel: Sendable {
     private let listPreviewTracksService: ListPreviewTracksServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let appStorage: AppStoring
+    private let accountName: String?
 
     private(set) var projects: [ServerProject] = []
     private(set) var previews: [ServerPreview] = []
@@ -72,13 +77,15 @@ final class PreviewsViewModel: Sendable {
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
         listPreviewTracksService: ListPreviewTracksServicing = ListPreviewTracksService(),
         serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
-        appStorage: AppStoring = AppStorage()
+        appStorage: AppStoring = AppStorage(),
+        accountName: String? = nil
     ) {
         self.listProjectsService = listProjectsService
         self.listPreviewsService = listPreviewsService
         self.listPreviewTracksService = listPreviewTracksService
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage
+        self.accountName = accountName
     }
 
     func onAppear() async throws {
@@ -92,6 +99,7 @@ final class PreviewsViewModel: Sendable {
     }
 
     func selectProject(_ project: ServerProject) async throws {
+        guard belongsToSelectedAccount(project) else { return }
         selectedProject = project
         selectedTrack = nil
         searchQuery = ""
@@ -173,6 +181,7 @@ final class PreviewsViewModel: Sendable {
 
     private func loadProjects() async throws {
         projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
+            .filter { belongsToSelectedAccount($0) }
 
         let storedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self)
         guard let project = projects.first(where: { $0.fullName == storedProjectFullHandle }) ?? projects.first else { return }
@@ -186,6 +195,10 @@ final class PreviewsViewModel: Sendable {
         }
         selectedProject = project
         try await loadPreviews(for: project, reloadTracks: true)
+    }
+
+    private func belongsToSelectedAccount(_ project: ServerProject) -> Bool {
+        accountName.map { project.fullName.split(separator: "/").first.map(String.init) == $0 } ?? true
     }
 
     private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {

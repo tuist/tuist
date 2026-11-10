@@ -1,40 +1,36 @@
 defmodule Tuist.Runners.VolumePrefetch do
   @moduledoc """
-  Which cache-volume masters a macOS runner host should download before a job
-  for them lands on it.
+  Which custom cache-volume HEADs a runner host should download before a job for
+  them lands on it.
 
-  A host otherwise obtains a master only after a job for the volume has run on
-  it, and that job starts cold. Its converge worker asks here while it is idle,
-  as the host itself rather than through a guest: the answer carries download
-  URLs for every account on the fleet, which a guest running a customer's job
-  must never see. The host authenticates with a token for its own per-machine
-  `tart-kubelet-<machine>` ServiceAccount, whose name is its Node's, so it can
-  only ask about its own fleet.
+  The host asks here as the host itself, never through a guest: the answer names
+  saved HEADs of every account on the fleet, which a guest running a customer's
+  job must never see. A macOS host authenticates with a token for its own
+  per-machine `tart-kubelet-<machine>` ServiceAccount, whose name is its Node's,
+  so it can only ask about its own fleet. A Linux host's cache agent uses the
+  agent ServiceAccount every Linux Node shares, which can already download any
+  HEAD by its use, and names its Node as in its other requests.
 
-  The list is the demand of the RunnerPools that schedule onto the Node, most
-  imminent first: the volumes of their queued jobs, then those of the jobs they
-  ran most over the last day. Volumes whose
-  master the Node already advertises are left out, because the jobs that land
-  there keep them current. A repository volume that has published no master yet
-  falls back to its account's `tuist-cache` master, which the host seeds a new
-  repository volume from. The host decides what it can keep.
+  The list names the saved HEADs of the platform's custom volumes that jobs used
+  on the Node's peers (`CacheVolumes.prefetch_heads/4`): first the volumes runs
+  keep reusing and have left idle, so the account's next working day starts
+  warm, then the volumes used in the last day. A Node gets only the repositories
+  `VolumePlacement` places on it, weighted by the cache capacity each peer
+  advertises, and dispatch leaves a repository's young jobs to its holders while
+  one has an idle runner (`VolumeAffinities`). Peers are the Nodes of a macOS
+  host class, or every Node of a Linux fleet, whose job shapes share its Nodes.
+  Hosts download these only into free space.
   """
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Runners
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
-  alias Tuist.Runners.Jobs
-  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.VolumeAffinities
-  alias Tuist.Runners.VolumeHeads
 
   @host_service_account_prefix "tart-kubelet-"
-  @fleet_label "tuist.dev/fleet"
-  @queued_candidates 20
-  @recent_candidates 10
-  @recent_window_seconds 24 * 60 * 60
-  @limit 8
+  # The Node label a platform's RunnerPools select their fleet by, as their Pods
+  # do: macOS hosts carry their CAPI fleet, Linux hosts their CAPI node pool.
+  @fleet_labels %{macos: "tuist.dev/fleet", linux: "node.cluster.x-k8s.io/pool"}
 
   @doc """
   The Node a runner host's ServiceAccount identifies, or `:error` for any other
@@ -52,145 +48,86 @@ defmodule Tuist.Runners.VolumePrefetch do
   def node_for_service_account(_namespace, _name), do: :error
 
   @doc """
-  The HEADs `node_name` should hold, most wanted first, each with a presigned
-  download URL. Empty for a Node that is not in a macOS fleet.
+  The HEADs `node_name` should hold, most wanted first, each with the reason it
+  is listed for. Empty for a Node that is not in a fleet of `platform`
+  (`:macos` or `:linux`).
   """
-  def for_node(node_name) do
+  def for_node(node_name, platform) when platform in [:macos, :linux] do
     with {:ok, node} <- K8sClient.get_node(node_name),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
-         fleet when is_binary(fleet) <- labels[@fleet_label],
-         [_ | _] = pools <- macos_pools_scheduling_onto(fleet),
-         {:ok, peers} <- class_peers(node, fleet),
-         true <- Enum.any?(peers, &(&1.name == node_name)) do
-      %{repository_volumes?: repository_volumes?} = VolumeAffinities.cache_volumes_from_node_labels(labels)
-      repository_volumes? = repository_volumes? and FeatureFlags.runner_cache_volumes_per_repository_enabled?()
-
-      context = %{
-        node_name: node_name,
-        peer_names: Enum.map(peers, & &1.name),
-        held_in_class: Enum.reduce(peers, MapSet.new(), &MapSet.union(&1.masters, &2)),
-        repository_volumes?: repository_volumes?
-      }
-
-      pools
-      |> demand(context.peer_names)
-      |> Stream.uniq_by(&{&1.account_id, Map.get(&1, :repository)})
-      |> Stream.map(&volume_to_prefetch(&1, context))
-      |> Stream.reject(&is_nil/1)
-      |> Stream.uniq_by(&{&1.account_id, &1.volume})
-      |> Enum.take(@limit)
+         fleet when is_binary(fleet) <- labels[@fleet_labels[platform]],
+         true <- platform_fleet?(fleet, platform),
+         {:ok, peers} <- peers(node, fleet, platform),
+         true <- Map.has_key?(peers, node_name) do
+      CacheVolumes.prefetch_heads(Atom.to_string(platform), Map.keys(peers), DateTime.utc_now(),
+        node: node_name,
+        weights: weights(peers)
+      )
     else
       _ -> []
     end
   end
 
-  # The Node's `tuist.dev/fleet` label is its CAPI fleet (for example
-  # `tuist-tuist-runners-fleet`), shared by every SKU group in it. Jobs are queued
-  # and recorded under RunnerPool names instead, and the pools that run on this
-  # Node are the macOS ones whose `fleetSelector` is that label, the same match
-  # the scheduler makes.
-  defp macos_pools_scheduling_onto(fleet) do
+  # The Node's fleet label is its CAPI fleet on macOS (`tuist.dev/fleet`, for
+  # example `tuist-tuist-runners-fleet`, shared by every SKU group in it) and its
+  # CAPI node pool on Linux (`node.cluster.x-k8s.io/pool`, for example
+  # `runners-linux`). It is a fleet of a platform when a RunnerPool of that
+  # platform has it as its `fleetSelector`, the same match the scheduler makes.
+  defp platform_fleet?(fleet, platform) do
     case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, pools} ->
-        for pool <- pools,
-            get_in(pool, ["spec", "fleetSelector"]) == fleet,
-            name = get_in(pool, ["metadata", "name"]),
-            is_binary(name) and Catalog.fleet_platform(name) == :macos,
-            do: name
+        Enum.any?(pools, fn pool ->
+          name = get_in(pool, ["metadata", "name"])
+
+          get_in(pool, ["spec", "fleetSelector"]) == fleet and is_binary(name) and
+            Catalog.fleet_platform(name) == platform
+        end)
 
       {:error, _reason} ->
-        []
+        false
     end
   end
 
-  # The Nodes of the fleet in the same host class as `node`, itself included,
-  # with the masters each advertises. SKU groups of one fleet share its label,
-  # and the Node carries nothing naming its group, but each class advertises its
-  # own capacity (an M2-L 8 CPU and 14 GiB, an M4-XL 12 CPU and 28 GiB), which
-  # is what decides how many masters it can keep and which jobs land on it.
-  defp class_peers(node, fleet) do
+  # The Nodes of a Linux fleet, or those of a macOS fleet in the same host class as
+  # `node`, itself included. SKU groups of one fleet share its label, and the Node carries nothing naming
+  # its group, but each class advertises its own capacity (an M2-L 8 CPU and
+  # 14 GiB, an M4-XL 12 CPU and 28 GiB), which decides which jobs land on it.
+  defp peers(node, fleet, platform) do
     class = node_class(node)
 
-    case K8sClient.list_nodes("#{@fleet_label}=#{fleet}") do
+    case K8sClient.list_nodes("#{@fleet_labels[platform]}=#{fleet}") do
       {:ok, %{"items" => items}} ->
-        {:ok,
-         for peer <- items,
-             node_class(peer) == class,
-             name = get_in(peer, ["metadata", "name"]),
-             is_binary(name) do
-           labels = get_in(peer, ["metadata", "labels"]) || %{}
-           %{name: name, masters: VolumeAffinities.cache_volumes_from_node_labels(labels).masters}
-         end}
+        peers =
+          for peer <- items,
+              platform == :linux or node_class(peer) == class,
+              name = get_in(peer, ["metadata", "name"]),
+              is_binary(name),
+              into: %{},
+              do: {name, peer |> get_in(["metadata", "labels"]) |> capacity_gib()}
+
+        {:ok, peers}
 
       _ ->
         :error
     end
   end
 
+  # A Node holds repositories in proportion to the cache capacity it advertises.
+  # While any peer advertises none, every peer weighs the same.
+  defp weights(peers) do
+    if Enum.all?(peers, fn {_name, gib} -> is_integer(gib) and gib > 0 end),
+      do: peers,
+      else: Map.new(peers, fn {name, _gib} -> {name, 1} end)
+  end
+
+  defp capacity_gib(labels) do
+    case VolumeAffinities.cache_volumes_from_node_labels(labels) do
+      %{capacity_bytes: bytes} when is_integer(bytes) -> div(bytes, 1024 * 1024 * 1024)
+      _ -> nil
+    end
+  end
+
   defp node_class(node) do
     {get_in(node, ["status", "capacity", "cpu"]), get_in(node, ["status", "capacity", "memory"])}
-  end
-
-  # Queued jobs may land on any class, so they count wherever they are queued.
-  # Recent demand counts only the jobs that ran on this class: an account whose
-  # jobs run on the M4-XL hosts is not worth a copy on every M2-L.
-  defp demand(pools, peer_names) do
-    queued =
-      pools
-      |> Enum.flat_map(fn pool ->
-        case Jobs.pick_queued_top_k(pool, [], [], [], @queued_candidates) do
-          {:ok, candidates} -> candidates
-          {:error, :empty} -> []
-        end
-      end)
-      |> Enum.sort_by(& &1.enqueued_at, DateTime)
-      |> Enum.take(@queued_candidates)
-
-    since = DateTime.add(DateTime.utc_now(), -@recent_window_seconds, :second)
-    Stream.concat(queued, RunnerSessions.recent_demand(pools, since, @recent_candidates, node_names: peer_names))
-  end
-
-  # The volume a job would materialize from on this Node, as dispatch resolves
-  # it: its repository's when the Node reads repository volumes, otherwise the
-  # account's. Nil when a Node of this class already holds it, when another Node
-  # of the class is the one to fetch it, or when nothing is published.
-  #
-  # One copy per class is the prefetch's job. Dispatch prefers a Node holding
-  # the master, so that copy takes the account's jobs, and each Node a job lands
-  # on without it converges its own copy afterwards. Every idle Node fetching the
-  # same master at once would spend the class's disk and bandwidth on copies
-  # nothing reads.
-  defp volume_to_prefetch(%{account_id: account_id} = job, context) do
-    account_volume = VolumeHeads.reserved_tuist_cache()
-
-    volumes =
-      if context.repository_volumes? do
-        [VolumeHeads.volume_name_for_repository(Map.get(job, :repository)), account_volume]
-      else
-        [account_volume]
-      end
-
-    Enum.reduce_while(Enum.uniq(volumes), nil, fn volume, nil ->
-      cond do
-        MapSet.member?(context.held_in_class, {account_id, volume}) ->
-          {:halt, nil}
-
-        not assigned_here?(account_id, volume, context) ->
-          {:halt, nil}
-
-        head = Runners.host_volume_head(account_id, volume) ->
-          {:halt, Map.merge(head, %{account_id: account_id, volume: volume})}
-
-        true ->
-          {:cont, nil}
-      end
-    end)
-  end
-
-  # Rendezvous hashing: every server replica picks the same Node of the class for
-  # a volume, without coordinating, and a Node joining or leaving moves only the
-  # volumes it wins or held.
-  defp assigned_here?(account_id, volume, %{node_name: node_name, peer_names: peer_names}) do
-    Enum.max_by(peer_names, &:erlang.phash2({account_id, volume, &1})) == node_name
   end
 end

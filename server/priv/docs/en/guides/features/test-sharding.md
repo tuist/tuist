@@ -36,8 +36,12 @@ Tuist uses historical test timing data to intelligently balance the load across 
 />
   <.home_card
     title="Rust"
-    details="Compile a nextest archive once and distribute test binaries across compatible CI runners."
+    details="Distribute Cargo test targets across parallel CI workers."
     link="/guides/features/test-sharding/rust"
 />
+  <.home_card
+    title="Once"
+    details="Distribute discovered Once test batches across CI workers with a hosted plan and combined results."
+    link="/guides/features/test-sharding/once"
+/>
 </.home_cards>
-

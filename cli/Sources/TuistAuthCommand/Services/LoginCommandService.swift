@@ -18,6 +18,7 @@ public protocol LoginCommandServicing {
 }
 
 public enum LoginCommandServiceEvent: CustomStringConvertible {
+    case userCode(String)
     case openingBrowser(URL)
     case waitForAuthentication
     case oidcAuthenticating
@@ -25,12 +26,14 @@ public enum LoginCommandServiceEvent: CustomStringConvertible {
 
     public var description: String {
         switch self {
+        case let .userCode(userCode):
+            "Your sign-in code is \(userCode). Enter it in the browser to approve this device."
         case let .openingBrowser(url):
             "Opening \(url.absoluteString) to start the authentication flow"
         case .waitForAuthentication:
             "Press CTRL + C once to cancel the process."
         case .oidcAuthenticating:
-            "Detected CI environment, authenticating with OIDC..."
+            "Authenticating with OIDC..."
         case .completed:
             "Successfully logged in."
         }
@@ -96,7 +99,9 @@ public struct LoginCommandService: LoginCommandServicing {
                 password: password,
                 serverURL: resolvedServerURL
             )
-        } else if Environment.current.isCI {
+        } else if Environment.current.isCI || Environment.current.isAmpOrb
+            || Environment.current.variables["TUIST_OIDC_TOKEN"] != nil
+        {
             try await authenticateWithCIOIDC(serverURL: resolvedServerURL, onEvent: onEvent)
         } else {
             try await authenticateWithBrowserLogin(serverURL: resolvedServerURL, onEvent: onEvent)
@@ -154,6 +159,9 @@ public struct LoginCommandService: LoginCommandServicing {
         try await serverSessionController.authenticate(
             serverURL: serverURL,
             deviceCodeType: .cli,
+            onUserCode: { userCode in
+                await onEvent(.userCode(userCode))
+            },
             onOpeningBrowser: { authURL in
                 await onEvent(.openingBrowser(authURL))
             },

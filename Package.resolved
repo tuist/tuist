@@ -1,5 +1,5 @@
 {
-  "originHash" : "d76be3da6644f05ab364e5d4a82c9ddafe5737b83aabbd352508a460d283a643",
+  "originHash" : "e0ddf1de956e132b4838f7603866dbc069637ab3fc68eb91bebe999f1b899bb5",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -68,7 +68,7 @@
       "identity" : "apple.swift-collections",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-collections",
+      "originalLocation" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "version" : "1.2.1"
       }
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -113,7 +113,7 @@
       "identity" : "apple.swift-nio",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-nio.git",
+      "originalLocation" : "https://github.com/apple/swift-nio",
       "state" : {
         "version" : "2.102.0"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system",
+      "originalLocation" : "https://github.com/apple/swift-system.git",
       "state" : {
         "version" : "1.8.1"
       }
@@ -353,7 +353,6 @@
       "identity" : "kolos65.Mockable",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/Kolos65/Mockable",
       "state" : {
         "version" : "0.6.4"
       }
@@ -443,7 +442,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.49"
+        "version" : "0.2.50"
       }
     },
     {
@@ -650,16 +649,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tadija/AEXML.git",
       "state" : {
-        "version" : "4.7.0"
-      }
-    },
-    {
-      "identity" : "testcoverageattribution",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/TestCoverageAttribution",
-      "state" : {
-        "revision" : "4595ce714562f65e8d4931e488af266920b496b3",
-        "version" : "0.1.1"
+        "version" : "4.7.3"
       }
     },
     {
@@ -699,7 +689,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/path",
+      "originalLocation" : "https://github.com/tuist/Path",
       "state" : {
         "version" : "0.3.8"
       }
@@ -713,11 +703,19 @@
       }
     },
     {
+      "identity" : "tuist.TestCoverageAttribution",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.5.0"
+      }
+    },
+    {
       "identity" : "tuist.XcodeProj",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.17.5"
+        "version" : "9.17.8"
       }
     },
     {

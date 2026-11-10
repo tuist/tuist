@@ -4,6 +4,7 @@ defmodule TuistEx.Analytics.CoverageTest do
 
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Shards
 
   describe "partial?/1" do
     test "is true when the run's own arguments pick tests" do
@@ -30,6 +31,34 @@ defmodule TuistEx.Analytics.CoverageTest do
           ] do
         refute Coverage.partial?(args), "expected #{inspect(args)} not to be partial"
       end
+    end
+  end
+
+  test "excluded_tags/1 names the tags the run's own --exclude options filter on" do
+    assert Coverage.excluded_tags(["--exclude", "slow", "--exclude=test:test a b", "--seed", "0"]) ==
+             ["slow", "test"]
+
+    assert Coverage.excluded_tags(["--only", "slow", "--cover"]) == []
+  end
+
+  test "narrowed?/1 is true only for arguments that pick the tests to run" do
+    for args <- [
+          ["--only", "integration"],
+          ["--failed"],
+          ["--stale"],
+          ["--name-pattern=foo"],
+          ["test/a_test.exs:12"]
+        ] do
+      assert Coverage.narrowed?(args), "expected #{inspect(args)} to be narrowed"
+    end
+
+    for args <- [
+          [],
+          ["--exclude", "slow"],
+          ["--max-failures", "1"],
+          ["--include", "slow", "--cover"]
+        ] do
+      refute Coverage.narrowed?(args), "expected #{inspect(args)} not to be narrowed"
     end
   end
 
@@ -348,6 +377,27 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert {1, []} = Coverage.instrument(ebin)
     end
 
+    test "instrumenting a downloaded shard leaves the builder's build unchanged", %{
+      directory: directory,
+      config: config,
+      ebin: ebin
+    } do
+      beam = Path.join(ebin, "Elixir.TuistExNativeFixture.Calc.beam")
+      original = File.read!(beam)
+      original_stat = File.stat!(beam)
+      archive = Path.join(directory, "build.tar.gz")
+      shard_build = Path.join(directory, "shard-build")
+
+      assert :ok = Shards.archive(config[:build_path], archive)
+      assert :ok = Shards.extract(archive, shard_build)
+      shard_ebin = Path.join(shard_build, Path.relative_to(ebin, config[:build_path]))
+      assert {1, []} = Coverage.instrument(shard_ebin)
+
+      assert File.read!(beam) == original
+      assert File.stat!(beam).mtime == original_stat.mtime
+      refute File.read!(Path.join(shard_ebin, Path.basename(beam))) == original
+    end
+
     # The consolidated protocols are built into a directory of their own.
     test "instruments every directory it is given", %{directory: directory, ebin: ebin} do
       consolidated = Path.join(directory, "consolidated")
@@ -404,6 +454,81 @@ defmodule TuistEx.Analytics.CoverageTest do
                %{name: "add/2", line: 4, covered: 1, executable: 1},
                %{name: "unused/1", line: 8, covered: 0, executable: 1}
              ] = functions
+    end
+
+    # In a runtime of its own, started without `+JPcover` as a user's is: the
+    # swaps outlive the test, and Mimic swaps the modules back after the suite
+    # from a build the test removes.
+    test "swaps every module Mimic copies before a test runs and counts them natively", %{
+      directory: directory,
+      config: config,
+      ebin: ebin,
+      source: source
+    } do
+      if :erlang.system_info(:emu_flavor) != :jit, do: flunk("native coverage needs the JIT")
+
+      doubler = Path.join(directory, "lib/doubler.ex")
+
+      File.write!(doubler, """
+      defmodule TuistExNativeFixture.Doubler do
+        def double(x) do
+          x * 2
+        end
+      end
+      """)
+
+      previous = Map.take(Code.compiler_options(), [:debug_info])
+      Code.compiler_options(debug_info: true)
+
+      {:ok, _modules, _} =
+        Kernel.ParallelCompiler.compile_to_path([doubler], ebin, return_diagnostics: true)
+
+      Code.compiler_options(previous)
+      :code.purge(TuistExNativeFixture.Doubler)
+      :code.delete(TuistExNativeFixture.Doubler)
+      Coverage.instrument(ebin)
+
+      paths =
+        Enum.map(
+          [:tuist_ex, :mimic, :ham],
+          &(&1 |> :code.lib_dir() |> to_string() |> Path.join("ebin"))
+        )
+
+      script = """
+      Mix.start()
+      Enum.each(#{inspect([ebin | paths])}, &Code.prepend_path/1)
+      true = TuistEx.Analytics.Coverage.enable_native(#{inspect(ebin)})
+      :ok = Application.load(:ex_unit)
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Mimic.copy(TuistExNativeFixture.Calc)
+      Mimic.copy(TuistExNativeFixture.Doubler)
+      # As the application does while it starts, before the swap.
+      3 = TuistExNativeFixture.Calc.add(1, 2)
+      TuistEx.Analytics.Coverage.prepare_native(#{inspect(config)})
+      true = Mimic.Module.copied?(TuistExNativeFixture.Calc)
+      true = Mimic.Module.copied?(TuistExNativeFixture.Doubler)
+      [] = :cover.modules()
+      3 = TuistExNativeFixture.Calc.add(1, 2)
+      4 = TuistExNativeFixture.Doubler.double(2)
+      snapshot = TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)})
+      IO.write(snapshot |> :erlang.term_to_binary() |> Base.encode64())
+      """
+
+      {output, 0} =
+        System.cmd(System.find_executable("elixir"), ["-e", script],
+          cd: directory,
+          env: [{"MIX_ENV", "test"}]
+        )
+
+      snapshot =
+        output
+        |> String.split("\n")
+        |> List.last()
+        |> Base.decode64!()
+        |> :erlang.binary_to_term()
+        |> Map.new(&{&1.path, &1.lines})
+
+      assert snapshot == %{source => %{5 => 2, 9 => 0, 12 => 0}, doubler => %{3 => 1}}
     end
   end
 

@@ -1,19 +1,16 @@
 package dev.tuist.gradle
 
 import java.io.File
-import java.nio.channels.FileChannel
-import java.nio.file.StandardOpenOption
 
 /** Holds an exclusive lock on the file named by its argument until its stdin closes, as another Gradle process would. */
 object FileLockHolder {
     @JvmStatic
     fun main(args: Array<String>) {
-        FileChannel.open(File(args[0]).toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
-            channel.lock().use {
-                println("locked")
-                System.out.flush()
-                System.`in`.read()
-            }
+        CachedValueStore<String>(lockFilePath = File(args[0])).getValue {
+            println("locked")
+            System.out.flush()
+            System.`in`.read()
+            Pair("released", null)
         }
     }
 

@@ -7,16 +7,12 @@
 ---
 # GitHub Actions {#github-actions}
 
-> [!IMPORTANT]
-> **Invite-only**
->
-> Tuist Runners are currently invite-only. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
+<!-- @snippet: ./_invite-only -->
 
 Running a job on the fleet takes three changes: connect GitHub, point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and push.
 
-1. **Request access.** Runners are invite-only during the beta. [Reach out](mailto:contact@tuist.dev) with the account you want enabled.
-2. **Connect GitHub.** Make sure your project is <.localized_link href="/guides/integrations/gitforge/github">connected to your GitHub organization</.localized_link>. Tuist receives `workflow_job` events for that organization and dispatches matching jobs to the fleet. Without this connection, no jobs reach your runners.
-3. **Point `runs-on` at a Tuist profile.** Every enabled account starts with two ready-to-use <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link>: `linux` and `macos`. Reference them with the `tuist-` prefix:
+1. **Connect GitHub.** Make sure your project is <.localized_link href="/guides/integrations/gitforge/github">connected to your GitHub organization</.localized_link>. Tuist receives `workflow_job` events for that organization and dispatches matching jobs to the fleet. Without this connection, no jobs reach your runners.
+2. **Point `runs-on` at a Tuist profile.** Every enabled account starts with two ready-to-use <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link>: `linux` and `macos`. Reference them with the `tuist-` prefix:
 
    ```yaml
    jobs:
@@ -34,8 +30,16 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
    >
    > To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create or choose a profile</.localized_link> with that version and update `runs-on`, for example `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun`, and `swift` will then use the profile's selected Xcode without any additional setup in the workflow.
 
-4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.
+3. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.
 
 ## Cache volumes {#cache-volumes}
 
-Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#github-actions">cache volumes</.localized_link>. Attach the volume before installing dependencies.
+Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
+
+Grant the job `id-token: write` so its cache volumes and cached checkout attach as soon as it starts. Without it, the runner waits for GitHub to report which job it is running, and a job GitHub reports late starts with empty caches. A workflow that logs in to Tuist with OpenID Connect already grants it.
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```

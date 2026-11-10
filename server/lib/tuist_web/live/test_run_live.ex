@@ -25,6 +25,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Selections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
@@ -32,6 +33,7 @@ defmodule TuistWeb.TestRunLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -82,8 +84,8 @@ defmodule TuistWeb.TestRunLive do
             end
           end
         end,
-        fn -> Tests.Analytics.get_test_run_metrics(run.id) end,
-        fn -> Tests.get_test_run_failures_count(run.id) end
+        fn -> Tests.Analytics.get_test_run_metrics(run) end,
+        fn -> Tests.get_test_run_failures_count(run) end
       ])
 
     binary_cache_event = binary_cache_command_event(run, command_event)
@@ -106,6 +108,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign_selection_run(project, run)
+      |> RunTab.assign_defaults()
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -120,7 +124,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(
         OpenGraph.project_image_assigns(project,
           title:
-            if(project.build_system == :mix,
+            if(project.build_system in [:mix, :cargo],
               do: test_run_label(project, run.scheme),
               else: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme)
             ),
@@ -143,6 +147,11 @@ defmodule TuistWeb.TestRunLive do
 
     {:ok, socket}
   end
+
+  # An impact run without a baseline has nothing for coverage to show, so the Selective Testing
+  # tab shows module hashing's table alone when the run has one.
+  defp hash_only_selection?(selection_run, has_selective_testing_data),
+    do: has_selective_testing_data == true and Selections.counted_by_module?(selection_run)
 
   # Read the original build's lookups without attributing them to this test command.
   defp binary_cache_command_event(run, command_event) do
@@ -209,14 +218,12 @@ defmodule TuistWeb.TestRunLive do
   def stress_badge_color(%{outcome: "passed"}), do: "neutral"
   def stress_badge_color(_), do: "neutral"
 
-  # The `Download result` button and its route are keyed on the id under which
-  # the bundle was stored: the command_event id for CLI `tuist test` runs, and
-  # the test run id for remote `tuist inspect test` runs (no command_event).
-  # Returns that id, or nil when there is no downloadable bundle.
+  # Immutable runs keep their canonical route; the download controller resolves
+  # the first available shard bundle using its original, case-sensitive upload ID.
   defp resolve_result_bundle_run_id(command_event, run, project) do
     cond do
       command_event && CommandEvents.has_result_bundle?(command_event) -> command_event.id
-      CommandEvents.has_result_bundle?(run.id, project) -> run.id
+      Enum.any?(Tests.result_bundle_run_ids(run), &CommandEvents.has_result_bundle?(&1, project)) -> run.id
       true -> nil
     end
   end
@@ -349,6 +356,10 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, reload_run_state(socket)}
   end
 
+  def handle_event("search-selection", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> RunTab.search_query(socket.assigns.uri, search), replace: true)}
+  end
+
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
     socket =
       push_patch(
@@ -466,10 +477,18 @@ defmodule TuistWeb.TestRunLive do
         refreshed_run = Map.put(refreshed_run, :project, project)
         params = URI.decode_query(uri.query || "")
 
+        [test_metrics, failures_count] =
+          Tuist.Tasks.parallel_tasks([
+            fn -> Tests.Analytics.get_test_run_metrics(refreshed_run) end,
+            fn -> Tests.get_test_run_failures_count(refreshed_run) end
+          ])
+
         socket
         |> assign(:run, refreshed_run)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
+        |> assign(:test_metrics, test_metrics)
+        |> assign(:failures_count, failures_count)
         |> assign_initial_analytics_state()
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()
@@ -584,6 +603,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
+    socket =
+      if socket.assigns.selection_run,
+        do: RunTab.assign_data(socket, socket.assigns.selection_run, socket.assigns.run.id, params),
+        else: socket
+
     if socket.assigns.command_event do
       {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)
@@ -883,8 +907,8 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-cases-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_cases, flop_params, fn ->
-      Tests.list_test_case_runs(flop_params)
+    cached_run_query(run, :test_cases, flop_params, fn ->
+      Tests.list_test_case_runs(flop_params, test_run: run)
     end)
   end
 
@@ -900,7 +924,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-suites-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_suites, flop_params, fn ->
+    cached_run_query(run, :test_suites, flop_params, fn ->
       Tests.list_test_suite_runs(flop_params)
     end)
   end
@@ -919,7 +943,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-modules-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_modules, flop_params, fn ->
+    cached_run_query(run, :test_modules, flop_params, fn ->
       Tests.list_test_module_runs(flop_params)
     end)
   end
@@ -946,10 +970,13 @@ defmodule TuistWeb.TestRunLive do
   #
   # `locking: false` skips de-duplicating concurrent misses of one key,
   # which the path did not have before caching was added anyway.
-  defp cached_run_query(run_id, tab, flop_params, func) do
+  # Scope cached rows to the latest report timestamp so a later shard or retry
+  # cannot reuse an earlier partial result while retaining scraper protection.
+  defp cached_run_query(run, tab, flop_params, func) do
     cache_key = [
       :test_run_flop,
-      run_id,
+      run.id,
+      run.inserted_at,
       tab,
       :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
     ]
@@ -994,6 +1021,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
+      test_run: run,
       preload: [
         :failures,
         :repetitions,
@@ -1668,6 +1696,21 @@ defmodule TuistWeb.TestRunLive do
       |> Map.new()
 
     assign(socket, :text_attachment_urls, urls)
+  end
+
+  # The tab shows for a run that points to an impact run, also once that
+  # run expired, so it can say so.
+  defp assign_selection_run(socket, project, run) do
+    {selection_run, expired?} =
+      case Selections.run_for_test_run(project.id, run) do
+        {:ok, selection_run} -> {selection_run, false}
+        {:error, :expired} -> {nil, true}
+        {:error, :none} -> {nil, false}
+      end
+
+    socket
+    |> assign(:selection_run, selection_run)
+    |> assign(:selection_expired?, expired?)
   end
 
   defp assign_shard_rows(socket, run) do

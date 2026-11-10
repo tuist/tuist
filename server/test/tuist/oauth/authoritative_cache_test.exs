@@ -9,6 +9,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
   alias Boruta.Ecto.Scope
   alias Boruta.Ecto.Scopes
   alias Boruta.Ecto.Token
+  alias Boruta.Ecto.TokenStore
   alias Boruta.Oauth.Token, as: OAuthToken
   alias Tuist.OAuth.AuthoritativeCache
   alias Tuist.OAuth.Clients
@@ -24,7 +25,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     assert Boruta.Config.scopes() == Scopes
   end
 
-  test "reads and fills ignore legacy entries but invalidation removes them" do
+  test "all callbacks ignore retained legacy entries" do
     key = {__MODULE__, Ecto.UUID.generate()}
     on_exit(fn -> Boruta.Cache.delete(key) end)
 
@@ -35,7 +36,31 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     assert AuthoritativeCache.get(key) == nil
     assert Boruta.Cache.get(key) == :legacy
     assert :ok = AuthoritativeCache.delete(key)
-    assert Boruta.Cache.get(key) == nil
+    assert Boruta.Cache.get(key) == :legacy
+  end
+
+  test "all callbacks work without calling the replicated cache" do
+    reject(Boruta.Cache, :get, 1)
+    reject(Boruta.Cache, :get, 2)
+    reject(Boruta.Cache, :put, 2)
+    reject(Boruta.Cache, :put, 3)
+    reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
+
+    key = {__MODULE__, Ecto.UUID.generate()}
+    assert AuthoritativeCache.get(key) == nil
+    assert :ok = AuthoritativeCache.put(key, :value)
+    assert :ok = AuthoritativeCache.put(key, :value, ttl: 60_000)
+    assert :ok = AuthoritativeCache.delete(key)
+  end
+
+  for type <- ~w(access_token agent_token code preauthorized_code), refresh_token <- [nil, "refresh"] do
+    test "upstream token invalidation returns #{type} with refresh #{inspect(refresh_token)} unchanged" do
+      reject(Boruta.Cache, :delete, 1)
+      reject(Boruta.Cache, :delete, 2)
+      token = %OAuthToken{type: unquote(type), value: Ecto.UUID.generate(), refresh_token: unquote(refresh_token)}
+      assert {:ok, ^token} = TokenStore.invalidate(token)
+    end
   end
 
   test "token lookups ignore a stale token already stored by a legacy replica" do
@@ -49,18 +74,39 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     refute OAuthToken.revoked?(Boruta.Cache.get(key), :access_token)
   end
 
-  test "invalidation failure propagates after the database revocation" do
+  test "refresh revocation commits without calling the replicated cache" do
     token = create_access_token()
-    expect(Boruta.Cache, :delete, fn _key -> raise "owned invalidation failure" end)
+    reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
 
-    assert_raise RuntimeError, "owned invalidation failure", fn ->
-      AccessTokens.revoke_refresh_token(token)
-    end
-
+    assert {:ok, revoked} = AccessTokens.revoke_refresh_token(token)
+    assert revoked.refresh_token_revoked_at
     assert Repo.get!(Token, token.id).refresh_token_revoked_at
   end
 
-  test "upstream refresh revocation invalidates previously cached legacy token keys" do
+  for operation <- [:revoke, :revoke_refresh_token] do
+    test "#{operation} preserves database write errors instead of acknowledging success" do
+      token = create_access_token()
+      row = Repo.get!(Token, token.id)
+      failed = row |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(:value, "owned write failure")
+      expect(Repo, :update, fn %Ecto.Changeset{} -> {:error, failed} end)
+      reject(Boruta.Cache, :delete, 1)
+      reject(Boruta.Cache, :delete, 2)
+
+      assert {:error, ^failed} = apply(AccessTokens, unquote(operation), [token])
+      fresh = Repo.get!(Token, token.id)
+      assert fresh.revoked_at == row.revoked_at
+      assert fresh.refresh_token_revoked_at == row.refresh_token_revoked_at
+    end
+  end
+
+  test "upstream public client invalidation does not call the replicated cache" do
+    reject(Boruta.Cache, :delete, 1)
+    reject(Boruta.Cache, :delete, 2)
+    assert :ok = ClientStore.invalidate_public()
+  end
+
+  test "upstream refresh revocation is authoritative despite retained legacy token keys" do
     token = create_access_token()
     keys = [{OAuthToken, :value, token.value}, {OAuthToken, :refresh_token, token.refresh_token}]
     on_exit(fn -> Enum.each(keys, &Boruta.Cache.delete/1) end)
@@ -69,24 +115,26 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     for key <- keys, do: assert(Boruta.Cache.get(key).id == token.id)
 
     assert {:ok, _} = AccessTokens.revoke_refresh_token(token)
-    for key <- keys, do: assert(Boruta.Cache.get(key) == nil)
+    for key <- keys, do: refute(OAuthToken.revoked?(Boruta.Cache.get(key), :refresh_token))
 
     assert {:error, "Token revoked."} =
              OAuthToken.ensure_valid(AccessTokens.get_by(refresh_token: token.refresh_token), :refresh_token)
   end
 
-  test "upstream client invalidation removes a previously cached legacy client" do
+  test "upstream client invalidation ignores a retained legacy client" do
     client = create_client()
     key = {Boruta.Oauth.Client, client.id}
     on_exit(fn -> Boruta.Cache.delete(key) end)
 
     assert :ok = Boruta.Cache.put(key, client)
     assert Boruta.Cache.get(key).id == client.id
+    Client |> Repo.get!(client.id) |> Ecto.Changeset.change(name: "after") |> Repo.update!()
     assert :ok = ClientStore.invalidate(client)
-    assert Boruta.Cache.get(key) == nil
+    assert Boruta.Cache.get(key).name == "before"
+    assert Clients.get_client(client.id).name == "after"
   end
 
-  test "upstream code revocation invalidates a previously cached legacy code" do
+  test "upstream code revocation is authoritative despite a retained legacy code" do
     code = create_code()
     key = {OAuthToken, :value, code.value}
     on_exit(fn -> Boruta.Cache.delete(key) end)
@@ -94,7 +142,7 @@ defmodule Tuist.OAuth.AuthoritativeCacheTest do
     assert :ok = Boruta.Cache.put(key, code)
     assert Boruta.Cache.get(key).id == code.id
     assert {:ok, _} = Codes.revoke(code)
-    assert Boruta.Cache.get(key) == nil
+    refute OAuthToken.revoked?(Boruta.Cache.get(key), :access_token)
     assert {:error, "Token revoked."} = OAuthToken.ensure_valid(Codes.get_by(value: code.value))
   end
 

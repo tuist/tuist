@@ -2,7 +2,7 @@ defmodule Tuist.Mix.BuildIdIndexTest do
   use ExUnit.Case, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias Tuist.ClickHouse.SchemaClone
+  alias Tuist.ClickHouse.IndexMaterialization
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Mix
@@ -64,11 +64,11 @@ defmodule Tuist.Mix.BuildIdIndexTest do
   test "per-partition materialization statements are accepted by ClickHouse", %{project: project, account: account} do
     build(project, account)
     %{rows: [[database]]} = IngestRepo.query!("SELECT currentDatabase()")
-    partition_ids = SchemaClone.partition_ids(IngestRepo, database, "mix_builds")
+    partition_ids = IndexMaterialization.partition_ids(IngestRepo, database, "mix_builds")
 
     assert partition_ids != []
 
-    for statement <- SchemaClone.materialize_index_statements(database, "mix_builds", "idx_id", partition_ids) do
+    for statement <- IndexMaterialization.materialize_index_statements(database, "mix_builds", "idx_id", partition_ids) do
       assert {:ok, _} = IngestRepo.query(statement)
     end
   end

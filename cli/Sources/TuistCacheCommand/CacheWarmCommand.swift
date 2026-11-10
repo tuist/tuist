@@ -70,6 +70,12 @@
 
         @Option(
             name: .long,
+            help: "Destinations to warm: all, simulator, or device. Native macOS targets and exact-target products retain complete caching."
+        )
+        var destination: CacheDestination = .all
+
+        @Option(
+            name: .long,
             help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
             envKey: .cacheProfile
         )
@@ -86,25 +92,13 @@
         )
         var printHashes: Bool = false
 
-        @Flag(
-            name: .long,
-            help: """
-            When passed, the project's own targets are built with code coverage and stored under the cache key a \
-            `tuist test` run that collects coverage reads, so such runs link cached binaries their coverage measures. \
-            The plain binaries other builds read are not warmed by this run; warm them with a run without the flag. \
-            Only debug configurations can be warmed with coverage.
-            """,
-            envKey: .cacheCoverage
-        )
-        var coverage: Bool = false
-
         public func run() async throws {
             if printHashes {
                 AlertController.current.warning(.alert(
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration, coverage: coverage)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration, destination: destination)
                 return
             }
 
@@ -124,7 +118,7 @@
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
                 scratchDirectory: scratchDirectory,
-                coverage: coverage
+                destination: destination
             )
         }
     }

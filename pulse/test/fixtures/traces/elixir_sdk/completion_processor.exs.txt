@@ -1,0 +1,14 @@
+defmodule SDKCompletionProcessor do
+  @behaviour :otel_span_processor
+
+  @impl true
+  def on_start(_context, span, _config), do: span
+  @impl true
+  def on_end(_span, %{owner: owner}) do
+    send(owner, :sdk_span_completed)
+    true
+  end
+
+  @impl true
+  def force_flush(_config), do: :ok
+end

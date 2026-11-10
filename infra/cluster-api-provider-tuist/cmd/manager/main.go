@@ -33,7 +33,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(clusterv2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 }
 
@@ -75,13 +77,15 @@ func main() {
 		enableLeaderElection      bool
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
+		ovhRunnerEgressConfig     string
 		vultrPrivateNetworkConfig string
 		rackCardRootSecret        string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
-		tartTarballPath              string
+		tartReleasesDir              string
+		tartVersion                  string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
 		hostSensorsBinaryPath        string
@@ -101,8 +105,6 @@ func main() {
 		tartKubeletMaxPods           int
 		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
-		cacheVolumeMasterCapGiB      int
-		cacheVolumeCASGiB            int
 		customCacheURL               string
 		customCacheNamespace         string
 		customCacheSA                string
@@ -125,6 +127,7 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -136,6 +139,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&ovhRunnerEgressConfig, "ovh-runner-egress-config", "",
+		"ConfigMap in the secrets namespace declaring OVH runner vRack egress")
 	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
 		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
@@ -151,10 +156,15 @@ func main() {
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
-	flag.StringVar(&tartTarballPath, "tart-tarball-path",
-		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
-		"Local path of the upstream tart.app tarball baked into this image. "+
-			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
+	flag.StringVar(&tartReleasesDir, "tart-releases-dir",
+		envOrDefault("CAPI_TART_RELEASES_DIR", "/opt/tart"),
+		"Directory of the upstream tart.app tarballs baked into this image, one per version as <version>/tart.tar.gz. "+
+			"The Dockerfile's TART_RELEASES pins them.")
+	flag.StringVar(&tartVersion, "tart-version",
+		envOrDefault("CAPI_TART_VERSION", ""),
+		"Tart version every Mac mini runs, one of the releases in --tart-releases-dir. A Machine annotated "+
+			"tuist.dev/tart-version runs that release instead. Changing it upgrades or rolls back Tart in place "+
+			"through the host-config drift loop. The image sets CAPI_TART_VERSION to the Dockerfile's TART_DEFAULT_VERSION.")
 	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
 		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
 		"Local path of the gzipped tarball containing the darwin/arm64 "+
@@ -272,24 +282,13 @@ func main() {
 			"macosFleet.sshIngressAllowCIDRs.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
-			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
+			"to hold the runner cache volumes and turns them on in tart-kubelet. "+
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
-	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
-		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
-			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
-			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
-	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) share (GiB) of each per-account cache image, passed to tart-kubelet's "+
-			"--cache-volume-cas-gib. > 0 folds the CAS into the image as a subdir. The CAS and the binary cache "+
-			"share the master cap less a reserve, which the guest divides by what each holds; this value is the "+
-			"CAS's share of the fixed split that runner images older than that division apply. 0 (default) "+
-			"leaves the compilation cache VM-local. Only "+
-			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -316,6 +315,17 @@ func main() {
 		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
 	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
 		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxInternetBootServerURL string
+	flag.StringVar(&rackLinuxInternetBootServerURL, "rack-linux-internet-boot-server-url", "",
+		"The boot server preinstalled rack hosts reach over the internet before their site has one. Set, the first edge of a site is published an install once its TPM is pinned.")
+	var rackLinuxPreinstalledProducts []string
+	flag.Func("rack-linux-preinstalled-product",
+		"A hardware model, as its SMBIOS vendor and product name, that arrives with the preinstall image's installer partition, "+
+			"which its installs keep. Repeatable.",
+		func(v string) error {
+			rackLinuxPreinstalledProducts = append(rackLinuxPreinstalledProducts, v)
+			return nil
+		})
 	var rackLinuxAMTProvisioningSecretName string
 	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
 		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
@@ -372,6 +382,28 @@ func main() {
 	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
 		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
 			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	var rackEnv string
+	flag.StringVar(&rackEnv, "rack-env", "",
+		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
+			"and the lender a RackHostLease it writes names. Empty claims and lends nothing.")
+	rackLeaseBorrowers := map[string]string{}
+	flag.Func("rack-lease-borrower",
+		"<env>=<secret>: an env RackHost.spec.lendTo may name, and the Secret in --secrets-namespace holding the kubeconfig "+
+			"(`kubeconfig`) and namespace (`namespace`) of that env's RackHostLeases. Repeatable.",
+		func(v string) error {
+			env, secret, ok := strings.Cut(v, "=")
+			if !ok || env == "" || secret == "" {
+				return fmt.Errorf("want <env>=<secret>, got %q", v)
+			}
+			rackLeaseBorrowers[env] = secret
+			return nil
+		})
+	var rackLeaseFleetName, rackLeaseHostsRaw string
+	flag.StringVar(&rackLeaseFleetName, "rack-lease-fleet-name", "",
+		"The fleet rack hosts lent to this env join: the prefix of their Nodes' names and their tuist.dev/fleet label. "+
+			"Empty turns the borrowing side (RackHostLease) off.")
+	flag.StringVar(&rackLeaseHostsRaw, "rack-lease-hosts", "",
+		"Comma-separated RackHost names this env runs when another env lends them. A RackHostLease for any other host is refused.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -468,6 +500,10 @@ func main() {
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
+	flag.DurationVar(&ovhPoolPrepInterval, "ovh-pool-prep-interval", 5*time.Minute,
+		"How often the OVH pool prep pass looks for boxes named prep-<adoptDisplayNamePrefix> "+
+			"and moves them on. Each pass reads every unclaimed box's displayName; an install "+
+			"takes 20 to 40 minutes. 0 disables it.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -497,13 +533,20 @@ func main() {
 	binarySHA := sha256Hex(tartKubeletBinary)
 	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
 
-	tartTarball, err := os.ReadFile(tartTarballPath)
+	tartReleases, err := bootstrap.LoadTartReleases(tartReleasesDir)
 	if err != nil {
-		setupLog.Error(err, "read tart tarball", "path", tartTarballPath)
+		setupLog.Error(err, "read tart releases", "dir", tartReleasesDir)
 		os.Exit(1)
 	}
-	tartTarballSHA := sha256Hex(tartTarball)
-	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
+	for version, tarball := range tartReleases {
+		setupLog.Info("loaded tart release", "version", version, "bytes", len(tarball), "sha", sha256Hex(tarball))
+	}
+	tartTarball, ok := tartReleases[tartVersion]
+	if !ok {
+		setupLog.Error(fmt.Errorf("no such release"), "--tart-version names no Tart release in this image",
+			"version", tartVersion, "dir", tartReleasesDir)
+		os.Exit(1)
+	}
 
 	// Tailscale binaries tarball and node_exporter binary are both
 	// optional: an empty path means the chart didn't wire the tailnet
@@ -568,6 +611,7 @@ func main() {
 	fleetConfig := bootstrap.Config{
 		TartKubeletBinary:  tartKubeletBinary,
 		TartTarball:        tartTarball,
+		TartVersion:        tartVersion,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
 		HostSensorsBinary:  hostSensorsBinary,
@@ -594,8 +638,6 @@ func main() {
 		HostMemoryMB:              tartKubeletHostMemory,
 		MaxPods:                   tartKubeletMaxPods,
 		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:   cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:         cacheVolumeCASGiB,
 		CustomCacheURL:            customCacheURL,
 		CustomCacheNamespace:      customCacheNamespace,
 		CustomCacheServiceAccount: customCacheSA,
@@ -617,12 +659,31 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
+	// controller-runtime's 15s lease / 10s renew deadline makes the manager
+	// exit whenever the apiserver is unreachable for 10s. Replacing a
+	// control-plane Machine (a Kubernetes upgrade) blackholes the in-cluster
+	// apiserver Service for 35s or more per member, so every upgrade
+	// crash-looped this pod. Nothing here is latency-sensitive, so trade
+	// slower failover for riding out a control-plane member swap. Releasing
+	// on cancel keeps rolling deploys from waiting out the longer lease;
+	// main exits as soon as the manager stops.
+	leaseDuration, renewDeadline, retryPeriod := 90*time.Second, 60*time.Second, 10*time.Second
 	mgrOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -633,12 +694,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}
@@ -688,6 +747,8 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		APIReader:                     mgr.GetAPIReader(),
+		ProcessorDeploymentName:       fleetSpreadDeployment,
 		Client:                        mgr.GetClient(),
 		Scheme:                        mgr.GetScheme(),
 		ScalewayClient:                scwClient,
@@ -696,6 +757,7 @@ func main() {
 		Kubeconfig:                    kubeconfigBuilder,
 		TartKubeletBinarySHA:          binarySHA,
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		VMCachePNName:                 vmCachePNName,
 		VPC:                           vpcClient,
@@ -789,6 +851,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// The rack's tailnet API: the rack Linux hosts' devices, and the devices a
+	// returned rack Mac ran as.
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+
+	// A rack host this operator lends reaches the borrowing env's cluster
+	// through the kubeconfig Secret its --rack-lease-borrower names.
+	var rackBorrowers macos.BorrowerClients
+	if len(rackLeaseBorrowers) > 0 {
+		rackBorrowers = &macos.SecretBorrowerClients{
+			Reader:    mgr.GetClient(),
+			Namespace: secretsNamespace,
+			Secrets:   rackLeaseBorrowers,
+			Scheme:    mgr.GetScheme(),
+		}
+	}
+
 	if err := (&macos.RackAppleSiliconMachineReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
@@ -799,6 +880,7 @@ func main() {
 		// rented one run the same host config, which is what lets one workload
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
 		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		ImageMirrors:                  rackHostImageMirrors,
 		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
@@ -814,18 +896,51 @@ func main() {
 		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
 		Power:                         powerRegistry,
 		SecretsNamespace:              secretsNamespace,
+		Env:                           rackEnv,
+		Borrowers:                     rackBorrowers,
+		Tailnet:                       rackTailnet,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
 	}
 
-	var rackTailnet linux.TailnetAPI
-	if rackLinuxTailscaleSecretName != "" {
-		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	// Rack hosts another env lends this one: the borrowing side, which runs
+	// their runner runtime from this operator's fleet config.
+	if rackLeaseFleetName != "" {
+		if rackEnv == "" {
+			setupLog.Error(fmt.Errorf("--rack-env is empty"), "--rack-lease-fleet-name needs --rack-env, the runtime owner its pushes claim")
+			os.Exit(1)
+		}
+		if err := (&macos.RackHostLeaseReconciler{
+			Client:                        mgr.GetClient(),
+			Scheme:                        mgr.GetScheme(),
+			Recorder:                      mgr.GetEventRecorderFor("rackhostlease-controller"),
+			CredentialsManager:            credsManager,
+			Kubeconfig:                    kubeconfigBuilder,
+			Env:                           rackEnv,
+			FleetName:                     rackLeaseFleetName,
+			Hosts:                         parseCommaList(rackLeaseHostsRaw),
+			FleetConfig:                   fleetConfig,
+			TartReleases:                  tartReleases,
+			VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+			ImageMirrors:                  rackHostImageMirrors,
+			DefaultGuestCapacity:          tartKubeletGuestCapacity,
+			TartKubeletBinarySHA:          binarySHA,
+			TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+			TartKubeletTerminalRetryAfter: terminalRetryAfter,
+			EgressNamespace:               egressNamespace,
+			EgressProxyGroup:              egressProxyGroup,
+			EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup RackHostLeaseReconciler")
+			os.Exit(1)
+		}
 	}
+
 	var rackInstall *linux.RackInstall
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
-		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, InternetServerURL: rackLinuxInternetBootServerURL,
+			PreinstalledProducts: rackLinuxPreinstalledProducts, AuthorizedKeys: rackLinuxAuthorizedKeys}
 	}
 	var rackAMT *linux.RackAMT
 	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
@@ -879,6 +994,7 @@ func main() {
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
 		EgressProxyTags:     egressProxyTags,
+		AMTProducts:         rackLinuxAMTProducts,
 		NodeBinary:          rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
@@ -945,11 +1061,31 @@ func main() {
 			DefaultOS:                "ubuntu_24.04",
 			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
 			PrivateNetworkNamespace:  secretsNamespace,
+			RunnerEgressConfigName:   ovhRunnerEgressConfig,
+			RunnerEgressNamespace:    secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		if ovhPoolPrepInterval > 0 {
+			if err := mgr.Add(&linux.OVHPoolPrep{
+				Client:    mgr.GetClient(),
+				APIReader: mgr.GetAPIReader(),
+				OVH:       ovhClient,
+				FleetKey: func(ctx context.Context, fleet string) (string, error) {
+					return linux.FleetPublicKey(ctx, credsManager, fleet)
+				},
+				Recorder:          mgr.GetEventRecorderFor("ovh-pool-prep"),
+				Interval:          ovhPoolPrepInterval,
+				DefaultDatacenter: "vin",
+				DefaultOS:         "ubuntu_24.04",
+				Log:               ctrl.Log.WithName("ovh-pool-prep"),
+			}); err != nil {
+				setupLog.Error(err, "setup OVHPoolPrep")
+				os.Exit(1)
+			}
+		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 

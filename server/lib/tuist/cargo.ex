@@ -1,18 +1,39 @@
 defmodule Tuist.Cargo do
   @moduledoc "Cargo build insights. Test results use the shared Tests context."
+  use Gettext, backend: TuistWeb.Gettext
+
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Cargo.Build
   alias Tuist.Cargo.CacheMetrics
   alias Tuist.Cargo.Compilation
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Analytics, as: BuildAnalytics
 
-  @strings ~w(command rust_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
+  @strings ~w(command rust_version tuist_version contract_version git_branch git_commit_sha git_ref git_remote_url_origin ci_provider ci_run_id ci_project_handle ci_host)a
+  @list_fields Build.__schema__(:fields) -- [:cache_metrics]
+
+  # Normalize legacy runner names only for display. Stored schemes distinguish
+  # measured case timings from plain Cargo's unmeasured timing placeholders.
+  def test_run_label("cargo test"), do: "cargo test"
+  def test_run_label("cargo test · " <> label), do: "cargo test · #{label}"
+
+  def test_run_label("cargo nextest run · " <> label), do: dgettext("dashboard_tests", "Cargo tests") <> " · #{label}"
+
+  def test_run_label(scheme) when scheme in [nil, "", "nextest", "nextest run", "cargo nextest run"],
+    do: dgettext("dashboard_tests", "Cargo tests")
+
+  def test_run_label(scheme), do: dgettext("dashboard_tests", "Cargo tests") <> " · #{scheme}"
 
   def create_build(attrs) do
     with {:ok, id} <- Ecto.UUID.cast(attrs[:id]),
          {:ok, cache_metrics} <- CacheMetrics.encode(attrs[:cache]),
+         :ok <-
+           Tuist.Builds.Build.validate_custom_metadata(
+             get_in(attrs, [:custom_metadata, :tags]) || [],
+             get_in(attrs, [:custom_metadata, :values]) || %{}
+           ),
          true <- attrs[:status] in ["success", "failure"],
          true <- valid_duration?(attrs[:duration_ms]),
          true <- Enum.all?(@strings, &(is_nil(attrs[&1]) or (is_binary(attrs[&1]) and byte_size(attrs[&1]) <= 4096))),
@@ -22,19 +43,25 @@ defmodule Tuist.Cargo do
       now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
       strings = Map.new(@strings, &{&1, Map.get(attrs, &1) || ""})
 
-      Build.Buffer.insert(
+      build_entry =
         Map.merge(strings, %{
           id: id,
           project_id: attrs.project_id,
           account_id: attrs.account_id,
+          actor_account_id: Map.get(attrs, :actor_account_id, 0),
+          claimed_actor_id: Map.get(attrs, :claimed_actor_id, ""),
+          submission_auth: Map.get(attrs, :submission_auth, ""),
           status: attrs.status,
           duration_ms: attrs.duration_ms,
           cache_metrics: cache_metrics,
+          custom_tags: get_in(attrs, [:custom_metadata, :tags]) || [],
+          custom_values: get_in(attrs, [:custom_metadata, :values]) || %{},
           is_ci: Map.get(attrs, :is_ci, false),
           started_at: started_at(attrs[:started_at]),
           inserted_at: now
         })
-      )
+
+      Build.Buffer.insert(build_entry)
 
       rows =
         Enum.map(compilations, fn compilation ->
@@ -49,7 +76,8 @@ defmodule Tuist.Cargo do
           })
         end)
 
-      if rows != [], do: Compilation.Buffer.insert_all(rows)
+      record_compilations(build_entry, rows)
+
       {:ok, id}
     else
       _ -> {:error, :invalid_report}
@@ -67,7 +95,8 @@ defmodule Tuist.Cargo do
   end
 
   def list_builds(project_id, params \\ %{}) do
-    Tuist.ClickHouseFlop.validate_and_run!(build_query(project_id), params, for: Build)
+    query = from(b in build_query(project_id), select: struct(b, ^@list_fields))
+    Tuist.ClickHouseFlop.validate_and_run!(query, params, for: Build)
   end
 
   def duration_analytics(project_id, opts \\ []) do
@@ -165,10 +194,20 @@ defmodule Tuist.Cargo do
     ClickHouseRepo.all(query)
   end
 
+  defp record_compilations(_build, []), do: :ok
+
+  defp record_compilations(build, rows) do
+    Compilation.Buffer.insert_all(rows)
+
+    if build.command != "nextest" and BuildEntities.enabled?(build.project_id) do
+      BuildEntities.Producers.cargo_build(build, rows)
+    end
+  end
+
   defp build_query(project_id), do: from(b in Build, where: b.project_id == ^project_id and b.command != "nextest")
 
   defp cohort_query(project_id, opts) do
-    Enum.reduce([:command, :rust_version, :is_ci], build_query(project_id), fn key, query ->
+    Enum.reduce([:command, :rust_version, :is_ci, :status], build_query(project_id), fn key, query ->
       case Keyword.get(opts, key) do
         nil -> query
         value -> where(query, [b], field(b, ^key) == ^value)

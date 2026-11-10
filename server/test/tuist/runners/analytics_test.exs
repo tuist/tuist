@@ -4,8 +4,10 @@ defmodule Tuist.Runners.AnalyticsTest do
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.IngestRepo
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Job
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
 
@@ -263,6 +265,67 @@ defmodule Tuist.Runners.AnalyticsTest do
 
       assert %{count: 2} = Analytics.jobs_count(account.id, platform: "linux")
       assert %{count: 0} = Analytics.jobs_count(account.id, platform: "macos")
+    end
+  end
+
+  describe "queue_time/2" do
+    # Two versions per job, as the transition outbox writes them: the claim,
+    # then the later version carrying the executing runner's claim time.
+    defp queued_job(account, workflow_job_id, enqueued_at, claimed_at, executor_claimed_at) do
+      version = %{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-queue",
+        repository: "acme/cli",
+        status: "running",
+        enqueued_at: enqueued_at,
+        claimed_at: claimed_at,
+        executor_claimed_at: nil,
+        updated_at: claimed_at
+      }
+
+      IngestRepo.insert_all(Job, [
+        version,
+        %{version | executor_claimed_at: executor_claimed_at, updated_at: DateTime.add(claimed_at, 1, :second)}
+      ])
+    end
+
+    test "measures to the claim of the runner that ran the job, never before it arrived" do
+      account = account_fixture()
+      enqueued_at = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      # Handed over 20 s in to a runner claimed 5 s before the job arrived.
+      queued_job(
+        account,
+        79_101,
+        enqueued_at,
+        DateTime.add(enqueued_at, 20, :second),
+        DateTime.add(enqueued_at, -5, :second)
+      )
+
+      # Re-queued, then run on a runner claimed 12 s in.
+      queued_job(
+        account,
+        79_102,
+        enqueued_at,
+        DateTime.add(enqueued_at, 12, :second),
+        DateTime.add(enqueued_at, 12, :second)
+      )
+
+      # GitHub has not named a runner yet.
+      queued_job(account, 79_103, enqueued_at, DateTime.add(enqueued_at, 3, :second), nil)
+
+      assert %{avg: 5_000, p99: p99} = Analytics.queue_time(account.id)
+      assert_in_delta p99, 12_000, 200
+
+      durations =
+        account.id
+        |> Analytics.queue_time_scatter()
+        |> Map.fetch!(:series)
+        |> Enum.flat_map(& &1.data)
+        |> Map.new(&{&1.id, List.last(&1.value)})
+
+      assert durations == %{79_101 => 0.0, 79_102 => 12.0, 79_103 => 3.0}
     end
   end
 

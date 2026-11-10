@@ -25,7 +25,7 @@ defmodule Tuist.Runners.GitLabTest do
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
-      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 4, memory_gb: 16}}
+      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 16, memory_gb: 48}}
     end)
 
     {:ok, connection} =
@@ -65,6 +65,19 @@ defmodule Tuist.Runners.GitLabTest do
     %{rows: [[stored]]} = Repo.query!("SELECT runner_token FROM runner_gitlab_connections WHERE id = $1", [connection.id])
     refute stored =~ "glrt-secret"
     refute inspect(updated) =~ "glrt-secret"
+  end
+
+  test "encrypts the optional API token and preserves it on blank rotation", %{account: account, connection: connection} do
+    assert is_nil(connection.api_token)
+    assert {:ok, updated} = GitLab.save_connection(account.id, %{id: connection.id, api_token: "glpat-secret"})
+    assert updated.api_token == "glpat-secret"
+    %{rows: [[stored]]} = Repo.query!("SELECT api_token FROM runner_gitlab_connections WHERE id = $1", [connection.id])
+    refute stored =~ "glpat-secret"
+    refute inspect(updated) =~ "glpat-secret"
+
+    assert {:ok, kept} = GitLab.save_connection(account.id, %{id: connection.id, runner_token: "", api_token: ""})
+    assert kept.api_token == "glpat-secret"
+    assert kept.runner_token == "glrt-secret"
   end
 
   test "maps and encrypts exactly the acquired job in one transaction", %{connection: connection, account: account} do
@@ -110,7 +123,7 @@ defmodule Tuist.Runners.GitLabTest do
     assert trace ==
              Calendar.strftime(job.inserted_at, "%Y-%m-%dT%H:%M:%S") <>
                ".000000Z 00O section_start:#{unix}:tuist_waiting_for_runner\r\e[0K" <>
-               "Waiting for a Tuist runner for tuist-macos (4 vCPU, 16 GB)\n"
+               "Waiting for a Tuist runner for tuist-macos (16 vCPU, 48 GB)\n"
 
     assert {:ok, %{waiting_trace: ^trace}} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
   end
@@ -370,7 +383,7 @@ defmodule Tuist.Runners.GitLabTest do
       Concurrency.update_limits(account, %{
         runner_linux_vcpus_limit: 32,
         runner_linux_memory_gb_limit: 64,
-        runner_macos_vcpus_limit: 64,
+        runner_macos_vcpus_limit: 128,
         runner_macos_memory_gb_limit: 256
       })
 

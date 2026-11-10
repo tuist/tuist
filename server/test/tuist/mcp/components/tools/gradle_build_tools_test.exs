@@ -1,6 +1,9 @@
 defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: false
 
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Gradle.Task
+  alias Tuist.IngestRepo
   alias Tuist.MCP.Components.Tools.GetGradleBuild
   alias Tuist.MCP.Components.Tools.ListGradleBuilds
   alias Tuist.MCP.Components.Tools.ListGradleBuildTasks
@@ -13,6 +16,113 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
     conn = %Plug.Conn{assigns: %{current_user: user}}
     %{conn: conn, user: user, project: project}
+  end
+
+  test "private build details and tasks require the parent's project and build-read scope", %{
+    user: user,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        root_project_name: "private-build-secret"
+      )
+
+    other_user = AccountsFixtures.user_fixture(preload: [:account])
+    sibling = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+    for assigns <- [
+          %{},
+          %{current_user: other_user},
+          %{current_project: sibling},
+          %{
+            current_subject: %AuthenticatedAccount{
+              account: user.account,
+              scopes: ["project:tests:read"],
+              all_projects: true
+            }
+          },
+          %{
+            current_subject: %AuthenticatedAccount{
+              account: user.account,
+              scopes: ["project:builds:read"],
+              all_projects: false,
+              project_ids: [sibling.id]
+            }
+          },
+          %{
+            current_subject: %AuthenticatedAccount{
+              account: other_user.account,
+              scopes: ["project:builds:read"],
+              all_projects: true
+            }
+          }
+        ],
+        tool <- [GetGradleBuild, ListGradleBuildTasks] do
+      result = tool.call(%Plug.Conn{assigns: assigns}, %{"build_run_id" => build_id})
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = result
+      refute text =~ "private-build-secret"
+    end
+  end
+
+  test "an authorized parent does not expose another project's tasks or cache byte totals", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        tasks: [%{task_path: ":owned:task", outcome: "remote_hit", cache_artifact_size: 1024}]
+      )
+
+    foreign = ProjectsFixtures.project_fixture()
+
+    IngestRepo.insert_all(Task, [
+      %{
+        id: UUIDv7.generate(),
+        project_id: foreign.id,
+        gradle_build_id: build_id,
+        task_path: ":foreign:secret",
+        outcome: "remote_hit",
+        cache_artifact_size: 999_999,
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      }
+    ])
+
+    assert %{"content" => [%{"text" => tasks}]} = ListGradleBuildTasks.call(conn, %{"build_run_id" => build_id})
+    assert Enum.map(JSON.decode!(tasks)["tasks"], & &1["task_path"]) == [":owned:task"]
+    assert %{"content" => [%{"text" => build}]} = GetGradleBuild.call(conn, %{"build_run_id" => build_id})
+    assert JSON.decode!(build)["cache_download_bytes"] == 1024
+  end
+
+  test "ID-only MCP tools refuse a public attacker's duplicate private build UUID", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(project_id: project.id, account_id: user.account.id, root_project_name: "victim-build")
+
+    public = ProjectsFixtures.project_fixture(visibility: :public)
+
+    GradleFixtures.build_fixture(
+      id: build_id,
+      project_id: public.id,
+      account_id: public.account_id,
+      root_project_name: "attacker-build"
+    )
+
+    for tool <- [GetGradleBuild, ListGradleBuildTasks],
+        reference <- [build_id, "https://tuist.dev/#{project.account.name}/#{project.name}/gradle/builds/#{build_id}"] do
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = tool.call(conn, %{"build_run_id" => reference})
+      refute text =~ "attacker-build"
+    end
+
+    assert {:ok, build} = Tuist.Gradle.get_build(build_id, project_id: project.id)
+    assert build.root_project_name == "victim-build"
   end
 
   describe "list_gradle_builds" do

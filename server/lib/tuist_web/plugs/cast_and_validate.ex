@@ -21,7 +21,20 @@ defmodule TuistWeb.Plugs.CastAndValidate do
   def call(conn, opts) do
     if integers_fit?(conn.body_params) do
       OpenTelemetry.Tracer.with_span "openapi_spex.cast_and_validate" do
-        CastAndValidate.call(conn, opts)
+        # Inferring controller actions inside OpenApiSpex rewrites the entire
+        # persistent-term spec cache. Concurrent cold actions can exhaust the
+        # literal allocator; pass the operation ID to keep validation read-only.
+        case conn.private do
+          %{open_api_spex: _, phoenix_controller: controller, phoenix_action: action}
+          when not is_map_key(opts, :operation_id) ->
+            case controller.open_api_operation(action) do
+              nil -> conn
+              operation -> CastAndValidate.call(conn, Map.put(opts, :operation_id, operation.operationId))
+            end
+
+          _ ->
+            CastAndValidate.call(conn, opts)
+        end
       end
     else
       conn

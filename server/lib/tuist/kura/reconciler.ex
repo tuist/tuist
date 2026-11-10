@@ -577,12 +577,14 @@ defmodule Tuist.Kura.Reconciler do
       |> limit(^@reconcile_batch_size)
       |> preload([s], account: [subscriptions: ^active_subscriptions_query])
       |> Repo.all()
-      |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 
     latest = latest_deployments(Enum.map(servers, & &1.id))
 
     observe_peer_roles(servers, latest)
-    Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
+
+    servers
+    |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
+    |> Enum.each(&project_server(&1, Map.get(latest, &1.id)))
 
     :ok
   end
@@ -664,7 +666,8 @@ defmodule Tuist.Kura.Reconciler do
 
   defp peer_roles_observable?(_server, nil), do: false
 
-  defp peer_roles_observable?(_server, %Deployment{status: status}) when status in @open_deployment_statuses, do: false
+  defp peer_roles_observable?(%Server{status: :provisioning}, %Deployment{status: status})
+       when status in @open_deployment_statuses, do: false
 
   defp peer_roles_observable?(_server, %Deployment{}), do: true
 
@@ -683,13 +686,12 @@ defmodule Tuist.Kura.Reconciler do
   # last known roles in place rather than blanking a live topology on one
   # unreachable apiserver.
   #
-  # This runs on the observation pass only, so a server with an open deployment
-  # keeps the roles of its last observation until the rollout closes. That is
-  # the window in which the controller moves a role most, and the one the
-  # published roles are least able to help in: a role naming a pod that is
-  # restarting names a peer no node can see, and an unmatched role is ignored
-  # in favour of the local rule by design. So the rollout window runs on the
-  # local rule either way, and the tick after the deployment closes republishes.
+  # Servers with an open deployment are observed too, including the ones the
+  # deployment loop drove this tick. Nodes obey a published role whenever it
+  # names a peer they can see, so a role kept from before a held rollout keeps
+  # cross-region replication on whichever pod held it then, even after the
+  # controller has moved it. A server that is still provisioning has no
+  # instance to read yet.
   defp observe_server_peer_roles(%Server{} = server) do
     if mesh_region?(server) do
       case Provisioner.peer_roles(server) do

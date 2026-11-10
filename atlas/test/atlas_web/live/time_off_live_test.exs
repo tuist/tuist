@@ -32,6 +32,7 @@ defmodule AtlasWeb.TimeOffLiveTest do
     view |> element("#request-holiday-button") |> render_click()
     assert_push_event(view, "open-modal", %{id: "holiday-request-modal"})
     assert has_portal_element?(view, "#time-off-booking-form")
+    assert has_element?(view, "#holiday-request-modal[data-part='holiday-request-modal']")
 
     assert has_portal_element?(
              view,

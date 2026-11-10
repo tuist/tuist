@@ -312,6 +312,14 @@ defmodule TuistWeb.TestCaseLive do
         value: ""
       },
       %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_tests", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
+      },
+      %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
         display_name: dgettext("dashboard_tests", "Branch"),
@@ -754,14 +762,17 @@ defmodule TuistWeb.TestCaseLive do
   defp build_flop_filters(filters, search) do
     base_filters =
       Enum.flat_map(filters, fn
-        %{id: "ran_by", value: :ci, operator: :==} ->
-          [%{field: :is_ci, op: :==, value: true}]
+        %{id: "ran_by", value: :ci, operator: op} ->
+          [%{field: :is_ci, op: op, value: true}]
 
         %{id: "ran_by", value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
+
+        %{id: "ran_by", value: value, operator: op} when not is_nil(value) ->
+          [%{field: :verified_actor, op: op, value: value}]
 
         %{field: field, operator: op, value: value} when not is_nil(value) and value != "" ->
           [%{field: field, op: op, value: value}]

@@ -9,7 +9,9 @@
 
 Build Insights helps you find what slows your Cargo builds down and catch regressions before they affect the whole team. You can compare local builds with CI, see how build times change, and inspect the crates compiled in each build.
 
-> [!IMPORTANT] Requirements
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link> to connect your project and authenticate.
 
 ## Report your builds {#report-your-builds}
@@ -26,11 +28,21 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 ## Find what slows a build down {#explore-your-builds}
 
-Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds.
+Open a build from **Builds → Build Runs** on the dashboard. Use the date, environment, and Rust-version filters to compare similar builds. Builds and their cache counters are also available through `tuist build cargo list` and `tuist build cargo show`, `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, and the `list_cargo_builds` and `get_cargo_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 On **Overview**, use **Compiler jobs** to find slow crates. Sort by **Duration** or **Started after** (time since the Cargo command started), or search by crate name or root source file.
 
 Each row is one `rustc` invocation for a crate, which can contain many source files. **Crate root** identifies its root source file; the duration is for the whole compiler job, not that file alone. A crate can appear more than once for different targets or configurations. Compiler messages are grouped in **Warnings** and **Errors**.
+
+### Track crates across builds {#crate-history}
+
+When available for your project, **Builds → Crates** shows observed crates and their compilation history. Open a crate to compare its recorded durations and outcomes across builds, then follow a compilation back to its Cargo build. The same inventory is available through `/cargo/crates` in the project API and the shared MCP build-entity tools with `kind: cargo_crates`.
+
+Crates are grouped by their exact recorded root path, name and kind. Changing checkout paths can split histories; profiles, features and target triples are not distinguished. This is an inventory of observed compiler jobs, not every crate in your workspace. Cached or up-to-date crates do not create compilation samples.
+
+### Attribute build reports {#report-attribution}
+
+Authenticated reports identify the individual behind personal credentials. Shared credentials need not identify an individual. Optionally set `TUIST_ACTOR_ID` to a stable opaque identifier on the reporting machine; it is off by default and is displayed as an unverified claim, never used for authorization. Older servers may ignore the claim. Do not put secrets in it.
 
 ## Read the timings {#timing-boundaries}
 
@@ -42,7 +54,7 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 
 ## Read cache measurements {#cache-measurements}
 
-`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
+`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. Follow the <.localized_link href="/guides/features/cache/rust">Rust cache guide</.localized_link> for setup, remote reads and writes through Kura, supported compilations, and troubleshooting.
 
 Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
 
@@ -55,14 +67,13 @@ Open a build's **Cache** tab to see task hits, task misses, hit rate, and downlo
 
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
-> [!WARNING] Experimental compilation cache
-> The first version caches only registry leaf libraries with verified inputs and outputs. Workspace crates, build scripts, procedural macros, dependencies on other crates, incremental compilation, native linking, and executables build normally. Cache keys retain absolute paths, so reuse across different checkout paths isn't supported yet.
+<!-- @snippet: ../cache/_rust-experimental -->
+
+Incremental compilations build normally.
 
 ### Builds that run tests {#builds-that-run-tests}
 
-`tuist cargo test` reports the duration of the whole command, including its tests. Use <.localized_link href="/guides/features/test-insights/rust">nextest Test Insights</.localized_link> to track individual test results. Nextest runs appear under **Tests**, not in build-duration charts.
-
-For <.localized_link href="/guides/features/test-sharding/rust">test sharding</.localized_link>, `tuist cargo test-build` reports the time spent compiling and archiving the tests.
+`tuist cargo test` reports the duration of the whole command, including its tests. It also reports individual test outcomes, including doctests, through <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link>. Individual test results appear under **Tests**; the command duration appears in build insights.
 
 ## Other compiler tools {#other-compiler-tools}
 

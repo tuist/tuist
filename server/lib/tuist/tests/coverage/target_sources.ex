@@ -114,8 +114,8 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   end
 
   # The targets the caller's identifiers name, whose tests the run may not
-  # all have executed: quarantine skips a few tests on every run, and the
-  # run's other targets still ran whole.
+  # all have executed: a skip names a few tests, and the run's other targets
+  # still ran whole.
   defp narrowed_targets(run) do
     Enum.map(
       Map.get(run, :only_test_identifiers, []) ++ Map.get(run, :skip_test_identifiers, []),

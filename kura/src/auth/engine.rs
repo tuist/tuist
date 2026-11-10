@@ -53,6 +53,8 @@ const CONFIRMED_TTL: Duration = Duration::from_secs(25 * 60);
 /// paying the full timeout.
 const UNAVAILABLE_BACKOFF: Duration = Duration::from_secs(3);
 
+const NETWORK_POLICY_TTL: Duration = Duration::from_secs(60);
+
 const _: () = assert!(REFUSAL_TTL.as_secs() <= REVALIDATE_AFTER.as_secs());
 const _: () = assert!(REVALIDATE_AFTER.as_secs() < CONFIRMED_TTL.as_secs());
 
@@ -73,6 +75,10 @@ struct AccessEntry {
     settled_until: Instant,
     /// How long the entry lives in the cache, handed to the expiry below.
     lifetime: Duration,
+    /// Whether the backend said what this level may not do, rather than only
+    /// what it may (`Authentication::Settled`). Its refusals then hold while
+    /// the backend cannot be reached, as its allowances do.
+    settled: bool,
 }
 
 impl AccessEntry {
@@ -86,6 +92,17 @@ impl AccessEntry {
 }
 
 struct EntryExpiry;
+
+impl<K> Expiry<K, (bool, Instant)> for EntryExpiry {
+    fn expire_after_create(
+        &self,
+        _key: &K,
+        value: &(bool, Instant),
+        created_at: Instant,
+    ) -> Option<Duration> {
+        Some(value.1.saturating_duration_since(created_at))
+    }
+}
 
 impl<K> Expiry<K, AccessEntry> for EntryExpiry {
     fn expire_after_create(
@@ -204,6 +221,8 @@ fn unreachable_deny() -> DenyDecision {
 
 pub struct AuthEngine {
     backend: TuistBackend,
+    /// Separate from credential grants: no stale-on-outage grace or sliding expiry.
+    network_policies: AsyncCache<String, (bool, Instant)>,
     /// One entry per credential and target: the access level the last
     /// evaluation settled. Everything else below is what it takes to fill this
     /// in and to void it.
@@ -221,6 +240,10 @@ pub struct AuthEngine {
     /// Presence holds the next attempt off, so an outage costs one probe per
     /// credential per backoff window rather than one per cold target.
     unreachable: Cache<CredentialKey, ()>,
+    /// Where each confirmed credential was issued, for usage attribution. Held
+    /// as long as an access level can be, and only written for a credential an
+    /// evaluation confirmed.
+    origins: Cache<CredentialKey, Arc<str>>,
     metrics: Metrics,
 }
 
@@ -244,6 +267,10 @@ impl AuthEngine {
 
         Ok(Self {
             backend,
+            network_policies: AsyncCache::builder()
+                .max_capacity(8)
+                .expire_after(EntryExpiry)
+                .build(),
             entries: Cache::builder()
                 .max_capacity(config.cache_max_entries as u64)
                 // moka defaults to TinyLFU, whose admission filter can reject a
@@ -271,11 +298,68 @@ impl AuthEngine {
                 .eviction_policy(EvictionPolicy::lru())
                 .time_to_live(UNAVAILABLE_BACKOFF)
                 .build(),
+            origins: Cache::builder()
+                .max_capacity(config.cache_max_entries as u64)
+                .eviction_policy(EvictionPolicy::lru())
+                .time_to_live(CONFIRMED_TTL)
+                .build(),
             metrics,
         })
     }
 
+    /// A report-only decision, deliberately not stored as cache access or reused
+    /// across streams: project revocation and shared quotas live on the server.
+    pub async fn network_build_event_access(&self, account: &str, project: &str) -> AccessDecision {
+        match self
+            .backend
+            .network_build_event_access(account, project)
+            .await
+        {
+            Ok(response) if response.status == 200 && response.body["network_trusted"] == true => {
+                AccessDecision::Allow
+            }
+            Ok(response) => AccessDecision::Deny(DenyDecision {
+                status: if response.status == 429 || response.status == 503 {
+                    response.status
+                } else {
+                    403
+                },
+                message: "Network-trusted build-event publishing is unavailable".into(),
+            }),
+            Err(_) => AccessDecision::Deny(unreachable_deny()),
+        }
+    }
+
     pub async fn evaluate_access(&self, ctx: &RequestContext) -> AccessDecision {
+        // Presence, including a blank credential, never selects network trust.
+        if ctx.authorization.is_none()
+            && !ctx
+                .headers
+                .keys()
+                .any(|key| key.eq_ignore_ascii_case("authorization"))
+            && matches!(
+                ctx.operation.as_str(),
+                "artifact.read" | "artifact.write" | "artifact.inspect" | "capabilities.read"
+            )
+            && let Ok(target) = super::target::request_target(ctx)
+        {
+            let (allowed, expires_at) = self
+                .network_policies
+                .get_with(target.account.to_string(), async {
+                    let expires_at = Instant::now() + NETWORK_POLICY_TTL;
+                    (
+                        self.backend
+                            .network_cache_access(&target.account)
+                            .await
+                            .unwrap_or(false),
+                        expires_at,
+                    )
+                })
+                .await;
+            if allowed && Instant::now() < expires_at {
+                return AccessDecision::Allow;
+            }
+        }
         // Resolved once, then read by the key, the entry check, and the policy
         // alike. Resolving it separately in each is how the key and the policy
         // came to disagree about which project a request named.
@@ -328,7 +412,7 @@ impl AuthEngine {
         // A backend that just failed to answer is left alone for a moment,
         // whoever is asking about whatever target.
         if self.unreachable.get(&credential_key).is_some() {
-            return self.without_backend(required, held.as_ref());
+            return self.without_backend(required, held.as_ref(), request);
         }
 
         let lock = self
@@ -372,7 +456,13 @@ impl AuthEngine {
                     // own revocation check.
                     self.revocations.insert(credential_key, Instant::now());
                 }
-                self.remember(entry_key, access, ctx);
+                self.remember(entry_key, access, ctx, false);
+                self.remember_origin(credential_key, access, ctx);
+                respond(access, required, request)
+            }
+            Authentication::Settled(access) => {
+                self.remember(entry_key, access, ctx, true);
+                self.remember_origin(credential_key, access, ctx);
                 respond(access, required, request)
             }
             // Cheap to re-derive — no round trip reached the backend — so
@@ -380,23 +470,45 @@ impl AuthEngine {
             Authentication::Deny(deny) => Outcome::Refuse(deny),
             Authentication::Unavailable(_) => {
                 self.unreachable.insert(credential_key, ());
-                self.without_backend(required, held.as_ref())
+                self.without_backend(required, held.as_ref(), request)
             }
         }
     }
 
     /// The answer when the backend cannot be reached: a level that covers the
     /// request keeps serving it until its entry runs out, and a node holding
-    /// nothing that covers it fails closed.
-    fn without_backend(&self, required: Access, held: Option<&AccessEntry>) -> Outcome {
-        if held.is_some_and(|entry| entry.access >= required) {
-            self.metrics.record_auth_cache("access", "stale");
-            return Outcome::Allow;
+    /// nothing that covers it fails closed. A settled level refuses what it
+    /// does not cover instead: a read-only credential's writes are refused,
+    /// not answered unavailable, because a client that retries and then gives
+    /// up on an unavailable cache stops reading from it as well.
+    fn without_backend(
+        &self,
+        required: Access,
+        held: Option<&AccessEntry>,
+        request: &policy::ResolvedRequest<'_>,
+    ) -> Outcome {
+        match held {
+            Some(entry) if entry.access >= required => {
+                self.metrics.record_auth_cache("access", "stale");
+                Outcome::Allow
+            }
+            Some(entry) if entry.settled && entry.access >= Access::Read => {
+                self.metrics.record_auth_cache("access", "stale");
+                Outcome::Refuse(policy::refusal(request))
+            }
+            _ => Outcome::Unavailable(unreachable_deny()),
         }
-        Outcome::Unavailable(unreachable_deny())
     }
 
-    fn remember(&self, entry_key: EntryKey, access: Access, ctx: &RequestContext) {
+    /// A `settled` level's refusals are replayed without asking the backend
+    /// again for as long as it is served, other refusals only briefly; see
+    /// `Authentication::Settled`.
+    fn remember(&self, entry_key: EntryKey, access: Access, ctx: &RequestContext, settled: bool) {
+        let settled_for = if settled {
+            REVALIDATE_AFTER
+        } else {
+            REFUSAL_TTL
+        };
         let lifetime = entry_lifetime(access, policy::credential_expiry(ctx));
         // A credential already past its own expiry is answered this once,
         // because the backend just vouched for it, but holding it would only
@@ -412,10 +524,29 @@ impl AuthEngine {
                 access,
                 evaluated_at: now,
                 serve_until: now + REVALIDATE_AFTER,
-                settled_until: now + REFUSAL_TTL,
+                settled_until: now + settled_for,
                 lifetime,
+                settled,
             },
         );
+    }
+
+    fn remember_origin(&self, credential_key: CredentialKey, access: Access, ctx: &RequestContext) {
+        if access < Access::Read {
+            return;
+        }
+        if let Some(origin) = policy::credential_origin(ctx) {
+            self.origins.insert(credential_key, origin);
+        }
+    }
+
+    /// Where the credential that authorized a request was issued, when it
+    /// carried a signed origin. For usage attribution only.
+    pub fn origin(&self, authorization: &str) -> Option<Arc<str>> {
+        if authorization.is_empty() {
+            return None;
+        }
+        self.origins.get(&fingerprint(authorization))
     }
 
     /// The entry for this key, unless the credential has been reported invalid
@@ -466,10 +597,12 @@ impl AuthEngine {
         // Approximate, and only used to decide whether anything was worth
         // reporting; the caches are performance state, not correctness state.
         let held = self.entries.entry_count();
+        self.network_policies.invalidate_all();
         self.entries.invalidate_all();
         self.consultations.invalidate_all();
         self.revocations.invalidate_all();
         self.unreachable.invalidate_all();
+        self.origins.invalidate_all();
         held as usize
     }
 
@@ -523,11 +656,32 @@ impl AuthEngine {
             );
         }
     }
+
+    /// Moves this request's entry back in time by `by`, as if that long had
+    /// passed since it was evaluated.
+    #[cfg(test)]
+    pub(crate) async fn age_entry(&self, ctx: &RequestContext, by: Duration) {
+        let request = policy::resolve_request(ctx).expect("a resolvable request");
+        let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
+        let key = entry_key(&credential_key, &request.target);
+
+        if let Some(entry) = self.entries.get(&key) {
+            let earlier = |instant: Instant| instant.checked_sub(by).unwrap_or(instant);
+            self.entries.insert(
+                key,
+                AccessEntry {
+                    serve_until: earlier(entry.serve_until),
+                    settled_until: earlier(entry.settled_until),
+                    ..entry
+                },
+            );
+        }
+    }
 }
 
 fn result_label(result: &Authentication) -> &'static str {
     match result {
-        Authentication::Access(_) => "access",
+        Authentication::Access(_) | Authentication::Settled(_) => "access",
         Authentication::Deny(_) => "deny",
         Authentication::Unavailable(_) => "unavailable",
     }
@@ -642,6 +796,7 @@ mod tests {
             serve_until: now + REVALIDATE_AFTER,
             settled_until: now + REFUSAL_TTL,
             lifetime: CONFIRMED_TTL,
+            settled: false,
         }
     }
 
@@ -743,6 +898,70 @@ mod tests {
 
     // It grants nothing, so a write must not slip through on the ordering that
     // places it above `Refused`.
+    #[tokio::test]
+    async fn network_publishing_is_uncached_and_never_grants_cache_access() {
+        use axum::{Json, Router, routing::post};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let enabled = Arc::new(AtomicBool::new(true));
+        let router = Router::new().route(
+            "/api/projects/acme/ios/bazel/publishing",
+            post({
+                let enabled = enabled.clone();
+                move |headers: axum::http::HeaderMap| {
+                    let enabled = enabled.clone();
+                    async move {
+                        assert!(!headers.contains_key("authorization"));
+                        Json(serde_json::json!({"network_trusted": enabled.load(Ordering::SeqCst)}))
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let engine = AuthEngine::new(
+            AuthConfig {
+                base_url: format!("http://{address}"),
+                connect_timeout: Duration::from_secs(1),
+                request_timeout: Duration::from_secs(1),
+                verifier: None,
+                introspection: None,
+                cache_max_entries: 100,
+            },
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            engine.network_build_event_access("acme", "ios").await,
+            AccessDecision::Allow
+        ));
+        assert_eq!(engine.entries.entry_count(), 0);
+        let cache = RequestContext {
+            transport: "grpc".into(),
+            method: "RPC".into(),
+            operation: "artifact.read".into(),
+            server_tenant_id: "acme".into(),
+            tenant_id: Some("acme".into()),
+            namespace_id: Some("ios".into()),
+            authorization: None,
+            headers: Default::default(),
+        };
+        assert!(matches!(
+            engine.evaluate_access(&cache).await,
+            AccessDecision::Deny(_)
+        ));
+        let entries_before = engine.entries.entry_count();
+        enabled.store(false, Ordering::SeqCst);
+        assert!(matches!(
+            engine.network_build_event_access("acme", "ios").await,
+            AccessDecision::Deny(_)
+        ));
+        assert_eq!(engine.entries.entry_count(), entries_before);
+        server.abort();
+    }
+
     #[test]
     fn an_exhausted_plan_grants_no_action() {
         for level in [Access::PaymentRequired, Access::PaymentFailed] {

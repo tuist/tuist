@@ -2,9 +2,10 @@ name: Gradle Release
 
 # Releases the Tuist Gradle plugin. Extracted from release.yml: the plugin is a
 # client artifact independent of the server, so it gets its own lane and is
-# never queued behind a server deploy. Gradle releases by commit scope
-# (feat(gradle) etc., filtered in gradle/cliff.toml), so the workflow runs on
-# gradle source changes and release:check decides whether to publish.
+# never queued behind a server deploy. Gradle releases conventional commits
+# that change gradle/, whatever their scope (gradle/cliff.toml with the
+# include path from mise/tasks/release/components.json), so the workflow runs
+# on gradle source changes and release:check decides whether to publish.
 
 on:
   push:
@@ -14,17 +15,33 @@ on:
       - gradle/**
       - mise/tasks/release/components.json
       - .github/workflows/gradle-release.yml
+      - .github/scripts/gradle-patch-release.sh
+      - .github/scripts/gradle-patch-release.test.sh
+  pull_request:
+    paths:
+      - .github/workflows/gradle-release.yml
+      - .github/scripts/gradle-patch-release.sh
+      - .github/scripts/gradle-patch-release.test.sh
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Stable patch only: full SHA at the head of releases/gradle-X.Y.x; supply with patch_version"
+        type: string
+        required: false
+      patch_version:
+        description: "Stable patch only: next patch of the latest stable Gradle tag (e.g. 0.18.1)"
+        type: string
+        required: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   # Serialize gradle publishing through one ref-independent group: it derives
   # the next version from the gradle@ tag set and creates a tag, so two runs
   # must never overlap. Queue rather than cancel so an in-flight publish is
   # never torn.
-  group: gradle-release
+  group: ${{ github.event_name == 'pull_request' && format('gradle-release-validation-{0}', github.event.pull_request.number) || 'gradle-release' }}
   cancel-in-progress: false
 
 env:
@@ -32,15 +49,36 @@ env:
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
 
 jobs:
+  validate:
+    name: Validate stable patch controls
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked yq"
+          cache: "false"
+          github_token: ${{ github.token }}
+          env: "false"
+      - run: bash .github/scripts/gradle-patch-release.test.sh
+
   check:
     name: Check for releasable changes
-    if: github.repository == 'tuist/tuist'
+    needs: validate
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
       should-release: ${{ steps.check.outputs.gradle-should-release }}
       next-version: ${{ steps.check.outputs.gradle-next-version }}
       next-version-number: ${{ steps.check.outputs.gradle-next-version-number }}
+      source-sha: ${{ steps.check.outputs.source-sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,11 +89,22 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run --skip-tools release:check gradle
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
+        run: |
+          if [[ -n "$SOURCE_SHA" || -n "$PATCH_VERSION" ]]; then
+            bash .github/scripts/gradle-patch-release.sh
+          else
+            mise run --skip-tools release:check gradle
+            echo "source-sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
 
   release:
     name: Release Gradle Plugin
     needs: check
+    permissions:
+      contents: write
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
@@ -66,6 +115,17 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Revalidate stable patch and pin source
+        env:
+          SOURCE_SHA: ${{ needs.check.outputs.source-sha }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
+        run: |
+          # Execute controls from the workflow revision, never the selected source.
+          if [[ -n "$PATCH_VERSION" ]]; then
+            cp .github/scripts/gradle-patch-release.sh "$RUNNER_TEMP/gradle-patch-release.sh"
+            bash "$RUNNER_TEMP/gradle-patch-release.sh"
+          fi
+          git checkout --detach "$SOURCE_SHA"
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked java gradle git-cliff 1password-cli"
@@ -77,6 +137,11 @@ jobs:
         with:
           cache-disabled: true
 
+      - name: Test stable patch and build shaded artifact
+        if: inputs.patch_version != ''
+        working-directory: gradle
+        run: ./gradlew test shadowJar -Pversion=${{ needs.check.outputs.next-version-number }} --no-build-cache --no-watch-fs
+
       - name: Get release notes
         id: release-notes
         run: |
@@ -84,9 +149,9 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+            RELEASE_NOTES=$(git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           else
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+            RELEASE_NOTES=$(git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           fi
 
           if [ -z "$(echo "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
@@ -105,10 +170,24 @@ jobs:
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
+          # Fail before accessing publishing credentials if the version is taken.
+          TAG=${{ needs.check.outputs.next-version }}
+          REMOTE_TAGS=$(git ls-remote --tags origin "refs/tags/$TAG")
+          if [ -n "$REMOTE_TAGS" ]; then
+            echo "Tag $TAG already exists on origin" >&2
+            exit 1
+          fi
+          # Tests may take long enough for maintainers to correct the branch.
+          # Use the retained main guard and reject a changed tip; never substitute source.
+          if [[ -n "$PATCH_VERSION" ]]; then
+            (cd "$GITHUB_WORKSPACE" && bash "$RUNNER_TEMP/gradle-patch-release.sh")
+          fi
           PUBLISH_KEY=$(op read "op://tuist/GRADLE_PUBLISH_KEY/password")
           PUBLISH_SECRET=$(op read "op://tuist/GRADLE_PUBLISH_SECRET/password")
           ./gradlew publishPlugins -Pversion=${{ needs.check.outputs.next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
         env:
+          SOURCE_SHA: ${{ needs.check.outputs.source-sha }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Update version in settings.gradle.kts
@@ -124,10 +203,10 @@ jobs:
 
           if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on origin"
-            exit 0
+            exit 1
           fi
 
-          git tag "$TAG"
+          git tag "$TAG" "${{ needs.check.outputs.source-sha }}"
           git push origin "refs/tags/$TAG"
 
       - name: Create Gradle GitHub Release

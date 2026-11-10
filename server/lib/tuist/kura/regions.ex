@@ -473,8 +473,9 @@ defmodule Tuist.Kura.Regions do
   # continuous account mesh replication. Their regional gateway admits the
   # runner network and publishes a stable per-account private hostname.
   # The control plane provisions exactly one of
-  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
-  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  # these per account whose runner jobs run beside the region (see
+  # `Tuist.Kura.RunnerCache`) and the runner dispatch hands the URL back as
+  # `cache_endpoint_url`.
   #
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
@@ -495,101 +496,123 @@ defmodule Tuist.Kura.Regions do
   # never schedule, so it was removed rather than repointed — staging's
   # Mac minis already exercise the co-located topology through
   # `scw-fr-par-runners`, the same spec production uses.
-  @private_region_specs [
-    %{
-      id: "scw-fr-par-runners",
-      replicas: 2,
-      ingress_class_name: "kura-runners",
-      display_name: "Scaleway fr-par (runner cache)",
-      cluster_id: "scw-fr-par",
-      node_pool: "kura-scw-fr-par",
-      # The pool runs on Scaleway Elastic Metal (bare metal), which can't
-      # attach scw-bssd block volumes — and a regenerable cache wants fast
-      # local NVMe anyway. Per-account PVs come from the node's local NVMe
-      # via the local-path provisioner (`scw-local-nvme` StorageClass,
-      # installed on the pool out-of-band).
-      storage_class: "scw-local-nvme",
-      # Conservative accounting for legacy rows without a pin or loaded account.
-      # Governed provisioning still uses the account claim, not this fallback.
-      storage_size: "50Gi",
-      storage_governed: true,
-      memory_governed: true,
-      runner_platforms: [:macos],
-      # Tart VMs use the PN gateway hostname; retain allocated NodePorts for
-      # jobs that received the former node-address URL before migration.
-      data_plane: :private_gateway,
-      expose_node_port: true,
-      client_cidrs: ["172.16.0.0/22"],
-      # Per-account egress ceiling (Cilium bandwidth manager). The pool's
-      # node NIC is shared by every tenant pod on it; the cap keeps one
-      # account's restore burst from starving the rest. Conservative
-      # against the Elastic Metal node's 10G PN (~13 tenants at the cap
-      # before the NIC binds), so there's headroom to raise it.
-      egress_burst_mbps: 750,
-      # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
-      # taint so general workloads stay off this shared-NIC, egress-capped
-      # node; the cache pods tolerate it (node_selector already pins them
-      # here). Matches the `tuist.dev/macos` / `runner-tier` taint pattern.
-      tolerations: [
-        %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
-      ],
-      # Scaleway Elastic Metal fr-par-1, Paris.
-      country: "FR",
-      subdivision: "FR-IDF"
-    },
-    # The BER1 rack's cache, on its storage node beside the rack's minis.
-    # Only the site's runner pools take it (`Tuist.Runners.Catalog.fleet_site/1`)
-    # and only accounts on the `runner_site` or `runner_site_cache` flag get a
-    # node.
-    #
-    # The storage node is an ordinary cluster node: it runs Cilium, and the
-    # rack edge forwards the cluster's tunnel, health and kubelet ports to it
-    # on the rack's public address (`rackLinuxFleet` in the tuist chart). So
-    # the cache joins the account mesh pod to pod like any other region's and
-    # reaches the server and the trace collector through their Services. One
-    # replica until the site has a second storage node to pair with.
-    %{
-      id: "ber1-runners",
-      site: "ber1",
-      replicas: 1,
-      ingress_class_name: "kura-ber1-runners",
-      display_name: "BER1 rack (runner cache)",
-      cluster_id: "ber1",
-      node_pool: "rack-storage-ber1",
-      # The node's XFS /data, through the same local-path class as the other
-      # bare-metal pools.
-      storage_class: "scw-local-nvme",
-      # Sized by the account's claim like scw-fr-par-runners. With one replica
-      # a raised claim rebuilds the volume, which refills from the account's
-      # other regions.
-      storage_size: "50Gi",
-      storage_governed: true,
-      runner_platforms: [:macos],
-      data_plane: :private_gateway,
-      # The rack's machines segment, where the minis sit.
-      client_cidrs: ["10.10.0.0/24"],
-      tolerations: [
-        %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
-      ],
-      country: "DE",
-      subdivision: "DE-BE"
-    },
-    # A catalog tombstone for runner-cache rows created before the staging
-    # Hetzner runner pool was retired. It is never offered for provisioning,
-    # but keeping the original cluster identity lets the reconciler observe and
-    # delete the old KuraInstance resources instead of failing every tick with
-    # `:not_found` while resolving their stored region.
-    %{
-      id: "hetzner-staging-runners",
-      display_name: "Hetzner staging (retired runner cache)",
-      cluster_id: "staging",
-      node_pool: "kura",
-      storage_class: @managed_region_storage_class,
-      storage_size: "20Gi",
-      runner_platforms: [:linux],
-      retired: true
-    }
+  #
+  # Each rack site's cache, on its storage node beside the site's minis, one
+  # region per site named after it (`<site>-runners`, on node pool
+  # `rack-storage-<site>`). Only the site's runner pools take it
+  # (`Tuist.Runners.Catalog.fleet_site/1`) and only accounts on the
+  # `runner_site` or `runner_site_cache` flag get a node, so a site that racks
+  # no pool yet holds none. The display name and the site ID reach customers,
+  # so neither names the facility, the city or the provider.
+  #
+  # The storage node is an ordinary cluster node: it runs Cilium, and the
+  # rack edge forwards the cluster's tunnel, health and kubelet ports to it
+  # on the site's public address (`rackLinuxFleet` in the tuist chart). So
+  # the cache joins the account mesh pod to pod like any other region's and
+  # reaches the server and the trace collector through their Services. One
+  # replica per site: the sites' nodes pair through the account mesh.
+  @rack_sites [
+    # The machines segment of each site, where its minis sit
+    # (infra/rack-switch-fleet/sites/<site>.json).
+    %{site: "ber1", display_name: "BER1 rack (runner cache)", client_cidr: "10.10.0.0/24"},
+    %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24"}
   ]
+
+  rack_site_region_specs =
+    for rack <- @rack_sites do
+      %{
+        id: "#{rack.site}-runners",
+        site: rack.site,
+        replicas: 1,
+        ingress_class_name: "kura-#{rack.site}-runners",
+        display_name: rack.display_name,
+        cluster_id: rack.site,
+        node_pool: "rack-storage-#{rack.site}",
+        # The rack CSI release must be installed and this region explicitly
+        # enrolled in LVM before encrypted volumes are provisioned.
+        encrypted_volumes: false,
+        # The node's XFS /data, through the same local-path class as
+        # the other bare-metal pools.
+        storage_class: "scw-local-nvme",
+        # Sized by the account's claim like scw-fr-par-runners. With one
+        # replica a raised claim rebuilds the volume, which refills from
+        # the account's other regions.
+        storage_size: "50Gi",
+        storage_governed: true,
+        runner_platforms: [:macos],
+        data_plane: :private_gateway,
+        client_cidrs: [rack.client_cidr],
+        tolerations: [
+          %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+        ],
+        country: "DE",
+        subdivision: "DE-BE"
+      }
+    end
+
+  @rack_site_region_specs rack_site_region_specs
+
+  @private_region_specs [
+                          %{
+                            id: "scw-fr-par-runners",
+                            replicas: 2,
+                            ingress_class_name: "kura-runners",
+                            display_name: "Scaleway fr-par (runner cache)",
+                            cluster_id: "scw-fr-par",
+                            node_pool: "kura-scw-fr-par",
+                            # The pool runs on Scaleway Elastic Metal (bare metal), which can't
+                            # attach scw-bssd block volumes — and a regenerable cache wants fast
+                            # local NVMe anyway. Per-account PVs come from the node's local NVMe
+                            # via the local-path provisioner (`scw-local-nvme` StorageClass,
+                            # installed on the pool out-of-band).
+                            storage_class: "scw-local-nvme",
+                            # Conservative accounting for legacy rows without a pin or loaded account.
+                            # Governed provisioning still uses the account claim, not this fallback.
+                            storage_size: "50Gi",
+                            storage_governed: true,
+                            memory_governed: true,
+                            runner_platforms: [:macos],
+                            # Tart VMs use the PN gateway hostname; retain allocated NodePorts for
+                            # jobs that received the former node-address URL before migration.
+                            data_plane: :private_gateway,
+                            expose_node_port: true,
+                            client_cidrs: ["172.16.0.0/22"],
+                            # Per-account egress ceiling (Cilium bandwidth manager). The pool's
+                            # node NIC is shared by every tenant pod on it; the cap keeps one
+                            # account's restore burst from starving the rest. Conservative
+                            # against the Elastic Metal node's 10G PN (~13 tenants at the cap
+                            # before the NIC binds), so there's headroom to raise it.
+                            egress_burst_mbps: 750,
+                            # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
+                            # taint so general workloads stay off this shared-NIC, egress-capped
+                            # node; the cache pods tolerate it (node_selector already pins them
+                            # here). Matches the `tuist.dev/macos` / `runner-tier` taint pattern.
+                            tolerations: [
+                              %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+                            ],
+                            # Scaleway Elastic Metal fr-par-1, Paris.
+                            country: "FR",
+                            subdivision: "FR-IDF"
+                          }
+                        ] ++
+                          @rack_site_region_specs ++
+                          [
+                            # A catalog tombstone for runner-cache rows created before the staging
+                            # Hetzner runner pool was retired. It is never offered for provisioning,
+                            # but keeping the original cluster identity lets the reconciler observe and
+                            # delete the old KuraInstance resources instead of failing every tick with
+                            # `:not_found` while resolving their stored region.
+                            %{
+                              id: "hetzner-staging-runners",
+                              display_name: "Hetzner staging (retired runner cache)",
+                              cluster_id: "staging",
+                              node_pool: "kura",
+                              storage_class: @managed_region_storage_class,
+                              storage_size: "20Gi",
+                              runner_platforms: [:linux],
+                              retired: true
+                            }
+                          ]
 
   @doc "All registered regions."
   def all, do: managed_regions() ++ [local_controller_region()]
@@ -634,6 +657,23 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff `endpoint` is a private region's hostname, which is the cache
+  endpoint a runner build reports when its cache traffic went to the site's
+  runner cache rather than to a public region.
+  """
+  def private_endpoint?(endpoint) when is_binary(endpoint) do
+    with %URI{host: host} when is_binary(host) <- URI.parse(endpoint),
+         [label | _] <- String.split(host, ".") do
+      suffix = managed_region_host_suffix()
+      Enum.any?(all(), &(private?(&1) and String.ends_with?(label, "-" <> &1.id <> suffix)))
+    else
+      _ -> false
+    end
+  end
+
+  def private_endpoint?(_endpoint), do: false
 
   @doc """
   True iff the region's instances join the controller-managed per-account peer
@@ -978,8 +1018,68 @@ defmodule Tuist.Kura.Regions do
   def exists?(_), do: false
 
   defp managed_regions do
-    Enum.map(@managed_region_specs, &managed_region/1) ++
-      Enum.map(@private_region_specs, &private_region/1)
+    Enum.map(
+      Enum.map(@managed_region_specs, &managed_region/1) ++ Enum.map(@private_region_specs, &private_region/1),
+      &(&1 |> configure_lvm() |> configure_thin())
+    )
+  end
+
+  @doc "The node resource used to admit data volumes in this region."
+  def disk_resource(%__MODULE__{provisioner_config: config}) do
+    config[:disk_resource] || "ephemeral-storage"
+  end
+
+  @doc """
+  Whether the region is listed in `TUIST_KURA_THIN_REGIONS` and runs on a
+  node-local class, so its accounts may be selected for thin volumes.
+  """
+  def thin_volumes?(%__MODULE__{provisioner_config: config}), do: config[:thin_volumes] == true
+
+  @doc """
+  Whether `account`'s instance in the region is built on
+  `kura-thin-encrypted-nvme`: the region is thin-capable and either every
+  account in it is enrolled (`TUIST_KURA_THIN_ENROLLED_REGIONS`) or the account
+  is on the `kura_thin_volumes` flag. The flag is read only in thin-capable
+  regions that are not enrolled as a whole.
+  """
+  def thin_volumes?(%__MODULE__{provisioner_config: config} = region, account) do
+    thin_volumes?(region) and
+      (config[:thin_enrolled] == true or Tuist.FeatureFlags.kura_thin_volumes_enabled?(account))
+  end
+
+  # A region enrolled as a whole is thin-capable too, so listing it in
+  # `TUIST_KURA_THIN_ENROLLED_REGIONS` alone is enough. `:thin_enrolled` is only
+  # ever added, so a thin-capable region's config is unchanged when no region is
+  # enrolled.
+  defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
+    enrolled? = region.id in Tuist.Environment.kura_thin_enrolled_region_ids()
+
+    if (enrolled? or region.id in Tuist.Environment.kura_thin_region_ids()) and
+         config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
+      config = Map.put(config, :thin_volumes, true)
+      config = if enrolled?, do: Map.put(config, :thin_enrolled, true), else: config
+      %{region | provisioner_config: config}
+    else
+      region
+    end
+  end
+
+  defp configure_lvm(%__MODULE__{provisioner_config: config} = region) do
+    if region.id in Tuist.Environment.kura_lvm_region_ids() and
+         config[:storage_class] == "scw-local-nvme" do
+      %{
+        region
+        | provisioner_config:
+            Map.merge(config, %{
+              storage_class: "kura-lvm-nvme",
+              disk_resource: "tuist.dev/kura-disk",
+              encrypted_volumes: true,
+              replicas: max(Map.get(config, :replicas) || 2, 2)
+            })
+      }
+    else
+      region
+    end
   end
 
   defp managed_region(spec) do
@@ -999,6 +1099,7 @@ defmodule Tuist.Kura.Regions do
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         gateway: Map.get(spec, :gateway, :hetzner),
         # The region's public peer failover IP (bare-metal regions only): the
         # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
@@ -1007,9 +1108,9 @@ defmodule Tuist.Kura.Regions do
         failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
         # These regions declare no claim of their own: every instance carries the
         # one it is built at, and an instance carrying none is sized from its
-        # account's plan at render time rather than from a region-wide constant. nil replicas for the multi-box Hetzner regions
-        # (controller default applies); bare-metal regions set 2 (a warm standby
-        # for gapless rolling deploys).
+        # account's plan at render time rather than from a region-wide constant.
+        # nil replicas for the multi-box Hetzner regions (controller default
+        # applies); bare-metal regions set 2 (a warm standby for gapless deploys).
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
@@ -1112,6 +1213,7 @@ defmodule Tuist.Kura.Regions do
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
+        encrypted_volumes: Map.get(spec, :encrypted_volumes, true),
         storage_size: Map.get(spec, :storage_size),
         storage_governed: Map.get(spec, :storage_governed, false),
         memory_governed: Map.get(spec, :memory_governed, false),

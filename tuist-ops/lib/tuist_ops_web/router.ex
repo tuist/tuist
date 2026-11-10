@@ -16,6 +16,10 @@ defmodule TuistOpsWeb.Router do
     plug :accepts, ["json", "text", "*/*"]
   end
 
+  pipeline :atlas_api do
+    plug :accepts, ["json"]
+  end
+
   pipeline :health do
     plug :accepts, ["json"]
   end
@@ -65,6 +69,15 @@ defmodule TuistOpsWeb.Router do
     # header and x-pomerium-claim-email, so the path is ignored.
     match :*, "/policy", PolicyController, :evaluate
     match :*, "/policy/*_path", PolicyController, :evaluate
+  end
+
+  # Atlas calls this after a person approved the exact call there.
+  # Publicly routed through Pomerium; the controller requires Atlas'
+  # ServiceAccount token for the `ops.tuist.dev` audience.
+  scope "/api/v1/atlas", TuistOpsWeb do
+    pipe_through :atlas_api
+
+    post "/elevations", AtlasElevationController, :create
   end
 
   scope "/api/v1", TuistOpsWeb do

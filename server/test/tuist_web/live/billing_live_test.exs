@@ -10,6 +10,7 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
@@ -25,8 +26,7 @@ defmodule TuistWeb.BillingLiveTest do
         name: "tuist-org",
         customer_id: if(account_without_customer, do: "customer_id"),
         creator: user,
-        preload: [:account],
-        current_month_remote_cache_hits_count: 167
+        preload: [:account]
       )
 
     if account_without_customer do
@@ -55,6 +55,7 @@ defmodule TuistWeb.BillingLiveTest do
     end)
 
     stub(Prepaid, :balance, fn _account -> nil end)
+    stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false, :idle) end)
 
     conn =
       conn
@@ -138,6 +139,42 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       refute has_element?(lv, "#billing-payment-issue")
+    end
+  end
+
+  describe "when a downgrade to air is pending" do
+    setup %{account: account} do
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        subscription_id: "sub_downgrading",
+        cancel_at_period_end: true
+      )
+
+      stub(Billing, :get_payment_method_id_from_subscription_id, fn _ -> nil end)
+      stub(Billing, :current_billing_period, fn _ -> {~U[2026-11-01 00:00:00Z], ~U[2026-12-01 00:00:00Z]} end)
+      :ok
+    end
+
+    test "says when the plan switches to air and keeps pro until then", %{conn: conn, account: account} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-pending-downgrade", "Your plan switches to Air on December 1")
+      assert has_element?(lv, "[data-part='current-plan-card-section']", "Pro")
+    end
+
+    test "keeping pro withdraws the downgrade", %{conn: conn, account: account} do
+      # Given
+      expect(Billing, :update_plan, fn %{plan: :pro} -> :ok end)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # When
+      lv |> element("#billing-pending-downgrade button", "Keep Pro") |> render_click()
+
+      # Then
+      assert_redirect(lv, "/#{account.name}/billing")
     end
   end
 
@@ -266,71 +303,27 @@ defmodule TuistWeb.BillingLiveTest do
     end
   end
 
-  describe "remote cache hits" do
-    setup %{account: account} do
-      # The upgrade case: the hits landed earlier in the calendar month,
-      # before the subscription opened, so they sit on no invoice at all.
-      Repo.update!(Ecto.Changeset.change(account, current_month_remote_cache_hits_count: 241))
-
-      :ok
-    end
-
-    test "keeps the calendar month for an account with no subscription", %{conn: conn, account: account} do
-      # Air has no cycle to read, its free tier really does reset on the
-      # first, and the denormalized counter is the very figure its cache
-      # gate is enforced against.
-      reject(&Tuist.CommandEvents.remote_cache_hits_count_for_customer/3)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
-
-      assert lv |> element("#remote-cache-hits-progress [data-part='value']") |> render() =~ "241"
-      assert render(lv) =~ "Free tier exceeded"
-
-      # The runner bar already links to the usage page at the bottom of the
-      # card, so the allowance bars above it do not repeat the link.
-      assert lv |> render() |> String.split("See the breakdown") |> length() == 2
-    end
-
-    test "counts the subscription's period rather than the calendar month", %{conn: conn, account: account} do
-      # Usage from before the cycle opened was invoiced against the plan
-      # the account was on then, so pricing it against this plan's free
-      # tier shows a charge the customer is never sent.
+  describe "billing period" do
+    test "reads the usage of the subscription's period rather than the calendar month", %{
+      conn: conn,
+      account: account
+    } do
       period_start = DateTime.shift(DateTime.utc_now(), day: -1)
       subscribe_to_pro(period_start)
 
-      # Only the subscription's own window is answered, so reading any
-      # other one raises rather than quietly reporting a number.
-      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn "customer_id", ^period_start, _period_end ->
-        0
+      expect(UsagePricing, :period_breakdown, fn _account, {^period_start, _period_end} ->
+        usage_pricing(false, :idle)
       end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
-      value = lv |> element("#remote-cache-hits-progress [data-part='value']") |> render()
-      assert value =~ ~r/>\s*0\s*</
-      refute value =~ "241"
-      refute render(lv) =~ "Free tier exceeded"
-    end
-
-    test "prices the estimate off the period the invoice covers", %{conn: conn, account: account} do
-      period_start = DateTime.shift(DateTime.utc_now(), day: -1)
-      subscribe_to_pro(period_start)
-
-      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn _customer_id, _from, _to -> 0 end)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
-
-      # 241 against the calendar month priced 41 hits at $0.50; the
-      # invoice the label points at came to nothing.
       assert lv |> element("[data-part='next-payment']") |> render() =~ "0.00"
-      refute lv |> element("[data-part='next-payment']") |> render() =~ "20.50"
+      refute render(lv) =~ "Free tier exceeded"
     end
 
     test "labels the charge date with the period it counted", %{conn: conn, account: account} do
       period_start = ~U[2026-09-08 10:00:00Z]
       subscribe_to_pro(period_start, ~U[2026-10-08 10:00:00Z])
-
-      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn _customer_id, _from, _to -> 0 end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
@@ -354,40 +347,8 @@ defmodule TuistWeb.BillingLiveTest do
     end
   end
 
-  describe "usage-based pricing" do
-    setup do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
-      reject(&Tuist.CommandEvents.remote_cache_hits_count_for_customer/3)
-      :ok
-    end
-
-    defp usage_pricing(billed?) do
-      cache_charge = Money.new(450, :USD)
-      tests_charge = Money.new(200, :USD)
-
-      %{
-        cache: %{
-          egress: %{
-            metered: 110_000_000_000,
-            included: 100_000_000_000,
-            billable: 10_000_000_000,
-            charge: Money.new(350, :USD)
-          },
-          requests: %{metered: 1_100_000, included: 1_000_000, billable: 100_000, charge: Money.new(100, :USD)},
-          charge: cache_charge,
-          billed: if(billed?, do: cache_charge)
-        },
-        tests: %{
-          passed: 6_000_000,
-          included: 5_000_000,
-          billable: 1_000_000,
-          charge: tests_charge,
-          billed: if(billed?, do: tests_charge)
-        }
-      }
-    end
-
-    test "replaces the remote cache hit allowance with the new meters", %{conn: conn, account: account} do
+  describe "usage meters" do
+    test "shows each meter against its allowance", %{conn: conn, account: account} do
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
@@ -397,6 +358,12 @@ defmodule TuistWeb.BillingLiveTest do
       assert has_element?(lv, "#cache-requests-progress", "1.1M")
       assert has_element?(lv, "#passing-test-cases-progress", "6M")
       assert render(lv) =~ "Free tier exceeded"
+    end
+
+    test "does not flag an account within its allowances", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute render(lv) =~ "Free tier exceeded"
     end
 
     test "links to the breakdown once for an account with no runner usage", %{conn: conn, account: account} do
@@ -418,7 +385,7 @@ defmodule TuistWeb.BillingLiveTest do
       assert lv |> element("[data-part='next-payment']") |> render() =~ "0.00"
     end
 
-    test "estimates the next payment from the new meters", %{conn: conn, account: account} do
+    test "estimates the next payment from the meters", %{conn: conn, account: account} do
       stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :pro,
@@ -436,7 +403,39 @@ defmodule TuistWeb.BillingLiveTest do
       assert lv |> element("[data-part='next-payment']") |> render() =~ "6.50"
       assert has_element?(lv, "#usage-pricing-table", "10.0 GB above free tier")
       assert has_element?(lv, "#usage-pricing-table", "$2 per million")
-      refute has_element?(lv, "#usage-table")
+    end
+
+    test "adds cache volume storage past its allowance to the estimate", %{conn: conn, account: account} do
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(true) end)
+
+      stub(CacheVolumeBilling, :period_breakdown, fn _account, _period ->
+        %{
+          history_complete: true,
+          included: 100_000_000_000,
+          byte_months: 125_000_000_000,
+          stored_bytes: 130_000_000_000,
+          billable: 25_000_000_000,
+          charge: Money.new(250, :USD),
+          billed: Money.new(250, :USD)
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "9.00"
+      assert has_element?(lv, "#cache-volume-storage-progress", "125.0 GB-months")
+      assert has_element?(lv, "#usage-pricing-table", "25.0 GB-months above free tier")
+      assert has_element?(lv, "#usage-pricing-table", "$0.10 per GB-month")
     end
   end
 
@@ -467,7 +466,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free runner minutes plus 10K prepaid"
+      assert html =~ "100 free macOS minutes plus 10K prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
@@ -495,7 +494,7 @@ defmodule TuistWeb.BillingLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       html = render(lv)
-      assert html =~ "100 free runner minutes plus 40K prepaid"
+      assert html =~ "100 free macOS minutes plus 40K prepaid"
       refute html =~ "200K"
     end
   end
@@ -672,5 +671,47 @@ defmodule TuistWeb.BillingLiveTest do
 
       assert render(lv) =~ "Runner minutes:"
     end
+  end
+
+  defp usage_pricing(billed?, usage \\ :over_allowance)
+
+  defp usage_pricing(_billed?, :idle) do
+    zero = Money.new(0, :USD)
+
+    %{
+      cache: %{
+        egress: %{metered: 0, included: 100_000_000_000, billable: 0, charge: zero},
+        requests: %{metered: 0, included: 1_000_000, billable: 0, charge: zero},
+        charge: zero,
+        billed: nil
+      },
+      tests: %{passed: 0, included: 5_000_000, billable: 0, charge: zero, billed: nil}
+    }
+  end
+
+  defp usage_pricing(billed?, :over_allowance) do
+    cache_charge = Money.new(450, :USD)
+    tests_charge = Money.new(200, :USD)
+
+    %{
+      cache: %{
+        egress: %{
+          metered: 110_000_000_000,
+          included: 100_000_000_000,
+          billable: 10_000_000_000,
+          charge: Money.new(350, :USD)
+        },
+        requests: %{metered: 1_100_000, included: 1_000_000, billable: 100_000, charge: Money.new(100, :USD)},
+        charge: cache_charge,
+        billed: if(billed?, do: cache_charge)
+      },
+      tests: %{
+        passed: 6_000_000,
+        included: 5_000_000,
+        billable: 1_000_000,
+        charge: tests_charge,
+        billed: if(billed?, do: tests_charge)
+      }
+    }
   end
 end

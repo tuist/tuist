@@ -30,6 +30,22 @@ defmodule Tuist.Tests.Coverage.XcodeTest do
     assert Xcode.uninstrumented_targets(project.id, [run_id]) == %{run_id => ["Core"]}
   end
 
+  test "a hit above a miss was built from source, not taken from the cache", %{project: project} do
+    run_id = UUIDv7.generate()
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run_id)
+    target = fn opts -> XcodeFixtures.xcode_target_fixture([command_event_id: event.id] ++ opts) end
+
+    target.(name: "HTTP", binary_cache_hit: :miss)
+    target.(name: "REAPI", binary_cache_hit: :remote, dependencies: ["HTTP"])
+    target.(name: "Server", binary_cache_hit: :remote, dependencies: ["REAPI"])
+    target.(name: "Unreported", binary_cache_hit: :local, dependencies: ["NoBinary"])
+    target.(name: "Alamofire", binary_cache_hit: :remote, external_hash: "alamofire-revision")
+    target.(name: "Counted", binary_cache_hit: :remote, binary_cache_instrumented: true)
+    target.(name: "Core", binary_cache_hit: :local, dependencies: ["Alamofire", "Counted"])
+
+    assert Xcode.uninstrumented_targets(project.id, [run_id]) == %{run_id => ["Core"]}
+  end
+
   test "a run that took nothing from the cache without counters has no entry", %{project: project} do
     run_id = UUIDv7.generate()
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run_id)

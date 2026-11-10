@@ -56,8 +56,8 @@ public actor RunMetadataStorage {
         self.binaryCacheItems = binaryCacheItems
     }
 
-    /// Tests the run skipped because they are quarantined. They are left out on every run, so a run
-    /// that skips only them still runs its whole selection.
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so they
+    /// aren't reported as skipped: a run that skips only them still runs its whole selection.
     public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
     public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
         self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
@@ -97,6 +97,31 @@ public actor RunMetadataStorage {
     public private(set) var resultBundlePath: AbsolutePath?
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
+    }
+
+    /// The directory `tuist test --coverage-output-path` writes each run's coverage to, as LCOV.
+    public private(set) var coverageOutputPath: AbsolutePath?
+    public func update(coverageOutputPath: AbsolutePath?) {
+        self.coverageOutputPath = coverageOutputPath
+    }
+
+    /// The platform the run's tests ran on, from the `-destination` xcodebuild was given. It goes
+    /// with the run's coverage, since one test can execute different files on each platform.
+    public private(set) var testPlatform: Platform?
+    public func update(testPlatform: Platform?) {
+        self.testPlatform = testPlatform
+    }
+
+    /// The coverage-based test selection run the invocation created, which its test runs upload with.
+    public private(set) var testImpactRunId: String?
+    public func update(testImpactRunId: String?) {
+        self.testImpactRunId = testImpactRunId
+    }
+
+    /// The tests coverage-based test selection skipped, as `TestImpactSkipList` identifiers.
+    public private(set) var testImpactSkip: [String]?
+    public func update(testImpactSkip: [String]?) {
+        self.testImpactSkip = testImpactSkip
     }
 
     /// The ID of the latest build run.
@@ -164,7 +189,9 @@ public actor RunMetadataStorage {
             binaryCacheItems: binaryCacheItems,
             selectiveTestingCacheItems: selectiveTestingCacheItems,
             targetContentHashSubhashes: targetContentHashSubhashes,
-            buildRunId: buildRunId
+            buildRunId: buildRunId,
+            testImpactRunId: testImpactRunId,
+            testImpactSkip: testImpactSkip
         )
         let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
         do {
@@ -198,6 +225,10 @@ public actor RunMetadataStorage {
             }
             if let buildRunId = runMetadata.buildRunId {
                 update(buildRunId: buildRunId)
+            }
+            if let testImpactRunId = runMetadata.testImpactRunId {
+                update(testImpactRunId: testImpactRunId)
+                update(testImpactSkip: runMetadata.testImpactSkip)
             }
         } catch {
             Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")

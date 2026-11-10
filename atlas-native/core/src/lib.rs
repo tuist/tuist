@@ -1,3 +1,4 @@
+pub mod destinations;
 mod ffi;
 mod navigation;
 

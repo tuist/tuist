@@ -1,0 +1,9 @@
+#!/bin/sh
+# Packer's tart-cli builder clones its base with `tart clone <base> <vm>` and
+# has no option for `--stacked`. Stacked runner-image builds put this
+# directory first on PATH so the clone keeps the base read-only.
+if [ "$1" = clone ]; then
+  shift
+  exec /usr/local/bin/tart clone --stacked "$@"
+fi
+exec /usr/local/bin/tart "$@"

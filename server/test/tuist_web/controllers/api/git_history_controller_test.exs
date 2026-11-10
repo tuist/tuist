@@ -34,7 +34,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
              "window_commits" => 5000,
              "deepen_budget_seconds" => 60,
              "upload_batch_size" => 500,
-             "commit_file_limit" => 50_000
+             "commit_file_limit" => 200_000
            }
   end
 

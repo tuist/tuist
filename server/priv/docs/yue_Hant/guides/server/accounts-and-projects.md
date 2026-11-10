@@ -1,76 +1,64 @@
 ---
 {
-  "title": "Accounts and projects",
+  "title": "帳戶與專案",
   "titleTemplate": ":title | Server | Guides | Tuist",
-  "description": "Learn how to create and manage accounts and projects in Tuist."
+  "description": "了解如何在 Tuist 中建立及管理帳戶和專案。"
 }
 ---
-# Accounts and projects {#accounts-and-projects}
+# 帳戶與專案 {#accounts-and-projects}
 
-Some Tuist features require a server which adds persistence of data and can
-interact with other services. To interact with the server, you need an account
-and a project that you connect to your local project.
+部分 Tuist 功能需要伺服器提供資料持久化，並能與其他服務互動。要與伺服器互動，你需要一個帳戶，以及一個連接到本機專案的遠端專案。
 
-## Accounts {#accounts}
+## 帳戶 {#accounts}
 
-To use the server, you'll need an account. There are two types of accounts:
+要使用伺服器，你需要一個帳戶。帳戶有兩種類型：
 
-- **Personal account:** Those accounts are created automaticaly when you sign up
-  and are identified by a handle that's obtained either from the identity
-  provider (e.g. GitHub) or the first part of the email address.
-- **Organization account:** Those accounts are manually created and are
-  identified by a handle that's defined by the developer. Organizations allow
-  inviting other members to collaborate on projects.
+- **個人帳戶：** 這些帳戶會在你註冊時自動建立，並以控制代碼識別；該控制代碼取自身分提供者（例如 GitHub）或電郵地址的首段。
+- **組織帳戶：** 這些帳戶由開發者手動建立，並以開發者定義的控制代碼識別。組織可邀請其他成員協作專案。
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to
-theirs, where you can have personal and organization accounts, and they are
-identified by a *handle* that's used when constructing URLs.
+如果你熟悉 [GitHub](https://github.com)，其概念類似：你可以擁有個人和組織帳戶，並以用於建構 URL 的 *控制代碼* 來識別。
 
-> [!NOTE]
-> **Cli-first**
->
-> Most operations to manage accounts and projects are done through the CLI. We are
-> working on a web interface that will make it easier to manage accounts and
-> projects.
-
-
-You can manage the organization through the subcommands under
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To
-create a new organization account, run:
+你可以透過 <.localized_link href="/cli/organization">`tuist organization`</.localized_link> 下的子指令管理組織。要建立新的組織帳戶，請執行：
 ```bash
 tuist organization create {account-handle}
 ```
 
-## Projects {#projects}
+### 組織成員資格 {#organization-membership}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your
-account through a remote project. Continuing with the comparison with GitHub,
-it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+使用者可以透過邀請、自動單一登入註冊，或 <.localized_link href="/guides/integrations/authentication/scim">跨域身分管理系統供應</.localized_link> 成為組織成員。
 
-Projects are identified by a full handle, which is the result of concatenating
-the organization handle and the project handle. For example, if you have an
-organization with the handle `tuist`, and a project with the handle `tuist`, the
-full handle would be `tuist/tuist`.
+以組織的身分提供者進行驗證本身並不會授予成員資格。組織的 <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">單一登入註冊政策</.localized_link> 會決定來自其信任網域的使用者是否需要邀請，或是可以自動加入。
 
-The binding between the local and the remote project is done through the
-configuration file. If you don't have any, create it at `Tuist.swift` and add
-the following content:
+管理員可以從儀表板或使用 <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link> 邀請成員。傳遞 `--role admin` 或 `--role viewer`，以便在被邀請者接受時賦予 `user` 以外的角色。
+
+### 角色 {#roles}
+
+每位組織成員都持有以下三種角色之一：
+
+| 角色 | 權限 |
+| --- | --- |
+| **管理員** | 具備使用者所有權限，並可管理組織：成員與邀請、專案、計費、權杖、Webhook 及設定。 |
+| **使用者** | 讀取並對組織的工作執行操作：執行建置與測試、寫入快取、建立與刪除預覽，以及變更測試案例的狀態。 |
+| **檢視者** | 僅讀取組織的工作，且不進行任何變更。儀表板、建置、測試執行、不穩定與隔離測試、預覽、套件組合，以及執行器活動均可讀取。但無法將互動式 Shell 或 VNC 工作階段附加至執行器，因為這會在機器上執行指令。 |
+
+邀請他人時選擇角色，之後可在儀表板的 **成員** 中變更。以此方式設定的角色不會因後續登入而被覆蓋。
+
+## 專案 {#projects}
+
+你的專案需要透過遠端專案與帳戶整合。延續與 GitHub 的比較，這就像擁有本機與遠端儲存庫，你可將變更推送到遠端。你可以使用 <.localized_link href="/cli/project">`tuist project`</.localized_link> 來建立和管理專案。
+
+專案以完整控制代碼識別，即組織控制代碼與專案控制代碼連接而成。例如，若你的組織控制代碼為 `tuist`，專案控制代碼為 `tuist`，則完整控制代碼為 `tuist/tuist`。
+
+本機與遠端專案之間的綁定是透過設定檔完成。如果尚未建立，請在 `Tuist.swift` 建立並加入以下內容：
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
 > [!WARNING]
-> **Tuist Project-only Features**
+> **僅限 Tuist 專案的功能**
 >
-> Note that there are some features like
-> <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that
-> require you having a Tuist project. If you are using raw Xcode projects, you
-> won't be able to use those features.
+> 請注意，部分功能（例如 <.localized_link href="/guides/features/cache/module-cache">模組快取</.localized_link>）需要由 Tuist 管理的專案。如果你未使用 Tuist 管理專案，將無法使用這些功能。
 
 
-Your project's URL is constructed by using the full handle. For example, Tuist's
-dashboard, which is public, is accessible at
-[tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is
-the project's full handle.
+你的專案 URL 是使用完整控制代碼建構而成。例如，公開的 Tuist 儀表板可於 [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist) 存取，其中 `tuist/tuist` 為專案的完整控制代碼。

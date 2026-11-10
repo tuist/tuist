@@ -31,6 +31,8 @@
     overflow-y: scroll;
     color: var(--noora-terminal-text-description);
     font: var(--noora-font-code-medium);
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   & [data-part="log-entry"] {

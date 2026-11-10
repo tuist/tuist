@@ -6,7 +6,7 @@ defmodule Tuist.GitHub.Releases do
   """
 
   alias Tuist.GitHub.Retry
-  alias Tuist.KeyValueStore
+  alias Tuist.Marketing.ReleaseMetadata
 
   require Logger
 
@@ -21,7 +21,8 @@ defmodule Tuist.GitHub.Releases do
     if Tuist.Environment.dev?() do
       nil
     else
-      KeyValueStore.get_or_update(
+      ReleaseMetadata.get_or_update(
+        :github,
         [__MODULE__, "github_latest_app_release"],
         [ttl: Keyword.get(opts, :ttl, @ttl)],
         fn ->
@@ -77,7 +78,8 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp release_page(url, opts) do
-    KeyValueStore.get_or_update(
+    ReleaseMetadata.get_or_update(
+      :github_page,
       [__MODULE__, "github_releases_page", url],
       [ttl: Keyword.get(opts, :ttl, @ttl)],
       fn ->

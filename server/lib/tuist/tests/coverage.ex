@@ -77,6 +77,9 @@ defmodule Tuist.Tests.Coverage do
   # leave room for whatever else the query binds — above all a second list,
   # like the run ids a per-test lookup is scoped to. The budget is kept under
   # the default so an install that never touched the setting still works.
+  # A list bound with `in ^list` travels as one array field, which ClickHouse
+  # also refuses past `http_max_field_value_size` (128 KiB, URL-encoded), so a
+  # list of paths needs chunking as much as a list of ids does.
   @max_query_parameters 900
 
   @doc """
@@ -192,7 +195,7 @@ defmodule Tuist.Tests.Coverage do
   def enabled_for_project?(project_id) do
     case Projects.get_project_by_id(project_id) do
       nil -> false
-      project -> FeatureFlags.xcode_coverage_enabled?(project.account)
+      project -> FeatureFlags.coverage_enabled?(project.account, project)
     end
   end
 
@@ -214,6 +217,7 @@ defmodule Tuist.Tests.Coverage do
       partial: value(coverage, :partial, false),
       tool: value(coverage, :tool, ""),
       tool_version: value(coverage, :tool_version, ""),
+      platform: value(coverage, :platform, ""),
       files: files
     }
   end
@@ -226,6 +230,8 @@ defmodule Tuist.Tests.Coverage do
   shards' tests are not in them.
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
+
+  def publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
 
   # A run that measured nothing still changes what its commit knows: a scheme
   # selective testing skipped whole reports no coverage, and the commit's
@@ -269,6 +275,8 @@ defmodule Tuist.Tests.Coverage do
   `storage_key`, the tool that measured it, and whether the run was `partial`;
   the shard arguments are those of `publish/4`.
   """
+  def enqueue_publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
+
   def enqueue_publish(%Test{} = test, coverage, shard_index, expected_shards) do
     if enabled_for_project?(test.project_id) do
       %{
@@ -279,6 +287,7 @@ defmodule Tuist.Tests.Coverage do
         partial: value(coverage, :partial, false) || false,
         tool: value(coverage, :tool, ""),
         tool_version: value(coverage, :tool_version, ""),
+        platform: value(coverage, :platform, ""),
         shard_index: shard_index,
         expected_shards: expected_shards
       }
@@ -379,6 +388,7 @@ defmodule Tuist.Tests.Coverage do
         coverage_tool_version: coverage.tool_version,
         git_object_format: folded.object_format,
         scheme: test.scheme || "",
+        platform: Map.get(coverage, :platform) || "",
         git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
@@ -532,9 +542,11 @@ defmodule Tuist.Tests.Coverage do
       "coverage_files",
       "git_commit_files",
       "coverage_target_sources",
-      "coverage_test_sources"
+      "coverage_test_sources",
+      "test_impact_diffs",
+      "test_impact_run_tests"
     ],
-    runs: ["coverage_runs"]
+    runs: ["coverage_runs", "test_impact_runs"]
   }
 
   @commit_retention_tables ["coverage_file_deltas", "coverage_commit_targets"]

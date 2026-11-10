@@ -26,6 +26,7 @@ defmodule Cache.MixProject do
 
   defp deps do
     [
+      {:certifi, "~> 2.18", override: true},
       {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts

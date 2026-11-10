@@ -24,6 +24,18 @@ defmodule Atlas.Slack.MCPToolsTest do
     refute Enum.any?(tools, &(Tool.name(&1) == "get_finance_overview"))
   end
 
+  test "shared Slack executive identity cannot discover production flag tools" do
+    user = insert_user!(%{role: :executive})
+    claims = %{"mcp_tool_groups" => ["observability"], "slack_agent" => "systems_investigator"}
+    expect(Proxy, :list_hoisted_tools, fn _conn -> [] end)
+    names = user |> MCPTools.tools_for(claims) |> Enum.map(&Tool.name/1)
+
+    for name <-
+          ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag) do
+      refute name in names
+    end
+  end
+
   test "executes an Atlas MCP tool in process" do
     user = insert_user!()
     _target = insert_account!(%{account_key: "account:target", name: "Target", segment: :customer})

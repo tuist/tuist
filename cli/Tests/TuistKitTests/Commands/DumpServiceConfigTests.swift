@@ -84,11 +84,14 @@ struct DumpServiceConfigTests {
 
                 ],
                 "buildInsightsDisabled": false,
+                "coverage": {
+                  "enabled": false,
+                  "prefixMapping": false
+                },
                 "defaultSwiftVersion": "5",
                 "disablePackageVersionLocking": false,
                 "disableSandbox": true,
                 "enableCaching": false,
-                "enableCoveragePrefixMapping": false,
                 "enforceExplicitDependencies": false,
                 "includeGenerateScheme": true,
                 "manifestEnvironment": [
@@ -132,7 +135,7 @@ struct DumpServiceConfigTests {
           },
           "testInsights": {
             "coverage": {
-              "upload": true
+              "upload": false
             }
           },
           "url": "https://tuist.dev",

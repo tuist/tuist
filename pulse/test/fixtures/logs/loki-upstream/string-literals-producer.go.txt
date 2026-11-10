@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Table inputs: Copyright 2009 The Go Authors. All rights reserved.
+// See Go-LICENSE. Adapted for Pulse on 2026-10-27.
+// Inputs: Go 1.27.3 src/strconv/quote_test.go unquotetests and misquoted.
+// Expectations: actual pinned Loki Scanner plus vendored strutil.Unquote,
+// not Go strconv.Unquote or Pulse. Local controls are separately marked.
+// Reproduction setup, source hashes and decoder adaptations: README.md.
+package main
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strconv"
+	"strings"
+	"unicode/utf8"
+
+	"pulse-string-oracle/strutil"
+	"pulse-string-oracle/syntax"
+)
+
+type row struct {
+	Source  string  `json:"source"`
+	Literal string  `json:"literal_base64"`
+	Value   *string `json:"value_base64"`
+}
+
+func decode(literal string) *string {
+	s := syntax.Scanner{}
+	s.Init(strings.NewReader(literal))
+	s.Error = func(*syntax.Scanner, string) {}
+	tok := s.Scan()
+	text := s.TokenText()
+	if tok != syntax.String && tok != syntax.RawString || !utf8.ValidString(text) {
+		return nil
+	}
+	value, err := strutil.Unquote(text)
+	if err != nil || s.Scan() != syntax.EOF || s.ErrorCount != 0 {
+		return nil
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(value))
+	return &encoded
+}
+
+func main() {
+	f, err := parser.ParseFile(token.NewFileSet(), os.Args[1], nil, 0)
+	if err != nil {
+		panic(err)
+	}
+	enc := json.NewEncoder(os.Stdout)
+	emit := func(source, literal string) {
+		if err := enc.Encode(row{source, base64.StdEncoding.EncodeToString([]byte(literal)), decode(literal)}); err != nil {
+			panic(err)
+		}
+	}
+	counts := map[string]int{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		decl, ok := n.(*ast.ValueSpec)
+		if !ok || len(decl.Names) != 1 {
+			return true
+		}
+		name := decl.Names[0].Name
+		if name != "unquotetests" && name != "misquoted" {
+			return true
+		}
+		for _, item := range decl.Values[0].(*ast.CompositeLit).Elts {
+			if name == "unquotetests" {
+				item = item.(*ast.CompositeLit).Elts[0]
+			}
+			literal, err := strconv.Unquote(item.(*ast.BasicLit).Value)
+			if err != nil {
+				panic(err)
+			}
+			emit(name, literal)
+			counts[name]++
+		}
+		return false
+	})
+	if counts["unquotetests"] != 35 || counts["misquoted"] != 28 {
+		panic("unexpected original Go table counts")
+	}
+	for _, literal := range []string{
+		`"\000"`, `"\0"`, `"\00"`, `"\0000"`, `"\400"`, `"\777"`, `"\378"`,
+		`"\x00"`, `"\xC3\xBF"`, `"\200"`, `"\xc0\xaf"`, `"\x001"`, `"\x1"`, `"\xGG"`,
+		`"\d"`, `"\w"`, `"\s"`, `"\q"`, `"\uD800"`, `"\U0000DFFF"`, `"\U0010ffff"`, `"\U00110000"`,
+		`"\u12"`, `"\U0000000"`, `"\uGGGG"`, `"\"`, "\"a\x00b\"", "`a\x00b`", "\"a\rb\"", "`a\r\nb`",
+		"\"\xc0\xaf\"", "`\xff`", `"#//"`, "`\\a\\000\\xFF\\uD800`", `"é😀"`, `"\u00ff"`,
+		`"\U7fffffff"`, `"\U80000000"`, `"\U8000007f"`, `"\U80000080"`, `"\Uffffffff"`,
+	} {
+		emit("local", literal)
+	}
+}

@@ -22,6 +22,7 @@ defmodule Tuist.Projects.Project do
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
+    field :vcs_comments_enabled, :boolean, default: true
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :slack_channel_id, :string
@@ -31,6 +32,7 @@ defmodule Tuist.Projects.Project do
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
+    field :report_bundle_tag, :string
     # Stamped by ReportWorker on each successful send; bounds the next report
     # window independently of oban_jobs retention. Set internally, not via the
     # public changeset.
@@ -96,6 +98,7 @@ defmodule Tuist.Projects.Project do
     |> cast(attrs, [
       :name,
       :default_branch,
+      :vcs_comments_enabled,
       :visibility,
       :default_previews_visibility,
       :slack_channel_id,
@@ -105,6 +108,7 @@ defmodule Tuist.Projects.Project do
       :report_days_of_week,
       :report_schedule_time,
       :report_timezone,
+      :report_bundle_tag,
       :auto_quarantine_flaky_tests,
       :flaky_test_alerts_enabled,
       :flaky_test_alerts_slack_channel_id,
@@ -118,6 +122,13 @@ defmodule Tuist.Projects.Project do
       :git_history_window_days,
       :git_history_window_commits
     ])
+    |> validate_required([:vcs_comments_enabled])
+    |> update_change(:report_bundle_tag, fn
+      nil -> nil
+      tag -> String.trim(tag)
+    end)
+    |> validate_length(:report_bundle_tag, max: 50)
+    |> validate_format(:report_bundle_tag, ~r/^[a-zA-Z0-9_-]+$/)
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)
     |> validate_name()

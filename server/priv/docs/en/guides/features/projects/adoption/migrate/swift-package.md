@@ -7,16 +7,16 @@
 ---
 # Migrate a Swift Package {#migrate-a-swift-package}
 
-Swift Package Manager emerged as a dependency manager for Swift code that uninentionally found itself solving the problem of managing projects and supporting other programming languages like Objective-C. Because the tool was designed with a different purpose in mind, it can be challenging to use it to manage projects at scale because it lacks flexibility, performance, and power that Tuist provides. This is well captured in the [Scaling iOS at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) article, which includes the following table comparing the performance of Swift Package Manager and native Xcode projects:
+Swift Package Manager emerged as a dependency manager for Swift code that unintentionally found itself solving the problem of managing projects and supporting other programming languages like Objective-C. Because the tool was designed with a different purpose in mind, it can be challenging to use it to manage projects at scale because it lacks flexibility, performance, and power that Tuist provides. This is well captured in the [Scaling iOS at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) article, which includes the following table comparing the performance of Swift Package Manager and native Xcode projects:
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-We often come across developers and organizations that challenge the need for Tuist considering that Swift Package Manager can take a similar project management role. Some venture into a migration to later on realize that their developer experience has degraded signicantly. For instance, the rename of a file might take up to 15 seconds to re-index. 15 seconds!
+We often come across developers and organizations that challenge the need for Tuist considering that Swift Package Manager can take a similar project management role. Some venture into a migration to later on realize that their developer experience has degraded significantly. For instance, the rename of a file might take up to 15 seconds to re-index. 15 seconds!
 
 **Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which <.localized_link href="/guides/features/projects/cost-of-convenience">as you might know,</.localized_link> is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
 
 > [!TIP]
-> **Spm As Just A Dependency Manager**
+> **SwiftPM as just a dependency manager**
 >
 > Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that.
 
@@ -68,4 +68,4 @@ You can use <.localized_link href="/guides/features/projects/editing">`tuist edi
 tuist edit
 ```
 
-Depending on the size of the project, you might consider using it in one shot or incrementally. We recommend starting with a small project to get familiar with the DSL and the workflow. Our advise is always to start from the most depended upon target and work all the way up to the top-level target.
+Depending on the size of the project, you might consider using it in one shot or incrementally. We recommend starting with a small project to get familiar with the DSL and the workflow. Our advice is always to start from the most depended upon target and work all the way up to the top-level target.

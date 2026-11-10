@@ -1,0 +1,55 @@
+name: Mgmt Cluster Tests
+
+on:
+  pull_request:
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
+      - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/bootstrap/hccm-values.yaml'
+      - 'infra/certificate-trust/guard*'
+      - '.github/workflows/hccm-deployment.yml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
+      - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/bootstrap/hccm-values.yaml'
+      - 'infra/certificate-trust/guard*'
+      - '.github/workflows/hccm-deployment.yml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked node jq yq"
+          cache: "false"
+      - run: infra/mise/tasks/mgmt/test-health.sh
+      - run: node --test infra/mise/tasks/mgmt/test-hetzner.cjs
+      - run: node --test infra/mise/tasks/mgmt/test-ha-followups.cjs
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/certificate-trust/go.mod
+          cache: false
+      - name: Test management replacement guard without credentials
+        env:
+          GOWORK: 'off'
+        run: go -C infra/certificate-trust test -run TestReplacementGuard -count=1 ./...
+      # These linters are not in the repository's mise.lock. Pin their
+      # versions explicitly instead of asking --locked to resolve them.
+      - run: CI=1 mise exec shellcheck@0.11.0 -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner,cleanup-ha-secrets,verify-etcd-snapshot}.sh
+      - run: CI=1 mise exec actionlint@1.7.12 -- actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml

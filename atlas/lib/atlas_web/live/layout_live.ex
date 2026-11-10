@@ -48,7 +48,7 @@ defmodule AtlasWeb.LayoutLive do
   end
 
   defp finish_mount(socket, user) do
-    socket = socket |> assign_user(user) |> assign_search_palette()
+    socket = socket |> assign_user(user) |> assign_search_palette() |> AtlasWeb.PresenceLive.attach()
     if Demo.enabled?(), do: DemoLiveGuard.attach(socket), else: {:cont, socket}
   end
 

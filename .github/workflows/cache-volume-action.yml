@@ -44,7 +44,7 @@ jobs:
           cat > "$RUNNER_TEMP/action-test-bin/tuist-cache-volume" <<'CLIENT'
           #!/usr/bin/env bash
           set -euo pipefail
-          [[ "$1" == --key && "$2" == gradle-caches && "$3" == --path && "$4" == 'cache directory' ]]
+          printf '%s\n' "$@" > "$RUNNER_TEMP/action-test-args"
           printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
           CLIENT
           chmod +x "$RUNNER_TEMP/action-test-bin/tuist-cache-volume"
@@ -58,6 +58,21 @@ jobs:
         env:
           CACHE_HIT: ${{ steps.action.outputs.cache-hit }}
         run: test "$CACHE_HIT" = true
+      - name: Verify single path arguments
+        run: |
+          printf '%s\n' --key gradle-caches --path 'cache directory' > "$RUNNER_TEMP/expected-args"
+          cmp "$RUNNER_TEMP/expected-args" "$RUNNER_TEMP/action-test-args"
+      - uses: ./.github/actions/cache-volume
+        with:
+          key: dependencies
+          path: |
+            .npm
+
+            cache directory
+      - name: Verify multiple path arguments
+        run: |
+          printf '%s\n' --key dependencies --path .npm --path 'cache directory' > "$RUNNER_TEMP/expected-args"
+          cmp "$RUNNER_TEMP/expected-args" "$RUNNER_TEMP/action-test-args"
       - name: Package standalone action
         run: bash .github/actions/cache-volume/scripts/package.sh "$RUNNER_TEMP/cache-volume-action"
       - uses: actions/upload-artifact@v4

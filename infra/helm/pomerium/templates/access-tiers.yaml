@@ -24,7 +24,8 @@ what the staging ACL grants name):
 
   tuist-admins         → view   (Owner / Admin tailnet role)
   tuist-eng            → view   (Member tailnet role)
-  tuist-<env>-write    → edit   (per-env so a prod elevation
+  tuist-<env>-write    → tuist-write (edit without Secrets;
+                                 per-env so a prod elevation
                                  can't unlock canary or vice
                                  versa)
 
@@ -35,14 +36,14 @@ policy endpoint injects `tuist-staging-write` unconditionally
 (`TuistOps.JIT.Policy.always_write_env?/1`), so everything this
 file binds to the write group — including the directly-bound
 `tuist-cnpg-decommission`, `tuist-volume-decommission`,
-`tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
+`tuist-storageclass-write`, `tuist-fleet-unwedge` and `tuist-fleet-scale` roles — is standing
 access for every engineering identity in the staging cluster.
 That is intended: staging serves no customers and is the env we
 break on purpose.
 
-View tier excludes Secrets by Kubernetes' built-in role definition.
-Edit allows reads/writes on Secrets + most resources but cannot
-mutate RBAC.
+No tier reads Secrets. View excludes them by Kubernetes' built-in
+role definition, and the write tier is `tuist-write` below rather
+than the built-in `edit`, which grants them. Neither can mutate RBAC.
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -74,16 +75,181 @@ subjects:
     name: tuist-eng
     apiGroup: rbac.authorization.k8s.io
 ---
+# The cluster's public ServiceAccount signing keys (`/openid/v1/jwks`). Other
+# clusters pin them to verify this cluster's workload tokens (Tuist <-> Atlas),
+# so reading them for a pin or a key rotation must not need an elevation. The
+# built-in role grants only the discovery document and the public JWKS.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: tuist-{{ .Values.tuistEnv }}-write-edit
+  name: tuist-view-issuer-discovery
   labels:
     {{- include "pomerium.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: edit
+  name: system:service-account-issuer-discovery
+subjects:
+  - kind: Group
+    name: tuist-admins
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: tuist-eng
+    apiGroup: rbac.authorization.k8s.io
+---
+# The write tier: the built-in `edit` role without its Secret access. No
+# elevation reads Secrets, so `MASTER_KEY`, `DATABASE_URL` and the ESO-synced
+# credentials never reach a terminal or an agent's context, human or orb.
+# Secrets are written by External Secrets and Helm, not by hand; a step that
+# genuinely has to copy one is a break-glass action.
+#
+# `edit` can't be narrowed in place: it aggregates `system:aggregate-to-edit`,
+# a bootstrap role the apiserver reconciles on every start. So this role
+# aggregates the same sources minus that one, and `tuist-write-core` restates
+# its rules without:
+#   * any verb on `secrets`. Not only get/list/watch: an update or patch
+#     response returns the whole object, so a write is a read.
+#   * `impersonate` on `serviceaccounts` and `create` on
+#     `serviceaccounts/token`. Either hands over a ServiceAccount's identity,
+#     and the External Secrets and operator accounts read Secrets.
+#
+# What remains reachable is what any workload write implies: `pods/exec` into
+# a container that has a Secret in its environment, or a Pod that mounts one.
+# Closing those would take away the incident actions the elevation exists for.
+#
+# The selectors pull in, as `edit` does, `view` (through its own sources) and
+# every chart's edit extension, ours (`tuist-edit-*`) and cert-manager's, with
+# one more exception: External Secrets'. It grants writes on SecretStores,
+# PushSecrets and generators, and a SecretStore pointing somewhere new plus a
+# PushSecret naming any Secret in the namespace copies that Secret out; a
+# `webhook` generator can send one in a header. `tuist-write-externalsecrets`
+# grants back the one write the runbooks use. A future chart's edit role
+# arrives here too; the render test in `test-access-tiers.sh` covers our roles,
+# so review a new chart's.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.authorization.k8s.io/aggregate-to-view: "true"
+    - matchLabels:
+        rbac.authorization.k8s.io/aggregate-to-edit: "true"
+      matchExpressions:
+        - key: kubernetes.io/bootstrapping
+          operator: NotIn
+          values: ["rbac-defaults"]
+        - key: app.kubernetes.io/name
+          operator: NotIn
+          values: ["external-secrets"]
+    - matchLabels:
+        tuist.dev/aggregate-to-write: "true"
+# No `rules`: the aggregation controller owns them. Rendering `rules: []` makes
+# Helm's server-side apply reset a field that controller manages, which fails
+# every upgrade after the first.
+---
+# Force-syncing an ExternalSecret (`kubectl annotate externalsecret ...
+# force-sync=...`) is a patch; reads come from External Secrets' view role.
+# A patch can change what an ExternalSecret fetches, but only into a Secret:
+# rendering into a ConfigMap (`spec.target.manifest`) needs the controller's
+# `--unsafe-allow-generic-targets`, which stays off.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-write-externalsecrets
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    tuist.dev/aggregate-to-write: "true"
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["patch"]
+---
+# `system:aggregate-to-edit` as of Kubernetes 1.34, without Secrets or
+# ServiceAccount identity. See `tuist-write` above.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-write-core
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    tuist.dev/aggregate-to-write: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["pods/attach", "pods/exec", "pods/portforward", "pods/proxy", "services/proxy"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/attach", "pods/exec", "pods/portforward", "pods/proxy"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - events
+      - persistentvolumeclaims
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - serviceaccounts
+      - services
+      - services/proxy
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - replicasets
+      - replicasets/scale
+      - statefulsets
+      - statefulsets/scale
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["extensions"]
+    resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - ingresses
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicationcontrollers/scale
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims", "resourceclaimtemplates"]
+    verbs: ["create", "delete", "deletecollection", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-tier
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-write
 subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write
@@ -94,7 +260,7 @@ subjects:
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
 # CRs, the RunnerPool CRs, the CNPG Postgres clusters, DNSEndpoints, CRDs,
-# and RBAC objects.
+# Cilium network/egress policies, and RBAC objects.
 # This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
@@ -132,8 +298,14 @@ rules:
       - barmancloud.cnpg.io
     resources: ["*"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "ciliumegressgatewaypolicies"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["externaldns.k8s.io"]
     resources: ["dnsendpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
@@ -233,6 +405,8 @@ rules:
 #   * clusters, poolers, scheduledbackups: update/patch. The real incident
 #     actions: bump `instances`, adjust resources, change a `primaryUpdate`
 #     strategy, annotate to force a reconcile, flip a pooler.
+#   * clusters/status: patch only. `kubectl cnpg promote` requests a
+#     controlled switchover through status, a separate RBAC subresource.
 #   * backups: create. Taking an ad-hoc base backup before a risky change is
 #     an incident-time action that cannot destroy anything. No delete: pruning
 #     the archive is barman's retention job, not an operator's.
@@ -261,6 +435,9 @@ rules:
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters", "poolers", "scheduledbackups"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters/status"]
+    verbs: ["patch"]
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["backups"]
     verbs: ["get", "list", "watch", "create"]
@@ -376,6 +553,44 @@ subjects:
     name: tuist-{{ .Values.tuistEnv }}-write
     apiGroup: rbac.authorization.k8s.io
 ---
+# StorageClass capability, bound like `tuist-volume-decommission`. A class
+# created outside the chart (by hand during a storage rehearsal, say) blocks
+# the next Helm upgrade that renders it: Helm refuses to adopt an object
+# without its ownership metadata. Clearing that needs a label and annotation on
+# the class, or deleting it, and the `edit` tier reaches no cluster-scoped
+# storage objects, so it was a break-glass action. Reads live in
+# `tuist-view-infra-read`.
+#
+# No `create`: classes are chart-rendered. Parameters are immutable, so
+# `update`/`patch` reach only metadata and the few mutable fields. Deleting a
+# class leaves its PersistentVolumes and their claims intact; only new claims
+# naming it stop provisioning. Not aggregated into `edit`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-storageclass-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-storageclass
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-storageclass-write
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
+---
 # Host-recovery capability for UN-WEDGING a single fleet host without the
 # break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
 # (the runner-mini SSH accept-backlog wedge) exhausts its retry budget, its
@@ -427,6 +642,11 @@ subjects:
 #     scope the actual patch to the diagnosed field; fleet configuration still
 #     goes through a reviewed chart change. Like the other recovery verbs,
 #     this is standing access in staging and JIT-only in canary/production.
+#   * vultrmachines patch — the same grant for Vultr hosts. Its use is the
+#     one-host Kura LVM conversion: annotate a replacement VultrMachine
+#     tuist.dev/kura-storage-layout=lvm-v1 before its Converting stage, after
+#     deleting the emptied host's Machine above. The same resource-level
+#     caveat applies; patch only that annotation.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -467,7 +687,7 @@ rules:
     resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
-    resources: ["ovhdedicatedmachines"]
+    resources: ["ovhdedicatedmachines", "vultrmachines"]
     verbs: ["patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["rackapplesiliconmachines"]
@@ -584,12 +804,12 @@ subjects:
 #     NetworkPolicies. Scoped to `get` only — POST/`create` through the kubelet
 #     proxy would be a second exec path, and it's not needed to read stats.
 #
-# Aggregates into `edit`, which only the JIT-elevated `tuist-<env>-write` group
-# binds to, so both are gated behind an active `/elevate` (TTL-bounded, audited)
-# and never available to the always-on view tier. Both are genuine privilege
-# boundaries — `kubectl debug` mutates a running pod, and `nodes/proxy` reaches
-# arbitrary kubelet read endpoints — so elevation, not the base tier, is the
-# right home for them.
+# Carries the `edit` aggregation label, which `tuist-write` selects and only
+# the JIT-elevated `tuist-<env>-write` group binds to, so both are gated behind
+# an active `/elevate` (TTL-bounded, audited) and never available to the
+# always-on view tier. Both are genuine privilege boundaries — `kubectl debug`
+# mutates a running pod, and `nodes/proxy` reaches arbitrary kubelet read
+# endpoints — so elevation, not the base tier, is the right home for them.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

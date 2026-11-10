@@ -99,7 +99,7 @@ func heartbeatReconciler(t *testing.T, pod *corev1.Pod, statusDir string) (*Reco
 	t.Helper()
 	kubeClient := newPodTestClient(t, pod)
 	store := NewStore()
-	store.Put(pod.Namespace, pod.Name, &Entry{VMName: "vm-" + pod.Name, VolumeStatusDir: statusDir})
+	store.Put(pod.Namespace, pod.Name, &Entry{VMName: "vm-" + pod.Name, StatusDir: statusDir})
 	return &Reconciler{CachedClient: kubeClient, Store: store}, kubeClient
 }
 

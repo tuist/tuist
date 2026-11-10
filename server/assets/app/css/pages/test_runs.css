@@ -62,6 +62,9 @@
   }
 
   & .noora-chart {
+    /* Charts stay left-to-right inside, so their trailing gutter is always on
+       the right: keep the overflow there in right-to-left layouts too. */
+    margin-right: -5%;
     width: 105%;
     height: 200px;
   }
@@ -81,7 +84,7 @@
 
   & [data-part="test-runs-chart"] {
     & > [data-part="label"] {
-      padding-left: var(--noora-spacing-7);
+      padding-inline-start: var(--noora-spacing-7);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-small);
     }

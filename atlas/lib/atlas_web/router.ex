@@ -4,6 +4,7 @@ defmodule AtlasWeb.Router do
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
 
+  alias Atlas.Automations.Interfaces
   alias Atlas.MCP.Server
   alias Atlas.MCP.Transport.StreamableHTTP
   alias AtlasWeb.Plugs.AdminAuth
@@ -22,7 +23,19 @@ defmodule AtlasWeb.Router do
     plug :put_root_layout, html: {AtlasWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :label_security_headers
     plug FetchCurrentUser
+  end
+
+  defp label_security_headers(conn, _opts) do
+    if String.starts_with?(conn.request_path, "/operations/labels") do
+      conn
+      |> put_resp_header("cache-control", "no-store")
+      |> put_resp_header("referrer-policy", "no-referrer")
+      |> put_resp_header("permissions-policy", "bluetooth=(self)")
+    else
+      conn
+    end
   end
 
   pipeline :docs do
@@ -80,6 +93,14 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :native do
+    plug :native_no_store
+    plug :accepts, ["json"]
+    plug MCPAuth
+  end
+
+  defp native_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+
   pipeline :inference do
     plug :accepts, ["json", "event-stream"]
     plug InferenceAuthentication
@@ -89,10 +110,36 @@ defmodule AtlasWeb.Router do
     get "/ready", HealthController, :ready
   end
 
+  # Native app association files and the /open landing are public. They use no
+  # Accept negotiation, session, CSRF, or user lookup: Apple's CDN and Android's
+  # verifier fetch the association files without them, and the files are 404 until
+  # the deployment configures verified app identities.
+  pipeline :native_links do
+    plug :put_secure_browser_headers
+  end
+
+  scope "/.well-known", AtlasWeb do
+    pipe_through :native_links
+
+    get "/apple-app-site-association", NativeLinksController, :apple_app_site_association
+    get "/assetlinks.json", NativeLinksController, :asset_links
+  end
+
+  # Public, credential-free landing for native links. It reads no session, user,
+  # or record, and never redirects to the custom scheme automatically.
+  scope "/open", AtlasWeb do
+    pipe_through :native_links
+
+    get "/:screen", NativeLinksController, :open
+    get "/:screen/:id", NativeLinksController, :open
+  end
+
   scope "/.well-known", AtlasWeb do
     pipe_through [:api]
 
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/openid-configuration", EnvironmentIdentityController, :discovery
+    get "/jwks.json", EnvironmentIdentityController, :jwks
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
   end
@@ -132,6 +179,8 @@ defmodule AtlasWeb.Router do
     post "/slack/events", SlackEventsController, :handle
     post "/slack/interactions", SlackEventsController, :interactions
     post "/github/events", GitHubEventsController, :handle
+    post "/automation/hooks/:id", AutomationWebhookController, :create
+    post "/signals/:id/mcp-events", SignalEventController, :create, log: false
     post "/inbox/emails", InboxEmailsController, :create
     post "/postal/events", PostalEventsController, :handle
     post "/email/subscriptions", GTMSubscriptionController, :create
@@ -146,6 +195,11 @@ defmodule AtlasWeb.Router do
     post "/email/transactional", GTMTransactionalController, :create
     post "/licenses/actions/validate-key", LicenseValidationController, :create
 
+    # Feedback AI agents report through a product's agent integration. The
+    # product authenticates its user and calls this with a projected workload
+    # token from its cluster (Atlas.WorkloadIdentity), not a shared secret.
+    post "/support/agent-feedback", SupportAgentFeedbackController, :create
+
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put
@@ -157,8 +211,105 @@ defmodule AtlasWeb.Router do
     post "/:project_id/envelope/", EnvelopeController, :create
   end
 
+  scope "/api/native", AtlasWeb do
+    pipe_through :api
+
+    get "/themes", NativeThemesController, :index
+  end
+
+  scope "/api/native", AtlasWeb do
+    pipe_through :native
+
+    get "/orbit/models", NativeOrbitController, :models
+    get "/orbit/threads", NativeOrbitController, :index, log: false
+    post "/orbit/threads", NativeOrbitController, :create
+    post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index
+
+    post "/orbit/threads/:thread_id/environment-commands/:command_id/cancel",
+         NativeEnvironmentCommandsController,
+         :cancel
+
+    patch "/orbit/threads/:id", NativeOrbitController, :update
+    patch "/orbit/threads/:id/model", NativeOrbitController, :model
+    patch "/orbit/threads/:id/environment", NativeOrbitController, :environment
+    get "/orbit/threads/:id/people", NativeOrbitController, :people
+    get "/orbit/threads/:id/messages", NativeOrbitController, :messages
+    post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
+    post "/orbit/threads/:id/attachments", NativeOrbitController, :upload_attachment
+    get "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :download_attachment
+    delete "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :delete_attachment
+    post "/orbit/threads/:id/participants", NativeOrbitController, :add_participant
+    delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
+    post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
+
+    post "/moodboard/suggestions", NativeMoodboardController, :suggest, log: false
+    put "/moodboard/captures/:request_id", NativeMoodboardController, :capture, log: false
+
+    get "/profile", NativeController, :profile
+    patch "/profile", NativeController, :update_profile
+    get "/:resource", NativeController, :index
+    post "/:resource", NativeController, :create
+    get "/:resource/:id", NativeController, :show
+    patch "/:resource/:id", NativeController, :update
+    delete "/:resource/:id", NativeController, :delete
+    post "/:resource/:id/complete", NativeController, :complete
+  end
+
+  scope "/api/me", AtlasWeb do
+    pipe_through :native
+
+    get "/connections", ConnectionController, :index, log: false
+    get "/coding-repositories", CodingRepositoriesController, :index, log: false
+    put "/coding-repositories/settings", CodingRepositoriesController, :update, log: false
+    get "/business-profile", BusinessProfileController, :show, log: false
+    put "/business-profile", BusinessProfileController, :update, log: false
+    delete "/connections/:provider", ConnectionController, :delete, log: false
+    post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
+
+    get "/environments", EnvironmentsController, :index
+    put "/environments/:id", EnvironmentsController, :update
+    delete "/environments/:id", EnvironmentsController, :delete
+    get "/environments/:id/commands", EnvironmentsController, :commands
+    post "/environments/:id/commands/:command_id/claim", EnvironmentsController, :claim
+    post "/environments/:id/commands/:command_id/result", EnvironmentsController, :result
+    post "/environments/:id/commands/:command_id/progress", EnvironmentsController, :progress
+
+    get "/orbit-live-activity", OrbitLiveActivityController, :show
+    put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
+    delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
+  end
+
+  scope "/api/labels/relay/sessions", AtlasWeb do
+    pipe_through :api
+    get "/:id", LabelRelayController, :status, log: false
+    get "/:id/jobs/:image", LabelRelayController, :image, log: false
+    post "/:id/relay", LabelRelayController, :relay, log: false
+    post "/:id/jobs/:jobId/claim", LabelRelayController, :claim, log: false
+    post "/:id/jobs/:jobId/result", LabelRelayController, :result, log: false
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
+
+    for route <- Interfaces.routes() do
+      match route.method, route.path, AutomationController, route.operation,
+        private: %{automation_parameters: route.parameters},
+        log: false
+    end
+
+    match :*, "/automation/*path", AutomationController, :unsupported
+
+    get "/native/automation/workflows", NativeAutomationController, :workflows
+    get "/native/automation/workflows/:id", NativeAutomationController, :workflow
+    post "/native/automation/workflows/:id/run", NativeAutomationController, :run
+    get "/native/automation/executions", NativeAutomationController, :executions
+    get "/native/automation/executions/:id", NativeAutomationController, :execution
+    get "/native/automation/executions/:id/result", NativeAutomationController, :result
+    post "/native/automation/executions/:id/control", NativeAutomationController, :control
+    get "/native/automation/approvals", NativeAutomationController, :approvals
+    get "/native/automation/approvals/:id", NativeAutomationController, :approval
+    post "/native/automation/approvals/:id/decision", NativeAutomationController, :decide
 
     get "/me/time-off", TimeOffController, :index
     post "/me/time-off", TimeOffController, :create
@@ -171,6 +322,9 @@ defmodule AtlasWeb.Router do
     post "/me/llm-providers/chatgpt/login/poll", LLMConnectionsController, :poll_chatgpt
     delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
     delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
+
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
 
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
@@ -251,6 +405,10 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/operations/labels/:id/jobs/:jobId/preview", LabelsController, :image, log: false
+    get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
+    get "/connections/:provider/callback", ConnectionController, :callback, log: false
+
     post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
 
     live_session :authenticated_account,
@@ -258,6 +416,8 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :account} do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
+      live "/settings/connections", ConnectionsLive, :index
+      live "/settings/coding", CodingSettingsLive, :index
     end
 
     live_session :authenticated_dashboard,
@@ -265,7 +425,12 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
+      live "/orbit", OrbitLive, :index
+      live "/orbit/:id", OrbitLive, :show
       live "/tasks", TasksLive, :index
+      live "/approvals", ApprovalsLive, :index
+      live "/approvals/:id", ApprovalsLive, :show
+      live "/people", PeopleLive, :index
       live "/people/time-off", TimeOffLive, :index
       live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
@@ -286,6 +451,8 @@ defmodule AtlasWeb.Router do
       live "/outbound/email/inbox", EmailMailboxLive, :inbox
       live "/outbound/email/outbox", EmailMailboxLive, :outbox
       live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
+      live "/library/moodboard", MoodboardLive, :index
+      live "/library/moodboard/:id", MoodboardShowLive, :show
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
@@ -308,6 +475,19 @@ defmodule AtlasWeb.Router do
       live "/commercial/sales/pocs/new", POCLive.Form, :new
       live "/commercial/sales/pocs/:id", POCLive.Show, :show
       live "/commercial/sales/pocs/:id/edit", POCLive.Form, :edit
+    end
+
+    live_session :scoped_automation,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "automation:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/automation/workflows", AutomationLive, :workflows
+      live "/automation/workflows/:id", AutomationLive, :workflow
+      live "/automation/behaviors", AutomationLive, :behaviors
+      live "/automation/executions", AutomationLive, :executions
+      live "/automation/executions/:id", AutomationLive, :execution
+      live "/automation/schedules", AutomationLive, :schedules
+      live "/automation/webhooks", AutomationLive, :webhooks
+      live "/automation/approvals", AutomationLive, :approvals
     end
 
     live_session :scoped_finance,
@@ -339,6 +519,8 @@ defmodule AtlasWeb.Router do
     live_session :scoped_assets,
       on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/operations/labels/:id", LabelsLive, :relay
+      live "/operations/labels/:id/batches/:batchId/approval", LabelsLive, :approval
       live "/operations/hardware", HardwareLive, :index
       live "/operations/hardware/financings", FinancingsLive, :index
       live "/operations/hardware/financings/:id", FinancingShowLive, :show

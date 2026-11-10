@@ -7,7 +7,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
     public let configurationName: String
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
-    public let executable: TargetReference?
+    public var executable: TargetReference?
     public let askForAppToLaunch: Bool
     public let arguments: Arguments?
 

@@ -206,8 +206,25 @@ defmodule Tuist.Mix.CacheTest do
 
     {:ok, bypass_build} = insert(context, false, [event("native", "bypass")])
     {:ok, legacy_build} = insert(context, false, [])
+
+    {:ok, attributed_build} =
+      context
+      |> attributes(false, [])
+      |> Map.merge(%{
+        account_id: context.project.account_id,
+        actor_account_id: context.user.account.id,
+        submission_auth: "token"
+      })
+      |> Mix.create_build()
+
     rows = Cache.recent_builds(context.project.id, context.opts)
-    assert length(rows) == 3
+    assert length(rows) == 4
+
+    assert %{name: name, source: :verified} =
+             Tuist.ReportActor.actor(Enum.find(rows, &(&1.build.id == attributed_build)).build)
+
+    assert name == context.user.account.name
+    rows = Enum.reject(rows, &(&1.build.id == attributed_build))
     assert Cache.recent_hit_rate(rows) == 50.0
     assert Cache.recent_hit_rate([]) == nil
     by_id = Map.new(rows, &{&1.build.id, &1})
@@ -326,6 +343,36 @@ defmodule Tuist.Mix.CacheTest do
     assert summary.hit_rate == 50
     assert summary.saved_duration_ms == 123
     assert summary.read_bytes == 2_000
+  end
+
+  test "up-to-date outputs count as local hits without inferred savings or I/O", context do
+    current = %{event("current", "local_hit") | reason: "up_to_date", key: ""}
+    {:ok, id} = insert(context, false, [current, event("compiled", "miss")])
+    summary = Cache.build_summary(context.project.id, id)
+    assert summary.local_hits == 1
+    assert summary.remote_hits == 0
+    assert summary.hit_rate == 50
+    assert is_nil(summary.saved_duration_ms)
+    assert is_nil(summary.read_bytes)
+    assert is_nil(summary.write_bytes)
+
+    assert [%{reason: "up_to_date"}] =
+             Enum.filter(Cache.build_events(context.project.id, id).rows, &(&1.dependency == "current"))
+
+    assert Cache.summary(context.project.id, context.opts).hit_rate == 50
+    assert Cache.hit_rate_analytics(context.project.id, context.opts).metrics.avg == 50
+
+    for invalid <- [
+          %{current | key: String.duplicate("a", 64)},
+          %{current | reason: ""},
+          %{current | outcome: "miss"},
+          %{current | outcome: "remote_hit"},
+          %{current | saved_duration_ms: 1},
+          Map.merge(current, %{read_bytes: 0, read_duration_us: 0, read_source: "local"}),
+          Map.merge(current, %{write_bytes: 0, write_duration_us: 0, write_source: "local"})
+        ] do
+      assert {:error, :invalid_dependency_cache} = Mix.create_build(attributes(context, false, [invalid]))
+    end
   end
 
   test "retains I/O provenance and rejects mismatched or orphaned sources", context do

@@ -11,7 +11,8 @@ object XdgPaths {
     }
 
     fun stateHome(envProvider: (String) -> String? = { System.getenv(it) }): File {
-        val path = envProvider("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }
+        val path = envProvider("TUIST_XDG_STATE_HOME")?.takeIf { it.isNotBlank() }
+            ?: envProvider("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }
             ?: File(System.getProperty("user.home"), ".local/state").path
         return File(path)
     }

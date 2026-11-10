@@ -56,6 +56,17 @@
     ]
   },
   %{
+    title: dgettext("marketing", "Guides"),
+    links: [
+      %{label: dgettext("marketing", "Slow builds"), href: "/solutions/slow-builds"},
+      %{label: dgettext("marketing", "Slow tests"), href: "/solutions/slow-tests"},
+      %{label: dgettext("marketing", "Flaky tests"), href: "/solutions/flaky-tests"},
+      %{label: dgettext("marketing", "Rising CI costs"), href: "/solutions/ci-costs"},
+      %{label: dgettext("marketing", "Build systems"), href: "/build-systems"},
+      %{label: dgettext("marketing", "Compare Tuist"), href: "/compare"}
+    ]
+  },
+  %{
     title: dgettext("marketing", "Community"),
     links: [
       %{label: dgettext("marketing", "Slack"), href: "https://slack.tuist.dev", external: true},
@@ -125,6 +136,7 @@
         href: "https://www.linkedin.com/company/tuistio/",
         external: true
       },
+      %{label: "YouTube", href: "https://www.youtube.com/@tuistdev", external: true},
       %{label: dgettext("marketing", "Videos"), href: "https://videos.tuist.dev", external: true}
     ]
   },
@@ -327,9 +339,14 @@ alone on join. The navbar does the same. --%>
                   value={language.code}
                   label={language.native}
                   secondary_text={if language.code != "en", do: language.label}
+                  data-language-switch
+                  data-glossia-language={TuistWeb.Locale.language_tag(language.code)}
                   href={
-                    TuistWeb.Marketing.Localization.localized_href(
-                      TuistWeb.Marketing.Localization.current_path(assigns),
+                    TuistWeb.Marketing.Localization.language_switch_href(
+                      if(assigns[:english_only] && language.code != "en",
+                        do: "/",
+                        else: TuistWeb.Marketing.Localization.current_path(assigns)
+                      ),
                       language.code
                     )
                   }

@@ -14,7 +14,17 @@ defmodule TuistWeb.OverviewLive do
       socket
       |> assign(
         :head_title,
-        "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
+        dgettext("dashboard_projects", "%{project} build and test insights · Tuist",
+          project: "#{account.name}/#{project.name}"
+        )
+      )
+      |> assign(
+        :head_description,
+        dgettext(
+          "dashboard_projects",
+          "Build times and test results for %{project}, tracked with Tuist's build and test insights.",
+          project: "#{account.name}/#{project.name}"
+        )
       )
       |> assign(
         OpenGraph.project_image_assigns(project,

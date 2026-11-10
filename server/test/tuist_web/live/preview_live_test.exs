@@ -18,6 +18,20 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  for os <- ["iOS", "Android"] do
+    @mobile_os os
+    test "offers an explicit native handoff on #{@mobile_os}", %{conn: conn, project: project, preview: preview} do
+      stub(UAParser, :parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: @mobile_os}} end)
+      path = ~p"/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+      {:ok, view, _html} = live(conn, path)
+
+      assert has_element?(view, "#preview-open-in-app", "Open in app")
+      href = view |> element("#preview-open-in-app") |> render() |> Floki.parse_fragment!() |> Floki.attribute("href")
+      assert href == ["tuist://app#{path}?#{URI.encode_query(%{"server" => TuistWeb.Endpoint.url()})}"]
+      assert has_element?(view, "a[href='#{path}/download']", "Download")
+    end
+  end
+
   test "renders release notes as escaped plain text", %{conn: conn, organization: organization, project: project} do
     notes = "Fix sign-in\n<script>alert('test')</script>"
     preview = AppBuildsFixtures.preview_fixture(project: project, release_notes: notes)
@@ -88,6 +102,38 @@ defmodule TuistWeb.PreviewLiveTest do
 
     # Then
     assert has_element?(lv, "div[data-part='metadata'] span[data-part='label']", "None")
+  end
+
+  for {platform, type} <- [{:macos, :executable}, {:linux, :executable}, {:macos, :app_bundle}] do
+    @platform platform
+    @build_type type
+    test "shows CLI instructions for a desktop #{type} preview on #{platform}", %{conn: conn, project: project} do
+      preview =
+        AppBuildsFixtures.preview_fixture(project: project, display_name: "tuist", version: nil, bundle_identifier: nil)
+
+      build = AppBuildsFixtures.app_build_fixture(preview: preview, type: @build_type, supported_platforms: [@platform])
+      AppBuilds.update_preview_with_app_build(preview.id, build)
+
+      {:ok, view, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/previews/#{preview.id}")
+
+      assert has_element?(view, "[data-part='install-app-card']", "Run preview")
+      assert has_element?(view, "[data-part='install-app-card'] .tuist-terminal", "tuist run")
+      assert has_element?(view, "#desktop-preview-trust-alert", "not sandboxed")
+      refute has_element?(view, "#preview-run-button")
+      refute has_element?(view, "#preview-open-in-app")
+      refute has_element?(view, "#download-tuist-app-alert")
+      refute has_element?(view, "[data-part='device-not-available']")
+      refute has_element?(view, "[data-part='version']")
+
+      if @build_type == :executable do
+        assert has_element?(view, "[data-part='preview-type']", "CLI")
+        assert has_element?(view, "img[src='/app/images/cli-icon.svg'][alt='Command-line preview']")
+        refute has_element?(view, "#preview-header-icon")
+      else
+        refute has_element?(view, "[data-part='preview-type']", "CLI")
+        assert has_element?(view, "#preview-header-icon[phx-hook='ImageFallback']")
+      end
+    end
   end
 
   test "it shows supported platforms", %{

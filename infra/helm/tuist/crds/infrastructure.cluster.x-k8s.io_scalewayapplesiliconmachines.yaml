@@ -304,11 +304,10 @@ spec:
                 runnerCacheVolumeGiB:
                   description: |-
                     RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
-                    volume host bootstrap provisions to hold per-account cache-volume
-                    images. Unset (nil) falls back to the operator's
+                    volume host bootstrap provisions to hold the runner cache
+                    volumes. Unset (nil) falls back to the operator's
                     `--runner-cache-volume-gib` global default; an explicit 0
-                    disables cache volumes on this host entirely (every VM boots on
-                    the cold path).
+                    disables cache volumes on this host entirely.
 
                     A pointer, unlike its sibling sizing fields, because 0 is a
                     meaningful value here and nonsense for them — a host with no CPU
@@ -324,11 +323,7 @@ spec:
                     disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
                     above ~80 GiB once the ~85 GB goldens and a job VM's transient
                     CoW growth are accounted for, while a 2 TB M4 can hold several
-                    times that. Resident masters scale as
-                    `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
-                    can have two live branches, so a host that runs two VMs needs a
-                    LARGER quota than a single-guest host just to hold the same
-                    number of accounts hot.
+                    times that.
 
                     The provisioning script never resizes an existing volume (see
                     renderRunnerCacheVolumeScript), so changing this on a live host
@@ -362,10 +357,18 @@ spec:
                     description: MachineAddress contains information for the node's address.
                     properties:
                       address:
-                        description: The machine address.
+                        description: address is the machine address.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                       type:
-                        description: Machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        description: type is the machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        enum:
+                          - Hostname
+                          - ExternalIP
+                          - InternalIP
+                          - ExternalDNS
+                          - InternalDNS
                         type: string
                     required:
                       - address
@@ -405,27 +408,32 @@ spec:
                     properties:
                       lastTransitionTime:
                         description: |-
-                          Last time the condition transitioned from one status to another.
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
                           This should be when the underlying condition changed. If that is not known, then using the time when
                           the API field changed is acceptable.
                         format: date-time
                         type: string
                       message:
                         description: |-
-                          A human readable message indicating details about the transition.
+                          message is a human readable message indicating details about the transition.
                           This field may be empty.
+                        maxLength: 10240
+                        minLength: 1
                         type: string
                       reason:
                         description: |-
-                          The reason for the condition's last transition in CamelCase.
+                          reason is the reason for the condition's last transition in CamelCase.
                           The specific API may choose whether or not this field is considered a guaranteed API.
                           This field may be empty.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                       severity:
                         description: |-
                           severity provides an explicit classification of Reason code, so the users or machines can immediately
                           understand the current situation and act accordingly.
                           The Severity field MUST be set only when Status=False.
+                        maxLength: 32
                         type: string
                       status:
                         description: status of the condition, one of True, False, Unknown.
@@ -435,6 +443,8 @@ spec:
                           type of condition in CamelCase or in foo.example.com/CamelCase.
                           Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
                           can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                     required:
                       - lastTransitionTime
@@ -483,6 +493,62 @@ spec:
                     per cooldown rather than per reconcile.
                   format: date-time
                   type: string
+                osUpdate:
+                  description: OSUpdate records an explicitly requested, serialized host update.
+                  properties:
+                    bootTimeBefore:
+                      description: |-
+                        BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+                        install, erase or restart starts, so the reboot is detected by the boot
+                        time moving.
+                      format: int64
+                      type: integer
+                    completedAt:
+                      format: date-time
+                      type: string
+                    fromVersion:
+                      description: FromVersion is the macOS version the host ran when the update started.
+                      type: string
+                    id:
+                      description: |-
+                        ID names this update's job directory on the host, so a resumed update
+                        recognises the download and install it started and never one an earlier
+                        update left.
+                      type: string
+                    label:
+                      description: |-
+                        Label is the softwareupdate label resolved for Target, or for a
+                        reinstall the title of its full installer.
+                      type: string
+                    message:
+                      description: Message describes what the update is doing or why it stopped.
+                      type: string
+                    phase:
+                      description: |-
+                        Phase is one of Preparing, Draining, Downloading, Installing, Converging,
+                        Succeeded or Failed. A reinstall replaces Installing with Erasing,
+                        Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+                        Restarting.
+                      type: string
+                    phaseStartedAt:
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Reason is a machine-readable cause when Phase is Failed.
+                      type: string
+                    reinstall:
+                      description: |-
+                        Reinstall is set when the host is erased and Target installed from the
+                        full installer, as the tuist.dev/os-reinstall annotation asks, rather
+                        than updated in place.
+                      type: boolean
+                    startedAt:
+                      format: date-time
+                      type: string
+                    target:
+                      description: Target is the requested macOS version, e.g. "26.7".
+                      type: string
+                  type: object
                 phase:
                   description: |-
                     Phase tracks lifecycle for operators: Pending | Adopting |

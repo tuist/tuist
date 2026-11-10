@@ -51,7 +51,11 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
               "duration_ms" => %{"type" => "integer"},
               "cache_key" => %{"type" => ["string", "null"]},
               "cache_artifact_size" => %{"type" => ["integer", "null"]},
-              "started_at" => %{"type" => ["string", "null"]}
+              "started_at" => %{"type" => ["string", "null"]},
+              "failure_message" => %{
+                "type" => ["string", "null"],
+                "description" => "Why the task failed, when the plugin reported it (sanitized, at most 16 KiB)."
+              }
             },
             "required" => [
               "execution",
@@ -63,7 +67,8 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
               "duration_ms",
               "cache_key",
               "cache_artifact_size",
-              "started_at"
+              "started_at",
+              "failure_message"
             ],
             "additionalProperties" => false
           }
@@ -86,7 +91,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
-    with {:ok, _build, _project} <-
+    with {:ok, build, _project} <-
            MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
@@ -99,13 +104,17 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
       page_size = MCPTool.page_size(args)
 
       {tasks, meta} =
-        Gradle.list_tasks(build_run_id, %{
-          filters: filters,
-          order_by: [:duration_ms],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        Gradle.list_tasks(
+          build_run_id,
+          %{
+            filters: filters,
+            order_by: [:duration_ms],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          },
+          build.project_id
+        )
 
       {:ok,
        %{
@@ -121,7 +130,8 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
                duration_ms: task.duration_ms,
                cache_key: if(task.cache_key != "", do: task.cache_key),
                cache_artifact_size: task.cache_artifact_size,
-               started_at: Formatter.iso8601(task.started_at)
+               started_at: Formatter.iso8601(task.started_at),
+               failure_message: if(task.failure_message != "", do: task.failure_message)
              }
            end),
          pagination_metadata: MCPTool.pagination_metadata(meta)

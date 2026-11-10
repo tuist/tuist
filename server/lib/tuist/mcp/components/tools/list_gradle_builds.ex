@@ -51,8 +51,13 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
             "type" => "object",
             "properties" => %{
               "id" => %{"type" => "string"},
+              "actor" => Tuist.MCP.Tool.report_actor_schema(),
               "duration_ms" => %{"type" => "integer"},
               "status" => %{"type" => "string"},
+              "tuist_version" => %{
+                "type" => ["string", "null"],
+                "description" => "The reporting Tuist Gradle plugin version."
+              },
               "gradle_version" => %{"type" => "string"},
               "java_version" => %{"type" => "string"},
               "is_ci" => %{"type" => "boolean"},
@@ -133,8 +138,10 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
          Enum.map(builds, fn build ->
            %{
              id: build.id,
+             actor: Tuist.ReportActor.actor(build),
              duration_ms: build.duration_ms,
              status: to_string(build.status),
+             tuist_version: if(build.tuist_version != "", do: build.tuist_version),
              gradle_version: build.gradle_version,
              java_version: build.java_version,
              is_ci: build.is_ci,

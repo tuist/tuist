@@ -3,9 +3,10 @@ import GRPCCore
 import GRPCProtobuf
 import Synchronization
 
-/// Upload admission needs time for other transfers to release memory. Reads keep their short
-/// retry policy so overload doesn't stall generation. Neither policy retries before a server's
-/// minimum delay: a hint that exceeds the remaining wait budget causes failure instead.
+/// Upload admission needs time for other transfers to release memory, and an unavailable cache
+/// needs time for dropped connections to come back. Reads keep their short retry policy so
+/// overload doesn't stall generation. Neither policy retries before a server's minimum delay:
+/// a hint that exceeds the remaining wait budget causes failure instead.
 public struct REAPIBackpressureRetryPolicy: Sendable {
     public let maximumRetryCount: Int
     public let baseDelayMilliseconds: Int64

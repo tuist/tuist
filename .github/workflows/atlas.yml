@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - atlas/**
+      - condukt/**
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
@@ -14,6 +15,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - atlas/**
+      - condukt/**
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
@@ -35,6 +37,33 @@ defaults:
     working-directory: atlas
 
 jobs:
+  automation-contracts:
+    name: Automation compatibility
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise-install
+        with:
+          install: erlang elixir
+          working-directory: atlas
+      - name: Preserve published behavior contracts
+        env:
+          CONTRACT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git rev-parse --verify "$CONTRACT_BASE_SHA^{commit}"
+          previous="$(mktemp)"
+          trap 'rm -f "$previous"' EXIT
+          path="atlas/priv/automation/contracts/v1.json"
+          if git cat-file -e "$CONTRACT_BASE_SHA:$path"; then
+            git show "$CONTRACT_BASE_SHA:$path" > "$previous"
+          else
+            printf '{"operations":[]}' > "$previous"
+          fi
+          elixir scripts/check_automation_contracts.exs "$previous"
+
   deployment:
     uses: ./.github/workflows/atlas-deployment-validation.yml
 
@@ -241,8 +270,8 @@ jobs:
       - name: Put Once on PATH
         run: dirname "$(mise which once)" >> "$GITHUB_PATH"
 
-      - name: Install PDF text extraction tools
-        run: sudo apt-get update -y && sudo apt-get install -y poppler-utils
+      - name: Install document and label rendering tools
+        run: sudo apt-get update -y && sudo apt-get install -y poppler-utils libvips-tools fonts-dejavu-core
 
       - name: Cache deps
         uses: actions/cache@v6

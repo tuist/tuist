@@ -47,6 +47,9 @@ spec:
       {{- with $fleet.machine.egressBudgetMbps }}
       egressBudgetMbps: {{ . }}
       {{- end }}
+      {{- with $fleet.machine.vRackID }}
+      vRackID: {{ . | quote }}
+      {{- end }}
       {{- if $fleet.machine.kataRuntime }}
       kataRuntime: true
       {{- end }}
@@ -76,6 +79,9 @@ spec:
         cluster.x-k8s.io/cluster-name: {{ $clusterName }}
         tuist.dev/fleet: {{ $fleetName }}
         node.cluster.x-k8s.io/pool: {{ $fleet.nodePool | default (printf "kura-%s" $key) | quote }}
+        {{- with $fleet.shardStorageSite }}
+        node.cluster.x-k8s.io/shard-storage-site: {{ . | quote }}
+        {{- end }}
     spec:
       clusterName: {{ $clusterName }}
       version: {{ $fleet.kubernetesVersion | default "v1.34.8" | quote }}

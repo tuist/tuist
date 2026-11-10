@@ -12,6 +12,7 @@ import (
 	"github.com/go-logr/logr"
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,8 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -1441,25 +1441,23 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 func TestHostConfig_HashMatchesWhatIsStampedOnTheMachine(t *testing.T) {
 	r := &ScalewayAppleSiliconMachineReconciler{
 		FleetConfig: bootstrap.Config{
-			TartKubeletBinary:       []byte("tart-kubelet-binary"),
-			TailscaleBinaries:       []byte("tailscale-binaries"),
-			NodeExporterBinary:      []byte("node-exporter-binary"),
-			LogShipperBinary:        []byte("log-shipper-binary"),
-			LogShipURL:              "http://alloy.example.ts.net:3100/loki/api/v1/push",
-			LogShipEnv:              "production",
-			TailscaleTags:           []string{"tag:tuist-macmini-production"},
-			TailscaleAcceptRoutes:   true,
-			VMKuraEgressCIDR:        "10.128.0.0/12",
-			VMClusterDNSIP:          "10.96.0.10",
-			VMCachePNCIDR:           "172.16.0.0/22",
-			SSHIngressAllowCIDRs:    []string{"116.202.0.10/32"},
-			HostCPU:                 8,
-			HostMemoryMB:            14336,
-			MaxPods:                 3,
-			RunnerCacheVolumeGiB:    80,
-			CacheVolumeMasterCapGiB: 20,
-			CacheVolumeCASGiB:       11,
-			VNCRelayPort:            DashboardVNCRelayPort,
+			TartKubeletBinary:     []byte("tart-kubelet-binary"),
+			TailscaleBinaries:     []byte("tailscale-binaries"),
+			NodeExporterBinary:    []byte("node-exporter-binary"),
+			LogShipperBinary:      []byte("log-shipper-binary"),
+			LogShipURL:            "http://alloy.example.ts.net:3100/loki/api/v1/push",
+			LogShipEnv:            "production",
+			TailscaleTags:         []string{"tag:tuist-macmini-production"},
+			TailscaleAcceptRoutes: true,
+			VMKuraEgressCIDR:      "10.128.0.0/12",
+			VMClusterDNSIP:        "10.96.0.10",
+			VMCachePNCIDR:         "172.16.0.0/22",
+			SSHIngressAllowCIDRs:  []string{"116.202.0.10/32"},
+			HostCPU:               8,
+			HostMemoryMB:          14336,
+			MaxPods:               3,
+			RunnerCacheVolumeGiB:  80,
+			VNCRelayPort:          DashboardVNCRelayPort,
 		},
 	}
 
@@ -1590,14 +1588,12 @@ func TestDesiredHostConfigHash_MovesWithEverySKUField(t *testing.T) {
 // macOS fleet.
 func TestDesiredHostConfigHash_UnchangedForSingleGuestMachines(t *testing.T) {
 	fleet := bootstrap.Config{
-		TartKubeletBinary:       []byte("tart-kubelet-binary"),
-		HostCPU:                 8,
-		HostMemoryMB:            14336,
-		MaxPods:                 3,
-		RunnerCacheVolumeGiB:    80,
-		CacheVolumeMasterCapGiB: 20,
-		CacheVolumeCASGiB:       11,
-		VNCRelayPort:            DashboardVNCRelayPort,
+		TartKubeletBinary:    []byte("tart-kubelet-binary"),
+		HostCPU:              8,
+		HostMemoryMB:         14336,
+		MaxPods:              3,
+		RunnerCacheVolumeGiB: 80,
+		VNCRelayPort:         DashboardVNCRelayPort,
 	}
 	r := &ScalewayAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
 
@@ -1721,7 +1717,7 @@ func TestRunnerCacheVolumeGiBFor_DistinguishesExplicitZeroFromUnset(t *testing.T
 // never receive the launchd config that drops --runner-cache-root.
 func TestDesiredHostConfigHash_MovesWhenCacheVolumesAreExplicitlyDisabled(t *testing.T) {
 	r := &ScalewayAppleSiliconMachineReconciler{
-		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80, CacheVolumeMasterCapGiB: 20},
+		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80},
 		DefaultGuestCapacity: 1,
 	}
 	unset := &infrav1.ScalewayAppleSiliconMachine{}

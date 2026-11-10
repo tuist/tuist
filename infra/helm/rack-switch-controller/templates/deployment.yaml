@@ -34,12 +34,26 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --namespace={{ include "rack-switch-controller.watchNamespace" . }}
+            {{- if .Values.omada.site }}
             - --omada-url={{ .Values.omada.url }}
             {{- with .Values.omada.caSecret }}
             - --omada-ca-file=/etc/rack-switch-controller-ca/ca.crt
             {{- end }}
-            - --omada-site={{ required "omada.site is required" .Values.omada.site }}
+            - --omada-site={{ .Values.omada.site }}
             - --controller-address={{ required "omada.controllerAddress is required: the Omada controller's tailnet IP" .Values.omada.controllerAddress }}
+            {{- else if not .Values.picos.sshKeyItem }}
+            {{- fail "set omada.site, picos.sshKeyItem, or both: the controller has nothing to manage otherwise" }}
+            {{- end }}
+            {{- if .Values.picos.sshKeyItem }}
+            - --picos-user={{ .Values.picos.user }}
+            - --picos-confirm-after={{ .Values.picos.confirmAfter }}
+            {{- with .Values.picos.egress }}
+            {{- if .proxyGroup }}
+            - --tailscale-egress-namespace={{ required "picos.egress.namespace is the Tailscale operator's namespace" .namespace }}
+            - --tailscale-egress-proxy-group={{ .proxyGroup }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             - --credentials-dir=/etc/rack-switch-controller
             - --resync-interval={{ .Values.resyncInterval }}
             - --enable-vlans={{ .Values.gates.vlans }}
@@ -75,7 +89,7 @@ spec:
             - name: credentials
               mountPath: /etc/rack-switch-controller
               readOnly: true
-            {{- if .Values.omada.caSecret }}
+            {{- if and .Values.omada.site .Values.omada.caSecret }}
             - name: omada-ca
               mountPath: /etc/rack-switch-controller-ca
               readOnly: true
@@ -86,6 +100,7 @@ spec:
         - name: credentials
           projected:
             sources:
+              {{- if .Values.omada.site }}
               - secret:
                   name: rack-switch-controller-omada-api
                   items:
@@ -109,6 +124,17 @@ spec:
                     - key: password
                       path: factory-password
               {{- end }}
+              {{- end }}
+              {{- if .Values.picos.sshKeyItem }}
+              - secret:
+                  name: rack-switch-controller-picos
+                  items:
+                    - key: ssh-key
+                      path: picos-ssh-key
+                    - key: admin-password
+                      path: picos-admin-password
+              {{- end }}
+        {{- if .Values.omada.site }}
         {{- with .Values.omada.caSecret }}
         - name: omada-ca
           secret:
@@ -116,6 +142,7 @@ spec:
             items:
               - key: ca.crt
                 path: ca.crt
+        {{- end }}
         {{- end }}
       affinity:
         nodeAffinity:

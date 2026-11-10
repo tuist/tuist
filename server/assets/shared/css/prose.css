@@ -17,8 +17,18 @@
     padding: var(--noora-spacing-1);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    /* Inline code (commands, paths, identifiers) stays LTR inside RTL text. */
+    direction: ltr;
+    unicode-bidi: isolate;
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+
+  /* Code blocks outside a code window stay LTR on RTL pages. */
+  & pre {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: start;
   }
 
   & blockquote {

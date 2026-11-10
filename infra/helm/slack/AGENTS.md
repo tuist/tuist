@@ -1,38 +1,6 @@
-# Slack Helm Chart
+# Slack Chart
 
-## Overview
-
-Standalone Helm chart for the public Slack invitation app deployment. This
-chart owns the `slack.tuist.dev` release boundary and is deployed
-independently from the main Tuist server chart.
-
-## Scope
-
-- Slack invitation app `Deployment`, `Service`, `Ingress`, and runtime `Secret`
-- SQLite `PersistentVolumeClaim`
-- Optional `ExternalSecret` wiring for managed-cluster runtime credentials
-- App `ServiceAccount` and namespace-scoped `NetworkPolicy`
-- Production overlay values for the managed cluster
-- Release-specific validation and operational documentation
-
-## Conventions
-
-- Keep this chart focused on the Slack invitation app only. Do not add Tuist
-  server workloads or shared platform controllers here.
-- Assume shared-cluster deployment and keep the production overlay hardened by
-  default: no service-account token mount, restricted container privileges, and
-  explicit ingress / egress boundaries.
-- Because the app uses a single SQLite database file, prefer a single replica
-  with a `Recreate` rollout strategy over rolling two pods against one PVC.
-- Validate with `helm lint` and `helm template` using placeholder runtime
-  secrets from `values-ci.yaml`.
-
-## Local Validation
-
-```bash
-helm lint infra/helm/slack \
-  -f infra/helm/slack/values-ci.yaml
-helm template slack infra/helm/slack \
-  -f infra/helm/slack/values-production.yaml \
-  -f infra/helm/slack/values-ci.yaml
-```
+- Keep this standalone release app-only: no server workloads or shared platform controllers.
+- Preserve production hardening: no service-account token automount, restricted container privileges, explicit ingress/egress boundaries.
+- SQLite uses one PVC: keep a single replica and `Recreate` strategy, not overlapping rolling-update Pods.
+- Run the `helm lint` and production-plus-CI `helm template` commands in [README.md](README.md#validation) from the repository root. Use CI placeholder secrets, not real credentials.

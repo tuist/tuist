@@ -5,12 +5,19 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Entire.Client, as: Entire
+  alias Tuist.Entire.Installation
+  alias Tuist.EntireTrails
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.Bitrise
+  alias Tuist.Runners.Bitrise.Client, as: BitriseClient
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -55,8 +62,48 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Connect any of your GitHub repositories to a project"
   end
 
+  describe "Amp workspaces" do
+    test "connects a workspace by its ID and disconnects it", %{conn: conn, account: account} do
+      workspace_id = "8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      component = with_target(lv, "#amp-workspaces")
+
+      assert render_submit(component, "connect", %{"workspace_id" => "my-workspace"}) =~ "Enter the workspace ID"
+      assert Tuist.Accounts.list_amp_workspace_connections(account) == []
+
+      render_submit(component, "connect", %{"workspace_id" => " #{workspace_id} "})
+
+      assert [%{workspace_id: ^workspace_id} = connection] = Tuist.Accounts.list_amp_workspace_connections(account)
+      assert has_element?(lv, "#amp-workspace-#{connection.id}", workspace_id)
+      assert has_element?(lv, "#amp-workspace-#{connection.id}", "All projects")
+
+      assert render_submit(component, "connect", %{"workspace_id" => workspace_id}) =~
+               "This Amp workspace is already connected."
+
+      assert render_submit(component, "connect", %{
+               "workspace_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11",
+               "project_id" => "x"
+             }) =~
+               "Enter the project ID as a UUID"
+
+      project_id = "1e345004-78e8-4e1d-bb72-27bb1a22d450"
+
+      render_submit(component, "connect", %{
+        "workspace_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11",
+        "project_id" => project_id
+      })
+
+      assert render(lv) =~ "Project #{project_id}"
+
+      lv |> element("#amp-workspace-#{connection.id} button", "Disconnect") |> render_click()
+
+      assert [%{project_id: ^project_id}] = Tuist.Accounts.list_amp_workspace_connections(account)
+      refute has_element?(lv, "#amp-workspace-#{connection.id}")
+    end
+  end
+
   describe "Origin visibility" do
-    test "shows unconfigured Origin in development without enabling installation", %{
+    test "hides unconfigured Origin in development", %{
       conn: conn,
       organization: organization
     } do
@@ -65,16 +112,14 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
-      assert has_element?(lv, "[data-part=origin-card-section]")
-      assert html =~ "Origin app not configured"
-      assert html =~ "TUIST_ORIGIN_APP_ID"
-      assert html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
-      assert has_element?(lv, "[data-part=origin-card-section] button[data-variant=primary][disabled]", "Connect")
-      refute has_element?(lv, "[data-part=origin-card-section] a", "Connect")
+      refute has_element?(lv, "[data-part=origin-card-section]")
+      refute html =~ "Origin app not configured"
+      refute html =~ "TUIST_ORIGIN_APP_ID"
+      refute html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
       refute has_element?(lv, "#add-origin-connection-modal")
     end
 
-    test "hides unconfigured Origin outside development", %{conn: conn, organization: organization} do
+    test "hides unconfigured Origin on a self-hosted release", %{conn: conn, organization: organization} do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(OriginClient, :configured?, fn -> false end)
 
@@ -83,7 +128,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute has_element?(lv, "[data-part=origin-card-section]")
     end
 
-    test "enables installation when Origin is configured", %{
+    test "shows configured Origin after GitHub and enables installation", %{
       conn: conn,
       organization: organization,
       account: account
@@ -96,9 +141,11 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert has_element?(
                lv,
                "[data-part=origin-card-section] a.noora-button[data-variant=primary][href='/integrations/origin/start?account_id=#{account.id}']",
-               "Connect"
+               "Install Origin App"
              )
 
+      assert html =~ "Connect any of your Origin repositories to a project"
+      assert has_element?(lv, "#integrations > [data-part=github-card-section] + [data-part=origin-card-section]")
       refute html =~ "Origin app not configured"
     end
   end
@@ -133,15 +180,16 @@ defmodule TuistWeb.IntegrationsLiveTest do
       %{origin_installation: installation, origin_repositories: repositories}
     end
 
-    test "shows an account connection and Noora repository modal instead of raw inputs", %{
+    test "shows integration actions without standalone installation rows", %{
       conn: conn,
       organization: organization,
       account: account
     } do
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
-      assert has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "acme")
-      assert has_element?(lv, "[data-part=installation-card-section] button", "Disconnect")
+      refute has_element?(lv, "[data-part=installation-card-section]")
+      refute has_element?(lv, "[data-part=origin-card-section] [data-part=connection-card-section]")
+      refute has_element?(lv, "[phx-click=disconnect-origin]")
 
       assert has_element?(
                lv,
@@ -162,7 +210,6 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute has_element?(lv, "[data-part=origin-card-section] select")
       refute has_element?(lv, "[data-part=origin-card-section] input[name=repository]")
       refute has_element?(lv, "#connect-origin-project")
-      refute has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "ns_origin")
       assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
     end
 
@@ -192,6 +239,58 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert has_element?(lv, "#origin-connection-actions-#{connection.id}", "Manage")
       refute has_element?(lv, "[data-part=github-card-section] [data-value='#{connection.id}']")
       assert_push_event(lv, "close-modal", %{id: "add-origin-connection-modal"})
+    end
+
+    test "renders both providers with the same project connection controls", %{
+      conn: conn,
+      organization: organization,
+      account: account,
+      project: origin_project,
+      origin_installation: origin_installation
+    } do
+      github_project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      github_installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          html_url: "https://github.com/organizations/acme/settings/installations/123"
+        )
+
+      stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
+
+      for {provider, project, installation_key, installation} <- [
+            {:github, github_project, :github_app_installation_id, github_installation},
+            {:origin, origin_project, :origin_app_installation_id, origin_installation}
+          ] do
+        {:ok, _} =
+          Projects.create_vcs_connection(%{
+            :project_id => project.id,
+            :provider => provider,
+            :repository_full_handle => "acme/#{provider}",
+            installation_key => installation.id
+          })
+      end
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      html = render_async(lv)
+
+      for {provider, project} <- [github: github_project, origin: origin_project] do
+        card = "[data-part=#{provider}-card-section]"
+        row = "#{card} [data-part=connection-card-section]"
+        assert has_element?(lv, "#{row} [data-part=header] [data-part=label]", project.name)
+        assert has_element?(lv, "#{row} [data-part=header] [data-part=label]", "acme/#{provider}")
+        assert has_element?(lv, "#{row} [data-part=footer] [data-part=subtitle]", "Connected")
+        assert has_element?(lv, "#{row} .noora-inline-dropdown", "Manage")
+        assert has_element?(lv, "#{row} [phx-click=delete-connection]", "Remove connection")
+        assert has_element?(lv, "#{card} > [data-part=content] > [data-part=actions] a", "Manage integration")
+
+        assert html
+               |> Floki.parse_document!()
+               |> Floki.find("#{card} > [data-part=content] > .noora-card__section")
+               |> length() == 1
+      end
+
+      refute has_element?(lv, "[data-part=installation-card-section]")
     end
 
     test "requires a project when several are available and clears modal selections on cancel", %{
@@ -270,7 +369,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert Repo.get!(Projects.VCSConnection, connection.id).provider == :github
     end
 
-    test "disconnects the account and its project mappings and restores Connect", %{
+    test "removes a project connection without disconnecting the integration", %{
       conn: conn,
       organization: organization,
       project: project,
@@ -286,24 +385,63 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
-      render_click(lv, "disconnect-origin", %{"id" => installation.id})
-      render_async(lv)
-      refute Repo.get(OriginInstallation, installation.id)
+
+      lv
+      |> element("#origin-connection-actions-#{connection.id} [phx-click=delete-connection]")
+      |> render_click()
+
+      assert Repo.get!(OriginInstallation, installation.id)
       refute Repo.get(Projects.VCSConnection, connection.id)
-      assert has_element?(lv, "[data-part=origin-card-section] a[data-variant=primary]", "Connect")
-      refute has_element?(lv, "#add-origin-connection-modal")
+      refute has_element?(lv, "[data-part=origin-card-section] [data-part=connection-card-section]")
+      assert has_element?(lv, "[data-part=origin-card-section] a", "Manage integration")
+      assert has_element?(lv, "#add-origin-connection-modal")
+      assert origin_element?(lv, "#origin-project-dropdown-label-portal", project.name)
     end
 
-    test "does not expose or disconnect another account's installation", %{conn: conn, organization: organization} do
+    test "shows setup guidance without installation rows when server credentials are missing", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      origin_installation: installation
+    } do
+      {:ok, connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :origin,
+          repository_full_handle: "acme/native",
+          origin_app_installation_id: installation.id
+        })
+
+      stub(OriginClient, :configured?, fn -> false end)
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+
+      assert has_element?(lv, "[data-part=origin-card-section]")
+      assert html =~ "Origin app not configured"
+      assert html =~ "TUIST_ORIGIN_APP_ID"
+      assert html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
+      assert has_element?(lv, "[data-part=origin-card-section] button[disabled]", "Manage integration")
+      refute has_element?(lv, "[data-part=installation-card-section]")
+      refute has_element?(lv, "[phx-click=disconnect-origin]")
+
+      lv
+      |> element("#origin-connection-actions-#{connection.id} [phx-click=delete-connection]")
+      |> render_click()
+
+      refute Repo.get(Projects.VCSConnection, connection.id)
+      assert Repo.get!(OriginInstallation, installation.id)
+    end
+
+    test "does not expose or select another account's installation", %{conn: conn, organization: organization} do
       other = AccountsFixtures.user_fixture()
       installation = origin_installation_fixture(other.account, installation_id: "i_other", namespace_id: "ns_other")
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
       refute has_element?(lv, "[data-value='#{installation.id}']")
       render_hook(lv, "select-origin-installation", %{"installation_id" => installation.id})
-      render_click(lv, "disconnect-origin", %{"id" => installation.id})
       assert Repo.get!(OriginInstallation, installation.id).account_id == other.account.id
-      assert has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "acme")
+      assert origin_element?(lv, "#origin-repository-dropdown-content-portal .noora-dropdown-item", "acme/native")
+      refute origin_element?(lv, "#origin-installation-dropdown")
     end
 
     test "shows discovery errors with retry rather than an empty repository state", %{
@@ -314,8 +452,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
       stub(OriginClient, :list_repositories, fn _ -> {:error, :origin_unavailable} end)
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
-      assert has_element?(lv, ".noora-alert", "Could not load Origin repositories")
-      refute has_element?(lv, ".noora-alert", "No native Origin repositories available")
+      assert origin_element?(lv, ".noora-alert", "Could not load Origin repositories")
+      refute origin_element?(lv, ".noora-alert", "No native Origin repositories available")
       refute has_element?(lv, "#add-origin-connection-modal button[disabled]", "Add new project connection")
       stub(OriginClient, :list_repositories, fn _ -> {:ok, repositories} end)
       render_click(lv, "retry-origin-details")
@@ -345,9 +483,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert_receive {:origin_loading, loader}, 2_000
 
       try do
-        assert has_element?(lv, ".noora-alert", "Loading repositories...")
+        assert origin_element?(lv, ".noora-alert", "Loading repositories...")
         assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
-        refute has_element?(lv, ".noora-alert", "No native Origin repositories available")
+        refute origin_element?(lv, ".noora-alert", "No native Origin repositories available")
       after
         send(loader, :release_origin)
       end
@@ -406,6 +544,81 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert origin_element?(lv, ".noora-alert", "No native Origin repositories available")
       refute origin_element?(lv, ".noora-alert", "Could not load Origin repositories")
       assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+    end
+  end
+
+  describe "Entire Trail insights" do
+    setup %{account: account} do
+      stub(Entire, :configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn flag, _ -> flag == :entire_trails end)
+      installation = Repo.insert!(%Installation{account_id: account.id, remote_id: "ins_live"})
+      %{entire_installation: installation}
+    end
+
+    test "creates and removes a project connection without a GitHub installation", %{
+      conn: conn,
+      account: account,
+      project: project,
+      entire_installation: installation
+    } do
+      stub(Entire, :repositories, fn ^installation ->
+        {:ok, [%{"id" => "repo_live", "full_name" => "tuist/ios"}]}
+      end)
+
+      stub(Entire, :repository, fn ^installation, "repo_live" ->
+        {:ok, %{id: "repo_live", name: "tuist/ios"}}
+      end)
+
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Your access to repositories depends on your Entire and Tuist integration setup."
+      refute has_element?(lv, "a", "Install Entire plugin")
+
+      assert has_element?(
+               lv,
+               ~s([data-part=entire-card-section] a[href="/integrations/entire/start?account_handle=#{account.name}"][target=_blank][rel="noopener noreferrer"]),
+               "Manage integration"
+             )
+
+      render_click(lv, "select-entire-repository", %{
+        "repository" => "#{installation.id}:repo_live"
+      })
+
+      render_click(lv, "create-entire-connection")
+      assert [%{project_id: project_id, repository_id: "repo_live"} = connection] = EntireTrails.connections(account)
+      assert project_id == project.id
+      assert has_element?(lv, "[data-part=connection-card-section]", "tuist/ios")
+      assert has_element?(lv, "[data-part=connection-card-section]", "Connected")
+      assert has_element?(lv, "#entire-connection-actions-#{connection.id}", "Manage")
+      assert has_element?(lv, "#entire-connection-modal")
+
+      render_click(lv, "delete-entire-connection", %{"connection_id" => connection.id})
+      assert EntireTrails.connections(account) == []
+      refute has_element?(lv, "[data-part=connection-card-section]")
+    end
+
+    test "can retry a failed repository load", %{conn: conn, account: account} do
+      stub(Entire, :repositories, fn _ -> {:error, :unavailable} end)
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Could not load Entire repositories."
+
+      stub(Entire, :repositories, fn _ -> {:ok, [%{"id" => "repo_live", "full_name" => "tuist/ios"}]} end)
+      render_click(lv, "retry-entire-repositories")
+      html = render_async(lv)
+      refute html =~ "Could not load Entire repositories."
+      assert has_element?(lv, "#entire-connection-modal")
+      refute has_element?(lv, "a", "Install Entire plugin")
+    end
+
+    test "shows only installation before the plugin is installed", %{
+      conn: conn,
+      account: account,
+      entire_installation: installation
+    } do
+      Repo.delete!(installation)
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      render_async(lv)
+      assert has_element?(lv, "a[data-variant=primary]", "Install Entire plugin")
+      refute has_element?(lv, "#entire-connection-modal")
     end
   end
 
@@ -1032,6 +1245,183 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert project_id == project.id
   end
 
+  describe "Bitrise" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "connects with only an API token and shows the workspace it belongs to", %{conn: conn, account: account} do
+      expect(BitriseClient, :list_workspaces, fn "bitwat_private" ->
+        {:ok, [%{slug: "6f7fab30975d4c3a", name: "Acme Workspace"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert html =~ "connect-bitrise-form"
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#bitrise-api-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html = lv |> form("#connect-bitrise-form", %{api_token: "bitwat_private"}) |> render_submit()
+
+      assert %{workspace_slug: "6f7fab30975d4c3a", api_token: "bitwat_private"} = Bitrise.get_connection(account.id)
+      refute html =~ "bitwat_private"
+      assert html =~ "Connected to Acme Workspace."
+      refute has_element?(lv, "#connect-bitrise-form")
+
+      assert render_async(lv) =~ "This workspace has no self-hosted runner pools yet."
+    end
+
+    test "asks for the workspace when the token sees several", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn "personal" ->
+        {:ok, [%{slug: "a1", name: "Acme"}, %{slug: "b2", name: "Beta"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      html = lv |> form("#connect-bitrise-form", %{api_token: "personal"}) |> render_submit()
+      document = Floki.parse_document!(html)
+
+      assert Bitrise.get_connection(account.id) == nil
+      assert Floki.find(document, "#bitrise-workspace") != []
+      assert Floki.find(document, "#bitrise-api-token") == []
+
+      lv |> element("#connect-bitrise-form") |> render_submit(%{workspace_slug: "b2"})
+
+      assert %{workspace_slug: "b2", api_token: "personal"} = Bitrise.get_connection(account.id)
+    end
+
+    test "explains a rejected token", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:error, :unauthorized} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      html = lv |> form("#connect-bitrise-form", %{api_token: "revoked"}) |> render_submit()
+
+      assert html =~ "Bitrise rejected this API token."
+      assert Bitrise.get_connection(account.id) == nil
+    end
+
+    test "pairs a pool picked from Bitrise with a profile, keeps its token secret, and removes it", %{
+      conn: conn,
+      account: account
+    } do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection ->
+        {:ok, [%{stack_identifier: "agent-pool-a0c641c0", name: "tuist-macos"}]}
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      document = lv |> render_async() |> Floki.parse_document!()
+
+      assert has_element?(lv, "#bitrise-pools [data-part=pools-header] #add-bitrise-pool-modal")
+      refute has_element?(lv, "#bitrise-pools > #add-bitrise-pool-form")
+      assert Floki.find(document, ~s(#bitrise-pool-profile option[selected][value="tuist-macos"])) != []
+
+      label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{
+          stack_identifier: "agent-pool-a0c641c0",
+          profile_label: label,
+          intro_secret: "bitrise-private-intro"
+        })
+        |> render_submit()
+
+      assert [%{id: pool_id, name: "tuist-macos", stack_identifier: "agent-pool-a0c641c0", profile_label: ^label}] =
+               Bitrise.list_pools(account.id)
+
+      refute html =~ "bitrise-private-intro"
+      assert has_element?(lv, "#bitrise-pool-#{pool_id} [data-part=name]", "tuist-macos")
+
+      html = render_async(lv)
+      refute html =~ "Reload pools"
+      refute has_element?(lv, "#add-bitrise-pool-modal")
+
+      lv
+      |> element(~s(#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool][aria-label="Remove pool"]))
+      |> render_click()
+
+      assert Bitrise.list_pools(account.id) == []
+
+      lv |> element("button[phx-click=disconnect-bitrise]") |> render_click()
+      assert Bitrise.get_connection(account.id) == nil
+      assert has_element?(lv, "#connect-bitrise-form")
+    end
+
+    test "rotates the API token only for the connected workspace", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn
+        "first" -> {:ok, [%{slug: "a1", name: "Acme"}]}
+        "rotated" -> {:ok, [%{slug: "a1", name: "Acme"}]}
+        "elsewhere" -> {:ok, [%{slug: "b2", name: "Beta"}]}
+      end)
+
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:ok, []} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "first")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html = lv |> form("#bitrise-token-form", %{api_token: "elsewhere"}) |> render_submit()
+      assert html =~ "This API token can&#39;t see the connected workspace."
+      assert Bitrise.get_connection(account.id).api_token == "first"
+
+      html = lv |> form("#bitrise-token-form", %{api_token: "rotated"}) |> render_submit()
+      assert html =~ "Bitrise API token updated."
+      refute html =~ "rotated"
+      assert Bitrise.get_connection(account.id).api_token == "rotated"
+    end
+
+    test "falls back to typing the stack ID when Bitrise cannot list pools", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:error, {:transport, :timeout}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Enter the pool&#39;s stack ID"
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{stack_identifier: "agent-pool-a0c641c0", intro_secret: ""})
+        |> render_submit()
+
+      assert html =~ "Choose a runner pool and paste its pool token."
+      assert Bitrise.list_pools(account.id) == []
+
+      html = render_click(lv, "close-add-bitrise-pool-modal", %{})
+      refute html =~ "Choose a runner pool and paste its pool token."
+    end
+
+    test "shows the card disconnected when Bitrise was disconnected elsewhere", %{conn: conn, account: account} do
+      stub(BitriseClient, :list_workspaces, fn _token -> {:ok, [%{slug: "a1", name: "Acme"}]} end)
+      {:ok, _connection} = Bitrise.connect(account.id, "bitwat_private")
+      stub(BitriseClient, :list_self_hosted_pools, fn _connection -> {:error, {:transport, :timeout}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      render_async(lv)
+      :ok = Bitrise.delete_connection(account.id)
+
+      label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{
+          stack_identifier: "agent-pool-a0c641c0",
+          profile_label: label,
+          intro_secret: "bitrise-private-intro"
+        })
+        |> render_submit()
+
+      refute html =~ "Choose a runner pool and paste its pool token."
+      assert has_element?(lv, "#connect-bitrise-form")
+      refute has_element?(lv, "#bitrise-pools")
+    end
+  end
+
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
     setup do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
@@ -1117,6 +1507,38 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert GitLab.list_connections(account.id) == []
       assert has_element?(lv, "#connect-gitlab-form")
       refute has_element?(lv, "button[phx-click=disconnect-gitlab]")
+    end
+
+    test "stores an optional API token without reflecting it and keeps it on a blank save", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#gitlab-api-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "glrt-private-token",
+          api_token: "glpat-private-api-token"
+        })
+        |> render_submit()
+
+      [connection] = GitLab.list_connections(account.id)
+      assert connection.api_token == "glpat-private-api-token"
+      refute html =~ "glpat-private-api-token"
+
+      html =
+        lv
+        |> form("#gitlab-connection-#{connection.id}", %{runner_token: "", api_token: ""})
+        |> render_submit()
+
+      assert [%{api_token: "glpat-private-api-token"}] = GitLab.list_connections(account.id)
+      refute html =~ "glpat-private-api-token"
     end
 
     test "rejects invalid credentials without exposing the submitted token", %{conn: conn, account: account} do

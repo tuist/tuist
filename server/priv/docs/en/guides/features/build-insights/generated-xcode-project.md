@@ -9,7 +9,6 @@
 
 > [!NOTE]
 > Auto-generated schemes automatically include the `tuist inspect build` post-action.
-
 >
 > If you do not want to track build insights in generated schemes, disable it using [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
@@ -63,60 +62,12 @@ buildAction: .buildAction(
 )
 ```
 
-## Build Insights in CI {#continuous-integration}
+<!-- @snippet: ./_xcode-ci -->
 
-To track build insights on CI, make sure CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+<!-- @snippet: ./_xcode-network-trusted -->
 
-For Xcodebuild-driven CI you need to:
-- Use <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` command.
+<!-- @snippet: ./_xcode-machine-metrics -->
 
-Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
+<!-- @snippet: ./_xcode-actor-claim -->
 
-## Machine metrics {#machine-metrics}
-
-Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:
-
-```bash
-tuist setup insights
-```
-
-This runs a local daemon that samples metrics in the background. The data is picked up automatically by `tuist inspect build` and uploaded with the build report.
-
-> [!TIP]
-> **Ci**
->
-> Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
-
-To stop collecting machine metrics, run:
-
-```bash
-tuist teardown insights
-```
-
-This unloads the daemon's LaunchAgent, removes its plist, and deletes the sampled metrics and daemon logs from `~/.local/state`, so nothing is left running in the background.
-
-
-## Custom metadata {#custom-metadata}
-
-You can attach metadata to builds with environment variables to improve filtering.
-
-### Environment variables
-
-| Variable | Format | Description |
-|----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Comma-separated | Multiple tags in one variable. |
-| `TUIST_BUILD_VALUE_*` | Single value | Key-value pair where suffix is the key. |
-
-### Examples
-
-Set these values in CI or your shell before invoking your build:
-
-```sh
-export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-```
-
-```sh
-export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
-export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
-```
+<!-- @snippet: ./_xcode-custom-metadata -->

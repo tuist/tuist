@@ -1,251 +1,95 @@
 ---
 {
   "title": "Previews",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn how to generate and share previews of your apps with anyone."
+  "titleTemplate": ":title · 功能 · 指南 · Tuist",
+  "description": "通过 Tuist Previews 分享移动应用、桌面应用和命令行工具，让团队成员无需在本地重新构建即可试用。"
 }
 ---
-# 预览{#previews}
+# 预览 {#previews}
 
-警告要求
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">图斯特账户和项目</LocalizedLink>
-<!-- -->
-:::
+Tuist Previews 让团队成员无需在本地重新构建即可试用移动应用、桌面应用和命令行工具。将构建发布到你的 Tuist 项目，然后分享其预览链接。
 
-在开发应用程序时，您可能希望与他人分享以获得反馈。传统上，团队会通过构建、签名并将应用程序推送到 Apple 的
-[TestFlight](https://developer.apple.com/testflight/)
-等平台来实现这一目的。然而，这个过程可能会很繁琐和缓慢，尤其是当您只是想从同事或朋友那里获得快速反馈时。
+## 可预览的内容 {#what-you-can-preview}
 
-为了简化这一过程，Tuist 提供了一种生成并与任何人共享应用程序预览的方法。
+- **移动应用：** Android APK 以及 Apple 应用程序包或 IPA。受支持的设备、模拟器和签名要求取决于发布工作流。
+- **桌面应用：** macOS 应用程序包。
+- **命令行工具：** macOS 或 Linux 可执行文件，可单独提供或与依赖项打包在一起。
 
-> [!WARNING]
-> **Device Builds Need To Be Signed**
->
-> 目前，在为设备构建应用程序时，您有责任确保应用程序已正确签名。我们计划在未来简化这项工作。
+请参阅<.localized_link href="/guides/features/previews/types">支持的类型</.localized_link>以了解打包和兼容性要求。制品类型决定预览可以在哪里运行；它并不规定由哪个构建系统生成。
 
+## 发布预览 {#publish-a-preview}
 
-代码组
-```bash [Tuist Project]
-tuist generate App
-xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
-xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App
-```
-```bash [Xcode Project]
-xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
-xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
-tuist share App --configuration Debug --platforms iOS
-tuist share App.ipa # Share an existing .ipa file
-```
-<!-- -->
-:::
+选择你的构建系统以获取设置和发布命令：
 
-该命令将生成一个链接，你可以与任何人共享该链接，让他们在模拟器或实际设备上运行应用程序。他们只需运行下面的命令即可：
+<.home_cards>
+  <.home_card
+    title="Xcode"
+    details="分享来自现有 Xcode 项目或 Tuist 生成项目的应用程序。"
+    link="/guides/features/previews/xcode"
+  />
+  <.home_card
+    title="Gradle"
+    details="分享来自 Gradle 项目的 Android 应用和原生命令行工具。"
+    link="/guides/features/previews/gradle"
+  />
+  <.home_card
+    title="Bazel"
+    details="通过配套的 Bazel 规则分享 Android 应用、Apple 应用和命令行工具。"
+    link="/guides/features/previews/bazel"
+  />
+  <.home_card
+    title="Once"
+    details="使用 Once 的原生制品提供者发布符合条件的 Android、Apple 模拟器和 macOS 应用程序。"
+    link="/guides/features/previews/once"
+  />
+</.home_cards>
 
-```bash
-tuist run {url}
-tuist run --device "My iPhone" {url} # Run the app on a specific device
-```
+如果你已有受支持的构建，请使用 <.localized_link href="/cli/share">`tuist share`</.localized_link> 发布它，而无需集成构建系统。打包和签名要求仍然适用。
 
-共享`.ipa` 文件时，可以使用预览链接直接从移动设备下载应用程序。`.ipa` 预览链接默认为_公共_
-。将来，您可以选择将其设置为私有，这样链接的接收者就需要使用 Tuist 帐户进行身份验证才能下载应用程序。
+## 运行预览 {#run-a-preview}
 
-`tuist run` 还能根据指定符运行最新预览，如`latest` 、分支名称或特定提交哈希值：
+接收者不需要生成预览的构建系统。选择访问兼容构建的方式：
 
-```bash
-tuist run App@latest # Runs latest App preview associated with the project's default branch
-tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
-tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
-```
+<.home_cards>
+  <.home_card
+    title="CLI"
+    details="使用 tuist run 运行移动应用、macOS 应用和命令行预览。"
+    link="/guides/features/previews/run/cli"
+  />
+  <.home_card
+    title="macOS 应用"
+    details="通过 Tuist 菜单栏应用运行兼容的 Apple 预览。"
+    link="/guides/features/previews/run/macos"
+  />
+  <.home_card
+    title="iPhone 应用"
+    details="在 iPhone 上查找并访问你的 Apple 预览。"
+    link="/guides/features/previews/run/ios"
+  />
+</.home_cards>
 
-> [!WARNING]
-> **Unique Build Numbers In Ci**
->
-> 利用大多数 CI 提供商公开的 CI 运行编号，确保`CFBundleVersion` （构建版本）是唯一的。例如，在 GitHub Actions
-> 中，可以将`CFBundleVersion` 设置为 <code v-pre>${{ github.run_number }}</code> 变量。
->
-> 上传具有相同二进制文件（构建）和相同`CFBundleVersion` 的预览将失败。
+## 可见性 {#visibility}
 
+预览使用项目的默认可见性。私有预览需要身份验证和项目访问权限。仅当构建可以与任何人共享时，才在项目设置中将预览设为公开。公开可见性不会绕过平台签名或设备安装要求。
 
-## 轨道{#tracks}
+## 轨道 {#tracks}
 
-轨迹允许你将预览组织到命名的组中。例如，你可以为内部测试人员创建`beta` 跟踪，为自动构建创建`nightly`
-跟踪。轨迹可以轻松创建--只需在共享时指定一个轨迹名称，如果不存在，它就会自动创建。
+轨道将预览组织为命名组，例如 `beta` 用于内部测试人员，或 `nightly` 用于自动化构建。在工作流的发布命令中指定轨道；轨道会在首次使用时延迟创建。使用它们按用途对预览进行分组，并在 Tuist 仪表板中过滤预览。
 
-要共享特定轨道上的预览，请使用`--track` 选项：
+## README 徽章 {#readme-badge}
 
-```bash
-tuist share App --track beta
-tuist share App --track nightly
-```
+在你的仓库的 `README` 中添加一个指向最新预览的徽章：
 
-这对以下方面很有用
-- **组织预览** ：按目的对预览进行分组（例如，`beta`,`nightly`,`internal`)
-- **应用内更新** ：Tuist SDK 使用轨迹来决定通知用户哪些更新
-- **过滤** ：在 Tuist 面板中按曲目轻松查找和管理预览
+[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-> [!WARNING]
-> **Previews' Visibility**
->
-> 只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
+将账户和项目句柄替换为你自己的：
 
-
-## Tuist macOS 应用程序{#tuist-macos-app}
-
-<div style="display: flex; flex-direction: column; align-items: center;">
-    <img src="/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1>
-    <a href="https://tuist.dev/download" style="text-decoration: none;">Download</a>
-    <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
-</div>
-
-为了让运行 Tuist 预览变得更加简单，我们开发了一个 Tuist macOS 菜单栏应用程序。您可以
-[下载](https://tuist.dev/download) macOS 应用程序，而无需通过 Tuist CLI 运行预览。您也可以通过运行`brew
-install --cask tuist/tuist/tuist` 来安装该应用。
-
-现在点击预览页面中的 "运行"，macOS 应用程序就会自动在当前选定的设备上启动。
-
-警告要求
-<!-- -->
-您需要在本地安装 Xcode，并使用 macOS 14 或更高版本。
-<!-- -->
-:::
-
-## Tuist iOS 应用程序{#tuist-ios-app}
-
-<div style="display: flex; flex-direction: column; align-items: center;">
-    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
-    <h1 style="padding-top: 2px;">Tuist</h1>
-    <img src="/images/guides/features/tuist-app.png" style="width: 300px; padding-top: 8px;" />
-    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
-        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" style="height: 40px;">
-    </a>
-</div>
-
-与 macOS 应用程序类似，Tuist iOS 应用程序也能简化预览的访问和运行。
-
-## 拉取/合并请求注释{#pullmerge-request-comments}
-
-> [!WARNING]
-> **Integration With Git Platform Required**
->
-> 要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-> 平台</LocalizedLink>集成。
-
-
-测试新功能应该是代码审查的一部分。但必须在本地构建应用程序会增加不必要的麻烦，这往往会导致开发人员根本不在自己的设备上测试功能。但是，*，如果每个拉取请求都包含一个指向构建的链接，可以在
-Tuist macOS 应用程序中选择的设备上自动运行应用程序呢？*
-
-一旦您的 Tuist 项目与 [GitHub](https://github.com) 等 Git 平台连接，请在 CI 工作流中添加
-<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。然后，Tuist
-会直接在您的拉取请求中发布预览链接：！[带有 Tuist 预览链接的 GitHub
-应用程序注释](/images/guides/features/github-app-with-preview.png)。
-
-
-## 应用内更新通知{#in-app-update-notifications}
-
-Tuist SDK](https://github.com/tuist/sdk)
-可让您的应用程序检测到更新的预览版本，并通知用户。这对于让测试人员使用最新版本非常有用。
-
-SDK 会检查同一**预览轨道** 中的更新。当您使用`--track` 将预览与明确的轨道共享时，SDK 会在该轨道上查找更新。如果未指定轨道，则使用 git
-分支作为轨道，因此从`main` 分支构建的预览只会通知同样从`main` 构建的更新预览。
-
-### 安装{#sdk-installation}
-
-将 Tuist SDK 添加为 Swift 软件包依赖项：
-
-```swift
-.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
-```
-
-### 监测更新{#sdk-monitor-updates}
-
-使用`monitorPreviewUpdates` 定期检查新的预览版本：
-
-```swift
-import TuistSDK
-
-struct MyApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .task {
-                    TuistSDK(
-                        fullHandle: "myorg/myapp",
-                        apiKey: "your-api-key"
-                    )
-                    .monitorPreviewUpdates()
-                }
-        }
-    }
-}
-```
-
-### 单次更新检查{#sdk-single-check}
-
-用于手动更新检查：
-
-```swift
-let sdk = TuistSDK(
-    fullHandle: "myorg/myapp",
-    apiKey: "your-api-key"
-)
-
-if let preview = try await sdk.checkForUpdate() {
-    print("New version available: \(preview.version ?? "unknown")")
-}
-```
-
-### 停止更新监控{#sdk-stop-monitoring}
-
-`monitorPreviewUpdates` 返回一个可取消的`任务` ：
-
-```swift
-let task = sdk.monitorPreviewUpdates { preview in
-    // Handle update
-}
-
-// Later, to stop monitoring:
-task.cancel()
-```
-
-信息
-<!-- -->
-在模拟器和 App Store 版本中，更新检查会自动禁用。
-<!-- -->
-:::
-
-## README 徽章{#readme-badge}
-
-为了让 Tuist 预览版在你的版本库中更显眼，你可以在`README` 文件中添加一个徽章，指向最新的 Tuist 预览版：
-
-[！[Tuist
-Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
-
-要在`README` 中添加徽章，请使用以下标记符，并用自己的账户和项目句柄替换：
-```
+```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-如果您的项目包含多个具有不同捆绑标识符的应用程序，您可以通过添加`bundle-id` 查询参数来指定链接到哪个应用程序的预览：
-```
+如果项目包含多个具有不同捆绑标识符的应用，请添加 `bundle-id` 查询参数来选择应用：
+
+```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
-```
-
-## 自动化{#automations}
-
-您可以使用`--json` 标志从`tuist share` 命令获取 JSON 输出：
-```
-tuist share --json
-```
-
-JSON 输出有助于创建自定义自动化，例如使用 CI 提供商发布 Slack 消息。JSON 包含一个`url` 密钥和一个`qrCodeURL`
-密钥，前者是完整预览链接，后者是二维码图片的 URL，以便于从真实设备下载预览。下面是一个 JSON 输出示例：
-```json
-{
-  "id": 1234567890,
-  "url": "https://cloud.tuist.io/preview/1234567890",
-  "qrCodeURL": "https://cloud.tuist.io/preview/1234567890/qr-code.svg"
-}
 ```

@@ -13,10 +13,6 @@ The [customer directory](/customers) links to case studies. Each describes a tea
 3. Check the current integration guide; a story may describe an earlier version or setup.
 4. Measure your own workload before projecting savings.
 
-## Limitations
-
-One team's improvement is not a guarantee for another project, and a story is not evidence that every feature supports its toolchain.
-
 ## Next steps
 
 Evaluate the matching area: [Cache](/marketing-markdown/cache), [Compute](/marketing-markdown/compute), [Tests](/marketing-markdown/tests), or [Previews](/marketing-markdown/previews).

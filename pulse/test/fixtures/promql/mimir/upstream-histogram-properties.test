@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/native_histograms.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Minimal valid case: an empty exponential or custom bucket histogram.
+load 5m
+	empty_histogram{h="exp"} {{}}
+	empty_histogram{h="cbh"} {{schema:-53 custom_values:[-2 3]}}
+
+eval instant at 1m empty_histogram
+	empty_histogram{h="exp"} {{}}
+	empty_histogram{h="cbh"} {{schema:-53 custom_values:[-2 3]}}
+
+eval instant at 1m histogram_count(empty_histogram)
+	{h="exp"} 0
+	{h="cbh"} 0
+
+eval instant at 1m histogram_sum(empty_histogram)
+	{h="exp"} 0
+	{h="cbh"} 0
+
+eval instant at 1m histogram_avg(empty_histogram)
+	{h="exp"} NaN
+	{h="cbh"} NaN
+
+eval instant at 1m histogram_fraction(-Inf, +Inf, empty_histogram)
+	{h="exp"} NaN
+	{h="cbh"} NaN
+
+eval instant at 1m histogram_fraction(0, 8, empty_histogram)
+	{h="exp"} NaN
+	{h="cbh"} NaN
+
+clear
+# Apply count and sum function to histogram.
+load 10m
+    histogram_count_sum_2 {{schema:0 count:24 sum:100 z_bucket:4 z_bucket_w:0.001 buckets:[2 3 0 1 4] n_buckets:[2 3 0 1 4]}}x1
+
+eval instant at 10m histogram_count(histogram_count_sum_2)
+    {} 24
+
+eval instant at 10m histogram_sum(histogram_count_sum_2)
+    {} 100
+
+clear
+
+# Apply stddev and stdvar function to histogram with {1, 2, 3, 4} (low res).
+load 10m
+   histogram_stddev_stdvar_1 {{schema:2 count:4 sum:10 buckets:[1 0 0 0 1 0 0 1 1]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_1)
+    {} 1.0787993180043811
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_1)
+    {} 1.163807968526718
+
+clear
+
+# Apply stddev and stdvar function to histogram with {1, 1, 1, 1} (high res).
+load 10m
+   histogram_stddev_stdvar_2 {{schema:8 count:10 sum:10 buckets:[1 2 3 4]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_2)
+    {} 0.0048960313898237465
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_2)
+    {} 2.3971123370139447e-05
+
+clear
+
+# Apply stddev and stdvar function to histogram with {-50, -8, 0, 3, 8, 9}.
+load 10m
+   histogram_stddev_stdvar_3 {{schema:3 count:7 sum:62 z_bucket:1 buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ] n_buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_3)
+    {} 42.94723640026
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_3)
+    {} 1844.4651144196398
+
+clear
+
+# Apply stddev and stdvar function to histogram with {-100000, -10000, -1000, -888, -888, -100, -50, -9, -8, -3}.
+load 10m
+   histogram_stddev_stdvar_4 {{schema:0 count:10 sum:-112946 z_bucket:0 n_buckets:[0 0 1 1 1 0 1 1 0 0 3 0 0 0 1 0 0 1]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_4)
+    {} 27556.344499842
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_4)
+    {} 759352122.1939945
+
+clear
+
+# Apply stddev and stdvar function to histogram with {-10x10}.
+load 10m
+   histogram_stddev_stdvar_5 {{schema:0 count:10 sum:-100 z_bucket:0 n_buckets:[0 0 0 0 10]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_5)
+    {} 1.3137084989848
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_5)
+    {} 1.725830020304794
+
+clear
+
+# Apply stddev and stdvar function to histogram with {-50, -8, 0, 3, 8, 9, NaN}.
+load 10m
+   histogram_stddev_stdvar_6 {{schema:3 count:7 sum:NaN z_bucket:1 buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ] n_buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_6)
+    {} NaN
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_6)
+    {} NaN
+
+clear
+
+# Apply stddev and stdvar function to histogram with {-50, -8, 0, 3, 8, 9, Inf}.
+load 10m
+   histogram_stddev_stdvar_7 {{schema:3 count:7 sum:Inf z_bucket:1 buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ] n_buckets:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 ]}}x1
+
+eval instant at 10m histogram_stddev(histogram_stddev_stdvar_7)
+    {} Inf
+
+eval instant at 10m histogram_stdvar(histogram_stddev_stdvar_7)
+    {} Inf
+
+clear

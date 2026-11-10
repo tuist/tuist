@@ -60,7 +60,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
         // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
         // that gather coverage. A project that only needs Tuist's coverage keeps
-        // those builds path-independent with `enableCoveragePrefixMapping`.
+        // those builds path-independent with `coverage.prefixMapping`.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             // The project mappings (`/^src`, `/^derived`, `/^built`, `/^workspace`) name a
@@ -76,7 +76,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
             baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] =
-                tuist.project.generatedProject?.generationOptions.enableCoveragePrefixMapping == true ? "YES" : "NO"
+                tuist.project.generatedProject?.generationOptions.coverage.prefixMapping == true ? "YES" : "NO"
         }
 
         var casPluginOptions: [String] = []

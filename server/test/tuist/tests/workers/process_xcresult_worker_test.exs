@@ -2,7 +2,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Processor.XCResultNIF
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -158,6 +161,35 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     refute File.exists?(coverage_path)
   end
 
+  for version <- [0, 1] do
+    @reporting_version version
+    test "version #{version} parsing preserves legacy coverage and skips immutable coverage", %{
+      account: account,
+      project: project
+    } do
+      id = Ecto.UUID.generate()
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _ -> true end)
+
+      expect(XCResultProcessor, :process_local, fn _path, opts ->
+        assert opts[:read_coverage] == (@reporting_version == 0)
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        refute attrs.coverage_enabled
+        {:ok, %{id: id}}
+      end)
+
+      args =
+        job_args(id, account.id, project.id,
+          extra: %{"coverage_enabled" => false, "reporting_version" => @reporting_version}
+        )
+
+      assert :ok = ProcessXcresultWorker.perform(oban_job(args))
+    end
+  end
+
   defp expect_local_parse(parsed) do
     expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
     expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed} end)
@@ -219,6 +251,39 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "perform/1 with a stress bundle" do
+    test "forwards the full attachment scope and distinguishes main from stress", %{account: account, project: project} do
+      id = Ecto.UUID.generate()
+      source = Ecto.UUID.generate()
+      parent = self()
+      expect(Tuist.Storage, :download_to_file, 2, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, 2, fn _path, opts ->
+        assert opts[:source_test_run_id] == source
+        assert opts[:shard_index] == 1
+        assert opts[:shard_attempt] == 2
+        assert opts[:shard_report_revision] == 3
+        send(parent, {:artifact, opts[:artifact]})
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: id}} end)
+
+      args =
+        job_args(id, account.id, project.id,
+          extra: %{
+            "source_test_run_id" => source,
+            "shard_index" => 1,
+            "shard_attempt" => 2,
+            "shard_report_revision" => 3,
+            "stress_storage_key" => "stress.zip"
+          }
+        )
+
+      assert :ok = ProcessXcresultWorker.perform(oban_job(args))
+      assert_received {:artifact, :main}
+      assert_received {:artifact, :stress}
+    end
+
     test "attaches the gate's reruns to the test case that shares its suite, not its namesake", %{
       account: account,
       project: project
@@ -348,6 +413,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data())
 
+      stub(OpenTelemetry.Tracer, :set_attribute, fn _key, _value -> :ok end)
       expect(OpenTelemetry.Tracer, :set_attribute, fn "test_run_id", ^test_run_id -> :ok end)
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
 
@@ -944,15 +1010,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       keys = paths |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
 
-      assert Path.basename(Enum.at(keys, 0)) in [
-               "xcresult_#{test_run_id}_s0.zip",
-               "xcresult_#{test_run_id}_s1.zip"
-             ]
-
+      assert Enum.all?(keys, &(Path.basename(&1) =~ "xcresult_#{test_run_id}_"))
       assert length(Enum.uniq(keys)) == 2
     end
 
-    test "keeps the original temp path for non-sharded runs", %{account: account, project: project} do
+    test "uses invocation-local paths even for non-sharded runs", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 
       parent = self()
@@ -969,11 +1031,85 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
 
       assert_received {:download_path, path}
-      assert Path.basename(path) == "xcresult_#{test_run_id}.zip"
+      assert Path.basename(path) =~ "xcresult_#{test_run_id}_"
+    end
+
+    test "overlapping attempts and revisions cannot overwrite or remove each other's archives", %{
+      account: account,
+      project: project
+    } do
+      id = Ecto.UUID.generate()
+      parent = self()
+
+      stub(Tuist.Storage, :download_to_file, fn key, path, _account ->
+        File.write!(path, key)
+        {:ok, :done}
+      end)
+
+      stub(XCResultProcessor, :process_local, fn path, opts ->
+        expected = "#{opts[:shard_attempt]}:#{opts[:shard_report_revision]}"
+        send(parent, {:parsing, self(), path})
+        receive do: (:continue -> :ok)
+        assert File.read!(path) == expected
+        {:ok, parsed_data()}
+      end)
+
+      stub(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: id}} end)
+
+      tasks =
+        for {attempt, revision} <- [{1, 0}, {2, 0}, {2, 1}] do
+          args =
+            job_args(id, account.id, project.id,
+              extra: %{
+                "shard_index" => 0,
+                "shard_attempt" => attempt,
+                "shard_report_revision" => revision,
+                "storage_key" => "#{attempt}:#{revision}"
+              }
+            )
+
+          Task.async(fn -> ProcessXcresultWorker.perform(oban_job(args)) end)
+        end
+
+      parsing =
+        for _ <- tasks do
+          assert_receive {:parsing, pid, path}, 5_000
+          {pid, path}
+        end
+
+      assert length(Enum.uniq_by(parsing, &elem(&1, 1))) == 3
+      Enum.each(parsing, fn {pid, _} -> send(pid, :continue) end)
+      Enum.each(tasks, fn task -> assert :ok = Task.await(task, 15_000) end)
+      Enum.each(parsing, fn {_, path} -> refute File.exists?(path) end)
     end
   end
 
   describe "uniqueness across shards" do
+    test "new attempts and corrections enqueue while exact retries deduplicate", %{account: account, project: project} do
+      id = Ecto.UUID.generate()
+
+      jobs =
+        for {attempt, revision} <- [{1, 0}, {2, 0}, {2, 1}] do
+          args =
+            job_args(id, account.id, project.id,
+              extra: %{"shard_index" => 0, "shard_attempt" => attempt, "shard_report_revision" => revision}
+            )
+
+          args |> ProcessXcresultWorker.new() |> Oban.insert!()
+        end
+
+      assert length(Enum.uniq_by(jobs, & &1.id)) == 3
+
+      retry_args =
+        job_args(id, account.id, project.id,
+          extra: %{"shard_index" => 0, "shard_attempt" => 2, "shard_report_revision" => 0}
+        )
+
+      duplicate = retry_args |> ProcessXcresultWorker.new() |> Oban.insert!()
+      assert duplicate.conflict?
+      assert duplicate.id == Enum.at(jobs, 1).id
+    end
+
     test "different shard_index values are treated as distinct jobs" do
       test_run_id = Ecto.UUID.generate()
 
@@ -993,8 +1129,83 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           "shard_index" => 1
         })
 
-      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index]
-      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index]
+      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+    end
+  end
+
+  describe "perform/1 with a crashed test case" do
+    @tag :tmp_dir
+    test "stores the parsed crash report linked to its uploaded .ips attachment", %{
+      account: account,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      test_run_id = Ecto.UUID.generate()
+      ips_path = Path.join(tmp_dir, "App-2026-11-02-101500.ips")
+      File.write!(ips_path, "ips")
+      frames = "0  libsystem_kernel.dylib  __pthread_kill + 8\n1  AppTests  AppTests.testCrash() + 52"
+
+      expect(Tuist.Storage, :download_to_file, fn _key, path, _account ->
+        {:ok, _} = :zip.create(~c"#{path}", [{~c"Test.xcresult/Info.plist", "plist"}])
+        {:ok, :done}
+      end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+        {:ok,
+         %{
+           "test_plan_name" => "AppTests",
+           "status" => "failure",
+           "duration" => 1500,
+           "test_modules" => [
+             %{
+               "name" => "AppTests",
+               "status" => "failure",
+               "duration" => 1500,
+               "test_suites" => [%{"name" => "CrashTests", "status" => "failure", "duration" => 1500}],
+               "test_cases" => [
+                 %{
+                   "name" => "testCrash",
+                   "test_suite_name" => "CrashTests",
+                   "status" => "failure",
+                   "duration" => 1500,
+                   "failures" => [
+                     %{"message" => "Crash: AppTests (12345) at __pthread_kill", "issue_type" => "error_thrown"}
+                   ],
+                   "attachments" => [
+                     %{"file_path" => ips_path, "file_name" => "App-2026-11-02-101500.ips", "repetition_number" => nil}
+                   ],
+                   "crash_report" => %{
+                     "exception_type" => "EXC_CRASH",
+                     "signal" => "SIGABRT",
+                     "exception_subtype" => "KERN_INVALID_ADDRESS",
+                     "file_path" => ips_path,
+                     "triggered_thread_frames" => frames
+                   }
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      expect(Tuist.Storage, :upload_file, fn ^ips_path, _key, :system, _opts -> {:ok, :uploaded} end)
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+
+      [test_case_run_id] =
+        ClickHouseRepo.all(from(r in TestCaseRun, where: r.test_run_id == ^test_run_id, select: r.id))
+
+      {:ok, test_case_run} =
+        Tuist.Tests.get_test_case_run_by_id(test_case_run_id, preload: [crash_report: :test_case_run_attachment])
+
+      assert %{
+               exception_type: "EXC_CRASH",
+               signal: "SIGABRT",
+               exception_subtype: "KERN_INVALID_ADDRESS",
+               triggered_thread_frames: ^frames,
+               test_case_run_attachment: %{file_name: "App-2026-11-02-101500.ips", test_case_run_id: ^test_case_run_id}
+             } = test_case_run.crash_report
     end
   end
 end

@@ -1,0 +1,162 @@
+# Managed Pulse instance, deployed independently of the monitoring collectors.
+# Preserve the existing bucket and credential values during the rename.
+fullnameOverride: pulse
+replicaCount: 1
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "4000"
+  prometheus.io/path: /metrics
+image:
+  repository: ghcr.io/tuist/pulse
+  # The deployment selects the same immutable version as the published chart.
+  tag: ""
+existingSecret: pulse-credentials
+externalSecrets:
+  enabled: true
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  items:
+    SECRET_KEY_BASE: PULSE_SECRET_KEY_BASE/password
+    PULSE_TENANT_TOKENS: PULSE_TOKEN/password
+    PULSE_S3_ACCESS_KEY_ID: PULSE_S3_CREDENTIALS/access_key_id
+    PULSE_S3_SECRET_ACCESS_KEY: PULSE_S3_CREDENTIALS/secret_access_key
+  template:
+    PULSE_TENANT_TOKENS: '{"tuist":"sha256${{ .PULSE_TENANT_TOKENS | trim | sha256sum }}"}'
+    pulse-username: tuist
+    pulse-password: '{{ .PULSE_TENANT_TOKENS | trim }}'
+    tenantId: tuist
+storage:
+  bucket: tuist-pulso-canary
+  region: auto
+  endpoint: https://t3.storage.dev
+# Cluster collectors stay private. External cache hosts use TLS and tenant
+# authentication on the three exact ingest paths; query APIs stay private.
+service:
+  type: ClusterIP
+# Atlas (atlas-production cluster) queries this Pulse over MCP only; see the
+# path allowlist in values.yaml. Each environment has its own token audience,
+# so a token sent to one Pulse is never accepted by another.
+ingress:
+  enabled: true
+  className: nginx
+  host: pulse-canary.tuist.dev
+  paths:
+    - path: /mcp
+      pathType: Exact
+    - path: /api/v1/write
+      pathType: Exact
+    - path: /loki/api/v1/push
+      pathType: Exact
+    - path: /v1/traces
+      pathType: Exact
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: "4m"
+  tls:
+    - secretName: pulse-tls
+      hosts: [pulse-canary.tuist.dev]
+serviceMonitor:
+  enabled: false
+autoscaling:
+  enabled: false
+pools:
+  enabled: false
+clustering:
+  enabled: false
+# One combined pod, without old/new maintenance fleets overlapping on upgrades.
+strategy:
+  type: Recreate
+  rollingUpdate: null
+# Small ingest; keep room on the cpx32 workers for server rollouts.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1536Mi
+# Without it every 2 s remote-write batch stays its own segment (167k on
+# 2026-11-05) and metric panels beyond ~20 minutes exceed the segment
+# budget. Needs only 1.30+ writers, not bucket versioning.
+metricsCompaction:
+  enabled: true
+  finalize: true
+# Merge small log segments (one per Alloy push) so LogQL panels and alert
+# rules read tens of objects instead of thousands. Single writer, so every
+# reader/writer/compactor runs the same version.
+logCompaction:
+  enabled: true
+traceCompaction:
+  enabled: true
+# Each ingest request waits ~0.5 s on its Tigris write, so concurrency caps
+# throughput (32 slots ≈ 50 req/s against ~6 req/s steady). Staging ran at
+# ~390Mi with 16 slots saturated, so 32 fits in 1.5Gi, plus Pulse's default
+# 64 MiB of pending bytes. Each signal gets its own reserve of slots (default
+# an eighth), so a remote-write replay can't starve logs or traces. Since
+# 1.31.0 object-store PUTs follow the coalescing window instead of pushes:
+# 2 s cuts Tigris Class A requests about 3x (docs/storage-costs.md) and adds
+# up to 2 s to ingest acks.
+ingestBatching:
+  flushIntervalMs: 2000
+  maxConcurrentRequests: 32
+# Proposed production retention, previewed only: observe mode computes the
+# floor but expires nothing. Switching to enforce deletes data and needs an
+# explicit decision. 1.32.0+ keeps enforced prefixes on the paged manifest,
+# with backups and hour finalization.
+retention:
+  mode: observe
+  manifestFormat: paged
+  logsDays: 30
+  tracesDays: 14
+  metricsDays: 90
+# 1.36.0 node-local cache of immutable segments: dashboard and compaction
+# reads of recent segments skip the billed Tigris GET. Production fills about
+# 3.6 GiB/hour per node; canary ingests ~1/30 of that, so 2 GiB of emptyDir
+# holds well over a day. Memory tier keeps the 64 MiB default.
+objectCache:
+  disk:
+    enabled: true
+    sizeMb: 2048
+# Tempo HTTP search/metrics (/api/search, /api/metrics) and the MCP TraceQL
+# tools, so the Grafana trace panels (event., >>, | select) can run on Pulse.
+tempoSearch:
+  enabled: true
+# Native recordings, starting with the kura:* group the Kura alerts read
+# (1.35.0 evaluates a group in order on one timestamp). Notifications stay
+# off: Grafana keeps paging. Each poll LISTs tenants and rules (Class A), so
+# poll every 15 s instead of 5 s; rules run on a 60 s cadence. The principal
+# stores only the token's SHA-256; the plaintext is Pedro's Amp secret
+# PULSE_CANARY_ALERTING_TOKEN.
+alerting:
+  evaluationEnabled: true
+  pollIntervalMs: 15000
+  principals:
+    - tenant: tuist
+      id: amp-operator
+      type: agent
+      token_hash: 914590b15b464c23b0666a9724136dd7a6461b422093a7dd09334879387ea8b2
+      capabilities:
+        - alert:read
+        - alert:rules:write
+        - alert:audit:read
+        - alert:preview
+        - alert:evaluate
+        - alert:import
+        - alert:record
+# Same Atlas cluster key as production (TUIST_ATLAS_TOKEN_JWKS in the tuist
+# chart); rotate all copies together. Read-only: no ingest.
+workloadIdentity:
+  trust:
+    - name: atlas-production
+      issuer: https://kubernetes.default.svc.cluster.local
+      audiences: [pulse-canary.tuist.dev]
+      max_token_ttl_seconds: 3600
+      keys:
+        type: inline
+        jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}'
+      bindings:
+        - subject: system:serviceaccount:atlas-production:atlas
+          tenant: tuist
+          capabilities: [read]

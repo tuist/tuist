@@ -7,6 +7,12 @@ import TuistProcess
 @testable import TuistCargoCommand
 
 struct CargoTests {
+    @Test func helpRecommendsNativeCargoTests() {
+        let help = CargoCommand.helpMessage().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        #expect(help.contains("test --no-run --shard-max N"))
+        #expect(!help.lowercased().contains("nextest"))
+    }
+
     @Test func preservesCargoArguments() throws {
         let args = ["+nightly", "--config", "build.jobs=2", "test", "--workspace", "--", "--exact", "tests::case"]
         let command = try CargoCommand.parse(args)
@@ -104,6 +110,46 @@ struct CargoTests {
 }
 
 struct CargoReportingTests {
+    @Test(.inTemporaryDirectory) func omitsNewMetadataUntilClusterWideSupportIsAdvertised() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let reporting = CargoReporting(
+            process: CargoProcess(runner: RustupProbeRunner()), directory: directory,
+            environment: ["TUIST_BUILD_TAGS": "ci, nightly", "TUIST_BUILD_VALUE_TUIST.OS.TYPE": "explicit"],
+            handle: "example/project", serverURL: URL(string: "https://example.com")!
+        )
+        #expect(reporting.buildMetadata(limit: 20) == nil)
+        let metadata = try #require(reporting.buildMetadata(limit: 64))
+        #expect(metadata["tags"] as? [String] == ["ci", "nightly"])
+        let values = try #require(metadata["values"] as? [String: String])
+        #expect(values["tuist.os.type"] == "explicit")
+        #expect(values["tuist.cpu.available_processors"] != nil)
+    }
+
+    @Test(.inTemporaryDirectory) func invalidNewCargoMetadataIsOmittedRatherThanRejectingTheBuildReport() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let oversized = Dictionary(uniqueKeysWithValues: (1 ... 65).map { ("TUIST_BUILD_VALUE_KEY\($0)", "value") })
+        for environment in [
+            ["TUIST_BUILD_TAGS": "v1.2"],
+            ["TUIST_BUILD_TAGS": String(repeating: "a", count: 51)],
+            ["TUIST_BUILD_VALUE_LARGE": String(repeating: "x", count: 501)],
+            oversized,
+        ] {
+            let reporting = CargoReporting(
+                process: CargoProcess(runner: RustupProbeRunner()), directory: directory,
+                environment: environment, handle: "example/project", serverURL: URL(string: "https://example.com")!
+            )
+            #expect(reporting.buildMetadata(limit: 64) == nil)
+        }
+    }
+
+    @Test func distinguishesMeasuredNextestLabelsFromReservedCargoSchemes() {
+        #expect(CargoNextestRun.scheme(label: nil) == "nextest")
+        #expect(CargoNextestRun.scheme(label: "ci") == "ci")
+        #expect(CargoNextestRun.scheme(label: "cargo test") == "cargo nextest run · cargo test")
+        #expect(CargoNextestRun.scheme(label: "cargo test · ci") == "cargo nextest run · cargo test · ci")
+        #expect(CargoNextestRun.scheme(label: "cargo nextest run · cargo test") == "cargo nextest run · cargo test")
+    }
+
     @Test(.inTemporaryDirectory) func respectsConfiguredCompilerWrappers() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let root = URL(fileURLWithPath: directory.pathString)
@@ -188,13 +234,26 @@ struct CargoReportingTests {
     @Test(.inTemporaryDirectory) func pinsTheDefaultRustupToolchainBeforeCargoChangesDirectories() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let process = CargoProcess(runner: RustupProbeRunner())
+        let home = directory.appending(component: "rustup").pathString
         let resolved = try await process.executable(
             invocation: CargoInvocation(["build"]),
-            environment: [:],
+            environment: ["RUSTUP_HOME": home],
             directory: directory
         )
         #expect(resolved.path == "/toolchains/stable/bin/cargo")
         #expect(resolved.toolchain == "stable-aarch64-apple-darwin")
+        // An installed active toolchain names Cargo's directory without asking rustup again.
+        let installed = home + "/toolchains/stable-aarch64-apple-darwin/bin/cargo"
+        try FileManager.default.createDirectory(
+            atPath: (installed as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\n".write(toFile: installed, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: installed)
+        let direct = try await process.executable(
+            invocation: CargoInvocation(["build"]), environment: ["RUSTUP_HOME": home], directory: directory
+        )
+        #expect(direct.path == installed)
+        #expect(direct.toolchain == "stable-aarch64-apple-darwin")
         let explicit = try await process.executable(
             invocation: CargoInvocation(["build"]),
             environment: ["RUSTUP_TOOLCHAIN": "nightly"],
@@ -203,7 +262,7 @@ struct CargoReportingTests {
         #expect(explicit.toolchain == nil)
         let custom = try await CargoProcess(runner: RustupProbeRunner(activeToolchain: "/toolchains/my rust")).executable(
             invocation: CargoInvocation(["build"]),
-            environment: [:],
+            environment: ["RUSTUP_HOME": home],
             directory: directory
         )
         #expect(custom.toolchain == "/toolchains/my rust")

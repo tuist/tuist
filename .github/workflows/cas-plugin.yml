@@ -1,0 +1,78 @@
+name: CAS Plugin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cas-plugin/**
+      - .github/workflows/cas-plugin.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - cas-plugin/**
+      - .github/workflows/cas-plugin.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cas-plugin-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: cas-plugin
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  TUIST_DEV_INSTANCE: "1"
+  TUIST_DEBUG: "1"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust tuist"
+          working_directory: cas-plugin
+          cache: "false"
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Build
+        run: mise run --skip-tools build
+      - name: Test
+        run: mise run --skip-tools test
+
+  build-and-test-fork:
+    name: Build and test fork
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust"
+          working_directory: cas-plugin
+          cache: "false"
+      - name: Build without Tuist credentials
+        run: cargo build --locked --release --lib --bin tuist-cas-proxy
+      - name: Test without Tuist credentials
+        run: cargo test --locked

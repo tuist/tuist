@@ -1,0 +1,14 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackPDU
+metadata:
+  name: larch-pdu-b
+  labels:
+    tuist.dev/site: larch
+    tuist.dev/role: power
+spec:
+  site: larch
+  model: evmafc20a
+  address: 192.168.60.17
+  chain: larch-ats-b
+  managedBy: standalone
+  outletStateOnStartup: "on"

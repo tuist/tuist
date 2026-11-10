@@ -5,7 +5,7 @@ defmodule Tuist.CacheTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Cache
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -105,16 +105,42 @@ defmodule Tuist.CacheTest do
       assert Enum.sort(grants["project"]["read"]) == Enum.sort(handles)
       assert Enum.sort(grants["project"]["write"]) == Enum.sort(handles)
     end
+
+    test "grants account cache writes to a user-issued token only on accounts its issuer may write to" do
+      # Given
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      token_for = fn user ->
+        %AuthenticatedAccount{
+          account: user.account,
+          issued_by: user,
+          scopes: ["account:cache:read", "account:cache:write"],
+          all_projects: true
+        }
+      end
+
+      # When
+      viewer_grants = Cache.cache_grants(token_for.(viewer))
+      member_grants = Cache.cache_grants(token_for.(member))
+
+      # Then
+      assert viewer_grants["account"]["write"] == [viewer.account.name]
+      assert Enum.sort(member_grants["account"]["write"]) == Enum.sort([member.account.name, organization.account.name])
+    end
   end
 
   describe "free tier enforcement" do
     test "grants nothing once an Air account is over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -135,7 +161,7 @@ defmodule Tuist.CacheTest do
     # to for credentials it cannot verify itself.
     test "issues the same number of queries regardless of how many accounts are over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       queries_for = fn organization_count ->
         user = AccountsFixtures.user_fixture(preload: [:account])
@@ -147,7 +173,7 @@ defmodule Tuist.CacheTest do
 
           Account
           |> Repo.get!(organization.account.id)
-          |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+          |> Ecto.Changeset.change(current_month_cache_requests: threshold)
           |> Repo.update!()
         end
 
@@ -167,11 +193,11 @@ defmodule Tuist.CacheTest do
 
     test "keeps granting while the account is under the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -187,11 +213,11 @@ defmodule Tuist.CacheTest do
 
     test "keeps granting a paid account that is over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -210,11 +236,11 @@ defmodule Tuist.CacheTest do
     # so a blocked account has to disappear from it as well as from the token.
     test "drops a blocked account from the accessible handles" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -224,43 +250,56 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
-      assert got == %{accounts: [], projects: [], payment_required: [user.account.name], payment_failed: []}
+      assert got == %{
+               accounts: [],
+               projects: [],
+               cache_grants: %{
+                 "account" => %{"read" => [], "write" => []},
+                 "project" => %{"read" => [], "write" => []}
+               },
+               payment_required: [user.account.name],
+               payment_failed: []
+             }
     end
 
     # A node answers both with a payment refusal, but only this one tells the
     # caller that the fix is paying the open invoice rather than upgrading.
     test "names the blocked accounts whose subscription payment failed" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
       BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "unpaid")
-      ProjectsFixtures.project_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      # When
-      handles = Cache.accessible_handles(user)
-      {:ok, _token, claims} = Cache.issue_cache_token(user, origin: "SG")
+      for subject <- [user, project] do
+        # When
+        handles = Cache.accessible_handles(subject)
+        {:ok, _token, claims} = Cache.issue_cache_token(subject, origin: "SG")
 
-      # Then
-      assert handles.payment_required == [user.account.name]
-      assert handles.payment_failed == [user.account.name]
-      assert claims["cache_origin"] == "SG"
-      assert claims["cache_payment_required"] == [user.account.name]
-      assert claims["cache_payment_failed"] == [user.account.name]
+        # Then
+        assert handles.payment_required == [user.account.name]
+        assert handles.payment_failed == [user.account.name]
+        assert claims["cache_origin"] == "SG"
+        assert claims["cache_payment_required"] == [user.account.name]
+        assert claims["cache_payment_failed"] == [user.account.name]
+        assert claims["cache_grants"]["account"] == %{"read" => [], "write" => []}
+        assert claims["cache_grants"]["project"] == %{"read" => [], "write" => []}
+      end
     end
 
     test "keeps granting an account whose renewal payment is being retried" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -271,9 +310,15 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
+      handle = "#{user.account.name}/#{project.name}"
+
       assert got == %{
                accounts: [user.account.name],
-               projects: ["#{user.account.name}/#{project.name}"],
+               projects: [handle],
+               cache_grants: %{
+                 "account" => %{"read" => [user.account.name], "write" => [user.account.name]},
+                 "project" => %{"read" => [handle], "write" => [handle]}
+               },
                payment_required: [],
                payment_failed: []
              }
@@ -284,11 +329,11 @@ defmodule Tuist.CacheTest do
     # error. This is what lets it say something actionable instead.
     test "names the blocked account so a node can explain the refusal" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -305,11 +350,11 @@ defmodule Tuist.CacheTest do
 
     test "names no account while the subject is under the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -321,11 +366,11 @@ defmodule Tuist.CacheTest do
 
     test "mints a token carrying no grants for a blocked account" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 

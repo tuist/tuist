@@ -116,3 +116,38 @@ func TestRefusesRootFilesystem(t *testing.T) {
 		t.Fatal("accepted kubelet filesystem")
 	}
 }
+
+func TestReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
+	for _, tc := range []struct {
+		response, want string
+	}{
+		{response: `{"action":"seal"}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":false}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":true}`, want: "publish"},
+		{response: `{"action":"delete","cold_publish":true}`, want: "delete"},
+	} {
+		t.Run(tc.response, func(t *testing.T) {
+			var reported map[string]any
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/report" {
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+				json.NewDecoder(r.Body).Decode(&reported)
+				w.Write([]byte(tc.response))
+			}))
+			defer upstream.Close()
+			tokenPath := filepath.Join(t.TempDir(), "token")
+			os.WriteFile(tokenPath, []byte("agent-token"), 0600)
+			a := &agent{tokenPath: tokenPath, node: "node", authorizeURL: upstream.URL + "/authorize", http: upstream.Client()}
+			slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "00000000-0000-0000-0000-000000000001", BaseGeneration: 3}, State: "active", MountedGeneration: 2}
+
+			action, err := a.report(slot, true)
+			if err != nil || action != tc.want {
+				t.Fatalf("action = %q, %v, want %q", action, err, tc.want)
+			}
+			if reported["mounted_generation"] != float64(2) {
+				t.Fatal("did not report the older generation the job mounted", reported)
+			}
+		})
+	}
+}

@@ -8,6 +8,8 @@ single_line() {
 
 single_line "${TUIST_INSTALL_PATH:-.}"
 single_line "${TUIST_INSTALL_CACHE_KEY:-}"
+cache=${TUIST_INSTALL_CACHE:-auto}
+[[ "$cache" == auto || "$cache" == external ]] || fail 'cache must be auto or external.'
 single_line "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
 workspace=$(cd "$GITHUB_WORKSPACE" && pwd -P)
 cd "$workspace"
@@ -58,21 +60,20 @@ scratch="$package/.build"
 package_relative=${package#"$workspace"}
 key=${TUIST_INSTALL_CACHE_KEY:-}
 if [[ -z "$key" ]]; then
-  toolchain=$(swift --version)
-  if [[ $(uname -s) == Darwin ]]; then
-    toolchain+=$'\n'$(xcodebuild -version)
+  key="install-v1-${GITHUB_JOB:?GITHUB_JOB is required}"
+  location=${package_relative#/}
+  if [[ -n "$location" ]]; then
+    key+="-$(printf '%s' "$location" | tr -c 'a-zA-Z0-9_./-' '-')"
   fi
-
-  digest=$({
-    printf '%s\0' "${GITHUB_JOB:?GITHUB_JOB is required}" "$toolchain" "$package_relative"
-    cat "$package/Package.swift"
-  } | shasum -a 256)
-  key="tuist-install-v1-${digest%% *}"
+  [[ "$key" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]*$ && ${#key} -le 200 ]] || fail 'The generated cache key is too long or invalid; set cache-key.'
 fi
 [[ "$key" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]*$ && ${#key} -le 200 ]] || fail 'cache-key must be 1–200 characters: letters, numbers, _, ., /, or -, starting with a letter or number.'
 backend=github
 materialization=copy
-if command -v tuist-cache-volume >/dev/null 2>&1 || [[ -x /__e/tuist-cache-volume ]]; then
+if [[ "$cache" == external ]]; then
+  backend=external
+  materialization=symlink
+elif command -v tuist-cache-volume >/dev/null 2>&1 || [[ -x /__e/tuist-cache-volume ]]; then
   backend=volume
   materialization=symlink
 fi

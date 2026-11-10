@@ -5,6 +5,38 @@ defmodule Tuist.BuildEntities.Resources do
 
   @resources [
     %{
+      key: :cargo_crates,
+      system: :cargo,
+      kind: "crate",
+      singular: :crate,
+      plural: :crates,
+      id_param: :crate_id,
+      history_key: :compilations,
+      title: "CargoCrate",
+      label: "Cargo crates",
+      label_singular: "a Cargo crate",
+      description:
+        "Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.",
+      api_path: "/cargo/crates",
+      history_path: "compilations",
+      path: "/builds/cargo/crates"
+    },
+    %{
+      key: :bazel_actions,
+      system: :bazel,
+      kind: "action",
+      singular: :action,
+      plural: :actions,
+      id_param: :action_id,
+      history_key: :executions,
+      title: "BazelBuildAction",
+      label: "Bazel actions",
+      label_singular: "a Bazel action",
+      api_path: "/bazel/actions",
+      history_path: "executions",
+      path: "/builds/bazel/actions"
+    },
+    %{
       key: :gradle_tasks,
       system: :gradle,
       kind: "task",
@@ -28,8 +60,8 @@ defmodule Tuist.BuildEntities.Resources do
       id_param: :module_id,
       history_key: :cache_events,
       title: "XcodeCachedModule",
-      label: "Xcode generated-project modules",
-      label_singular: "an Xcode generated-project module",
+      label: "Xcode modules",
+      label_singular: "an Xcode module",
       api_path: "/xcode/modules",
       history_path: "events",
       path: "/builds/xcode/modules"
@@ -82,11 +114,12 @@ defmodule Tuist.BuildEntities.Resources do
   ]
 
   def all, do: @resources
+  def dashboard_resources, do: Enum.reject(@resources, &(&1.key == :mix_files))
   def fetch!(key), do: Enum.find(@resources, &(&1.key == key)) || raise(ArgumentError, "Unknown resource")
 
   def for_project(project) do
     if BuildEntities.enabled?(project),
-      do: Enum.filter(@resources, &(&1.system == project.build_system)),
+      do: Enum.filter(dashboard_resources(), &(&1.system == project.build_system)),
       else: []
   end
 end

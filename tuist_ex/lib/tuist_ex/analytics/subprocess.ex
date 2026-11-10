@@ -10,8 +10,9 @@ defmodule TuistEx.Analytics.Subprocess do
   # terminal, sees it as one (colors), and keeps standard error apart.
 
   @doc """
-  Runs `executable` with `args` and `env` (a list of `{name, value}` string
-  pairs added to the environment) and returns its exit status.
+  Runs `executable` with `args` and `env` (a list of `{name, value}` pairs)
+  and returns its exit status. String values override the environment;
+  `nil` values remove inherited variables.
   """
   def run(executable, args, env) do
     port =
@@ -20,8 +21,9 @@ defmodule TuistEx.Analytics.Subprocess do
         :exit_status,
         args: args,
         env:
-          Enum.map(env, fn {name, value} ->
-            {String.to_charlist(name), String.to_charlist(value)}
+          Enum.map(env, fn
+            {name, nil} -> {String.to_charlist(name), false}
+            {name, value} -> {String.to_charlist(name), String.to_charlist(value)}
           end)
       ])
 

@@ -22,6 +22,7 @@ defmodule Tuist.Tests.StressNewTests do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Ingestion.Batch
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseBranchPresence
@@ -283,7 +284,7 @@ defmodule Tuist.Tests.StressNewTests do
         module_name = Map.fetch!(test_case, :module_name)
 
         %{
-          id: UUIDv7.generate(),
+          id: Batch.uuid({:stress_candidate, test_run_id, module_name, suite_name, name}),
           test_run_id: test_run_id,
           project_id: project_id,
           test_case_id: Tests.generate_test_case_id(project_id, name, module_name, suite_name),
@@ -299,14 +300,14 @@ defmodule Tuist.Tests.StressNewTests do
       end)
 
     if rows != [] do
-      TestRunStressCandidate.Buffer.insert_all(rows)
+      Batch.insert_all(TestRunStressCandidate, rows)
     end
 
     :ok
   end
 
   def list_candidates(test_run_id) do
-    from(c in TestRunStressCandidate,
+    from(c in TestRunStressCandidate.query(),
       where: c.test_run_id == ^test_run_id,
       order_by: [asc: c.module_name, asc: c.suite_name, asc: c.name, asc: c.inserted_at]
     )

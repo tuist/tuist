@@ -14,6 +14,9 @@ defmodule Tuist.Runners.GitLab.Job do
     field :pipeline_id, :integer
     field :payload, Binary, redact: true
     field :routing_error, :string
+    # The verified cache volume scope and save permission, captured when the job
+    # was acquired (`Tuist.Runners.CacheVolumes.Identity.capture_gitlab/1`).
+    field :cache_volume_identity, :map
     belongs_to :account, Account
     belongs_to :connection, Connection
     timestamps(type: :utc_datetime)

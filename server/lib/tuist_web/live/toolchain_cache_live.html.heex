@@ -226,15 +226,18 @@
     </:actions>
     <.card_section :if={ready? and @recent_builds.result != []} data-part="recent-builds-section">
       <div data-part="builds-section">
-        <div data-part="builds-chart">
+        <div
+          data-part="builds-chart"
+          title={
+            if @selected_project.build_system == :mix,
+              do: recent_builds_coverage(@recent_builds.result)
+          }
+        >
           <.legend
             title={dgettext("dashboard_cache", "Cache hit rate")}
             value={value(@cache_module.recent_hit_rate(@recent_builds.result))}
             style="primary"
           />
-          <p :if={@selected_project.build_system == :mix} data-part="recent-builds-coverage">
-            {recent_builds_coverage(@recent_builds.result)}
-          </p>
           <.chart
             id={"#{@cache_id}-recent-builds-chart"}
             type="bar"

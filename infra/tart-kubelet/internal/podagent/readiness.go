@@ -388,11 +388,11 @@ func (r *Reconciler) readinessResultHandler(pod *corev1.Pod) func(ready, changed
 		if err != nil && r.Recorder != nil {
 			r.Recorder.Event(ref, corev1.EventTypeWarning, "Unhealthy", "Readiness probe failed: "+err.Error())
 		}
-		if !changed || r.readinessEvents == nil {
+		if !changed || r.requeueEvents == nil {
 			return
 		}
 		select {
-		case r.readinessEvents <- event.GenericEvent{Object: ref}:
+		case r.requeueEvents <- event.GenericEvent{Object: ref}:
 		default:
 			// Queue full; the periodic requeue publishes it instead.
 		}

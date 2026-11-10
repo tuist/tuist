@@ -135,6 +135,28 @@ struct LaunchAgentServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_uses_an_explicit_stable_executable() async throws {
+        let subject = LaunchAgentService(
+            fileSystem: fileSystem,
+            executablePath: "/bin/sh",
+            launchctlController: launchctlController
+        )
+        given(launchctlController).bootstrap(plistPath: .any, domain: .any).willReturn()
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["/state/launcher.sh", "cache-proxy"]
+        )
+
+        let path = Environment.current.homeDirectory.appending(components: "Library", "LaunchAgents", "tuist.test.plist")
+        let plist = try await fileSystem.readTextFile(at: path)
+        let contents = try #require(PropertyListSerialization.propertyList(from: Data(plist.utf8), format: nil) as? [String: Any])
+        #expect(contents["Program"] as? String == "/bin/sh")
+        #expect(contents["ProgramArguments"] as? [String] == ["/bin/sh", "/state/launcher.sh", "cache-proxy"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupLaunchAgent_preservesExistingAgentWhenDomainLookupFails() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")

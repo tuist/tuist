@@ -1,61 +1,68 @@
 ---
 {
-  "title": "Cache",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize your build times with Tuist Cache."
+  "title": "Önbellek",
+  "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
+  "description": "Xcode, Gradle, Bazel, Elixir, Rust ve Once için Tuist Önbelleği ile derleme sürelerini optimize edin."
 }
 ---
 # Önbellek {#cache}
 
-Xcode'un derleme sistemi [artımlı
-derlemeler](https://en.wikipedia.org/wiki/Incremental_build_model) sağlayarak
-tek bir makinede verimliliği artırır. Ancak derleme yapıları farklı ortamlar
-arasında paylaşılmaz, bu da sizi [Sürekli Entegrasyon (CI)
-ortamlarınızda](https://en.wikipedia.org/wiki/Continuous_integration) veya yerel
-geliştirme ortamlarınızda (Mac'inizde) aynı kodu tekrar tekrar oluşturmaya
-zorlar.
+Derleme yapıtları ortamlar arasında paylaşılmaz, bu da aynı kodu defalarca yeniden derlemenizi gerektirir. Tuist’in önbellekleme özelliği yapıtları uzaktan paylaşır; böylece ekibiniz ve CI, daha önce derlenmiş olanları yeniden derlemeden daha hızlı derlemeler elde eder.
 
-Tuist, hem yerel geliştirme hem de CI ortamlarında derleme sürelerini önemli
-ölçüde azaltan önbellekleme özelliği ile bu zorlukların üstesinden gelir. Bu
-yaklaşım yalnızca geri bildirim döngülerini hızlandırmakla kalmaz, aynı zamanda
-bağlam değiştirme ihtiyacını da en aza indirir ve sonuçta üretkenliği artırır.
+Projenize veya dağıtım modelinize uygun önbellek iş akışını öğrenin:
 
-İki tür önbellekleme sunuyoruz:
-- <LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği</LocalizedLink>
+<.home_cards>
+  <.home_card
+    title="Modül önbelleği"
+    details="Tuist tarafından oluşturulan projeleri kullanan projeler için tek tek modülleri ikili dosya olarak önbelleğe alın. Tuist proje oluşturma gerektirir."
+    link="/guides/features/cache/module-cache"
+/>
+  <.home_card
+    title="Xcode önbelleği"
+    details="Xcode derleme yapıtlarını ortamlar arasında paylaşın. Herhangi bir Xcode projesiyle çalışır; proje oluşturma gerekmez."
+    link="/guides/features/cache/xcode-cache"
+/>
+  <.home_card
+    title="Gradle önbelleği"
+    details="Gradle derleme önbelleği yapıtlarını uzaktan paylaşın. Performans görünürlüğü için derleme içgörülerini içerir."
+    link="/guides/features/cache/gradle-cache"
+/>
+  <.home_card
+    title="Bazel önbelleği"
+    details="Ekip ve CI arasında eylem çıktılarını paylaşmak için Bazel’i Tuist’in Uzaktan Yürütme API önbelleğine yönlendirin."
+    link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Elixir önbelleği"
+    details="Desteklenen Elixir bağımlılıkları için önbelleklemeyi etkinleştirin ve Mix kullanmaya devam edin. Önbellek isabetlerini ve aktarımları panoda inceleyin."
+    link="/guides/features/cache/elixir"
+/>
+  <.home_card
+    title="Rust önbelleği (deneysel)"
+    details="Desteklenen Rust derleme çıktılarını ve betik çalıştırmalarını yerelde ve Kura üzerinden yeniden kullanın. Önbelleklemeyi nasıl etkinleştireceğinizi ve önbellek etkinliğini nasıl inceleyeceğinizi öğrenin."
+    supported_for="rust"
+    link="/guides/features/cache/rust"
+/>
+  <.home_card
+    title="Once önbelleği"
+    details="Once’in yerel Tuist sağlayıcısıyla önbelleğe alınmış betik ve graf eylemi sonuçlarını geliştirici makineleri ve CI arasında paylaşın."
+    link="/guides/features/cache/once"
+/>
+  <.home_card
+    title="Kendi sunucunuzda barındırma"
+    details="Önbellek düğümlerini CI, ofisler veya bölgesel işlem kaynaklarına yakın çalıştırın ve bunları barındırılan veya kendi sunucunuzda barındırdığınız Tuist’e bağlayın."
+    link="/guides/features/cache/self-hosting"
+/>
+</.home_cards>
 
-## Modül önbelleği {#module-cache}
-
-Tuist'in <LocalizedLink href="/guides/features/projects">proje oluşturma</LocalizedLink> yeteneklerini kullanan projeler için, tek tek
-modülleri ikili dosyalar olarak önbelleğe alan ve bunları ekibiniz ve CI
-ortamlarınız arasında paylaşan güçlü bir önbellekleme sistemi sağlıyoruz.
-
-Yeni Xcode önbelleğini de kullanabilirsiniz, ancak bu özellik şu anda yerel
-derlemeler için optimize edilmiştir ve oluşturulmuş projele önbelleğine kıyasla
-muhtemelen daha düşük bir önbellek isabet oranına sahip olacaksınız. Bununla
-birlikte, hangi önbellekleme çözümünün kullanılacağına ilişkin karar, özel
-ihtiyaçlarınıza ve tercihlerinize bağlıdır. En iyi sonuçları elde etmek için her
-iki önbellekleme çözümünü de birleştirebilirsiniz.
-
-<LocalizedLink href="/guides/features/cache/module-cache">Modül önbelleği hakkında daha fazla bilgi edinin →</LocalizedLink>
-
-## Xcode önbelleği {#xcode-cache}
-
-> [!WARNING]
-> **State Of Cache In Xcode**
+> [!TIP]
+> **Tuist Runners üzerinde en hızlı**
 >
-> Xcode önbelleği şu anda yerel artımlı derlemeler için optimize edilmiştir ve
-> derleme görevlerinin tamamı henüz yoldan bağımsız değildir. Yine de Tuist'in
-> uzak önbelleğini takarak avantajlar elde edebilirsiniz ve derleme sisteminin
-> kapasitesi gelişmeye devam ettikçe derleme sürelerinin de zaman içinde
-> iyileşmesini bekliyoruz.
+> <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> üzerinde önbellek, çalıştırıcının özel ağına yerleştirilir ve geliştirici makinelerinizin kullandığı aynı önbellekle paylaşılır; böylece CI işleri, ayrıca ısıtılması gereken ayrı bir CI önbelleği olmadan kutudan çıkar çıkmaz sıcak isabetler alır.
 
 
-Apple, Bazel ve Buck gibi diğer derleme sistemlerine benzer şekilde derleme
-düzeyinde yeni bir önbellekleme çözümü üzerinde çalışıyor. Yeni önbellekleme
-özelliği Xcode 26'dan beri mevcut ve Tuist artık Tuist'in
-<LocalizedLink href="/guides/features/projects">proje oluşturma</LocalizedLink>
-yeteneklerini kullanıp kullanmadığınıza bakılmaksızın sorunsuz bir şekilde
-entegre oluyor.
+## Yüklemeleri CI ile sınırla {#restrict-uploads-to-ci}
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Xcode önbelleği hakkında daha fazla bilgi edinin →</LocalizedLink>
+Hesap yöneticileri, geliştiricileri salt okunur yaparken CI’nin önbellek yapıtlarını yüklemesine izin verebilir. Tuist’te hesabın **Önbellek** ayarlarını açın ve **Önbellek yükleme erişimi** seçeneğini **Yalnızca CI ve hesap token’ları** olarak ayarlayın. Bundan sonra, oturum açma oturumlarıyla kimliği doğrulanan üyeler hâlâ önbellekten indirebilir, ancak yüklemeler için CI OIDC kimlik doğrulaması veya `project:cache:write` ya da `ci` gibi önbellek yazma kapsamlarına sahip bir hesap token’ı gerekir.
+
+CI güvenilir önbellek üreticisi olduğunda ve yerel makinelerin yalnızca önbelleği tüketmesi gerektiğinde bunu kullanın. Ayar yalnızca önbellek yükleme yetkilendirmesini etkiler.

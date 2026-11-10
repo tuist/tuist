@@ -1,0 +1,47 @@
+[data-part="people"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  min-width: 0;
+
+  & > [data-part="header"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="cell"][data-type="text_and_description"] [data-part="icon"]:has(.noora-avatar) {
+    padding: 0;
+    box-shadow: none;
+  }
+}
+
+[data-part="also-here"] {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--noora-spacing-3);
+  padding-bottom: var(--noora-spacing-5);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}

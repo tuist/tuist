@@ -32,6 +32,23 @@ use tuist_cas_plugin::token::TokenProvider;
 // token::TokenProvider::refresh_if_expiring).
 const TOKEN_REFRESH_LEAD: std::time::Duration = std::time::Duration::from_secs(25);
 
+/// The Tuist release this binary ships in, stamped by `cli:bundle`. Builds
+/// outside a release report the crate version.
+const VERSION: &str = match option_env!("TUIST_CAS_RELEASE_VERSION") {
+    Some(version) => version,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
+const USAGE: &str = "\
+usage: tuist-cas-proxy
+       tuist-cas-proxy --drain <cas-path> [--socket <path>] [--timeout-ms <n>]
+       tuist-cas-proxy --prune <cas-path> [--socket <path>] [--limit-bytes <n>]
+       tuist-cas-proxy --version
+       tuist-cas-proxy --help
+
+Without arguments, serves the machine's compilation cache on
+TUIST_CAS_PROXY_SOCKET. `tuist setup cache` runs it for you.
+";
 
 /// `--drain <cas-path> [--timeout-ms <n>]`: ask the RUNNING proxy whether every
 /// publication it holds for that CAS path has reached the remote, and wait for
@@ -166,6 +183,24 @@ fn main() {
     if arguments.iter().any(|argument| argument == "--prune") {
         std::process::exit(prune(&arguments));
     }
+    // Serving takes over the machine's socket, so only a bare invocation may
+    // reach it.
+    match arguments.as_slice() {
+        [] => {}
+        [command] if matches!(command.as_str(), "version" | "--version" | "-V") => {
+            println!("{VERSION}");
+            return;
+        }
+        [command] if matches!(command.as_str(), "help" | "--help" | "-h") => {
+            print!("{USAGE}");
+            return;
+        }
+        _ => {
+            eprintln!("tuist-cas-proxy: unrecognized arguments: {}", arguments.join(" "));
+            eprint!("{USAGE}");
+            std::process::exit(64);
+        }
+    }
 
     let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")
         .ok()
@@ -189,6 +224,13 @@ fn main() {
         // Owner-only: the socket carries this user's cache token, so no other
         // user on the machine may reach it.
         let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+    }
+    // A proxy still listening keeps serving builds; unlinking its socket would
+    // leave it running unreachable. A socket left by a proxy that exited
+    // refuses the connection and is replaced.
+    if std::os::unix::net::UnixStream::connect(&socket_path).is_ok() {
+        eprintln!("another tuist-cas-proxy is already listening on {socket_path}");
+        std::process::exit(2);
     }
     let _ = std::fs::remove_file(&socket_path);
     let listener = match UnixListener::bind(&socket_path) {
@@ -215,14 +257,36 @@ fn main() {
         analytics,
     );
 
+    if ["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH"].iter()
+        .all(|key| std::env::var(key).unwrap_or_default().is_empty())
+    {
+        if let (Ok(target), Ok(executable), Ok(version)) = (
+            std::env::var("TUIST_CAS_PROXY_LAUNCH_TARGET"),
+            std::env::var("TUIST_CAS_TUIST_BIN"),
+            std::env::var("TUIST_CAS_TUIST_VERSION"),
+        ) {
+            let plugin = std::env::var_os("TUIST_CAS_BUNDLED_PLUGIN").map(std::path::PathBuf::from);
+            if let Err(error) = tuist_cas_plugin::proxy_upgrade::refresh_plugin(
+                std::path::Path::new(&target), std::path::Path::new(&executable), &version, plugin.as_deref(),
+            ) {
+                tuist_cas_plugin::log_line(&format!("could not refresh the installed cache plugin: {error}"));
+            }
+        }
+    }
+
     // Before the prefetch, which opens and warms the store of every registered
     // path.
     proxy.forget_unused_paths();
 
     // Snapshots for every instance the persisted registry knows start
     // fetching now, so the first build after a proxy restart begins with the
-    // snapshot (and its bulk warm) already in flight.
-    proxy.prefetch_known_snapshots();
+    // snapshot (and its bulk warm) already in flight. The stores are bounded
+    // first, because the warm opens them and an open store cannot rotate, and
+    // off the main thread, because collecting a generation can take a while.
+    std::thread::spawn(move || {
+        proxy.bound_registered_stores();
+        proxy.prefetch_known_snapshots();
+    });
 
     // Periodic sweep of orphaned publication records + token refresh + stats.
     std::thread::spawn(move || loop {
@@ -238,6 +302,14 @@ fn main() {
         let stats = proxy.stats_line();
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
+        }
+        if let (Ok(path), Ok(version)) = (
+            std::env::var("TUIST_CAS_PROXY_LAUNCH_TARGET"),
+            std::env::var("TUIST_CAS_TUIST_VERSION"),
+        ) {
+            if tuist_cas_plugin::proxy_upgrade::launch_target_changed(std::path::Path::new(&path), &version) {
+                proxy.allow_idle_upgrade();
+            }
         }
     });
 
@@ -257,6 +329,17 @@ fn main() {
         proxy.refresh_endpoint();
     });
 
+    let policy = format!(
+        "proxy certificate_policy={} pid={}",
+        tuist_cas_plugin::certificate_trust::POLICY_ID,
+        std::process::id()
+    );
+    eprintln!("{policy}");
+    tuist_cas_plugin::log_line(&policy);
     eprintln!("tuist-cas-proxy listening on {socket_path}");
     proxy.serve(listener);
+    // KeepAlive.SuccessfulExit=false restarts only an unsuccessful exit. No
+    // requests remain, and the new owner replays any durable publication spool.
+    tuist_cas_plugin::log_line("proxy idle; restarting through the updated launcher");
+    std::process::exit(75);
 }

@@ -35,11 +35,39 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         let headerSearchPaths: [String]
     }
 
+    /// Numbers each distinct `DependencyMetadata` so transitive metadata sets can be stored as `DenseIndexSet`s,
+    /// which avoids hashing the metadata's strings every time a dependency's set is merged into a dependent's.
+    private struct DependencyMetadataTable {
+        private(set) var values: [DependencyMetadata] = []
+        private var indexByValue: [DependencyMetadata: Int] = [:]
+        private var indexByTargetID: [TargetID: Int] = [:]
+
+        mutating func index(of dependency: GraphTargetReference) throws -> Int {
+            let targetID = ModuleMapMapper.targetID(dependency.graphTarget)
+            if let index = indexByTargetID[targetID] { return index }
+            let metadata = try ModuleMapMapper.dependencyMetadata(for: dependency)
+            let index: Int
+            if let existingIndex = indexByValue[metadata] {
+                index = existingIndex
+            } else {
+                index = values.count
+                values.append(metadata)
+                indexByValue[metadata] = index
+            }
+            indexByTargetID[targetID] = index
+            return index
+        }
+
+        func values(at indices: DenseIndexSet) -> [DependencyMetadata] {
+            indices.map { values[$0] }
+        }
+    }
+
     private struct DependenciesModuleMapsFrame {
         let targetID: TargetID
         let dependencies: [GraphTargetReference]
         var nextDependencyIndex: Int
-        var dependenciesMetadata: Set<DependencyMetadata>
+        var dependenciesMetadata: DenseIndexSet
     }
 
     public init() {}
@@ -54,18 +82,21 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )
 
-        var targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>] = [:]
-        let graphTraverser = GraphTraverser(graph: graph)
+        let (sourceGraph, headerSideEffects) = SwiftPackageHeaderNamespaceMapper().map(graph: graph)
+        var targetToDependenciesMetadata: [TargetID: DenseIndexSet] = [:]
+        var metadataTable = DependencyMetadataTable()
+        let graphTraverser = GraphTraverser(graph: sourceGraph)
         for target in graphTraverser.allTargets() {
             try Self.dependenciesModuleMaps(
                 graphTraverser: graphTraverser,
                 target: target,
+                metadataTable: &metadataTable,
                 targetToDependenciesMetadata: &targetToDependenciesMetadata
             )
         }
 
-        var graph = graph
-        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var graph = sourceGraph
+        var generatedFileSideEffects: [SideEffectDescriptor] = headerSideEffects
         var generatedModuleMapDirectories: Set<AbsolutePath> = []
         var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
@@ -78,7 +109,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
                 var mappedSettingsDictionary = target.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true)
+                let dependenciesMetadata = targetToDependenciesMetadata[targetID].map(metadataTable.values(at:)) ?? []
+                guard hasModuleMap || !dependenciesMetadata.isEmpty
                 else { return (targetName, target) }
 
                 if hasModuleMap {
@@ -99,7 +131,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 let combinedModuleMap = Self.combinedModuleMapContent(
                     targetID: targetID,
                     project: project,
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
+                    dependenciesMetadata: dependenciesMetadata
                 )
 
                 if let combinedModuleMap {
@@ -118,7 +150,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 mappedSettingsDictionary = applyModuleMapFlags(
                     to: mappedSettingsDictionary,
                     targetID: targetID,
-                    targetToDependenciesMetadata: targetToDependenciesMetadata,
+                    dependenciesMetadata: dependenciesMetadata,
                     dependenciesDerivedDirectory: derivedDirectory,
                     xcodeProjParent: project.xcodeProjPath.parentDirectory,
                     combinedModuleMapPath: combinedModuleMap?.path
@@ -135,7 +167,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         let configSettings = applyModuleMapFlags(
                             to: configuration?.settings ?? [:],
                             targetID: targetID,
-                            targetToDependenciesMetadata: targetToDependenciesMetadata,
+                            dependenciesMetadata: dependenciesMetadata,
                             dependenciesDerivedDirectory: derivedDirectory,
                             xcodeProjParent: project.xcodeProjPath.parentDirectory,
                             combinedModuleMapPath: combinedModuleMap?.path,
@@ -286,7 +318,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
         graphTraverser: GraphTraverser,
         target: GraphTarget,
-        targetToDependenciesMetadata: inout [TargetID: Set<DependencyMetadata>]
+        metadataTable: inout DependencyMetadataTable,
+        targetToDependenciesMetadata: inout [TargetID: DenseIndexSet]
     ) throws {
         let targetID = Self.targetID(target)
         if targetToDependenciesMetadata[targetID] != nil {
@@ -300,7 +333,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 targetID: targetID,
                 dependencies: Self.directTargetDependencies(graphTraverser: graphTraverser, target: target),
                 nextDependencyIndex: 0,
-                dependenciesMetadata: []
+                dependenciesMetadata: DenseIndexSet()
             ),
         ]
         activeTargetIDs.insert(targetID)
@@ -314,9 +347,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 if let indirectDependencyMetadata = targetToDependenciesMetadata[dependencyTargetID] {
                     stack[frameIndex].nextDependencyIndex += 1
                     stack[frameIndex].dependenciesMetadata.formUnion(indirectDependencyMetadata)
-                    stack[frameIndex].dependenciesMetadata.insert(
-                        try Self.dependencyMetadata(for: dependency)
-                    )
+                    stack[frameIndex].dependenciesMetadata.insert(try metadataTable.index(of: dependency))
                     continue
                 }
 
@@ -333,7 +364,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                             target: dependency.graphTarget
                         ),
                         nextDependencyIndex: 0,
-                        dependenciesMetadata: []
+                        dependenciesMetadata: DenseIndexSet()
                     )
                 )
             } else {
@@ -361,6 +392,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     }
 
     private static func dependencyMetadata(for dependency: GraphTargetReference) throws -> DependencyMetadata {
+        // Swift package headers are bound after binary replacement. Propagating their original
+        // paths here leaves source module maps competing with the exported maps of cache hits.
+        if dependency.target.headers?.sourceLayout != nil {
+            return DependencyMetadata(moduleName: dependency.target.productName, moduleMapPath: nil, headerSearchPaths: [])
+        }
         let dependencyModuleMapPath: AbsolutePath?
         let pathString = dependency.graphTarget.path.pathString
 
@@ -408,7 +444,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private func applyModuleMapFlags(
         to settings: SettingsDictionary,
         targetID: TargetID,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        dependenciesMetadata: [DependencyMetadata],
         dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath,
         combinedModuleMapPath: AbsolutePath?,
@@ -448,7 +484,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         ), let updated = Self.updatedHeaderSearchPaths(
             targetID: targetID,
             oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-            targetToDependenciesMetadata: targetToDependenciesMetadata,
+            dependenciesMetadata: dependenciesMetadata,
             dependenciesDerivedDirectory: dependenciesDerivedDirectory,
             xcodeProjParent: xcodeProjParent
         ) {
@@ -481,11 +517,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func updatedHeaderSearchPaths(
         targetID: TargetID,
         oldHeaderSearchPaths: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        dependenciesMetadata: [DependencyMetadata],
         dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath
     ) -> SettingsDictionary.Value? {
-        let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
+        let dependenciesHeaderSearchPaths = Set(dependenciesMetadata.flatMap(\.headerSearchPaths))
         guard !dependenciesHeaderSearchPaths.isEmpty
         else { return nil }
 
@@ -518,10 +554,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func combinedModuleMapContent(
         targetID: TargetID,
         project: Project,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        dependenciesMetadata: [DependencyMetadata]
     ) -> (path: AbsolutePath, content: Data)? {
-        guard let dependenciesMetadata = targetToDependenciesMetadata[targetID] else { return nil }
-
         let moduleMapsMetadata = dependenciesMetadata
             .filter { $0.moduleMapPath != nil }
             .sorted { $0.moduleName < $1.moduleName }

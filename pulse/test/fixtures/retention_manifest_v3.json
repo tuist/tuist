@@ -1,0 +1,1 @@
+{"root_sha":"fca0a6f73fdaa9b248e4188c04c2a0b59d859b22d582e47b7b001a3b12936e17","payload":{"v":3,"s":[],"retired":{},"cleanup_cursor":null,"p":{"seed":"0123456789abcdef0123456789abcdef","nonce":"fedcba9876543210fedcba9876543210","floor":0,"days":1,"width":3600000000000,"buckets":[],"reclaimed":0,"aged_floor":0,"pending_floor":0,"pending_after":0}}}

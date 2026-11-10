@@ -35,11 +35,35 @@ This setting does not affect remote cache settings in the `buildCache` block.
 
 ## Report actor claim {#report-actor-claim}
 
-Build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label or configure `tuist { buildInsights { actorId = "developer-label" } }`. The environment variable takes precedence. No label is sent by default, and the plugin does not detect operating-system usernames.
+Build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label or configure `buildInsights.actorId` in your settings. No label is sent by default, and the plugin does not detect operating-system usernames. The environment override takes precedence. Set either override to an empty string to omit the reported identifier; this does not remove identity established by individual credentials. Invalid overrides omit the claim instead of falling back. If a custom proxy rejects unfamiliar headers, opt out with `TUIST_ACTOR_ID=""`.
 
-Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
+```kotlin
+tuist {
+    buildInsights {
+        actorId = providers.environmentVariable("CORPORATE_ACTOR_ID").getOrElse("")
+    }
+}
+```
 
-The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
+Actor identifiers are 1–128 bytes of non-space printable ASCII. They are visible to anyone who can view the project's reports, including public viewers when the project is public, and exported with reports. Do not include secrets or personal information you do not want to publish. A verified individual credential takes precedence in the dashboard; identifiers sent by clients are otherwise explicitly **Unverified**. They never grant permissions or automatically link to a Tuist user. Old servers ignore the attribution header, and new servers continue accepting old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test listings separate verified-user filters from unverified reported-identifier filters.
+
+## Network-trusted publishing {#network-trusted-publishing}
+
+Self-hosted deployments can explicitly allow Gradle build and test reports from their trusted network without developer credentials. An operator must configure `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` on the instance and restart it first. This applies to every supported project; there is no dashboard setting. See <.localized_link href="/guides/server/self-host/server#network-trusted-access">the self-hosting guide</.localized_link>.
+
+Configure the destination once in the repository:
+
+```kotlin
+tuist {
+    project = "organization/project"
+    url = "https://tuist.internal.example"
+    buildCache { enabled = false }
+}
+```
+
+Build and test reporting do not require authenticated cache endpoint discovery. Disable the cache unless the instance separately enables network-trusted cache access or developers provision tokens. Unsigned test reports omit shard and existing-build references and do not drive quarantine or flakiness automations. Quarantine lookup is skipped when credentials are genuinely absent; with valid credentials, existing authenticated behavior is preserved. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. When credentials are absent, the plugin automatically discovers whether the self-hosted server permits credential-free reporting. No client flag or `buildInsights` setting is required. Upgrade every server replica to a discovery-capable version before upgrading credential-free clients. Older servers without discovery, disabled instances, and discovery errors still require authentication; authenticated publishing remains compatible. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
+
+The server assigns credential-free report IDs. Repeating a submission can create a second report; this mode does not promise idempotent retries or correlation with authenticated test reports. Such reports cannot trigger VCS comments or automatic failure-agent events. Network access is the publishing trust boundary, not proof of the reported actor's identity.
 
 ## Custom metadata {#custom-metadata}
 
@@ -71,3 +95,15 @@ When the same value is configured in both places, the value in `settings.gradle.
 Tags must contain only letters, numbers, hyphens, and underscores. A build can have up to 50 tags, and each tag can contain up to 50 characters. A build can have up to 20 key-value entries, each key can contain up to 50 characters, and each value can contain up to 500 characters. These are the same server-side limits used for Xcode build metadata. The plugin skips invalid tags and oversized or empty metadata entries before it sends the report, so invalid configuration cannot prevent the rest of the build insights report from being stored. Use key-value metadata for values that do not meet the tag constraint.
 
 Custom metadata is visible to project members in the dashboard and through the application programming interface and Model Context Protocol tools. Do not use it for credentials, access tokens, or other sensitive data. Tuist retains Gradle build data, including this metadata, for 90 days. See the <.localized_link href="/guides/server/data-retention">data retention policy</.localized_link> for details.
+
+## Failure details {#failure-details}
+
+When a build fails, the plugin reports why each failed task or configuration step failed: the exception message and its cause chain as Gradle's console prints them, such as the compiler errors of a failed `compileJava` task or the error in a build script. Stack traces and task output are not collected. The plugin makes paths inside the project relative before sending the report, and Tuist redacts credentials and other local paths it recognizes. Each message is limited to 16 KiB, and a build keeps the messages of at most 32 failed steps.
+
+Failure messages are visible to project members through the application programming interface, the Model Context Protocol tools (`get_gradle_build`, `list_gradle_build_tasks` and `get_gradle_build_step`) and the CLI:
+
+```bash
+tuist build gradle failure list <build-id>
+```
+
+Messages can contain source snippets and project details. Reports published without credentials through [network-trusted publishing](#network-trusted-publishing) do not include them. Tuist retains them with the rest of the Gradle build data for 90 days.

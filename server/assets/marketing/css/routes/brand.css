@@ -166,8 +166,6 @@
            own ramp. */
         & > [data-part="download"] {
           position: absolute;
-          /* Figma: 6px inset from the cell corner. */
-          right: var(--noora-spacing-3);
           bottom: var(--noora-spacing-3);
           gap: var(--noora-spacing-2);
           /* Linear-style reveal: rises from below while fading in. The
@@ -179,6 +177,8 @@
             opacity 0.2s var(--ease-out-cubic),
             transform 0.2s var(--ease-out-cubic),
             background 0.2s var(--ease-out-cubic);
+          /* Figma: 6px inset from the cell corner. */
+          inset-inline-end: var(--noora-spacing-3);
 
           & svg {
             width: 16px;

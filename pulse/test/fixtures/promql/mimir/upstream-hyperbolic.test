@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/trig_functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+load 5m
+	trig{l="x"} 10
+	trig{l="y"} 20
+	trig{l="NaN"} NaN
+
+eval instant at 1m sinh(trig)
+	{l="x"} 11013.232920103324
+	{l="y"} 2.4258259770489514e+08
+	{l="NaN"} NaN
+
+eval instant at 1m cosh(trig)
+	{l="x"} 11013.232920103324
+	{l="y"} 2.4258259770489514e+08
+	{l="NaN"} NaN
+
+eval instant at 1m tanh(trig)
+	{l="x"} 0.9999999958776927
+	{l="y"} 1
+	{l="NaN"} NaN
+

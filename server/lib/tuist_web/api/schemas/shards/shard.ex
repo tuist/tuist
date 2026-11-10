@@ -1,6 +1,7 @@
 defmodule TuistWeb.API.Schemas.Shards.Shard do
   @moduledoc false
   alias OpenApiSpex.Schema
+  alias TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest
 
   require OpenApiSpex
 
@@ -32,6 +33,12 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
         items: %Schema{type: :string},
         description:
           "Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards."
+      },
+      skipped_tests: %Schema{
+        type: :array,
+        items: SkippedTest,
+        description:
+          "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
       },
       download_url: %Schema{
         type: :string,

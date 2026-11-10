@@ -144,6 +144,10 @@ private struct BazelSetupConfiguration {
     let accountHandle: String
     let projectHandle: String
     let fullHandle: String
+    /// Set only for the authenticated cache, the one setup remote execution runs on.
+    var cacheAuthentication: (serverURL: URL, token: String)?
+    var networkTrustedReporting = false
+    var networkTrustedCache = false
 }
 
 public struct BazelSetupCommandService {
@@ -152,6 +156,7 @@ public struct BazelSetupCommandService {
     private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let remoteCacheProbeService: RemoteCacheProbing
+    private let remoteExecutionCapabilitiesService: GetRemoteExecutionCapabilitiesServicing
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -162,6 +167,7 @@ public struct BazelSetupCommandService {
         cacheURLStore: CacheURLStoring = CacheURLStore(),
         getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
+        remoteExecutionCapabilitiesService: GetRemoteExecutionCapabilitiesServicing = GetRemoteExecutionCapabilitiesService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -171,6 +177,7 @@ public struct BazelSetupCommandService {
         self.cacheURLStore = cacheURLStore
         self.getCacheTokenService = getCacheTokenService
         self.remoteCacheProbeService = remoteCacheProbeService
+        self.remoteExecutionCapabilitiesService = remoteExecutionCapabilitiesService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
@@ -180,17 +187,33 @@ public struct BazelSetupCommandService {
         directory: String?,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
+        remoteExecution: Bool = false,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let canonicalDirectoryPath = try canonicalPath(directoryPath)
         let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
+        let buildInsights = buildInsights &&
+            (!setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting)
+        let execution = remoteExecution ? try await executionConfiguration(setupConfiguration) : nil
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
         let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
         let bazelrcContent: String
-        if let endpoint = setupConfiguration.endpoint {
+        if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedCache {
+            bazelrcContent = BazelrcFile.renderNetworkTrustedCache(
+                endpoint: endpoint, accountHandle: setupConfiguration.accountHandle,
+                projectHandle: setupConfiguration.projectHandle, buildInsights: buildInsights,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
+            )
+        } else if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedReporting {
+            bazelrcContent = buildInsights ? BazelrcFile.renderNetworkTrustedReports(
+                endpoint: endpoint, accountHandle: setupConfiguration.accountHandle,
+                projectHandle: setupConfiguration.projectHandle,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
+            ) : BazelrcFile.renderWithoutRemoteCache()
+        } else if let endpoint = setupConfiguration.endpoint {
             let credentialHelperPath = try await createCredentialHelperScriptIfNeeded(
                 directoryPath: canonicalDirectoryPath,
                 bazelrcDirectoryPath: bazelrcDirectoryPath,
@@ -202,7 +225,9 @@ public struct BazelSetupCommandService {
                 projectHandle: setupConfiguration.projectHandle,
                 credentialHelperPath: credentialHelperPath,
                 buildInsights: buildInsights,
-                remoteDownloader: remoteDownloader
+                remoteDownloader: remoteDownloader,
+                execution: execution,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
             )
         } else {
             bazelrcContent = BazelrcFile.renderWithoutRemoteCache()
@@ -222,7 +247,9 @@ public struct BazelSetupCommandService {
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
             buildInsights: buildInsights,
-            remoteCacheConfigured: setupConfiguration.endpoint != nil
+            remoteCacheConfigured: setupConfiguration.endpoint != nil &&
+                (!setupConfiguration.networkTrustedReporting || setupConfiguration.networkTrustedCache),
+            networkTrustedReporting: setupConfiguration.networkTrustedReporting && !setupConfiguration.networkTrustedCache
         )
     }
 
@@ -233,6 +260,51 @@ public struct BazelSetupCommandService {
             throw BazelSetupCommandServiceError.missingFullHandle
         }
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
+        if try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            guard let cacheURL = try await cacheURL(serverURL: serverURL, accountHandle: accountHandle),
+                  let host = cacheURL.host
+            else {
+                throw BazelSetupCommandServiceError.invalidCacheEndpoint("No self-hosted cache endpoint configured.")
+            }
+            try ServerReportPublishingMode.validateDestination(cacheURL)
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+            try await remoteCacheProbeService.probe(
+                endpoint: endpoint, accountHandle: accountHandle, instanceName: projectHandle, token: nil
+            )
+            return BazelSetupConfiguration(
+                endpoint: endpoint, accountHandle: accountHandle, projectHandle: projectHandle, fullHandle: fullHandle,
+                networkTrustedReporting: try await ServerReportPublishingMode.usesNetworkTrust(
+                    serverURL: serverURL, authenticationController: serverAuthenticationController
+                ),
+                networkTrustedCache: true
+            )
+        }
+        if try await ServerReportPublishingMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"] else {
+                throw BazelSetupCommandServiceError.notAuthenticated
+            }
+            guard let url = URL(string: configured),
+                  ["grpc", "grpcs"].contains(url.scheme ?? ""), let host = url.host,
+                  url.query == nil, url.fragment == nil, url.user == nil, url.password == nil,
+                  url.path.isEmpty || url.path == "/"
+            else {
+                throw BazelSetupCommandServiceError
+                    .invalidCacheEndpoint("Set TUIST_BAZEL_BES_BACKEND to a private grpc:// or grpcs:// endpoint.")
+            }
+            var httpURL = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            httpURL?.scheme = url.scheme == "grpc" ? "http" : "https"
+            guard let destination = httpURL?.url else { throw BazelSetupCommandServiceError.invalidCacheEndpoint(configured) }
+            try ServerReportPublishingMode.validateDestination(destination)
+            return BazelSetupConfiguration(
+                endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"),
+                accountHandle: accountHandle, projectHandle: projectHandle, fullHandle: fullHandle,
+                networkTrustedReporting: true
+            )
+        }
         guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
@@ -261,8 +333,39 @@ public struct BazelSetupCommandService {
             endpoint: endpoint,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
-            fullHandle: fullHandle
+            fullHandle: fullHandle,
+            cacheAuthentication: (serverURL, probeToken)
         )
+    }
+
+    /// Asks the server for the executor and image remote execution should use now. Remote execution
+    /// needs the authenticated cache it shares a credential with; anything the server declines leaves
+    /// a cache-only setup, so builds still run locally while the account has no execution capacity.
+    private func executionConfiguration(
+        _ configuration: BazelSetupConfiguration
+    ) async throws -> BazelExecutionConfiguration? {
+        guard let authentication = configuration.cacheAuthentication else {
+            throw BazelSetupCommandServiceError.invalidExecutionConfiguration
+        }
+        let capabilities: RemoteExecutionCapabilities
+        do {
+            capabilities = try await remoteExecutionCapabilitiesService.getCapabilities(
+                serverURL: authentication.serverURL,
+                accountHandle: configuration.accountHandle,
+                projectHandle: configuration.projectHandle,
+                token: authentication.token
+            )
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            warnExecutionUnavailable(error.localizedDescription)
+            return nil
+        }
+        guard let execution = BazelExecutionConfiguration.parse(capabilities) else {
+            warnExecutionUnavailable(GetRemoteExecutionCapabilitiesServiceError.invalidResponse.localizedDescription)
+            return nil
+        }
+        return execution
     }
 
     /// Resolve cache configuration, leaving remote caching disabled when no endpoint is available.
@@ -282,26 +385,35 @@ public struct BazelSetupCommandService {
         bazelrcPath: AbsolutePath,
         bazelrcImportResult: BazelrcImportResult,
         buildInsights: Bool,
-        remoteCacheConfigured: Bool
+        remoteCacheConfigured: Bool,
+        networkTrustedReporting: Bool
     ) {
         var takeaways = [
             bazelrcImportTakeaway(
                 result: bazelrcImportResult,
-                buildInsights: buildInsights
+                buildInsights: buildInsights,
+                networkTrustedReporting: networkTrustedReporting
             ),
         ]
         if remoteCacheConfigured {
             takeaways
                 .append("Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")")
         }
+        if networkTrustedReporting {
+            takeaways
+                .append("Reporting only: no remote cache is configured. Sign in and rerun tuist bazel setup to enable caching.")
+        }
         AlertController.current.success(.alert("Generated \(bazelrcPath.pathString)", takeaways: takeaways))
     }
 
     private func bazelrcImportTakeaway(
         result: BazelrcImportResult,
-        buildInsights: Bool
+        buildInsights: Bool,
+        networkTrustedReporting: Bool
     ) -> TerminalText {
-        let capabilities = buildInsights ? "remote cache and build insights" : "remote cache"
+        let capabilities = networkTrustedReporting
+            ? "credential-free build insights"
+            : (buildInsights ? "remote cache and build insights" : "remote cache")
 
         switch result {
         case .added:
@@ -414,13 +526,23 @@ public struct BazelSetupCommandService {
     }
 }
 
+private func warnExecutionUnavailable(_ reason: String) {
+    AlertController.current.warning(.alert(
+        "Remote execution is unavailable: \(reason)",
+        takeaway: "Bazel will build locally against the remote cache. Run tuist bazel setup --remote-execution again to retry."
+    ))
+}
+
 public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case missingFullHandle
     case invalidCacheEndpoint(String)
+    case invalidExecutionConfiguration
 
     public var errorDescription: String? {
         switch self {
+        case .invalidExecutionConfiguration:
+            return "Remote execution requires an authenticated Tuist remote cache. Sign in with tuist auth login, or omit --remote-execution."
         case .notAuthenticated:
             return
                 "You are not authenticated. Refer to the documentation for authentication options: https://tuist.dev/en/docs/guides/server/authentication"

@@ -10,6 +10,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -24,6 +26,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Errors.NotFoundError
+
+  # Step logs run real ClickHouse queries, which can exceed the default 100ms under CI load.
+  @render_async_timeout 5_000
 
   setup %{conn: conn} do
     stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
@@ -76,6 +81,35 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "abcdef1"
   end
 
+  test "renders a running job before the outbox has replayed it to ClickHouse", %{conn: conn, account: account} do
+    fleet_name = Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_051,
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repository: "tuist/cli",
+        workflow_run_id: 310_510,
+        workflow_name: "CLI",
+        run_attempt: 2,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued(fleet_name, [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_051, "tuist-runner-x", claimed_at)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310510/jobs/31051")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "tuist-runner-x"
+    assert html =~ "Running"
+  end
+
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
@@ -105,8 +139,37 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert html =~ "CLI · Unit Tests"
     assert html =~ "Linux"
+    assert html =~ "tuist-runner-x"
     # status_badge_props maps conclusion=success → "Passed"
     assert html =~ "Passed"
+  end
+
+  test "does not keep counting queue time for a job skipped before a runner claimed it", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_151,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+        repository: "tuist/cli",
+        workflow_run_id: 311_510,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Test Shard",
+        head_branch: "main",
+        head_sha: "1234567",
+        enqueued_at: DateTime.add(DateTime.utc_now(), -3, :day)
+      })
+
+    {:ok, _completed} = Jobs.complete(31_151, "skipped")
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311510/jobs/31151")
+
+    assert html =~ ~r|Queue time</div>\s*<span data-part="label">\s*<svg.*?</svg>\s*0ms\s*</span>|s
   end
 
   test "surfaces linked build and test insights for the runner workflow run", %{
@@ -410,6 +473,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     end
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
     expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
 
     refute expanded =~ ~s(data-part="step-insight-detail")
@@ -759,6 +823,42 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "job-secret"
   end
 
+  test "Bitrise jobs link to their build and point to Bitrise for logs", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.Bitrise.Build{
+        account_id: account.id,
+        build_slug: "3da87d70-71cd-48c0-8780-157e8c1c5801",
+        app_slug: "5782983d-2bc1-4627-a9b7-af2f2f390ed3",
+        stack_identifier: "agent-pool-a0c641c0",
+        build_number: 2
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "bitrise",
+        fleet_name: "linux-amd64",
+        repository: "Hello-World",
+        workflow_run_id: 2,
+        workflow_name: "primary",
+        job_name: "primary",
+        head_branch: "master"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/2/jobs/#{mapping.workflow_job_id}")
+    build_url = "https://app.bitrise.io/build/3da87d70-71cd-48c0-8780-157e8c1c5801"
+
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Bitrise")
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Open the build on Bitrise")
+    assert html =~ "Logs for Bitrise builds stay on Bitrise."
+    refute html =~ "https://github.com/Hello-World"
+    refute html =~ "steps-card"
+  end
+
   describe "Buildkite jobs" do
     defp buildkite_job!(account, workflow_run_id, job_name) do
       {:ok, mapping} =
@@ -1067,6 +1167,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     # Expanding the Build step (number 2) shows the in-step lines
     # but not the teardown content.
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
@@ -1090,6 +1191,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
@@ -1116,11 +1218,111 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "be separated from the rest of the job"
     refute panel =~ "No logs were captured for this step."
     assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
+  end
+
+  test "shows a loading state while a step's logs are fetched", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_605, 316_050, ["Set up job", "Build", "Complete job"], [
+      "Current runner version",
+      "##[group]Run build.sh",
+      "##[endgroup]",
+      "inside the build step",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316050/jobs/31605")
+
+    html = lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+
+    step_logs = html |> Floki.parse_document!() |> Floki.find(~s{[data-part="step-logs"]})
+
+    assert Floki.find(step_logs, ~s{[data-part="step-logs-loading"]}) != []
+    refute Floki.text(step_logs) =~ "inside the build step"
+
+    render_async(lv, @render_async_timeout)
+
+    refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
+    assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="false"]})
+  end
+
+  test "expands failed steps on load and opens their logs at the end", %{conn: conn, account: account} do
+    complete_job_with_logs!(
+      account,
+      31_607,
+      316_070,
+      ["Set up job", "Build", "Complete job"],
+      [
+        "Current runner version",
+        "##[group]Run build.sh",
+        "##[endgroup]",
+        "##[error]Process completed with exit code 65.",
+        "Cleaning up orphan processes"
+      ],
+      failed_steps: [2]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316070/jobs/31607")
+
+    assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|)
+    assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|)
+
+    render_async(lv, @render_async_timeout)
+
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"]}, "Process completed with exit code 65.")
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"][data-scroll-to-tail-active="true"]})
+  end
+
+  test "renders the tail of a long step and loads earlier lines on demand", %{conn: conn, account: account} do
+    build_lines = Enum.map(1..1_005, &"build line #{String.pad_leading(Integer.to_string(&1), 4, "0")}")
+
+    complete_job_with_logs!(
+      account,
+      31_606,
+      316_060,
+      ["Set up job", "Build", "Complete job"],
+      ["Current runner version", "##[group]Run build.sh", "##[endgroup]"] ++
+        build_lines ++ ["Cleaning up orphan processes"]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316060/jobs/31606")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
+
+    displayed = fn ->
+      lv
+      |> element(~s{[data-part="step-logs"]})
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find(~s{[data-part="log-line"]})
+      |> Enum.map(fn line ->
+        {line |> Floki.find(~s{[data-part="log-ln"]}) |> Floki.text(),
+         line |> Floki.find(~s{[data-part="log-message"]}) |> Floki.text()}
+      end)
+    end
+
+    tail = displayed.()
+    assert length(tail) == 1_000
+    assert List.first(tail) == {"7", "build line 0006"}
+    assert List.last(tail) == {"1006", "build line 1005"}
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="true"]})
+    assert has_element?(lv, ~s{#runner-step-2-line-7[data-part="log-line"]}, "build line 0006")
+    refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+
+    lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
+    render_async(lv, @render_async_timeout)
+
+    all = displayed.()
+    assert length(all) == 1_005
+    assert List.first(all) == {"2", "build line 0001"}
+    assert has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+    refute has_element?(lv, ~s{[data-part="step-logs-load-earlier"]})
   end
 
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
@@ -2068,9 +2270,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   end
 
   test "flags a volume that a failed job filled as the likely cause" do
-    volume = %Tuist.Runners.CacheVolumes.Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
 
-    usage = %Tuist.Runners.CacheVolumes.Usage{
+    usage = %Usage{
       volume_id: volume.id,
       volume: volume,
       warm: true,
@@ -2092,7 +2294,32 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
   end
 
-  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
+  test "names managed volumes after the caches they hold" do
+    xcode = %Volume{id: Ecto.UUID.generate(), key: "tuist-xcode"}
+    gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
+
+    usages =
+      for volume <- [xcode, gradle] do
+        %Usage{
+          volume_id: volume.id,
+          volume: volume,
+          warm: true,
+          size_bytes: 19_427_938_304,
+          capacity_bytes: 19_503_599_616
+        }
+      end
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
+
+    assert html =~ "Xcode cache"
+    assert html =~ "Gradle cache ran out of space"
+    refute html =~ "tuist-xcode"
+    refute html =~ "tuist-gradle"
+  end
+
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages, opts \\ []) do
+    failed_steps = Keyword.get(opts, :failed_steps, [])
+
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: workflow_job_id,
@@ -2123,7 +2350,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
           number: number,
           name: name,
           status: "completed",
-          conclusion: "success",
+          conclusion: if(number in failed_steps, do: "failure", else: "success"),
           started_at: ~U[2026-05-28 12:00:00.000000Z],
           completed_at: ~U[2026-05-28 12:00:01.000000Z]
         }

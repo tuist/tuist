@@ -2,17 +2,19 @@ defmodule TuistWeb.API.OIDCController do
   @moduledoc """
   Controller for OIDC token exchange.
 
-  This controller handles the exchange of CI provider OIDC tokens for
-  short-lived Tuist access tokens. Supports GitHub Actions, CircleCI, and Bitrise.
+  This controller handles the exchange of CI and workload OIDC tokens for
+  short-lived Tuist access tokens. Supports built-in CI providers and account-configured workload identities with account-wide CI access.
   """
 
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
+  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
   plug(
@@ -26,9 +28,9 @@ defmodule TuistWeb.API.OIDCController do
   @token_ttl_seconds 3600
 
   operation(:exchange_token,
-    summary: "Exchange a CI provider OIDC token for a Tuist access token.",
+    summary: "Exchange an OIDC identity token for a Tuist access token.",
     description: """
-    Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     for a short-lived Tuist access token.
     """,
     operation_id: "exchangeOIDCToken",
@@ -38,9 +40,16 @@ defmodule TuistWeb.API.OIDCController do
          title: "OIDCTokenExchangeRequest",
          type: :object,
          properties: %{
+           account_handle: %Schema{
+             type: :string,
+             minLength: 1,
+             maxLength: 255,
+             description:
+               "Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account."
+           },
            token: %Schema{
              type: :string,
-             description: "The OIDC JWT token from the CI provider."
+             description: "The OIDC JWT token from a supported CI or workload identity provider."
            }
          },
          required: [:token]
@@ -63,17 +72,18 @@ defmodule TuistWeb.API.OIDCController do
            },
            required: [:access_token, :expires_in]
          }},
-      bad_request: {"Unsupported CI provider or missing repository claim", "application/json", Error},
+      bad_request: {"Unsupported provider or missing identity claims", "application/json", Error},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
-      forbidden: {"No projects linked to the repository", "application/json", Error}
+      forbidden: {"No repository-linked projects or ambiguous repository account", "application/json", Error}
     }
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- OIDC.claims(token),
-         {:ok, projects} <- find_projects_by_repository(claims.repository),
-         {:ok, account} <- single_account(projects, claims.repository),
-         {:ok, access_token} <- generate_token(account, projects) do
+    account_handle = Map.get(conn.body_params, :account_handle)
+
+    with {:ok, claims} <- OIDC.claims(token, account_handle),
+         {:ok, account, project_scope} <- authorized_account(claims, token, account_handle),
+         {:ok, access_token} <- generate_token(account, project_scope) do
       conn
       |> put_status(:ok)
       |> json(%{
@@ -91,7 +101,7 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Currently supported: GitHub Actions, CircleCI, and Bitrise."
+            "Unsupported CI provider. Token issuer '#{issuer}' is not supported. Built-in providers: GitHub Actions, CircleCI, and Bitrise. Configure other issuers in account Authentication settings and provide account_handle."
         })
 
       {:error, :missing_repository_claim} ->
@@ -101,6 +111,18 @@ defmodule TuistWeb.API.OIDCController do
           message:
             "OIDC token does not contain required repository information used to verify it with the GitHub project connection."
         })
+
+      {:error, :oidc_account_required} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message: "Custom OIDC providers require account_handle. Set TUIST_OIDC_ACCOUNT to your Tuist account handle."
+        })
+
+      {:error, :token_not_yet_valid} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "OIDC token is not yet valid"})
 
       {:error, :invalid_signature} ->
         conn
@@ -129,6 +151,22 @@ defmodule TuistWeb.API.OIDCController do
           message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
         })
 
+      {:error, :amp_workspace_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace or project is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
+        })
+
+      {:error, :ambiguous_amp_workspace, account_handles} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace is connected to several Tuist accounts (#{Enum.join(account_handles, ", ")}). Set TUIST_OIDC_ACCOUNT to the account to authenticate as."
+        })
+
       {:error, :ambiguous_repository, repository, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -144,32 +182,67 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp find_projects_by_repository(repository) do
-    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
-      [] -> {:error, :no_projects}
-      projects -> {:ok, projects}
+  defp authorized_account(%{amp_workspace_id: workspace_id, amp_project_id: project_id}, token, account_handle) do
+    result =
+      if workspace_id,
+        do: Accounts.amp_workspace_account(workspace_id, project_id, account_handle),
+        else: {:error, :amp_workspace_not_connected}
+
+    case result do
+      {:ok, account} ->
+        {:ok, account, %{"all_projects" => true}}
+
+      {:error, :amp_workspace_not_connected} = error when is_binary(account_handle) ->
+        with {:ok, identity} <- OIDC.amp_policy_claims(token, account_handle),
+             {:ok, _account, _project_scope} = authorized <- authorized_account(identity) do
+          authorized
+        else
+          _ -> error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
+
+  defp authorized_account(%{provider: :oidc} = identity) do
+    with {:ok, account} <- Accounts.oidc_account_by_grants(identity) do
+      {:ok, account, %{"all_projects" => true}}
+    end
+  end
+
+  defp authorized_account(%{repository: repository} = identity) do
+    # Built-in providers only prove github.com repositories, so a GitHub
+    # Enterprise Server link with the same handle must not match.
+    case Projects.projects_by_vcs_repository_full_handle(repository,
+           preload: [:account],
+           client_url: VCS.default_client_url()
+         ) do
+      [] ->
+        {:error, :no_projects}
+
+      projects ->
+        with {:ok, account} <- single_account(projects, identity) do
+          {:ok, account, %{"project_ids" => Enum.map(projects, & &1.id)}}
+        end
     end
   end
 
   # A token is scoped to one account, and project access requires the
-  # token's account to own the project. If the repository is linked from
-  # several accounts, no single token can serve every linked project, so
+  # token's account to own the project. If the identity maps to projects in
+  # several accounts, no single token can serve every project, so
   # refuse the exchange instead of picking an account by row order.
-  defp single_account(projects, repository) do
+  defp single_account(projects, %{repository: repository}) do
     case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
       [account] -> {:ok, account}
       accounts -> {:error, :ambiguous_repository, repository, accounts |> Enum.map(& &1.name) |> Enum.sort()}
     end
   end
 
-  defp generate_token(account, projects) do
-    project_ids = Enum.map(projects, & &1.id)
-
-    claims = %{
-      "type" => "account",
-      "scopes" => ["ci"],
-      "project_ids" => project_ids
-    }
+  defp generate_token(account, project_scope) do
+    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, project_scope)
 
     case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}

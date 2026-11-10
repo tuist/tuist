@@ -2,11 +2,14 @@ defmodule Atlas.SupportInbox.ClassifierTest do
   use Atlas.DataCase, async: true
   use Mimic
 
+  alias Atlas.Audit.Activity
   alias Atlas.Inbox.InboxEmail
   alias Atlas.Repo
+  alias Atlas.Support
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
   alias Atlas.SupportInbox.Classifier
+  alias Atlas.Users.User
   alias ReqLLM.Error.API.Request
 
   setup :verify_on_exit!
@@ -123,6 +126,44 @@ defmodule Atlas.SupportInbox.ClassifierTest do
       assert log =~ "provider credits or billing need attention"
     end
 
+    test "persists bounded diagnostics for transport and invalid-output failures" do
+      failures = [
+        {%ReqLLM.Error.API.Stream{
+           reason: "private stream details",
+           cause: %Finch.TransportError{reason: :nxdomain}
+         }, "model transport DNS lookup failed"},
+        {%Req.TransportError{reason: :timeout}, "model request timed out"},
+        {:etimedout, "model request timed out"},
+        {{:session_exit, :timeout}, "model request timed out"},
+        {:closed, "model transport connection closed"},
+        {{:error, :nxdomain}, "model transport DNS lookup failed"},
+        {%{reason: :econnrefused, request_body: "private request"}, "model transport connection was refused"},
+        {:no_result_submitted, "model did not submit a classification result"},
+        {:invalid_classifier_output, "model returned an invalid classification result"},
+        {{:missing_field, "private field"}, "model returned an invalid classification result"},
+        {{:invalid_enum, "category", "private output"}, "model returned an invalid classification result"},
+        {{:invalid_output, "private model response"}, "model returned an invalid classification result"},
+        {%{cause: %{reason: "private transport details"}}, "classification failed"}
+      ]
+
+      for {error, summary} <- failures do
+        %{thread: thread, message: inbound} = fresh_thread_with_message("diagnostics@customer.example")
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            assert {:ok, decision} =
+                     Classifier.classify_and_persist(thread, inbound, classifier: fn _ -> {:error, error} end)
+
+            assert decision.reason == "Classifier unavailable: #{summary}; defaulted to #support."
+            assert Repo.get!(Thread, thread.id).classifier_reason == decision.reason
+            assert decision.action_needed
+          end)
+
+        assert log =~ summary
+        refute log =~ "private"
+      end
+    end
+
     test "uses a bounded fallback for unknown errors" do
       %{thread: thread, message: inbound} = fresh_thread_with_message("unknown@customer.example")
 
@@ -176,7 +217,122 @@ defmodule Atlas.SupportInbox.ClassifierTest do
       assert reloaded.urgency == "none"
       assert reloaded.classifier_confidence == 0.99
       assert reloaded.classified_at
+      assert reloaded.status == "resolved"
+      assert reloaded.resolved_at == reloaded.classified_at
+
+      activity = Repo.one!(from(a in Activity, where: a.action == "support.thread_auto_resolved"))
+      assert activity.target_id == thread.id
+      assert activity.interface == "worker"
     end
+
+    test "keeps actionable and uncertain messages open" do
+      for {action_needed, confidence} <- [{true, 0.99}, {false, 0.4}] do
+        %{thread: thread, message: inbound} = fresh_thread_with_message("action@customer.example")
+
+        assert {:ok, decision} =
+                 Classifier.classify_and_persist(thread, inbound,
+                   classifier: fn _ -> {:ok, decision(action_needed, confidence)} end
+                 )
+
+        assert decision.action_needed
+        reloaded = Repo.get!(Thread, thread.id)
+        assert reloaded.status == "open"
+        refute reloaded.resolved_at
+      end
+    end
+
+    test "does not close a conversation that gained activity while the model was running" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("race@customer.example")
+
+      classifier = fn _ ->
+        insert_inbound_message!(thread, "A follow-up needing a response")
+        {:ok, decision(false, 0.99)}
+      end
+
+      assert {:ok, decision} = Classifier.classify_and_persist(thread, inbound, classifier: classifier)
+      assert decision.source == :continuity
+      assert decision.action_needed
+      assert Repo.get!(Thread, thread.id).status == "open"
+    end
+
+    test "preserves a status changed while the model was running" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("waiting@customer.example")
+
+      classifier = fn _ ->
+        thread |> Thread.status_changeset(%{status: "waiting"}) |> Repo.update!()
+        {:ok, decision(false, 0.99)}
+      end
+
+      assert {:ok, _decision} = Classifier.classify_and_persist(thread, inbound, classifier: classifier)
+      assert Repo.get!(Thread, thread.id).status == "waiting"
+    end
+
+    test "preserves an assignment made while the model was running" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("assigned@customer.example")
+      owner = insert_user!()
+
+      classifier = fn _ ->
+        assert {:ok, _thread} = Support.assign(thread, owner.id, owner)
+        {:ok, decision(false, 0.99)}
+      end
+
+      assert {:ok, _decision} = Classifier.classify_and_persist(thread, inbound, classifier: classifier)
+      reloaded = Repo.get!(Thread, thread.id)
+      assert reloaded.owner_id == owner.id
+      assert reloaded.status == "open"
+      refute reloaded.resolved_at
+    end
+
+    test "a private note added during inference overrides the no-action decision" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("noted@customer.example")
+      owner = insert_user!()
+
+      classifier = fn _ ->
+        assert {:ok, _note} = Support.add_note(thread, %{body: "Investigating this email."}, owner)
+        {:ok, decision(false, 0.99)}
+      end
+
+      assert {:ok, decision} = Classifier.classify_and_persist(thread, inbound, classifier: classifier)
+      assert decision.source == :continuity
+      assert decision.action_needed
+      assert Repo.get!(Thread, thread.id).status == "open"
+    end
+
+    test "does not reset an existing resolution timestamp on retry" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("resolved@customer.example")
+      resolved_at = DateTime.add(thread.last_message_at, -60, :second)
+      thread |> Thread.status_changeset(%{status: "resolved", resolved_at: resolved_at}) |> Repo.update!()
+
+      assert {:ok, _decision} =
+               Classifier.classify_and_persist(thread, inbound, classifier: fn _ -> {:ok, decision(false, 0.99)} end)
+
+      assert Repo.get!(Thread, thread.id).resolved_at == resolved_at
+    end
+
+    test "propagates persistence errors instead of reporting classification success" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("persist-error@customer.example")
+      changeset = Ecto.Changeset.add_error(Ecto.Changeset.change(thread), :classification, "invalid")
+      expect(Repo, :update, fn _ -> {:error, changeset} end)
+
+      assert {:error, ^changeset} =
+               Classifier.classify_and_persist(thread, inbound, classifier: fn _ -> {:ok, decision(false, 0.99)} end)
+    end
+  end
+
+  defp insert_user! do
+    %User{}
+    |> User.changeset(%{email: "classifier-owner-#{System.unique_integer([:positive])}@tuist.dev", name: "Owner"})
+    |> Repo.insert!()
+  end
+
+  defp decision(action_needed, confidence) do
+    %{
+      category: :publish,
+      action_needed: action_needed,
+      urgency: :none,
+      confidence: confidence,
+      reason: "Package publication notice."
+    }
   end
 
   defp fresh_thread_with_message(customer_email) do

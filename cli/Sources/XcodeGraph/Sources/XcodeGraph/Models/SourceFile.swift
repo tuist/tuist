@@ -15,6 +15,10 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable, Sendab
     /// This attribute is used by the content hasher used by the caching functionality.
     public var contentHash: String?
 
+    /// True when `contentHash` identifies a script-generated declaration, not the generated file's bytes.
+    /// Optional to preserve decoding of graphs written before this distinction was recorded.
+    public var contentHashIsPlaceholder: Bool?
+
     /// Source file code generation attribute
     public let codeGen: FileCodeGen?
 

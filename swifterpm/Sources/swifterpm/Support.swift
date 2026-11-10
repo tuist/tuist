@@ -167,6 +167,27 @@ enum SystemProcess {
         ).stdoutString
     }
 
+    /// Returns once `executable` has started, or failed to start, without waiting for it to
+    /// finish. The child runs in its own session with its output discarded, so it outlives this
+    /// process and the terminal that started it.
+    static func spawnDetached(_ executable: String, _ arguments: [String]) async {
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        Task.detached(priority: .background) {
+            var platformOptions = PlatformOptions()
+            platformOptions.createSession = true
+            _ = try? await Subprocess.run(
+                subprocessExecutable(executable),
+                arguments: Arguments(arguments),
+                platformOptions: platformOptions,
+                input: .none,
+                output: .discarded,
+                error: .discarded
+            ) { _ in signal.finish() }
+            signal.finish()
+        }
+        for await _ in started {}
+    }
+
     private static func subprocessExecutable(_ executable: String) -> Executable {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }
@@ -213,11 +234,11 @@ enum HTTPClient {
     private static let resourceTimeout: TimeInterval = 600
     private static let maxAttempts = 3
 
-    private static let session: URLSession = {
+    static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = idleTimeout
         configuration.timeoutIntervalForResource = resourceTimeout
-        return URLSession(configuration: configuration)
+        return CertificateTrust.makeSession(configuration: configuration)
     }()
 
     static func defaultHeaders(for url: URL) async throws -> [String: String] {
@@ -280,7 +301,7 @@ enum HTTPClient {
     /// Retries transient transport failures (timeouts, dropped or half-open
     /// connections) and transient HTTP statuses on a fresh connection with
     /// linear backoff.
-    private static func withRetry<T>(
+    static func withRetry<T>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
         var attempt = 1
@@ -288,10 +309,10 @@ enum HTTPClient {
             do {
                 return try await operation()
             } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
-                try? await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
+                try await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
                 attempt += 1
             } catch let error as StatusError where attempt < maxAttempts && error.isRetryable {
-                try? await Task.sleep(
+                try await Task.sleep(
                     nanoseconds: backoff(attempt: attempt, retryAfter: error.retryAfter))
                 attempt += 1
             }
@@ -305,10 +326,39 @@ enum HTTPClient {
     private static func isRetryable(_ error: URLError) -> Bool {
         switch error.code {
         case .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed,
-             .cannotFindHost, .secureConnectionFailed:
+             .cannotFindHost:
             return true
         default:
             return false
+        }
+    }
+
+    /// Provider optimizations may fall back for ordinary failures, never TLS or cancellation.
+    static func optionalResult<T>(_ operation: () async throws -> T) async throws -> T? {
+        do {
+            return try await operation()
+        } catch {
+            try requireFallbackAllowed(after: error)
+            return nil
+        }
+    }
+
+    static func requireFallbackAllowed(after error: any Error) throws {
+        if error is CancellationError { throw error }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cancelled, .userCancelledAuthentication, .secureConnectionFailed,
+                 .serverCertificateHasBadDate, .serverCertificateUntrusted,
+                 .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+                 .clientCertificateRejected, .clientCertificateRequired,
+                 .appTransportSecurityRequiresSecureConnection:
+                throw error
+            default:
+                break
+            }
+        }
+        if let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error {
+            try requireFallbackAllowed(after: underlying)
         }
     }
 
@@ -525,18 +575,23 @@ enum ConcurrentTasks {
 final class PathLock: @unchecked Sendable {
     private let fd: Int32
 
-    init(path: URL) throws {
+    /// Throws `PathLock.Busy` when `blocking` is false and another holder conflicts.
+    init(path: URL, shared: Bool = false, blocking: Bool = true) throws {
         fd = open(
             path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
         )
         if fd < 0 {
             throw ToolError.message("failed to open lock \(path.path)")
         }
-        if flock(fd, LOCK_EX) != 0 {
+        if flock(fd, (shared ? LOCK_SH : LOCK_EX) | (blocking ? 0 : LOCK_NB)) != 0 {
+            let busy = errno == EWOULDBLOCK
             close(fd)
+            if busy { throw Busy() }
             throw ToolError.message("failed to lock \(path.path)")
         }
     }
+
+    struct Busy: Error {}
 
     deinit {
         flock(fd, LOCK_UN)
@@ -545,14 +600,27 @@ final class PathLock: @unchecked Sendable {
 }
 
 extension PathLock {
-    static func acquire(at path: URL) async throws -> PathLock {
+    static func acquire(at path: URL, shared: Bool = false) async throws -> PathLock {
         try await fileSystem.makeDirectory(
             at: path.deletingLastPathComponent().absolutePath,
             options: [.createTargetParentDirectories]
         )
         return try await Task.detached {
-            try PathLock(path: path)
+            try PathLock(path: path, shared: shared)
         }.value
+    }
+
+    /// An exclusive lock, or nil when another process or task holds the path.
+    static func tryAcquire(at path: URL) async throws -> PathLock? {
+        try await fileSystem.makeDirectory(
+            at: path.deletingLastPathComponent().absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        do {
+            return try PathLock(path: path, blocking: false)
+        } catch is Busy {
+            return nil
+        }
     }
 }
 

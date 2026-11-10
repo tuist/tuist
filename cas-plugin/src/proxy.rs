@@ -259,6 +259,30 @@ fn tags_path(record_path: &str) -> std::path::PathBuf {
 /// remembered and a later acceptance decides again.
 const SPOOL_LEDGER_MAX: usize = 100_000;
 
+/// A record still spooled this long after the build wrote it is dropped by the
+/// periodic sweep. An hour-old record is a publication that failed every
+/// retry of every sweep since, and holding it keeps its store
+/// handle open (`reclaim_idle` spares a store that owes publications) and every
+/// sweep reading it. Drains do not drop records: a promote gate reads an empty
+/// spool as "everything landed", which a dropped record would fake.
+const SPOOL_RECORD_MAX_AGE: Duration = Duration::from_secs(60 * 60);
+
+/// Which records a sweep of the spool enqueues.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Sweep {
+    /// The maintenance tick: drops records past `SPOOL_RECORD_MAX_AGE` and
+    /// enqueues the rest.
+    Periodic,
+    /// The maintenance tick once the window of a credential refusal ran out:
+    /// drops expired records like `Periodic`, then enqueues only the newest,
+    /// whose publication probes the refusal. The newest is the record most
+    /// likely to still have its value graph in the store, which it needs to
+    /// reach the upload that probes.
+    Probe,
+    /// A drain: every record, now. Its caller has a deadline of its own.
+    Everything,
+}
+
 /// What the first acceptance of a record decided.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SpoolDecision {
@@ -380,6 +404,18 @@ fn spool_records(cas_path: &str) -> usize {
                 .is_some_and(|name| !name.ends_with(TAGS_SUFFIX))
         })
         .count()
+}
+
+/// Unlike drain accounting, an unreadable spool cannot authorize an upgrade.
+fn spool_is_empty(cas_path: &str) -> bool {
+    match std::fs::read_dir(spool_dir(cas_path)) {
+        Ok(mut entries) => entries.all(|entry| {
+            entry.ok().is_some_and(|entry| {
+                entry.file_name().to_str().is_some_and(|name| name.ends_with(TAGS_SUFFIX))
+            })
+        }),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
 }
 
 /// How long a drain waits when its caller names no budget of its own.
@@ -551,6 +587,15 @@ fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(tags_path(record_path));
 }
 
+/// Whether a spooled record is older than `SPOOL_RECORD_MAX_AGE`, by the file's
+/// modification time, which the claim rename keeps. A record whose time cannot
+/// be read is not expired: dropping is the exception, not the default.
+fn record_expired(modified: Option<std::time::SystemTime>, now: std::time::SystemTime) -> bool {
+    modified
+        .and_then(|modified| now.duration_since(modified).ok())
+        .is_some_and(|age| age > SPOOL_RECORD_MAX_AGE)
+}
+
 /// The store directory a spool record belongs to: `<cas_path>/tuist-spool/<record>`.
 fn spool_owner(record_path: &str) -> String {
     let record = Path::new(record_path);
@@ -690,6 +735,9 @@ const VIEW_REFRESH_MAX_QUEUE: usize = 50_000;
 /// published by another machine after our miss becomes visible on the next
 /// resolve past this window rather than requiring a proxy restart.
 const NEGATIVE_TTL: Duration = Duration::from_secs(60);
+// A publication skipped because the remote refused the credential. Reported once
+// by the remote that refused it, not once per spooled record.
+const CREDENTIAL_REFUSED: &str = "remote refused the cache credential";
 
 /// How long a path may go without a request before its in-memory caches are
 /// reclaimed and its store's handle released by the maintenance loop. Well
@@ -2496,6 +2544,10 @@ pub struct Proxy {
     stalls: &'static StoreStalls,
     // How many connections are being handled. See `serve`.
     requests: RequestLimit,
+    request_revision: AtomicU64,
+    last_request_ms: AtomicU64,
+    // A drained maintenance pass authorizes exit only until the next connection.
+    upgrade_revision: AtomicU64,
     publisher: Prefetcher,
     // Deletes the spool records of projects that do not upload, off the request
     // that handed them over. Items are record paths.
@@ -2602,6 +2654,9 @@ impl Proxy {
             paths: Mutex::new(HashMap::new()),
             stalls: Box::leak(Box::new(StoreStalls::new())),
             requests: RequestLimit::new(MAX_CONCURRENT_REQUESTS),
+            request_revision: AtomicU64::new(1),
+            last_request_ms: AtomicU64::new(0),
+            upgrade_revision: AtomicU64::new(0),
             publisher: Prefetcher::new(),
             spool_cleaner: Prefetcher::new(),
             spool_ledger: SpoolLedger::default(),
@@ -3183,6 +3238,13 @@ impl Proxy {
         observed: u64,
         snapshot_ready: bool,
     ) -> Result<Option<Vec<u8>>, String> {
+        // A remote that is not answering lookups is a miss, but not one to
+        // remember: the key may well be there once the remote is back. Answered
+        // as a plain miss rather than an error, because the build reports every
+        // errored lookup and this one never reached the remote.
+        if remote.skip_lookup() {
+            return Ok(None);
+        }
         let op_start = Instant::now();
         let phase = Instant::now();
         let manifest = match remote.get_action(key)? {
@@ -4543,7 +4605,7 @@ impl Proxy {
                 // armed it, and every publication queued behind it fails for the
                 // same reason. Saying so per record buries the line that
                 // explains them in thousands of copies of itself.
-                if reason != "remote shedding writes" {
+                if reason != "remote shedding writes" && reason != CREDENTIAL_REFUSED {
                     crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
                 }
             }
@@ -4570,6 +4632,10 @@ impl Proxy {
             remote.record_shed_write();
             state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
             return Err("remote shedding writes".into());
+        }
+        // Its requests would not be sent, so the closure walk would be wasted.
+        if remote.publication_refused() {
+            return Err(CREDENTIAL_REFUSED.into());
         }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
@@ -4784,6 +4850,41 @@ impl Proxy {
         }
     }
 
+    /// Prunes every registered store that has grown past its size limit, for a
+    /// proxy that is starting and holds no handle yet. `bound_stores` waits for an
+    /// idle machine, which one that starts the proxy for each job and stops it
+    /// after (`tuist setup cache` ... `tuist teardown cache` on CI) never is, so
+    /// its stores grew until llcas's fixed-size mappings filled and every build
+    /// crashed the build system with "LLVM ERROR: Cannot allocate memory".
+    pub fn bound_registered_stores(&self) {
+        let paths: Vec<String> = self.path_instances.lock().unwrap().keys().cloned().collect();
+        for cas_path in paths {
+            let Some(limit) = self.store_size_limit(&cas_path) else { continue };
+            // See `bound_store`.
+            if spool_records(&cas_path) > 0 {
+                continue;
+            }
+            let size = directory_size(&cas_path);
+            if size <= limit {
+                continue;
+            }
+            let sizes = indexed_generation_sizes(&generation_sizes(&cas_path));
+            if plan_generations(&sizes, generation_limit(limit), true) == GenerationPlan::default() {
+                continue;
+            }
+            match prune_store(&cas_path, generation_limit(limit)) {
+                Ok(pruned) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: pruning at startup reclaimed {} bytes{}",
+                    pruned.reclaimed,
+                    if pruned.held_open { " (held open elsewhere, so not rotated)" } else { "" }
+                )),
+                Err(message) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: prune at startup failed: {message}"
+                )),
+            }
+        }
+    }
+
     /// The size limit of the store at `cas_path`: the smallest limit set by any
     /// project that has used it. Stores are shared (Xcode's default store by
     /// every project on the machine), so the limit of whichever project built
@@ -4918,45 +5019,103 @@ impl Proxy {
             .map(|(cas_path, instance)| (cas_path.clone(), instance.clone()))
             .collect();
         for (cas_path, instance) in paths {
-            self.sweep_path(&cas_path, &instance);
+            // A refused credential stops the requests (`CredentialBreaker`), not
+            // the work in front of them: each record would still be read, and
+            // its tags with it, before the publication saw the refusal. So the
+            // spool is not read while the refusal holds, and one record probes
+            // it once its window runs out. The breaker closes on any other
+            // answer, and the next tick enqueues the rest. No client yet means
+            // nothing was refused, and building one here could resolve the
+            // endpoint on this thread.
+            let gate = self
+                .current_remote(&instance)
+                .map_or(reapi::PublicationGate::Open, |remote| remote.publication_gate());
+            let sweep = match gate {
+                reapi::PublicationGate::Open => Sweep::Periodic,
+                reapi::PublicationGate::ProbeDue => Sweep::Probe,
+                reapi::PublicationGate::Refusing => continue,
+            };
+            self.sweep_path(&cas_path, &instance, sweep);
         }
     }
 
-    /// Re-enqueues every publication record still spooled under one CAS path.
-    fn sweep_path(&self, cas_path: &str, instance: &str) {
+    /// Re-enqueues the publication records still spooled under one CAS path.
+    fn sweep_path(&self, cas_path: &str, instance: &str, sweep: Sweep) {
         self.stalls.watch(cas_path, "sweeping the publication spool", || {
-            self.sweep_spool(cas_path, instance)
+            self.sweep_spool(cas_path, instance, sweep)
         });
     }
 
-    fn sweep_spool(&self, cas_path: &str, instance: &str) {
+    fn sweep_spool(&self, cas_path: &str, instance: &str, sweep: Sweep) {
         let spool = spool_dir(cas_path);
         let Ok(entries) = std::fs::read_dir(&spool) else {
             return;
         };
+        let now = std::time::SystemTime::now();
+        let mut expired = 0usize;
+        let mut newest: Option<(std::time::SystemTime, String, PathBuf)> = None;
         for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                // A sidecar is not a record. Publishing one would fail to
-                // decode and delete it, throwing away the tags it exists to
-                // carry, and the record beside it would then resolve live.
-                if name.ends_with(TAGS_SUFFIX) {
-                    continue;
-                }
-                // Claims are ours alone now; reclaim anything.
-                let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
-                let path = match base {
-                    Some(base) => {
-                        let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
-                        if std::fs::rename(entry.path(), &claimed).is_err() {
-                            continue;
-                        }
-                        claimed
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            // A sidecar is not a record. Publishing one would fail to decode
+            // and delete it, throwing away the tags it exists to carry, and the
+            // record beside it would then resolve live.
+            if name.ends_with(TAGS_SUFFIX) {
+                continue;
+            }
+            if sweep == Sweep::Everything {
+                self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path());
+                continue;
+            }
+            let modified = entry.metadata().and_then(|metadata| metadata.modified()).ok();
+            if record_expired(modified, now) {
+                self.remove_spooled(&entry.path().to_string_lossy());
+                expired += 1;
+                continue;
+            }
+            match sweep {
+                Sweep::Probe => {
+                    let modified = modified.unwrap_or(std::time::UNIX_EPOCH);
+                    if newest.as_ref().is_none_or(|(newest, _, _)| modified > *newest) {
+                        newest = Some((modified, name, entry.path()));
                     }
-                    None => entry.path(),
-                };
-                self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
+                }
+                _ => self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path()),
             }
         }
+        if let Some((_, name, path)) = newest {
+            self.enqueue_spooled(cas_path, instance, &spool, &name, path);
+        }
+        if expired > 0 {
+            crate::log_line(&format!(
+                "proxy dropped {expired} publication record(s) under {cas_path} spooled for more than {}h",
+                SPOOL_RECORD_MAX_AGE.as_secs() / 3600
+            ));
+        }
+    }
+
+    /// Enqueues one spooled record, reclaiming it first if a process that is
+    /// gone had claimed it: claims are ours alone now.
+    fn enqueue_spooled(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        spool: &Path,
+        name: &str,
+        path: PathBuf,
+    ) {
+        let path = match name.split_once(".claim-") {
+            Some((base, _)) => {
+                let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
+                if std::fs::rename(&path, &claimed).is_err() {
+                    return;
+                }
+                claimed
+            }
+            None => path,
+        };
+        self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
     }
 
     /// Waits for everything this machine recorded under `cas_path` to reach the
@@ -5007,7 +5166,7 @@ impl Proxy {
             return owed;
         };
         loop {
-            self.sweep_path(cas_path, instance);
+            self.sweep_path(cas_path, instance, Sweep::Everything);
             self.publisher
                 .wait_idle(deadline.saturating_duration_since(Instant::now()));
             let owed = spool_records(cas_path);
@@ -5101,7 +5260,7 @@ impl Proxy {
             return;
         }
         let resolution =
-            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance);
+            crate::endpoint::resolve(&fetch.executable(), fetch.server_url.as_deref(), instance);
         self.record_resolution(resolution, || self.current_endpoint_reachable(instance));
     }
 
@@ -6026,8 +6185,8 @@ impl Proxy {
         }
         drop(paths);
         for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
-            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
-                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
+            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={} skipped_lookups={} skipped_refused_credential={}",
+                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes(), remote.skipped_lookups(), remote.skipped_credential_requests()));
         }
         parts.join(" | ")
     }
@@ -6049,13 +6208,74 @@ impl Proxy {
         }
     }
 
+    /// Called at the END of a maintenance pass, after sweeping publications.
+    /// Spool I/O stays off the accept loop; any connection arriving while this
+    /// checks the stores invalidates its authorization, even if already finished.
+    pub fn allow_idle_upgrade(&self) {
+        self.allow_idle_upgrade_at(self.epoch.elapsed());
+    }
+
+    fn allow_idle_upgrade_at(&self, elapsed: Duration) {
+        self.upgrade_revision.store(0, Ordering::Release);
+        let revision = self.request_revision.load(Ordering::Acquire);
+        if elapsed.as_millis().saturating_sub(self.last_request_ms.load(Ordering::Acquire) as u128) < 30_000 {
+            return;
+        }
+        if self.requests.in_flight.load(Ordering::Acquire) != 0
+            || self.requests.control_in_flight.load(Ordering::Acquire) != 0
+            || !self.stalls.running.lock().unwrap().is_empty()
+            || !self.materialize_jobs.lock().unwrap().is_empty()
+            || ![&self.publisher, &self.spool_cleaner, &self.materializer, &self.prematerializer]
+                .iter().all(|pool| pool.wait_idle(Duration::ZERO))
+        {
+            return;
+        }
+        let paths: Vec<String> = self.path_instance.lock().unwrap().keys().cloned().collect();
+        if paths.iter().all(|path| spool_is_empty(path)) {
+            self.upgrade_revision.store(revision, Ordering::Release);
+        }
+    }
+
+    fn can_exit_for_upgrade(&self) -> bool {
+        self.can_exit_for_upgrade_at(self.epoch.elapsed())
+    }
+
+    fn can_exit_for_upgrade_at(&self, elapsed: Duration) -> bool {
+        self.upgrade_revision.load(Ordering::Acquire) == self.request_revision.load(Ordering::Acquire)
+            && self.requests.in_flight.load(Ordering::Acquire) == 0
+            && self.requests.control_in_flight.load(Ordering::Acquire) == 0
+            && elapsed.as_millis().saturating_sub(
+                self.last_request_ms.load(Ordering::Acquire) as u128
+            ) >= 30_000
+    }
+
     /// Handles each connection on a thread of its own, at most
     /// `MAX_CONCURRENT_REQUESTS` at once. A connection past that, or one whose
     /// thread cannot start, is refused (see `refuse`) rather than queued:
     /// handlers that are not finishing would not finish for a queue either.
     pub fn serve(&'static self, listener: UnixListener) {
-        for stream in listener.incoming() {
-            let Ok(stream) = stream else { continue };
+        listener.set_nonblocking(true).expect("nonblocking proxy listener");
+        loop {
+            let stream = match listener.accept() {
+                Ok((stream, _)) => stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    // Only the accept loop can commit the exit: no request can be
+                    // admitted between checking idleness and returning to launchd.
+                    if self.can_exit_for_upgrade() {
+                        return;
+                    }
+                    use std::os::fd::AsRawFd;
+                    let mut descriptor = libc::pollfd {
+                        fd: listener.as_raw_fd(), events: libc::POLLIN, revents: 0,
+                    };
+                    unsafe { libc::poll(&mut descriptor, 1, 1000); }
+                    continue;
+                }
+                Err(_) => continue,
+            };
+            self.request_revision.fetch_add(1, Ordering::AcqRel);
+            self.last_request_ms.store(self.epoch.elapsed().as_millis() as u64, Ordering::Release);
+            let _ = stream.set_nonblocking(false);
             let Some(slot) = self.requests.acquire() else {
                 self.refuse(stream, "at its limit");
                 continue;
@@ -6119,9 +6339,9 @@ impl Proxy {
     }
 
     fn dispatch(&'static self, request: Request, mut stream: UnixStream) -> std::io::Result<()> {
-        // A plugin from a different CLI version speaks a different frame layout;
-        // reject rather than misparse, so the plugin degrades to a local miss.
-        if request.version != crate::proxy_proto::PROTOCOL_VERSION {
+        // v1 has the same frame layout but cannot self-heal demand loads. Its
+        // resolve path below materializes the closure before answering a hit.
+        if !(1..=crate::proxy_proto::PROTOCOL_VERSION).contains(&request.version) {
             return write_response(
                 &mut stream,
                 STATUS_ERROR,
@@ -6159,7 +6379,14 @@ impl Proxy {
                     fresh
                 });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
+                    let value = self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())?;
+                    if request.version == 1 {
+                        if let Some(value) = value {
+                            return self.fetch_object(state, &request.cas_path, &instance, &value)
+                                .map(|ready| ready.then_some(value));
+                        }
+                    }
+                    Ok(value)
                 });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -9871,13 +10098,33 @@ mod tests {
         prune_store(&dir.path(), directory_size(&dir.0.join("v1.1").to_string_lossy())).unwrap();
         let rotated = generations(&dir);
         let state = path_state_for(&dir.path());
+        // An empty primary can occupy zero blocks, so total - 1 would put the
+        // upstream itself over budget. Include allocated non-generation metadata
+        // to exercise a store whose excess cannot be reclaimed by pruning.
+        std::fs::write(dir.0.join("fixture-metadata"), [0u8; 4096]).unwrap();
+        let probe = store_probe_object(state, b"small-active-primary");
         let counter = state.gen_counter.load(Ordering::SeqCst);
         let proxy = test_proxy();
 
         let limit = directory_size(&dir.path()) - 1;
+        assert!(directory_size(&dir.path()) > limit);
+        assert_eq!(spool_records(&dir.path()), 0);
+        assert!(proxy.store_bound_checked.lock().unwrap().is_empty());
+        let sizes = indexed_generation_sizes(&generation_sizes(&dir.path()));
+        assert_eq!(
+            plan_generations(&sizes, generation_limit(limit), true),
+            GenerationPlan::default(),
+            "fixture must have a small primary and an upstream within its allowance: {sizes:?}"
+        );
         assert!(proxy.bound_store(&dir.path(), state, limit).is_none());
+        assert!(proxy
+            .store_bound_checked
+            .lock()
+            .unwrap()
+            .contains_key(&dir.path()));
         assert_eq!(state.gen_counter.load(Ordering::SeqCst), counter);
         assert_eq!(generations(&dir), rotated);
+        assert!(state.load_present(&probe));
     }
 
     // An automatic prune runs beside builds that start once the machine looks
@@ -10026,6 +10273,39 @@ mod tests {
             "a restart remembers every project that used the path"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A CI machine that starts the proxy for each job and stops it after is
+    /// never idle while the proxy runs, so only a pass at startup bounds it.
+    #[test]
+    fn a_registered_store_past_its_limit_is_pruned_as_the_proxy_starts() {
+        const LIMIT: usize = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-at-start");
+        let registry = dir.0.join("registry");
+        let bounded = store_in(&dir, "bounded");
+        let unbounded = store_in(&dir, "unbounded");
+        let spooled = store_in(&dir, "spooled");
+        for store in [&bounded, &unbounded, &spooled] {
+            write_generation(Path::new(store), 1, "v8.data", LIMIT + 1024 * 1024);
+        }
+        std::fs::create_dir_all(spool_dir(&spooled)).unwrap();
+        std::fs::write(spool_dir(&spooled).join("1234-0"), b"record").unwrap();
+        std::fs::write(
+            &registry,
+            format!("{bounded}\ttuist/bounded\n{unbounded}\ttuist/unbounded\n{spooled}\ttuist/bounded\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            sources_path_for(&registry),
+            format!(r#"{{"tuist/bounded":{{"storeSizeLimit":{LIMIT}}},"tuist/unbounded":{{}}}}"#),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).bound_registered_stores();
+
+        assert_eq!(generations_at(Path::new(&bounded)), vec!["v1.2"]);
+        assert_eq!(generations_at(Path::new(&unbounded)), vec!["v1.1"], "no project bounded it");
+        assert_eq!(generations_at(Path::new(&spooled)), vec!["v1.1"], "it still owes publications");
     }
 
     fn registry_proxy(registry: &Path) -> &'static Proxy {
@@ -13050,6 +13330,158 @@ mod tests {
         );
     }
 
+    /// A registry proxy over one uploading store holding `records`, each spooled
+    /// `age` ago, whose publisher hands each record path to `publish` in place
+    /// of a publication.
+    fn spool_fixture<F>(
+        name: &str,
+        records: &[(&str, Duration)],
+        publish: F,
+    ) -> (TempCasDir, String, &'static Proxy)
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let dir = TempCasDir::new(name);
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/app":{"trunk":"main","upload":true}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        for (record, age) in records {
+            let path = spool_dir(&store).join(record);
+            std::fs::write(&path, b"record").unwrap();
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(std::time::SystemTime::now() - *age)
+                .unwrap();
+        }
+        let proxy = upstream_registry_proxy(&registry);
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        (dir, store, proxy)
+    }
+
+    fn published_records() -> (Arc<Mutex<Vec<String>>>, impl Fn(&str) + Send + Sync + 'static) {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let recorded = published.clone();
+        (published, move |record_path: &str| {
+            let name = Path::new(record_path).file_name().unwrap().to_string_lossy();
+            recorded.lock().unwrap().push(name.into_owned());
+        })
+    }
+
+    // The breaker stops a refused credential's requests, not the reads in front
+    // of them: every record and its tags were read on every tick before the
+    // publication saw the refusal, ~2 cores on a machine with ~293k records.
+    #[test]
+    fn the_sweep_reads_no_record_while_the_remote_refuses_publications() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) =
+            spool_fixture("sweep-refused", &[("1234-0", Duration::ZERO)], publish);
+        proxy.remote_for("tuist/app").refuse_publications_at(reapi::now_ms());
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert!(published.lock().unwrap().is_empty());
+        assert!(spool_dir(&store).join("1234-0").exists(), "and the record is kept");
+    }
+
+    // Once the refusal's window runs out, one publication probes it. The
+    // breaker closes on any answer but another refusal, and the next tick
+    // enqueues the rest.
+    #[test]
+    fn a_refusal_whose_window_ran_out_is_probed_by_the_newest_record_alone() {
+        let (published, publish) = published_records();
+        let (_dir, _store, proxy) = spool_fixture(
+            "sweep-probe",
+            &[
+                ("1234-0", Duration::from_secs(30 * 60)),
+                ("1234-1", Duration::from_secs(10 * 60)),
+                ("1234-2", Duration::from_secs(20 * 60)),
+            ],
+            publish,
+        );
+        let remote = proxy.remote_for("tuist/app");
+        remote.refuse_publications_at(reapi::now_ms() - 10 * 60 * 1000);
+        assert_eq!(remote.publication_gate(), reapi::PublicationGate::ProbeDue);
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert_eq!(*published.lock().unwrap(), vec!["1234-1".to_string()]);
+    }
+
+    // An hour-old record is a publication that failed every retry. The
+    // periodic sweep drops it instead of reading it on every tick forever.
+    #[test]
+    fn the_sweep_drops_a_record_older_than_the_age_cap() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) = spool_fixture(
+            "sweep-age-cap",
+            &[
+                ("1234-0", SPOOL_RECORD_MAX_AGE + Duration::from_secs(60)),
+                ("1234-1", Duration::ZERO),
+            ],
+            publish,
+        );
+        let tags = spool_dir(&store).join(format!("1234-0{TAGS_SUFFIX}"));
+        std::fs::write(&tags, b"main\nmain").unwrap();
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert!(!spool_dir(&store).join("1234-0").exists(), "the record is dropped");
+        assert!(!tags.exists(), "with its tags");
+        assert_eq!(
+            *published.lock().unwrap(),
+            vec!["1234-1".to_string()],
+            "and never published, unlike a recent one"
+        );
+    }
+
+    // A drain is a runner's teardown, and its promote gate reads an empty spool
+    // as "everything landed": it publishes even a record past the age cap.
+    #[test]
+    fn a_drain_never_drops_a_record_for_its_age() {
+        let (dir, registry) = drain_fixture("age-cap");
+        let record = dir.join("cas").join("tuist-spool").join("1234-0");
+        std::fs::write(&record, b"old").expect("record");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&record)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - SPOOL_RECORD_MAX_AGE * 2)
+            .unwrap();
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let proxy = proxy_with_publisher(registry, move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+        });
+
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            Duration::from_millis(500),
+        );
+
+        assert_eq!(remaining, 1, "the record is still owed");
+        assert!(attempts.load(Ordering::SeqCst) >= 1, "and was published, not dropped");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     // A warm stamps no use, so a store that went idle before its warm started
     // is idle for the whole of it. Its running jobs write through the handle.
     #[test]
@@ -13594,6 +14026,114 @@ mod tests {
             "capacity comes back once the handlers finish"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn upgrade_requires_a_quiet_drained_proxy_and_new_requests_revoke_it() {
+        let proxy = test_proxy();
+        let now = Duration::from_secs(30);
+        proxy.allow_idle_upgrade_at(Duration::from_secs(29));
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        let request = proxy.requests.acquire().unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(request);
+        let control = proxy.requests.acquire_control().unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(control);
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        proxy.request_revision.fetch_add(1, Ordering::AcqRel);
+        assert!(!proxy.can_exit_for_upgrade_at(now), "even a finished new connection revokes the check");
+        proxy.last_request_ms.store(30_000, Ordering::Release);
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        proxy.allow_idle_upgrade_at(Duration::from_secs(60));
+        assert!(proxy.can_exit_for_upgrade_at(Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn upgrade_waits_for_publications_and_unreadable_spools() {
+        let (dir, registry) = drain_fixture("upgrade");
+        let proxy = registry_proxy(&registry);
+        let cas_path = dir.join("cas");
+        proxy.path_instance.lock().unwrap().insert(cas_path.to_string_lossy().into_owned(), "tuist/app".into());
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).unwrap();
+        let now = Duration::from_secs(30);
+        std::fs::write(spool.join("record.claim-42"), b"owed").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        std::fs::remove_file(spool.join("record.claim-42")).unwrap();
+        std::fs::write(spool.join("record.tags"), b"sidecar").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        std::fs::remove_dir_all(&spool).unwrap();
+        std::fs::write(&spool, b"not a directory").unwrap();
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now), "a failed read is not a drained spool");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn upgrade_waits_for_background_work() {
+        let proxy = test_proxy();
+        let now = Duration::from_secs(30);
+        let work = proxy.stalls.begin("/cas", "opening the store");
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        drop(work);
+        let (release, released) = std::sync::mpsc::channel();
+        let released = Mutex::new(released);
+        proxy.publisher.configure(1, move |_| { released.lock().unwrap().recv().unwrap(); });
+        proxy.publisher.enqueue(b"publication".to_vec());
+        proxy.allow_idle_upgrade_at(now);
+        assert!(!proxy.can_exit_for_upgrade_at(now));
+        release.send(()).unwrap();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(5)));
+        proxy.allow_idle_upgrade_at(now);
+        assert!(proxy.can_exit_for_upgrade_at(now));
+        proxy.publisher.drain_stop_timeout(Duration::from_secs(5));
+    }
+
+    #[test]
+    fn previous_protocol_materializes_before_replying_and_unknown_versions_are_rejected() {
+        if run_in_cas_subprocess() { return; }
+        let source_dir = TempCasDir::new("v1-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"v1-child");
+        let root = store_probe_object_with_refs(source, b"v1-root", &[child.clone()]);
+        let remote = test_proxy().remote_for("tuist/compatibility");
+        let (mut manifest, blobs) = walk_closure(source, &root, &remote).unwrap();
+        for (entry, (contents, _)) in manifest.iter_mut().zip(blobs) { entry.contents = contents; }
+        for (version, complete) in [(1, true), (1, false), (2, true), (3, true)] {
+            let dir = TempCasDir::new(&format!("v1-target-{version}-{complete}"));
+            let proxy = test_proxy();
+            proxy.snapshots.lock().unwrap().insert("tuist/compatibility".into(), SnapshotState::Absent {
+                checked: Instant::now(), retry_after: Duration::from_secs(3600),
+            });
+            let state = opened_path_state(proxy, &dir.path());
+            let mut instructions = manifest.clone();
+            if !complete {
+                instructions.iter_mut().find(|entry| entry.llcas_digest == child).unwrap().contents = Some(vec![0]);
+            }
+            register_instructions(state, &instructions);
+            state.resolved.lock().unwrap().insert(b"key".to_vec(), Resolution::Candidate(root.clone()));
+            let (mut client, server) = UnixStream::pair().unwrap();
+            proxy.dispatch(Request {
+                version, op: OP_RESOLVE, cas_path: dir.path(),
+                instance: "tuist/compatibility".into(), payload: b"key".to_vec(),
+            }, server).unwrap();
+            let (status, _) = crate::proxy_proto::read_response(&mut client).unwrap();
+            if version == 1 && !complete {
+                assert_ne!(status, STATUS_HIT, "a legacy client cannot repair a missing child");
+            } else {
+                assert_eq!(status, if version <= 2 { STATUS_HIT } else { STATUS_ERROR });
+            }
+            assert_eq!(state.graph_present(&root), version == 1 && complete,
+                "only the legacy client must receive an already complete graph");
+        }
     }
 
     include!("proxy_cold_replay_benchmark.rs");

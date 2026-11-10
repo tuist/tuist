@@ -18,9 +18,19 @@ defmodule AtlasWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  socket "/native/socket", AtlasWeb.NativeSocket,
+    auth_token: true,
+    websocket: [subprotocols: ["phoenix"]],
+    longpoll: false
+
   socket "/live", Socket,
     websocket: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]],
     longpoll: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]]
+
+  socket "/presence", AtlasWeb.PresenceSocket,
+    websocket: [timeout: 30_000],
+    longpoll: false,
+    auth_token: true
 
   # Health check endpoint (runs before force_ssl)
   plug AtlasWeb.HealthCheck

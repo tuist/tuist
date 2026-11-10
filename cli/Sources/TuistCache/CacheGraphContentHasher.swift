@@ -36,8 +36,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let fileSystem: FileSysteming
 
-    /// The dimension of the key of a repository-owned target when a run collects coverage: the binaries
-    /// warmed with coverage sit beside the plain ones, and a run with coverage on never reads the latter.
+    /// The dimension of the key of a repository-owned target when coverage is on: the binaries warmed with
+    /// coverage sit beside the plain ones, and a command with coverage on never reads the latter.
     /// Remote packages keep the plain key, since coverage is never kept for code outside the repository.
     public static let coverageDimension = "coverage"
 
@@ -176,7 +176,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             .flatMap(\.settings.configurations.keys)
             .first { $0.name.caseInsensitiveCompare(configuration) == .orderedSame }?
             .variant == .debug
-        let instrumented = isDebug && coverage.isOn(in: graph)
+        let instrumented = isDebug && coverage == .on
         // A target without an external hash is keyed as the repository's code, the rule the server judges a
         // run's coverage by (`external_hash` empty). It also admits a package referenced by path from outside
         // the checkout and a local git clone, whose coverage the export drops; that only costs instrumentation.

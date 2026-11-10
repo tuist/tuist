@@ -140,6 +140,11 @@ extension Environmenting {
         return truthyValues.contains(value)
     }
 
+    /// True when running in an Amp orb, which can mint OIDC tokens with `amp orb id-token`.
+    public var isAmpOrb: Bool {
+        isVariableTruthy("AMP_ORB")
+    }
+
     public func isVariableFalsy(_ name: String) -> Bool {
         guard let value = variables[name] else { return false }
         return falsyValues.contains(value)

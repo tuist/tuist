@@ -9,6 +9,7 @@ public protocol CIOIDCAuthenticating {
 
 enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     case unsupportedCIEnvironment
+    case emptyOIDCToken
     case missingGitHubActionsOIDCPermissions
     case gitHubActionsOIDCTokenRequestFailed(statusCode: Int, body: String)
     case missingCircleCIOIDCToken
@@ -17,7 +18,9 @@ enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedCIEnvironment:
-            return "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions, CircleCI, Bitrise."
+            return "OIDC authentication is not supported in this environment. Use GitHub Actions, CircleCI, Bitrise, an Amp orb, or supply a workload identity token through TUIST_OIDC_TOKEN."
+        case .emptyOIDCToken:
+            return "TUIST_OIDC_TOKEN is empty. Fetch an OIDC token with audience 'tuist' from your workload identity provider."
         case .missingGitHubActionsOIDCPermissions:
             return "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
         case let .gitHubActionsOIDCTokenRequestFailed(statusCode, body):
@@ -42,7 +45,33 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
         self.oidcTokenFetcher = oidcTokenFetcher
     }
 
+    /// Whether this environment offers a workload identity to exchange, read from the environment alone
+    /// without minting anything: a supplied `TUIST_OIDC_TOKEN`, GitHub Actions with `id-token: write`,
+    /// CircleCI or Bitrise with OIDC enabled, or an Amp orb.
+    public var hasWorkloadIdentity: Bool {
+        let variables = Environment.current.variables
+        if variables["TUIST_OIDC_TOKEN"] != nil { return true }
+        if isGitHubActionsEnvironment {
+            return variables["ACTIONS_ID_TOKEN_REQUEST_URL"] != nil && variables["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] != nil
+        }
+        if isCircleCIEnvironment {
+            return variables["CIRCLE_OIDC_TOKEN_V2"] != nil || variables["CIRCLE_OIDC_TOKEN"] != nil
+        }
+        if isBitriseEnvironment {
+            return variables["BITRISE_OIDC_ID_TOKEN"] != nil || variables["BITRISE_IDENTITY_TOKEN"] != nil
+        }
+        return Environment.current.isAmpOrb
+    }
+
     public func fetchOIDCToken() async throws -> String {
+        if let token = Environment.current.variables["TUIST_OIDC_TOKEN"] {
+            let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedToken.isEmpty else {
+                throw CIOIDCAuthenticatorError.emptyOIDCToken
+            }
+            return trimmedToken
+        }
+
         if isGitHubActionsEnvironment {
             return try await fetchGitHubActionsOIDCToken()
         }
@@ -53,6 +82,11 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
 
         if isBitriseEnvironment {
             return try bitriseOIDCToken()
+        }
+
+        // Amp recommends an audience that names the relying service.
+        if Environment.current.isAmpOrb {
+            return try await oidcTokenFetcher.fetchAmpOrbToken(audience: "https://tuist.dev")
         }
 
         throw CIOIDCAuthenticatorError.unsupportedCIEnvironment
@@ -84,7 +118,7 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
                     statusCode: statusCode,
                     body: body
                 )
-            case .invalidTokenRequestURL:
+            case .invalidTokenRequestURL, .ampOrbTokenCommandFailed:
                 throw error
             }
         }

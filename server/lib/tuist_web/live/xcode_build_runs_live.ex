@@ -174,11 +174,11 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         %{value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []
@@ -231,6 +231,14 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         value: nil
       },
       %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_builds", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
+      },
+      %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
         display_name: dgettext("dashboard_builds", "Branch"),
@@ -271,16 +279,14 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
     tags_filter =
       if Enum.any?(tags) do
-        tag_atoms = Enum.map(tags, &String.to_atom/1)
-
         [
           %Filter.Filter{
             id: "custom_tags",
             field: :custom_tags,
             display_name: dgettext("dashboard_builds", "Tags"),
             type: :option,
-            options: tag_atoms,
-            options_display_names: Map.new(tag_atoms, fn atom -> {atom, Atom.to_string(atom)} end),
+            options: tags,
+            options_display_names: Map.new(tags, &{&1, &1}),
             operator: :contains,
             value: nil
           }

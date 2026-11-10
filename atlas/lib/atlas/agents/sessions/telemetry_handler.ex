@@ -10,6 +10,8 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
   """
 
   alias Atlas.Agents.Sessions.Event
+  alias Atlas.Moodboard.Suggestions
+  alias Atlas.Orbit.Classification
   alias Atlas.Repo
 
   require Logger
@@ -36,6 +38,7 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
     [:condukt, :operation, :exception],
     [:condukt, :secrets, :resolve],
     [:condukt, :secrets, :access],
+    [:condukt, :compact, :start],
     [:condukt, :compact, :stop]
   ]
 
@@ -123,6 +126,18 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
   end
 
   defp duration_ms(_), do: nil
+
+  # Private threads and unpublished shares retain names/status/timings only,
+  # never source content, tool arguments, results or model messages.
+  @redacted_agents [Atlas.Orbit.Agent, Classification, Suggestions]
+  @redacted_keys [:agent, :tool, :tool_call_id, :status, :turn, :role, :operation, :kind]
+
+  defp sanitize(%{agent: agent} = metadata) when agent in @redacted_agents do
+    metadata
+    |> Map.take(@redacted_keys)
+    |> Map.new(fn {key, value} -> {Atom.to_string(key), encode_value(value)} end)
+    |> Map.put("redacted", true)
+  end
 
   # Telemetry metadata may contain non-JSON-friendly terms (PIDs, refs,
   # module atoms). Convert them to strings so the jsonb column accepts the

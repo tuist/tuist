@@ -6,6 +6,8 @@ defmodule Atlas.Agents.SessionsTest do
   alias Atlas.Accounts.Account
   alias Atlas.Agents.Sessions
   alias Atlas.Agents.Sessions.Session
+  alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Moodboard.Suggestions
   alias Atlas.TestSupport.Agents.NoopAgent
   alias Condukt.SessionID
 
@@ -43,6 +45,37 @@ defmodule Atlas.Agents.SessionsTest do
   end
 
   describe "with_session/4" do
+    test "Moodboard suggestion prompts and results never enter admin session history" do
+      fields = %{"title" => "Private shared title", "description" => "Private note"}
+
+      assert {:ok, ^fields} =
+               Sessions.with_session(Suggestions, "Private shared content", [], fn opts ->
+                 TelemetryHandler.handle_event(
+                   [:condukt, :llm_turn, :stop],
+                   %{duration: 1},
+                   %{
+                     session_id: opts[:id],
+                     agent: Suggestions,
+                     status: :ok,
+                     prompt: "Private shared content",
+                     result: fields
+                   },
+                   nil
+                 )
+
+                 {:ok, fields}
+               end)
+
+      session = Repo.one!(Session)
+      assert session.prompt == "redacted"
+      assert session.result == %{"redacted" => true}
+      history = Sessions.get_session(session.id)
+      assert [event] = history.events
+      assert event.metadata["redacted"]
+      refute inspect(history) =~ "Private shared"
+      refute inspect(history) =~ "Private note"
+    end
+
     test "records caller-owned streaming sessions" do
       account = insert_account!()
 

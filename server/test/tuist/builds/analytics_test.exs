@@ -1346,6 +1346,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
+          project_id: command_event_1.project_id,
+          modules_count: nil,
           binary_build_duration: 5000,
           inserted_at: one_day_ago
         })
@@ -1355,6 +1357,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
+          project_id: command_event_2.project_id,
+          modules_count: nil,
           binary_build_duration: 3000,
           inserted_at: two_days_ago
         })
@@ -1422,6 +1426,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
+          project_id: command_event_1.project_id,
+          modules_count: nil,
           binary_build_duration: 3000,
           inserted_at: one_day_ago
         })
@@ -1431,6 +1437,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
+          project_id: command_event_2.project_id,
+          modules_count: nil,
           binary_build_duration: 4000,
           inserted_at: two_days_ago
         })
@@ -1482,6 +1490,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraphCI",
           command_event_id: command_event_ci.id,
+          project_id: command_event_ci.project_id,
+          modules_count: nil,
           binary_build_duration: 3000,
           inserted_at: one_day_ago
         })
@@ -1491,6 +1501,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraphLocal",
           command_event_id: command_event_local.id,
+          project_id: command_event_local.project_id,
+          modules_count: nil,
           binary_build_duration: 4000,
           inserted_at: two_days_ago
         })
@@ -1542,6 +1554,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraphInRange",
           command_event_id: command_event_in_range.id,
+          project_id: command_event_in_range.project_id,
+          modules_count: nil,
           binary_build_duration: 2000,
           inserted_at: ten_days_ago
         })
@@ -1551,6 +1565,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraphOutOfRange",
           command_event_id: command_event_out_of_range.id,
+          project_id: command_event_out_of_range.project_id,
+          modules_count: nil,
           binary_build_duration: 3000,
           inserted_at: two_days_ago
         })
@@ -1598,6 +1614,8 @@ defmodule Tuist.Builds.AnalyticsTest do
           id: UUIDv7.generate(),
           name: "TestGraphNilDuration",
           command_event_id: command_event.id,
+          project_id: command_event.project_id,
+          modules_count: nil,
           binary_build_duration: 1500,
           inserted_at: one_day_ago
         })

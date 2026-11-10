@@ -17,16 +17,14 @@ defmodule Tuist.IngestRepo.Migrations.AddIdIndexToGradleBuilds do
 
   `ADD INDEX` is metadata-only and covers new parts. Existing parts are
   indexed by one asynchronous `MATERIALIZE INDEX` mutation per partition
-  (`SchemaClone.materialize_index_statements/4`), so each unit of work is one
+  (`IndexMaterialization.materialize_index_statements/4`), so each unit of work is one
   partition, reads only the `id` column, and the deploy does not wait for
   any of it. Parts not yet materialized are still read correctly, only
-  without skipping. The in-cluster ClickHouse gets the same index and the
-  same bounded materialization from `SchemaClone.reconcile/1`, which runs
-  after migrations on every deploy.
+  without skipping.
   """
   use Ecto.Migration
 
-  alias Tuist.ClickHouse.SchemaClone
+  alias Tuist.ClickHouse.IndexMaterialization
   alias Tuist.IngestRepo
 
   @disable_ddl_transaction true
@@ -43,8 +41,10 @@ defmodule Tuist.IngestRepo.Migrations.AddIdIndexToGradleBuilds do
     %{rows: [[database]]} = IngestRepo.query!("SELECT currentDatabase()", [], log: false)
 
     IngestRepo
-    |> SchemaClone.partition_ids(database, "gradle_builds")
-    |> then(&SchemaClone.materialize_index_statements(database, "gradle_builds", "idx_id", &1))
+    |> IndexMaterialization.partition_ids(database, "gradle_builds")
+    |> then(
+      &IndexMaterialization.materialize_index_statements(database, "gradle_builds", "idx_id", &1)
+    )
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     |> Enum.each(&execute/1)
   end

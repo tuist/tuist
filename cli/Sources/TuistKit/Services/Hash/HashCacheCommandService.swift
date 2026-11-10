@@ -82,23 +82,26 @@ public struct HashCacheCommandService: HashCacheServicing {
     public func run(
         path: String?,
         configuration: String?,
-        coverage: Bool
+        destination: CacheDestination = .all
     ) async throws {
         let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let graph: XcodeGraph.Graph
         let defaultConfiguration: String?
+        let coverage: BinaryCacheCoverage
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
+            coverage = .resolved(config: config)
 
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(
                     config: config,
-                    targetsToBinaryCache: []
+                    targetsToBinaryCache: [],
+                    coverage: coverage
                 )
             #else
-                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [], coverage: coverage)
             #endif
             graph = try await generator.load(
                 path: absolutePath,
@@ -116,7 +119,7 @@ public struct HashCacheCommandService: HashCacheServicing {
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
             destination: nil,
-            coverage: coverage ? .on : .off
+            coverage: coverage
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
@@ -126,6 +129,13 @@ public struct HashCacheCommandService: HashCacheServicing {
         } else {
             for (target, targetContentHash) in sortedHashes {
                 Logger.current.info("\(target.target.name) - \(targetContentHash.hash)")
+                if destination != .all {
+                    for (variant, fingerprint) in destination.sdkSelection
+                        .fingerprints(targetContentHash.binaryCacheFingerprints).sorted(by: { $0.key < $1.key })
+                    {
+                        Logger.current.info("\(target.target.name) [\(variant)] - \(fingerprint)")
+                    }
+                }
             }
         }
     }

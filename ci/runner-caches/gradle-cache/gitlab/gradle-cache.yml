@@ -1,0 +1,71 @@
+# Include this file at an immutable commit, then reference the snippet before
+# Gradle runs. A cache problem never fails the job. TUIST_GRADLE_CACHE_SIZE
+# optionally sets the volume capacity, such as 50gb.
+.tuist-gradle-cache:
+  before_script:
+    - |
+      if command -v tuist-cache-volume >/dev/null 2>&1; then
+        tuist_gradle_home=${GRADLE_USER_HOME:-$HOME/.gradle}
+        case "$tuist_gradle_home" in
+          /*) ;;
+          *) tuist_gradle_home="$PWD/$tuist_gradle_home" ;;
+        esac
+        tuist_gradle_size=${TUIST_GRADLE_CACHE_SIZE:-}
+        if [ -n "$tuist_gradle_size" ]; then
+          case "$(tuist-cache-volume -h 2>&1 || true)" in
+            *-size*) ;;
+            *)
+              echo "Warning: this runner image does not support TUIST_GRADLE_CACHE_SIZE yet; the Gradle cache keeps its current size." >&2
+              tuist_gradle_size=
+              ;;
+          esac
+        fi
+        tuist_gradle_status=0
+        if [ -n "$tuist_gradle_size" ]; then
+          tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" --size "$tuist_gradle_size" || tuist_gradle_status=$?
+        else
+          tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
+        fi
+        if [ "$tuist_gradle_status" = 0 ]; then
+          # Gradle drops only entries unused for seven days, so a busy repository fills the
+          # volume within hours and the job that reaches the top fails. From three quarters
+          # full, drop Gradle's local build cache, and start the caches empty if that is not
+          # enough. Nothing holds these files before Gradle runs.
+          tuist_gradle_used=$(df -Pk "$tuist_gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+          if [ "${tuist_gradle_used:-0}" -ge 75 ]; then
+            rm -rf "$tuist_gradle_home/caches/build-cache-1"
+            tuist_gradle_used=$(df -Pk "$tuist_gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+            if [ "${tuist_gradle_used:-0}" -ge 75 ]; then
+              find "$tuist_gradle_home/caches" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+              echo "Warning: the Gradle cache was nearly full, so this job starts it empty. Raise TUIST_GRADLE_CACHE_SIZE if this repeats." >&2
+            else
+              echo "The Gradle cache was nearly full; dropped Gradle's local build cache."
+            fi
+          fi
+          mkdir -p "$tuist_gradle_home/init.d"
+          cat >"$tuist_gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'
+      // Written by Tuist's Gradle cache step. Gradle cleans its user home only when
+      // the daemon stops, which a CI job rarely reaches, so the persisted cache would
+      // grow until it fills its volume. Clean after every build instead, and drop
+      // entries unused for seven days. Gradle versions without this API keep their
+      // own settings.
+      beforeSettings { settings ->
+          try {
+              def cleanup = Class.forName('org.gradle.api.cache.Cleanup', true, Settings.classLoader).getField('ALWAYS').get(null)
+              settings.caches { caches ->
+                  caches.cleanup.set(cleanup)
+                  [caches.releasedWrappers, caches.snapshotWrappers, caches.downloadedResources, caches.createdResources, caches.buildCache].each {
+                      it.setRemoveUnusedEntriesAfterDays(7)
+                  }
+              }
+          } catch (Throwable ignored) {
+          }
+      }
+      GROOVY
+        else
+          echo "Warning: could not attach the Gradle cache (tuist-cache-volume exited $tuist_gradle_status); the job runs with an empty one." >&2
+        fi
+        unset tuist_gradle_home tuist_gradle_size tuist_gradle_status tuist_gradle_used
+      else
+        echo "This runner does not provide Tuist cache volumes; nothing to set up."
+      fi

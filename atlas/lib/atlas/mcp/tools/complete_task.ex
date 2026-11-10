@@ -11,12 +11,12 @@ defmodule Atlas.MCP.Tools.CompleteTask do
   alias Atlas.Tasks
 
   @impl EMCP.Tool
-  def description, do: "Mark an Atlas task as completed and cancel its pending reminder."
+  def description, do: "Mark an Atlas task as completed."
 
   def execute(conn, %{"task_id" => id}) do
     with :ok <- Tool.authorize_authenticated(conn, "Task tools"),
          %{} = task <- Tasks.get_task(id),
-         {:ok, completed} <- Tasks.complete_task(task, Tool.current_user(conn), interface: "mcp") do
+         {:ok, completed} <- Tasks.complete_task(task, Tool.current_user(conn), interface: Tool.audit_interface(conn)) do
       {:ok, %{task: TaskSerializer.task(completed)}}
     else
       nil -> {:error, "Task not found."}

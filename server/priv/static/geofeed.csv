@@ -1,0 +1,4 @@
+# RFC 8805 geofeed for the Tuist IP range (AS218377), referenced by the
+# geofeed attribute of its RIPE inetnum and inet6num objects.
+95.130.119.0/24,DE,DE-BE,Berlin,
+2a11:83c0::/29,DE,DE-BE,Berlin,

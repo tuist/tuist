@@ -1,15 +1,18 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
 import TuistAutomation
+import TuistCache
 import TuistConfig
 import TuistDependencies
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistLoader
 import TuistServer
+import TuistSupport
 import XcodeGraph
 import XCTest
 
@@ -926,12 +929,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
 
             let got = subject.binaryCacheWarming(
-                config: .test(),
+                config: Tuist.test().resolvingCoverage(.on),
                 targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
-                cacheStorage: MockCacheStoring(),
-                coverage: .on
+                cacheStorage: MockCacheStoring()
             )
 
             let markerIndex = try #require(got.firstIndex(where: { $0 is InstrumentedBinaryCacheWarmGraphMapper }))
@@ -951,6 +953,90 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
 
             #expect(!got.contains { $0 is InstrumentedBinaryCacheWarmGraphMapper })
+        }
+    }
+#endif
+
+#if canImport(TuistCacheEE)
+    struct CacheGraphMapperFactoryDestinationTests {
+        private let subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
+
+        @Test(arguments: [BinaryCacheSDKSelection.simulators, .devices])
+        func automation_restrictsDestinationsAfterSelectiveTestingAndBinaryReplacement(
+            sdkSelection: BinaryCacheSDKSelection
+        ) throws {
+            let got = automation(sdkSelection: sdkSelection, ignoreBinaryCache: false)
+
+            let destinationIndex = try #require(got.lastIndex { $0 is CacheDestinationGraphMapper })
+            let testsIndex = try #require(got.firstIndex { $0 is TestsCacheGraphMapper })
+            let binariesIndex = try #require(got.firstIndex { $0 is TargetsToCacheBinariesGraphMapper })
+            #expect(destinationIndex == got.count - 1)
+            #expect(testsIndex < destinationIndex)
+            #expect(binariesIndex < destinationIndex)
+        }
+
+        @Test func automation_doesNotRestrictDestinationsByDefault() {
+            let got = automation(sdkSelection: .all, ignoreBinaryCache: false)
+
+            #expect(!got.contains { $0 is CacheDestinationGraphMapper })
+        }
+
+        @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
+        func automation_keepsSelectiveTestingHashesForEveryDestination() async throws {
+            let projectPath = try #require(FileSystem.temporaryTestDirectory)
+            given(try #require(SwiftVersionProvider.mocked)).swiftlangVersion().willReturn("6.2.0.0.1")
+            let destinations: Destinations = [.iPhone, .iPad, .macCatalyst]
+            let framework = Target.test(name: "Framework", destinations: destinations, product: .framework)
+            let tests = Target.test(
+                name: "FrameworkTests",
+                destinations: destinations,
+                product: .unitTests,
+                dependencies: [.target(name: "Framework")]
+            )
+            let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [framework, tests])
+            let graph = Graph.test(
+                path: projectPath,
+                workspace: .test(path: projectPath, projects: [projectPath]),
+                projects: [projectPath: project],
+                dependencies: [
+                    .target(name: "FrameworkTests", path: projectPath): [.target(name: "Framework", path: projectPath)],
+                ]
+            )
+
+            func map(_ sdkSelection: BinaryCacheSDKSelection) async throws -> ([String: String]?, Destinations?) {
+                let (mappedGraph, _, environment) = try await SequentialGraphMapper(
+                    automation(sdkSelection: sdkSelection, ignoreBinaryCache: true)
+                ).map(graph: graph, environment: MapperEnvironment())
+                return (
+                    environment.targetTestHashes[projectPath],
+                    mappedGraph.projects[projectPath]?.targets["Framework"]?.destinations
+                )
+            }
+            let (allHashes, allDestinations) = try await map(.all)
+            let (simulatorHashes, simulatorDestinations) = try await map(.simulators)
+            let (deviceHashes, deviceDestinations) = try await map(.devices)
+
+            #expect(allHashes?["FrameworkTests"] != nil)
+            #expect(simulatorHashes == allHashes)
+            #expect(deviceHashes == allHashes)
+            #expect(allDestinations == destinations)
+            #expect(simulatorDestinations == [.iPhone, .iPad])
+            #expect(deviceDestinations == [.iPhone, .iPad])
+        }
+
+        private func automation(sdkSelection: BinaryCacheSDKSelection, ignoreBinaryCache: Bool) -> [GraphMapping] {
+            subject.automation(
+                config: .test(),
+                ignoreBinaryCache: ignoreBinaryCache,
+                ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring(),
+                destination: nil,
+                sdkSelection: sdkSelection
+            )
         }
     }
 #endif

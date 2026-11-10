@@ -2,8 +2,8 @@ package macos
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -35,7 +35,15 @@ func init() {
 	metrics.Registry.MustRegister(rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge)
 }
 
+// recordRackPDUMetrics exports a managed PDU's state. A standalone PDU, which
+// the controller never contacts, exports none, as a standalone RackATS: a
+// Ready of 0 would read as a PDU that cannot be observed, as a planned PDU at a
+// site that is not racked yet is not.
 func recordRackPDUMetrics(pdu *infrav1.RackPDU) {
+	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
+		forgetRackPDUMetrics(pdu.Name)
+		return
+	}
 	labels := []string{pdu.Name, pdu.Spec.Site}
 	for _, g := range []*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge} {
 		g.DeletePartialMatch(prometheus.Labels{"pdu": pdu.Name})

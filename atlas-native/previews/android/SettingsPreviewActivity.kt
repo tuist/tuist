@@ -10,6 +10,7 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import dev.tuist.atlas.AtlasAIAccountsModel
 import dev.tuist.atlas.AtlasAIAccountsScreen
+import dev.tuist.atlas.AtlasConnectionsModel
 import org.json.JSONObject
 
 class SettingsPreviewActivity : Activity() {
@@ -19,7 +20,10 @@ class SettingsPreviewActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (intent.getBooleanExtra("model-checks", false)) checkAccountModel(applicationContext)
+        if (intent.getBooleanExtra("model-checks", false)) {
+            checkAccountModel(applicationContext)
+            checkConnections()
+        }
         accounts = (lastNonConfigurationInstance as? AtlasAIAccountsModel) ?: fixture(savedInstanceState?.getString("login_id"))
         screen =
             AtlasAIAccountsScreen(
@@ -28,8 +32,28 @@ class SettingsPreviewActivity : Activity() {
                 accounts,
                 { uri -> startActivity(Intent(Intent.ACTION_VIEW, uri)) },
                 { if (!screen.back()) finish() },
-                {},
+                signOut = {},
             )
+        val connections =
+            AtlasConnectionsModel { action, completion ->
+                val response =
+                    if (action.getString("action") == "list") {
+                        Result.success(
+                            JSONObject(
+                                """{"connections":[
+                    {"provider":"github","name":"GitHub","configured":true,"account_name":null,"status":"not_connected"},
+                    {"provider":"slack","name":"Slack","configured":true,"account_name":"Demo teammate · Demo workspace","status":"connected"},
+                    {"provider":"google","name":"Google","configured":true,"account_name":"demo@example.org","status":"needs_authorization"}]}""",
+                            ),
+                        )
+                    } else {
+                        Result.failure(IllegalStateException("Preview only. No accounts are changed."))
+                    }
+                Handler(Looper.getMainLooper()).post { completion(response) }
+            }
+        connections.showing = intent.getBooleanExtra("connections", false)
+        screen.connections(connections)
+        connections.load()
         setContentView(screen.view)
         if (Build.VERSION.SDK_INT >= 33) {
             val callback = OnBackInvokedCallback { if (!screen.back()) finish() }
@@ -75,4 +99,31 @@ private fun fixture(recoveredLoginId: String?): AtlasAIAccountsModel {
             }
         main.post { complete(Result.success(JSONObject(response))) }
     }
+}
+
+private fun checkConnections() {
+    val replies = mutableListOf<(Result<JSONObject>) -> Unit>()
+    val model = AtlasConnectionsModel { _, completion -> replies.add(completion) }
+    model.connect("github")
+    replies.removeAt(
+        0,
+    )(Result.success(JSONObject().put("authorization_url", "https://atlas.example.org/connections/github/authorize?native=demo")))
+    check(model.waiting && !model.busy)
+    model.callback("preview-only") { valid -> check(!valid) }
+    replies.removeAt(0)(Result.failure(IllegalStateException("Invalid return")))
+    check(model.waiting && model.message == "Invalid return")
+    model.cancel()
+    replies.removeAt(0)(Result.success(JSONObject()))
+    check(!model.waiting && model.authorizationURL == null)
+
+    // A newly created model can receive a return restored by the auth coordinator.
+    model.callback("preview-only") { valid -> check(valid) }
+    replies.removeAt(0)(Result.success(JSONObject().put("provider", "github").put("status", "connected")))
+    replies.removeAt(0)(Result.success(JSONObject("""{"connections":[{"provider":"github","status":"not_connected"}]}""")))
+    check(model.showing && !model.waiting && model.connections.single().getString("status") == "not_connected")
+
+    model.callback("preview-only") { error("A previous user's return must be ignored") }
+    model.clear()
+    replies.removeAt(0)(Result.success(JSONObject().put("provider", "github").put("status", "connected")))
+    check(model.connections.isEmpty() && !model.busy && !model.waiting)
 }

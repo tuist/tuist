@@ -1,6 +1,34 @@
 {
   "components": [
     {
+      "name": "condukt",
+      "tag_prefix": "condukt@",
+      "tag_regex": "^condukt@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "condukt/cliff.toml",
+      "initial_version": "1.15.0",
+      "include_paths": [
+        "condukt/**/*",
+        ".github/workflows/condukt*.yml",
+        ".github/scripts/condukt*"
+      ]
+    },
+    {
+      "name": "pulse",
+      "tag_prefix": "pulse@",
+      "tag_regex": "^pulse@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "pulse/cliff.toml",
+      "initial_version": "1.39.0",
+      "include_paths": [
+        "pulse/**/*",
+        "infra/helm/pulse/**/*",
+        ".github/workflows/pulse.yml",
+        ".github/workflows/pulse-release.yml",
+        ".github/workflows/pulse-nif-release.yml",
+        ".github/workflows/pulse-deployment.yml",
+        ".github/workflows/pulse-instance-deployment.yml"
+      ]
+    },
+    {
       "name": "tuist-ex",
       "tag_prefix": "tuist-ex@",
       "tag_regex": "^tuist-ex@[0-9]+\\.[0-9]+\\.[0-9]+$",
@@ -66,6 +94,9 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "server/**/*",
+        "condukt/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "tuist_common/**/*",
         "noora/**/*",
         "mise/tasks/server/**/*",
@@ -81,7 +112,7 @@
       "tag_regex": "^cache@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "cache/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["cache/**/*"]
+      "include_paths": ["cache/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "atlas",
@@ -91,6 +122,9 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "atlas/**/*",
+        "condukt/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "infra/helm/atlas/**/*",
         "infra/k8s/atlas/**/*",
         "mise/tasks/release/components.json",
@@ -106,6 +140,8 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "kura/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "mise/tasks/kura/**/*",
         ".github/workflows/kura-release.yml",
         ".github/workflows/kura-rc.yml",
@@ -119,7 +155,7 @@
       "tag_regex": "^gradle@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "gradle/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": []
+      "include_paths": ["gradle/**/*"]
     },
     {
       "name": "skills",
@@ -139,6 +175,21 @@
         ".github/actions/cache-volume/**/*",
         "ci/cache-volume/**/*",
         ".github/workflows/cache-volume-action.yml"
+      ]
+    },
+    {
+      "name": "runner-caches",
+      "tag_prefix": "runner-caches@",
+      "tag_regex": "^runner-caches@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/runner-caches/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/xcode-cache/**/*",
+        ".github/actions/module-cache/**/*",
+        ".github/actions/gradle-cache/**/*",
+        "ci/runner-caches/**/*",
+        ".github/workflows/runner-cache-actions.yml",
+        "ci/cache-volume/publish.sh"
       ]
     },
     {
@@ -181,7 +232,8 @@
         "infra/macos-host-bootstrap/**/*",
         "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*",
-        "infra/runner-cache/**/*"
+        "infra/runner-cache/**/*",
+        "infra/sandbox-image/**/*"
       ]
     },
     {
@@ -190,13 +242,7 @@
       "tag_regex": "^xcresult-processor-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/xcresult-processor-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": [
-        "infra/xcresult-processor-image/**/*",
-        "server/lib/tuist/**/*",
-        "server/native/xcresult_nif/**/*",
-        "server/mix.exs",
-        "server/mix.lock"
-      ]
+      "include_paths": ["infra/xcresult-processor-image/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh", "infra/certificate-trust/controls/**/*"]
     },
     {
       "name": "runner-image",
@@ -204,7 +250,7 @@
       "tag_regex": "^runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runner-image/**/*", "infra/linux-runner-image/cmd/tuist-cache-volume/**/*", ".github/actions/build-runner-image-binaries/**/*"]
+      "include_paths": ["infra/runner-image/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh", "infra/certificate-trust/controls/**/*", "infra/linux-runner-image/cmd/tuist-cache-volume/**/*", ".github/actions/build-runner-image-binaries/**/*"]
     },
     {
       "name": "linux-runner-image",
@@ -212,7 +258,7 @@
       "tag_regex": "^linux-runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/linux-runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/linux-runner-image/**/*"]
+      "include_paths": ["infra/linux-runner-image/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/java-store.sh", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "runners-controller",
@@ -220,7 +266,7 @@
       "tag_regex": "^runners-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runners-controller/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*"]
+      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "hetzner-robot-controller",

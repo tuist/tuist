@@ -1,0 +1,59 @@
+# Install into the server's existing sandboxes namespace (tuist-sandboxes).
+enabled: false
+serverURL: ""
+serverNamespace: tuist
+serverPort: 8080
+gateway:
+  replicas: 2
+  image: ghcr.io/tuist/tuist-remote-execution
+  tag: ""
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  # gRPC ingress for Bazel clients. The gateway speaks plaintext HTTP/2, so
+  # TLS ends at the dedicated gRPC controller; execution streams last up to
+  # 15 minutes.
+  ingress:
+    enabled: false
+    host: ""
+    className: nginx-grpc
+    tlsSecretName: remote-execution-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+workers:
+  image: ghcr.io/tuist/sandboxd
+  tag: ""
+  templateImage: ghcr.io/tuist/tuist-sandbox-template
+  templateTag: ""
+  perNodeConcurrency: 4
+  # Opt into native link/address/route setup after qualifying the daemon image.
+  # Both backends retain fresh namespaces and the same firewall/teardown path.
+  networkBackend: iproute2
+  diskGiB: 160
+  # Node cache of large action inputs: each blob is read from the CAS once per
+  # node instead of once per action. It comes out of diskGiB (the daemon
+  # reports the rest as the sandboxes' budget) and also leaves 20% of the data
+  # filesystem free. 0 disables it.
+  blobCacheGiB: 20
+  # These hosts must be excluded from every CI RunnerPool. The dedicated
+  # NoSchedule taint and this label are provisioned with the host pool.
+  nodeSelector:
+    tuist.dev/workload: remote-execution
+    kubernetes.io/arch: amd64
+    kubernetes.io/os: linux
+  # Run on named Linux runner hosts beside CI and the agent sandbox daemon
+  # instead of dedicated hosts (replaces nodeSelector and perNodeConcurrency).
+  # Each worker holds an elastic memory carve-out: it starts at floorSlots VMs,
+  # which runner Pods can never take, and the server grows it in place up to
+  # ceilingSlots ahead of queued CI, then shrinks it back once the VMs are
+  # gone. Each slot is 4160 MiB; the daemon keeps 512 MiB. Needs a runners
+  # controller that recognises `tuist.dev/remote-execution-daemon` Pods.
+  # Workers connect as `<node>.remote-execution` and serve every account.
+  sharedHosts:
+    enabled: false
+    nodes: []
+    floorSlots: 1
+    ceilingSlots: 4
+    tolerations: []
+imagePullSecrets: []

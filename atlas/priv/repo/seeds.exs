@@ -30,6 +30,8 @@ alias Atlas.Assets.Asset
 alias Atlas.Assets.DataCenter
 alias Atlas.Audit
 alias Atlas.Authorization.Roles
+alias Atlas.Automations
+alias Atlas.Automations.Workflow, as: AutomationWorkflow
 alias Atlas.Briefs.Brief
 alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
@@ -144,6 +146,74 @@ for attrs <- seed_users do
 end
 
 seed_user = Repo.get_by!(User, email: "test@atlas.dev")
+
+if !Repo.get_by(AutomationWorkflow, name: "Request tax certificate") do
+  plan = %{
+    "steps" => [
+      %{
+        "id" => "review",
+        "type" => "approval",
+        "reviewer_id" => seed_user.id,
+        "inputs" => %{
+          "title" => "Request tax certificate",
+          "description" =>
+            "Prepare the tax-certificate request form, verify the company details, and obtain the required signature. Review delivery details separately before sending. This automation creates a task; it does not generate or mail a letter."
+        }
+      },
+      %{"id" => "task", "behavior" => "tasks.create", "inputs" => %{"$ref" => "steps.review"}}
+    ]
+  }
+
+  {:ok, _workflow} =
+    Automations.save_workflow_version(
+      seed_user,
+      nil,
+      %{
+        "name" => "Request tax certificate",
+        "description" =>
+          "Approve a tax-certificate request, then create a preparation task assigned to the execution user. This example does not generate forms or send postal mail. No automatic triggers.",
+        "source" => JSON.encode!(plan)
+      },
+      interface: "system"
+    )
+end
+
+if !Repo.get_by(AutomationWorkflow, name: "Review a purchase request") do
+  schema = %{
+    "type" => "object",
+    "additionalProperties" => false,
+    "required" => ["item", "amount", "currency", "justification"],
+    "properties" => %{
+      "item" => %{"type" => "string", "title" => "Purchase", "minLength" => 1, "maxLength" => 120},
+      "amount" => %{"type" => "number", "title" => "Amount", "minimum" => 0.01},
+      "currency" => %{"type" => "string", "title" => "Currency", "enum" => ["EUR", "USD", "GBP"]},
+      "needed_by" => %{"type" => "string", "title" => "Needed by", "format" => "date"},
+      "justification" => %{"type" => "string", "title" => "Justification", "minLength" => 1, "maxLength" => 2000},
+      "recurring" => %{"type" => "boolean", "title" => "Recurring purchase", "default" => false}
+    }
+  }
+
+  plan = %{
+    "steps" => [
+      %{"id" => "review", "type" => "approval", "reviewer_id" => seed_user.id, "inputs" => %{"$ref" => "input"}},
+      %{"id" => "record", "behavior" => "core.value", "inputs" => %{"$ref" => "steps.review"}}
+    ]
+  }
+
+  {:ok, _workflow} =
+    Automations.save_workflow_version(
+      seed_user,
+      nil,
+      %{
+        "name" => "Review a purchase request",
+        "description" =>
+          "Review structured purchase details and retain the approved request in the execution result. This example does not place an order, make a payment, or add automatic triggers.",
+        "input_schema" => schema,
+        "source" => JSON.encode!(plan)
+      },
+      interface: "system"
+    )
+end
 
 # Local-only people and leave examples share Berlin's calendar. Oban syncs public
 # holidays independently, so seeding never depends on an external provider.

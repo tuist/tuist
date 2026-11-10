@@ -14,7 +14,18 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
       used_bytes: integer(true),
       capacity_bytes: integer(true),
       unmeasured_copies: integer(),
-      unmeasured_capacity_copies: integer()
+      unmeasured_capacity_copies: integer(),
+      volume_bytes: %Schema{
+        type: :integer,
+        nullable: true,
+        description:
+          "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
+      },
+      pending_volume_bytes: %Schema{
+        type: :integer,
+        nullable: true,
+        description: "A smaller requested capacity in bytes that applies once the volume is next cleared or expires."
+      }
     })
   end
 
@@ -53,6 +64,7 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
     object("RunnerJobVolumes", %{volumes: array(object("RunnerJobVolume", %{volume: volume(), usage: usage()}))})
   end
 
+  def response(:delete), do: object("RunnerVolumeDeleted", %{id: string(), deleted: %Schema{type: :boolean}})
   def response(:clear), do: object("RunnerVolumeCleared", %{id: string(), cleared: %Schema{type: :boolean}})
 
   def response(:analytics) do
@@ -118,7 +130,7 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
 
     required =
       case action do
-        a when a in [:show, :jobs, :clear] -> [:account_handle, :volume_id]
+        a when a in [:show, :jobs, :delete, :clear] -> [:account_handle, :volume_id]
         :job_volumes -> [:account_handle, :workflow_job_id]
         _ -> [:account_handle]
       end

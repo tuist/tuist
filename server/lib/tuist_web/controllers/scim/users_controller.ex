@@ -10,6 +10,9 @@ defmodule TuistWeb.SCIM.UsersController do
   alias Tuist.SCIM.Filter
   alias Tuist.SCIM.Resource
 
+  @reserved_email_detail "userName is in a reserved email domain"
+  @email_not_managed_detail "userName can only be changed for users this organization provisioned"
+
   def index(conn, params) do
     organization = conn.assigns.scim_organization
     base_url = conn.assigns.scim_base_url
@@ -63,6 +66,9 @@ defmodule TuistWeb.SCIM.UsersController do
       {:error, :email_taken} ->
         send_scim_error(conn, 409, "User already exists", "uniqueness")
 
+      {:error, :reserved_email} ->
+        send_scim_error(conn, 400, @reserved_email_detail, "invalidValue")
+
       {:error, %Ecto.Changeset{} = changeset} ->
         send_scim_error(conn, 400, format_changeset(changeset), "invalidValue")
 
@@ -82,6 +88,8 @@ defmodule TuistWeb.SCIM.UsersController do
       {:error, :not_found} -> send_scim_error(conn, 404, "User not found")
       {:error, :invalid_email} -> send_scim_error(conn, 400, "userName must be a valid email", "invalidValue")
       {:error, :email_taken} -> send_scim_error(conn, 409, "User already exists", "uniqueness")
+      {:error, :reserved_email} -> send_scim_error(conn, 400, @reserved_email_detail, "invalidValue")
+      {:error, :email_not_managed} -> send_scim_error(conn, 400, @email_not_managed_detail, "mutability")
       {:error, %Ecto.Changeset{} = c} -> send_scim_error(conn, 400, format_changeset(c), "invalidValue")
       {:error, _} -> send_scim_error(conn, 500, "Could not replace user")
     end
@@ -96,6 +104,8 @@ defmodule TuistWeb.SCIM.UsersController do
       {:ok, user} -> send_scim_json(conn, 200, Resource.render_user(user, base_url))
       {:error, :not_found} -> send_scim_error(conn, 404, "User not found")
       {:error, :email_taken} -> send_scim_error(conn, 409, "User already exists", "uniqueness")
+      {:error, :reserved_email} -> send_scim_error(conn, 400, @reserved_email_detail, "invalidValue")
+      {:error, :email_not_managed} -> send_scim_error(conn, 400, @email_not_managed_detail, "mutability")
       {:error, %Ecto.Changeset{} = c} -> send_scim_error(conn, 400, format_changeset(c), "invalidValue")
       {:error, _} -> send_scim_error(conn, 500, "Could not patch user")
     end

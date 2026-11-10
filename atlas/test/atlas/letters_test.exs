@@ -6,8 +6,6 @@ defmodule Atlas.LettersTest do
   alias Atlas.Accounts.Account
   alias Atlas.Audit
   alias Atlas.Audit.Activity
-  alias Atlas.Authorization.Roles
-  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Storage
   alias Atlas.Letters
   alias Atlas.Letters.Config
@@ -664,14 +662,7 @@ defmodule Atlas.LettersTest do
       |> User.changeset(Map.merge(defaults, attrs))
       |> Repo.insert!()
 
-    if role == :executive do
-      executive_role = Roles.ensure_executive_role!()
-
-      %UserRole{}
-      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
-      |> Repo.insert!()
-    end
-
+    AtlasWeb.ConnCase.assign_role_or_scopes(user, role, nil)
     user
   end
 end

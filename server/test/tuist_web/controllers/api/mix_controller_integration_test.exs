@@ -93,6 +93,37 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     assert io.transfer.metrics["uploads"] == nil
   end
 
+  test "ingests up-to-date local hits without project compilation or invented transport measurements", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    reporter = reporter([])
+
+    CompileReporter.record_cache(reporter, %{
+      dependency: "jason",
+      outcome: "local_hit",
+      key: "",
+      reason: "up_to_date",
+      duration_ms: 2,
+      saved_duration_ms: nil
+    })
+
+    :ok = CompileReporter.finish(reporter)
+    assert conn |> post_report(user, project) |> json_response(:created)
+
+    opts = [
+      start_datetime: DateTime.add(DateTime.utc_now(), -60),
+      end_datetime: DateTime.add(DateTime.utc_now(), 60)
+    ]
+
+    assert %{hits: 1, misses: 0, hit_rate: 100.0, saved_duration_ms: nil} = Cache.summary(project.id, opts)
+    io = Cache.io_analytics(project.id, opts)
+    assert io.transfer.metrics["combined"] == nil
+    assert io.latency.metrics["combined"] == nil
+    assert io.throughput.metrics["combined"] == nil
+  end
+
   test "tells the page waiting for the project that the user reached it", %{conn: conn, user: user} do
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
     Tuist.PubSub.subscribe("projects.#{project.id}")

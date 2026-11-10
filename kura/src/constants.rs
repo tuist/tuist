@@ -178,6 +178,14 @@ pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
 // compaction-blocking scale that shaped the constant above. Revisit if segments
 // ever grow far past `MAX_SEGMENT_BYTES` worth of small artifacts.
 pub const SEGMENT_EVICTION_YIELD_ROWS: usize = 256;
+// Eviction candidates read per blocking task, and the write-lock stripes the
+// reclamation worker holds between commits. One bound for both: a run of
+// candidates is read under its locks, and a commit ends the run.
+pub const SEGMENT_EVICTION_CANDIDATE_RUN: usize = 32;
+// Retired segments a rotating request may leave queued for the reclamation
+// worker instead of evicting them itself. With the one the worker is evicting,
+// this bounds retired-but-unreclaimed disk to two segments.
+pub const SEGMENT_RETIREMENT_HANDOFF_BACKLOG: usize = 1;
 // Payload ceiling of one segment-eviction write batch, and so of how much
 // memtable a single eviction can pin at once.
 //
@@ -363,6 +371,12 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
 /// Re-check cadence of an idle long-poll, the bound on a missed wake.
 pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// How long the internal listener's open connections get to finish once
+/// shutdown stops it accepting, instead of the whole drain budget. Matches the
+/// peer client's 30 s idle read timeout: a transfer that has made no progress
+/// for that long is already abandoned by the peer reading it, and a response
+/// no peer reads holds its HTTP/2 stream open until the budget runs out.
+pub const INTERNAL_SHUTDOWN_GRACE_SECS: u64 = 30;
 /// Ceiling of `kura_region_listing_bound_lag_seconds`. The serving bound is
 /// a wall-clock instant and is `0` while a replica link bounds the listing
 /// whole (design §4.1), so an unclamped `now − bound` would report the epoch;

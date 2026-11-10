@@ -12,6 +12,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event.Buffer
   alias Tuist.Environment
+  alias Tuist.Kura.OriginRollup
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Xcode.XcodeGraph
@@ -149,7 +150,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => command_event.id,
                "project_id" => project.id,
@@ -198,7 +199,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,
@@ -404,7 +405,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "id" => response["id"],
                "name" => "generate",
                "project_id" => project.id,
@@ -413,6 +414,40 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
 
       assert command_event.is_ci == true
+    end
+
+    test "counts where a cache run came from unless a private runner cache served it", %{conn: conn, user: user} do
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      stub(TuistWeb.RemoteIp, :attributed_origin, fn _conn -> {:ok, "FR"} end)
+
+      post_cache_run = fn cache_endpoint ->
+        conn
+        |> Authentication.put_current_project(project)
+        |> assign(:selected_project, project)
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/analytics?project_id=#{account.name}/#{project.name}", %{
+          name: "build",
+          command_arguments: [],
+          duration: 100,
+          tuist_version: "1.0.0",
+          swift_version: "5.0",
+          macos_version: "10.15",
+          params: %{},
+          cache_endpoint: cache_endpoint,
+          is_ci: true,
+          client_id: "client-id"
+        })
+        |> json_response(:ok)
+      end
+
+      post_cache_run.("https://#{account.name}-scw-fr-par-runners.kura.tuist.dev")
+      assert Repo.all(from(rollup in OriginRollup, where: rollup.account_id == ^account.id)) == []
+
+      post_cache_run.("https://#{account.name}.cache.tuist.dev")
+
+      assert [%OriginRollup{origin: "FR", run_count: 1}] =
+               Repo.all(from(rollup in OriginRollup, where: rollup.account_id == ^account.id))
     end
 
     test "returns newly created command event with xcode_graph", %{
@@ -471,7 +506,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "name" => "generate",
                "id" => response["id"],
                "project_id" => project.id,

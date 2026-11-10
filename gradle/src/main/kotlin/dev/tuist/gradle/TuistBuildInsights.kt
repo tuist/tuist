@@ -3,6 +3,8 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.model.ObjectFactory
+import org.gradle.internal.work.WorkerLeaseService
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.internal.build.event.BuildEventListenerRegistryInternal
@@ -28,6 +30,7 @@ import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStep
 import org.gradle.internal.time.Time
 import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -66,7 +69,8 @@ data class TaskOutcomeData(
     val startedAt: String?,
     val remoteCacheMiss: Boolean = false,
     val remoteCacheStored: Boolean? = null,
-    val execution: TaskExecutionTelemetry? = null
+    val execution: TaskExecutionTelemetry? = null,
+    val failure: FailureReport? = null
 )
 
 data class TaskReportEntry(
@@ -79,7 +83,8 @@ data class TaskReportEntry(
     @SerializedName("started_at") val startedAt: String?,
     @SerializedName("remote_cache_miss") val remoteCacheMiss: Boolean = false,
     @SerializedName("remote_cache_stored") val remoteCacheStored: Boolean? = null,
-    val execution: TaskExecutionTelemetry? = null
+    val execution: TaskExecutionTelemetry? = null,
+    val failure: FailureReport? = null
 )
 
 data class ConfigurationCacheReport(
@@ -94,7 +99,8 @@ data class ConfigurationOperationReportEntry(
     @SerializedName("build_path") val buildPath: String,
     @SerializedName("project_path") val projectPath: String? = null,
     @SerializedName("duration_ms") val durationMs: Long,
-    @SerializedName("started_at") val startedAt: String
+    @SerializedName("started_at") val startedAt: String,
+    val failure: FailureReport? = null
 )
 
 data class ArtifactTransformReportEntry(
@@ -131,6 +137,11 @@ data class BuildReportRequest(
 
 data class BuildReportResponse(val id: String)
 
+internal fun BuildReportRequest.withoutFailureMessages() = copy(
+    tasks = tasks.map { it.copy(failure = null) },
+    configurationOperations = configurationOperations.map { it.copy(failure = null) }
+)
+
 // --- Build Service ---
 
 abstract class TuistBuildInsightsService :
@@ -157,7 +168,11 @@ abstract class TuistBuildInsightsService :
         val actorId: Property<String>
     }
 
+    @get:Inject
+    abstract val objects: ObjectFactory
+
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
+    private val jobSummary by lazy { GitHubActionsJobSummary() }
 
     private val machineMetricsService = parameters.machineMetrics.get().also { it.attachReporter() }
 
@@ -167,7 +182,7 @@ abstract class TuistBuildInsightsService :
 
     val buildId: String = UUID.randomUUID().toString()
 
-    private val executionTelemetry = BuildExecutionTelemetry()
+    private val executionTelemetry = BuildExecutionTelemetry(rootDir = parameters.projectDir.asFile.get().path)
     private val configurationOperations = ConcurrentLinkedQueue<ConfigurationOperationReportEntry>()
     private val artifactTransforms = ConcurrentLinkedQueue<ArtifactTransformReportEntry>()
     private val buildStartTime = Time.currentTimeMillis()
@@ -228,7 +243,7 @@ abstract class TuistBuildInsightsService :
             else -> null
         }
 
-        operation?.let(configurationOperations::add)
+        operation?.let { configurationOperations.add(it.copy(failure = executionTelemetry.failures.report(finishEvent.failure))) }
     }
 
     private fun recordConfigurationCacheMetadata(result: Any?, finishEvent: OperationFinishEvent) {
@@ -286,13 +301,24 @@ abstract class TuistBuildInsightsService :
 
     override fun close() {
         val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
-        val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
+        if (executionTelemetry.tasks.isEmpty() && !executionTelemetry.failures.buildFailed) return
+
+        // GitHub uploads the summary when the step ends, so it must be written before Gradle returns.
+        val shouldUploadInBackground = (uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())) && !jobSummary.isEnabled
+        val observations = try {
+            withoutMetadataInputTracking(objects.newInstance(MetricsInputTracking::class.java).state) {
+                val maxWorkers = try {
+                    objects.newInstance(MetadataWorkerLimits::class.java).workers.maxWorkerCount
+                } catch (_: Exception) { null } catch (_: LinkageError) { null }
+                buildEnvironmentMetadata(maxWorkers = maxWorkers)
+            }
+        } catch (_: Exception) { emptyMap<String, String>() } catch (_: LinkageError) { emptyMap<String, String>() }
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
             Thread({
                 try {
-                    sendReport(machineMetrics)
+                    sendReport(machineMetrics, observations)
                 } catch (e: Exception) {
                     logger.warn("Tuist: Failed to send build insights: ${e.message}")
                 }
@@ -302,19 +328,19 @@ abstract class TuistBuildInsightsService :
             }
         } else {
             try {
-                sendReport(machineMetrics)
+                sendReport(machineMetrics, observations)
             } catch (e: Exception) {
                 logger.warn("Tuist: Failed to send build insights: ${e.message}")
             }
         }
     }
 
-    private fun sendReport(machineMetrics: List<MachineMetricSample>) {
+    private fun sendReport(machineMetrics: List<MachineMetricSample>, observations: Map<String, String>) {
         val projectValue = parameters.project.orNull
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val projectDir = parameters.projectDir.asFile.get()
 
-        val configProvider = DefaultConfigurationProvider(
+        val configProvider = ReportConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
@@ -350,7 +376,7 @@ abstract class TuistBuildInsightsService :
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
+            requestedTasks = parameters.requestedTasks.getOrElse(emptyList()),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
             customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
@@ -369,41 +395,60 @@ abstract class TuistBuildInsightsService :
                 projectDir = projectDir
             )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                }
+            val limit = if ((report.customMetadata.values.keys + observations.keys).size > MAX_BUILD_METADATA_VALUES) {
+                discoverBuildMetadataLimit(URI(resolvedUrl)) { httpClients.openConnection(it) }
+            } else MAX_BUILD_METADATA_VALUES
+            val enriched = report.copy(customMetadata = report.customMetadata.withObservations(observations, limit))
+            // Servers that predate a field refuse it in credential-free reports, dropping the report.
+            val body = if (config.token.isEmpty()) enriched.withoutFailureMessages().copy(gitRemoteUrlOrigin = null) else enriched
+            // Every attempt sends the same build id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another build).
+            httpClient.retrying("Build insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        Gson().toJson(body, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_CREATED -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_CREATED -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, BuildReportResponse::class.java).also { response ->
+                                    val dashboardUrl = URI(resolvedUrl).resolve(
+                                        "/${config.accountHandle}/${config.projectHandle}/builds/build-runs/${response.id}"
+                                    )
+                                    jobSummary.writeBuild(report, dashboardUrl.toString())
+                                }
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Build insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 
         if (response != null) {
-            logger.lifecycle("Tuist: Build insights reported successfully (build $buildId)")
+            logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
         } else {
             logger.warn("Tuist: Failed to report build insights.")
         }
@@ -480,7 +525,8 @@ internal fun buildReport(
                 startedAt = task.startedAt,
                 remoteCacheMiss = task.remoteCacheMiss,
                 remoteCacheStored = task.remoteCacheStored,
-                execution = task.execution
+                execution = task.execution,
+                failure = task.failure
             )
         },
         customMetadata = customMetadata,
@@ -497,15 +543,13 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val logger = Logging.getLogger(TuistBuildInsightsPlugin::class.java)
 
     override fun apply(project: Project) {
-        if (project !== project.rootProject) return
-
         val config = TuistGradleConfig.from(project) ?: return
-        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.machineMetrics.set(project.gradle.sharedServices.registerIfAbsent(
                 "tuistMachineMetrics",
                 TuistMachineMetricsService::class.java
@@ -514,8 +558,8 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
-            parameters.rootProjectName.set(project.rootProject.name)
-            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.rootProjectName.set(config.rootProjectName)
+            parameters.projectDir.set(project.rootDir)
             parameters.customTags.set(config.customMetadata.tags)
             parameters.customValues.set(config.customMetadata.values)
             parameters.gitBranch.set(gitInfo.branch())
@@ -540,3 +584,5 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
 }
 
 internal abstract class MetricsInputTracking @Inject constructor(val state: InputTrackingState)
+
+internal abstract class MetadataWorkerLimits @Inject constructor(val workers: WorkerLeaseService)

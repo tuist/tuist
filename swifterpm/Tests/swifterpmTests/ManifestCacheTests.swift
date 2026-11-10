@@ -25,6 +25,17 @@ struct ManifestCacheTests {
         }
     }
 
+    @Test(.inTemporaryDirectory)
+    func nativeManifestCacheDefaultsToTheSharedCacheRoot() async throws {
+        let package = try #require(FileSystem.temporaryTestDirectory).fileURL
+        // Bazel may omit HOME and XDG_CACHE_HOME. The context must remain usable
+        // without a shared cache when neither default root is available.
+        let defaultRoot = (try? Cache.resolvedRoot(nil))?.standardizedFileURL
+        try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil) {
+            #expect(ManifestCache.sharedCacheDirectory == defaultRoot)
+        }
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true])
     func restoreUsesExplicitManifestCache(standalone: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
@@ -292,6 +303,65 @@ struct ManifestCacheTests {
             let data = try await fileSystem.readFile(at: packageInfo.absolutePath)
             #expect(ManifestParser.packageName(try JSONSerialization.jsonObject(with: data)) == "Root")
             #expect(try await fileSystem.exists(ManifestCache.sidecar(packageInfo).absolutePath) == false)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func pinnedSourceDumpsAreSharedAcrossScratchDirectories(copied: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let cache = root.appendingPathComponent("cache")
+        let source = cache.appendingPathComponent("sources/dependency/1.0.0-revision")
+        // The name comes from a file the cache inputs do not cover, and SwiftPM's own manifest database
+        // is cleared between dumps, so the name shows whether the second dump evaluated the manifest again.
+        try await fileSystem.makeDirectory(at: source.absolutePath, options: [.createTargetParentDirectories])
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 5.9
+            import Foundation
+            import PackageDescription
+
+            let name = try! String(contentsOfFile: Context.packageDirectory + "/name.txt", encoding: .utf8)
+            let package = Package(name: name)
+            """,
+            to: source.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite("First", to: source.appendingPathComponent("name.txt"))
+
+        func dump(worktree: String) async throws -> (name: String?, root: String?) {
+            let package = root.appendingPathComponent("\(worktree)/App")
+            let scratch = package.appendingPathComponent(".build")
+            let checkout = scratch.appendingPathComponent("checkouts/dependency")
+            try await fileSystem.makeDirectory(
+                at: checkout.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
+            )
+            if copied {
+                try await fileSystem.copyPrivately(source: source, destination: checkout)
+            } else {
+                try await fileSystem.createSymbolicLink(from: checkout.absolutePath, to: source.absolutePath)
+            }
+            return try await ManifestCache.withContext(
+                packageDirectory: package, scratchDirectory: scratch, sharedCacheDirectory: cache
+            ) {
+                let manifest = try await ManifestLoader.dumpPackage(packageDir: checkout, disableSandbox: true)
+                let kind = (manifest as? [String: Any])?["packageKind"] as? [String: Any]
+                return (ManifestParser.packageName(manifest), (kind?["root"] as? [String])?.first)
+            }
+        }
+
+        let first = try await dump(worktree: "first")
+        try await fileSystem.atomicWrite("Second", to: source.appendingPathComponent("name.txt"))
+        try await fileSystem.remove(cache.appendingPathComponent("manifests").absolutePath)
+        let second = try await dump(worktree: "second")
+
+        #expect(first.name == "First")
+        if copied {
+            // A copy lives in its scratch directory, and its dump embeds that path.
+            #expect(second.name == "Second")
+            let checkout = root.appendingPathComponent("second/App/.build/checkouts/dependency")
+            #expect(second.root == PathCanonicalizer.realpath(checkout).path)
+        } else {
+            #expect(second.name == "First")
+            #expect(second.root == PathCanonicalizer.realpath(source).path)
         }
     }
 

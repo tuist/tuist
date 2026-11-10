@@ -13,9 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
-func newNodeFakeClient(objs ...client.Object) client.Client {
+func newNodeFakeClient(objs ...client.Object) client.WithWatch {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 	return fake.NewClientBuilder().
@@ -69,6 +70,58 @@ func TestEnsureNodeDoesNotOverwriteExistingProviderID(t *testing.T) {
 	}
 	if got := nodeProviderID(t, c, "mac-1"); got != "scw-applesilicon://fr-par-1/original" {
 		t.Fatalf("providerID = %q, want the original left untouched (immutable)", got)
+	}
+}
+
+func TestEnsureNodeSurvivesConcurrentCapacityGrants(t *testing.T) {
+	for _, lateWrite := range []bool{false, true} {
+		t.Run(map[bool]string{false: "during pressure probe", true: "during status write"}[lateWrite], func(t *testing.T) {
+			ctx := context.Background()
+			c := newNodeFakeClient(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "mac-1"}})
+			const grantKey = "tuist.dev/macos-sandbox-grant"
+			writeGrant := func(value string) {
+				t.Helper()
+				node := &corev1.Node{}
+				if err := c.Get(ctx, types.NamespacedName{Name: "mac-1"}, node); err != nil {
+					t.Fatal(err)
+				}
+				node.Annotations = map[string]string{grantKey: value}
+				if err := c.Update(ctx, node); err != nil {
+					t.Fatal(err)
+				}
+			}
+			injected := false
+			wrapped := interceptor.NewClient(c, interceptor.Funcs{
+				SubResourceUpdate: func(ctx context.Context, inner client.Client, name string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+					if lateWrite && name == "status" && !injected {
+						injected = true
+						writeGrant("latest grant")
+					}
+					return inner.SubResource(name).Update(ctx, obj, opts...)
+				},
+			})
+			m := &Maintainer{Client: wrapped, NodeName: "mac-1", Heartbeat: time.Second,
+				MemoryPressure: func(context.Context) (bool, string, error) {
+					if !lateWrite {
+						writeGrant("latest grant")
+					}
+					return false, "healthy", nil
+				},
+			}
+			if err := m.ensureNode(ctx); err != nil {
+				t.Fatalf("startup failed under concurrent grant updates: %v", err)
+			}
+			node := &corev1.Node{}
+			if err := c.Get(ctx, types.NamespacedName{Name: "mac-1"}, node); err != nil {
+				t.Fatal(err)
+			}
+			if node.Annotations[grantKey] != "latest grant" {
+				t.Fatalf("startup overwrote the concurrent capacity grant: %v", node.Annotations)
+			}
+			if ready, ok := conditionByType(node.Status.Conditions, corev1.NodeReady); !ok || ready.Status != corev1.ConditionTrue {
+				t.Fatalf("startup did not report Ready: %v", node.Status.Conditions)
+			}
+		})
 	}
 }
 
@@ -268,6 +321,37 @@ func TestConfigureNodePrunesAllDynamicLabelsWhenNone(t *testing.T) {
 	}
 }
 
+func TestConfigureNodePrunesCacheMasterLabelsNoProviderAdvertises(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"tuist.dev/cache-master-42":                           "true",
+				"tuist.dev/cache-master-42.repo-0123456789abcdef":     "true",
+				"tuist.dev/cache-volumes-per-repository":              "true",
+				"tuist.dev/cache-volume-capacity-gib":                 "240",
+				"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+			},
+		},
+	}
+
+	m.configureNode(node, map[string]string{
+		"tuist.dev/cache-volume-capacity-gib":                 "240",
+		"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+	})
+
+	for _, label := range []string{"tuist.dev/cache-master-42", "tuist.dev/cache-master-42.repo-0123456789abcdef", "tuist.dev/cache-volumes-per-repository"} {
+		if _, present := node.Labels[label]; present {
+			t.Errorf("%s survived a heartbeat that no longer advertises it", label)
+		}
+	}
+	for _, label := range []string{"tuist.dev/cache-volume-capacity-gib", "tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+		if _, present := node.Labels[label]; !present {
+			t.Errorf("%s was pruned while still advertised", label)
+		}
+	}
+}
+
 func TestApplyDiskPressureSetsTrueWithDetail(t *testing.T) {
 	m := &Maintainer{
 		DiskPressure: func(context.Context) (bool, string, error) {
@@ -384,5 +468,57 @@ func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
 	want := map[string]string{"tuist.dev/golden-abc": "true", "tuist.dev/cache-master-42": "true"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("merged labels = %v; want %v", labels, want)
+	}
+}
+
+func TestRefreshPublishesTheTartVersion(t *testing.T) {
+	c := newNodeFakeClient()
+	version, versionErr := "2.32.1", error(nil)
+	m := &Maintainer{
+		Client: c, NodeName: "mac-1", Heartbeat: time.Second,
+		RuntimeVersion: func(context.Context) (string, error) { return version, versionErr },
+	}
+	runtime := func() string {
+		t.Helper()
+		node := &corev1.Node{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, node); err != nil {
+			t.Fatal(err)
+		}
+		return node.Status.NodeInfo.ContainerRuntimeVersion
+	}
+
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.32.1" {
+		t.Fatalf("runtime = %q, want tart://2.32.1", got)
+	}
+
+	version = "2.41.1"
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after an in-place upgrade = %q, want tart://2.41.1", got)
+	}
+
+	versionErr = errors.New("tart: exec format error")
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after a failed read = %q, want the last version read", got)
+	}
+}
+
+func TestConfigureNodeKeepsBareRuntimeWithoutAVersion(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-1"}
+	node := &corev1.Node{}
+	m.configureNode(node, nil)
+	if got := node.Status.NodeInfo.ContainerRuntimeVersion; got != "tart" {
+		t.Fatalf("runtime = %q, want tart", got)
 	}
 }

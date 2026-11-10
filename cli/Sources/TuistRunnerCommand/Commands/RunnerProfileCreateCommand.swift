@@ -36,6 +36,12 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
 
     @Flag(
         inversion: .prefixedNo,
+        help: "Whether every successful job from the repository saves the profile's cache volumes. Pass --no-save-cache-from-all-branches to save only from the default branch and --save-cache-from branches. Defaults to saving."
+    )
+    var saveCacheFromAllBranches: Bool?
+
+    @Flag(
+        inversion: .prefixedNo,
         help: "Whether jobs on each repository's default branch save the profile's cache volumes. Defaults to saving."
     )
     var saveCacheFromDefaultBranch: Bool?
@@ -59,6 +65,7 @@ public struct RunnerProfileCreateCommand: AsyncParsableCommand, NooraReadyComman
             vcpus: vcpus,
             memoryGB: memoryGB,
             xcodeVersion: xcodeVersion,
+            saveCacheFromAllBranches: saveCacheFromAllBranches,
             saveCacheFromDefaultBranch: saveCacheFromDefaultBranch,
             saveCacheFromBranches: saveCacheFrom.isEmpty ? nil : saveCacheFrom,
             account: options.account,

@@ -57,7 +57,9 @@ defmodule TuistWeb.API.BuildEntityController do
   end
 
   defp query(:index, project_id, resource, _params, opts) do
-    {entries, meta} = BuildEntities.list(project_id, resource.system, resource.kind, opts)
+    {entries, meta} =
+      BuildEntities.list(project_id, resource.system, resource.kind, Keyword.put(opts, :include_metrics, false))
+
     {:ok, %{resource.plural => entries, :pagination_metadata => meta}}
   end
 

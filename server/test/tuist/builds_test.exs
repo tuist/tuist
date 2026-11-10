@@ -181,7 +181,9 @@ defmodule Tuist.BuildsTest do
           network_bytes_in: 1_000_000,
           network_bytes_out: 500_000,
           disk_bytes_read: 2_000_000,
-          disk_bytes_written: 1_500_000
+          disk_bytes_written: 1_500_000,
+          disk_total_bytes: 500_000_000_000,
+          disk_available_bytes: 0
         },
         %{
           timestamp: base_ts + 2.0,
@@ -219,6 +221,10 @@ defmodule Tuist.BuildsTest do
       assert length(build.machine_metrics) == 2
       assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
       assert Enum.at(build.machine_metrics, 1).offset_ms == nil
+      assert Enum.at(build.machine_metrics, 0).disk_total_bytes == 500_000_000_000
+      assert Enum.at(build.machine_metrics, 0).disk_available_bytes == 0
+      assert Enum.at(build.machine_metrics, 1).disk_total_bytes == nil
+      assert Enum.at(build.machine_metrics, 1).disk_available_bytes == nil
       assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
@@ -1675,6 +1681,40 @@ defmodule Tuist.BuildsTest do
       assert metrics.p90_write_duration == 0
       assert metrics.p50_read_duration == 0
       assert metrics.p50_write_duration == 0
+    end
+  end
+
+  describe "ci_runs_with_remote_cache_hits/3" do
+    test "returns the given CI runs of the given projects whose builds hit the remote cache since the cutoff" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      since = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 3)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 5)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "2", cacheable_task_remote_hits_count: 0)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "3", cacheable_task_remote_hits_count: 3)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        ci_run_id: "4",
+        cacheable_task_remote_hits_count: 3,
+        inserted_at: DateTime.add(since, -60, :second)
+      )
+
+      RunsFixtures.build_fixture(project_id: other_project.id, ci_run_id: "5", cacheable_task_remote_hits_count: 3)
+
+      # When
+      result = Builds.ci_runs_with_remote_cache_hits([project.id], ["1", "2", "4", "5"], since)
+
+      # Then
+      assert result == {:ok, [{project.id, "1"}]}
+    end
+
+    test "returns no runs without projects or run ids to look up" do
+      assert Builds.ci_runs_with_remote_cache_hits([], ["1"], DateTime.utc_now()) == {:ok, []}
+      assert Builds.ci_runs_with_remote_cache_hits([1], [], DateTime.utc_now()) == {:ok, []}
     end
   end
 

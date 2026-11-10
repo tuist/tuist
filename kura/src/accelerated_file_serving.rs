@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     io::Write,
+    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -16,7 +17,7 @@ use hyper_util::{
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpSocket, TcpStream},
     sync::{Semaphore, watch},
 };
 use tokio_rustls::TlsAcceptor;
@@ -60,6 +61,16 @@ const CONNECTION_MAX_AGE_GRACE: Duration = Duration::from_secs(900);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
 const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+// The gateway's nginx opens one upstream connection per concurrent gRPC call,
+// so a client's upload burst reaches a public listener as hundreds of
+// simultaneous handshakes. At tokio's default backlog of 128 the kernel drops
+// the excess SYNs (clients retry after a second) and then falls back to SYN
+// cookies, resetting connections whose request bytes arrive before Kura
+// accepts them: 502s at the gateway that Kura never sees. 1024 absorbs those
+// bursts without the cookie fallback. It stays well below `net.core.somaxconn`
+// because a queued connection keeps its first request window (about 64 KiB)
+// in node kernel memory, outside the pod's limit, until Kura accepts it.
+const PUBLIC_LISTEN_BACKLOG: u32 = 1024;
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
 const TENANT_SCOPE_NAMESPACE_ID: &str = "";
@@ -71,13 +82,37 @@ const TENANT_SCOPE_NAMESPACE_ID: &str = "";
 // public port keeps its own tuning.
 type Http2BuilderConfig = fn(&mut HttpBuilder<TokioExecutor>);
 
+pub(crate) fn bind_public_listener(address: SocketAddr) -> std::io::Result<TcpListener> {
+    let socket = if address.is_ipv4() {
+        TcpSocket::new_v4()?
+    } else {
+        TcpSocket::new_v6()?
+    };
+    socket.set_reuseaddr(true)?;
+    socket.bind(address)?;
+    socket.listen(PUBLIC_LISTEN_BACKLOG)
+}
+
+// The gateway gRPC port is reached only through the regional ingress, which
+// does not drop upstream connections on its own, so a connection error there
+// is Kura's to explain. The co-hosted port also serves clients that disconnect
+// at will.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionErrorLog {
+    Debug,
+    Warn,
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn serve_public_http(
     listener: TcpListener,
     router: Router,
     state: SharedState,
     config: AcceleratedFileServingConfig,
     mut shutdown_rx: watch::Receiver<bool>,
+    drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
+    connection_error_log: ConnectionErrorLog,
 ) -> Result<(), String> {
     let semaphore = Arc::new(Semaphore::new(config.max_concurrent));
     let address = listener
@@ -97,7 +132,7 @@ pub async fn serve_public_http(
     loop {
         tokio::select! {
             result = listener.accept() => {
-                let (stream, _) = match result {
+                let (stream, peer) = match result {
                     Ok(stream) => stream,
                     Err(error) => {
                         tracing::warn!("public HTTP accept failed: {error}");
@@ -112,13 +147,16 @@ pub async fn serve_public_http(
                 let accepted_at = tokio::time::Instant::now();
                 let router = router.clone();
                 let state = state.clone();
+                let connection_lease = state.runtime.public_connection();
+                let retirement = connection_lease.retirement();
                 let config = config.clone();
                 let semaphore = semaphore.clone();
-                let shutdown = shutdown_rx.clone();
+                let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
-                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
-                            tracing::debug!("public HTTP connection failed: {error}");
+                        let _connection_lease = connection_lease;
+                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown, retirement).await {
+                            log_connection_error(connection_error_log, address, peer, accepted_at.elapsed(), &error);
                         }
                     }
                     .in_current_span(),
@@ -143,11 +181,20 @@ async fn serve_connection(
     configure_http2: Http2BuilderConfig,
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
+    retirement: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
     // With acceleration disabled every connection goes straight to the hyper
     // path, keeping the same nodelay/aging/drain semantics without peeking.
     if !config.enabled {
-        return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+        return serve_hyper(
+            stream,
+            router,
+            configure_http2,
+            accepted_at,
+            shutdown,
+            retirement,
+        )
+        .await;
     }
     let mut header_buffer = vec![0_u8; MAX_HEADER_BYTES];
     loop {
@@ -175,12 +222,28 @@ async fn serve_connection(
         // re-evaluating access twice. The peek does not consume bytes, so Hyper
         // re-reads the request from the start.
         let Some((mut parsed, artifact)) = classified else {
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
         };
-        let keep_alive = request_wants_keep_alive(&parsed);
+        let keep_alive = request_wants_keep_alive(&parsed) && !state.runtime.retiring_connections();
         let request_started_at = Instant::now();
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
         };
         let request_id = request_id(parsed.headers.get(REQUEST_ID_HEADER).map(String::as_str));
         parsed
@@ -223,6 +286,23 @@ async fn serve_connection(
             },
             request_span.clone(),
         );
+        // Enroll before asynchronous preparation, then recheck drain. Either
+        // shutdown observes this guard, or we refuse to start producing usage
+        // after it has observed zero inflight requests and checkpointed.
+        let request_guard = state.start_http_request(HttpTrafficClass::Public);
+        if state.runtime.is_draining() {
+            drop(request_guard);
+            drop(permit);
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
+        }
         let classified = scope_request(
             request_context.clone(),
             open_and_authorize(&state, parsed, artifact).instrument(request_span.clone()),
@@ -297,7 +377,16 @@ async fn serve_connection(
             }
             ClassifiedRequest::Fallback => {
                 drop(permit);
-                return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+                drop(request_guard);
+                return serve_hyper(
+                    stream,
+                    router,
+                    configure_http2,
+                    accepted_at,
+                    shutdown,
+                    retirement,
+                )
+                .await;
             }
         }
     }
@@ -330,16 +419,40 @@ fn request_wants_keep_alive(parsed: &ParsedRequest) -> bool {
     true
 }
 
+// Which signal recycles a newly accepted connection. One open when the node
+// starts draining is recycled then, so its client reconnects to a serving
+// replica while this one refuses new work. One accepted during the drain,
+// which a stale endpoint list still routes here, is kept until termination:
+// recycling it on accept would fail the request it carries on a closed
+// connection instead of answering it with a refusal the client retries.
+fn connection_recycle_signal(
+    termination: &watch::Receiver<bool>,
+    drain: &watch::Receiver<bool>,
+) -> watch::Receiver<bool> {
+    if *drain.borrow() {
+        termination.clone()
+    } else {
+        drain.clone()
+    }
+}
+
 async fn serve_hyper<I>(
     stream: I,
     router: Router,
     configure_http2: Http2BuilderConfig,
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
+    retirement: watch::Receiver<bool>,
 ) -> std::io::Result<()>
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    let (protocol_tx, protocol) = watch::channel(None);
+    let stream = PrefaceProbe {
+        inner: stream,
+        matched: 0,
+        protocol: Some(protocol_tx),
+    };
     let mut builder = HttpBuilder::new(TokioExecutor::new());
     configure_http2(&mut builder);
     let service = service_fn(move |request: Request<Incoming>| {
@@ -354,23 +467,153 @@ where
     let connection = builder.serve_connection(TokioIo::new(stream), service);
     let mut connection = std::pin::pin!(connection);
 
-    // Serve until the connection ends on its own, ages out, or the node
-    // starts draining — the latter two recycle it gracefully: GOAWAY for
-    // HTTP/2 (gRPC channels finish in-flight streams and reconnect
-    // elsewhere), keep-alive off for HTTP/1.
+    // Serve until the connection ends on its own, ages out, the node starts
+    // draining, or an HTTP/2 connection's cohort is retired. The others recycle
+    // it gracefully: GOAWAY for HTTP/2 (gRPC channels finish in-flight streams
+    // and reconnect elsewhere), keep-alive off for HTTP/1.
     if !*shutdown.borrow() {
         tokio::select! {
             result = connection.as_mut() => return result.map_err(std::io::Error::other),
             _ = tokio::time::sleep_until(accepted_at + CONNECTION_MAX_AGE) => {}
             _ = shutdown.changed() => {}
+            _ = http2_retired(retirement, protocol) => {}
         }
     }
     connection.as_mut().graceful_shutdown();
     match tokio::time::timeout(CONNECTION_MAX_AGE_GRACE, connection).await {
         Ok(result) => result.map_err(std::io::Error::other),
-        // Grace expired with streams still open; dropping the connection
-        // severs it.
-        Err(_) => Ok(()),
+        // Dropping the connection severs the streams still open on it.
+        Err(_) => Err(std::io::Error::other(format!(
+            "severed with streams still open {}s after graceful shutdown",
+            CONNECTION_MAX_AGE_GRACE.as_secs()
+        ))),
+    }
+}
+
+// A retired HTTP/1 connection closes after its next response instead.
+async fn http2_retired(
+    mut retirement: watch::Receiver<bool>,
+    mut protocol: watch::Receiver<Option<bool>>,
+) {
+    if retirement.wait_for(|retired| *retired).await.is_ok()
+        && protocol
+            .wait_for(Option::is_some)
+            .await
+            .is_ok_and(|protocol| *protocol == Some(true))
+    {
+        return;
+    }
+    std::future::pending().await
+}
+
+const HTTP2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
+/// Reports whether the client opened with the HTTP/2 connection preface,
+/// observed from the bytes hyper reads to choose a protocol.
+struct PrefaceProbe<I> {
+    inner: I,
+    matched: usize,
+    protocol: Option<watch::Sender<Option<bool>>>,
+}
+
+impl<I> PrefaceProbe<I> {
+    fn observe(&mut self, read: &[u8]) {
+        let Some(protocol) = &self.protocol else {
+            return;
+        };
+        let decided = if read.is_empty() {
+            Some(false)
+        } else {
+            let remaining = &HTTP2_PREFACE[self.matched..];
+            let compared = read.len().min(remaining.len());
+            if read[..compared] != remaining[..compared] {
+                Some(false)
+            } else {
+                self.matched += compared;
+                (self.matched == HTTP2_PREFACE.len()).then_some(true)
+            }
+        };
+        if let Some(http2) = decided {
+            protocol.send_replace(Some(http2));
+            self.protocol = None;
+        }
+    }
+}
+
+impl<I: AsyncRead + Unpin> AsyncRead for PrefaceProbe<I> {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        let before = buf.filled().len();
+        let result = std::pin::Pin::new(&mut this.inner).poll_read(cx, buf);
+        if matches!(result, std::task::Poll::Ready(Ok(()))) {
+            this.observe(&buf.filled()[before..]);
+        }
+        result
+    }
+}
+
+impl<I: AsyncWrite + Unpin> AsyncWrite for PrefaceProbe<I> {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
+    }
+
+    fn poll_write_vectored(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write_vectored(cx, bufs)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
+    }
+}
+
+fn log_connection_error(
+    log: ConnectionErrorLog,
+    listener: std::net::SocketAddr,
+    peer: std::net::SocketAddr,
+    age: Duration,
+    error: &std::io::Error,
+) {
+    let error = crate::analytics::error_cause_chain(error);
+    let connection_age_ms = u64::try_from(age.as_millis()).unwrap_or(u64::MAX);
+    match log {
+        ConnectionErrorLog::Debug => tracing::debug!(
+            %listener,
+            %peer,
+            connection_age_ms,
+            "public HTTP connection failed: {error}"
+        ),
+        ConnectionErrorLog::Warn => tracing::warn!(
+            %listener,
+            %peer,
+            connection_age_ms,
+            "public HTTP connection failed: {error}"
+        ),
     }
 }
 
@@ -382,7 +625,9 @@ pub async fn serve_public_tls(
     listener: TcpListener,
     router: Router,
     tls_config: Arc<rustls::ServerConfig>,
+    runtime: Arc<crate::runtime::RuntimeState>,
     mut shutdown_rx: watch::Receiver<bool>,
+    drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
 ) -> Result<(), String> {
     let acceptor = TlsAcceptor::from(tls_config);
@@ -406,10 +651,13 @@ pub async fn serve_public_tls(
                 }
                 let accepted_at = tokio::time::Instant::now();
                 let acceptor = acceptor.clone();
+                let connection_lease = runtime.public_connection();
+                let retirement = connection_lease.retirement();
                 let router = router.clone();
-                let shutdown = shutdown_rx.clone();
+                let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
+                        let _connection_lease = connection_lease;
                         let stream = match tokio::time::timeout(
                             TLS_HANDSHAKE_TIMEOUT,
                             acceptor.accept(stream),
@@ -427,7 +675,7 @@ pub async fn serve_public_tls(
                             }
                         };
                         if let Err(error) =
-                            serve_hyper(stream, router, configure_http2, accepted_at, shutdown)
+                            serve_hyper(stream, router, configure_http2, accepted_at, shutdown, retirement)
                                 .await
                         {
                             tracing::debug!("public HTTPS connection failed: {error}");
@@ -465,6 +713,8 @@ struct AcceleratedCandidate {
     transfer: AcceleratedTransferMetadata,
     file: AcceleratedArtifactFile,
     range: ServedRange,
+    /// Where the credential that authorized the request was issued.
+    origin: Option<Arc<str>>,
 }
 
 struct AcceleratedTransferMetadata {
@@ -601,6 +851,7 @@ async fn open_and_authorize(
             return ClassifiedRequest::Fallback;
         }
     };
+    let mut origin = None;
     if let Some(auth) = state.auth.as_ref() {
         let mut access_context = request_context(state, &parsed, &artifact);
         state.canonicalize_auth_context(&mut access_context);
@@ -621,6 +872,10 @@ async fn open_and_authorize(
         match access {
             AccessDecision::Allow => {
                 access_span.record("kura.auth.result", "allow");
+                origin = access_context
+                    .authorization
+                    .as_deref()
+                    .and_then(|authorization| auth.origin(authorization));
             }
             AccessDecision::Deny(deny) => {
                 access_span.record("kura.auth.result", "deny");
@@ -680,6 +935,7 @@ async fn open_and_authorize(
         transfer: artifact.into(),
         file,
         range,
+        origin,
     })
 }
 
@@ -723,16 +979,27 @@ fn parse_request(bytes: &[u8]) -> Result<Option<ParsedRequest>, httparse::Error>
     let Some(version) = request.version else {
         return Ok(None);
     };
-    let headers = request
+    let mut headers = BTreeMap::new();
+    for header in request
         .headers
         .iter()
         .filter(|header| !header.name.is_empty())
-        .filter_map(|header| {
-            std::str::from_utf8(header.value)
-                .ok()
-                .map(|value| (header.name.to_ascii_lowercase(), value.trim().to_string()))
-        })
-        .collect();
+    {
+        let name = header.name.to_ascii_lowercase();
+        if name == "authorization" {
+            let value = if headers.contains_key(&name) {
+                String::new()
+            } else {
+                std::str::from_utf8(header.value)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_owned()
+            };
+            headers.insert(name, value);
+        } else if let Ok(value) = std::str::from_utf8(header.value) {
+            headers.insert(name, value.trim().to_owned());
+        }
+    }
     Ok(Some(ParsedRequest {
         method: method.to_owned(),
         target: target.to_owned(),
@@ -762,11 +1029,11 @@ async fn serve_accelerated(
     keep_alive: bool,
 ) -> std::io::Result<Option<TcpStream>> {
     let transfer_started_at = Instant::now();
-    let _request_guard = state.start_http_request(HttpTrafficClass::Public);
     let AcceleratedCandidate {
         transfer,
         file,
         range,
+        origin,
         ..
     } = candidate;
     let AcceleratedTransferMetadata {
@@ -979,6 +1246,7 @@ async fn serve_accelerated(
                 producer,
                 tenant_id,
                 &namespace_id,
+                origin.as_ref(),
                 bytes,
             );
             record_analytics(
@@ -1200,6 +1468,7 @@ fn record_usage(
     producer: ArtifactProducer,
     tenant_id: &str,
     namespace_id: &str,
+    origin: Option<&Arc<str>>,
     bytes: u64,
 ) {
     let Some(usage) = usage else {
@@ -1208,6 +1477,7 @@ fn record_usage(
     usage.record_public_download(
         tenant_id,
         namespace_id,
+        origin,
         artifact_kind_for_usage(producer),
         bytes,
     );
@@ -1788,6 +2058,41 @@ mod tests {
         system_page_bytes,
     };
 
+    // A burst of handshakes larger than tokio's default backlog of 128 must all
+    // complete while nothing accepts: past the backlog the kernel drops SYNs
+    // (a one-second client retry) and then resets connections it answered with
+    // SYN cookies, which a gateway reports as 502.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn public_listener_absorbs_a_handshake_burst_beyond_the_default_backlog() {
+        const BURST: usize = 512;
+        let somaxconn = std::fs::read_to_string("/proc/sys/net/core/somaxconn")
+            .ok()
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        if somaxconn <= BURST {
+            eprintln!("skipping: net.core.somaxconn {somaxconn} cannot hold {BURST} handshakes");
+            return;
+        }
+        let listener =
+            super::bind_public_listener(std::net::SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
+        let address = listener.local_addr().unwrap();
+
+        let attempts = (0..BURST).map(|_| {
+            tokio::time::timeout(
+                Duration::from_millis(500),
+                tokio::net::TcpStream::connect(address),
+            )
+        });
+        let connected = futures_util::future::join_all(attempts)
+            .await
+            .into_iter()
+            .filter(|attempt| matches!(attempt, Ok(Ok(_))))
+            .count();
+
+        assert_eq!(connected, BURST);
+    }
+
     fn benchmark_artifact_request() -> ArtifactRequest {
         ArtifactRequest {
             producer: ArtifactProducer::Xcode,
@@ -2029,6 +2334,7 @@ mod tests {
             .into(),
             file,
             range: ServedRange::full(size),
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -2233,6 +2539,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -2338,6 +2645,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -2424,6 +2732,7 @@ mod tests {
             .into(),
             file,
             range,
+            origin: None,
         };
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -2598,6 +2907,7 @@ mod tests {
                 |_| {},
                 tokio::time::Instant::now(),
                 shutdown_rx,
+                watch::channel(false).1,
             )
             .await
         });
@@ -2643,5 +2953,132 @@ mod tests {
             client_result.is_ok(),
             "client should see a clean GOAWAY close: {client_result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn warn_listener_reports_connection_errors_with_their_cause() {
+        use std::{
+            io,
+            sync::{Arc, Mutex},
+            time::Duration,
+        };
+
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        #[derive(Clone, Default)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+
+        impl io::Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("capture lock")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let capture = Capture::default();
+        let writer = capture.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _subscriber = tracing::subscriber::set_default(subscriber);
+
+        let context = crate::test_support::test_context(|_| {}).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+        let (_drain_tx, drain_rx) = tokio::sync::watch::channel(false);
+        let server = tokio::spawn(super::serve_public_http(
+            listener,
+            axum::Router::new(),
+            context.state.clone(),
+            crate::config::AcceleratedFileServingConfig {
+                enabled: false,
+                ..context.state.config.accelerated_file_serving.clone()
+            },
+            shutdown_rx,
+            drain_rx,
+            |_| {},
+            super::ConnectionErrorLog::Warn,
+        ));
+
+        // The HTTP/2 preface and an empty SETTINGS, then a DATA frame on
+        // stream 0, which the server must treat as a connection error.
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        stream
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+        stream
+            .write_all(&[0, 0, 1, 0x0, 0, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+        let mut received = Vec::new();
+        let _ =
+            tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut received)).await;
+
+        let logged = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let output =
+                    String::from_utf8_lossy(&capture.0.lock().expect("capture lock")).into_owned();
+                if output.contains("public HTTP connection failed") {
+                    return output;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the broken connection should be logged");
+        server.abort();
+
+        let line = logged
+            .lines()
+            .find(|line| line.contains("public HTTP connection failed"))
+            .unwrap();
+        assert!(line.contains(" WARN "), "{line}");
+        assert!(line.contains(&format!("listener={addr}")), "{line}");
+        assert!(line.contains("peer=127.0.0.1:"), "{line}");
+        assert!(line.contains("connection_age_ms="), "{line}");
+        assert!(
+            line.contains(
+                "http2 error -> connection error detected: unspecific protocol error detected"
+            ),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn preface_probe_classifies_split_reads() {
+        let probe = |reads: &[&[u8]]| {
+            let (protocol_tx, protocol) = tokio::sync::watch::channel(None);
+            let mut probe = super::PrefaceProbe {
+                inner: (),
+                matched: 0,
+                protocol: Some(protocol_tx),
+            };
+            for read in reads {
+                probe.observe(read);
+            }
+            *protocol.borrow()
+        };
+        assert_eq!(
+            probe(&[b"PRI * HTTP", b"/2.0\r\n\r\nSM\r\n\r\n\0\0"]),
+            Some(true)
+        );
+        assert_eq!(probe(&[b"PRI * HTTP"]), None);
+        assert_eq!(probe(&[b"GET /up HTTP/1.1\r\n"]), Some(false));
+        assert_eq!(probe(&[b"PRI", b""]), Some(false));
     }
 }

@@ -367,3 +367,104 @@ func TestAllocateFleetShapeCapLeavesOtherShapesAlone(t *testing.T) {
 		t.Fatalf("a pool with no ShapeKey must be untouched, got %d", got["unkeyed"])
 	}
 }
+
+func TestAllocateFleet_OneShortFloorTierKeepsTheFloorsThatFit(t *testing.T) {
+	// A 14-slot rack with one warm floor per Xcode image. 27.0 is running
+	// seven jobs, so the eight other images' floors want eight slots where
+	// seven are left. Only one floor yields, and it is an idle image's,
+	// not the one used in the last hour.
+	slot := 24 * gib
+	pools := []PoolDemand{
+		{Name: "27-0", PerPodCost: slot, Floor: 1, Load: 7, Target: 8},
+		{Name: "26-3", PerPodCost: slot, Floor: 1, Load: 0, Target: 2},
+	}
+	for _, name := range []string{"26-0-1", "26-1-1", "26-4-1", "26-5", "26-6", "27-1", "27-2-beta"} {
+		pools = append(pools, PoolDemand{Name: name, PerPodCost: slot, Floor: 1, Load: 0, Target: 1})
+	}
+
+	got := AllocateFleet(pools, 14*slot, nil)
+
+	if got["27-0"] != 7 {
+		t.Errorf("27-0 = %d, want 7 (its load)", got["27-0"])
+	}
+	if got["26-3"] != 1 {
+		t.Errorf("26-3 = %d, want 1 (used in the last hour, keeps its floor)", got["26-3"])
+	}
+	if got["27-2-beta"] != 0 {
+		t.Errorf("27-2-beta = %d, want 0 (last by name among idle images, yields)", got["27-2-beta"])
+	}
+	var total int32
+	for _, n := range got {
+		total += n
+	}
+	if total != 14 {
+		t.Errorf("granted %d slots, want all 14 (%v)", total, got)
+	}
+}
+
+func TestAllocateFleet_FloorsOfPoolsInUseBeforeIdlePools(t *testing.T) {
+	// A full rack: 27-1 runs five jobs and keeps its learned spare of three
+	// above them; 26-3 and 27-2 had no job in the last hour and only hold
+	// their learned floors. Two slots are left once 27-1's spare is in, and
+	// the idle pools share those instead of all three splitting the shortfall.
+	slot := 14 * gib
+	pools := []PoolDemand{
+		{Name: "27-1", PerPodCost: slot, Floor: 8, Load: 5, Target: 8, InUse: true},
+		{Name: "26-3", PerPodCost: slot, Floor: 3, Target: 3},
+		{Name: "27-2", PerPodCost: slot, Floor: 2, Target: 2},
+	}
+
+	got := AllocateFleet(pools, 10*slot, nil)
+
+	if got["27-1"] != 8 {
+		t.Errorf("27-1 = %d, want 8 (its load and its whole spare)", got["27-1"])
+	}
+	if idle := got["26-3"] + got["27-2"]; idle != 2 {
+		t.Errorf("idle pools = %d, want the 2 slots left (%v)", idle, got)
+	}
+}
+
+func TestAllocateFleet_IdlePoolsKeepTheirFloorsWhenTheFleetHasRoom(t *testing.T) {
+	slot := 14 * gib
+	pools := []PoolDemand{
+		{Name: "27-1", PerPodCost: slot, Floor: 8, Load: 5, Target: 8, InUse: true},
+		{Name: "26-3", PerPodCost: slot, Floor: 3, Target: 3},
+	}
+
+	got := AllocateFleet(pools, 26*slot, nil)
+
+	if got["27-1"] != 8 || got["26-3"] != 3 {
+		t.Errorf("uncontended fleet should fund every floor, got %v", got)
+	}
+}
+
+func TestAllocateFleet_IdlePoolsFloorStillOutranksHeadroom(t *testing.T) {
+	slot := 14 * gib
+	pools := []PoolDemand{
+		{Name: "peak", PerPodCost: slot, Load: 1, Target: 4, InUse: true},
+		{Name: "idle", PerPodCost: slot, Floor: 2, Target: 2},
+	}
+
+	got := AllocateFleet(pools, 3*slot, nil)
+
+	if got["peak"] != 1 || got["idle"] != 2 {
+		t.Errorf("an idle pool's floor should be funded before p95 headroom, got %v", got)
+	}
+}
+
+// Inside a capped shape, the floor of a pool in use is seated before that of
+// an idle one, whatever their names.
+func TestAllocateFleetShapeCapPrefersFloorsOfPoolsInUse(t *testing.T) {
+	const big = 28672 * mib
+
+	pools := []PoolDemand{
+		{Name: "a-idle", PerPodCost: big, Floor: 1, Target: 1, ShapeKey: "s"},
+		{Name: "b-in-use", PerPodCost: big, Floor: 1, Target: 1, ShapeKey: "s", InUse: true},
+	}
+
+	got := AllocateFleet(pools, 1000*gib, map[string]int32{"s": 1})
+
+	if got["b-in-use"] != 1 || got["a-idle"] != 0 {
+		t.Fatalf("the one seat should keep the pool in use warm, got %v", got)
+	}
+}

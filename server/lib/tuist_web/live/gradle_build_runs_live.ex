@@ -124,11 +124,11 @@ defmodule TuistWeb.GradleBuildRunsLive do
         %{value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []
@@ -234,6 +234,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_gradle", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
       },
       %Filter.Filter{
         id: "git_branch",

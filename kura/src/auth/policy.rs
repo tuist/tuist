@@ -4,6 +4,7 @@
 //! Tuist's server only when it cannot. Either way it comes back as one access
 //! level for the credential and target, which is the shape the engine caches.
 
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
@@ -100,6 +101,12 @@ pub enum Authentication {
     /// An authoritative access level for this credential and target, from the
     /// token itself or from the server.
     Access(Access),
+    /// An access level the server's action-aware grants settled after every
+    /// other route had its say. Unlike `Access`, the refusals it implies for
+    /// an action above it are final until the level is next revalidated, so a
+    /// read-only credential that keeps writing is not sent back to the server
+    /// every few seconds to hear the same answer.
+    Settled(Access),
     /// A refusal that is not an access level: the node is not configured to
     /// answer this shape of request at all, so caching it buys nothing.
     Deny(DenyDecision),
@@ -147,15 +154,46 @@ fn credential_expired(ctx: &RequestContext) -> bool {
 /// The `exp` the credential carries and the time to judge it against, both in
 /// seconds since the epoch. `None` when the credential names no deadline.
 fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
-    let token = bearer_token(authorization_header(ctx)?);
-    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
-    let expires_at = serde_json::from_slice::<Value>(&claims)
-        .ok()?
-        .get("exp")?
-        .as_u64()?;
+    let expires_at = unverified_claims(ctx)?.get("exp")?.as_u64()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
 
     Some((expires_at, now))
+}
+
+/// Where the credential was issued, read from an unverified `cache_origin`
+/// claim: an ISO 3166-1 country, narrowed to an ISO 3166-2 subdivision in the
+/// countries holding more than one cache region.
+///
+/// Read on the same terms as `credential_expiry`, only off a credential the
+/// backend has just confirmed. Coarse placement context, never authorization
+/// evidence, and anything not shaped like that label is dropped rather than
+/// carried into usage.
+pub fn credential_origin(ctx: &RequestContext) -> Option<Arc<str>> {
+    let claims = unverified_claims(ctx)?;
+    let origin = claims.get("cache_origin")?.as_str()?;
+    valid_origin(origin).then(|| Arc::from(origin))
+}
+
+fn valid_origin(origin: &str) -> bool {
+    let (country, subdivision) = match origin.split_once('-') {
+        Some((country, subdivision)) => (country, Some(subdivision)),
+        None => (origin, None),
+    };
+
+    country.len() == 2
+        && country.bytes().all(|byte| byte.is_ascii_uppercase())
+        && subdivision.is_none_or(|code| {
+            (1..=3).contains(&code.len())
+                && code
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        })
+}
+
+fn unverified_claims(ctx: &RequestContext) -> Option<Value> {
+    let token = bearer_token(authorization_header(ctx)?);
+    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
+    serde_json::from_slice::<Value>(&claims).ok()
 }
 
 pub(super) fn authorization_header(ctx: &RequestContext) -> Option<&str> {
@@ -355,17 +393,34 @@ async fn via_cache_access(
 
     match response.status {
         200 => {
-            let covered = project_handles(&response.body)
+            let grants = CacheGrants::from_body(&response.body);
+            // `projects` names what the credential reaches, not what it may do
+            // there, so a read-only token or a viewer is listed alongside
+            // writers. A server that sends grants beside it is saying which
+            // action each project allows, and they decide.
+            let level = if response.body.get("cache_grants").is_some() {
+                // `level` already answers a withheld account with its payment
+                // refusal, so only a plain refusal falls back to the floor.
+                let granted = grants.level(target);
+                if granted >= Access::Read {
+                    return Authentication::Settled(granted.max(floor));
+                }
+                if granted.is_payment_refusal() {
+                    granted
+                } else {
+                    floor
+                }
+            } else if project_handles(&response.body)
                 .iter()
-                .any(|project| project == &target.identifier);
-            // A handle carries no action, so it answers as both, exactly what
-            // it authorized on its own.
-            let level = if covered {
+                .any(|project| project == &target.identifier)
+            {
+                // A server older than the grants sends handles alone. A handle
+                // carries no action, so it answers as both, exactly what it
+                // authorized on its own; refusing it would stop every opaque
+                // credential from writing until the server catches up.
                 Access::ReadWrite
             } else {
-                CacheGrants::from_body(&response.body)
-                    .payment_refusal_for(target)
-                    .unwrap_or(floor)
+                grants.payment_refusal_for(target).unwrap_or(floor)
             };
             Authentication::Access(level)
         }
@@ -584,5 +639,42 @@ mod tests {
 
         assert_eq!(deny.status, 401);
         assert!(deny.message.contains("Missing Authorization"));
+    }
+    fn bearer_with_claims(claims: serde_json::Value) -> String {
+        format!(
+            "Bearer header.{}.signature",
+            URL_SAFE_NO_PAD.encode(claims.to_string())
+        )
+    }
+
+    #[test]
+    fn reads_the_origin_the_credential_was_issued_from() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "US-IL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("US-IL"));
+
+        context.authorization = Some(bearer_with_claims(json!({ "cache_origin": "NL" })));
+        assert_eq!(credential_origin(&context).as_deref(), Some("NL"));
+    }
+
+    // Usage keys on the label, so anything a caller could inflate it with is
+    // dropped rather than carried.
+    #[test]
+    fn drops_an_origin_that_is_not_a_country_or_subdivision_label() {
+        let mut context = ctx();
+        for origin in ["", "us", "USA", "US-", "US-ILLI", "US-il", "U1", "US IL"] {
+            context.authorization = Some(bearer_with_claims(json!({ "cache_origin": origin })));
+            assert_eq!(credential_origin(&context), None, "{origin:?}");
+        }
+    }
+
+    #[test]
+    fn has_no_origin_for_a_credential_that_carries_none() {
+        let mut context = ctx();
+        context.authorization = Some(bearer_with_claims(json!({ "sub": "user" })));
+        assert_eq!(credential_origin(&context), None);
+
+        context.authorization = Some("Bearer opaque-project-token".into());
+        assert_eq!(credential_origin(&context), None);
     }
 }

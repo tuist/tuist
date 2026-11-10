@@ -1,21 +1,21 @@
 ---
 {
   "title": "Instalar Tuist",
-  "titleTemplate": ":title · Guides · Tuist",
-  "description": "Aprende a instalar Tuist en tu entorno."
+  "titleTemplate": ":title · Guías · Tuist",
+  "description": "Instala la interfaz de línea de comandos de Tuist en macOS o Linux con mise o Homebrew, y fija una versión para equipos e integración continua."
 }
 ---
 # Instalar Tuist {#install-tuist}
 
-Tuist se ejecuta en **macOS** y **Linux**. Aunque podrías compilar Tuist manualmente desde [el código fuente](https://github.com/tuist/tuist), **te recomendamos usar uno de los siguientes métodos de instalación para garantizar una instalación válida.**
+La interfaz de línea de comandos de Tuist se ejecuta en **macOS** y **Linux** y conecta tus proyectos de Xcode, generados, Gradle, Bazel y Rust con la infraestructura de caché, análisis y runners de Tuist. Aunque puedes compilar Tuist desde el [código fuente](https://github.com/tuist/tuist), recomendamos uno de los métodos de instalación siguientes para garantizar una instalación válida y verificable. Los proyectos Elixir usan el paquete Hex `tuist_ex` en su lugar y no necesitan la CLI.
 
-### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
+## Mise {#recommended-mise}
 
 > [!NOTE]
-> Si no tienes Mise instalado, sigue primero la [guía de primeros pasos](https://mise.jdx.dev/getting-started.html). Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si eres parte de un equipo u organización que necesita garantizar versiones deterministas de herramientas entre distintos entornos.
+> Si no tienes Mise instalado, sigue primero la [guía de primeros pasos](https://mise.jdx.dev/getting-started.html). Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si formas parte de un equipo u organización que necesita garantizar versiones deterministas de las herramientas en distintos entornos.
 
 
-A diferencia de herramientas como Homebrew, que instalan y activan una única versión de la herramienta de forma global, **Mise fija una versión** globalmente o limitada a un proyecto. Ejecuta `mise use` para instalar y activar Tuist:
+A diferencia de herramientas como Homebrew, que instalan y activan una única versión de la herramienta de forma global, **Mise fija una versión** ya sea globalmente o acotada a un proyecto. Ejecuta `mise use` para instalar y activar Tuist:
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -26,15 +26,18 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 
 Si clonas un proyecto que ya tiene una versión de Tuist fijada en `mise.toml`, ejecuta `mise install` para instalarla.
 
+> [!TIP]
+> `tuist@latest` resuelve a la última versión **estable**. Tuist también publica compilaciones de prerelease tipo canary y release candidate; estas son solo bajo petición explícita y nunca se resuelven mediante `latest`. Consulta <.localized_link href="/cli/release/channels">Canales de lanzamiento</.localized_link> para saber cómo fijar una línea estable en la que puedas confiar y cómo optar por las prereleases.
+
 <details>
 <summary>Compatibilidad con Linux</summary>
 
-En Linux, Tuist está disponible exclusivamente mediante Mise. Los comandos que dependen de Xcode, como `tuist generate`, no están disponibles en Linux, pero los comandos independientes de la plataforma como `tuist inspect bundle` funcionan como se espera.
+En Linux, Tuist está disponible exclusivamente a través de Mise. Los comandos que dependen de Xcode (como `tuist generate`) no están disponibles en Linux, pero los comandos independientes de la plataforma, como `tuist inspect bundle`, funcionan según lo esperado.
 
 </details>
 
 
-### <a href="https://brew.sh">Homebrew</a> (solo macOS) {#recommended-homebrew}
+## Homebrew (solo macOS) {#recommended-homebrew}
 
 Puedes instalar Tuist usando [Homebrew](https://brew.sh) y [nuestras fórmulas](https://github.com/tuist/homebrew-tuist):
 
@@ -47,12 +50,12 @@ brew install --formula tuist@x.y.z
 > [!TIP]
 > **Verificar la autenticidad de los binarios**
 >
-> Puedes verificar que los binarios de tu instalación han sido compilados por nosotros ejecutando el siguiente comando, que comprueba si el equipo del certificado es `U6LC622NKF`:
+> Puedes verificar que los binarios de tu instalación hayan sido construidos por nosotros ejecutando el siguiente comando, que comprueba si el equipo del certificado es `U6LC622NKF`:
 >
 > ```bash
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 > ```
 
-## HTTP proxy {#http-proxy}
+## Proxy HTTP {#http-proxy}
 
-Si tu red enruta el tráfico saliente a través de un HTTP proxy, consulta la <.localized_link href="/guides/integrations/http-proxy">guía de HTTP proxy</.localized_link>.
+Si tu red enruta el tráfico saliente a través de un proxy HTTP, consulta la <.localized_link href="/guides/integrations/http-proxy">guía de proxy HTTP</.localized_link>.

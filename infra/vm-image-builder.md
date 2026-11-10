@@ -20,10 +20,13 @@ builder running in staging or canary would pick up production
 image-release jobs indiscriminately, including pushing production
 image tags from a non-prod host. Staging and canary therefore pin
 `buildersFleet.enabled: false`; only `values-managed-production.yaml`
-runs the fleet, sized at 2. It bakes the xcresult-processor image on
-the server deploy path and the runner images from
-`runner-image-release.yml`, which fans rebuilt profiles across every
-builder.
+runs the fleet. It bakes the xcresult-processor image on the server
+deploy path and the runner images from `runner-image-release.yml`. A
+release's stacked builds run only on the builders labelled `macos-27`,
+one build at a time each and each on the builder its profile is pinned
+to (see [Stacked build labels](#stacked-build-labels)), so their number
+sets how long a release takes; the standalone builds, run only when a release asks for them,
+go to the `vm-image-builder` ones.
 
 The GitHub App and the setup steps below are still written per-env
 because the App is a single shared identity any env could borrow for a
@@ -289,6 +292,48 @@ entirely.
 The same fragility hits the cluster's runners-fleet hosts; look
 there for any process improvements that land later.
 
+## Moving the fleet to a new macOS release
+
+A builder's macOS is the `os` family its Machine was created with, and
+its runner labels are the `ghRunnerLabels` it registered with at
+bootstrap. Neither changes on a running builder: the MachineDeployment
+rolls `OnDelete`, and the bootstrap passes the labels to the runner's
+`config.sh` once. So the fleet moves by adding builders on the new
+release and retiring the old ones, and a bake in progress is never cut
+short.
+
+1. **Put a host on the new release in the pool.** Adoption only claims
+   a `tuist-pool-` host that already runs the pinned family, and every
+   other macOS fleet pins its own, so a host on the new release is only
+   adoptable by this fleet. Reinstall it from the Scaleway console and
+   rename it to `tuist-pool-<anything>` once the reinstall finishes.
+2. **Add a builder.** Set `buildersFleet.machine.os` to the new family
+   exactly as Scaleway reports it in `os.family` (`scw apple-silicon
+   server get`): macOS 27 is `Golden Gates`. Set `ghRunnerLabels` to a
+   set without `vm-image-builder` (for example
+   `self-hosted,macos,bare-metal,macos-27`),
+   and raise `replicas` by one. Only the new Machine picks either up.
+   With `macos-27` it takes a release's stacked builds as soon as it
+   registers; every other bake needs `vm-image-builder`. A deploy can scale the MachineSet before it updates the
+   template, and the new Machine then clones the old template. Check
+   the new ScalewayAppleSiliconMachine's `spec.os` and
+   `spec.ghActionsRunner.ghRunnerLabels` right after the deploy; if they
+   are the old ones, delete that Machine while it is still `Pending`,
+   and the MachineSet recreates it from the updated template. Changing
+   the template in one deploy and `replicas` in the next avoids it.
+3. **Grant Local Network access** on the new host (see above) and run
+   one bake against its own label to check it.
+4. **Promote it.** Add the `vm-image-builder` label to its runner in the
+   org's Settings → Actions → Runners. A macOS 27 builder instead takes
+   a `runner-image-builder-<n>` label (see
+   [Stacked build labels](#stacked-build-labels)).
+5. **Retire an old builder.** Remove `vm-image-builder` (or its
+   `runner-image-builder-<n>` label, after adding it to another macOS 27
+   builder) from its runner so it takes no new job, wait until GitHub
+   shows it idle, then delete its Machine. With `replicas` raised, the MachineDeployment replaces
+   it with a builder on the new release, which needs steps 1, 3 and 4
+   again. Lower `replicas` instead to shrink back.
+
 ## Keychain access for `tart login`
 
 For the same family of reasons, `tart login ghcr.io` fails on
@@ -326,6 +371,29 @@ Both image-build workflows pin
 four labels are stamped onto every runner by the chart-default
 `ghRunnerLabels`. Changing the workflows' selector and the chart
 value must happen together.
+
+## Stacked build labels
+
+A builder's disk caches about four 60 GB `macos-tahoe-xcode` bases, fewer
+than a release's profiles, so a stacked build sent to whichever builder
+is free usually pulls its base first (about 7 of a build's 16 minutes).
+`runner-image-release.yml` therefore pins each profile to one macOS 27
+builder: [`runner-image/stacked-builders.json`](runner-image/stacked-builders.json)
+lists the profiles of each `runner-image-builder-<n>` label, and
+`build-stacked` adds the label to `runs-on`. A profile the file does not
+name goes to the label with the fewest profiles, and the disk reclaim
+keeps every base of the builder's profiles cached, so a builder pulls a
+base only when it moves. Keep at most four profiles per label.
+
+Each label is a custom label added by hand to one macOS 27 runner in the
+org's Settings → Actions → Runners; bootstrap does not set it, so a
+re-registered builder needs it again. A build waits in the queue while
+no online runner carries its label. When a builder is down or retired,
+add its label to another macOS 27 builder, which then takes both sets
+of builds (and pulls the bases it does not hold once). After adding a
+builder, add a label for it and move profiles to it in
+`stacked-builders.json`; the plan ignores the file when deciding what to
+rebuild.
 
 ## Manual fallback
 

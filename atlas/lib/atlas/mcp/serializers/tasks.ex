@@ -10,8 +10,6 @@ defmodule Atlas.MCP.Serializers.Tasks do
       assignee_id: task.assignee_id,
       account_id: task.account_id,
       due_on: task.due_on && Date.to_iso8601(task.due_on),
-      remind_at: Tool.iso8601(task.remind_at),
-      reminded_at: Tool.iso8601(task.reminded_at),
       completed_at: Tool.iso8601(task.completed_at)
     }
   end
@@ -27,11 +25,9 @@ defmodule Atlas.MCP.Serializers.Tasks do
         "assignee_id" => %{"type" => ["string", "null"]},
         "account_id" => %{"type" => ["string", "null"]},
         "due_on" => %{"type" => ["string", "null"]},
-        "remind_at" => %{"type" => ["string", "null"]},
-        "reminded_at" => %{"type" => ["string", "null"]},
         "completed_at" => %{"type" => ["string", "null"]}
       },
-      "required" => ~w(id title description status assignee_id account_id due_on remind_at reminded_at completed_at),
+      "required" => ~w(id title description status assignee_id account_id due_on completed_at),
       "additionalProperties" => false
     }
   end

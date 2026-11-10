@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -14,6 +15,7 @@ import TuistTesting
 import XcodeProj
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestMultiplatformAppWithExtension {
     @Test(
         .disabled(),
@@ -50,6 +52,7 @@ struct BuildAcceptanceTestMultiplatformAppWithExtension {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestFrameworkBuildableFoldersAndXcassets {
     @Test(
         .disabled(),
@@ -74,6 +77,7 @@ struct BuildAcceptanceTestFrameworkBuildableFoldersAndXcassets {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestAppWithBuildableFolders {
     @Test(
         .withFixture("generated_app_with_buildable_folders"),
@@ -116,6 +120,7 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestWithTemplates {
     @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func with_templates() async throws {
@@ -178,6 +183,7 @@ struct BuildAcceptanceTestWithTemplates {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestInvalidArguments {
     @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func with_invalid_arguments() async throws {
@@ -284,6 +290,7 @@ struct BuildAcceptanceTestInvalidArguments {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestAppWithPreviews {
     @Test(.disabled(), .withFixture("generated_app_with_previews"), .inTemporaryDirectory)
     func with_previews() async throws {
@@ -298,6 +305,7 @@ struct BuildAcceptanceTestAppWithPreviews {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestAppWithFrameworkAndTests {
     @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
     func with_framework_and_tests() async throws {
@@ -336,6 +344,7 @@ struct BuildAcceptanceTestAppWithFrameworkAndTests {
 //    }
 // }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory {
     @Test(.disabled(), .withFixture("generated_ios_app_with_custom_configuration"), .inTemporaryDirectory)
     func ios_app_with_custom_and_build_to_custom_directory() async throws {
@@ -391,6 +400,7 @@ struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
     @Test(.disabled(), .withFixture("generated_framework_with_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_standard_method() async throws {
@@ -412,6 +422,7 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     @Test(
         .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
@@ -529,6 +540,7 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
     @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
@@ -563,6 +575,7 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestMultiplatformAppWithSDK {
     @Test(.withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
     func build_and_test_documentation() async throws {
@@ -611,6 +624,7 @@ struct BuildAcceptanceTestMultiplatformAppWithSDK {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies {
     @Test(
         .disabled(),
@@ -649,6 +663,7 @@ struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencie
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp {
     @Test(
         .disabled(),
@@ -667,6 +682,7 @@ struct BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp {
     }
 }
 
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability {
     @Test(.disabled(), .withFixture("generated_ios_app_with_cplusplus_interoperability"), .inTemporaryDirectory)
     func test() async throws {
@@ -681,6 +697,7 @@ struct BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildBuildCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
@@ -709,6 +726,7 @@ struct XcodeBuildBuildCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildTestCommandAcceptanceTests {
     @Test(
         .disabled(),
@@ -738,6 +756,7 @@ struct XcodeBuildTestCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildBuildForTestingCommandAcceptanceTests {
     @Test(
         .disabled(),
@@ -767,6 +786,7 @@ struct XcodeBuildBuildForTestingCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
     @Test(
         .disabled(),
@@ -811,6 +831,7 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     @Test(
         .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),
@@ -855,6 +876,7 @@ struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildArchiveCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
@@ -883,6 +905,7 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildArchiveStaticXCFrameworkAcceptanceTests {
     /// Archiving a dynamic framework that links a static xcframework is the only action that tells
     /// `TARGET_BUILD_DIR` and `BUILT_PRODUCTS_DIR` apart: `SKIP_INSTALL=YES` moves the framework's
@@ -918,6 +941,7 @@ struct XcodeBuildArchiveStaticXCFrameworkAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct XcodeBuildUnorderedBuildCommandAcceptanceTests {
     @Test(
         .disabled(),

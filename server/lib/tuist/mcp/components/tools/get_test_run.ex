@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "status" => %{"type" => "string"},
         "duration" => %{"type" => "integer"},
         "is_ci" => %{"type" => "boolean"},
@@ -85,11 +86,12 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
              :test,
              "Test run not found: #{test_run_id}"
            ) do
-      metrics = Analytics.get_test_run_metrics(run.id)
+      metrics = Analytics.get_test_run_metrics(run)
 
       {:ok,
        %{
          id: run.id,
+         actor: Tuist.ReportActor.actor(run),
          status: to_string(run.status),
          duration: run.duration,
          is_ci: run.is_ci,

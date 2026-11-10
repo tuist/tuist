@@ -156,6 +156,10 @@ defmodule AtlasWeb.LLMProviderSettingsLiveTest do
     test_pid = self()
     stub(ChatGPT, :client_id, fn -> {:ok, "atlas-client"} end)
 
+    # The paused authorization owns this test's only sandbox connection. Unrelated
+    # presence broadcasts must not block the LiveView before it can close the modal.
+    stub(Atlas.Presence, :subscribe, fn -> :ok end)
+
     stub(ChatGPT, :start, fn ->
       send(test_pid, {:authorization_started, self()})
 
@@ -168,6 +172,7 @@ defmodule AtlasWeb.LLMProviderSettingsLiveTest do
     choose_provider(view, "chatgpt")
     render_click(view, "start_chatgpt")
     assert_receive {:authorization_started, task_pid}
+    Phoenix.PubSub.broadcast(Atlas.PubSub, "presence", :presence_changed)
     render_hook(view, "provider_modal_changed", %{"open" => false})
     send(task_pid, :complete_authorization)
     render_async(view)

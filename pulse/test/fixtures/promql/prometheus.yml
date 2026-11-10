@@ -1,0 +1,39 @@
+# Independent oracle for the evaluator's counter-rate and aggregation fixtures.
+# Run with: promtool test rules test/fixtures/promql/prometheus.yml
+evaluation_interval: 10s
+tests:
+  - interval: 10s
+    input_series:
+      - series: 'requests_total'
+        values: '100 110 120 5'
+      - series: 'new_total'
+        values: '_ 0 10'
+      - series: 'gauge{job="api",instance="a"}'
+        values: '_ 2 4'
+      - series: 'gauge{job="api",instance="b"}'
+        values: '_ 6 8'
+    promql_expr_test:
+      - expr: 'rate(requests_total[30s])'
+        eval_time: 30s
+        exp_samples: [{labels: '{}', value: 0.75}]
+      - expr: 'increase(requests_total[30s])'
+        eval_time: 30s
+        exp_samples: [{labels: '{}', value: 22.5}]
+      - expr: 'irate(requests_total[30s])'
+        eval_time: 30s
+        exp_samples: [{labels: '{}', value: 0.5}]
+      - expr: 'delta(requests_total[30s])'
+        eval_time: 30s
+        exp_samples: [{labels: '{}', value: -157.5}]
+      - expr: 'increase(new_total[30s])'
+        eval_time: 30s
+        exp_samples: [{labels: '{}', value: 20}]
+      - expr: 'increase(new_total[100s])'
+        eval_time: 100s
+        exp_samples: [{labels: '{}', value: 15}]
+      - expr: 'sum by (job) (avg_over_time(gauge[20s]))'
+        eval_time: 20s
+        exp_samples: [{labels: '{job="api"}', value: 10}]
+      - expr: 'count(gauge) without(instance)'
+        eval_time: 20s
+        exp_samples: [{labels: '{job="api"}', value: 2}]

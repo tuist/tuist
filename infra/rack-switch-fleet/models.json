@@ -14,5 +14,14 @@
     "port_groups": [
       { "prefix": "gigabitEthernet", "unit": "1/0", "first": 1, "last": 52 }
     ]
+  },
+  "s5860-24xmg": {
+    "product": "FS S5860-24XMG",
+    "note": "Ports 1 to 24 are 10GBASE-T copper, 25 to 28 SFP+ and 29 to 32 SFP28, all at their default speed (auto, auto, 25G). The SFP28 ports are one speed group: PicOS commits all four at 25G (or unset) or all four at 10G or 1G and refuses a mix (\"all 4 ports te-1/1/29, te-1/1/30, te-1/1/31, te-1/1/32 in one group set either 25G or 10G/1G\", measured 2026-10-26), so 1G modules go in 25 to 28.",
+    "os": "picos",
+    "verified": true,
+    "port_groups": [
+      { "prefix": "te", "unit": "1/1", "first": 1, "last": 32 }
+    ]
   }
 }

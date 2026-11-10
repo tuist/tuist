@@ -1,6 +1,27 @@
 import Foundation
 import Path
 import TuistREAPI
+import TuistServer
+
+struct BazelExecutionConfiguration {
+    let endpoint: GRPCEndpoint
+    let image: String
+
+    /// Accepts only a gRPC endpoint without credentials and an immutable image tag, the two values written
+    /// verbatim into `.bazelrc.tuist`.
+    static func parse(_ capabilities: RemoteExecutionCapabilities) -> Self? {
+        let endpoint = capabilities.endpoint
+        let image = capabilities.image
+        guard image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
+              endpoint.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: endpoint), let host = url.host, !host.isEmpty,
+              ["grpc", "grpcs"].contains(url.scheme ?? ""),
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              url.path.isEmpty || url.path == "/"
+        else { return nil }
+        return Self(endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"), image: image)
+    }
+}
 
 /// The `.bazelrc.tuist` that `tuist bazel setup` generates, and the one thing
 /// about it that goes stale.
@@ -48,7 +69,9 @@ enum BazelrcFile {
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
-        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+        execution: BazelExecutionConfiguration? = nil,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount,
+        actorOverride: String? = nil
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
         \(buildEventServiceFlag)\(endpoint.url)
@@ -67,15 +90,73 @@ enum BazelrcFile {
         let downloaderConfiguration = remoteDownloader
             ? "\(remoteDownloaderFlag)\(endpoint.url)\n\(remoteDownloaderFallbackFlag)\n" : ""
 
+        let executionConfiguration: String
+        if let execution {
+            let helper = execution.endpoint.host == endpoint.host ? "" : "\(credentialHelperFlag)\(execution.endpoint.host)=\(credentialHelperPath.pathString)\n"
+            executionConfiguration = """
+            build --remote_executor=\(execution.endpoint.url)
+            build --remote_timeout=15m
+            build --remote_default_exec_properties=OSFamily=Linux
+            build --remote_default_exec_properties=Arch=amd64
+            build --remote_default_exec_properties=tuist-image=\(execution.image)
+            build --noremote_local_fallback
+            \(helper)
+            """
+        } else {
+            executionConfiguration = ""
+        }
+
         return """
         \(remoteCacheFlag)\(endpoint.url)
         \(downloaderConfiguration)build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
         \(remoteCacheCompressionFlag)
-        \(buildEventServiceConfiguration)
+        \(executionConfiguration)\(buildEventServiceConfiguration)\(buildInsights ? actorMetadata(actorOverride) : "")
 
         """
+    }
+
+    static func renderNetworkTrustedCache(
+        endpoint: GRPCEndpoint, accountHandle: String, projectHandle: String, buildInsights: Bool, actorOverride: String? = nil
+    ) -> String {
+        let reports = buildInsights ? renderNetworkTrustedReports(
+            endpoint: endpoint, accountHandle: accountHandle, projectHandle: projectHandle, actorOverride: actorOverride
+        ) : ""
+        return """
+        # Network-trusted cache: access is enforced by the self-hosted Kura policy.
+        \(remoteCacheFlag)\(endpoint.url)
+        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        build --remote_instance_name=\(projectHandle)
+        \(remoteCacheCompressionFlag)
+        \(reports)
+        """
+    }
+
+    static func renderNetworkTrustedReports(
+        endpoint: GRPCEndpoint, accountHandle: String, projectHandle: String, actorOverride: String? = nil
+    ) -> String {
+        """
+        # Network-trusted reporting: no credential helper or artifact uploader.
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        build --bes_header=x-tuist-network-trusted-publishing=true
+        build --nobes_lifecycle_events
+        \(buildEventServiceTimeoutFlag)
+        build --bes_upload_mode=fully_async
+        \(outputChunkFlag)
+        \(namedSetEntriesFlag)
+        \(actorMetadata(actorOverride))
+        """
+    }
+
+    private static func actorMetadata(_ override: String?) -> String {
+        guard let override else { return "" }
+        let valid = !override.isEmpty && override.utf8.count <= 128 && override.utf8.allSatisfy { (33 ... 126).contains($0) }
+        let value = valid ? override : ""
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        return "build --build_metadata=\"TUIST_ACTOR_ID=\(escaped)\"\n"
     }
 
     /// The file while the account has no cache endpoint serving. It configures nothing, because Bazel
@@ -105,6 +186,10 @@ enum BazelrcFile {
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String? {
         guard let previousEndpoint = remoteCache(in: contents) else { return nil }
+        let executorPrefix = "build --remote_executor="
+        let executorHost = contents.split(separator: "\n")
+            .first { $0.hasPrefix(executorPrefix) }
+            .flatMap { URL(string: String($0.dropFirst(executorPrefix.count)))?.host }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -119,7 +204,12 @@ enum BazelrcFile {
                     // `<host>=<path>`: the path may itself contain `=`, so split once.
                     let value = line.dropFirst(credentialHelperFlag.count)
                     guard let separator = value.firstIndex(of: "=") else { return String(line) }
+                    guard let previousHost = URL(string: previousEndpoint)?.host,
+                          String(value[..<separator]) == previousHost else { return String(line) }
                     let path = value[value.index(after: separator)...]
+                    if executorHost == previousHost, endpoint.host != previousHost {
+                        return "\(line)\n\(credentialHelperFlag)\(endpoint.host)=\(path)"
+                    }
                     return "\(credentialHelperFlag)\(endpoint.host)=\(path)"
                 }
                 if line.hasPrefix(buildEventServiceFlag) {

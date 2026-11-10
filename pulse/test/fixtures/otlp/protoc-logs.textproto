@@ -1,0 +1,56 @@
+# Encoded with libprotoc 34.1 and opentelemetry-proto v1.9.0.
+# This is an independent protobuf-compiler fixture, not an SDK traffic capture.
+resource_logs {
+  resource {
+    attributes { key: "service.name" value { string_value: "example-api" } }
+    attributes { key: "deployment.environment" value { string_value: "production" } }
+    attributes { key: "deployment.environment.name" value { string_value: "production" } }
+    attributes { key: "resource.integer" value { int_value: 9223372036854775807 } }
+    dropped_attributes_count: 1
+  }
+  schema_url: "https://opentelemetry.io/schemas/1.27.0"
+  scope_logs {
+    scope {
+      name: "fixture.logger"
+      version: "1.2.3"
+      attributes { key: "enabled" value { bool_value: false } }
+      dropped_attributes_count: 2
+    }
+    schema_url: "https://example.com/log-schema/1"
+    log_records {
+      time_unix_nano: 1700000000123456789
+      observed_time_unix_nano: 1700000000123456790
+      severity_number: SEVERITY_NUMBER_INFO
+      severity_text: "INFO"
+      body { kvlist_value { values {
+        key: "message" value { string_value: "hello \360\237\214\215\n\t" }
+      } values {
+        key: "binary" value { bytes_value: "\000\377" }
+      } values {
+        key: "numbers" value { array_value {
+          values { int_value: 9223372036854775807 }
+          values { int_value: -9223372036854775808 }
+          values { double_value: -0.0 }
+          values { double_value: nan }
+          values { double_value: inf }
+          values { double_value: -inf }
+          values {}
+        } }
+      } } }
+      attributes { key: "bytes" value { bytes_value: "\000\377" } }
+      attributes { key: "string" value { string_value: "AP8=" } }
+      attributes { key: "signed" value { double_value: -0.0 } }
+      dropped_attributes_count: 3
+      flags: 4294967295
+      trace_id: "0123456789abcdef"
+      span_id: "deadbeef"
+      event_name: "example.login"
+    }
+    log_records {
+      time_unix_nano: 1700000000123456791
+      severity_number: SEVERITY_NUMBER_WARN
+      severity_text: "WARN"
+      body { bytes_value: "hello" }
+    }
+  }
+}

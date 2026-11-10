@@ -12,6 +12,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :source, :string, required: true
 
   attr :url, :string, required: true
+  attr :trace_url, :string, default: nil, doc: "Where to download the timeline as a Perfetto trace."
 
   def build_timeline_section(assigns) do
     ~H"""
@@ -28,7 +29,13 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
+      <.build_timeline
+        duration={@duration}
+        version={@version}
+        source={@source}
+        url={@url}
+        trace_url={@trace_url}
+      />
     </.async_result>
     """
   end
@@ -37,6 +44,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
   attr :source, :string, default: "xcode"
+  attr :trace_url, :string, default: nil
 
   def build_timeline(assigns) do
     assigns = assign(assigns, :groups, timeline_groups(assigns.source))
@@ -53,6 +61,8 @@ defmodule TuistWeb.Components.BuildTimeline do
       data-metric-out={dgettext("dashboard_builds", "Out")}
       data-metric-read={dgettext("dashboard_builds", "Read")}
       data-metric-write={dgettext("dashboard_builds", "Write")}
+      data-metric-used={dgettext("dashboard_builds", "Used")}
+      data-metric-total={dgettext("dashboard_builds", "Total")}
       data-outcome-labels={
         JSON.encode!(%{
           "local_hit" => dgettext("dashboard_builds", "Local cache hit"),
@@ -87,6 +97,15 @@ defmodule TuistWeb.Components.BuildTimeline do
               "targets"
             )}</span>
           </span>
+          <.button
+            :if={@trace_url}
+            href={@trace_url}
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_builds", "Download trace")}
+          >
+            <:icon_left><.download /></:icon_left>
+          </.button>
         </:actions>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content">
@@ -97,7 +116,8 @@ defmodule TuistWeb.Components.BuildTimeline do
                   {"cpu", "CPU", "%"},
                   {"memory", dgettext("dashboard_builds", "Memory"), "GB"},
                   {"network", dgettext("dashboard_builds", "Network"), "MiB/s"},
-                  {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"}
+                  {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"},
+                  {"disk-space", dgettext("dashboard_builds", "Disk space"), "GB"}
                 ]
               }
               data-part="metric-track"
@@ -105,13 +125,17 @@ defmodule TuistWeb.Components.BuildTimeline do
             >
               <div data-part="metric-heading">
                 <span>{label}</span>
-                <span :if={key in ["network", "disk"]} data-part="metric-series">
-                  <span data-series="primary">{if key == "network",
-                    do: dgettext("dashboard_builds", "In"),
-                    else: dgettext("dashboard_builds", "Read")}</span>
-                  <span data-series="secondary">{if key == "network",
-                    do: dgettext("dashboard_builds", "Out"),
-                    else: dgettext("dashboard_builds", "Write")}</span>
+                <span :if={key in ["network", "disk", "disk-space"]} data-part="metric-series">
+                  <span data-series="primary">{case key do
+                    "network" -> dgettext("dashboard_builds", "In")
+                    "disk" -> dgettext("dashboard_builds", "Read")
+                    "disk-space" -> dgettext("dashboard_builds", "Used")
+                  end}</span>
+                  <span data-series="secondary">{case key do
+                    "network" -> dgettext("dashboard_builds", "Out")
+                    "disk" -> dgettext("dashboard_builds", "Write")
+                    "disk-space" -> dgettext("dashboard_builds", "Total")
+                  end}</span>
                 </span>
                 <output data-metric-value={key}>{unit}</output>
               </div>

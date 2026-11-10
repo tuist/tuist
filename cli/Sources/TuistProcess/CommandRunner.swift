@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import Subprocess
+import Synchronization
 #if os(macOS)
     import Darwin
 #endif
@@ -78,6 +79,84 @@ private actor StandardErrorCollector {
     }
 }
 
+private final class ProcessOutputDrain: Sendable {
+    private struct State {
+        var exited = false
+        var stopped = false
+        var incomplete = false
+        var activeHandlers = 0
+        var bytesAfterExit: [ProcessEvent.Pipeline: Int] = [:]
+        var lastActivity = ContinuousClock.now
+        var exitedAt = ContinuousClock.now
+        var forwardingTime: Duration = .zero
+        var forwardingStarted: ContinuousClock.Instant?
+    }
+
+    private let state = Mutex(State())
+
+    func shouldStop(hasBufferedData: Bool, pipeline: ProcessEvent.Pipeline) -> Bool {
+        state.withLock { state in
+            if state.stopped { return true }
+            guard state.exited else { return false }
+            let exhausted = state.bytesAfterExit[pipeline, default: 0] >= 8_000_000
+            let now = ContinuousClock.now
+            let waiting = state.exitedAt.duration(to: now) - state.forwardingTime
+                - (state.forwardingStarted?.duration(to: now) ?? .zero)
+            let idle = state.activeHandlers == 0 && !hasBufferedData
+                && state.lastActivity.duration(to: now) >= .milliseconds(250)
+            let deadline = !hasBufferedData && waiting >= .seconds(2)
+            guard exhausted || idle || deadline else { return false }
+            state.incomplete = true
+            return true
+        }
+    }
+
+    func forward(bytes: Int, pipeline: ProcessEvent.Pipeline, _ handler: () -> Void) {
+        state.withLock { state in
+            if state.exited, state.activeHandlers == 0 { state.forwardingStarted = .now }
+            state.activeHandlers += 1
+        }
+        defer {
+            state.withLock { state in
+                state.activeHandlers -= 1
+                state.lastActivity = .now
+                if state.exited {
+                    state.bytesAfterExit[pipeline, default: 0] += bytes
+                    if state.activeHandlers == 0, let started = state.forwardingStarted {
+                        state.forwardingTime += started.duration(to: state.lastActivity)
+                        state.forwardingStarted = nil
+                    }
+                }
+            }
+        }
+        handler()
+    }
+
+    func wait(
+        stdout: AsyncThrowingStream<Never, Error>, stderr: AsyncThrowingStream<Never, Error>,
+        onIncompleteOutput: @escaping @Sendable () -> Void
+    ) async {
+        state.withLock { state in
+            state.exited = true
+            state.lastActivity = .now
+            state.exitedAt = state.lastActivity
+            if state.activeHandlers > 0 { state.forwardingStarted = state.lastActivity }
+        }
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { for try await _ in stdout {} }
+                group.addTask { for try await _ in stderr {} }
+                try await group.waitForAll()
+            }
+        } catch { state.withLock { $0.incomplete = true } }
+        let incomplete = state.withLock { state in
+            state.stopped = true
+            return state.incomplete || Task.isCancelled
+        }
+        if incomplete { onIncompleteOutput() }
+    }
+}
+
 @Mockable
 public protocol CommandRunning: Sendable {
     func run(
@@ -85,6 +164,15 @@ public protocol CommandRunning: Sendable {
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error>
+
+    /// Backpressured output with a bounded post-exit drain; incomplete output must not be parsed.
+    func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput: @escaping @Sendable () -> Void,
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws
 
     /// Runs with inherited standard streams, preserving terminal detection and interactive behavior.
     func runInheritingOutput(
@@ -105,6 +193,18 @@ public protocol CommandRunning: Sendable {
 }
 
 extension CommandRunning {
+    public func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput _: @escaping @Sendable () -> Void = {},
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws {
+        for try await event in run(arguments: arguments, environment: environment, workingDirectory: workingDirectory) {
+            onOutput(event)
+        }
+    }
+
     public func runInheritingOutput(
         arguments: [String],
         environment: [String: String],
@@ -228,6 +328,72 @@ public struct CommandRunner: CommandRunning {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: false)
     }
 
+    public func runWithOutputHandler(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        onIncompleteOutput: @escaping @Sendable () -> Void = {},
+        onOutput: @escaping @Sendable (ProcessEvent) -> Void
+    ) async throws {
+        try await processLimiter.withPermit {
+            guard let name = arguments.first else { throw CommandError.executableNotFound("") }
+            var (options, subprocessEnvironment) = Self.spawnSettings(environment: environment)
+            options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
+            let configuration = Configuration(
+                executable: name.contains("/") ? .path(FilePath(name)) : .name(name),
+                arguments: Arguments(Array(arguments.dropFirst())),
+                environment: subprocessEnvironment,
+                workingDirectory: workingDirectory.map { FilePath($0.pathString) }, platformOptions: options
+            )
+            let stdout = try FileDescriptor.pipe()
+            let stderr: (readEnd: FileDescriptor, writeEnd: FileDescriptor)
+            do { stderr = try FileDescriptor.pipe() } catch {
+                try? stdout.readEnd.close()
+                try? stdout.writeEnd.close()
+                throw error
+            }
+            let outputWriter = FileHandle(fileDescriptor: stdout.writeEnd.rawValue, closeOnDealloc: true)
+            let errorWriter = FileHandle(fileDescriptor: stderr.writeEnd.rawValue, closeOnDealloc: true)
+            defer {
+                try? outputWriter.close()
+                try? errorWriter.close()
+            }
+            let drain = ProcessOutputDrain()
+            let output = FileHandle(fileDescriptor: stdout.readEnd.rawValue, closeOnDealloc: true)
+                .consumeOutput(shouldStop: { drain.shouldStop(hasBufferedData: $0, pipeline: .standardOutput) }) { bytes in
+                    drain.forward(bytes: bytes.count, pipeline: .standardOutput) { onOutput(.standardOutput(Array(bytes))) }
+                }
+            let errors = FileHandle(fileDescriptor: stderr.readEnd.rawValue, closeOnDealloc: true)
+                .consumeOutput(shouldStop: { drain.shouldStop(hasBufferedData: $0, pipeline: .standardError) }) { bytes in
+                    drain.forward(bytes: bytes.count, pipeline: .standardError) { onOutput(.standardError(Array(bytes))) }
+                }
+            var executionError: Error?
+            do {
+                let result = try await Subprocess.run(
+                    configuration, input: .standardInput,
+                    output: .fileDescriptor(stdout.writeEnd, closeAfterSpawningProcess: false),
+                    error: .fileDescriptor(stderr.writeEnd, closeAfterSpawningProcess: false)
+                ) { _ in
+                    try? outputWriter.close()
+                    try? errorWriter.close()
+                    processStartedHook?()
+                }
+                if !result.terminationStatus.isSuccess {
+                    switch result.terminationStatus {
+                    case let .exited(code): throw CommandError.terminated(code, stderr: "", command: arguments)
+                    #if !os(Windows)
+                        case let .signaled(signal): throw CommandError.signalled(signal, command: arguments)
+                    #endif
+                    }
+                }
+            } catch { executionError = error }
+            try? outputWriter.close()
+            try? errorWriter.close()
+            await drain.wait(stdout: output, stderr: errors, onIncompleteOutput: onIncompleteOutput)
+            if let executionError { throw executionError }
+        }
+    }
+
     public func runInheritingOutput(
         arguments: [String],
         environment: [String: String],
@@ -236,16 +402,12 @@ public struct CommandRunner: CommandRunning {
         try await processLimiter.withPermit {
             guard let name = arguments.first else { throw CommandError.executableNotFound("") }
             let executable: Executable = name.contains("/") ? .path(FilePath(name)) : .name(name)
-            let subprocessEnvironment = Dictionary(uniqueKeysWithValues: environment.map { (
-                Environment.Key(rawValue: $0.key)!,
-                $0.value
-            ) })
-            var options = Self.platformOptions(environment: environment)
+            var (options, subprocessEnvironment) = Self.spawnSettings(environment: environment)
             options.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration)]
             let configuration = Configuration(
                 executable: executable,
                 arguments: Arguments(Array(arguments.dropFirst())),
-                environment: .custom(subprocessEnvironment),
+                environment: subprocessEnvironment,
                 workingDirectory: workingDirectory.map { FilePath($0.pathString) },
                 platformOptions: options
             )
@@ -274,26 +436,44 @@ public struct CommandRunner: CommandRunning {
         run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: true)
     }
 
-    private static func platformOptions(environment: [String: String]) -> PlatformOptions {
+    /// Inside a Cargo session, the jobserver pipes named by `CARGO_MAKEFLAGS` are passed to the child. Where they
+    /// cannot be (Linux, where Subprocess closes every descriptor above standard error, or numbers that do not name a
+    /// pipe in this process), the variable is dropped: rustc would warn that it cannot open them and run without
+    /// Cargo's jobserver anyway.
+    private static func spawnSettings(environment: [String: String]) -> (PlatformOptions, Environment) {
         var options = PlatformOptions()
-        #if os(macOS)
-            guard environment["TUIST_CARGO_SESSION"] != nil,
-                  let flags = environment["CARGO_MAKEFLAGS"],
-                  let authentication = flags.split(whereSeparator: \.isWhitespace).last(where: {
-                      $0.hasPrefix("--jobserver-auth=") || $0.hasPrefix("--jobserver-fds=")
-                  }),
-                  let value = authentication.split(separator: "=").last else { return options }
-            let descriptors = value.split(separator: ",").compactMap { Int32($0) }
-            guard descriptors.count == 2, Set(descriptors).count == 2,
-                  descriptors.allSatisfy({ $0 > 2 && fcntl($0, F_GETFD) != -1 }) else { return options }
-            options.preSpawnProcessConfigurator = { _, actions in
-                for descriptor in descriptors {
-                    let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)
-                    if result != 0 { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+        var environment = environment
+        if environment["TUIST_CARGO_SESSION"] != nil,
+           let authentication = environment["CARGO_MAKEFLAGS"]?.split(whereSeparator: \.isWhitespace).last(where: {
+               $0.hasPrefix("--jobserver-auth=") || $0.hasPrefix("--jobserver-fds=")
+           }),
+           let value = authentication.split(separator: "=").last,
+           case let descriptors = value.split(separator: ",").compactMap({ Int32($0) }),
+           descriptors.count == 2
+        {
+            #if os(macOS)
+                // A hook server runs probes with the hook's variables, and in that process the same numbers can be
+                // any descriptor (a socket, a kqueue that cannot be inherited).
+                if Set(descriptors).count == 2, descriptors.allSatisfy({ descriptor in
+                    var info = stat()
+                    return descriptor > 2 && fstat(descriptor, &info) == 0 && (info.st_mode & S_IFMT) == S_IFIFO
+                }) {
+                    options.preSpawnProcessConfigurator = { _, actions in
+                        for descriptor in descriptors {
+                            let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)
+                            if result != 0 { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+                        }
+                    }
+                } else {
+                    environment["CARGO_MAKEFLAGS"] = nil
                 }
-            }
-        #endif
-        return options
+            #else
+                environment["CARGO_MAKEFLAGS"] = nil
+            #endif
+        }
+        return (options, .custom(Dictionary(uniqueKeysWithValues: environment.map {
+            (Environment.Key(rawValue: $0.key)!, $0.value)
+        })))
     }
 
     private func run(
@@ -313,10 +493,7 @@ public struct CommandRunner: CommandRunning {
                         let executable: Executable = executableName.contains("/")
                             ? .path(FilePath(executableName))
                             : .name(executableName)
-                        let subprocessEnvironment = Dictionary(
-                            uniqueKeysWithValues: environment.map { (Environment.Key(rawValue: $0.key)!, $0.value) }
-                        )
-                        var platformOptions = Self.platformOptions(environment: environment)
+                        var (platformOptions, subprocessEnvironment) = Self.spawnSettings(environment: environment)
                         platformOptions.teardownSequence = [
                             .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
                         ]
@@ -328,7 +505,7 @@ public struct CommandRunner: CommandRunning {
                         let configuration = Configuration(
                             executable: executable,
                             arguments: Arguments(Array(arguments.dropFirst())),
-                            environment: .custom(subprocessEnvironment),
+                            environment: subprocessEnvironment,
                             workingDirectory: workingDirectory.map { FilePath($0.pathString) },
                             platformOptions: platformOptions
                         )

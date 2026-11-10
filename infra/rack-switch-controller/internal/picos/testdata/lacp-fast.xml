@@ -1,0 +1,15 @@
+
+    <lacp xmlns="http://pica8.com/xorplus/lacp">
+      <priority>32768</priority>
+      <interface>
+        <name>te-1/1/29</name>
+        <priority>32768</priority>
+        <rate>fast</rate>
+      </interface>
+      <interface>
+        <name>te-1/1/32</name>
+        <priority>32768</priority>
+        <rate>fast</rate>
+      </interface>
+    </lacp>
+  

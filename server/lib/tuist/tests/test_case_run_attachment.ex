@@ -19,6 +19,8 @@ defmodule Tuist.Tests.TestCaseRunAttachment do
       define_field: false
   end
 
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_run_attachments", __MODULE__})
+
   def create_changeset(attachment, attrs) do
     attachment
     |> cast(attrs, [

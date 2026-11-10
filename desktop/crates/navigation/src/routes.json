@@ -1,0 +1,44 @@
+{
+  "previews": [
+    {
+      "server": "https://tuist.dev",
+      "account": "tuist",
+      "project": "ios-app",
+      "id": "build-42",
+      "canonical": "https://tuist.dev/tuist/ios-app/previews/build-42",
+      "handoff": "tuist://app/tuist/ios-app/previews/build-42?server=https%3A%2F%2Ftuist.dev"
+    },
+    {
+      "server": "https://staging.tuist.dev/",
+      "account": "équipe",
+      "project": "ios+android",
+      "id": "build%?#42",
+      "canonical": "https://staging.tuist.dev/%C3%A9quipe/ios%2Bandroid/previews/build%25%3F%2342",
+      "handoff": "tuist://app/%C3%A9quipe/ios%2Bandroid/previews/build%25%3F%2342?server=https%3A%2F%2Fstaging.tuist.dev"
+    },
+    {
+      "server": "https://builds.example.com:8443/tuist/",
+      "account": "team",
+      "project": "mobile",
+      "id": "opaque-id",
+      "canonical": "https://builds.example.com:8443/tuist/team/mobile/previews/opaque-id",
+      "handoff": "tuist://app/team/mobile/previews/opaque-id?server=https%3A%2F%2Fbuilds.example.com%3A8443%2Ftuist"
+    },
+    {
+      "server": "http://localhost:8080",
+      "account": "local",
+      "project": "mobile",
+      "id": "build-7",
+      "canonical": "http://localhost:8080/local/mobile/previews/build-7",
+      "handoff": "tuist://app/local/mobile/previews/build-7?server=http%3A%2F%2Flocalhost%3A8080"
+    }
+  ],
+  "web_only": [
+    "https://tuist.dev/previews",
+    "https://tuist.dev/tuist/ios-app/previews",
+    "https://tuist.dev/tuist/ios-app/previews/latest",
+    "https://tuist.dev/tuist/ios-app/previews/build-42/download",
+    "https://tuist.dev/tuist/ios-app/previews/build-42/icon.png",
+    "https://tuist.dev/tuist/ios-app/settings"
+  ]
+}

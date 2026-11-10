@@ -9,7 +9,6 @@ import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperation
 import org.gradle.caching.internal.operations.BuildCacheRemoteStoreBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.OperationFinishEvent
-import org.gradle.internal.taskgraph.CalculateTaskGraphBuildOperationType
 import java.time.Instant
 
 data class TaskExecutionTelemetry(
@@ -27,7 +26,7 @@ data class TaskExecutionTelemetry(
  * listener registry. Nested cache operations finish before their owning task:
  * carry their metadata up the operation tree without retaining every operation.
  */
-internal class BuildExecutionTelemetry {
+internal class BuildExecutionTelemetry(rootDir: String? = null) {
     private data class CacheWork(
         val key: String? = null,
         val size: Long? = null,
@@ -48,10 +47,9 @@ internal class BuildExecutionTelemetry {
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
-    val failures = BuildFailureTelemetry()
+    val failures = BuildFailureTelemetry(rootDir)
     val cacheSavings = BuildCacheSavingsTelemetry()
     val tasks = mutableListOf<TaskOutcomeData>()
-    val requestedTasks = linkedSetOf<String>()
     var lastTaskAt: Long? = null
         private set
 
@@ -115,15 +113,12 @@ internal class BuildExecutionTelemetry {
                 startedAt = startedAt, remoteCacheMiss = work.lookup == "miss", remoteCacheStored = work.stored,
                 execution = TaskExecutionTelemetry(details.buildPath,
                     details.taskClass.name.removeSuffix("_Decorated"), cacheability,
-                    result.isIncremental, work.lookup, work.downloadMs, work.uploadMs)
+                    result.isIncremental, work.lookup, work.downloadMs, work.uploadMs),
+                failure = failures.report(event.failure)
             ))
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {
             operation.parentId?.id?.let { parent -> pending[parent] = (pending[parent] ?: CacheWork()).merge(work) }
-        }
-
-        if (result is CalculateTaskGraphBuildOperationType.Result) {
-            requestedTasks.addAll(result.requestedTaskPaths)
         }
     }
 }

@@ -21,10 +21,23 @@ defmodule TuistEx.Analytics.SubprocessTest do
     assert File.read!(path) == "한글"
   end
 
+  test "nil environment overrides remove inherited variables" do
+    ebin = Application.app_dir(:tuist_ex, "ebin")
+
+    script = ~S"""
+    status = TuistEx.Analytics.Subprocess.run(System.find_executable("sh"), ["-c", ~S|test -z "${TUIST_EX_VALUE+x}"|], [{"TUIST_EX_VALUE", nil}])
+    System.halt(status)
+    """
+
+    assert System.cmd(System.find_executable("elixir"), ["-pa", ebin, "-e", script],
+             env: [{"TUIST_EX_VALUE", "inherited"}]
+           ) == {"", 0}
+  end
+
   test "leaves the output of a character written in two parts intact" do
     # The command writes to the standard output of the VM that runs it, so
     # that VM is a separate one whose output is read back here.
-    ebin = :code.which(Subprocess) |> List.to_string() |> Path.dirname()
+    ebin = Application.app_dir(:tuist_ex, "ebin")
     command = ~S|printf '\355\225'; sleep 0.1; printf '\234\n'|
 
     script = """

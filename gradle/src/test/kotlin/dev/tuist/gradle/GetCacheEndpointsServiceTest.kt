@@ -23,6 +23,7 @@ import java.net.URI
 import java.time.Duration
 import java.util.Base64
 import java.util.concurrent.TimeUnit
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -54,6 +55,24 @@ class GetCacheEndpointsServiceTest {
     @AfterEach
     fun tearDown() {
         server.shutdown()
+    }
+
+    @Test
+    fun `retries a 503 and returns the endpoints`() {
+        MockWebServer().use { endpoints ->
+            endpoints.enqueue(MockResponse().setResponseCode(503))
+            endpoints.enqueue(MockResponse().setBody("""{"endpoints":["https://cache.example.com"]}"""))
+            val url = endpoints.url("/").toUri()
+            val tokenProvider = TokenProvider(serverURL = url, envProvider = { if (it == "TUIST_TOKEN") "token" else null })
+            val service = GetCacheEndpointsService(
+                TuistHttpClients(useEnvironmentProxy = false, environmentVariables = emptyMap(), retryPolicy = RetryPolicy(sleeper = {}))
+            )
+
+            val result = service.getCacheEndpoints(url, "acme", tokenProvider)
+
+            assertEquals(listOf("https://cache.example.com"), result.endpoints)
+            assertEquals(2, endpoints.requestCount)
+        }
     }
 
     @Test

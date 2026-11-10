@@ -60,6 +60,8 @@ defmodule Tuist.PromEx do
       [
         # Plugins.Application,
         Tuist.Oban.PromExPlugin,
+        Tuist.Sandboxes.PromExPlugin,
+        Tuist.RemoteExecution.PromExPlugin,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
@@ -67,7 +69,6 @@ defmodule Tuist.PromEx do
         # polled pool gauges). The default plugin only adds duplicate pool gauges with
         # no extra signal.
         PromEx.Plugins.Beam,
-        Tuist.ClickHouse.PromExPlugin,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,

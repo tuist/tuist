@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -13,6 +14,7 @@ import XCResultParser
 @testable import TuistKit
 @testable import TuistTestCommand
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(
         .disabled(),
@@ -31,6 +33,7 @@ struct TestAcceptanceTestiOSAppWithFrameworks {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWithFrameworkAndTests {
     @Test(
         .disabled(),
@@ -73,6 +76,7 @@ struct TestAcceptanceTestAppWithFrameworkAndTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestFrameworkWithSPMBundle {
     @Test(.disabled(), .withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
     func with_framework_with_spm_bundle() async throws {
@@ -86,6 +90,7 @@ struct TestAcceptanceTestFrameworkWithSPMBundle {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWithTestPlan {
     @Test(.disabled(), .withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
     func with_app_with_test_plan() async throws {
@@ -110,6 +115,7 @@ struct TestAcceptanceTestAppWithTestPlan {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWorkspaceWithTestPlan {
     @Test(.disabled(), .withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
     func with_app_workspace_with_test_plan() async throws {
@@ -130,6 +136,7 @@ struct TestAcceptanceTestAppWorkspaceWithTestPlan {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestInvalidArguments {
     @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
     func with_invalid_arguments() async throws {
@@ -322,6 +329,7 @@ struct TestAcceptanceTestInvalidArguments {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestMultiplatformApp {
     @Test(.withFixture("generated_multiplatform_app"), .inTemporaryDirectory)
     func with_multiplatform_app() async throws {
@@ -334,52 +342,6 @@ struct TestAcceptanceTestMultiplatformApp {
     }
 }
 
-struct TestAcceptanceTestShardWithRemoteTestProducts {
-    @Test(
-        .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),
-        .inTemporaryDirectory
-    ) func shard_with_remote_test_products() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
-        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
-
-        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
-        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
-        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
-        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
-        try await FileSystem().writeText("", at: githubOutputPath)
-        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
-
-        // Build phase: build tests and upload shard archive to server
-        try await TuistTest.run(
-            TestCommand.self,
-            [
-                "MacFrameworkTests",
-                "--build-only",
-                "--shard-total", "1",
-                "--path", fixtureDirectory.pathString,
-                "--",
-                "-testProductsPath", testProductsPath.pathString,
-                "-destination", "platform=macOS",
-            ]
-        )
-
-        // Test phase: download shard archive and run tests
-        try await TuistTest.run(
-            TestCommand.self,
-            [
-                "MacFrameworkTests",
-                "--without-building",
-                "--shard-index", "0",
-                "--path", fixtureDirectory.pathString,
-                "--",
-                "-destination", "platform=macOS",
-            ]
-        )
-    }
-}
-
 /// Shards `MacFrameworkTests` from local test products (skipping the S3 upload), and doubles as the
 /// regression guard for suite-granularity Swift Testing selection.
 ///
@@ -388,6 +350,7 @@ struct TestAcceptanceTestShardWithRemoteTestProducts {
 /// actually executed. Earlier the per-suite selection was written into the bundle's `.xctestrun` as
 /// `OnlyTestIdentifiers`, which can only ever *exclude* Swift Testing — so the suite ran zero tests
 /// yet reported success. With `-only-testing` selection they run.
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestShardWithLocalTestProducts {
     @Test(
         .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),

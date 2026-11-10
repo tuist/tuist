@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackseed"
@@ -66,6 +66,11 @@ func (r *RackLinuxHostReconciler) reconcileTPM(ctx context.Context, host *infrav
 			Reason: "ReadFailed", Message: "read the TPM over SSH: " + err.Error(), LastTransitionTime: metav1.NewTime(now),
 		})
 		r.Recorder.Eventf(host, corev1.EventTypeWarning, "TPMNotRead", "Could not read %s's TPM over SSH: %v", host.Spec.Hostname, err)
+		return
+	}
+	if !checkCodeMatches(host, base64.StdEncoding.EncodeToString(ek)) {
+		conditions.MarkFalse(host, TPMPinnedCondition, "TPMCheckCodeMismatch", clusterv1.ConditionSeverityWarning,
+			"the running host's TPM %s does not have spec.tpmCheckCode %s from the vendor's acceptance report", rackseed.Fingerprint(ek), host.Spec.TPMCheckCode)
 		return
 	}
 	host.Status.TPM = &infrav1.RackLinuxHostTPM{
@@ -126,4 +131,23 @@ func (r *RackLinuxHostReconciler) readHostEKOverSSH(ctx context.Context, host *i
 		return nil, err
 	}
 	return parseRSAEK(string(out))
+}
+
+// checkCodeMatches reports whether an endorsement key (base64 PKIX DER) has
+// the host's spec.tpmCheckCode, which a host without one never refuses.
+func checkCodeMatches(host *infrav1.RackLinuxHost, ek string) bool {
+	if host.Spec.TPMCheckCode == "" {
+		return true
+	}
+	der, err := parseRSAEK(ek)
+	return err == nil && rackseed.CheckCode(der) == rackseed.NormalizeCheckCode(host.Spec.TPMCheckCode)
+}
+
+// ekShown is an endorsement key (base64 PKIX DER) as a person compares it.
+func ekShown(ek string) string {
+	der, err := parseRSAEK(ek)
+	if err != nil {
+		return "none"
+	}
+	return rackseed.Fingerprint(der) + " (check code " + rackseed.CheckCode(der) + ")"
 }

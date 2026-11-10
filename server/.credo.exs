@@ -12,7 +12,8 @@ alias Credo.Checks.TimestampsType
         included: [
           "lib/",
           "priv/repo/migrations/",
-          "test/"
+          "test/",
+          "verification/"
         ],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
@@ -22,10 +23,13 @@ alias Credo.Checks.TimestampsType
       checks: %{
         extra: [
           {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
+          # Sentry consumes this reserved key; its request data must not be rendered in console logs.
+          {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig,
+           metadata_keys: Keyword.fetch!(Application.fetch_env!(:logger, :console), :metadata) ++ [:sentry]},
           {TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
           {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
           {DisallowSpec, []},
-          {DisallowDirectivesInFunction, files: %{included: ["lib/", "test/"]}},
+          {DisallowDirectivesInFunction, files: %{included: ["lib/", "test/", "verification/"]}},
           {DisallowJason, []},
           {ExcellentMigrations.CredoCheck.MigrationsSafety, []},
           {Credo.Checks.UnusedReturnValue, files: %{excluded: ["priv/repo/migrations/"]}},

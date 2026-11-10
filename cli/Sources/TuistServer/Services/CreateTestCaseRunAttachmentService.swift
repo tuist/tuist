@@ -47,15 +47,18 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
     private let fileSystem: FileSystem
     private let fullHandleService: FullHandleServicing
     private let urlSession: URLSession?
+    private let retryProvider: RetryProviding
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        urlSession: URLSession? = nil
+        urlSession: URLSession? = nil,
+        retryProvider: RetryProviding = RetryProvider()
     ) {
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
         self.urlSession = urlSession
+        self.retryProvider = retryProvider
     }
 
     public func createAttachment(
@@ -100,8 +103,10 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 request.httpBody = try await fileSystem.readFile(at: filePath)
                 request.addAzureBlobTypeHeaderIfNeeded()
 
-                let urlSession = urlSession ?? .tuistShared
-                let (_, uploadResponse) = try await urlSession.data(for: request)
+                let (_, uploadResponse) = try await RetryingURLTransfer(
+                    urlSession: urlSession ?? .tuistShared,
+                    retryProvider: retryProvider
+                ).data(for: request)
                 guard let httpResponse = uploadResponse as? HTTPURLResponse,
                       (200 ..< 300).contains(httpResponse.statusCode)
                 else {

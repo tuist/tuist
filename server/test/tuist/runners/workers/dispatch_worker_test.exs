@@ -37,7 +37,7 @@ defmodule Tuist.Runners.Workers.DispatchWorkerTest do
       args = args()
       payload = args["payload"]
 
-      expect(Dispatch, :handle_webhook, fn ^payload, 42 -> {:ok, :queued} end)
+      expect(Dispatch, :handle_webhook, fn ^payload, 42, nil -> {:ok, :queued} end)
 
       assert :ok = DispatchWorker.perform(job(args))
     end
@@ -46,19 +46,19 @@ defmodule Tuist.Runners.Workers.DispatchWorkerTest do
       # Webhooks GitHub will never re-send (no_matching_pool, runners_disabled,
       # etc.) must NOT come back through Oban — that'd burn cycles on a job
       # we already decided to drop.
-      expect(Dispatch, :handle_webhook, fn _payload, _id -> {:ignored, :no_matching_pool} end)
+      expect(Dispatch, :handle_webhook, fn _payload, _id, _account_id -> {:ignored, :no_matching_pool} end)
 
       assert :ok = DispatchWorker.perform(job(args()))
     end
 
     test "treats the bare :ignored atom as terminal success" do
-      expect(Dispatch, :handle_webhook, fn _payload, _id -> :ignored end)
+      expect(Dispatch, :handle_webhook, fn _payload, _id, _account_id -> :ignored end)
 
       assert :ok = DispatchWorker.perform(job(args()))
     end
 
     test "propagates {:error, reason} so Oban retries with backoff" do
-      expect(Dispatch, :handle_webhook, fn _payload, _id -> {:error, :transient} end)
+      expect(Dispatch, :handle_webhook, fn _payload, _id, _account_id -> {:error, :transient} end)
 
       assert {:error, :transient} = DispatchWorker.perform(job(args()))
     end

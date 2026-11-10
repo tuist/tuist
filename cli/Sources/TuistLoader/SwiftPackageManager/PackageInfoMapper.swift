@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
@@ -948,7 +948,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 for: target,
                 moduleMap: moduleMap,
                 moduleName: moduleMapModuleName,
-                targetPath: targetPath
+                targetPath: targetPath,
+                publicHeadersPath: try await target.publicHeadersPath(packageFolder: path)
             )
         }
 
@@ -1057,6 +1058,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
             dependencies = linkerDependencies + dependencies
+            let cxxStandardLibrary = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
+            if !dependencies.contains(cxxStandardLibrary), try await hasCxxSources(target: target, targetPath: targetPath) {
+                dependencies.append(cxxStandardLibrary)
+            }
         }
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
@@ -1114,148 +1119,68 @@ public struct PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    /// Surfaces every header in a C-family target in the generated project so they can be browsed and
-    /// indexed, matching the file discovery SwiftPM performs (including the recognized header extensions).
-    ///
-    /// How a header is classified depends on how the target's module is consumed:
-    ///
-    /// - `.custom` / `.header` targets carry an explicit or umbrella-header module map that defines the
-    ///   module, and are consumed as a Swift/Clang module (`import Module`). Tagging their headers `Public`
-    ///   is redundant and harmful: SwiftPM C targets generate as frameworks, and a `Public` header is copied
-    ///   into the framework bundle's `Headers` directory. That copy flips `__has_include(<Module/Header.h>)`
-    ///   checks in sibling shim targets (for example swift-nio-ssl's `CNIOBoringSSLShims.h`, which includes
-    ///   `<CNIOBoringSSL/CNIOBoringSSL.h>`), which re-homes the included declarations into the shim module and
-    ///   breaks consumers under the `MemberImportVisibility` upcoming feature. So they are surfaced as project
-    ///   headers only, which leaves the module composition untouched.
-    /// - `.directory` targets have no umbrella header; their public headers directory *is* the module's public
-    ///   surface, and consumers import individual headers as `<Module/Header.h>` (e.g. an ObjC framework). Those
-    ///   headers must stay `Public` so they are copied into the framework bundle and remain resolvable.
-    ///
-    /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
-    /// to `ModuleMap.none` and keep `nil` headers.
+    /// SwiftPM headers remain compiler and cache inputs, but do not become Xcode header build files.
+    /// In particular, a directory module preserves its include hierarchy instead of flattening every
+    /// nested header into a framework. Custom and umbrella maps keep their original module composition.
+    /// `exclude` only removes project headers: everything under the public headers path stays includable
+    /// through its search path, as it does in SwiftPM.
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
         moduleName: String?,
-        targetPath: AbsolutePath
-    ) async throws -> ProjectDescription.Headers? {
-        guard let moduleMap else { return nil }
-
-        // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
-        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
-        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
-        let excluding: [ProjectDescription.Path] = try target.exclude.map {
-            let excludePath = targetPath.appending(try RelativePath(validating: $0))
-            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-            return .path(excludeGlob.pathString)
-        }
-
-        switch moduleMap {
-        case .none:
-            return nil
-        case .custom, .header:
-            return .headers(
-                project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
-            )
-        case let .directory(_, publicHeadersPath):
-            let frameworkHeaders = try await frameworkPublicHeaders(
-                publicHeadersPath: publicHeadersPath,
-                targetPath: targetPath,
-                excluding: target.exclude,
-                moduleName: moduleName
-            )
-            return .headers(
-                public: frameworkHeaders.public,
-                project: .list([
-                    .glob(
-                        .path("\(targetPath.pathString)/\(headersGlob)"),
-                        excluding: excluding + frameworkHeaders.shadowedPublicHeaderExclusions
-                    ),
-                ]),
-                exclusionRule: .projectExcludesPrivateAndPublic
-            )
-        }
-    }
-
-    private struct FrameworkPublicHeaders {
-        let `public`: ProjectDescription.FileList?
-        let shadowedPublicHeaderExclusions: [ProjectDescription.Path]
-    }
-
-    private func frameworkPublicHeaders(
-        publicHeadersPath: AbsolutePath,
         targetPath: AbsolutePath,
-        excluding: [String],
-        moduleName: String?
-    ) async throws -> FrameworkPublicHeaders {
-        let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
-        let excludedPaths = try excluding.map {
-            targetPath.appending(try RelativePath(validating: $0))
+        publicHeadersPath: AbsolutePath
+    ) async throws -> ProjectDescription.Headers? {
+        guard let moduleMap, let moduleMapPath = moduleMap.moduleMapPath, let moduleName else { return nil }
+        let usesDirectoryModuleMap: Bool
+        switch moduleMap {
+        case .none: return nil
+        case .directory: usesDirectoryModuleMap = true
+        case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headers = try await fileSystem
-            .glob(directory: publicHeadersPath, include: ["**/*.{\(headerExtensions)}", "*.{\(headerExtensions)}"])
-            .collect()
-            .uniqued()
-            .filter { header in
-                excludedPaths.allSatisfy { excludedPath in
-                    if excludedPath.extension == nil {
-                        !header.isDescendantOfOrEqual(to: excludedPath)
-                    } else {
-                        header != excludedPath
-                    }
-                }
-            }
-
-        let frameworkHeaders = uniqueFrameworkPublicHeaders(
-            headers,
-            publicHeadersPath: publicHeadersPath,
-            moduleName: moduleName
-        )
-
-        let frameworkHeaderSet = Set(frameworkHeaders)
-        let shadowedPublicHeaderExclusions = headers
-            .filter { !frameworkHeaderSet.contains($0) }
-            .sorted()
-            .map { ProjectDescription.Path.path($0.pathString) }
-
-        return FrameworkPublicHeaders(
-            public: frameworkHeaders.isEmpty ? nil : .list(frameworkHeaders.map { .glob(.path($0.pathString)) }),
-            shadowedPublicHeaderExclusions: shadowedPublicHeaderExclusions
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
+            let path = targetPath.appending(try RelativePath(validating: $0))
+            let isDirectory = try await fileSystem.exists(path, isDirectory: true)
+            return .path(isDirectory ? path.appending(component: "**").pathString : path.pathString)
+        }
+        return .swiftPackageHeaders(
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"))]),
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            sourceLayout: .init(
+                root: .path(targetPath.pathString),
+                publicHeaders: .path(publicHeadersPath.pathString),
+                moduleMap: .path(moduleMapPath.pathString),
+                moduleName: moduleName.sanitizedModuleName,
+                usesDirectoryModuleMap: usesDirectoryModuleMap
+            )
         )
     }
 
-    private func uniqueFrameworkPublicHeaders(
-        _ headers: [AbsolutePath],
-        publicHeadersPath: AbsolutePath,
-        moduleName: String?
-    ) -> [AbsolutePath] {
-        let moduleDirectory = moduleName.map { publicHeadersPath.appending(component: $0.sanitizedModuleName) }
-
-        return Dictionary(grouping: headers, by: \.basename)
-            .values
-            .compactMap { headers in
-                headers.sorted { lhs, rhs in
-                    if let moduleDirectory {
-                        let lhsIsModuleNested = lhs.isDescendant(of: moduleDirectory)
-                        let rhsIsModuleNested = rhs.isDescendant(of: moduleDirectory)
-                        if lhsIsModuleNested != rhsIsModuleNested {
-                            return lhsIsModuleNested
-                        }
-                    }
-
-                    let lhsDepth = lhs.relative(to: publicHeadersPath).components.count
-                    let rhsDepth = rhs.relative(to: publicHeadersPath).components.count
-                    if lhsDepth != rhsDepth {
-                        return lhsDepth > rhsDepth
-                    }
-
-                    return lhs.pathString < rhs.pathString
-                }
-                .first
+    /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
+    /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
+    private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
+        guard target.type.supportsSources else { return false }
+        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
+        let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        for sourcePath in sourcePaths {
+            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
+                    .collect()
+            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
+                [sourcePath]
+            } else {
+                []
             }
-            .sorted()
+            if candidates.contains(where: { candidate in
+                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
+            }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func prebuiltDependency(
@@ -2241,6 +2166,8 @@ extension ProjectDescription.TargetDependency {
             return .xcframework(path: path, expectedSignature: expectedSignature, status: status, condition: condition)
         case let .external(name, _):
             return .external(name: name, condition: condition)
+        case let .externalWithStatus(name, status, _):
+            return .externalWithStatus(name: name, status: status, condition: condition)
         }
     }
 
@@ -2441,19 +2368,30 @@ extension ProjectDescription.Settings {
             .compactMap(\.value.first)
             .sorted { $0.libraryName < $1.libraryName }
         for prebuilt in uniquePrebuilts {
+            // SwiftPM extracts prebuilts into the scratch directory and records absolute paths. Referencing them
+            // through `$(SRCROOT)` keeps the settings, and therefore the binary-cache hashes, independent of where
+            // the checkout lives.
+            //
+            // A macro cached from one checkout is then reused in others and keeps an LC_RPATH to the warming
+            // checkout's `lib` directory. That is harmless only while SwiftPM ships MacroSupport as a static
+            // library (`libMacroSupport.a`), so dyld never resolves anything through it. Revisit this if
+            // MacroSupport becomes dynamic.
+            let librarySearchPath = sourceRootRelativePath(prebuilt.librarySearchPath, packageFolder: packageFolder)
             settingsDictionary.appendArraySetting(
                 key: "OTHER_SWIFT_FLAGS",
-                values: prebuilt.includeSearchPaths.flatMap { ["-I", $0.quotedIfContainsSpaces] },
+                values: prebuilt.includeSearchPaths.flatMap {
+                    ["-I", sourceRootRelativePath($0, packageFolder: packageFolder).quotedIfContainsSpaces]
+                },
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LD_RUNPATH_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
@@ -2638,20 +2576,24 @@ extension [String: XcodeGraph.SettingValue] {
     }
 }
 
+private func sourceRootRelativePath(_ path: AbsolutePath, packageFolder: AbsolutePath) -> String {
+    "$(SRCROOT)/\(path.relative(to: packageFolder).pathString)"
+}
+
 extension SwiftPackageManagerPrebuilt {
-    fileprivate var librarySearchPath: String {
-        path.appending(component: "lib").pathString
+    fileprivate var librarySearchPath: AbsolutePath {
+        path.appending(component: "lib")
     }
 
-    fileprivate var includeSearchPaths: [String] {
+    fileprivate var includeSearchPaths: [AbsolutePath] {
         var result = [
-            path.appending(component: "Modules").pathString,
+            path.appending(component: "Modules"),
         ]
 
         if let checkoutPath, let includePath {
-            result.append(contentsOf: includePath.map { checkoutPath.appending($0).pathString })
+            result.append(contentsOf: includePath.map { checkoutPath.appending($0) })
         } else {
-            result.append(contentsOf: cModules.map { path.appending(components: "include", $0).pathString })
+            result.append(contentsOf: cModules.map { path.appending(components: "include", $0) })
         }
 
         return result

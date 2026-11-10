@@ -7,7 +7,7 @@
 ---
 # The cost of convenience {#the-cost-of-convenience}
 
-Designing a code editor that the spectrum **from small to large-scale projects can use** is a challenging task.
+Designing a code editor that works for **projects of every size, from small to large-scale**, is a challenging task.
 Many tools approach the problem by layering their solution and providing extensibility. The bottom-most layer is very low-level and close to the underlying build system, and the top-most layer is a high-level abstraction that's convenient to use but less flexible.
 By doing so, they make the simple things easy, and everything else possible.
 
@@ -31,7 +31,7 @@ a principle that the Swift Package Manager has inherited,
 the difficulties of using Xcode are also present in the Swift Package Manager.
 
 > [!NOTE]
-> **The Role Of Tuist**
+> **The role of Tuist**
 >
 > We could summarize Tuist's role as a tool that prevents implicitly-defined projects and leverages explicitness to provide a better developer experience (e.g. validations, optimizations). Tools like [Bazel](https://bazel.build) take it further by bringing it down to the build system level.
 
@@ -57,10 +57,10 @@ which is visible by default from other targets to link against,
 While this might not be a problem when having just a few targets,
 it might manifest as failing builds that are hard to debug when the project grows.
 
-The consequence of this design decision is that many projects acidentally compile with a graph that is not well-defined.
+The consequence of this design decision is that many projects accidentally compile with a graph that is not well-defined.
 
 > [!TIP]
-> **Tuist Detection Of Implicit Dependencies**
+> **Tuist detection of implicit dependencies**
 >
 > Tuist provides a <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">command</.localized_link> to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
 
@@ -81,12 +81,12 @@ which acts as a [singleton](https://en.wikipedia.org/wiki/Singleton_pattern),
 but then fail to compile on CI because the state is different.
 
 > [!TIP]
-> We recommend disabling this in your project schemes, and use like Tuist that eases the management of the dependency graph.
+> We recommend disabling this in your project schemes, and use a tool like Tuist that eases the management of the dependency graph.
 
 
 ### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
 
-Some editor features like SwiftUI Previews or Swift Macros require the compilation of the dependency graph from the file that's being edited. This integration between the editor requires that the build system resolves any implicitness and output the right artifacts that are necessary for those features to work. As you can imagine, **the more implicit the graph is, the more challenging the task is for the build system**, and therefore it's not surprising that many of these features don't work reliably. We often hear from developers that they stopped using SwiftUI previews long time ago because they were too unreliable. Instead, they are using either example apps, or avoiding certaing things, like the usage of static libraries or script build phases, because they cause the feature to break.
+Some editor features like SwiftUI Previews or Swift Macros require the compilation of the dependency graph from the file that's being edited. This integration between the editor requires that the build system resolves any implicitness and output the right artifacts that are necessary for those features to work. As you can imagine, **the more implicit the graph is, the more challenging the task is for the build system**, and therefore it's not surprising that many of these features don't work reliably. We often hear from developers that they stopped using SwiftUI previews long time ago because they were too unreliable. Instead, they are using either example apps, or avoiding certain things, like the usage of static libraries or script build phases, because they cause the feature to break.
 
 ### Mergeable libraries {#mergeable-libraries}
 
@@ -96,13 +96,13 @@ Dynamic frameworks, while more flexible and easier to work with, have a negative
 
 ```bash
 # The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
-# to set the product as static or dynamic based on the value. {#to-set-the-product-as-static-or-dynamic-based-on-the-value}
+# to set the product as static or dynamic based on the value.
 TUIST_DYNAMIC=1 tuist generate
 ```
 
 ## Explicit, explicit, and explicit {#explicit-explicit-and-explicit}
 
-If there's an important non-written principle that we recommend every developer or organization that wants their development with Xcode to scale, is that they should embrace explicitness. And if explicitness is hard to manage with raw Xcode projects, they should consider something else, either [Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then reliability, predicability, and optimizations will be possible.**
+If there's an important non-written principle that we recommend every developer or organization that wants their development with Xcode to scale, is that they should embrace explicitness. And if explicitness is hard to manage with raw Xcode projects, they should consider something else, either [Tuist](https://tuist.dev) or [Bazel](https://bazel.build). **Only then reliability, predictability, and optimizations will be possible.**
 
 ## Future {#future}
 
@@ -114,7 +114,7 @@ Going back to first principles and rethinking the design of the tools might lead
 
 Apple finds itself in a bit of a chicken-and-egg problem.
 Convenience is what helps developers get started quickly and build more apps for their ecosystem.
-But their decisions to make the experience convenience at that scale,
+But their decisions to make the experience convenient at that scale,
 is making it hard for them to ensure some of the Xcode features work reliably.
 
 Because the future is unknown,
@@ -131,5 +131,5 @@ It doesn't seem like a good idea.
 So it seems like we'll need external tools like Tuist or [Bazel](https://bazel.build) to provide a better developer experience.
 Or maybe Apple will surprise us all and make Xcode more extensible and explicit...
 
-Until that happens, you have to choose whether you want to embrace the convencience of Xcode and take on the debt that comes with it, or trust us on this journey to provide a better developer experience.
+Until that happens, you have to choose whether you want to embrace the convenience of Xcode and take on the debt that comes with it, or trust us on this journey to provide a better developer experience.
 We won't disappoint you.

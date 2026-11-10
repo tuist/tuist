@@ -52,6 +52,9 @@ public struct SwifterPMResolutionRequest: Sendable {
     /// Warm lockfile validation always uses `manifestEnvironment`, matching cached manifest evaluation.
     public var resolutionEnvironment: [String: String]?
     public var quiet: Bool
+    /// The byte budget of the shared cache, enforced after every successful run by evicting
+    /// least recently used entries. When nil, only the 30-day retention bounds it.
+    public var cacheMaxBytes: Int?
 
     public init(
         packageDirectory: URL,
@@ -71,7 +74,8 @@ public struct SwifterPMResolutionRequest: Sendable {
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
         manifestEnvironment: [String: String]? = nil,
         resolutionEnvironment: [String: String]? = nil,
-        quiet: Bool = false
+        quiet: Bool = false,
+        cacheMaxBytes: Int? = nil
     ) {
         self.packageDirectory = packageDirectory
         self.cacheDirectory = cacheDirectory
@@ -91,6 +95,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.manifestEnvironment = manifestEnvironment
         self.resolutionEnvironment = resolutionEnvironment
         self.quiet = quiet
+        self.cacheMaxBytes = cacheMaxBytes
     }
 }
 
@@ -106,6 +111,8 @@ public struct SwifterPMRestoreRequest: Sendable {
     public var packageInfoCacheDirectory: URL?
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var quiet: Bool
+    /// See `SwifterPMResolutionRequest.cacheMaxBytes`.
+    public var cacheMaxBytes: Int?
 
     public init(
         packageDirectory: URL,
@@ -118,7 +125,8 @@ public struct SwifterPMRestoreRequest: Sendable {
         disablePackageInfoCache: Bool = false,
         packageInfoCacheDirectory: URL? = nil,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
-        quiet: Bool = false
+        quiet: Bool = false,
+        cacheMaxBytes: Int? = nil
     ) {
         self.packageDirectory = packageDirectory
         self.cacheDirectory = cacheDirectory
@@ -131,6 +139,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         self.packageInfoCacheDirectory = packageInfoCacheDirectory
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
         self.quiet = quiet
+        self.cacheMaxBytes = cacheMaxBytes
     }
 }
 
@@ -151,7 +160,11 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        try await runResolution(request: request, preferResolvedFile: true)
+                        let result = try await runResolution(request: request, preferResolvedFile: true)
+                        try await CachePruner.pruneAfterInstallation(
+                            cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                        )
+                        return result
                     }
                 }
             }
@@ -172,7 +185,11 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        try await runResolution(request: request, preferResolvedFile: false)
+                        let result = try await runResolution(request: request, preferResolvedFile: false)
+                        try await CachePruner.pruneAfterInstallation(
+                            cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                        )
+                        return result
                     }
                 }
             }
@@ -189,6 +206,9 @@ public struct SwifterPM: Sendable {
                     sharedCacheDirectory: request.cacheDirectory
                 ) {
                     try await runRestore(request)
+                    try await CachePruner.pruneAfterInstallation(
+                        cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                    )
                 }
             }
         }
@@ -231,14 +251,16 @@ public struct SwifterPM: Sendable {
             disableSandbox: request.disableSandbox,
             quiet: request.quiet
         )
-        try await WorkspaceRestorer.writeWorkspaceState(
-            packageDir: package,
-            scratchDir: scratch,
-            mirrors: mirrors,
-            resolved: resolved,
-            disableSandbox: request.disableSandbox,
-            sourceCacheDirectory: cache.root
-        )
+        try await PhaseTiming.measure("writing workspace state") {
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package,
+                scratchDir: scratch,
+                mirrors: mirrors,
+                resolved: resolved,
+                disableSandbox: request.disableSandbox,
+                sourceCacheDirectory: cache.root
+            )
+        }
     }
 
     private func runResolution(
@@ -279,12 +301,18 @@ public struct SwifterPM: Sendable {
         // A cache only helps when it has every pin for this package. Going
         // straight to the native resolver for any missing pin avoids manifest
         // precomputation and restoration work before SwiftPM fetches it.
-        if try await PackageResolver.shouldUseNativeColdPath(
-            packageDir: package,
-            cacheRoot: cacheRoot,
-            registryConfig: registryConfig
-        ) {
-            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+        // Forced installs must restore the locked versions first, even on a
+        // cache miss: native precomputation can reject a valid lockfile when
+        // the retained workspace still records another registry version.
+        // The restoration path rebuilds that state, then validates with SwiftPM.
+        if !(request.forceResolvedVersions && request.restorePackage),
+           try await PackageResolver.shouldUseNativeColdPath(
+               packageDir: package,
+               cacheRoot: cacheRoot,
+               registryConfig: registryConfig
+           )
+        {
+            var resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cacheRoot,
@@ -297,6 +325,12 @@ public struct SwifterPM: Sendable {
                 forceResolvedVersions: request.forceResolvedVersions,
                 forwardOutput: !request.quiet
             )
+            if request.writeResolvedFile, !request.forceResolvedVersions {
+                // SwiftPM omits originHash below tools version 5.10 and skips the write when the
+                // pins are unchanged, so stamp ours as the restoration path does.
+                resolved.originHash = try await ResolvedFile.packageOriginHash(packageDir: package)
+                try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: mirrors)
+            }
             let cache = try await Cache(root: cacheRoot)
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
@@ -330,22 +364,24 @@ public struct SwifterPM: Sendable {
 
         let cache = try await Cache(root: cacheRoot)
 
-        let resolved = try await PackageResolver.resolveOrLoad(
-            packageDir: package,
-            scratchDir: scratch,
-            cache: cache,
-            registryConfig: registryConfig,
-            mirrors: mirrors,
-            registryConfigurationPath: request.registryConfigurationPath,
-            defaultRegistryURL: request.defaultRegistryURL,
-            disableSandbox: request.disableSandbox,
-            scmToRegistryTransformation: request.scmToRegistryTransformation,
-            preferResolvedFile: preferResolvedFile,
-            readOnly: request.forceResolvedVersions,
-            skipUpdate: request.skipUpdate,
-            writeResolvedFile: request.writeResolvedFile,
-            progress: request.quiet ? nil : ResolutionProgressReporter()
-        )
+        let resolved = try await PhaseTiming.measure("loading pins") {
+            try await PackageResolver.resolveOrLoad(
+                packageDir: package,
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                mirrors: mirrors,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation,
+                preferResolvedFile: preferResolvedFile,
+                readOnly: request.forceResolvedVersions,
+                skipUpdate: request.skipUpdate,
+                writeResolvedFile: request.writeResolvedFile,
+                progress: request.quiet ? nil : ResolutionProgressReporter()
+            )
+        }
 
         if !request.quiet {
             ResolvedFile.print(resolved)
@@ -371,14 +407,16 @@ public struct SwifterPM: Sendable {
                 disableSandbox: request.disableSandbox,
                 quiet: request.quiet
             )
-            try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package,
-                scratchDir: scratch,
-                mirrors: mirrors,
-                resolved: resolved,
-                disableSandbox: request.disableSandbox,
-                sourceCacheDirectory: cache.root
-            )
+            try await PhaseTiming.measure("writing workspace state") {
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    mirrors: mirrors,
+                    resolved: resolved,
+                    disableSandbox: request.disableSandbox,
+                    sourceCacheDirectory: cache.root
+                )
+            }
         }
 
         // With the pins restored, confirm they still satisfy the manifest the
@@ -410,15 +448,17 @@ public struct SwifterPM: Sendable {
         quiet: Bool
     ) async throws {
         guard !disablePackageInfoCache else { return }
-        try await PackageInfoCacheWriter.write(
-            packageDir: packageDir,
-            scratchDir: scratchDir,
-            resolved: resolved,
-            mirrors: mirrors,
-            cacheDir: cacheDir,
-            disableSandbox: disableSandbox,
-            quiet: quiet
-        )
+        try await PhaseTiming.measure("writing the package info cache") {
+            try await PackageInfoCacheWriter.write(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                resolved: resolved,
+                mirrors: mirrors,
+                cacheDir: cacheDir,
+                disableSandbox: disableSandbox,
+                quiet: quiet
+            )
+        }
     }
 }
 

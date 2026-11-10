@@ -30,11 +30,19 @@ func newTuistClient(settings backend.DataSourceInstanceSettings) (*tuistClient, 
 	}
 
 	baseURL := firstNonEmpty(s.URL, "https://tuist.dev")
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("unsupported default API transport")
+	}
+	transport, err := certificateTrustTransport(base, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return &tuistClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   settings.DecryptedSecureJSONData["apiToken"],
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 30 * time.Second, Transport: transport, CheckRedirect: secureRedirect},
 	}, nil
 }
 
@@ -46,7 +54,7 @@ func (c *tuistClient) get(ctx context.Context, path string, query url.Values, ou
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
@@ -55,21 +63,24 @@ func (c *tuistClient) get(ctx context.Context, path string, query url.Values, ou
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("tuist API %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("tuist API returned HTTP %d", resp.StatusCode)
 	}
 	if out == nil {
 		return nil
 	}
-	return json.Unmarshal(body, out)
+	if err := json.Unmarshal(body, out); err != nil {
+		return apiResponseError{cause: err}
+	}
+	return nil
 }
 
 func (c *tuistClient) durationMetrics(ctx context.Context, entity, projectHandle string, from, to int64, qm queryModel) (*durationMetrics, error) {

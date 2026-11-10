@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Installs the Swift Static Linux SDK and prepares the swift:6.2 container to
+# Installs the Swift Static Linux SDK and prepares the swift:6.4.1-noble container to
 # link against it. Shared by the Linux release bundle (mise/tasks/cli/bundle-linux.sh)
 # and the PR "Linux Build" job so both compile against the same musl SDK.
 # Takes an optional target architecture (x86_64 or aarch64, defaulting to the
@@ -9,7 +9,7 @@
 
 set -e
 
-SDK_ID="swift-6.2.3-RELEASE_static-linux-0.0.1"
+SDK_ID="swift-6.4.1-RELEASE_static-linux-0.1.0"
 
 ARCH="${1:-$(uname -m)}"
 case "$ARCH" in
@@ -25,12 +25,31 @@ SDK_TARGET="$ARCH-swift-linux-musl"
 # The static SDK yields fully static musl binaries with no shared library
 # dependencies, avoiding cross-distro issues (e.g. Ubuntu's CURL_OPENSSL_4 vs
 # Fedora's libcurl-minimal).
-if swift sdk list | grep -qxF "$SDK_ID"; then
+sdk_installed() {
+    swift sdk list | grep -qxF "$SDK_ID"
+}
+
+if sdk_installed; then
     echo "==> Swift Static Linux SDK already installed" >&2
 else
     echo "==> Installing Swift Static Linux SDK" >&2
-    swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
-        --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c >&2
+    # `swift sdk install` intermittently segfaults while FoundationNetworking tears
+    # down its libcurl handle after the download, so retry the whole install.
+    for attempt in 1 2 3; do
+        if swift sdk install "https://download.swift.org/swift-6.4.1-release/static-sdk/swift-6.4.1-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
+            --checksum cef5592d7430ed3c5ae1ddda479849c6f5252bd94a5723db1559f984caf38a7c >&2; then
+            break
+        fi
+        if sdk_installed; then
+            break
+        fi
+        if [ "$attempt" -eq 3 ]; then
+            echo "ERROR: Failed to install the Swift Static Linux SDK" >&2
+            exit 1
+        fi
+        echo "==> Swift SDK install failed (attempt $attempt), retrying" >&2
+        swift sdk remove "$SDK_ID" >/dev/null 2>&1 || true
+    done
 fi
 
 # The musl SDK provides its own minimal static libraries, but the linker also finds

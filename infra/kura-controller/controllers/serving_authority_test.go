@@ -178,6 +178,32 @@ func TestHandoverDeadlineAbortsWithoutChangingEpoch(t *testing.T) {
 	}
 }
 
+func TestHandoverBarrierFailureRestoresSourceBeforeDeadline(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	grant.Phase = "Quiescing"
+	grant.Handover = &handoverIntent{ID: "full", Destination: statuses["test-1"].ServingAuthority.Identity, DeadlineMS: time.Now().UnixMilli() + 300000}
+	writeAuthorityGrant(t, r, grant)
+	for name, failure := range map[string]*handoverFailure{
+		"test-0": {ID: "earlier", Reason: "destination dropped retained data"},
+		"test-1": {ID: "full", Reason: "destination dropped retained data"},
+	} {
+		sample := statuses[name]
+		sample.ServingAuthority.BarrierFailure = failure
+		statuses[name] = sample
+	}
+	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
+		t.Fatal("a stale or destination-reported failure released the barrier", next)
+	}
+	sample := statuses["test-0"]
+	sample.ServingAuthority.BarrierFailure = &handoverFailure{ID: "full", Reason: "destination dropped retained data"}
+	statuses["test-0"] = sample
+	next := authorityStep(t, r)
+	if next.Epoch != 1 || next.Phase != "Serving" || next.Handover != nil || next.LastHandover != "full" || next.PodName != "test-0" {
+		t.Fatal(next)
+	}
+}
+
 func writeAuthorityGrant(t *testing.T, r *ServingAuthorityReconciler, grant servingGrant) {
 	t.Helper()
 	cm := &corev1.ConfigMap{}
@@ -497,7 +523,7 @@ func TestHandoverPreparationRenewsSourceAndRequiresExactCompletion(t *testing.T)
 		t.Fatal("pending preparation did not renew only the serving lease", renewed)
 	}
 	target := statuses["test-1"]
-	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true}
+	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true, ContentVerified: true}
 	target.ServingAuthority.Preparation = preparation
 	statuses["test-1"] = target
 	if next := authorityStep(t, r); next.Phase != "Serving" {
@@ -550,5 +576,147 @@ func TestHandoverPreparationAbortsWithoutGrantingStandbyAuthority(t *testing.T) 
 				t.Fatal("preparation abort changed writer or retained a blocking intent", next)
 			}
 		})
+	}
+}
+
+func exitHolderContainer(t *testing.T, r *ServingAuthorityReconciler, podName, incarnation string) {
+	t.Helper()
+	pod := &corev1.Pod{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: podName, Namespace: "test"}, pod); err != nil {
+		t.Fatal(err)
+	}
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{{
+		Name:  kuraContainerName,
+		State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+		LastTerminationState: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+			ContainerID: "containerd://exited", ExitCode: 137, Reason: "OOMKilled", Message: "kura-incarnation=" + incarnation,
+		}},
+	}}
+	if err := r.Status().Update(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAuthorityRestartsAVerifiedExitedHolderInPlace(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	previous := grant.Holder
+	exitHolderContainer(t, r, "test-0", previous.Incarnation)
+	restarted := statuses["test-0"]
+	restarted.ServingAuthority.Identity.Incarnation = "process-test-0-restarted"
+	statuses["test-0"] = restarted
+
+	grant = authorityStep(t, r)
+	if grant.Phase != "Fencing" || grant.HolderExit == nil || grant.Epoch != 1 {
+		t.Fatal("a verified exit did not fence the holder at once", grant)
+	}
+	// Until the restarted process reports the inherited volume, nothing moves.
+	if next := authorityStep(t, r); next.Phase != "Fencing" || next.Epoch != 1 {
+		t.Fatal(next)
+	}
+	// The restarted process reports itself unready until it is granted.
+	restarted.Ready = false
+	restarted.ServingAuthority.ExitResume = &previous
+	statuses["test-0"] = restarted
+	grant = authorityStep(t, r)
+	if grant.Phase != "Serving" || grant.Epoch != 2 || grant.PodName != "test-0" || grant.Holder != restarted.ServingAuthority.Identity {
+		t.Fatal("the restarted container did not take the writer over", grant)
+	}
+	if grant.ExitResume == nil || grant.ExitResume.Holder != previous || grant.ExitResume.Epoch != 1 || grant.FenceEvidence == "" {
+		t.Fatal(grant)
+	}
+	// The exited incarnation's message stays on the pod; it never names the new holder.
+	if next := authorityStep(t, r); next.Phase != "Serving" || next.Epoch != 2 {
+		t.Fatal(next)
+	}
+}
+
+func TestAuthorityPromotesTheStandbyWhenTheExitedHolderDoesNotRestart(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	exitHolderContainer(t, r, "test-0", grant.Holder.Incarnation)
+	delete(statuses, "test-0")
+	grant = authorityStep(t, r)
+	if grant.Phase != "Fencing" || grant.HolderExit == nil {
+		t.Fatal(grant)
+	}
+	if next := authorityStep(t, r); next.Epoch != 1 {
+		t.Fatal("promoted before the restart window elapsed", next)
+	}
+	grant.HolderExit.AtMS = time.Now().Add(-exitPromotionDelay).UnixMilli()
+	writeAuthorityGrant(t, r, grant)
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != 2 || next.PodName != "test-1" || next.Holder != statuses["test-1"].ServingAuthority.Identity || next.FenceEvidence != grant.HolderExit.Evidence || next.ExitResume != nil {
+		t.Fatal("the standby was not promoted after the restart window", next)
+	}
+	if next.ExitPromotedFrom == nil || *next.ExitPromotedFrom != grant.Holder {
+		t.Fatal("the promoted grant must name the exited holder for its recovery", next.ExitPromotedFrom)
+	}
+}
+
+func TestAuthorityNeverTreatsAnotherIncarnationsExitAsFencing(t *testing.T) {
+	r, instance, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	exitHolderContainer(t, r, "test-0", "an-earlier-incarnation")
+	exitHolderContainer(t, r, "test-1", statuses["test-1"].ServingAuthority.Identity.Incarnation)
+	grant.ExpiresMS = time.Now().UnixMilli() + 5000
+	writeAuthorityGrant(t, r, grant)
+	if next := authorityStep(t, r); next.Phase != "Serving" || next.HolderExit != nil {
+		t.Fatal("an unrelated termination message fenced a live holder", next)
+	}
+
+	// An operator promotion for the current epoch takes precedence.
+	exitHolderContainer(t, r, "test-0", grant.Holder.Incarnation)
+	if next := authorityStep(t, r); next.Phase != "Fencing" {
+		t.Fatal(next)
+	}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.PrimaryPromotion = &kurav1alpha1.PrimaryPromotionRequest{PreviousEpoch: 1, PreviousPodUID: "test-0", PreviousIncarnation: "not-the-holder", PreviousHost: "host-test-0", FenceEvidence: "operator", PodName: "test-1"}
+	if err := r.Update(context.Background(), instance); err != nil {
+		t.Fatal(err)
+	}
+	fenced := authorityStep(t, r)
+	fenced.HolderExit.AtMS = time.Now().Add(-exitPromotionDelay).UnixMilli()
+	writeAuthorityGrant(t, r, fenced)
+	if next := authorityStep(t, r); next.Epoch != 1 {
+		t.Fatal("automatic promotion overrode an operator request", next)
+	}
+}
+
+func TestAuthorityDropsAnExitBindingWhenResumingTheLiveWriter(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	holder := statuses["test-0"].ServingAuthority.Identity
+	exited := holder
+	exited.Incarnation = "exited-before-the-restart"
+	grant.Phase = "Fencing"
+	grant.ExitResume = &exitResume{Epoch: grant.Epoch - 1, Holder: exited}
+	writeAuthorityGrant(t, r, grant)
+	sample := statuses["test-0"]
+	fenced := grant
+	sample.ServingAuthority.Observed = &fenced
+	sample.ServingAuthority.FencedEpoch = grant.Epoch
+	sample.ServingAuthority.Valid = false
+	statuses["test-0"] = sample
+
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch+1 || next.ResumeEpoch != grant.Epoch {
+		t.Fatal("the live writer was not resumed", next)
+	}
+	if next.ExitResume != nil || next.HolderExit != nil {
+		t.Fatal("a live-writer resume kept an earlier exit binding the runtime would refuse", next.ExitResume)
+	}
+}
+
+func TestHandoverPreparationWithoutVerifiedContentNeverQuiesces(t *testing.T) {
+	r, _, statuses, grant := preparationFixture(t)
+	target := statuses["test-1"]
+	target.ServingAuthority.Preparation = &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch, Complete: true}
+	statuses["test-1"] = target
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Handover != nil || next.LastHandover != grant.Handover.ID {
+		t.Fatal("a preparation without verified content was not abandoned while the source serves", next)
 	}
 }

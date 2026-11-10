@@ -27,6 +27,7 @@ defmodule NooraStorybook.MixProject do
 
   defp deps do
     [
+      {:certifi, "~> 2.18", override: true},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},

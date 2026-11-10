@@ -9,7 +9,9 @@
 
 The Tuist Gradle plugin includes built-in support for test sharding. It plans the test suites that Tuist recorded in previous CI runs of your projects' test tasks and uses the Tuist server to create balanced shard plans based on historical timing data.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - <.localized_link href="/guides/features/test-insights/gradle">Test insights</.localized_link> must be configured
 
 ## How it works {#how-it-works}
@@ -70,16 +72,9 @@ If you set `-PtuistShardTestTask` in the build phase, run that same task in each
 
 ## Continuous integration {#continuous-integration}
 
-Tuist automatically detects the following CI providers:
+<!-- @snippet: ./_ci-providers -->
 
-- [GitHub Actions](#github-actions)
-- [GitLab CI](#gitlab-ci)
-- [CircleCI](#circleci)
-- [Buildkite](#buildkite)
-- [Codemagic](#codemagic)
-- [Bitrise](#bitrise)
-
-For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
+Every build and shard job needs to authenticate before running Gradle. Either install the Tuist CLI and run `tuist auth login` with your CI provider's OIDC identity, or expose an account token as `TUIST_TOKEN`. See <.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</.localized_link>. The examples below omit that step.
 
 ### GitHub Actions {#github-actions}
 
@@ -102,7 +97,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: tuist auth login
       - id: build
         run: ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
@@ -123,13 +117,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: tuist auth login
       - run: ./gradlew test
 ```
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
+Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
 
 ```yaml
 # .gitlab-ci.yml
@@ -140,7 +133,6 @@ stages:
 build-shards:
   stage: build
   script:
-    - tuist auth login
     - ./gradlew tuistPrepareTestShards -PtuistShardMax=5
   artifacts:
     paths:
@@ -162,7 +154,6 @@ The child pipeline needs a `.tuist-shard` job template:
 # .gitlab/shard-template.yml
 .tuist-shard:
   script:
-    - tuist auth login
     - ./gradlew test
 ```
 
@@ -187,7 +178,6 @@ jobs:
       - run:
           name: Build and plan shards
           command: |
-            tuist auth login
             ./gradlew tuistPrepareTestShards -PtuistShardMax=5
       - continuation/continue:
           configuration_path: .circleci/continue-config.yml
@@ -224,7 +214,6 @@ jobs:
           name: Run shard
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
-            tuist auth login
             ./gradlew test
 
 workflows:
@@ -245,7 +234,6 @@ Tuist generates a `.tuist-shard-pipeline.yml` with one step per shard. Upload it
 steps:
   - label: "Build test shards"
     command: |
-      tuist auth login
       ./gradlew tuistPrepareTestShards -PtuistShardMax=5
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
@@ -255,7 +243,6 @@ Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test
 ```bash
 # .buildkite/shard-step.sh
 #!/bin/bash
-tuist auth login
 ./gradlew test
 ```
 
@@ -274,7 +261,6 @@ workflows:
     scripts:
       - name: Build and plan shards
         script: |
-          tuist auth login
           ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
   test-shard-0: &shard-workflow
@@ -287,7 +273,6 @@ workflows:
     scripts:
       - name: Run shard
         script: |
-          tuist auth login
           ./gradlew test
 
   test-shard-1:
@@ -354,7 +339,6 @@ workflows:
           title: Build and plan shards
           inputs:
             - content: |
-                tuist auth login
                 ./gradlew tuistPrepareTestShards -PtuistShardMax=5
 
   test-shard-0: &shard-workflow
@@ -365,7 +349,6 @@ workflows:
           title: Run shard
           inputs:
             - content: |
-                tuist auth login
                 ./gradlew test
   test-shard-1:
     <<: *shard-workflow

@@ -9,7 +9,12 @@ public struct CoverageCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "coverage",
             abstract: "Utilities for the code coverage gathered by test runs.",
-            subcommands: [CoverageCompleteCommand.self]
+            subcommands: [
+                CoverageCompleteCommand.self,
+                CoverageShowCommand.self,
+                CoverageFilesCommand.self,
+                CoverageFileCommand.self,
+            ]
         )
     }
 }

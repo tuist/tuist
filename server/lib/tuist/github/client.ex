@@ -577,6 +577,33 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Lists the jobs of a workflow run's latest attempt with their GitHub-side
+  `status` and the `runner_name` GitHub placed each one on. Returns at most
+  100 jobs, the API's page size.
+
+  See: https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run
+  """
+  def list_workflow_run_jobs(installation, repository_full_handle, run_id)
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}/jobs?per_page=100"
+
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
+      {:ok, %{"jobs" => jobs}} when is_list(jobs) ->
+        {:ok,
+         for %{"id" => id, "status" => status} = job <- jobs, is_integer(id) do
+           %{id: id, status: status, runner_name: Map.get(job, "runner_name")}
+         end}
+
+      {:ok, _body} ->
+        {:error, :malformed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Lists the App's recent webhook deliveries (the App's central
   delivery log — App-wide, not per-installation). Used by
   `Tuist.Runners.Workers.WebhookRedeliveryWorker` to discover

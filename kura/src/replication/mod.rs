@@ -1,8 +1,9 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     net::{IpAddr, SocketAddr},
     path::Path,
-    time::Duration,
+    sync::{LazyLock, Mutex},
+    time::{Duration, Instant},
 };
 
 use futures_util::stream::StreamExt;
@@ -417,7 +418,15 @@ async fn discover_dns_targets(
     scheme: &str,
     scope: DiscoveryScope,
 ) {
-    match tokio::net::lookup_host((dns_name, port)).await {
+    let lookup = tokio::net::lookup_host((dns_name, port))
+        .await
+        .map(|addresses| addresses.collect::<Vec<_>>());
+    match resolved_or_last(
+        &RESOLVED_DISCOVERY,
+        (dns_name.to_owned(), port),
+        lookup,
+        Instant::now(),
+    ) {
         Ok(addresses) => {
             for address in addresses {
                 if scheme == "https" {
@@ -446,6 +455,43 @@ async fn discover_dns_targets(
     }
 }
 
+// A discovery name's last successful answer. One failed lookup, such as a dropped
+// UDP query, must not empty the membership view and close every replication
+// link. Every target is still probed, so a stale address that stopped
+// answering drops out of membership anyway.
+const DISCOVERY_DNS_STALE_LIMIT: Duration = Duration::from_secs(300);
+type ResolvedDiscovery = Mutex<HashMap<(String, u16), (Instant, Vec<SocketAddr>)>>;
+static RESOLVED_DISCOVERY: LazyLock<ResolvedDiscovery> = LazyLock::new(Default::default);
+
+fn resolved_or_last(
+    cache: &ResolvedDiscovery,
+    key: (String, u16),
+    lookup: std::io::Result<Vec<SocketAddr>>,
+    now: Instant,
+) -> Result<Vec<SocketAddr>, String> {
+    let mut cache = cache.lock().unwrap_or_else(|error| error.into_inner());
+    match lookup {
+        Ok(addresses) => {
+            cache.insert(key, (now, addresses.clone()));
+            Ok(addresses)
+        }
+        Err(error) => match cache.get(&key) {
+            Some((resolved_at, addresses))
+                if now.saturating_duration_since(*resolved_at) <= DISCOVERY_DNS_STALE_LIMIT =>
+            {
+                warn!(
+                    "dns discovery lookup failed for {}:{}: {error}; reusing the addresses resolved {}s ago",
+                    key.0,
+                    key.1,
+                    now.saturating_duration_since(*resolved_at).as_secs()
+                );
+                Ok(addresses.clone())
+            }
+            _ => Err(error.to_string()),
+        },
+    }
+}
+
 fn format_ip_for_url(ip: IpAddr) -> String {
     match ip {
         IpAddr::V4(ip) => ip.to_string(),
@@ -460,6 +506,61 @@ mod tests {
 
     use super::*;
     use crate::test_support::test_context;
+
+    #[test]
+    fn a_failed_discovery_lookup_reuses_the_last_answer_until_it_is_stale() {
+        let cache = ResolvedDiscovery::default();
+        let key = ("kura-peers.kura.svc.cluster.local".to_owned(), 7443);
+        let failed = || {
+            Err(std::io::Error::other(
+                "temporary failure in name resolution",
+            ))
+        };
+        let start = Instant::now();
+        assert!(resolved_or_last(&cache, key.clone(), failed(), start).is_err());
+
+        let peers = vec![
+            SocketAddr::from(([10, 0, 0, 1], 7443)),
+            SocketAddr::from(([10, 0, 0, 2], 7443)),
+        ];
+        assert_eq!(
+            resolved_or_last(&cache, key.clone(), Ok(peers.clone()), start).unwrap(),
+            peers
+        );
+        assert_eq!(
+            resolved_or_last(
+                &cache,
+                key.clone(),
+                failed(),
+                start + DISCOVERY_DNS_STALE_LIMIT
+            )
+            .unwrap(),
+            peers,
+            "a transient failure emptied the membership view"
+        );
+        assert!(
+            resolved_or_last(
+                &cache,
+                key.clone(),
+                failed(),
+                start + DISCOVERY_DNS_STALE_LIMIT + Duration::from_secs(1)
+            )
+            .is_err(),
+            "an answer older than the limit kept a vanished peer set alive"
+        );
+
+        let shrunk = vec![peers[0]];
+        let later = start + Duration::from_secs(10);
+        assert_eq!(
+            resolved_or_last(&cache, key.clone(), Ok(shrunk.clone()), later).unwrap(),
+            shrunk
+        );
+        assert_eq!(
+            resolved_or_last(&cache, key, failed(), later).unwrap(),
+            shrunk,
+            "a successful answer must replace the cache"
+        );
+    }
 
     #[test]
     fn skips_self_and_own_gateway_but_adopts_other_peers() {

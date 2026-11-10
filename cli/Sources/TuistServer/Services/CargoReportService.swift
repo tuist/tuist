@@ -18,7 +18,8 @@ public struct CargoReportService {
             )
             guard case .created = response else { throw CargoReportError(message: "Tuist rejected the Cargo build report.") }
         } else {
-            let payload = try decoder.decode(Operations.createTest.Input.Body.jsonPayload.self, from: data)
+            var payload = try decoder.decode(Operations.createTest.Input.Body.jsonPayload.self, from: data)
+            payload.id = payload.id ?? UUIDv7.generate()
             let response = try await client.createTest(
                 path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
                 body: .json(payload)

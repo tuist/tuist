@@ -100,7 +100,7 @@
         }
 
         &:not(:nth-child(2n + 1)) {
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
         }
       }
 
@@ -110,7 +110,7 @@
         }
 
         &:not(:nth-child(3n + 1)) {
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
         }
       }
     }

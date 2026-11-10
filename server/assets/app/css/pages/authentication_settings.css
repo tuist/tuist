@@ -1,12 +1,196 @@
+#mfa-recovery-modal {
+  box-sizing: border-box;
+  box-shadow: var(--noora-border-heavy);
+  border: 0;
+  border-radius: var(--noora-radius-8);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-8);
+  width: var(--authentication-modal-width);
+  max-height: 90dvh;
+  overflow-y: auto;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-body-medium);
+
+  &::backdrop {
+    backdrop-filter: blur(2.5px);
+    background: var(--noora-surface-overlay);
+  }
+
+  & > h2 {
+    margin: 0;
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & > p {
+    margin-block: var(--noora-spacing-3) var(--noora-spacing-7);
+    color: var(--noora-surface-label-secondary);
+  }
+}
+
 #authentication-settings {
+  --authentication-modal-width: min(560px, 90vw);
+
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-9);
+
+  & .noora-modal > [data-part="positioner"] > [data-part="content"] {
+    width: var(--authentication-modal-width);
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
+  & .noora-modal[data-security-modal="rename"] {
+    --authentication-modal-width: min(400px, 90vw);
+  }
 
   & > [data-part="title"] {
     margin: 0;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & [data-part="passkey-status"] {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  & [data-part="security-details"] {
+    box-sizing: border-box;
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-6) var(--noora-spacing-8);
+    width: 100%;
+    min-width: 0;
+  }
+
+  & #passkey-list {
+    & table {
+      min-width: 720px;
+      table-layout: fixed;
+    }
+
+    & th:first-child {
+      width: 34%;
+    }
+
+    & th:nth-child(2) {
+      width: 22%;
+    }
+
+    & th:last-child {
+      width: 64px;
+    }
+
+    & td:last-child > [data-part="cell"] {
+      justify-content: flex-end;
+    }
+  }
+
+  & [data-part="row-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="recovery-controls"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="security-details"] p,
+  & [data-part="recovery-controls"] p,
+  & [data-part="security-action"] p {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="security-action"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-7);
+  }
+
+  & [data-part="security-modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-7);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+
+    & [data-part="reauthentication-explanation"] {
+      margin: 0;
+      text-align: center;
+    }
+
+    & [data-part="authenticator-setup"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+    }
+
+    & #mfa-setup-qr {
+      align-self: center;
+      max-width: 100%;
+    }
+  }
+
+  & > [data-part="security-card-section"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-basis: 320px;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-8);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="status"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-3);
+      box-sizing: border-box;
+      padding: var(--noora-spacing-8);
+      max-width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+
+      & > [data-part="header"] {
+        flex-basis: auto;
+      }
+
+      & > [data-part="content"] {
+        padding-top: 0;
+      }
+    }
   }
 
   & [data-part="sso-card"],
@@ -21,10 +205,10 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-2);
-      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
       padding: var(--noora-spacing-7) var(--noora-spacing-8);
 
       & > [data-part="title"] {
+        margin: 0;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
       }
@@ -40,22 +224,20 @@
       flex-direction: column;
     }
 
+    /* Following sections own dividers; adjacent bottom/top shadows paint them twice. */
     & [data-part="section"] {
       display: flex;
       flex-direction: row;
       align-items: flex-start;
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
       padding: var(--noora-spacing-8);
-
-      &:not(:last-child) {
-        box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
-      }
 
       & > [data-part="label"] {
         display: flex;
         flex-shrink: 0;
         flex-direction: column;
         gap: var(--noora-spacing-2);
-        padding-right: var(--noora-spacing-8);
+        padding-inline-end: var(--noora-spacing-8);
         width: 40%;
 
         & > [data-part="title"] {
@@ -125,12 +307,15 @@
 
           & > code {
             flex-grow: 0;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
 
       /* Center the Generate-token button vertically with its label, since
          the field is a single button rather than a stacked input column. */
+      &[data-section="factor"],
       &[data-section="tokens"] {
         align-items: center;
 
@@ -181,11 +366,6 @@
       justify-content: flex-end;
       width: 100%;
     }
-  }
-
-  & #generate-scim-token-modal > [data-part="positioner"] > [data-part="content"] {
-    width: min(560px, 90vw);
-    max-width: 560px;
   }
 
   & #generate-scim-token-modal-body {
@@ -243,7 +423,8 @@
     gap: var(--noora-spacing-3);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-tertiary);
-    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+    padding-inline: var(--noora-spacing-5) var(--noora-spacing-3);
+    padding-block: var(--noora-spacing-3);
     min-width: 0;
 
     & > code {
@@ -252,6 +433,8 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       font-family: "Geist Mono", monospace;
+      direction: ltr;
+      unicode-bidi: isolate;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -274,7 +457,7 @@
 
     & > ol {
       margin: 0;
-      padding-left: var(--noora-spacing-7);
+      padding-inline-start: var(--noora-spacing-7);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
@@ -289,6 +472,8 @@
         color: var(--noora-surface-label-primary);
         font-size: 0.85em;
         font-family: "Geist Mono", monospace;
+        direction: ltr;
+        unicode-bidi: isolate;
       }
     }
   }
@@ -330,7 +515,8 @@
     padding: var(--noora-spacing-1) var(--noora-spacing-3);
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    &[data-status="verified"] {
+    &[data-status="verified"],
+    &[data-status="instance"] {
       background: var(--noora-badge-light-fill-success-background);
       color: var(--noora-badge-light-fill-success-label);
     }
@@ -350,7 +536,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    margin-left: auto;
+    margin-inline-start: auto;
     padding-top: var(--noora-spacing-7);
     width: calc(60% - var(--noora-spacing-8));
 
@@ -379,6 +565,8 @@
       }
 
       & [data-part="read-only-value"] > code {
+        direction: ltr;
+        unicode-bidi: isolate;
         white-space: normal;
         overflow-wrap: anywhere;
       }
@@ -393,7 +581,7 @@
         gap: var(--noora-spacing-5);
 
         & > [data-part="label"] {
-          padding-right: 0;
+          padding-inline-end: 0;
           width: 100%;
         }
       }

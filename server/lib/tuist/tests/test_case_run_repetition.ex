@@ -29,6 +29,8 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
       define_field: false
   end
 
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_run_repetitions", __MODULE__})
+
   def create_changeset(repetition, attrs) do
     repetition
     |> cast(attrs, [

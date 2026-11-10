@@ -119,7 +119,8 @@ defmodule TuistWeb.API.GradleTasksController do
                      format: :"date-time",
                      nullable: true,
                      description: "When the task started executing."
-                   }
+                   },
+                   failure_message: GradleExecution.failure_message()
                  },
                  required: [:id, :task_path, :outcome, :cacheable, :duration_ms]
                }
@@ -141,7 +142,7 @@ defmodule TuistWeb.API.GradleTasksController do
         } = conn,
         _params
       ) do
-    case Gradle.get_build(build_id) do
+    case Gradle.get_build(build_id, project_id: selected_project.id) do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
@@ -165,13 +166,17 @@ defmodule TuistWeb.API.GradleTasksController do
           end
 
         {tasks, meta} =
-          Gradle.list_tasks(build_id, %{
-            filters: filters,
-            order_by: [:duration_ms],
-            order_directions: [:desc],
-            page: page,
-            page_size: page_size
-          })
+          Gradle.list_tasks(
+            build_id,
+            %{
+              filters: filters,
+              order_by: [:duration_ms],
+              order_directions: [:desc],
+              page: page,
+              page_size: page_size
+            },
+            selected_project.id
+          )
 
         json(conn, %{
           tasks:
@@ -186,7 +191,8 @@ defmodule TuistWeb.API.GradleTasksController do
                 duration_ms: task.duration_ms,
                 cache_key: task.cache_key,
                 cache_artifact_size: task.cache_artifact_size,
-                started_at: task.started_at
+                started_at: task.started_at,
+                failure_message: if(task.failure_message != "", do: task.failure_message)
               }
             end),
           pagination_metadata: %{

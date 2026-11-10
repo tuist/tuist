@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BuildEntityResources do
   alias Tuist.BuildEntities.Resources
 
   defdelegate all(), to: Resources
+  defdelegate dashboard_resources(), to: Resources
   defdelegate fetch!(key), to: Resources
   defdelegate for_project(project), to: Resources
 end

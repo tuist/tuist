@@ -21,6 +21,10 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildShowCommand.self,
                 BuildXcodeCommand.self,
                 BuildGradleCommand.self,
+                BuildCargoCommand.self,
+                BuildMixCommand.self,
+                BuildOnceCommand.self,
+                BuildBazelCommand.self,
             ]
         #else
             [
@@ -28,6 +32,10 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildShowCommand.self,
                 BuildXcodeCommand.self,
                 BuildGradleCommand.self,
+                BuildCargoCommand.self,
+                BuildMixCommand.self,
+                BuildOnceCommand.self,
+                BuildBazelCommand.self,
             ]
         #endif
     }

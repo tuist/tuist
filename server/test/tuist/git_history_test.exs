@@ -97,6 +97,73 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.nearest_ancestor(repository, "z", ["w"]) == {"w", 3}
     end
 
+    test "raises stored descendants through merges, above their longest parent path", %{repository: repository} do
+      # A shallow clone's main: m1 merges a one-commit branch s1 off m0, m2
+      # merges s2 off m1, and m0's parent arrives later when the clone deepens.
+      GitHistory.record_commits(repository, "sha1", [
+        commit("m0", ["a2"], 2),
+        commit("s1", ["m0"], 3),
+        commit("m1", ["m0", "s1"], 4),
+        commit("s2", ["m1"], 5),
+        commit("m2", ["m1", "s2"], 6)
+      ])
+
+      GitHistory.record_commits(repository, "sha1", [commit("a1", [], 0), commit("a2", ["a1"], 1)])
+
+      assert generations(repository) == %{
+               "a1" => 1,
+               "a2" => 2,
+               "m0" => 3,
+               "s1" => 4,
+               "m1" => 5,
+               "s2" => 6,
+               "m2" => 7
+             }
+    end
+
+    test "keeps every generation one above its highest stored parent whatever order the commits arrive in", %{
+      account: account
+    } do
+      for seed <- 1..25 do
+        :rand.seed(:exsss, {seed, seed * 7, seed * 13})
+        repository = GitHistory.repository_id(account.id, "git@github.com:acme/random-#{seed}.git")
+
+        # A random history: mostly linear, with roots, merges and parents
+        # further back. Uploaded in random batches, some commits more than once.
+        graph =
+          Enum.reduce(1..(4 + :rand.uniform(40)), %{"c0" => []}, fn i, graph ->
+            parents =
+              case :rand.uniform(10) do
+                1 -> []
+                k when k <= 4 -> Enum.uniq(["c#{i - 1}", "c#{:rand.uniform(i) - 1}"])
+                5 -> ["c#{:rand.uniform(i) - 1}"]
+                _ -> ["c#{i - 1}"]
+              end
+
+            Map.put(graph, "c#{i}", parents)
+          end)
+
+        shas = Map.keys(graph)
+
+        (shas ++ Enum.take_random(shas, div(length(shas), 3)))
+        |> Enum.shuffle()
+        |> Enum.chunk_every(1 + :rand.uniform(8))
+        |> Enum.reduce(MapSet.new(), fn batch, stored ->
+          GitHistory.record_commits(repository, "sha1", Enum.map(batch, &commit(&1, graph[&1], :rand.uniform(100))))
+          stored = MapSet.union(stored, MapSet.new(batch))
+
+          # The longest path down to a root of what is stored so far.
+          expected =
+            Enum.reduce(Enum.sort_by(stored, &String.to_integer(String.trim_leading(&1, "c"))), %{}, fn sha, expected ->
+              Map.put(expected, sha, 1 + (graph[sha] |> Enum.map(&Map.get(expected, &1, 0)) |> Enum.max(fn -> 0 end)))
+            end)
+
+          assert generations(repository) == expected, "seed #{seed}, after uploading #{inspect(batch)}"
+          stored
+        end)
+      end
+    end
+
     test "a parent outside the window still gets an edge and counts as generation 0", %{repository: repository} do
       GitHistory.record_commits(repository, "sha1", [commit("x", ["outside"], 0)])
 
@@ -705,7 +772,7 @@ defmodule Tuist.GitHistoryTest do
                window_commits: 5_000,
                upload_batch_size: 500,
                tracked_file_globs: ["**/Package.resolved" | _],
-               commit_file_limit: 50_000
+               commit_file_limit: 200_000
              } = GitHistory.settings(project)
 
       {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})

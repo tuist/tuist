@@ -17,6 +17,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.RunStarted
   alias Once.Events.V1.TargetCompleted
   alias Once.Events.V1.TestCaseCompleted
+  alias Once.Events.V1.TestRunContext
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.Accounts.Organization
   alias Tuist.Authentication
@@ -839,6 +840,126 @@ defmodule Tuist.OnceEventsTest do
     )
 
     assert OnceEvents.get_run(run.project_id, run.run_id).is_ci
+  end
+
+  test "RunStarted test context is persisted on admission and cannot be changed by replay", %{
+    project: project
+  } do
+    run_id = UUIDv7.generate()
+
+    context = %TestRunContext{
+      external_group_id: "workflow-123",
+      partition_index: 2,
+      plan_id: "plan-456",
+      batch_id: "batch-789"
+    }
+
+    started = %RunStarted{test_context: context}
+
+    event = %RunEvent{
+      seq: 1,
+      epoch_ms: 1_789_405_000_000,
+      payload: {:run_started, started}
+    }
+
+    batch = %RunEventBatch{run_id: run_id, batch_id: "context", seq_from: 1, events: [event]}
+
+    for replay <- [
+          started,
+          started,
+          %{started | test_context: %TestRunContext{external_group_id: "replacement"}},
+          %RunStarted{}
+        ] do
+      replay_batch =
+        %{batch | events: [%{event | payload: {:run_started, replay}}]}
+        |> RunEventBatch.encode()
+        |> RunEventBatch.decode()
+
+      RunEventService.publish_run_events([replay_batch], reply_stream(project))
+
+      assert_received {:ack, %BatchAck{acked_seq: 1} = ack}
+      assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+
+      assert OnceEvents.get_run(project.id, run_id).test_context == %{
+               "external_group_id" => "workflow-123",
+               "partition_index" => 2,
+               "plan_id" => "plan-456",
+               "batch_id" => "batch-789"
+             }
+    end
+  end
+
+  test "a first RunStarted without test context cannot acquire grouping on replay", %{
+    project: project
+  } do
+    run_id = UUIDv7.generate()
+    event = %RunEvent{epoch_ms: 1_789_405_000_000, payload: {:run_started, %RunStarted{}}}
+    assert :ok = Projector.project(event, project.id, run_id)
+    assert OnceEvents.get_run(project.id, run_id).test_context == %{}
+
+    replay = Map.put(%RunStarted{}, :test_context, %{external_group_id: "too-late"})
+    assert :ok = Projector.project(%{event | payload: {:run_started, replay}}, project.id, run_id)
+    assert OnceEvents.get_run(project.id, run_id).test_context == %{}
+  end
+
+  test "test context stores only bounded JSON-safe diagnostic fields", %{project: project} do
+    run_id = UUIDv7.generate()
+
+    started =
+      Map.put(%RunStarted{}, :test_context, %{
+        external_group_id: <<0, 255>> <> String.duplicate("g", 1000),
+        partition_index: -1,
+        plan_id: String.duplicate("e\u0301", 1000),
+        batch_id: String.duplicate("a", 511) <> "é",
+        unknown_field: %{unbounded: String.duplicate("x", 10_000)}
+      })
+
+    assert :ok =
+             Projector.project(
+               %RunEvent{epoch_ms: 1_789_405_000_000, payload: {:run_started, started}},
+               project.id,
+               run_id
+             )
+
+    context = OnceEvents.get_run(project.id, run_id).test_context
+    assert map_size(context) == 4
+    assert context["external_group_id"] == "??" <> String.duplicate("g", 510)
+    assert context["partition_index"] == 0
+    assert context["batch_id"] == String.duplicate("a", 511) <> "?"
+
+    for key <- ["external_group_id", "plan_id", "batch_id"] do
+      assert byte_size(context[key]) <= 512
+      assert String.valid?(context[key])
+      refute String.contains?(context[key], <<0>>)
+    end
+  end
+
+  test "test context partition indices stay within uint32 bounds", %{project: project} do
+    for {index, expected} <- [
+          {0, 0},
+          {4_294_967_295, 4_294_967_295},
+          {-1, 0},
+          {4_294_967_296, 0},
+          {"1", 0},
+          {nil, 0}
+        ] do
+      run_id = UUIDv7.generate()
+      started = Map.put(%RunStarted{}, :test_context, %{partition_index: index})
+
+      assert :ok =
+               Projector.project(
+                 %RunEvent{epoch_ms: 1_789_405_000_000, payload: {:run_started, started}},
+                 project.id,
+                 run_id
+               )
+
+      assert OnceEvents.get_run(project.id, run_id).test_context == %{
+               "external_group_id" => "",
+               "partition_index" => expected,
+               "plan_id" => "",
+               "batch_id" => ""
+             }
+    end
   end
 
   test "a RunStarted carries its branch onto the run", %{run: run} do

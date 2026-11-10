@@ -1,5 +1,35 @@
 import Foundation
 
+extension Settings {
+    /// Appends compiler inputs while preserving configuration overrides that do not inherit
+    /// the base value. Inheriting configurations receive the additions through the base.
+    public func appendingBuildSettings(_ additions: SettingsDictionary) -> Settings {
+        func updatingOverrides(_ overrides: SettingsDictionary) -> SettingsDictionary {
+            let required = additions.filter { key, _ in
+                switch overrides[key] {
+                case let .array(values): return !values.contains("$(inherited)")
+                case let .string(value): return !value.contains("$(inherited)")
+                case nil: return false
+                }
+            }
+            return overrides.combine(with: required)
+        }
+        var base = base
+        for key in additions.keys where base[key] == nil {
+            base[key] = .array(["$(inherited)"])
+        }
+        return Settings(
+            base: base.combine(with: additions),
+            baseDebug: updatingOverrides(baseDebug),
+            configurations: configurations.mapValues { configuration in
+                configuration.map { $0.with(settings: updatingOverrides($0.settings)) }
+            },
+            defaultSettings: defaultSettings,
+            defaultConfiguration: defaultConfiguration
+        )
+    }
+}
+
 extension SettingsDictionary {
     /// Overlays a SettingsDictionary by adding a `[sdk=<sdk>*]` qualifier
     /// e.g. for a multiplatform target

@@ -39,7 +39,7 @@ defmodule Atlas.MCP.Tools.CreateSocialChannelIdea do
     attrs =
       args
       |> Map.take(["title", "description", "status"])
-      |> Map.put("created_by_agent", "mcp")
+      |> Map.put("created_by_agent", Tool.agent_source(conn))
 
     case GTM.create_social_channel_idea(attrs, Tool.current_user(conn)) do
       {:ok, idea} ->

@@ -1,0 +1,26 @@
+# Deployed by .github/workflows/remote-execution-deployment.yml into the
+# cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
+# workflow, which the production deploy cascade calls after the server and
+# runners controller deploy. Set to false to stop installing or upgrading it.
+enabled: true
+serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
+serverNamespace: tuist
+gateway:
+  ingress:
+    enabled: true
+    host: execution.tuist.dev
+workers:
+  # Six slots' rootfs clones, workspaces and memory images (156 GiB of
+  # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
+  diskGiB: 200
+  # Two runners-linux hosts: 2 VMs each always (9 GiB, 4 CPUs), up to 6 each
+  # (25 GiB) ahead of queued CI.
+  sharedHosts:
+    enabled: true
+    nodes:
+      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-sfkd5
+      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-2qkj8
+    floorSlots: 2
+    ceilingSlots: 6
+    tolerations:
+      - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}

@@ -1,0 +1,2309 @@
+{
+  "attribution": "Grafana Labs contributors; extraction adapted for Pulse on 2026-10-28. See adjacent LICENSE. No upstream runtime implementation is included.",
+  "counts": {
+    "engine_empty_evaluations": 0,
+    "engine_entries_evaluations": 1,
+    "engine_evaluations": 42,
+    "engine_expected_entries": 1,
+    "engine_expected_series": 37,
+    "engine_explicit_fields_evaluations": 1,
+    "engine_fixtures": 7,
+    "engine_instant_evaluations": 32,
+    "engine_load_rows": 20,
+    "engine_loaded_entries": 38,
+    "engine_metadata_load_rows": 9,
+    "engine_numeric_slots": 47,
+    "engine_parse_all_evaluations": 41,
+    "engine_range_evaluations": 9,
+    "engine_reject_evaluations": 8,
+    "engine_select_evaluations": 1,
+    "engine_series_evaluations": 33,
+    "engine_sparse_slots": 2,
+    "parse_rows": 16,
+    "table_evaluations": 16,
+    "table_hinted_rows": 1,
+    "table_json_path_entries": 31,
+    "table_json_path_maps": 16,
+    "table_metadata_rows": 1,
+    "table_rows": 16,
+    "table_unhinted_rows": 15,
+    "total_evaluations": 58
+  },
+  "fixtures": [
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "{\"level\":\"info\",\"status\":200}",
+          "start": 20,
+          "every": 20,
+          "count": 4,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 119,
+          "source_end": 119,
+          "sha256": "70858154f37287bed0b80b3603b86e9fe7c7af3432c5bb1b836e520143e1c466",
+          "raw": "  {app=\"a\"} `{\"level\":\"info\",\"status\":200}` @ 20s [repeat every 20s for 4]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"level\":\"info\"}",
+          "start": 20,
+          "every": 20,
+          "count": 4,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 120,
+          "source_end": 120,
+          "sha256": "e1abc118dbcbb2cc618e38a5e2a25475c1b544217fdc5398f6ae8e653515963b",
+          "raw": "  {app=\"noise\"} `{\"level\":\"info\"}` @ 20s [repeat every 20s for 4]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "level": "info",
+                "status": "200"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 123,
+              "source_end": 123,
+              "sha256": "898f24a0d08225c0a4bee4a944bc8f7c3bbcd5edfe9cc2975e9a460541f06856",
+              "raw": "  {app=\"a\", level=\"info\", status=\"200\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 122,
+          "source_end": 123,
+          "sha256": "edab236f5ee7a7a0b6be883bb0fa7f138c336788f5067bee4f8f116f5a4d3408",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"info\", status=\"200\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 80,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "level": "info",
+                "status": "200"
+              },
+              "values": [
+                "2",
+                "3",
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 125,
+              "source_end": 125,
+              "sha256": "cb339437fe5b88439bec928dbb27162d31226235bd1b511169e691a0ffe442a8",
+              "raw": "  {app=\"a\", level=\"info\", status=\"200\"} 2 3 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 124,
+          "source_end": 125,
+          "sha256": "af48d3150668e921423c563ed05cf14e79d5faf130daa95c629f65aa1aaa4ef8",
+          "raw": "eval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 2 3 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 60,
+          "end": 180,
+          "step": 120,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "level": "info",
+                "status": "200"
+              },
+              "values": [
+                "3",
+                "_"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 127,
+              "source_end": 127,
+              "sha256": "19e1671cf3fe07f6028a2e9f8e895358fd46af720c289dc1bed3674b5679d372",
+              "raw": "  {app=\"a\", level=\"info\", status=\"200\"} 3 _\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 126,
+          "source_end": 127,
+          "sha256": "7077273c7e4f007226219a3687a8b0790b159f4e89c5892bfbe4002b556d36b4",
+          "raw": "eval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json [1m]) # non-overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 3 _\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 117,
+      "source_end": 127,
+      "sha256": "bdc7c4c77e2544d46f5544b86742bfe5ea776198f72ecb91c5c37969132acf65",
+      "raw": "clear\nload\n  {app=\"a\"} `{\"level\":\"info\",\"status\":200}` @ 20s [repeat every 20s for 4]\n  {app=\"noise\"} `{\"level\":\"info\"}` @ 20s [repeat every 20s for 4]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"info\", status=\"200\"} 3\neval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 2 3 3\neval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json [1m]) # non-overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 3 _\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "{\"lvl\":\"warn\",\"obj\":{\"x\":1,\"y\":{\"z\":2}},\"ok\":true,\"no\":false,\"nil\":null,\"arr\":[1,2],\"f\":1.5}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 135,
+          "source_end": 135,
+          "sha256": "0e73acd414642d2aa0f53d589faf2ae4133bc388284b1d8e55c3acd2121c44df",
+          "raw": "  {app=\"a\"} `{\"lvl\":\"warn\",\"obj\":{\"x\":1,\"y\":{\"z\":2}},\"ok\":true,\"no\":false,\"nil\":null,\"arr\":[1,2],\"f\":1.5}` @ 20s [repeat every 20s for 3]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"a\":1}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 136,
+          "source_end": 136,
+          "sha256": "702ce7153e8572ab95bc34bd81331dff60059c36e371789f8414f10525048b47",
+          "raw": "  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 3]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "f": "1.5",
+                "lvl": "warn",
+                "no": "false",
+                "obj_x": "1",
+                "obj_y_z": "2",
+                "ok": "true"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 139,
+              "source_end": 139,
+              "sha256": "cae9d5a45219a6ac6d57ca5c91059f48590cb3ed1635a5006e326571aea142dd",
+              "raw": "  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 138,
+          "source_end": 139,
+          "sha256": "4532b0f84790d7881e631b7deff85adead84123b8cf3a03cc9e62301e19fd761",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "f": "1.5",
+                "lvl": "warn",
+                "no": "false",
+                "obj_x": "1",
+                "obj_y_z": "2",
+                "ok": "true"
+              },
+              "values": [
+                "2",
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 141,
+              "source_end": 141,
+              "sha256": "ba00869ed1792265d384c0cc176718407b17a8b0b49e6ed8ff086b7743877e2f",
+              "raw": "  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 2 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 140,
+          "source_end": 141,
+          "sha256": "1a213aa743d826bf755d5e1b34cba0f2ddccd38427ff74c8b99175c024b0d70e",
+          "raw": "eval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 2 3\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 133,
+      "source_end": 141,
+      "sha256": "479b7e86498137807ef36a4d339556ddb4cfa5a8ca2be0f6a171a26ff3b718e5",
+      "raw": "clear\nload\n  {app=\"a\"} `{\"lvl\":\"warn\",\"obj\":{\"x\":1,\"y\":{\"z\":2}},\"ok\":true,\"no\":false,\"nil\":null,\"arr\":[1,2],\"f\":1.5}` @ 20s [repeat every 20s for 3]\n  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 2 3\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "level": "stream"
+          },
+          "line": "{\"level\":\"parsed\",\"a.b\":1,\"dup\":\"first\",\"dup\":\"second\"}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 149,
+          "source_end": 149,
+          "sha256": "5cc79d3aad4242db49b5ebb2094c6a91549c109c6fabf08078287d0dcc302dfa",
+          "raw": "  {app=\"a\", level=\"stream\"} `{\"level\":\"parsed\",\"a.b\":1,\"dup\":\"first\",\"dup\":\"second\"}` @ 20s [repeat every 20s for 3]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"x\":1}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 150,
+          "source_end": 150,
+          "sha256": "a4f634ab4a79195b2caad383fa8ccc08b711e5639a60797c4c46c7814655c8a5",
+          "raw": "  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "a_b": "1",
+                "app": "a",
+                "dup": "first",
+                "level": "stream",
+                "level_extracted": "parsed"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 153,
+              "source_end": 153,
+              "sha256": "25334bf640ff8ee40a8877cd8b13abaf446d0e91fbd110a6016e0451c283be10",
+              "raw": "  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 152,
+          "source_end": 153,
+          "sha256": "56b4e3fa3122e879e5ac102acbcb0c5dac3c98f9ced55928c00ed8bef565d8b2",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "a_b": "1",
+                "app": "a",
+                "dup": "first",
+                "level": "stream",
+                "level_extracted": "parsed"
+              },
+              "values": [
+                "2",
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 155,
+              "source_end": 155,
+              "sha256": "c4a09734554f5b4aaaa5cd8a4b96dce27665f19d0b22ea59e9668a14f040bc61",
+              "raw": "  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 2 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 154,
+          "source_end": 155,
+          "sha256": "0401f01363e41b2dd7d5ddf21f467124ffcda334d6196d8f73e7ed058a9f703e",
+          "raw": "eval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 2 3\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 147,
+      "source_end": 155,
+      "sha256": "f009b000bd8799c1cc6ab9803759d85b5de4671e0aa257c11a7fca643911c683",
+      "raw": "clear\nload\n  {app=\"a\", level=\"stream\"} `{\"level\":\"parsed\",\"a.b\":1,\"dup\":\"first\",\"dup\":\"second\"}` @ 20s [repeat every 20s for 3]\n  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 2 3\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "sl": "s",
+            "sm": "s",
+            "tri": "s"
+          },
+          "line": "{\"sl\":\"p\",\"md\":\"p\",\"tri\":\"p\"}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {
+            "md": "m",
+            "sm": "m",
+            "tri": "m"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 161,
+          "source_end": 161,
+          "sha256": "c53a8cb7463fc3f2f0e6c8f4dde49f5c4077a715a65c78e20544e1479476c8ed",
+          "raw": "  {app=\"a\", sl=\"s\", sm=\"s\", tri=\"s\"} `{\"sl\":\"p\",\"md\":\"p\",\"tri\":\"p\"}` @ 20s [repeat every 20s for 3] [metadata md=\"m\" sm=\"m\" tri=\"m\"]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"x\":1}",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 162,
+          "source_end": 162,
+          "sha256": "a4f634ab4a79195b2caad383fa8ccc08b711e5639a60797c4c46c7814655c8a5",
+          "raw": "  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 165,
+              "source_end": 165,
+              "sha256": "8cf6c36daee9370f15575e86e67474cd1ab1e8cf6b0877df7cbbee8a5221c2a0",
+              "raw": "  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 164,
+          "source_end": 165,
+          "sha256": "31e8be096bb2700bb81791deaf65698b4c11afbea65acb9fd30292b1b59814c9",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "2",
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 167,
+              "source_end": 167,
+              "sha256": "0267d8853daa537ec7eadb3715d2614e0870d0baee11589a08dcdded1188435d",
+              "raw": "  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 166,
+          "source_end": 167,
+          "sha256": "2874c7f922028abfd13eec20dcb326c622c30862d13046b3be8a5740eb37b799",
+          "raw": "eval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json sl, md, sm, tri [1m])",
+          "parser_form": "explicit_fields",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "3"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 170,
+              "source_end": 170,
+              "sha256": "8cf6c36daee9370f15575e86e67474cd1ab1e8cf6b0877df7cbbee8a5221c2a0",
+              "raw": "  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 169,
+          "source_end": 170,
+          "sha256": "fc796aa52d47d8fc7a54b347cf1decfd90243154d64c34e2479cd9f1ab822743",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json sl, md, sm, tri [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 159,
+      "source_end": 170,
+      "sha256": "91bc8c0ed895331fbfec742e161140d9c3f81d2108dc979421f4cf7175778f00",
+      "raw": "clear\nload\n  {app=\"a\", sl=\"s\", sm=\"s\", tri=\"s\"} `{\"sl\":\"p\",\"md\":\"p\",\"tri\":\"p\"}` @ 20s [repeat every 20s for 3] [metadata md=\"m\" sm=\"m\" tri=\"m\"]\n  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n# json()'s label-expression form resolves the same clashes the same way.\neval instant at 60s count_over_time({app=\"a\"} | json sl, md, sm, tri [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "{\"ok\":1}",
+          "start": 20,
+          "every": 0,
+          "count": 1,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 175,
+          "source_end": 175,
+          "sha256": "c50b14793b728b334d8f6450efd8f6c3d0bf7b3f187ed6bf328f6de1c5f04830",
+          "raw": "  {app=\"a\"} `{\"ok\":1}` @ 20s\n"
+        },
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "broken",
+          "start": 40,
+          "every": 0,
+          "count": 1,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 176,
+          "source_end": 176,
+          "sha256": "d4a2237be0c4f6e54ff24154b952245a9008219f7246e9a19bf5b60d50a94e73",
+          "raw": "  {app=\"a\"} `broken`   @ 40s\n"
+        },
+        {
+          "labels": {
+            "app": "a"
+          },
+          "line": "{\"ok\":1}",
+          "start": 60,
+          "every": 0,
+          "count": 1,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 177,
+          "source_end": 177,
+          "sha256": "3715541e682001475194133627a0f995d1c61ae7d2f674bf5d87906213ef20e4",
+          "raw": "  {app=\"a\"} `{\"ok\":1}` @ 60s\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "{\"z\":1}",
+          "start": 20,
+          "every": 0,
+          "count": 1,
+          "metadata": {},
+          "purpose": "complete load row, including inline comment",
+          "source_start": 178,
+          "source_end": 178,
+          "sha256": "09a798d734af2a8c448acf1ca40a7798f6dba063b56a039a965f8acad5471ad1",
+          "raw": "  {app=\"noise\"} `{\"z\":1}` @ 20s\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | json [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 180,
+          "source_end": 181,
+          "sha256": "0fb9f469c4d717f108d64136574c96f189cb948b60c5628c4f930cf9b55f47c0",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json | __error__=\"\" [1m])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "ok": "1"
+              },
+              "values": [
+                "2"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 183,
+              "source_end": 183,
+              "sha256": "a2258ac7dd296b22f2ab99267c0e2e7e1b50471bfe8c14c3dbabd7c9ed168cd7",
+              "raw": "  {app=\"a\", ok=\"1\"} 2\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 182,
+          "source_end": 183,
+          "sha256": "036c8fac2225d5add8a4df61e93c2f4938e6a179c53f304151e0a923f0e9c676",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json | __error__=\"\" [1m])\n  {app=\"a\", ok=\"1\"} 2\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [20s])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "ok": "1"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 187,
+              "source_end": 187,
+              "sha256": "01575566055c222627b4359f55bc23c1d8cd51cba831d9ce4375d984e1deb3e0",
+              "raw": "  {app=\"a\", ok=\"1\"} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 186,
+          "source_end": 187,
+          "sha256": "ac185883dbf1b007a3b57a4a57c87f51d4cf5baaa0a1dd28e674b96ec49fbd24",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | json [20s])\n  {app=\"a\", ok=\"1\"} 1\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | json [20s])",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 40,
+          "end": 40,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 188,
+          "source_end": 189,
+          "sha256": "69f96d7079d83bfa54cd7499d03397f0294011ce0e069f12ea5f004118a13a8d",
+          "raw": "eval instant at 40s count_over_time({app=\"a\"} | json [20s])\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "{app=\"a\"} | json | __error__!=\"\"",
+          "parser_form": "parse_all",
+          "mode": "select",
+          "start": 0,
+          "end": 60,
+          "step": 0,
+          "direction": "forward",
+          "outcome": "entries",
+          "expected": [],
+          "expected_entries": [
+            {
+              "labels": {
+                "app": "a"
+              },
+              "line": "broken",
+              "timestamp": 40,
+              "metadata": {},
+              "parsed": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Value looks like object, but can't find closing '}' symbol"
+              },
+              "purpose": "categorized select oracle",
+              "source_start": 191,
+              "source_end": 191,
+              "sha256": "7c4f87b8d74dd25d73a548567cf497869c56882f639d53d955221969f71b6078",
+              "raw": "  {app=\"a\"} `broken` @ 40s [parsed __error__=\"JSONParserErr\" __error_details__=\"Value looks like object, but can't find closing '}' symbol\"]\n"
+            }
+          ],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 190,
+          "source_end": 191,
+          "sha256": "05d3af66c1f790aef4a287fcf09f7c493bfa3eb042a49fa817bd7718a20d4bc6",
+          "raw": "eval select from 0 to 60s forward {app=\"a\"} | json | __error__!=\"\"\n  {app=\"a\"} `broken` @ 40s [parsed __error__=\"JSONParserErr\" __error_details__=\"Value looks like object, but can't find closing '}' symbol\"]\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 173,
+      "source_end": 191,
+      "sha256": "0028acac7eaaf88324886776e43c04558c0aee300d03780cafc9ddd7f514e19b",
+      "raw": "clear\nload\n  {app=\"a\"} `{\"ok\":1}` @ 20s\n  {app=\"a\"} `broken`   @ 40s\n  {app=\"a\"} `{\"ok\":1}` @ 60s\n  {app=\"noise\"} `{\"z\":1}` @ 20s\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  expect fail msg: JSONParserErr\neval instant at 60s count_over_time({app=\"a\"} | json | __error__=\"\" [1m])\n  {app=\"a\", ok=\"1\"} 2\n# A malformed line outside the range vector duration cannot fail the query.\n# (40s,60s] excludes the line at 40s, and (20s,40s] includes it.\neval instant at 60s count_over_time({app=\"a\"} | json [20s])\n  {app=\"a\", ok=\"1\"} 1\neval instant at 40s count_over_time({app=\"a\"} | json [20s])\n  expect fail msg: JSONParserErr\neval select from 0 to 60s forward {app=\"a\"} | json | __error__!=\"\"\n  {app=\"a\"} `broken` @ 40s [parsed __error__=\"JSONParserErr\" __error_details__=\"Value looks like object, but can't find closing '}' symbol\"]\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "pod": "p1"
+          },
+          "line": "{\"ok\":1}",
+          "start": 20,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "5",
+            "unrelated": "u1"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 197,
+          "source_end": 197,
+          "sha256": "d5b8b7dc1772b5d2cc8b2d83a5e74c3f337881fcc8220184503203b53ed287b7",
+          "raw": "  {app=\"a\", pod=\"p1\"} `{\"ok\":1}` @ 20s [metadata n=\"5\" unrelated=\"u1\"] # \"unrelated\" metadata is never named by a query\n"
+        },
+        {
+          "labels": {
+            "app": "a",
+            "pod": "p2"
+          },
+          "line": "{",
+          "start": 40,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "7",
+            "unrelated": "u2"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 198,
+          "source_end": 198,
+          "sha256": "46c188a49ab5a36cf091ef4d195787d061738034de218b5775441626df9b3ac8",
+          "raw": "  {app=\"a\", pod=\"p2\"} `{`        @ 40s [metadata n=\"7\" unrelated=\"u2\"] # malformed\n"
+        },
+        {
+          "labels": {
+            "app": "a",
+            "pod": "p2"
+          },
+          "line": "{",
+          "start": 50,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "9",
+            "unrelated": "u9"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 199,
+          "source_end": 199,
+          "sha256": "ce9c7a83d38b64fbb47934ca0f24e9b956e0a4e8d70999cb7d373d5d2db9e5f6",
+          "raw": "  {app=\"a\", pod=\"p2\"} `{`        @ 50s [metadata n=\"9\" unrelated=\"u9\"] # malformed, other metadata\n"
+        },
+        {
+          "labels": {
+            "app": "c",
+            "pod": "p3"
+          },
+          "line": "{",
+          "start": 40,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "__preserve_error__": "true",
+            "n": "9"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 200,
+          "source_end": 200,
+          "sha256": "e3f0926abb0eb297c9853bcd4821b4568b051b6041499eafa6125c4244ba5839",
+          "raw": "  {app=\"c\", pod=\"p3\"} `{`        @ 40s [metadata n=\"9\" __preserve_error__=\"true\"] # malformed\n"
+        },
+        {
+          "labels": {
+            "app": "noise",
+            "pod": "p4"
+          },
+          "line": "{\"ok\":1}",
+          "start": 20,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "9",
+            "unrelated": "u3"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 201,
+          "source_end": 201,
+          "sha256": "a3e1cb92a128e8cb39b617819e7249f0e9d100c630af4a5ac33d8873df423559",
+          "raw": "  {app=\"noise\", pod=\"p4\"} `{\"ok\":1}` @ 20s [metadata n=\"9\" unrelated=\"u3\"]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "first_over_time({app=\"a\"} | json | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 203,
+          "source_end": 204,
+          "sha256": "a7282a9b9a8e8ebab71863c46486acc16dc5a24ac73633b560de1e9e0a11391c",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__=\"\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p1"
+              },
+              "values": [
+                "5"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 206,
+              "source_end": 206,
+              "sha256": "5e3108078d72a79bf16c761cc84da3d720be97a41149fefcb555e6a73cf8ec8a",
+              "raw": "  {pod=\"p1\"} 5\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 205,
+          "source_end": 206,
+          "sha256": "e46de2b468773c8eaeebb8c4c0a0e842f2435835a537b675d639bcfed657086a",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p2"
+              },
+              "values": [
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 208,
+              "source_end": 208,
+              "sha256": "57d37e68c65c37a555dc5511303ab90239baf779e0ac77f7b3bb29ff293826a6",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 207,
+          "source_end": 208,
+          "sha256": "76b07d048385d5d1f64003b50c43909b83b341559d3809452ff60b4face27ba1",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 20,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p2"
+              },
+              "values": [
+                "_",
+                "7",
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 210,
+              "source_end": 210,
+              "sha256": "d5ccd13a072e10d03fa65f4e2d76be8bda39b31ff4c5436fe7f4c80b57ee5bcf",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} _ 7 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 209,
+          "source_end": 210,
+          "sha256": "90ff2b33ed99650fb69e37e0007424d1b0015d2cbe841ddcc71fb518a05aca03",
+          "raw": "eval range from 20s to 60s step 20s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} _ 7 7\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by ()",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error"
+              },
+              "values": [
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 213,
+              "source_end": 213,
+              "sha256": "06c618830069219051e6720ad9007dd67869d358c020b2a4eea5d17c21828459",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\"} 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 212,
+          "source_end": 213,
+          "sha256": "c358dcd979953a90b79ec9b5840ac1c13ecb618650e90701bb42f44b7139da35",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by ()\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\"} 7\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__!=\"zzz\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p1"
+              },
+              "values": [
+                "5"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 216,
+              "source_end": 216,
+              "sha256": "5e3108078d72a79bf16c761cc84da3d720be97a41149fefcb555e6a73cf8ec8a",
+              "raw": "  {pod=\"p1\"} 5\n"
+            },
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p2"
+              },
+              "values": [
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 217,
+              "source_end": 217,
+              "sha256": "57d37e68c65c37a555dc5511303ab90239baf779e0ac77f7b3bb29ff293826a6",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 215,
+          "source_end": 217,
+          "sha256": "5ea84d24e85bb1f71c18629f5b0edfd98fa9aee054a6cd0cc0816b8ef5e1b614",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | __error__!=\"zzz\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+        },
+        {
+          "query": "sum by (pod) (first_over_time({app=\"a\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p2"
+              },
+              "values": [
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 220,
+              "source_end": 220,
+              "sha256": "c619a3b6030fe877e2d7d50d48c1fd16bfd73676ee9a2f4de2fa0b3171f5bfad",
+              "raw": "  {pod=\"p2\"} 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 219,
+          "source_end": 220,
+          "sha256": "c0cbc79626a087e7bde66751cfba978c964d6f5eab3b170a8fc5a7448d410141",
+          "raw": "eval instant at 60s sum by (pod) (first_over_time({app=\"a\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod))\n  {pod=\"p2\"} 7\n"
+        },
+        {
+          "query": "first_over_time({app=\"c\"} | json | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 223,
+          "source_end": 224,
+          "sha256": "27df7e00a08449b89b13674ede5d54d2eec3f620a57ae4139bb96c863da7e242",
+          "raw": "eval instant at 60s first_over_time({app=\"c\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p3"
+              },
+              "values": [
+                "9"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 226,
+              "source_end": 226,
+              "sha256": "f489bd6f9d5d87081a62464ed06d29f63b47ccdeafe270743e65a1b4cfd82f02",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 225,
+          "source_end": 226,
+          "sha256": "4e9ed18f46dd95f22079dd5891eace9479b81d7d0dc83e2d98e2fa4d1c1ebdea",
+          "raw": "eval instant at 60s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9\n"
+        },
+        {
+          "query": "first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 80,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p3"
+              },
+              "values": [
+                "9",
+                "9",
+                "9"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 228,
+              "source_end": 228,
+              "sha256": "be9d9684c5fa315899362884118ae06f61a54aa35c23ce321657b881cadc3026",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9 9 9\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 227,
+          "source_end": 228,
+          "sha256": "c72fad00558df1424ee6f8dcc8b085f2f9b6aa8903eb3742f8fa405b67eb6ab5",
+          "raw": "eval range from 40s to 80s step 20s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9 9 9\n"
+        },
+        {
+          "query": "sum without (pod) (count_over_time({app=\"c\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "__preserve_error__": "true",
+                "app": "c",
+                "n": "9"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 230,
+              "source_end": 230,
+              "sha256": "2977ff86a6c1233fe677b35dfc830b366a41b2531614ae74ae28df889c4b3dba",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", __preserve_error__=\"true\", app=\"c\", n=\"9\"} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 229,
+          "source_end": 230,
+          "sha256": "83c5aa5ef6dd8b0ba030a064e162da29422dc36399420dd4cd78c950cb3ec621",
+          "raw": "eval instant at 60s sum without (pod) (count_over_time({app=\"c\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", __preserve_error__=\"true\", app=\"c\", n=\"9\"} 1\n"
+        },
+        {
+          "query": "sum by () (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 232,
+          "source_end": 233,
+          "sha256": "6e115675161bcd2ec4a15ecbdc5380d44859ad98a8621900d53c6196f31a3f98",
+          "raw": "eval instant at 60s sum by () (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "sum without (pod) (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 234,
+          "source_end": 235,
+          "sha256": "339eff0a06f72baee1b4c69c63c5efaa11abbcbab6ed5d35b5babc1f82bd3201",
+          "raw": "eval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | unwrap n [1m]) by ()",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 237,
+          "source_end": 238,
+          "sha256": "0750204ffbfa05127ddeb34c0ab24895cc99d1941c7228683a5df7ed4069a9f8",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by ()\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | unwrap n [1m]) without (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "reject",
+          "reject": "JSONParserErr",
+          "expected": [],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 239,
+          "source_end": 240,
+          "sha256": "8dce5d01972b6b2032ca7aaed0b33faff00875ee1e983f3a427d31550cb9a8d9",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) without (pod)\n  expect fail msg: JSONParserErr\n"
+        },
+        {
+          "query": "sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p2"
+              },
+              "values": [
+                "2"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 245,
+              "source_end": 245,
+              "sha256": "4fed7e9625d940ee73d191a3d9feeca06d9af1c16eff95a6e8937df05457039c",
+              "raw": "  {pod=\"p2\"} 2\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 244,
+          "source_end": 245,
+          "sha256": "88926ab222f14941a4b9d7d8aed2909f599f43ff0f623eaf6b77d840411c6159",
+          "raw": "eval instant at 60s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 2\n"
+        },
+        {
+          "query": "max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p2"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 247,
+              "source_end": 247,
+              "sha256": "cfc6ebae65ae0f9c7ad0e8ad83a712c2ae2c9c6f41a81b20ae26b4709a0e0789",
+              "raw": "  {pod=\"p2\"} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 246,
+          "source_end": 247,
+          "sha256": "0b925b69fa1236cba20ca25de34bdc28d7da623e33eb6ce41dab13001cd2c3d4",
+          "raw": "eval instant at 60s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 1\n"
+        },
+        {
+          "query": "sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p2"
+              },
+              "values": [
+                "1",
+                "2"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 249,
+              "source_end": 249,
+              "sha256": "5eaad17b2568a6e0c2623586ca3ad078dcb6c7ec022fe89d5f407405fefe0e94",
+              "raw": "  {pod=\"p2\"} 1 2\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 248,
+          "source_end": 249,
+          "sha256": "f8f04a617cc86adc9b8d48af2d2680b67f60cd2ec18ae3bc3864f1bc0fc97d3e",
+          "raw": "eval range from 40s to 60s step 20s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 2\n"
+        },
+        {
+          "query": "max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p2"
+              },
+              "values": [
+                "1",
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 251,
+              "source_end": 251,
+              "sha256": "e9eae0d917731d298708de3b7384b5501d76509f39b908adc19dd6f5696a9713",
+              "raw": "  {pod=\"p2\"} 1 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 250,
+          "source_end": 251,
+          "sha256": "b1bf2af8cfb9258956640548c5113a35200705ed4c52c6611566e84adfc849f1",
+          "raw": "eval range from 40s to 60s step 20s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 1\n"
+        },
+        {
+          "query": "sum (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {},
+              "values": [
+                "2"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 253,
+              "source_end": 253,
+              "sha256": "68fca34bac006f7780bf38f336902ef3dbb96efd5e69176e6dbe9d6f1a962fa3",
+              "raw": "  {} 2\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 252,
+          "source_end": 253,
+          "sha256": "5bbedd66e336d650d235b8810e66f31ed85c26aa4f30a4937d7155e92f02b55e",
+          "raw": "eval instant at 60s sum (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 2\n"
+        },
+        {
+          "query": "max (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {},
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 255,
+              "source_end": 255,
+              "sha256": "98b44d4284e1263bf7f1a99e359b0377c4c343bf3fac16d43075412652f9bc63",
+              "raw": "  {} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 254,
+          "source_end": 255,
+          "sha256": "9504cf78fdec0fcc77b2fd8462c448993856b8128ab45afe93b37741274647a3",
+          "raw": "eval instant at 60s max (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 1\n"
+        },
+        {
+          "query": "sum without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "app": "a",
+                "n": "7",
+                "unrelated": "u2"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 257,
+              "source_end": 257,
+              "sha256": "f68cebdd37d1ac5638c550eb10e9bbda98ef1f54aa80d2514f01380ab05b0642",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n"
+            },
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "app": "a",
+                "n": "9",
+                "unrelated": "u9"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 258,
+              "source_end": 258,
+              "sha256": "ed191bd820a8fe76fc9a5c8f26522ba6d563a346dd96fc6cd7b55a081da48d84",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 256,
+          "source_end": 258,
+          "sha256": "6ec5069f967849a1633081e8327bba147246475faeeb9bcd525da1da3d9ee899",
+          "raw": "eval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n"
+        },
+        {
+          "query": "max without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "app": "a",
+                "n": "7",
+                "unrelated": "u2"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 260,
+              "source_end": 260,
+              "sha256": "f68cebdd37d1ac5638c550eb10e9bbda98ef1f54aa80d2514f01380ab05b0642",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n"
+            },
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "app": "a",
+                "n": "9",
+                "unrelated": "u9"
+              },
+              "values": [
+                "1"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 261,
+              "source_end": 261,
+              "sha256": "ed191bd820a8fe76fc9a5c8f26522ba6d563a346dd96fc6cd7b55a081da48d84",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 259,
+          "source_end": 261,
+          "sha256": "4c42e4ea95b5125f1020f243293d7ee13c5ded2937f4ee1f0fcd1a7b14c1a3a0",
+          "raw": "eval instant at 60s max without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n"
+        },
+        {
+          "query": "first_over_time({app=\"a\"} | json | unwrap n | __error__!=\"\" [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "__error__": "JSONParserErr",
+                "__error_details__": "Malformed JSON error",
+                "pod": "p2"
+              },
+              "values": [
+                "7"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 264,
+              "source_end": 264,
+              "sha256": "57d37e68c65c37a555dc5511303ab90239baf779e0ac77f7b3bb29ff293826a6",
+              "raw": "  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 263,
+          "source_end": 264,
+          "sha256": "1ce401bb422a77967b961cca773d24634054cb3cac9845ece91c4719663216d3",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | unwrap n | __error__!=\"\" [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 195,
+      "source_end": 264,
+      "sha256": "56d184f58a4e694b5ae822524fe4fe5bc9bfb53068833cd7b05063acf29afcb8",
+      "raw": "clear\nload\n  {app=\"a\", pod=\"p1\"} `{\"ok\":1}` @ 20s [metadata n=\"5\" unrelated=\"u1\"] # \"unrelated\" metadata is never named by a query\n  {app=\"a\", pod=\"p2\"} `{`        @ 40s [metadata n=\"7\" unrelated=\"u2\"] # malformed\n  {app=\"a\", pod=\"p2\"} `{`        @ 50s [metadata n=\"9\" unrelated=\"u9\"] # malformed, other metadata\n  {app=\"c\", pod=\"p3\"} `{`        @ 40s [metadata n=\"9\" __preserve_error__=\"true\"] # malformed\n  {app=\"noise\", pod=\"p4\"} `{\"ok\":1}` @ 20s [metadata n=\"9\" unrelated=\"u3\"]\n\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\neval range from 20s to 60s step 20s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} _ 7 7\n# by() keeps no label of its own, so the kept sample reports only the error labels.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by ()\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\"} 7\n# A clean line and an errored line in one result.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__!=\"zzz\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n# pod=\"p2\" errored lines (2) differ only in metadata, which the grouping drops, so they form one series.\neval instant at 60s sum by (pod) (first_over_time({app=\"a\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod))\n  {pod=\"p2\"} 7\n# Structured metadata named __preserve_error__ is an ordinary field: it cannot keep the errored\n# line by itself, only a __error__ filter in the query can.\neval instant at 60s first_over_time({app=\"c\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9\neval range from 40s to 80s step 20s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9 9 9\neval instant at 60s sum without (pod) (count_over_time({app=\"c\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", __preserve_error__=\"true\", app=\"c\", n=\"9\"} 1\n# by() and without() on the vector aggregation without __error__ filter report the error.\neval instant at 60s sum by () (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\neval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\n# by() and without() on the range aggregation without __error__ filter report the error.\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by ()\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) without (pod)\n  expect fail msg: JSONParserErr\n# The __error__ filter decides on its own, so every grouping reports the same lines. Loki pushes the\n# outer grouping into the extractor for sum() only, so each shape runs twice: sum() and max() must\n# agree on whether the query runs, whatever their values.\neval instant at 60s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 2\neval instant at 60s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 1\neval range from 40s to 60s step 20s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 2\neval range from 40s to 60s step 20s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 1\neval instant at 60s sum (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 2\neval instant at 60s max (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 1\neval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\neval instant at 60s max without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n# A __error__ filter after the unwrap.\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n | __error__!=\"\" [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n"
+    },
+    {
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "pod": "p1"
+          },
+          "line": "{\"v\":10}",
+          "start": 20,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "10"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 269,
+          "source_end": 269,
+          "sha256": "ec9c99900eda83c1fbecdc790e8c860c90af8008e51c7e390dd8329f634784e1",
+          "raw": "  {app=\"a\", pod=\"p1\"} `{\"v\":10}` @ 20s [metadata n=\"10\"]\n"
+        },
+        {
+          "labels": {
+            "app": "a",
+            "pod": "p1"
+          },
+          "line": "{",
+          "start": 40,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "abc"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 270,
+          "source_end": 270,
+          "sha256": "2565149570d89bc32666805271a5dccac08f473d5dfa5cc48ac273618c8de51c",
+          "raw": "  {app=\"a\", pod=\"p1\"} `{`        @ 40s [metadata n=\"abc\"] # fails json(), then fails the conversion\n"
+        },
+        {
+          "labels": {
+            "app": "noise",
+            "pod": "p2"
+          },
+          "line": "{",
+          "start": 40,
+          "every": 0,
+          "count": 1,
+          "metadata": {
+            "n": "abc"
+          },
+          "purpose": "complete load row, including inline comment",
+          "source_start": 271,
+          "source_end": 271,
+          "sha256": "a63ad02d39e49f4caf8274285998b79ba4c6d824569fa70e52e17dd140b08465",
+          "raw": "  {app=\"noise\", pod=\"p2\"} `{`    @ 40s [metadata n=\"abc\"]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "first_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]) by (pod)",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p1"
+              },
+              "values": [
+                "10"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 275,
+              "source_end": 275,
+              "sha256": "120b28c37392ef0b4cda4be9525fa4a070295961bbe2925f03915ae1872ab760",
+              "raw": "  {pod=\"p1\"} 10\n"
+            },
+            {
+              "labels": {
+                "__error__": "SampleExtractionErr",
+                "__error_details__": "strconv.ParseFloat: parsing \"abc\": invalid syntax",
+                "pod": "p1"
+              },
+              "values": [
+                "0"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 276,
+              "source_end": 276,
+              "sha256": "2ec75c5ca0dd1d98a088f53400cd9c48831a98cd8ead48efeb76d6abf3715ce3",
+              "raw": "  {__error__=\"SampleExtractionErr\", __error_details__=\"strconv.ParseFloat: parsing \\\"abc\\\": invalid syntax\", pod=\"p1\"} 0\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 274,
+          "source_end": 276,
+          "sha256": "99cbc940f866cbd37ef4756ba91229dad0a45b0e483f046849bca11fd2368919",
+          "raw": "eval instant at 60s first_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 10\n  {__error__=\"SampleExtractionErr\", __error_details__=\"strconv.ParseFloat: parsing \\\"abc\\\": invalid syntax\", pod=\"p1\"} 0\n"
+        },
+        {
+          "query": "min (avg_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {},
+              "values": [
+                "0"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 278,
+              "source_end": 278,
+              "sha256": "4d46a44fe79f51da4df7b0d61b5977a7dbb31e4044c45e2b314e1dee2f8816ea",
+              "raw": "  {} 0\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 277,
+          "source_end": 278,
+          "sha256": "06bd03041d7880e4012f64819099dc044804f01234fdc34e93148c5860e789fc",
+          "raw": "eval instant at 60s min (avg_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {} 0\n"
+        },
+        {
+          "query": "count by (pod) (sum_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))",
+          "parser_form": "parse_all",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "pod": "p1"
+              },
+              "values": [
+                "2"
+              ],
+              "purpose": "exact metric series oracle",
+              "source_start": 281,
+              "source_end": 281,
+              "sha256": "a46e1f08942821542887709961c2bd51775fee9b985983166966aafaba757d64",
+              "raw": "  {pod=\"p1\"} 2\n"
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 280,
+          "source_end": 281,
+          "sha256": "f5a4a75bc328d29db6bf0aca4893e0afceebb59c775665b1f747942ed0040a1b",
+          "raw": "eval instant at 60s count by (pod) (sum_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {pod=\"p1\"} 2\n"
+        }
+      ],
+      "purpose": "complete clear/load/evaluation fixture",
+      "source_start": 267,
+      "source_end": 281,
+      "sha256": "b544a68a324b2963593a11249d58a68afede8d30e7bd37a609d13d7d9bbe99d5",
+      "raw": "clear\nload\n  {app=\"a\", pod=\"p1\"} `{\"v\":10}` @ 20s [metadata n=\"10\"]\n  {app=\"a\", pod=\"p1\"} `{`        @ 40s [metadata n=\"abc\"] # fails json(), then fails the conversion\n  {app=\"noise\", pod=\"p2\"} `{`    @ 40s [metadata n=\"abc\"]\n\n# A failed unwrap conversion generates a sample value of 0 when errored lines are preserved by using __error__ filter.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 10\n  {__error__=\"SampleExtractionErr\", __error_details__=\"strconv.ParseFloat: parsing \\\"abc\\\": invalid syntax\", pod=\"p1\"} 0\neval instant at 60s min (avg_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {} 0\n# Counting the number of series should match.\neval instant at 60s count by (pod) (sum_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {pod=\"p1\"} 2\n"
+    }
+  ],
+  "license": "AGPL-3.0-only",
+  "limitations": [
+    "Frozen upstream table/engine oracles only: this producer never runs Loki or Pulse. Counts are selected upstream evaluations, not passing Pulse tests, exact hinted/path-tracking replay, or HTTP/Parquet/S3/client/deployment/capacity acceptance.",
+    "Unit selection 13-247 is the entire Test_jsonParser_Parse table, not its whole function; 248-273 is retained separately as inert harness provenance. All 16 rows remain, including the nested-bad-key line's trailing quote, whitespace/empty keys, replacement rune, malformed input, hints and structured-metadata collision. Their original expectations must not be sanitized or weakened.",
+    "Engine selection 115-281 starts with a blank separator; the JSON heading is actually 116 and first clear is 117. All seven fixtures are complete and end at oracle 281. The in-block explicit-fields control at 169 is included and counted separately; no source from the explicit-path grammar block beginning 283 is included.",
+    "JSON path maps and hinted unit-row state have no direct public-API equivalent and remain explicitly limited provenance. This extraction includes no runtime/HTTP harness and makes no general JSON parser, repeated-parser, hint, full LogQL or error-envelope parity claim."
+  ],
+  "parse_cases": [
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"app\":                {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t}",
+      "line": "{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}}}",
+      "line_expression": "[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}}}`)",
+      "metadata_expression": "nil",
+      "name": "multi depth",
+      "raw": "\t\t{\n\t\t\t\"multi depth\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app\":                {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "5b1d9720e300e7ae08bb2938bcaa1351be07c681b82c7c5114d29a674738b09c",
+      "source_end": 40,
+      "source_start": 23,
+      "structured_metadata": {},
+      "want": {
+        "app": "foo",
+        "namespace": "prod",
+        "pod_deployment_ref": "foobar",
+        "pod_uuid": "foo"
+      },
+      "want_json_path": {
+        "app": [
+          "app"
+        ],
+        "namespace": [
+          "namespace"
+        ],
+        "pod_deployment_ref": [
+          "pod",
+          "deployment",
+          "ref"
+        ],
+        "pod_uuid": [
+          "pod",
+          "uuid"
+        ]
+      }
+    },
+    {
+      "base_labels": {
+        "app": "foo",
+        "pod_uuid": "foo"
+      },
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid_extracted\": {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t}",
+      "line": "{\"app\":\"bar\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"bar\",\"deployment\":{\"ref\":\"foobar\"}}}",
+      "line_expression": "[]byte(`{\"app\":\"bar\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"bar\",\"deployment\":{\"ref\":\"foobar\"}}}`)",
+      "metadata_expression": "nil",
+      "name": "multi depth with duplicates",
+      "raw": "\t\t{\n\t\t\t\"multi depth with duplicates\",\n\t\t\t[]byte(`{\"app\":\"bar\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"bar\",\"deployment\":{\"ref\":\"foobar\"}}}`),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"app_extracted\", \"bar\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"pod_uuid_extracted\", \"bar\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid_extracted\": {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "f41c4253ad9a51c005784220feec0d348ba8d28fd415860b2c50b738b2980774",
+      "source_end": 62,
+      "source_start": 41,
+      "structured_metadata": {},
+      "want": {
+        "app": "foo",
+        "app_extracted": "bar",
+        "namespace": "prod",
+        "pod_deployment_ref": "foobar",
+        "pod_uuid": "foo",
+        "pod_uuid_extracted": "bar"
+      },
+      "want_json_path": {
+        "app_extracted": [
+          "app"
+        ],
+        "namespace": [
+          "namespace"
+        ],
+        "pod_deployment_ref": [
+          "pod",
+          "deployment",
+          "ref"
+        ],
+        "pod_uuid_extracted": [
+          "pod",
+          "uuid"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t}",
+      "line": "{\"counter\":1, \"price\": {\"_net_\":5.56909}}",
+      "line_expression": "[]byte(`{\"counter\":1, \"price\": {\"_net_\":5.56909}}`)",
+      "metadata_expression": "nil",
+      "name": "numeric",
+      "raw": "\t\t{\n\t\t\t\"numeric\",\n\t\t\t[]byte(`{\"counter\":1, \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "78db23c85cbab05c27949e5e0f5c675fa2971433f9c0c45511f863b8ecf2a32a",
+      "source_end": 76,
+      "source_start": 63,
+      "structured_metadata": {},
+      "want": {
+        "counter": "1",
+        "price__net_": "5.56909"
+      },
+      "want_json_path": {
+        "counter": [
+          "counter"
+        ],
+        "price__net_": [
+          "price",
+          "_net_"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"foo\": {\" \", \"foo\"},\n\t\t\t}",
+      "line": "{\" \": {\"foo\":\"bar\"}}",
+      "line_expression": "[]byte(`{\" \": {\"foo\":\"bar\"}}`)",
+      "metadata_expression": "nil",
+      "name": "whitespace key value",
+      "raw": "\t\t{\n\t\t\t\"whitespace key value\",\n\t\t\t[]byte(`{\" \": {\"foo\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"foo\": {\" \", \"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "d7f335ddece2e393eadaf108e9157c25325b08665ce7fe4c4d67357a4889270c",
+      "source_end": 87,
+      "source_start": 77,
+      "structured_metadata": {},
+      "want": {
+        "foo": "bar"
+      },
+      "want_json_path": {
+        "foo": [
+          " ",
+          "foo"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"\": {\" \", \" \"},\n\t\t\t}",
+      "line": "{\" \": {\" \":\"bar\"}}",
+      "line_expression": "[]byte(`{\" \": {\" \":\"bar\"}}`)",
+      "metadata_expression": "nil",
+      "name": "whitespace key and whitespace subkey values",
+      "raw": "\t\t{\n\t\t\t\"whitespace key and whitespace subkey values\",\n\t\t\t[]byte(`{\" \": {\" \":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\" \", \" \"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "23e0b8b8f63c77d578a416e8c45ff6be8bc656cb535d2a80199ad3242247e66f",
+      "source_end": 98,
+      "source_start": 88,
+      "structured_metadata": {},
+      "want": {
+        "": "bar"
+      },
+      "want_json_path": {
+        "": [
+          " ",
+          " "
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"\": {\" \", \"\"},\n\t\t\t}",
+      "line": "{\" \": {\"\":\"bar\"}}",
+      "line_expression": "[]byte(`{\" \": {\"\":\"bar\"}}`)",
+      "metadata_expression": "nil",
+      "name": "whitespace key and empty subkey values",
+      "raw": "\t\t{\n\t\t\t\"whitespace key and empty subkey values\",\n\t\t\t[]byte(`{\" \": {\"\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\" \", \"\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "ff99a0fe31b92833b6a02a59667c5951f4fc96abaab44be32419de694b855c16",
+      "source_end": 109,
+      "source_start": 99,
+      "structured_metadata": {},
+      "want": {
+        "": "bar"
+      },
+      "want_json_path": {
+        "": [
+          " ",
+          ""
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"\": {\"\", \"\"},\n\t\t\t}",
+      "line": "{\"\": {\"\":\"bar\"}}",
+      "line_expression": "[]byte(`{\"\": {\"\":\"bar\"}}`)",
+      "metadata_expression": "nil",
+      "name": "empty key and empty subkey values",
+      "raw": "\t\t{\n\t\t\t\"empty key and empty subkey values\",\n\t\t\t[]byte(`{\"\": {\"\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\"\", \"\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "6aaf8b07e113f8d6895036b80837ffe5e84b9d7c6823969d510ae27d0f2c26ec",
+      "source_end": 120,
+      "source_start": 110,
+      "structured_metadata": {},
+      "want": {
+        "": "bar"
+      },
+      "want_json_path": {
+        "": [
+          "",
+          ""
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t}",
+      "line": "{\"counter\":1,\"foo\":\"foo\\\\\\\"bar\", \"price\": {\"_net_\":5.56909}}",
+      "line_expression": "[]byte(`{\"counter\":1,\"foo\":\"foo\\\\\\\"bar\", \"price\": {\"_net_\":5.56909}}`)",
+      "metadata_expression": "nil",
+      "name": "escaped",
+      "raw": "\t\t{\n\t\t\t\"escaped\",\n\t\t\t[]byte(`{\"counter\":1,\"foo\":\"foo\\\\\\\"bar\", \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t\t\"foo\", `foo\\\"bar`,\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "35a44ad261023d8f4d3e8a966acb97b721a4f300d9cad0df45c8c924269a0e09",
+      "source_end": 136,
+      "source_start": 121,
+      "structured_metadata": {},
+      "want": {
+        "counter": "1",
+        "foo": "foo\\\"bar",
+        "price__net_": "5.56909"
+      },
+      "want_json_path": {
+        "counter": [
+          "counter"
+        ],
+        "foo": [
+          "foo"
+        ],
+        "price__net_": [
+          "price",
+          "_net_"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t}",
+      "line": "{\"counter\":1,\"foo\":\"�\", \"price\": {\"_net_\":5.56909}}",
+      "line_expression": "[]byte(`{\"counter\":1,\"foo\":\"�\", \"price\": {\"_net_\":5.56909}}`)",
+      "metadata_expression": "nil",
+      "name": "utf8 error rune",
+      "raw": "\t\t{\n\t\t\t\"utf8 error rune\",\n\t\t\t[]byte(`{\"counter\":1,\"foo\":\"�\", \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t\t\"foo\", \" \",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "96a487acc7f5b19984a56930f414bd3ffb1eeac186754d0dcd5a7e5aae0d2d7f",
+      "source_end": 152,
+      "source_start": 137,
+      "structured_metadata": {},
+      "want": {
+        "counter": "1",
+        "foo": " ",
+        "price__net_": "5.56909"
+      },
+      "want_json_path": {
+        "counter": [
+          "counter"
+        ],
+        "foo": [
+          "foo"
+        ],
+        "price__net_": [
+          "price",
+          "_net_"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"counter\": {\"counter\"},\n\t\t\t}",
+      "line": "{\"counter\":1, \"price\": {\"net_\":[\"10\",\"20\"]}}",
+      "line_expression": "[]byte(`{\"counter\":1, \"price\": {\"net_\":[\"10\",\"20\"]}}`)",
+      "metadata_expression": "nil",
+      "name": "skip arrays",
+      "raw": "\t\t{\n\t\t\t\"skip arrays\",\n\t\t\t[]byte(`{\"counter\":1, \"price\": {\"net_\":[\"10\",\"20\"]}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\": {\"counter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "aa5c0a287e2e605316dcd024a85db96a90d748bfbfacc71e959996627e8ca25a",
+      "source_end": 163,
+      "source_start": 153,
+      "structured_metadata": {},
+      "want": {
+        "counter": "1"
+      },
+      "want_json_path": {
+        "counter": [
+          "counter"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"cou_nter\": {\"cou-nter\"},\n\t\t\t}",
+      "line": "{\"cou-nter\":1}",
+      "line_expression": "[]byte(`{\"cou-nter\":1}`)",
+      "metadata_expression": "nil",
+      "name": "bad key replaced",
+      "raw": "\t\t{\n\t\t\t\"bad key replaced\",\n\t\t\t[]byte(`{\"cou-nter\":1}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"cou_nter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"cou_nter\": {\"cou-nter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "35bbdc7230bc71b1c4726d054b4037bf29ff90e1cc0bf132cb59ca9c70f2e9ab",
+      "source_end": 174,
+      "source_start": 164,
+      "structured_metadata": {},
+      "want": {
+        "cou_nter": "1"
+      },
+      "want_json_path": {
+        "cou_nter": [
+          "cou-nter"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"foo_cou_nter\": {\"foo\", \"cou-nter\"},\n\t\t\t}",
+      "line": "{\"foo\":{\"cou-nter\":1}}\"",
+      "line_expression": "[]byte(`{\"foo\":{\"cou-nter\":1}}\"`)",
+      "metadata_expression": "nil",
+      "name": "nested bad key replaced",
+      "raw": "\t\t{\n\t\t\t\"nested bad key replaced\",\n\t\t\t[]byte(`{\"foo\":{\"cou-nter\":1}}\"`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"foo_cou_nter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"foo_cou_nter\": {\"foo\", \"cou-nter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "6894bd585f6212b1f3a664a55ec2c14cc57d15aff5157469c160bf799beb85b1",
+      "source_end": 185,
+      "source_start": 175,
+      "structured_metadata": {},
+      "want": {
+        "foo_cou_nter": "1"
+      },
+      "want_json_path": {
+        "foo_cou_nter": [
+          "foo",
+          "cou-nter"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{}",
+      "line": "{n}",
+      "line_expression": "[]byte(`{n}`)",
+      "metadata_expression": "nil",
+      "name": "errors",
+      "raw": "\t\t{\n\t\t\t\"errors\",\n\t\t\t[]byte(`{n}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"__error__\", \"JSONParserErr\",\n\t\t\t\t\"__error_details__\", \"Value looks like object, but can't find closing '}' symbol\",\n\t\t\t),\n\t\t\tmap[string][]string{},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "876b1d22d65f1a627f59f0c1bdf2cc8e9aefc78e9a3eb1730d8d6f0c3b131f32",
+      "source_end": 196,
+      "source_start": 186,
+      "structured_metadata": {},
+      "want": {
+        "__error__": "JSONParserErr",
+        "__error_details__": "Value looks like object, but can't find closing '}' symbol"
+      },
+      "want_json_path": {}
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NewParserHint([]string{\"__error__\"}, nil, false, true, \"\")",
+      "hinted": true,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{}",
+      "line": "{n}",
+      "line_expression": "[]byte(`{n}`)",
+      "metadata_expression": "nil",
+      "name": "errors hints",
+      "raw": "\t\t{\n\t\t\t\"errors hints\",\n\t\t\t[]byte(`{n}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"__error__\", \"JSONParserErr\",\n\t\t\t\t\"__error_details__\", \"Value looks like object, but can't find closing '}' symbol\",\n\t\t\t),\n\t\t\tmap[string][]string{},\n\t\t\tNewParserHint([]string{\"__error__\"}, nil, false, true, \"\"),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "aa84d57145c3fe54dc407750cb0a282f8db5fae9da67c03dfd224529e6c49d12",
+      "source_end": 207,
+      "source_start": 197,
+      "structured_metadata": {},
+      "want": {
+        "__error__": "JSONParserErr",
+        "__error_details__": "Value looks like object, but can't find closing '}' symbol"
+      },
+      "want_json_path": {}
+    },
+    {
+      "base_labels": {
+        "app": "bar"
+      },
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"next_err\":           {\"next\", \"err\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t}",
+      "line": "{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}},\"next\":{\"err\":false}}",
+      "line_expression": "[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}},\"next\":{\"err\":false}}`)",
+      "metadata_expression": "nil",
+      "name": "duplicate extraction",
+      "raw": "\t\t{\n\t\t\t\"duplicate extraction\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}},\"next\":{\"err\":false}}`),\n\t\t\tlabels.FromStrings(\"app\", \"bar\"),\n\t\t\tlabels.FromStrings(\"app\", \"bar\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"next_err\", \"false\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"next_err\":           {\"next\", \"err\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n",
+      "sha256": "f118df6c26e9e4f21c962f4b7292e1da0967c639954405f93eaba83d9585c79a",
+      "source_end": 228,
+      "source_start": 208,
+      "structured_metadata": {},
+      "want": {
+        "app": "bar",
+        "app_extracted": "foo",
+        "namespace": "prod",
+        "next_err": "false",
+        "pod_deployment_ref": "foobar",
+        "pod_uuid": "foo"
+      },
+      "want_json_path": {
+        "app_extracted": [
+          "app"
+        ],
+        "namespace": [
+          "namespace"
+        ],
+        "next_err": [
+          "next",
+          "err"
+        ],
+        "pod_deployment_ref": [
+          "pod",
+          "deployment",
+          "ref"
+        ],
+        "pod_uuid": [
+          "pod",
+          "uuid"
+        ]
+      }
+    },
+    {
+      "base_labels": {},
+      "function": "Test_jsonParser_Parse",
+      "hint_expression": "NoParserHints()",
+      "hinted": false,
+      "initial_parsed_labels": {},
+      "json_path_expression": "map[string][]string{\n\t\t\t\t\"app\":           {\"app\"},\n\t\t\t\t\"namespace\":     {\"namespace\"},\n\t\t\t\t\"pod_extracted\": {\"pod\"},\n\t\t\t}",
+      "line": "{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":\"pod_parsed\"}",
+      "line_expression": "[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":\"pod_parsed\"}`)",
+      "metadata_expression": "map[string]string{\"pod\": \"pod_sm\"}",
+      "name": "duplicate conflict with structured metadata",
+      "raw": "\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":\"pod_parsed\"}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\n\t\t\t\t\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod\", \"pod_sm\",\n\t\t\t\t\"pod_extracted\", \"pod_parsed\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app\":           {\"app\"},\n\t\t\t\t\"namespace\":     {\"namespace\"},\n\t\t\t\t\"pod_extracted\": {\"pod\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"pod\": \"pod_sm\"},\n\t\t},\n",
+      "sha256": "cc0308139bee4b96ed5492689b3bfe92dc8064bc52699536e98597f1f0ccd028",
+      "source_end": 246,
+      "source_start": 229,
+      "structured_metadata": {
+        "pod": "pod_sm"
+      },
+      "want": {
+        "app": "foo",
+        "namespace": "prod",
+        "pod": "pod_sm",
+        "pod_extracted": "pod_parsed"
+      },
+      "want_json_path": {
+        "app": [
+          "app"
+        ],
+        "namespace": [
+          "namespace"
+        ],
+        "pod_extracted": [
+          "pod"
+        ]
+      }
+    }
+  ],
+  "provenance": {
+    "method": "Standard-library Go AST plus bounded logqltest source extraction, following logfmt-ownership-producer.go.txt; no runtime evaluation. Both complete source SHA-256 values must match before extraction or output.",
+    "producer": "test/fixtures/logs/loki-upstream/json-parser-producer.go.txt",
+    "range_hash_convention": "SHA-256 of exact inclusive complete source lines, including the final newline. All raw fields preserve original bytes, indentation, comments and spelling.",
+    "repository": "https://github.com/grafana/loki",
+    "sources": [
+      {
+        "path": "pkg/logql/log/parser_test.go",
+        "sha256": "346b91ced2d38e51d8cf7fd8acb3335ea5796e9286fd901b45dd625c0b3634ff",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/log/parser_test.go",
+        "selections": [
+          {
+            "purpose": "complete Test_jsonParser_Parse declaration, schema and all 16 table rows",
+            "source_start": 13,
+            "source_end": 247,
+            "sha256": "815a1bb938b2b070bfe97aac13ad8af518699724f3ba5a091c68186d5de1a504",
+            "raw": "func Test_jsonParser_Parse(t *testing.T) {\n\ttests := []struct {\n\t\tname               string\n\t\tline               []byte\n\t\tlbs                labels.Labels\n\t\twant               labels.Labels\n\t\twantJSONPath       map[string][]string\n\t\thints              ParserHint\n\t\tstructuredMetadata map[string]string\n\t}{\n\t\t{\n\t\t\t\"multi depth\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app\":                {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"multi depth with duplicates\",\n\t\t\t[]byte(`{\"app\":\"bar\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"bar\",\"deployment\":{\"ref\":\"foobar\"}}}`),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t),\n\t\t\tlabels.FromStrings(\"app\", \"foo\",\n\t\t\t\t\"app_extracted\", \"bar\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"pod_uuid_extracted\", \"bar\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid_extracted\": {\"pod\", \"uuid\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"numeric\",\n\t\t\t[]byte(`{\"counter\":1, \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"whitespace key value\",\n\t\t\t[]byte(`{\" \": {\"foo\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"foo\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"foo\": {\" \", \"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"whitespace key and whitespace subkey values\",\n\t\t\t[]byte(`{\" \": {\" \":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\" \", \" \"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"whitespace key and empty subkey values\",\n\t\t\t[]byte(`{\" \": {\"\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\" \", \"\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"empty key and empty subkey values\",\n\t\t\t[]byte(`{\"\": {\"\":\"bar\"}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"\", \"bar\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"\": {\"\", \"\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"escaped\",\n\t\t\t[]byte(`{\"counter\":1,\"foo\":\"foo\\\\\\\"bar\", \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t\t\"foo\", `foo\\\"bar`,\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"utf8 error rune\",\n\t\t\t[]byte(`{\"counter\":1,\"foo\":\"�\", \"price\": {\"_net_\":5.56909}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\",\n\t\t\t\t\"price__net_\", \"5.56909\",\n\t\t\t\t\"foo\", \" \",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\":     {\"counter\"},\n\t\t\t\t\"price__net_\": {\"price\", \"_net_\"},\n\t\t\t\t\"foo\":         {\"foo\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"skip arrays\",\n\t\t\t[]byte(`{\"counter\":1, \"price\": {\"net_\":[\"10\",\"20\"]}}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"counter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"counter\": {\"counter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"bad key replaced\",\n\t\t\t[]byte(`{\"cou-nter\":1}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"cou_nter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"cou_nter\": {\"cou-nter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"nested bad key replaced\",\n\t\t\t[]byte(`{\"foo\":{\"cou-nter\":1}}\"`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"foo_cou_nter\", \"1\"),\n\t\t\tmap[string][]string{\n\t\t\t\t\"foo_cou_nter\": {\"foo\", \"cou-nter\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"errors\",\n\t\t\t[]byte(`{n}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"__error__\", \"JSONParserErr\",\n\t\t\t\t\"__error_details__\", \"Value looks like object, but can't find closing '}' symbol\",\n\t\t\t),\n\t\t\tmap[string][]string{},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"errors hints\",\n\t\t\t[]byte(`{n}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"__error__\", \"JSONParserErr\",\n\t\t\t\t\"__error_details__\", \"Value looks like object, but can't find closing '}' symbol\",\n\t\t\t),\n\t\t\tmap[string][]string{},\n\t\t\tNewParserHint([]string{\"__error__\"}, nil, false, true, \"\"),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"duplicate extraction\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":{\"uuid\":\"foo\",\"deployment\":{\"ref\":\"foobar\"}},\"next\":{\"err\":false}}`),\n\t\t\tlabels.FromStrings(\"app\", \"bar\"),\n\t\t\tlabels.FromStrings(\"app\", \"bar\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod_uuid\", \"foo\",\n\t\t\t\t\"next_err\", \"false\",\n\t\t\t\t\"pod_deployment_ref\", \"foobar\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app_extracted\":      {\"app\"},\n\t\t\t\t\"namespace\":          {\"namespace\"},\n\t\t\t\t\"pod_uuid\":           {\"pod\", \"uuid\"},\n\t\t\t\t\"next_err\":           {\"next\", \"err\"},\n\t\t\t\t\"pod_deployment_ref\": {\"pod\", \"deployment\", \"ref\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tnil,\n\t\t},\n\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\t[]byte(`{\"app\":\"foo\",\"namespace\":\"prod\",\"pod\":\"pod_parsed\"}`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\n\t\t\t\t\"app\", \"foo\",\n\t\t\t\t\"namespace\", \"prod\",\n\t\t\t\t\"pod\", \"pod_sm\",\n\t\t\t\t\"pod_extracted\", \"pod_parsed\",\n\t\t\t),\n\t\t\tmap[string][]string{\n\t\t\t\t\"app\":           {\"app\"},\n\t\t\t\t\"namespace\":     {\"namespace\"},\n\t\t\t\t\"pod_extracted\": {\"pod\"},\n\t\t\t},\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"pod\": \"pod_sm\"},\n\t\t},\n\t}\n"
+          },
+          {
+            "purpose": "inert harness provenance: path tracking, hints, metadata, input immutability and flat label assertions",
+            "source_start": 248,
+            "source_end": 273,
+            "sha256": "a99a1d2da9cc993891e535fd2168fef10dda2b33779d13a4277ca55a1076d7b9",
+            "raw": "\tfor _, tt := range tests {\n\t\tj := NewJSONParser(true)\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\torigLine := string(tt.line)\n\n\t\t\tb := NewBaseLabelsBuilderWithGrouping(nil, tt.hints, false, false).ForLabels(tt.lbs, labels.StableHash(tt.lbs))\n\t\t\tb.Reset()\n\n\t\t\tfor key, value := range tt.structuredMetadata {\n\t\t\t\tb.Set(StructuredMetadataLabel, key, value)\n\t\t\t}\n\n\t\t\t_, _ = j.Process(0, tt.line, b)\n\t\t\tlabels := b.LabelsResult().Labels()\n\t\t\trequire.Equal(t, origLine, string(tt.line), \"original log line was modified\")\n\t\t\trequire.Equal(t, tt.want, labels)\n\n\t\t\t// Check JSON paths if provided\n\t\t\tif len(tt.wantJSONPath) > 0 {\n\t\t\t\tfor k, parts := range tt.wantJSONPath {\n\t\t\t\t\trequire.Equal(t, parts, b.GetJSONPath(k), \"incorrect json path parts for key %s\", k)\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n}\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "sha256": "07d63941842085ca40bbc3944884377e802df38ede67027b9702594e840114ea",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "selections": [
+          {
+            "purpose": "complete requested JSON block, including comments, whitespace and the in-block expression control at 169",
+            "source_start": 115,
+            "source_end": 281,
+            "sha256": "73cfb68f09361f06c8757bee70fbfe0acdcb57369387852508135955cd8f8f9f",
+            "raw": "\n# json()\nclear\nload\n  {app=\"a\"} `{\"level\":\"info\",\"status\":200}` @ 20s [repeat every 20s for 4]\n  {app=\"noise\"} `{\"level\":\"info\"}` @ 20s [repeat every 20s for 4]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"info\", status=\"200\"} 3\neval range from 40s to 80s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 2 3 3\neval range from 60s to 180s step 120s count_over_time({app=\"a\"} | json [1m]) # non-overlapping\n  {app=\"a\", level=\"info\", status=\"200\"} 3 _\n\n# json() edge cases:\n# - Nested objects flatten with `_`.\n# - Numbers and booleans become strings.\n# - Null and arrays drop.\nclear\nload\n  {app=\"a\"} `{\"lvl\":\"warn\",\"obj\":{\"x\":1,\"y\":{\"z\":2}},\"ok\":true,\"no\":false,\"nil\":null,\"arr\":[1,2],\"f\":1.5}` @ 20s [repeat every 20s for 3]\n  {app=\"noise\"} `{\"a\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", lvl=\"warn\", obj_x=\"1\", obj_y_z=\"2\", ok=\"true\", no=\"false\", f=\"1.5\"} 2 3\n\n# json() edge cases:\n# - A dotted key sanitizes to `_`.\n# - A clashing name gets `_extracted`.\n# - A duplicate key keeps the first.\nclear\nload\n  {app=\"a\", level=\"stream\"} `{\"level\":\"parsed\",\"a.b\":1,\"dup\":\"first\",\"dup\":\"second\"}` @ 20s [repeat every 20s for 3]\n  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])  # overlapping\n  {app=\"a\", level=\"stream\", level_extracted=\"parsed\", a_b=\"1\", dup=\"first\"} 2 3\n\n# json() clashing labels keep the loser under `<name>_extracted`, following the base-name\n# precedence stream > metadata > parsed (the same for every parser).\nclear\nload\n  {app=\"a\", sl=\"s\", sm=\"s\", tri=\"s\"} `{\"sl\":\"p\",\"md\":\"p\",\"tri\":\"p\"}` @ 20s [repeat every 20s for 3] [metadata md=\"m\" sm=\"m\" tri=\"m\"]\n  {app=\"noise\"} `{\"x\":1}` @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | json [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n# json()'s label-expression form resolves the same clashes the same way.\neval instant at 60s count_over_time({app=\"a\"} | json sl, md, sm, tri [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n\n# json() malformed line: the query fails, unless a __error__ filter drops the bad line.\nclear\nload\n  {app=\"a\"} `{\"ok\":1}` @ 20s\n  {app=\"a\"} `broken`   @ 40s\n  {app=\"a\"} `{\"ok\":1}` @ 60s\n  {app=\"noise\"} `{\"z\":1}` @ 20s\n\neval instant at 60s count_over_time({app=\"a\"} | json [1m])\n  expect fail msg: JSONParserErr\neval instant at 60s count_over_time({app=\"a\"} | json | __error__=\"\" [1m])\n  {app=\"a\", ok=\"1\"} 2\n# A malformed line outside the range vector duration cannot fail the query.\n# (40s,60s] excludes the line at 40s, and (20s,40s] includes it.\neval instant at 60s count_over_time({app=\"a\"} | json [20s])\n  {app=\"a\", ok=\"1\"} 1\neval instant at 40s count_over_time({app=\"a\"} | json [20s])\n  expect fail msg: JSONParserErr\neval select from 0 to 60s forward {app=\"a\"} | json | __error__!=\"\"\n  {app=\"a\"} `broken` @ 40s [parsed __error__=\"JSONParserErr\" __error_details__=\"Value looks like object, but can't find closing '}' symbol\"]\n\n# json() parsing error, that an __error__ filter, keeps in the result the series with the grouped labels\n# plus the labels that report the error.\nclear\nload\n  {app=\"a\", pod=\"p1\"} `{\"ok\":1}` @ 20s [metadata n=\"5\" unrelated=\"u1\"] # \"unrelated\" metadata is never named by a query\n  {app=\"a\", pod=\"p2\"} `{`        @ 40s [metadata n=\"7\" unrelated=\"u2\"] # malformed\n  {app=\"a\", pod=\"p2\"} `{`        @ 50s [metadata n=\"9\" unrelated=\"u9\"] # malformed, other metadata\n  {app=\"c\", pod=\"p3\"} `{`        @ 40s [metadata n=\"9\" __preserve_error__=\"true\"] # malformed\n  {app=\"noise\", pod=\"p4\"} `{\"ok\":1}` @ 20s [metadata n=\"9\" unrelated=\"u3\"]\n\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\neval range from 20s to 60s step 20s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} _ 7 7\n# by() keeps no label of its own, so the kept sample reports only the error labels.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=\"JSONParserErr\" | unwrap n [1m]) by ()\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\"} 7\n# A clean line and an errored line in one result.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__!=\"zzz\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 5\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n# pod=\"p2\" errored lines (2) differ only in metadata, which the grouping drops, so they form one series.\neval instant at 60s sum by (pod) (first_over_time({app=\"a\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod))\n  {pod=\"p2\"} 7\n# Structured metadata named __preserve_error__ is an ordinary field: it cannot keep the errored\n# line by itself, only a __error__ filter in the query can.\neval instant at 60s first_over_time({app=\"c\"} | json | unwrap n [1m]) by (pod)\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9\neval range from 40s to 80s step 20s first_over_time({app=\"c\"} | json | __error__!=\"\" | unwrap n [1m]) by (pod) # overlapping\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p3\"} 9 9 9\neval instant at 60s sum without (pod) (count_over_time({app=\"c\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", __preserve_error__=\"true\", app=\"c\", n=\"9\"} 1\n# by() and without() on the vector aggregation without __error__ filter report the error.\neval instant at 60s sum by () (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\neval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | n!=\"9\" [1m]))\n  expect fail msg: JSONParserErr\n# by() and without() on the range aggregation without __error__ filter report the error.\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) by ()\n  expect fail msg: JSONParserErr\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n [1m]) without (pod)\n  expect fail msg: JSONParserErr\n# The __error__ filter decides on its own, so every grouping reports the same lines. Loki pushes the\n# outer grouping into the extractor for sum() only, so each shape runs twice: sum() and max() must\n# agree on whether the query runs, whatever their values.\neval instant at 60s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 2\neval instant at 60s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {pod=\"p2\"} 1\neval range from 40s to 60s step 20s sum by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 2\neval range from 40s to 60s step 20s max by (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m])) # overlapping\n  {pod=\"p2\"} 1 1\neval instant at 60s sum (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 2\neval instant at 60s max (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {} 1\neval instant at 60s sum without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\neval instant at 60s max without (pod) (count_over_time({app=\"a\"} | json | __error__!=\"\" [1m]))\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"7\", unrelated=\"u2\"} 1\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", app=\"a\", n=\"9\", unrelated=\"u9\"} 1\n# A __error__ filter after the unwrap.\neval instant at 60s first_over_time({app=\"a\"} | json | unwrap n | __error__!=\"\" [1m]) by (pod)\n  {__error__=\"JSONParserErr\", __error_details__=\"Malformed JSON error\", pod=\"p2\"} 7\n\n# json() error replaced by the unwrap conversion error.\nclear\nload\n  {app=\"a\", pod=\"p1\"} `{\"v\":10}` @ 20s [metadata n=\"10\"]\n  {app=\"a\", pod=\"p1\"} `{`        @ 40s [metadata n=\"abc\"] # fails json(), then fails the conversion\n  {app=\"noise\", pod=\"p2\"} `{`    @ 40s [metadata n=\"abc\"]\n\n# A failed unwrap conversion generates a sample value of 0 when errored lines are preserved by using __error__ filter.\neval instant at 60s first_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]) by (pod)\n  {pod=\"p1\"} 10\n  {__error__=\"SampleExtractionErr\", __error_details__=\"strconv.ParseFloat: parsing \\\"abc\\\": invalid syntax\", pod=\"p1\"} 0\neval instant at 60s min (avg_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {} 0\n# Counting the number of series should match.\neval instant at 60s count by (pod) (sum_over_time({app=\"a\"} | json | __error__=~\".*\" | unwrap n [1m]))\n  {pod=\"p1\"} 2\n"
+          }
+        ]
+      }
+    ]
+  },
+  "replay": {
+    "engine": "All times, steps and repeat intervals are integer seconds relative to upstream epoch 2026-01-01T00:00:00Z (logqltest/parser.go:19-25). Replay may shift an entire fixture to a deterministic retained epoch while preserving every relative timestamp. Repeat count includes the first entry: expand start+i*every for i=0..count-1 (parser.go:129-134). Preserve load order, noise and metadata; never flatten metadata into stream labels. Engine log text is the raw content between its delimiters (no unescaping), unlike Go AST table strings. Reset only on clear, not between cases.",
+    "hints": "hint_expression is inert original Go source. The single hinted row, errors hints (197-207), uses NewParserHint([]string{\"__error__\"}, nil, false, true, \"\"); the other 15 use NoParserHints(). Pulse's public API does not expose this hint object. An ordinary unhinted JSON-stage replay can compare its frozen error oracle, but cannot claim to exercise the upstream hinted builder, extraction selection or short-circuit behavior. Do not discard the row or rewrite want to accommodate missing hint support.",
+    "in_block_expression": "Keep the complete ownership fixture at 159-170: its third evaluation at 169-170 is an explicit-fields json sl, md, sm, tri control, marked parser_form=explicit_fields. The other 41 engine cases are parser_form=parse_all. This preserves the complete requested fixture without importing the later explicit-path grammar block at 283 onward.",
+    "json_paths": "want_json_path and json_path_expression preserve all original expected maps as inert provenance. Upstream NewJSONParser(true) tracks paths; its harness only checks keys in nonempty maps and does not assert absence of other paths. Pulse's public API exposes no path map: ordinary replay compares want, not these internal maps, and makes no path-tracking claim.",
+    "metrics": "mode=instant has equal start/end and step=0; mode=range has its explicit step. outcome=series uses exact combined label maps and original numeric-string slots at start+i*step. An underscore means a missing point, never zero or an omitted whole series. No selected case explicitly expects an empty result. outcome=reject has the exact upstream expected message substring in reject (JSONParserErr), not a full HTTP error body. Preserve complete __error_details__ strings in series/entry labels, including original conversion-error text. Internal SampleExtractionErr overriding JSONParserErr and the ordinary metadata key __preserve_error__ are unmodified source expectations, not Pulse-derived behavior.",
+    "requirements": "Normal replay reads committed JSON using Elixir/Rust JSON only, without Go, network or expectation generation. The producer is optional provenance tooling, not a build/test dependency.",
+    "select": "mode=select uses direction, start/end and step=0. outcome=entries uses expected_entries: labels is the stream owner only; metadata and parsed are separate per-entry owners. Missing clauses become empty maps. Compare all categories, input text and relative timestamp, following logqltest/runner.go:490-545. Empty expected/expected_entries arrays are mode placeholders, NOT expect-empty assertions.",
+    "table": "Each table row is one upstream evaluation (not strict/non-strict variants). base_labels is the initial stream owner; structured_metadata is attached after builder reset and before parsing; initial_parsed_labels={} records no preexisting parsed labels. want is the exact flat LabelsResult().Labels() assertion, NOT a categorized oracle. Preserve input line bytes and verify input immutability if replaying a mutable parser. metadata_expression preserves original nil versus a Go map; nil metadata has the same empty owner represented by {} for replay."
+  },
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "schema_version": 1
+}

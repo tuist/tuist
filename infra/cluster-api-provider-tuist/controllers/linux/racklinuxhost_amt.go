@@ -8,17 +8,18 @@ import (
 	"math/big"
 	"net"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -74,6 +75,18 @@ type RackAMT struct {
 	// AMT gets carries. A host's spec.amt.address takes precedence.
 	AddressRange string
 	Gateway      string
+}
+
+// sharesBootNICWithAMT reports whether the host's boot NIC is the port Intel
+// AMT shares, which the converge keeps up with nothing of the host's on it: the
+// host names what to do with its AMT, it is a model the fleet activates AMT
+// on, or the operator has read AMT on it. A host without AMT, such as one with
+// a BMC of its own, boots from a NIC that is the host's.
+func sharesBootNICWithAMT(host *infrav1.RackLinuxHost, products []string) bool {
+	if host.Spec.AMT.Activate != nil || host.Status.AMT != nil {
+		return true
+	}
+	return host.Status.Hardware != nil && host.Status.Hardware.Product != "" && slices.Contains(products, host.Status.Hardware.Product)
 }
 
 // amtWanted reports whether the operator activates the host's AMT:

@@ -271,7 +271,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
-            "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
+        ] + projectDescriptionSearchPaths.includeSearchPaths.flatMap { ["-I", $0.pathString] } + [
             "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
             "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,

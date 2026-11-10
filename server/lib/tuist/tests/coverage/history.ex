@@ -109,6 +109,23 @@ defmodule Tuist.Tests.Coverage.History do
     %{grouping: grouping, points: points}
   end
 
+  @doc """
+  The SHA of the branch's latest complete commit, the newest point its trend
+  over all time ends at (`trend_points/3`), or nil. One read over the same
+  range, newest first and limited to one row, which the indexes on
+  `(project_id, ref_id, committed_at)` and `(project_id, git_branch, ran_at)`
+  serve.
+  """
+  def latest_complete_commit(%Project{} = project, branch) do
+    {query, at} = trend_query(project, branch, [])
+
+    query
+    |> order_by([c], desc: field(c, ^at), desc: c.git_commit_sha)
+    |> limit(1)
+    |> select([c], c.git_commit_sha)
+    |> Repo.one()
+  end
+
   defp trend_query(project, branch, opts) do
     base = where(CoverageCommit, [c], c.project_id == ^project.id and c.complete)
 
@@ -254,8 +271,9 @@ defmodule Tuist.Tests.Coverage.History do
   one status (`Tuist.Tests.Coverage.Commits.status/1`): `complete` (its
   pipeline signalled it finished and its figure is whole), `incomplete`
   (signalled, its figure a lower bound), `in-progress` (measured, not yet
-  signalled) or `not-measured` (on the branch, no run measured it). Each is
-  stored, so they narrow the query the page is read with.
+  signalled) or `not-measured` (on the branch, no run measured it), or
+  `measured` for every status but `not-measured`. Each is stored, so they
+  narrow the query the page is read with.
   """
   def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
     size = Keyword.get(opts, :page_size, 20)
@@ -289,6 +307,8 @@ defmodule Tuist.Tests.Coverage.History do
 
   defp by_status(query, "", _measured), do: query
 
+  defp by_status(query, "measured", measured), do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha)
+
   defp by_status(query, "not-measured", measured),
     do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
 
@@ -320,7 +340,7 @@ defmodule Tuist.Tests.Coverage.History do
     query = if search == "", do: query, else: where(query, [c], like(c.git_commit_sha, ^sha_prefix(search)))
 
     case status do
-      "" -> query
+      status when status in ["", "measured"] -> query
       "complete" -> where(query, [c], c.complete and c.reported_kind != "partial")
       "incomplete" -> where(query, [c], c.complete and c.reported_kind == "partial")
       "in-progress" -> where(query, [c], not c.complete)

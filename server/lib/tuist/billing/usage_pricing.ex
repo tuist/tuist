@@ -23,7 +23,7 @@ defmodule Tuist.Billing.UsagePricing do
   @included_requests 1_000_000
   @included_passing_test_cases 5_000_000
 
-  @cents_per_egress_gigabyte 35
+  @cents_per_egress_gigabyte 10
   @cents_per_thousand_requests 1
   @cents_per_million_passing_test_cases 200
 
@@ -86,7 +86,7 @@ defmodule Tuist.Billing.UsagePricing do
   The cache egress, in whole megabytes, and the cache requests an account is
   metered for over `[period_start, period_end)`, with runner traffic counted
   at half. It is what Stripe is sent, and what the Air limit is checked
-  against for an account on usage-based pricing.
+  against.
   """
   def metered_cache_usage(account_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     cache = account_id |> UsageMeters.cache_downloads(period_start, period_end) |> cache_totals()
@@ -248,7 +248,12 @@ defmodule Tuist.Billing.UsagePricing do
     |> Enum.sort_by(&{Date.to_erl(&1.date), &1.meter})
   end
 
-  defp projected_days(totals, period_start, period_end, usage_end) do
+  @doc """
+  The days the period has not reached yet, each at the daily average so
+  far of every total in `totals`. Empty once the period has closed or
+  nothing was used.
+  """
+  def projected_days(totals, period_start, period_end, usage_end) do
     days_elapsed = max(Date.diff(DateTime.to_date(usage_end), DateTime.to_date(period_start)) + 1, 1)
     first_remaining = usage_end |> DateTime.to_date() |> Date.add(1)
     last = period_end |> DateTime.add(-1, :microsecond) |> DateTime.to_date()
@@ -263,10 +268,15 @@ defmodule Tuist.Billing.UsagePricing do
     end
   end
 
-  # A period that has closed has nothing left to project: `usage_end` has
-  # reached `period_end`, so the projection would be the quantity itself and
-  # the page would tell an account it is on track for what it already spent.
-  defp project(quantity, period_start, period_end, usage_end) do
+  @doc """
+  Where an integer `quantity` lands by the end of the period at its rate so
+  far, or `nil` before a tenth of the period has passed.
+
+  A period that has closed has nothing left to project: `usage_end` has
+  reached `period_end`, so the projection would be the quantity itself and
+  the page would tell an account it is on track for what it already spent.
+  """
+  def project(quantity, period_start, period_end, usage_end) do
     elapsed = max(DateTime.diff(usage_end, period_start, :second), 1)
     total = max(DateTime.diff(period_end, period_start, :second), elapsed)
 

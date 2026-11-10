@@ -10,7 +10,15 @@ description: |
   The version below is a dependency pin: mise must stay at or above 2026.5.15,
   the first release where --locked installs download from the lockfile's direct
   CDN URLs instead of api.github.com, which gets rate-limited under CI
-  concurrency. Renovate bumps it from here.
+  concurrency. Renovate bumps it here.
+
+  mise-action downloads mise from GitHub releases with a single curl and no
+  retry, and GitHub release downloads return 504s for a minute or more at a
+  time. So the first step downloads mise itself: from mise.jdx.dev (a
+  Cloudflare CDN that does not depend on GitHub), then GitHub releases, with
+  retries, into the directory where mise-action finds it and skips its own
+  download. mise-action then runs a second time after a pause when the first
+  attempt fails, which covers transient failures while installing tools.
 
 inputs:
   install:
@@ -41,16 +49,73 @@ inputs:
 outputs:
   cache-hit:
     description: Whether the tool cache was hit
-    value: ${{ steps.mise.outputs.cache-hit }}
+    value: ${{ steps.retry.outputs.cache-hit || steps.mise.outputs.cache-hit }}
 
 runs:
   using: composite
   steps:
-    - id: mise
-      uses: jdx/mise-action@v4.0.1
-      with:
+    - id: download
+      name: Download mise
+      shell: bash
+      env:
         # renovate: datasource=github-releases depName=jdx/mise
         version: "2026.5.15"
+      run: |
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        # The directory mise-action installs into and checks for an existing mise.
+        bin="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/bin/mise"
+        if [ -x "$bin" ]; then
+          exit 0
+        fi
+        case "$RUNNER_OS" in
+          Linux) os=linux ;;
+          macOS) os=macos ;;
+          *) exit 0 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64) arch=x64 ;;
+          ARM64) arch=arm64 ;;
+          *) exit 0 ;;
+        esac
+        target="$os-$arch"
+        if [ "$os" = linux ] && ldd --version 2>&1 | grep -q musl; then
+          target="$target-musl"
+        fi
+        archive="mise-v$version-$target.tar.gz"
+        tmp="$(mktemp -d)"
+        for url in "https://mise.jdx.dev/v$version/$archive" "https://github.com/jdx/mise/releases/download/v$version/$archive"; do
+          if curl -fsSL --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 10 --retry-all-errors -o "$tmp/$archive" "$url" \
+            && tar -xzf "$tmp/$archive" -C "$tmp"; then
+            mkdir -p "$(dirname "$bin")"
+            mv "$tmp/mise/bin/mise" "$bin"
+            rm -rf "$tmp"
+            exit 0
+          fi
+          echo "::warning::Downloading mise from $url failed"
+        done
+        rm -rf "$tmp"
+        exit 1
+    - id: mise
+      continue-on-error: true
+      uses: jdx/mise-action@v4.0.1
+      with:
+        version: ${{ steps.download.outputs.version }}
+        install: ${{ inputs.install }}
+        install_args: ${{ inputs.install_args }}
+        cache: ${{ inputs.cache }}
+        cache_key: ${{ inputs.cache_key }}
+        working_directory: ${{ inputs.working_directory }}
+        github_token: ${{ inputs.github_token || env.MISE_GITHUB_TOKEN || github.token }}
+        env: ${{ inputs.env }}
+    - name: Wait before retrying mise setup
+      if: ${{ steps.mise.outcome == 'failure' }}
+      shell: bash
+      run: sleep 30
+    - id: retry
+      if: ${{ steps.mise.outcome == 'failure' }}
+      uses: jdx/mise-action@v4.0.1
+      with:
+        version: ${{ steps.download.outputs.version }}
         install: ${{ inputs.install }}
         install_args: ${{ inputs.install_args }}
         cache: ${{ inputs.cache }}

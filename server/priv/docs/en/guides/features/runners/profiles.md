@@ -2,12 +2,12 @@
 {
   "title": "Profiles",
   "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Runner profiles are named machine shapes you reference from runs-on to choose a platform, size, and Xcode version for Tuist Runners."
+  "description": "Runner profiles are named machine shapes you reference from runs-on to choose a platform, size, Ubuntu release or Xcode version for Tuist Runners."
 }
 ---
 # Profiles {#profiles}
 
-A **profile** is an account-scoped, named machine shape. You reference it from a workflow's `runs-on`, and Tuist routes the job to a runner that matches. Profiles keep infrastructure choices (platform, size, Xcode version) in one place instead of scattered across every workflow file, and give you a stable label to point CI at.
+A **profile** is an account-scoped, named machine shape. You reference it from a workflow's `runs-on`, and Tuist routes the job to a runner that matches. Profiles keep infrastructure choices (platform, size, Ubuntu release or Xcode version) in one place instead of scattered across every workflow file, and give you a stable label to point CI at.
 
 ```yaml
 jobs:
@@ -33,6 +33,15 @@ Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and
 
 {{runner_linux_shapes_table}}
 
+Linux profiles also pick an **Ubuntu release**, the way macOS profiles pick an Xcode version:
+
+- **Ubuntu 24.04** (`ubuntu-24.04`), the default for new profiles.
+- **Ubuntu 22.04** (`ubuntu-22.04`), for workflows that still need it. GitHub deprecated its 22.04 hosted image and removes it on April 17, 2027; plan to move off it by then.
+
+A profile stays on the release you chose until you change it, so a newer default never moves your jobs to another OS on its own. Binaries built on 24.04 need its newer glibc (2.39) and may not run on older systems, and its system Python refuses `pip install` outside a virtual environment (PEP 668). The runner sets `ImageOS` (`ubuntu24` or `ubuntu22`) as GitHub-hosted runners do, so setup actions pick builds for the right release.
+
+Every Linux profile supports <.localized_link href="/guides/features/runners#android-emulators">hardware-accelerated Android emulators</.localized_link> through `/dev/kvm`. No separate KVM profile is required.
+
 ### macOS {#macos}
 
 {{runner_macos_shapes_table}}
@@ -44,13 +53,15 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 {{runner_macos_xcode_versions}}
 
 > [!NOTE]
-> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile catalog` always show the shapes and Xcode versions currently available to your account, so treat them as the source of truth.
+> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile catalog` always show the shapes, Xcode versions and Ubuntu releases currently available to your account, so treat them as the source of truth.
+
+A macOS runner's name shows the macOS version it runs, the profile's Xcode version, and its shape, for example `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-1a2b3c4d5e6f`. The name appears in the job's **Set up job** step on GitHub and in the job's details in the Tuist dashboard.
 
 ## Creating a profile {#creating-a-profile}
 
 1. Open the **Runners → Profiles** section of your account dashboard.
 2. Choose **New profile**.
-3. Give it a name, pick a platform, and select a shape. For macOS, also choose an Xcode version.
+3. Give it a name, pick a platform, and select a shape. For Linux, also choose an Ubuntu release; for macOS, an Xcode version.
 4. Save, then reference it from a workflow with `runs-on: tuist-<name>`.
 
 You can also manage profiles from the command line. Creating, changing, and deleting profiles requires account administration, as in the dashboard, or an account token with the `account:runners:write` scope:

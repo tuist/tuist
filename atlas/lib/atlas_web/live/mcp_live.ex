@@ -9,6 +9,10 @@ defmodule AtlasWeb.MCPLive do
   alias Atlas.MCP.ServerConfiguration
   alias Atlas.Users
 
+  # Gmail sends are decided at /approvals, which shows the pinned
+  # draft; here they would only show its digest.
+  @approval_scope [except_server_names: ["gmail"]]
+
   def mount(_params, _session, socket) do
     {:ok,
      socket
@@ -30,6 +34,24 @@ defmodule AtlasWeb.MCPLive do
     socket
     |> assign(:servers, MCP.list_servers(socket.assigns.current_user))
     |> assign(:configuration_ids, Map.new(configurations, &{&1.name, &1.id}))
+    |> assign(:approvals, MCP.list_pending_tool_approvals(socket.assigns.current_user, @approval_scope))
+  end
+
+  def handle_event("decide_approval", %{"id" => id, "decision" => decision}, socket)
+      when decision in ["approved", "rejected"] do
+    socket =
+      case MCP.decide_tool_approval(socket.assigns.current_user, id, decision, @approval_scope) do
+        {:ok, %{status: "approved"}} ->
+          put_flash(socket, :info, gettext("Approved. The agent can now repeat the call once."))
+
+        {:ok, _approval} ->
+          put_flash(socket, :info, gettext("Request rejected."))
+
+        {:error, :not_found} ->
+          put_flash(socket, :error, gettext("This request is no longer pending."))
+      end
+
+    {:noreply, load_servers(socket)}
   end
 
   def handle_event("open_server_modal", _params, %{assigns: %{can_manage?: true}} = socket) do
@@ -404,6 +426,57 @@ defmodule AtlasWeb.MCPLive do
         </div>
       </div>
 
+      <.card
+        :if={@approvals != []}
+        title={gettext("Approval requests")}
+        icon="lock"
+        data-part="approvals-card"
+      >
+        <.card_section data-part="approvals-section">
+          <div
+            :for={approval <- @approvals}
+            id={"mcp-approval-#{approval.id}"}
+            data-part="approval"
+          >
+            <div data-part="approval-header">
+              <span data-part="approval-tool">{approval.server_name}/{approval.tool_name}</span>
+              <span data-part="approval-meta">
+                {gettext("Requested %{requested}. Expires %{expires}.",
+                  requested: Calendar.strftime(approval.inserted_at, "%H:%M UTC"),
+                  expires: Calendar.strftime(approval.expires_at, "%H:%M UTC")
+                )}
+              </span>
+            </div>
+            <p data-part="approval-hint">
+              {gettext(
+                "An agent asked to run this call with your connection. Approving lets the identical call run once."
+              )}
+            </p>
+            <pre data-part="approval-arguments">{Jason.encode!(approval.arguments, pretty: true)}</pre>
+            <div data-part="approval-actions">
+              <.button
+                id={"mcp-approval-reject-#{approval.id}"}
+                label={gettext("Reject")}
+                variant="secondary"
+                size="medium"
+                phx-click="decide_approval"
+                phx-value-id={approval.id}
+                phx-value-decision="rejected"
+              />
+              <.button
+                id={"mcp-approval-approve-#{approval.id}"}
+                label={gettext("Approve")}
+                variant="primary"
+                size="medium"
+                phx-click="decide_approval"
+                phx-value-id={approval.id}
+                phx-value-decision="approved"
+              />
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+
       <.card title={gettext("Servers")} icon="server" data-part="servers-card">
         <.card_section data-part="servers-table-section">
           <.table id="mcp-servers-table" rows={@servers} row_key={& &1.server.name}>
@@ -497,6 +570,7 @@ defmodule AtlasWeb.MCPLive do
 
   defp auth_label(:oauth2), do: gettext("OAuth")
   defp auth_label(:bearer_token), do: gettext("Shared token")
+  defp auth_label(:service_account_token), do: gettext("Service account")
   defp auth_label(:none), do: gettext("None")
 
   defp status_label(:connected), do: gettext("Connected")

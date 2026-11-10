@@ -25,4 +25,13 @@ const char *atlas_group_field(int32_t group, int32_t field);
 int32_t atlas_group_field_length(int32_t group, int32_t field);
 int32_t atlas_group_field_byte(int32_t group, int32_t field, int32_t offset);
 
+/* Deep-link capabilities: 0 = native screen key, 1 = accepts record UUID (1/0),
+ * 2 = exact supported browser page path (not a prefix match),
+ * 3 = accepted HTTPS record path prefix (empty for page-only destinations).
+ * Same immutable string ownership and invalid-input rules as the catalog. */
+int32_t atlas_destination_count(void);
+const char *atlas_destination_field(int32_t destination, int32_t field);
+int32_t atlas_destination_field_length(int32_t destination, int32_t field);
+int32_t atlas_destination_field_byte(int32_t destination, int32_t field, int32_t offset);
+
 #endif

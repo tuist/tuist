@@ -52,6 +52,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Observability
   alias Tuist.Runners.Claims
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
@@ -89,7 +90,13 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
   # Kill switch for both arms, without waiting for a deploy to pull the
   # cron entry.
-  defp paused?, do: FunWithFlags.enabled?(:runner_pod_reconciliation_paused)
+  defp paused?,
+    do:
+      Observability.feature_flag_evaluated(
+        :runner_pod_reconciliation_paused,
+        nil,
+        FunWithFlags.enabled?(:runner_pod_reconciliation_paused)
+      )
 
   defp reconcile(claims, sessions, now) do
     case observed_pod_names() do

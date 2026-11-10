@@ -10,7 +10,7 @@ defmodule Tuist.Runners.VolumeMasterOrphan do
   alias Tuist.Accounts.Account
 
   schema "runner_volume_master_orphans" do
-    field :volume_name, :string, default: "tuist-cache"
+    field :volume_name, :string
     field :tree_digest, :string
 
     belongs_to :account, Account

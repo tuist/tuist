@@ -1,0 +1,499 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ simülatörü";
+
+/* TuistProfile/ProfileView.swift */
+"AI" = "AI";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "AI abonelikleri";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "Yanıttan erişim belirteci veya yenileme belirteci eksik";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "Tümü";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "Tüm kanallar";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android Cihazı";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android Emülatörü";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android Öykünücüleri";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "Uygulama";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "Uygulama sürümü";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Apple ile Giriş Başarısız Oldu";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "Uygulamalar:";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "Bu önizlemeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "Hesabınızı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "Yetkilendirme kodu bulunamadı";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "Dal";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "Paket tanımlayıcısı";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "İptal";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "Güncellemeleri kontrol et";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "Commit SHA";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "Bağlan";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "ChatGPT'yi Bağla";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "Claude'u Bağla";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Kişisel Claude ve ChatGPT aboneliklerinizi Tuist'in AI özellikleriyle kullanmak üzere bağlayın.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "Bağlandı";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "Kodu kopyala";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "Tanımlayıcıyı kopyala";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "Adı kopyala";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "İndirilen arşivde APK dosyası bulunamadı";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "İndirilen arşivde uygulama paketi bulunamadı";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Geçerli bir uygulama derlemesi içermediği için %@ için uygulama yüklenemedi.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@ için uygulama yüklenemedi. %@ platformu %@ ve uygulama yalnızca şu platformları içeriyor: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "Oluşturulma tarihi";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "Oluşturan";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "Sil";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "Hesabı Sil";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "Önizlemeyi Sil";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "Hesabı sil";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "Önizlemeyi sil";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "Ayrıntılar";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "Cihazlar";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "Bağlantıyı Kes";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "Aboneliği İptal Et";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "Bağlantı Kesildi";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "E-posta";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Kimlik bilgileri, sorgu veya fragment içermeyen geçerli bir HTTPS sunucu URL'si girin.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "OpenAI oturum açma sayfasındaki kodu girin. Onayladığınızda bu ekran kapanır.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "Hata";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "Tamamlandı";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "Yardım al";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "Son önizlemeleri tek tıkla yükleyin.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "Yükleme başarısız oldu";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "%@ yüklendi";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "%@@%@ yüklendi";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "Önizleme yükleniyor";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "Geçersiz geri çağırma URL’si alındı";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "Geçersiz yanıt biçimi";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "Başlat";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "Önizleme başlatılıyor";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "Çıkış yap";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "Çıkış yapıldı";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "Yetkilendirmeden Apple kimlik bilgileri eksik";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "Önizleme Yok";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "Tuist projesi bulunamadı";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "Önizleme bulunamadı";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "Önizlemeler filtrelerinizle eşleşmiyor";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "Tamam";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "OpenAI oturum açma sayfasını aç";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "Diğer cihazlar";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "Sabitle";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "Önizlemeler";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "Önizlemeler: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "Gizlilik Politikası";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "Profil";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "Önizlemelerinizi yenilemek için aşağı çekin.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "Projelerinizi yenilemek için aşağı çekin.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Tuist'ten Çık";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "Hazır";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "Sürüm notları";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "Çalıştır";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "Bir terminalde claude setup-token komutunu çalıştırın ve yazdırdığı token'ı yapıştırın.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "Ara";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "Kendi sunucunuzda barındırılan";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "Kendi sunucunuzda barındırılan sunucu";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "Günlükleri paylaş";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "Oturum aç";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "Projelerinize erişmek ve\nekibinizle iş birliği yapmak için oturum açın";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "Önizlemeleri çalıştırmak için giriş yapın";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Apple ile giriş yapın";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "GitHub ile giriş yapın";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Google ile giriş yapın";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Tuist ile giriş yapın";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "Çıkış yap";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "Simülatörler";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "Abonelik jetonu";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "Desteklenen platformlar";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "Hizmet Şartları";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "Uygulama önizlemesi %@ bulunamadı.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "%@ için en son önizleme bulunamadı. Herhangi bir önizleme yayınlandı mı?";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "%@ önizlemesinin paket adı ayarlanmamış.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "%@ önizleme derin bağlantısı geçersiz.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "Sunucu, ilerleme kaydetmeyen bir önizleme sayfası döndürdü. Sunucunuzu güncelleyin veya tekrar deneyin.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "Oturum açma süresi doldu. Bu ekranı kapatıp yeniden bağlanın.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Bu sunucu, önizlemeleri izlere göre filtrelemeyi desteklemiyor. Kendi barındırdığınız Tuist sunucusunu güncelleyin veya Tüm izler seçeneğini belirleyin.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Bu sunucu önizleme aramayı desteklemiyor. Kendi barındırdığınız Tuist sunucusunu güncelleyin veya aramayı temizleyin.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Bu sunucu, Tuist uygulamasından oturum açmayı desteklemiyor. Yöneticinizden sunucuyu güncellemesini isteyin.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "Bir önizlemeyi çalıştırmak için bir simülatör seçili olmalıdır.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "Jeton değişimi şu durum koduyla başarısız oldu: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "İz";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "İzler";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "Farklı bir arama deneyin veya başka bir iz seçin.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist, kaydedilen %@ kimlik bilgilerini silecek.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "Kullanılamıyor";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "Bilinmiyor";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "Sabitlemeyi kaldır";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "Bir kanal seçmek için kendi barındırdığınız Tuist sunucusunu güncelleyin.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "Tuist sunucunuzun kök adresini kullanın";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "Tuist'e hoş geldiniz";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "veya";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "Hesap";
+"Accounts" = "Hesaplar";
+"Active" = "Aktif";
+"Archived" = "Arşivlendi";
+"Archive thread" = "Konuyu arşivle";
+"Archive this thread?" = "Bu konu arşivlensin mi?";
+"Ask Tuist a question or choose a repository to work on." = "Tuist'e bir soru sorun veya üzerinde çalışmak için bir depo seçin.";
+"Base branch" = "Temel dal";
+"Changes" = "Değişiklikler";
+"Close" = "Kapat";
+"Close new thread" = "Yeni ileti dizisini kapat";
+"Conversation actions" = "Sohbet eylemleri";
+"Copy message" = "Mesajı kopyala";
+"Create preview thread" = "Ön izleme ileti dizisi oluştur";
+"Design preview · Sample accounts" = "Tasarım ön izlemesi · Örnek hesaplar";
+"Design preview · Sample builds" = "Tasarım ön izlemesi · Örnek derlemeler";
+"Design preview · Sample conversation" = "Tasarım önizlemesi · Örnek konuşma";
+"Design preview · Sample data" = "Tasarım önizlemesi · Örnek veriler";
+"Design preview · Sample threads and people" = "Tasarım önizlemesi · Örnek ileti dizileri ve kişiler";
+"Design preview · Starting creates a sample thread, not a running environment." = "Tasarım önizlemesi · Başlatmak çalışan bir ortam değil, örnek bir ileti dizisi oluşturur.";
+"Done" = "Tamam";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Her depo ileti dizisi kendi çalışma ağacını ve dalını alır. Orijinal checkout düzenlenmez.";
+"Environment" = "Ortam";
+"Goal" = "Hedef";
+"Hide keyboard" = "Klavyeyi gizle";
+"Illustrative diff · Not a live repository change" = "Örnek fark · Canlı depo değişikliği değil";
+"In progress" = "Devam ediyor";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ davet etmek, mevcut tüm mesajları, araç sonuçlarını ve gelecekteki yanıtları paylaşır. Bu önizleme herhangi bir davetiye veya bildirim göndermez.";
+"Latest builds" = "En son derlemeler";
+"Latest message" = "Son mesaj";
+"Layout preview" = "Düzen önizlemesi";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Birini davet etmek için mesajda ondan bahset. Davet etmek, mevcut sohbet geçmişini paylaşır. @Tuist botun harekete geçmesini sağlar. Örnek kişiler yalnızca.";
+"Message…" = "Mesaj…";
+"Message Tuist…" = "Tuist'e mesaj gönder…";
+"Message, or ask @Tuist…" = "Mesaj yaz veya @Tuist'e sor…";
+"New thread" = "Yeni konu";
+"No account is signed in. These screens use sample data." = "Oturum açmış hesap yok. Bu ekranlar örnek veriler kullanıyor.";
+"Only you" = "Yalnızca sen";
+"Original response" = "Orijinal yanıt";
+"People" = "Kişiler";
+"Previous builds" = "Önceki derlemeler";
+"Private thread" = "Özel konu";
+"Private · Design preview · No work runs" = "Özel · Tasarım önizlemesi · İş akışı çalışması yok";
+"Private · Saved to your account" = "Özel · Hesabınıza kaydedildi";
+"Private · Threads are saved to your account" = "Özel · Konular hesabınıza kaydedilir";
+"Prompt" = "Komut istemi";
+"Prompts" = "Komut istemleri";
+"Provider" = "Sağlayıcı";
+"Recent" = "Son";
+"Reconnect" = "Yeniden Bağlan";
+"Repositories" = "Depolar";
+"Repository" = "Depo";
+"Resources" = "Kaynaklar";
+"Restore thread" = "İş parçacığını geri yükle";
+"Review changes" = "Değişiklikleri incele";
+"Repositories available to this account." = "Bu hesap için kullanılabilir depolar.";
+"Sample repositories · Design preview" = "Örnek depolar · Tasarım önizlemesi";
+"Search projects" = "Projeleri ara";
+"Search repositories" = "Depoları ara";
+"Select project" = "Proje seç";
+"Send" = "Gönder";
+"Share preview and send" = "Önizlemeyi paylaş ve gönder";
+"Share the conversation history?" = "Konuşma geçmişi paylaşılsın mı?";
+"Shared conversation" = "Paylaşılan konuşma";
+"Shared with 2 people" = "2 kişiyle paylaşıldı";
+"Sign out of Tuist?" = "Tuist'ten çıkış yapılsın mı?";
+"Signing out of this app does not stop running threads." = "Bu uygulamadan çıkış yapmak çalışan iş parçacıklarını durdurmaz.";
+"Start privately. Inviting someone would share the existing conversation with them." = "Özel olarak başlatın. Birini davet etmek, mevcut konuşmayı onlarla paylaşır.";
+"Start thread" = "İş parçacığı başlat";
+"Start with a goal" = "Bir hedefle başlayın";
+"Switch account" = "Hesap değiştir";
+"The conversation stays available in Archived." = "Konuşma Arşivlenenler'de kullanıma açık kalır.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "İş parçacığının sahibi sunucudur; ortamda yalnızca araçlar çalışır. Depo iş parçacıklarının kendi çalışma ağaçları vardır.";
+"Thread details" = "İş Parçacığı Ayrıntıları";
+"Thread settings" = "İş Parçacığı Ayarları";
+"Threads" = "İş Parçacıkları";
+"Tool actions" = "Araç Eylemleri";
+"Tool environment" = "Araç Ortamı";
+"Tool outcome unknown. Nothing will be retried automatically." = "Araç sonucu bilinmiyor. Hiçbir şey otomatik olarak yeniden denenmeyecek.";
+"Tool provider" = "Araç sağlayıcısı";
+"Tool result" = "Araç sonucu";
+"Try again" = "Tekrar dene";
+"Tuist is working…" = "Tuist çalışıyor…";
+"What would you like Tuist to do?" = "Tuist'in ne yapmasını istersiniz?";
+"Worktree branch" = "Worktree dalı";
+"You" = "Siz";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "Bu öneriyi göndermeden taslağınıza ekler.";
+"Connection lost. Reconnecting…" = "Bağlantı kesildi. Yeniden bağlanılıyor…";
+"Needs attention" = "İlgi gerektiriyor";
+"Outcome unknown" = "Sonuç bilinmiyor";
+"Preview" = "Önizleme";
+"Queued" = "Sırada";
+"Ready to review" = "İncelemeye hazır";
+"Running" = "Çalışıyor";
+"Load earlier messages" = "Önceki mesajları yükle";
+"Load more threads" = "Daha fazla konu başlığı yükle";
+"No repository" = "Depo yok";
+"Private threads only" = "Yalnızca özel konular";
+"Ship" = "Gönder";
+"Approve and ship" = "Onayla ve gönder";
+"Target branch" = "Hedef dal";
+"Mode" = "Mod";
+"Base" = "Temel";
+"Head" = "Baş";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "Gönderim, depo politikasını takip eder. Onaylamak, tam olarak incelenen bu değişikliği kuyruğa alır.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "Gönderim için ayrı bir inceleme ve açık onay gerekir. Hedefi depo politikası belirler.";
+"Design preview · Ship requires a live account and repository policy." = "Tasarım önizlemesi · Gönderim için aktif bir hesap ve depo politikası gereklidir.";
+"Review again" = "Tekrar incele";
+"Organization" = "Organizasyon";
+"Model" = "Model";
+"Choose model" = "Model seçin";
+"Loading models…" = "Modeller yükleniyor…";
+"Couldn’t load models" = "Modeller yüklenemedi";
+"Check your connection or try again in a moment." = "Bağlantınızı kontrol edin veya kısa bir süre sonra tekrar deneyin.";
+"No models available" = "Kullanılabilir model yok";
+"Connect an AI subscription in your profile, then try again." = "Profilinizde bir AI aboneliği bağlayın ve tekrar deneyin.";
+"Models unavailable. Try again later." = "Modellere şu anda ulaşılamıyor. Daha sonra tekrar deneyin.";
+"Refresh models" = "Modelleri yenile";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "Profilinizin AI abonelikleri üzerinden kullanılabilen modeller. Model, oluşturulduktan sonra değiştirilemez.";
+"Sample model catalog · Design preview · No subscription access implied" = "Örnek model kataloğu · Tasarım önizlemesi · Abonelik erişimi ima edilmez";
+"AI model" = "AI modeli";
+"AI provider" = "AI sağlayıcısı";
+"Not recorded" = "Kaydedilmedi";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "Bu konu için sağlayıcı ve model sabittir. Başka bir model seçmek için yeni bir konu başlatın.";
+"This subscription is not supported for Threads." = "Bu abonelik Konular için desteklenmiyor.";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";
+
+/* TuistApp/TuistApp.swift */
+"OK" = "Tamam";
+"Unable to open link" = "Bağlantı açılamıyor";
+"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "Bu bağlantı farklı bir Tuist sunucusuna ait. O sunucuda oturum açın ve bağlantıyı tekrar açın.";
+"This navigation link is invalid or unsupported." = "Bu gezinme bağlantısı geçersiz veya desteklenmiyor.";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Open on web" = "Web'de aç";

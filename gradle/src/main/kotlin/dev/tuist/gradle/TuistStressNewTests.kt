@@ -179,32 +179,35 @@ class TuistStressPlanService(
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/stress-new-tests/plan"
             )
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.setRequestProperty("Accept", "application/json")
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(StressPlanRequest(testCases), writer)
-                }
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK ->
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, StressPlan::class.java)
-                        }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        throw GradleException(
-                            "HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}"
-                        )
+            // The plan only reads, so the request can be sent again.
+            httpClient.retrying("Stress plan request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.setRequestProperty("Accept", "application/json")
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        Gson().toJson(StressPlanRequest(testCases), writer)
                     }
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK ->
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, StressPlan::class.java)
+                            }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            throw TuistRetry.statusFailure(connection, status) {
+                                GradleException("HTTP $status: ${errorBody ?: "(no response body)"}")
+                            }
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
     }
@@ -533,7 +536,7 @@ abstract class TuistStressNewTestsTask : DefaultTask() {
         if (executed.isEmpty()) return
 
         val httpClients = TuistHttpClients(useEnvironmentProxy = useEnvironmentProxy.get())
-        val configProvider = DefaultConfigurationProvider(
+        val configProvider = ServerConfigurationProvider(
             project = tuistProject.orNull,
             serverUrl = serverUrl.get(),
             projectDir = projectDir.asFile.get(),

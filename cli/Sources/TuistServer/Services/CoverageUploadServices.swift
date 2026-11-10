@@ -18,12 +18,21 @@ import TuistHTTP
         public let partial: Bool
         public let files: [XcodeCoverageFile]?
         public let storageKey: String?
+        /// The platform the tests ran on (`ios`, `macos`, …).
+        public let platform: String?
 
-        public init(tool: String, partial: Bool, files: [XcodeCoverageFile]? = nil, storageKey: String? = nil) {
+        public init(
+            tool: String,
+            partial: Bool,
+            files: [XcodeCoverageFile]? = nil,
+            storageKey: String? = nil,
+            platform: String? = nil
+        ) {
             self.tool = tool
             self.partial = partial
             self.files = files
             self.storageKey = storageKey
+            self.platform = platform
         }
     }
 #endif
@@ -156,17 +165,17 @@ public protocol CoverageFileUploading {
 }
 
 public struct CoverageFileUploader: CoverageFileUploading {
-    private let urlSession: URLSession
+    private let transfer: RetryingURLTransfer
 
-    public init(urlSession: URLSession = .shared) {
-        self.urlSession = urlSession
+    public init(urlSession: URLSession = .tuistLargeTransfer, retryProvider: RetryProviding = RetryProvider()) {
+        transfer = RetryingURLTransfer(urlSession: urlSession, retryProvider: retryProvider)
     }
 
     public func upload(file: AbsolutePath, to url: URL) async throws {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await urlSession.upload(for: request, fromFile: URL(fileURLWithPath: file.pathString))
+        let (_, response) = try await transfer.upload(request, fromFile: URL(fileURLWithPath: file.pathString))
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw CoverageUploadServiceError.uploadFailed((response as? HTTPURLResponse)?.statusCode ?? -1)
         }

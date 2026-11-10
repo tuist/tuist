@@ -77,7 +77,7 @@ extension XcodeGraph.Target {
                 throw TargetManifestMapperError.missingLocalPackageTestDependency(target: name, product: product)
             }
 
-            if case .external = manifestDependency {
+            if manifestDependency.isExternal {
                 for mappedDependency in mappedDependencies {
                     guard !mappedDependency.isXCFrameworkDependency else {
                         if externalXCFrameworkDependencies.insert(mappedDependency).inserted {
@@ -407,13 +407,15 @@ extension XcodeGraph.Target {
                 // Generated files don't exist during project generation, so we provide a
                 // deterministic hash based on the file path to avoid file system access
                 let generatedFileHash = try contentHasher.hash("generated-file-\(generated.glob.pathString)")
-                return XcodeGraph.SourceFile(
+                var source = XcodeGraph.SourceFile(
                     path: path,
                     compilerFlags: generated.compilerFlags,
                     contentHash: generatedFileHash,
                     codeGen: mappedCodeGen,
                     compilationCondition: generated.compilationCondition?.asGraphCondition
                 )
+                source.contentHashIsPlaceholder = true
+                return source
             }
 
         let allSources = globSources + (scriptGeneratedSources ?? [])

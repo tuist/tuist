@@ -3,8 +3,10 @@ defmodule Tuist.Kura.OriginsTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.IngestRepo
   alias Tuist.Kura.OriginRollup
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.UsageEvent
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -73,6 +75,19 @@ defmodule Tuist.Kura.OriginsTest do
   end
 
   describe "upsert_many/1" do
+    test "persists a large batch completely and adds replayed counters", %{account: account} do
+      rows = for index <- 1..10_001, do: row(account, "origin-#{index}", index, index * 2)
+
+      assert {:ok, 10_001} = Origins.upsert_many(Enum.reverse(rows))
+      assert {:ok, 10_001} = Origins.upsert_many(rows)
+
+      rollups = Repo.all(OriginRollup)
+      assert length(rollups) == length(rows)
+
+      assert Map.new(rollups, &{&1.origin, {&1.run_count, &1.demand_count}}) ==
+               Map.new(rows, &{&1.origin, {&1.run_count * 2, &1.demand_count * 2}})
+    end
+
     test "inserts rows in account, origin and date order", %{account: first} do
       second = AccountsFixtures.account_fixture()
       earlier = ~D[2025-12-31]
@@ -162,7 +177,7 @@ defmodule Tuist.Kura.OriginsTest do
       Origins.upsert_many([row(account, "FR", 10, 2), row(account, "US-OR", 30, 1)])
 
       assert [
-               %{origin: "US-OR", region: "us-west", run_count: 30, demand_count: 1},
+               %{origin: "US-OR", region: "us-west", run_count: 30, demand_count: 1, hit_count: 0},
                %{origin: "FR", region: "eu-west", run_count: 10, demand_count: 2}
              ] = Origins.traffic_mix(account, 14)
     end
@@ -180,8 +195,112 @@ defmodule Tuist.Kura.OriginsTest do
     end
   end
 
+  describe "refresh_hits/1" do
+    test "refreshes a large origin cohort without adding to existing hits", %{account: account} do
+      date = unique_date()
+      window_start = NaiveDateTime.new!(date, ~T[10:00:00])
+
+      events =
+        for index <- 1..10_001 do
+          %{
+            event_id: "large-#{account.id}-#{index}",
+            account_id: account.id,
+            project_id: 0,
+            node_id: "kura-0",
+            region: "eu-west",
+            traffic_plane: "public",
+            direction: "egress",
+            operation: "download",
+            protocol: "grpc",
+            artifact_kind: "reapi",
+            bytes: index * 1024,
+            request_count: index,
+            origin: "origin-#{index}",
+            window_start: window_start,
+            window_seconds: 60,
+            inserted_at: window_start
+          }
+        end
+
+      IngestRepo.insert_all(UsageEvent, events)
+
+      assert {:ok, 10_001} = Origins.refresh_hits([date])
+      assert {:ok, 10_001} = Origins.refresh_hits([date])
+
+      rollups = Repo.all(OriginRollup)
+      assert length(rollups) == length(events)
+      assert Map.new(rollups, &{&1.origin, &1.hit_count}) == Map.new(events, &{&1.origin, &1.request_count})
+    end
+
+    test "writes the hits public regions served each origin, leaving runs alone", %{account: account} do
+      date = unique_date()
+      Origins.upsert_many([Map.put(row(account, "FR", 3, 1), :date, date)])
+      insert_usage(account.id, "hits-1-#{account.id}", "eu-west", "FR", "egress", 40, date)
+      insert_usage(account.id, "hits-2-#{account.id}", "eu-west", "FR", "egress", 2, date)
+      insert_usage(account.id, "hits-3-#{account.id}", "eu-west", "FR", "ingress", 500, date)
+      insert_usage(account.id, "hits-4-#{account.id}", "us-east", "US-VA", "egress", 7, date)
+
+      assert {:ok, 2} = Origins.refresh_hits([date])
+
+      assert %OriginRollup{run_count: 3, demand_count: 1, hit_count: 42} = rollup(account, "FR", date)
+      assert %OriginRollup{run_count: 0, demand_count: 0, hit_count: 7} = rollup(account, "US-VA", date)
+    end
+
+    test "converges on a day refreshed again rather than adding to it", %{account: account} do
+      date = unique_date()
+      insert_usage(account.id, "again-1-#{account.id}", "eu-west", "FR", "egress", 40, date)
+      {:ok, 1} = Origins.refresh_hits([date])
+      insert_usage(account.id, "again-2-#{account.id}", "eu-west", "FR", "egress", 2, date)
+
+      {:ok, 1} = Origins.refresh_hits([date])
+
+      assert %OriginRollup{hit_count: 42} = rollup(account, "FR", date)
+    end
+
+    test "leaves out private runner caches and hits nobody attributed", %{account: account} do
+      date = unique_date()
+      insert_usage(account.id, "private-#{account.id}", "scw-fr-par-runners", "FR", "egress", 40, date)
+      insert_usage(account.id, "unattributed-#{account.id}", "eu-west", "", "egress", 40, date)
+
+      assert {:ok, 0} = Origins.refresh_hits([date])
+      assert Repo.aggregate(OriginRollup, :count) == 0
+    end
+  end
+
+  # ClickHouse rows survive across tests, so each test claims its own day.
+  defp unique_date, do: Date.add(~D[2031-01-01], rem(System.unique_integer([:positive]), 20_000))
+
+  defp insert_usage(account_id, event_id, region, origin, direction, request_count, date) do
+    window_start = NaiveDateTime.new!(date, ~T[10:00:00])
+
+    IngestRepo.insert_all(UsageEvent, [
+      %{
+        event_id: event_id,
+        account_id: account_id,
+        project_id: 0,
+        node_id: "kura-0",
+        region: region,
+        traffic_plane: "public",
+        direction: direction,
+        operation: if(direction == "egress", do: "download", else: "upload"),
+        protocol: "grpc",
+        artifact_kind: "reapi",
+        bytes: request_count * 1_024,
+        request_count: request_count,
+        origin: origin,
+        window_start: window_start,
+        window_seconds: 60,
+        inserted_at: window_start
+      }
+    ])
+  end
+
   defp rollup(account, origin) do
     Repo.get_by(OriginRollup, account_id: account.id, origin: origin, date: Date.utc_today())
+  end
+
+  defp rollup(account, origin, date) do
+    Repo.get_by(OriginRollup, account_id: account.id, origin: origin, date: date)
   end
 
   defp row(account, origin, runs, demand) do

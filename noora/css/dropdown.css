@@ -352,7 +352,7 @@
   width: 100%;
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-body-medium);
-  text-align: left;
+  text-align: start;
   text-decoration: none;
 
   & [data-part="content"] {

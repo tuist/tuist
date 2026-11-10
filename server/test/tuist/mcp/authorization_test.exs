@@ -20,9 +20,16 @@ defmodule Tuist.MCP.AuthorizationTest do
 
   setup do
     project = ProjectsFixtures.project_fixture(preload: [:account])
-    operator = AccountsFixtures.user_fixture(email: "operator@tuist.dev", preload: [:account])
+
+    operator =
+      AccountsFixtures.user_fixture(
+        email: "operator@tuist.dev",
+        email_verified_at: ~U[2026-11-01 00:00:00Z],
+        preload: [:account]
+      )
 
     stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
 
     {:ok, project: project, operator: operator}
   end
@@ -64,7 +71,7 @@ defmodule Tuist.MCP.AuthorizationTest do
        }}
     end)
 
-    stub(Analytics, :get_test_run_metrics, fn "run-1" ->
+    stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
       %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
     end)
 
@@ -166,6 +173,51 @@ defmodule Tuist.MCP.AuthorizationTest do
       subject = %AuthenticatedAccount{account: other_account, scopes: []}
 
       assert MCPAuthorization.authorize_request(%{current_subject: subject}, :read, public_account, :runners)
+    end
+  end
+
+  describe "account scope" do
+    setup do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      own_project = ProjectsFixtures.project_fixture(account: user.account, preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      organization_project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+
+      {:ok, user: user, own_project: own_project, organization_project: organization_project}
+    end
+
+    test "allows resources of the scoped account", %{user: user, own_project: own_project} do
+      assigns = %{current_user: user, mcp_account_scope: user.account}
+
+      assert MCPAuthorization.authorize_request(assigns, :read, own_project, :project)
+      assert MCPAuthorization.authorize_request(assigns, :read, user.account, :project)
+    end
+
+    test "refuses resources of other accounts the user could otherwise read", %{
+      user: user,
+      organization_project: organization_project
+    } do
+      assert MCPAuthorization.authorize_request(%{current_user: user}, :read, organization_project, :project)
+
+      assigns = %{current_user: user, mcp_account_scope: user.account}
+      refute MCPAuthorization.authorize_request(assigns, :read, organization_project, :project)
+      refute MCPAuthorization.authorize_request(assigns, :read, organization_project.account, :project)
+    end
+
+    test "refuses a resource whose account cannot be determined", %{user: user} do
+      assert MCPAuthorization.within_account_scope?(%{}, %{})
+      refute MCPAuthorization.within_account_scope?(%{mcp_account_scope: user.account}, %{})
+    end
+
+    # Operator elevation widens which accounts are readable, so it must not
+    # widen past the scope either. Going through a tool also covers the shared
+    # lookup in `Tuist.MCP.Tool` that every record-loading tool uses.
+    test "limits a tool call even when operator elevation would allow it", %{project: project, operator: operator} do
+      stub_test_run(project)
+      %{assigns: assigns} = atlas_conn(operator)
+      conn = %Plug.Conn{assigns: Map.put(assigns, :mcp_account_scope, operator.account)}
+
+      assert %{"isError" => true} = GetTestRun.call(conn, %{"test_run_id" => "run-1"})
     end
   end
 end

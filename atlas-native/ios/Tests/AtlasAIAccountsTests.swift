@@ -12,6 +12,21 @@ struct AtlasAIAccountsTests {
     "interval":0,"expires_at":"2026-10-15T16:00:00Z"}
     """.utf8)
 
+    @Test func savedMetadataCannotEnableSetupAndAccessDenialClearsIt() async {
+        var failure = "network"
+        let accounts = AtlasAIAccounts { request in
+            if request["action"] as? String != "list" { return Data("{}".utf8) }
+            throw AtlasAuthenticationError(kind: failure, message: "Unavailable")
+        }
+        accounts.cachedRequest = { _ in metadata }
+        await accounts.load()
+        #expect(accounts.cached && accounts.account("claude")?.credentialConfigured == true)
+        #expect(!(await accounts.saveClaude("example-token")))
+        failure = "sign_in_required"
+        await accounts.load()
+        #expect(accounts.accounts.isEmpty && !accounts.cached && !accounts.busy)
+    }
+
     @Test func loadsMetadataAndSavesClaudeThroughAPI() async {
         var actions: [String] = []
         let accounts = AtlasAIAccounts { request in
@@ -180,5 +195,85 @@ struct AtlasAIAccountsTests {
         #expect(!accounts.busy)
         accounts.clearError()
         #expect(accounts.errorMessage == nil)
+    }
+
+}
+
+@MainActor
+struct AtlasProfileTests {
+    @Test func profileRefreshRetainsLoadedContentButClearsRevokedAndInvalidatedState() async throws {
+        let data = Data("""
+        {"server_version":"1.2","user":{"name":"Taylor","email":"taylor@example.org","description":"Engineer"}}
+        """.utf8)
+        let model = AtlasProfile()
+        await model.load(request: { _ in data }, cachedRead: nil)
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let request: ([String: Any]) async throws -> Data = { _ in
+            try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        let refresh = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        #expect(model.profile?.user.email == "taylor@example.org" && model.profile?.serverVersion == "1.2")
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "network", message: "Offline"))
+        await refresh.value
+        #expect(model.profile?.user.description == "Engineer" && model.errorMessage == "Offline")
+
+        let late = Task { await model.load(request: request, cachedRead: nil) }
+        for await _ in started.stream { break }
+        model.invalidate()
+        finish?.resume(returning: data)
+        await late.value
+        #expect(model.profile == nil && model.errorMessage == nil)
+
+        await model.load(request: { _ in data }, cachedRead: nil)
+        await model.load(request: { _ in
+            throw AtlasAuthenticationError(kind: "forbidden", message: "Access revoked")
+        }, cachedRead: nil)
+        #expect(model.profile == nil && model.errorMessage == "Access revoked")
+    }
+
+    @Test func profileEditorRetainsDraftOnFailureAndSendsOnlyDescription() async throws {
+        var fail = true
+        let editor = AtlasProfileEditorModel(description: "") { action in
+            #expect(action["resource"] as? String == "profile" && action["action"] as? String == "update_profile")
+            #expect(Set(action.keys) == ["resource", "action", "description"])
+            if fail { throw AtlasAuthenticationError(kind: "server", message: "Try again") }
+            return Data("""
+            {"server_version":"1.0","user":{"name":"Taylor","email":"taylor@example.org","description":"Role\\nCurious"}}
+            """.utf8)
+        }
+        editor.draft = "Role\nCurious"
+        #expect(editor.dirty && editor.valid)
+        #expect(await editor.save() == nil)
+        #expect(editor.draft == "Role\nCurious" && editor.errorMessage == "Try again" && !editor.saving)
+        fail = false
+        let profile = try #require(await editor.save())
+        #expect(profile.user.description == editor.draft && editor.errorMessage == nil)
+        editor.draft = String(repeating: "🦀", count: 4000)
+        #expect(editor.valid)
+        editor.draft += "a"
+        #expect(!editor.valid)
+        editor.draft = String(repeating: "e\u{301}", count: 2001)
+        #expect(!editor.valid)
+        editor.draft = ""
+        #expect(editor.valid)
+    }
+
+    @Test func profileEditorPreventsDoubleSubmissionAndReadsOlderServerProfiles() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Never>?
+        let editor = AtlasProfileEditorModel(description: "Draft") { _ in
+            await withCheckedContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        let save = Task { await editor.save() }
+        for await _ in started.stream { break }
+        #expect(editor.saving)
+        #expect(await editor.save() == nil)
+        finish?.resume(returning: Data("""
+        {"server_version":"1.0","user":{"name":"Taylor","email":"taylor@example.org"}}
+        """.utf8))
+        let profile = try #require(await save.value)
+        #expect(profile.user.description.isEmpty && !editor.saving)
     }
 }

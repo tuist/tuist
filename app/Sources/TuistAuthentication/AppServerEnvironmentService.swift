@@ -1,5 +1,6 @@
 import Foundation
 import TuistAppStorage
+import TuistHTTP
 import TuistServer
 
 public struct AppServerConfiguration: Codable, Equatable, Sendable {
@@ -24,9 +25,11 @@ public enum AppServerConfigurationError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Enter a valid HTTPS server URL without credentials, a query, or a fragment."
+            return String(localized: "Enter a valid HTTPS server URL without credentials, a query, or a fragment.")
         case .unsupportedServer:
-            return "This server doesn't support signing in from the Tuist app. Ask your administrator to update it."
+            return String(
+                localized: "This server doesn't support signing in from the Tuist app. Ask your administrator to update it."
+            )
         }
     }
 }
@@ -35,14 +38,17 @@ public struct AppServerEnvironmentService: ServerEnvironmentServicing {
     private let appStorage: AppStoring
     private let defaultEnvironment: ServerEnvironmentServicing
     private let perform: (@Sendable (URLRequest) async throws -> (Data, URLResponse))?
+    private let useSignedInSession: Bool
 
     public init(
         appStorage: AppStoring = AppStorage(),
         defaultEnvironment: ServerEnvironmentServicing = ServerEnvironmentService(),
+        useSignedInSession: Bool = true,
         perform: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil
     ) {
         self.appStorage = appStorage
         self.defaultEnvironment = defaultEnvironment
+        self.useSignedInSession = useSignedInSession
         self.perform = perform
     }
 
@@ -60,7 +66,7 @@ public struct AppServerEnvironmentService: ServerEnvironmentServicing {
 
     /// The server of the signed-in session, or the server selected for the next sign-in when signed out.
     public var configuration: AppServerConfiguration? {
-        if case let .loggedIn(_, server) = try? appStorage.get(AuthenticationStateKey.self) {
+        if useSignedInSession, case let .loggedIn(_, server) = try? appStorage.get(AuthenticationStateKey.self) {
             return server
         }
         return try? appStorage.get(AppServerConfigurationKey.self)
@@ -120,7 +126,7 @@ public struct AppServerEnvironmentService: ServerEnvironmentServicing {
         let (data, response) = if let perform {
             try await perform(request)
         } else {
-            try await URLSession.shared.data(for: request)
+            try await URLSession.tuistDefault.data(for: request)
         }
         guard let response = response as? HTTPURLResponse,
               response.statusCode == statusCode,

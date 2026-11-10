@@ -42,6 +42,12 @@ struct RunnerProfileCacheOptions: ParsableArguments {
 
     @Flag(
         inversion: .prefixedNo,
+        help: "Whether every successful job from the repository saves the profile's cache volumes. Pass --no-save-cache-from-all-branches to save only from the default branch and --save-cache-from branches. Omit to keep the current setting."
+    )
+    var saveCacheFromAllBranches: Bool?
+
+    @Flag(
+        inversion: .prefixedNo,
         help: "Whether jobs on each repository's default branch save the profile's cache volumes. Omit to keep the current setting."
     )
     var saveCacheFromDefaultBranch: Bool?

@@ -3,7 +3,9 @@
 package cachevolumes
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
@@ -19,6 +21,43 @@ import (
 type diskTransfer struct {
 	archive, content string
 	generation       int64
+}
+
+func TestLinuxLocalImagesReclaimsSpaceBeforeEvictingAnotherMaster(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated XFS filesystem")
+	}
+	root, err := os.MkdirTemp(cache, "reclaim-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	b := &LocalImages{Root: root, FreeBytes: FreeBytes}
+	b.ReclaimWait = 100 * time.Millisecond
+	old := installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now().Add(-2*time.Hour))
+	keep := installMaster(t, b, second, strings.Repeat("b", 64), 1, time.Now().Add(-time.Hour))
+	for _, slot := range []Slot{old, keep} {
+		if out, err := exec.Command("fallocate", "-l", "256M", b.master(slot)).CombinedOutput(); err != nil {
+			t.Fatal(string(out), err)
+		}
+	}
+	if out, err := exec.Command("sync", "-f", root).CombinedOutput(); err != nil {
+		t.Fatal(string(out), err)
+	}
+	before, err := FreeBytes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	minimum := before + 200<<20
+	if err := b.reserveBytes(context.Background(), minimum); err != nil {
+		t.Fatal("rejected space available after XFS reclamation", err)
+	}
+	after, err := FreeBytes(root)
+	if err != nil || after < minimum || exists(b.master(old)) || !exists(b.master(keep)) {
+		t.Fatal("failed to reclaim just the first master", before, after, err)
+	}
+	t.Logf("free space before=%d after=%d required=%d; second master retained", before, after, minimum)
 }
 
 func (d *diskTransfer) Download(ctx context.Context, slot Slot, path string) error {
@@ -74,6 +113,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := firstHost.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("successful job"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +127,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	warm.ID = second
 	warm.BaseGeneration = remote.generation
 	warm.ContentDigest = remote.content
+	warm.ImageDigest = strings.Repeat("a", 40)
 	warmMount := filepath.Join(root, "mount-b")
 	os.Mkdir(warmMount, 0700)
 	t.Cleanup(func() { firstHost.Delete(warm, warmMount) })
@@ -96,6 +137,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(warmMount, "payload")); err != nil || string(data) != "successful job" {
 		t.Fatal(string(data), err)
 	}
+	afterMarker(t, warmMount)
 	if err := os.WriteFile(filepath.Join(warmMount, "payload"), []byte("unpublished changes"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -105,22 +147,185 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	otherMount := filepath.Join(root, "mount-c")
 	os.Mkdir(otherMount, 0700)
 	t.Cleanup(func() { otherHost.Delete(other, otherMount) })
+	// A host without a copy never downloads inside the attach: the job starts
+	// empty and its branch is withheld from replacing the saved version.
 	if err := otherHost.Attach(context.Background(), other, otherMount); err != nil {
 		t.Fatal(err)
 	}
-	if data, err := os.ReadFile(filepath.Join(otherMount, "payload")); err != nil || string(data) != "successful job" {
+	afterMarker(t, otherMount)
+	if _, err := os.Stat(filepath.Join(otherMount, "payload")); !os.IsNotExist(err) || !otherHost.Cold(other) {
+		t.Fatal("a host without a copy did not start empty", err)
+	}
+	if err := os.WriteFile(filepath.Join(otherMount, "payload"), []byte("cold job"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := otherHost.Seal(other, otherMount); !errors.Is(err, ErrWithheld) {
+		t.Fatal("an empty start would replace the saved version:", err)
+	}
+	if err := otherHost.Delete(other, otherMount); err != nil {
+		t.Fatal(err)
+	}
+	// The background download warms the host for its next job.
+	if err := otherHost.Prefetch(context.Background(), warm); err != nil {
+		t.Fatal(err)
+	}
+	reader := warm
+	reader.ID = fourth
+	readerMount := filepath.Join(root, "mount-d")
+	os.Mkdir(readerMount, 0700)
+	t.Cleanup(func() { otherHost.Delete(reader, readerMount) })
+	if err := otherHost.Attach(context.Background(), reader, readerMount); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, readerMount)
+	if data, err := os.ReadFile(filepath.Join(readerMount, "payload")); err != nil || string(data) != "successful job" || otherHost.Cold(reader) {
 		t.Fatal("cross-host master changed", string(data), err)
+	}
+	// A job that only read the volume leaves nothing to save.
+	if err := otherHost.Seal(reader, readerMount); !errors.Is(err, ErrUnchanged) {
+		t.Fatal("a job that only read the volume would save it:", err)
+	}
+	if err := otherHost.Delete(reader, readerMount); err != nil {
+		t.Fatal(err)
+	}
+	// The first host saves a newer version. The other host still holds only the
+	// older one and mounts it instead of downloading.
+	if err := firstHost.Seal(warm, warmMount); err != nil {
+		t.Fatal(err)
+	}
+	newer := warm
+	newer.ID = fifth
+	newer.BaseGeneration = remote.generation
+	newer.ContentDigest = remote.content
+	newer.ImageDigest = strings.Repeat("b", 40)
+	newerMount := filepath.Join(root, "mount-e")
+	os.Mkdir(newerMount, 0700)
+	t.Cleanup(func() { otherHost.Delete(newer, newerMount) })
+	if err := otherHost.Attach(context.Background(), newer, newerMount); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, newerMount)
+	if data, err := os.ReadFile(filepath.Join(newerMount, "payload")); err != nil || string(data) != "successful job" || otherHost.MountedGeneration(newer) != warm.BaseGeneration {
+		t.Fatal("did not mount the older local copy", string(data), otherHost.MountedGeneration(newer), err)
+	}
+	if err := os.WriteFile(filepath.Join(newerMount, "payload"), []byte("on top of the older copy"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := otherHost.Seal(newer, newerMount); err != nil || remote.generation != newer.BaseGeneration+1 {
+		t.Fatal("changes on top of an older copy were not published", remote.generation, err)
 	}
 	// Discarding a private branch must leave the saved master usable.
 	if err := firstHost.Delete(warm, warmMount); err != nil {
 		t.Fatal(err)
 	}
-	if err := otherHost.Delete(other, otherMount); err != nil {
-		t.Fatal(err)
-	}
 	if err := firstHost.Delete(slot, mount); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// A job that deletes data from a warm volume publishes a master and archive
+// without it only when the branch is trimmed, and the trim leaves the master it
+// was cloned from intact.
+func TestLinuxLocalImagesTrimDropsDeletedDataFromPublication(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	const scratchBytes = 128 << 20
+	scratch := make([]byte, scratchBytes)
+	if _, err := rand.Read(scratch); err != nil {
+		t.Fatal(err)
+	}
+	for _, trimmed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "untrimmed", true: "trimmed"}[trimmed], func(t *testing.T) {
+			root, err := os.MkdirTemp(cache, "trim-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(root) })
+			remote := &diskTransfer{archive: filepath.Join(root, "remote.image")}
+			b := &LocalImages{Root: filepath.Join(root, "host"), SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+			if trimmed {
+				b.Trim = TrimFS
+			}
+			if err := os.MkdirAll(b.Root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Probe(); err != nil {
+				t.Fatal(err)
+			}
+			job := func(id string, base Slot, work func(string)) Slot {
+				t.Helper()
+				slot := Slot{Identity: identity(id), PodUID: "pod-" + id}
+				if base.BaseGeneration > 0 || base.ID != "" {
+					slot.BaseGeneration, slot.ContentDigest, slot.ImageDigest = remote.generation, remote.content, strings.Repeat("a", 40)
+				}
+				mount := filepath.Join(root, "mount-"+id)
+				os.Mkdir(mount, 0700)
+				t.Cleanup(func() { b.Delete(slot, mount) })
+				if err := b.Attach(context.Background(), slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				afterMarker(t, mount)
+				work(mount)
+				if err := b.Seal(slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				if err := b.Delete(slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				slot.BaseGeneration, slot.ContentDigest = remote.generation, remote.content
+				return slot
+			}
+			saved := job(first, Slot{}, func(mount string) {
+				if err := os.WriteFile(filepath.Join(mount, "scratch"), scratch, 0644); err != nil {
+					t.Fatal(err)
+				}
+			})
+			firstArchive := fileSize(t, remote.archive)
+			firstMaster := b.master(saved)
+			pruned := job(second, saved, func(mount string) {
+				if err := os.Remove(filepath.Join(mount, "scratch")); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(mount, "kept"), []byte("small"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			})
+			master, archive := allocatedBytes(b.master(pruned)), fileSize(t, remote.archive)
+			t.Logf("first archive=%d, pruned master allocated=%d archive=%d", firstArchive, master, archive)
+			if trimmed && (master >= scratchBytes/2 || archive >= scratchBytes/2) {
+				t.Fatal("the trimmed master or archive still carries the deleted data", master, archive)
+			}
+			if !trimmed && archive < scratchBytes {
+				t.Fatal("expected the untrimmed archive to carry the deleted data; the control no longer shows the problem", archive)
+			}
+			// The master the pruned job cloned still holds every byte it saved.
+			reader := Slot{Identity: identity(third), PodUID: "pod-reader"}
+			reader.BaseGeneration, reader.ContentDigest, reader.ImageDigest = saved.BaseGeneration, saved.ContentDigest, strings.Repeat("a", 40)
+			if _, err := os.Stat(firstMaster); err != nil {
+				t.Fatal("the first master is gone", err)
+			}
+			mount := filepath.Join(root, "mount-reader")
+			os.Mkdir(mount, 0700)
+			t.Cleanup(func() { b.Delete(reader, mount) })
+			if err := b.Attach(context.Background(), reader, mount); err != nil || b.Cold(reader) {
+				t.Fatal("could not clone the first master", err)
+			}
+			if data, err := os.ReadFile(filepath.Join(mount, "scratch")); err != nil || !bytes.Equal(data, scratch) {
+				t.Fatal("trimming a clone changed the master it was cloned from", err)
+			}
+		})
+	}
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
 }
 
 func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
@@ -147,6 +352,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("saved contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +433,7 @@ func (d *slowDiskTransfer) Download(ctx context.Context, slot Slot, path string)
 		return ctx.Err()
 	}
 }
-func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T) {
+func TestLinuxLocalImagesColdStartPrefetchRestartAndConcurrentClones(t *testing.T) {
 	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
 	if cache == "" {
 		t.Skip("requires isolated reflink filesystem and loop/mount privileges")
@@ -250,6 +456,7 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 	if err := b.Attach(context.Background(), seed, path); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, path)
 	if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte("published"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -267,16 +474,22 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 	if err := os.Remove(b.master(warm)); err != nil {
 		t.Fatal(err)
 	}
-	b.Transfer = &slowDiskTransfer{remote, 100 * time.Millisecond}
+	// A download slower than the acquisition budget never delays the attach.
+	b.Transfer = &slowDiskTransfer{remote, time.Minute}
 	store, err := Open(root, b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	_, err = store.Acquire(ctx, warm.Identity, "timed-out", "timed-out")
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	cold := warm.Identity
+	cold.ID = "00000000-0000-0000-0000-000000000009"
+	hit, err := store.Acquire(ctx, cold, "cold", "cold")
 	cancel()
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatal("restore did not time out", err)
+	if err != nil || hit {
+		t.Fatal("a host without a copy did not start empty", hit, err)
+	}
+	if err := os.WriteFile(filepath.Join(store.activePath(Slot{Identity: cold, PodUID: "cold"}), "sentinel"), []byte("cold"), 0644); err != nil {
+		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -287,9 +500,10 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 	}
 	defer store.Close()
 	slots, err := store.slots()
-	if err != nil || len(slots) != 1 || slots[0].State != "allocated" {
-		t.Fatal("restart lost incomplete journal", slots, err)
+	if err != nil || len(slots) != 1 || slots[0].State != "active" || slots[0].Warm {
+		t.Fatal("restart lost the empty start's journal", slots, err)
 	}
+	b.Transfer = remote
 	if err := b.Prefetch(context.Background(), warm); err != nil {
 		t.Fatal(err)
 	}
@@ -344,5 +558,134 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 		if slot.State != "deleted" {
 			t.Fatal("failed to reclaim", slot)
 		}
+	}
+}
+
+func TestLinuxLocalImagesGrowsAWarmCopyOnline(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "growth-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	seed := Slot{Identity: identity(first), PodUID: "seed"}
+	path := filepath.Join(root, "seed")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(seed, path)
+	if err := b.Attach(context.Background(), seed, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	if err := os.WriteFile(filepath.Join(path, "payload"), []byte("saved contents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(seed, path); err != nil {
+		t.Fatal(err)
+	}
+	grown := seed
+	grown.ID = second
+	grown.PodUID = "grown"
+	grown.BaseGeneration = remote.generation
+	grown.ContentDigest = remote.content
+	grown.VolumeBytes = 2_000_000_000
+	grownPath := filepath.Join(root, "grown")
+	if err := os.Mkdir(grownPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(grown, grownPath)
+
+	if err := b.Attach(context.Background(), grown, grownPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if data, err := os.ReadFile(filepath.Join(grownPath, "payload")); err != nil || string(data) != "saved contents" {
+		t.Fatal("growth lost the saved contents", string(data), err)
+	}
+	if _, capacity, err := b.Measure(grown, grownPath); err != nil || capacity < 1_800_000_000 {
+		t.Fatal("filesystem was not grown online", capacity, err)
+	}
+	if info, err := os.Stat(b.master(grown)); err != nil || info.Size() != 1_000_000_000 {
+		t.Fatal("growth changed the master", info, err)
+	}
+}
+
+// Kubelet keeps a copy of the volume mount under the pod's subPath mount until a
+// retry after the agent's unmount. A verified branch waits for that copy to go
+// and then publishes; it is never discarded for it.
+func TestLinuxLocalImagesWaitsForALingeringMountBeforePublishing(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "lingering-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	slot := Slot{Identity: identity(first), PodUID: "job"}
+	path := filepath.Join(root, "job")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(slot, path)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	if err := os.WriteFile(filepath.Join(path, "payload"), []byte("job output"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	subPath := filepath.Join(root, "subpath")
+	if err := os.Mkdir(subPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(path, subPath, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(subPath, unix.MNT_DETACH)
+
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal("expected to wait for the other mount:", err)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal("expected to keep waiting:", err)
+	}
+	if remote.generation != 0 {
+		t.Fatal("published while another mount held the image")
+	}
+	if err := unix.Unmount(subPath, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	warm := slot
+	warm.ID, warm.PodUID = second, "next"
+	warm.BaseGeneration, warm.ContentDigest = remote.generation, remote.content
+	warmPath := filepath.Join(root, "next")
+	if err := os.Mkdir(warmPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(warm, warmPath)
+	if err := b.Attach(context.Background(), warm, warmPath); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(warmPath, "payload")); err != nil || string(data) != "job output" {
+		t.Fatal("the published branch lost the job's writes", string(data), err)
 	}
 }

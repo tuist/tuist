@@ -39,6 +39,27 @@ struct MachineMetricsReaderTests {
         )
     }
 
+    @Test
+    func diskSpace_roundTripsAndRemainsOptionalForOlderSamples() throws {
+        let legacy = makeSample(timestamp: 1500)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let legacyData = try encoder.encode(legacy)
+        let decodedLegacy = try decoder.decode(MachineMetricSample.self, from: legacyData)
+        #expect(decodedLegacy.diskTotalBytes == nil)
+        #expect(decodedLegacy.diskAvailableBytes == nil)
+
+        var json = try #require(JSONSerialization.jsonObject(with: legacyData) as? [String: Any])
+        json["disk_total_bytes"] = 500_000_000_000
+        json["disk_available_bytes"] = 0
+        let sample = try decoder.decode(MachineMetricSample.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(sample.diskTotalBytes == 500_000_000_000)
+        #expect(sample.diskAvailableBytes == 0)
+        #expect(try decoder.decode(MachineMetricSample.self, from: encoder.encode(sample)) == sample)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func readSamples_returnsEmptyWhenFileDoesNotExist() async throws {
         let subject = MachineMetricsReader(fileSystem: fileSystem)

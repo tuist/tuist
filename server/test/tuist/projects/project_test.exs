@@ -5,6 +5,14 @@ defmodule Tuist.ProjectTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "report bundle tags follow the uploaded tag format and length limits" do
+    assert Project.update_changeset(%Project{}, %{report_bundle_tag: String.duplicate("a", 50)}).valid?
+
+    for tag <- [String.duplicate("a", 51), "release.candidate", "prod,debug"] do
+      refute Project.update_changeset(%Project{}, %{report_bundle_tag: tag}).valid?
+    end
+  end
+
   test "name cannot contain dots" do
     changeset =
       Project.create_changeset(%Project{}, %{token: "token", name: "project.name", account_id: 0})

@@ -19,6 +19,14 @@ private struct InitialGraphWithSourcesKey: MapperEnvironmentKey {
     static var defaultValue: Graph?
 }
 
+private struct CachedModuleSourceMappingsKey: MapperEnvironmentKey {
+    static var defaultValue: [AbsolutePath: [DebuggerSourceMapping]] = [:]
+}
+
+private struct CachedMacroHashesKey: MapperEnvironmentKey {
+    static var defaultValue: [AbsolutePath: String] = [:]
+}
+
 private struct TargetTestHashesKey: MapperEnvironmentKey {
     static var defaultValue: [AbsolutePath: [String: String]] = [:]
 }
@@ -28,6 +36,18 @@ private struct TargetTestCacheItemsKey: MapperEnvironmentKey {
 }
 
 extension MapperEnvironment {
+    /// Relocations verified against the original source target before binary replacement.
+    public var cachedModuleSourceMappings: [AbsolutePath: [DebuggerSourceMapping]] {
+        get { self[CachedModuleSourceMappingsKey.self] }
+        set { self[CachedModuleSourceMappingsKey.self] = newValue }
+    }
+
+    /// Binary cache hashes of the macro executables that replaced source targets, keyed by the `.macro` path.
+    public var cachedMacroHashes: [AbsolutePath: String] {
+        get { self[CachedMacroHashesKey.self] }
+        set { self[CachedMacroHashesKey.self] = newValue }
+    }
+
     /// Production consumers needed to infer local package test platforms after test focus removes those consumers.
     public var graphBeforeTestFocus: Graph? {
         get { self[GraphBeforeTestFocusKey.self] }

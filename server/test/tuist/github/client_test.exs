@@ -274,6 +274,41 @@ defmodule Tuist.GitHub.ClientTest do
     end
   end
 
+  describe "list_workflow_run_jobs/3" do
+    test "returns each job's status and runner" do
+      expect(Req, :get, fn opts ->
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/actions/runs/42/jobs?per_page=100"
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "total_count" => 2,
+             "jobs" => [
+               %{"id" => 1, "status" => "in_progress", "runner_name" => "runner-a", "name" => "build"},
+               %{"id" => 2, "status" => "queued", "runner_name" => nil}
+             ]
+           }
+         }}
+      end)
+
+      assert Client.list_workflow_run_jobs(%{installation_id: "installation-id"}, "tuist/tuist", 42) ==
+               {:ok,
+                [
+                  %{id: 1, status: "in_progress", runner_name: "runner-a"},
+                  %{id: 2, status: "queued", runner_name: nil}
+                ]}
+    end
+
+    test "returns an error for a body without jobs" do
+      stub(Req, :get, fn _opts -> {:ok, %Req.Response{status: 200, body: %{}}} end)
+
+      assert Client.list_workflow_run_jobs(%{installation_id: "installation-id"}, "tuist/tuist", 42) ==
+               {:error, :malformed}
+    end
+  end
+
   describe "create_comment/1" do
     test "creates a new comment" do
       # Given

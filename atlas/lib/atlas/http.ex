@@ -1,6 +1,8 @@
 defmodule Atlas.HTTP do
   @moduledoc false
 
+  alias Atlas.Push.APNs
+
   @default_finch_name Atlas.Finch
   @default_pool_timeout 10_000
   @default_pool_options [
@@ -36,8 +38,15 @@ defmodule Atlas.HTTP do
     |> normalize_positive_integer(@default_pool_timeout)
   end
 
+  # APNs requires HTTP/2. Its hosts always get dedicated multiplexed pools, so
+  # push delivery never competes with ordinary HTTP/1 checkouts. Operator pools
+  # for the same origins take precedence.
   def finch_pools(config \\ config()) do
-    Keyword.get(config, :finch_pools, %{default: @default_pool_options})
+    Map.merge(push_pools(), Keyword.get(config, :finch_pools, %{default: @default_pool_options}))
+  end
+
+  defp push_pools do
+    Map.new(APNs.origins(), &{&1, [protocols: [:http2], count: 1, start_pool_metrics?: true]})
   end
 
   defp config do

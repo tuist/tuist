@@ -1,0 +1,6 @@
+# The tuist-mgmt-api load balancer's address (infra/k8s/mgmt/talos/hetzner.yaml),
+# so the API server's certificate is valid when reached through it.
+cluster:
+  apiServer:
+    certSANs:
+      - 49.12.66.91

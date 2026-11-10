@@ -5,7 +5,8 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
-  alias Tuist.Billing
+  alias Tuist.Authorization
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
@@ -62,6 +63,32 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoint")
       assert json_response(conn, :unauthorized)
       refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "network trust permits discovery but never invalid credentials or other cache APIs", %{conn: conn} do
+      stub(Tuist.Environment, :network_trusted_cache_access_enabled?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://cache.internal"] end)
+      assert conn |> get(~p"/api/cache/endpoint") |> json_response(200) == %{"endpoint" => "https://cache.internal"}
+
+      for header <- ["", "Bearer ", "Bearer rejected", "Bearer padded ", "Basic invalid"] do
+        conn |> put_req_header("authorization", header) |> get(~p"/api/cache/endpoint") |> json_response(401)
+      end
+
+      conn
+      |> Authentication.put_current_user(AccountsFixtures.user_fixture())
+      |> put_req_header("authorization", "Bearer rejected")
+      |> get(~p"/api/cache/endpoint")
+      |> json_response(401)
+
+      %{conn | req_headers: [{"authorization", "Bearer one"}, {"authorization", "Bearer two"}]}
+      |> get(~p"/api/cache/endpoint")
+      |> json_response(401)
+
+      for path <- ["/api/cache/access", "/api/cache/endpoints"] do
+        conn |> get(path) |> json_response(401)
+      end
+
+      conn |> post(~p"/api/cache/token", %{}) |> json_response(401)
     end
   end
 
@@ -696,21 +723,58 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
 
       # Then
-      assert %{"token" => token} = json_response(conn, 200)
+      assert %{"token" => token, "writable" => true} = json_response(conn, 200)
       {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "tells a read-only credential that it cannot write to the project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["account:cache:read", "project:cache:read"],
+          all_projects: true
+        })
+
+      handle = "#{project.account.name}/#{project.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token, "writable" => false} = json_response(conn, 200)
+      {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == []
+    end
+
+    test "omits writability from a token that is not scoped to one project", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      response = conn |> post(~p"/api/cache/token") |> json_response(200)
+
+      # Then
+      refute Map.has_key?(response, "writable")
     end
   end
 
   describe "POST /api/cache/token free tier" do
     test "returns payment required when the scoped account is over the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -726,11 +790,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "says a payment failed when an unpaid subscription left the account over the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -748,11 +812,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "still mints a token while the pro subscription's renewal payment is being retried", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -772,11 +836,11 @@ defmodule TuistWeb.API.CacheControllerTest do
     # over the free tier.
     test "does not reveal the billing status of an account the subject cannot reach", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       blocked =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -794,11 +858,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "still mints a token while the account is under the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -867,8 +931,82 @@ defmodule TuistWeb.API.CacheControllerTest do
                "payment_required" => [],
                "payment_failed" => [],
                "accounts" => [],
-               "projects" => ["#{organization.account.name}/#{project.name}"]
+               "projects" => ["#{organization.account.name}/#{project.name}"],
+               "cache_grants" => %{
+                 "account" => %{"read" => [], "write" => []},
+                 "project" => %{"read" => ["#{organization.account.name}/#{project.name}"], "write" => []}
+               }
              }
+    end
+
+    # Cache nodes authorize opaque credentials from this response alone, so it
+    # has to say which action each project allows. A credential that reaches a
+    # project is not necessarily allowed to write to it, or to use its cache
+    # at all.
+    test "grants each opaque credential only the cache actions the policy permits", %{conn: conn} do
+      # Given
+      admin = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "grants-org", creator: admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      handle = "#{organization.account.name}/#{project.name}"
+
+      tokens_only_organization = AccountsFixtures.organization_fixture(name: "grants-tokens-only-org", creator: admin)
+
+      {:ok, tokens_only_account} =
+        Accounts.update_account(tokens_only_organization.account, %{cache_write_policy: :tokens_only})
+
+      tokens_only_project = ProjectsFixtures.project_fixture(account: tokens_only_account)
+      tokens_only_handle = "#{tokens_only_account.name}/#{tokens_only_project.name}"
+
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      :ok = Accounts.add_user_to_organization(member, tokens_only_organization, role: :user)
+
+      account_token = fn scopes ->
+        {:ok, {_token, value}} =
+          Accounts.create_account_token(%{
+            account: organization.account,
+            name: "token-#{System.unique_integer([:positive])}",
+            scopes: scopes,
+            all_projects: true
+          })
+
+        value
+      end
+
+      # {credential, project, may read, may write}
+      cases = [
+        {account_token.(["project:cache:read"]), project, handle, true, false},
+        {account_token.(["project:previews:read"]), project, handle, false, false},
+        {viewer.token, project, handle, true, false},
+        {member.token, tokens_only_project, tokens_only_handle, true, false},
+        # Controls: the same reach with write access keeps it.
+        {account_token.(["project:cache:write"]), project, handle, true, true},
+        {admin.token, project, handle, true, true}
+      ]
+
+      for {credential, project, handle, may_read, may_write} <- cases do
+        # When
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer #{credential}")
+          |> get(~p"/api/cache/access")
+
+        response = json_response(conn, 200)
+
+        # Then
+        subject = Authentication.authenticated_subject(conn)
+        assert Authorization.authorize(:project_cache_create, subject, project) == :ok == may_write
+
+        assert %{"cache_grants" => %{"project" => %{"read" => reads, "write" => writes}}} = response,
+               "no cache grants for #{handle} in #{inspect(response)}"
+
+        assert {handle in response["projects"], handle in reads, handle in writes} ==
+                 {may_read, may_read or may_write, may_write},
+               "#{handle}: #{inspect(response)}"
+      end
     end
   end
 
@@ -926,7 +1064,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1166,7 +1304,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1293,7 +1431,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1401,7 +1539,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1477,7 +1615,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1686,7 +1824,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 

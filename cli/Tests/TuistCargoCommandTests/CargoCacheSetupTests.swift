@@ -13,17 +13,13 @@ struct CargoCacheSetupTests {
     @Test(.inTemporaryDirectory) func preparesPrivateCredentialsAndUsesTheSharedCacheDirectory() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let setup = service(root)
-        let context = context(root, environment: [
-            "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push", "GITHUB_REF_TYPE": "branch",
-            "GITHUB_REF_PROTECTED": "true", "TUIST_CARGO_CACHE_STALE": "old",
-        ])
+        let context = context(root, environment: ["TUIST_CARGO_CACHE_STALE": "old"])
         let session = try #require(await setup.prepare(context, root: URL(fileURLWithPath: root.pathString)))
         defer { session.refresh?.cancel() }
         let path = try #require(session.environment["TUIST_CARGO_CACHE_DIR"])
         #expect(path.hasPrefix(root.appending(components: "cache", "Cargo").pathString + "/"))
         #expect(session.environment["TUIST_CARGO_CACHE_REMOTE_URL"] == "http://localhost:9000")
         #expect(session.environment["TUIST_CARGO_CACHE_NAMESPACE"] == "acme/app")
-        #expect(session.environment["TUIST_CARGO_CACHE_UPLOAD"] == "1")
         #expect(session.environment["TUIST_CARGO_CACHE_STALE"] == nil)
         let file = try #require(session.environment["TUIST_CARGO_CACHE_TOKEN_FILE"])
         #expect(try String(contentsOfFile: file, encoding: .utf8) == "fixture-token")
@@ -34,13 +30,36 @@ struct CargoCacheSetupTests {
         #expect(repeated.environment["TUIST_CARGO_CACHE_DIR"] == path)
     }
 
-    @Test(.inTemporaryDirectory) func doesNotInheritRemoteWritePermission() async throws {
+    @Test(.inTemporaryDirectory) func clearsTheObsoleteInheritedUploadFlag() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let session = try #require(await service(root).prepare(
             context(root, environment: ["TUIST_CARGO_CACHE_UPLOAD": "1"]), root: URL(fileURLWithPath: root.pathString)
         ))
         defer { session.refresh?.cancel() }
         #expect(session.environment["TUIST_CARGO_CACHE_UPLOAD"] == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func readOnlyGrantHintIsClearedWhenServerTokenBecomesWritable() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let payload = Data(#"{"cache_grants":{"project":{"write":[]}}}"#.utf8).base64EncodedString()
+        let session = try #require(await service(root, token: "header.\(payload).signature").prepare(
+            context(root, environment: [:]), root: URL(fileURLWithPath: root.pathString)
+        ))
+        defer { session.refresh?.cancel() }
+        let marker = try #require(CargoCacheSetup.readOnlyMarker(environment: session.environment))
+        #expect(FileManager.default.fileExists(atPath: marker.path))
+        for token in [
+            "opaque-legacy-token",
+            "header.\(Data(#"{"cache_grants":{"project":{"write":["acme/app"]}}}"#.utf8).base64EncodedString()).signature",
+            "header.\(Data(#"{"cache_grants":{"project":{"write":"unknown-shape"}}}"#.utf8).base64EncodedString()).signature",
+        ] {
+            try Data().write(to: marker)
+            let updated = try #require(await service(root, token: token).prepare(
+                context(root, environment: [:]), root: URL(fileURLWithPath: root.pathString)
+            ))
+            updated.refresh?.cancel()
+            #expect(!FileManager.default.fileExists(atPath: marker.path))
+        }
     }
 
     @Test(.inTemporaryDirectory) func preservesLocalCachingWhenRemoteSetupFails() async throws {
@@ -63,10 +82,10 @@ struct CargoCacheSetupTests {
         #expect(session == nil)
     }
 
-    private func service(_ root: AbsolutePath, fails: Bool = false) -> CargoCacheSetup {
+    private func service(_ root: AbsolutePath, fails: Bool = false, token: String = "fixture-token") -> CargoCacheSetup {
         CargoCacheSetup(
             cacheDirectoriesProvider: Directories(root: root.appending(component: "cache")),
-            cacheURLStore: Endpoints(fails: fails), getCacheTokenService: Tokens()
+            cacheURLStore: Endpoints(fails: fails), getCacheTokenService: Tokens(token: token)
         )
     }
 
@@ -101,8 +120,9 @@ struct CargoCacheSetupTests {
     }
 
     private struct Tokens: GetCacheTokenServicing {
+        let token: String
         func getCacheToken(serverURL _: URL, fullHandle _: String?) async throws -> CacheToken {
-            CacheToken(token: "fixture-token", expiresIn: 3600)
+            CacheToken(token: token, expiresIn: 3600)
         }
     }
 }

@@ -1,0 +1,105 @@
+name: Desktop
+on:
+  pull_request:
+    paths: ['desktop/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/desktop*.yml']
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/desktop*.yml']
+permissions:
+  contents: read
+env:
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    name: macOS development build and core tests
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    env:
+      ONCE_CACHE_PROVIDER: local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: desktop
+          cache: false
+      - name: Build the GPUI shell and independent Rust core
+        run: once build TuistDesktop
+      - name: Core and app tests
+        run: mise run test
+      - name: Graph, formatting and Clippy
+        run: mise run check
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    env:
+      ONCE_CACHE_PROVIDER: local
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            desktop
+            app/Fixtures/Navigation
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Prefer MSVC tools in every Bash process
+        if: runner.os == 'Windows'
+        run: |
+          cat > "$RUNNER_TEMP/desktop-bash-env.sh" <<'EOF'
+          # Git Bash otherwise places its GNU link.exe ahead of MSVC's linker.
+          msvc_bin="$(cygpath -u "${VCToolsInstallDir:?}bin/Hostx64/x64")"
+          test -x "$msvc_bin/link.exe" || exit 1
+          export PATH="$msvc_bin:$PATH"
+          EOF
+          echo "BASH_ENV=$RUNNER_TEMP/desktop-bash-env.sh" >> "$GITHUB_ENV"
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake clang pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libwayland-dev libvulkan-dev libssl-dev libglib2.0-dev libgtk-3-dev libfuse2
+      - name: Linux signature verification tool
+        if: runner.os == 'Linux'
+        run: |
+          bash distribution/install-minisign.sh "$RUNNER_TEMP/minisign-bin"
+          echo "$RUNNER_TEMP/minisign-bin" >> "$GITHUB_PATH"
+      - name: Windows packaging tools
+        if: runner.os == 'Windows'
+        run: choco install nsis minisign -y --no-progress
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: desktop
+          cache: false
+      - name: Install pinned packager (tool only, never builds the app)
+        run: cargo install --locked cargo-packager --version '=0.11.7'
+      - name: Script tests and shared navigation fixture
+        run: |
+          for test in distribution/test_*.sh; do bash "$test"; done
+          git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json
+      - name: Native Once optimized build, tests and unsigned package
+        run: mise exec -- bash distribution/release.sh build --output "$RUNNER_TEMP/desktop-package"
+      - name: Install and uninstall smoke
+        run: bash distribution/smoke.sh "$RUNNER_TEMP/desktop-package"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-${{ runner.os }}-unsigned
+          path: ${{ runner.temp }}/desktop-package/assets/*
+          if-no-files-found: warn

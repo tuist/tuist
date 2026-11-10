@@ -30,6 +30,22 @@ struct CargoCacheReportTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func countsEveryCrateBeyondTheFormer64ReportLimit() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let root = URL(fileURLWithPath: directory.pathString)
+        let reports = root.appendingPathComponent("cache-reports")
+        try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
+        var payload: [String: Any] = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, 0 as Any) })
+        payload["version"] = 1
+        payload["hits"] = 1
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        for index in 0 ..< 96 {
+            try data.write(to: reports.appendingPathComponent("\(index).json"))
+        }
+        #expect(CargoCacheReport.read(root: root)?["hits"] as? UInt64 == 96)
+    }
+
+    @Test(.inTemporaryDirectory)
     func saturatesOverflowingCounters() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let root = URL(fileURLWithPath: directory.pathString)

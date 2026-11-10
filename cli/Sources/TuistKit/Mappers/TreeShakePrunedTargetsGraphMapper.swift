@@ -309,6 +309,20 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 scheme.testAction = testAction
             }
 
+            // Schemes can survive pruning with dangling run/profile executable references.
+            // Clear only pruned targets to avoid missing-target warnings while keeping manifest errors visible.
+            if let executable = scheme.runAction?.executable,
+               prunedTargets.contains(executable)
+            {
+                scheme.runAction?.executable = nil
+            }
+
+            if let executable = scheme.profileAction?.executable,
+               prunedTargets.contains(executable)
+            {
+                scheme.profileAction?.executable = nil
+            }
+
             // Clear variable-expansion references when their target has been pruned, rather than
             // dropping the whole scheme. Otherwise, for example, a single cached (and therefore
             // pruned) test target can take an entire aggregate workspace scheme with it — even
@@ -368,11 +382,19 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         if testTargets.isEmpty {
             return nil
         } else {
+            let codeCoverageTargets = testPlan.codeCoverageTargets.filter(sourceTargets.contains)
+            let coverage = testPlan.coverage.map {
+                $0 && (testPlan.codeCoverageTargets.isEmpty || !codeCoverageTargets.isEmpty)
+            }
             return TestPlan(
                 path: testPlan.path,
                 testTargets: testTargets,
                 isDefault: testPlan.isDefault,
-                kind: testPlan.kind
+                kind: testPlan.kind,
+                coverage: coverage,
+                codeCoverageTargets: codeCoverageTargets,
+                language: testPlan.language,
+                region: testPlan.region
             )
         }
     }

@@ -1,0 +1,184 @@
+name: Remote Execution Deployment
+
+# Installs or upgrades the opt-in remote-execution release (execution
+# gateways and Firecracker workers) into an environment's sandbox namespace.
+# The production deploy cascade calls it after the server and runners
+# controller are deployed; it can also be dispatched by hand. It does nothing
+# while the environment's values file says `enabled: false`. Accounts pin the
+# template tag in their settings (see infra/sandbox-image/remote-execution.md).
+# Workers roll out OnDelete; an upgrade replaces gateways and never kills
+# running VMs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options: [staging, canary, production]
+      commit_sha:
+        description: Commit to build images from (defaults to the dispatched ref)
+        required: false
+        type: string
+      template_image_tag:
+        description: Published sandbox template and gateway tag; omit to build from the commit
+        required: false
+        type: string
+      sandboxd_image_tag:
+        description: Published sandboxd tag; omit to build from the commit
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      commit_sha:
+        required: false
+        type: string
+      template_image_tag:
+        required: false
+        type: string
+      sandboxd_image_tag:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: remote-execution-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  HELM_CHART_PATH: infra/helm/remote-execution
+  HELM_RELEASE_NAME: remote-execution
+  NAMESPACE: tuist-sandboxes
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  guard:
+    name: Guard production source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.enabled.outputs.enabled }}
+    steps:
+      - name: Require main for production
+        if: inputs.environment == 'production' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+          sparse-checkout: infra/helm/remote-execution
+      # The environment's values file is the switch: a release it disables
+      # is neither built nor installed, so the cascade can always call this.
+      - name: Read enabled from the environment values
+        id: enabled
+        run: |
+          set -euo pipefail
+          enabled=$(yq '.enabled // false' "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml")
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+          echo "remote execution enabled in ${{ inputs.environment }}: $enabled"
+
+  build-template:
+    name: Publish sandbox template and gateway
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true' && inputs.template_image_tag == ''
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
+  build-sandboxd:
+    name: Publish sandboxd
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true' && inputs.sandboxd_image_tag == ''
+    uses: ./.github/workflows/sandboxd-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    needs: [guard, build-template, build-sandboxd]
+    if: always() && needs.guard.result == 'success' && needs.guard.outputs.enabled == 'true' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
+    runs-on: ubuntu-latest
+    # Allow time for the gateway rollout, rollback and DNS publication.
+    timeout-minutes: 30
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      TEMPLATE_IMAGE_TAG: ${{ inputs.template_image_tag || needs.build-template.outputs.image_tag }}
+      SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - name: Validate image tags
+        run: |
+          set -euo pipefail
+          for tag in "$TEMPLATE_IMAGE_TAG" "$SANDBOXD_IMAGE_TAG"; do
+            if [[ ! "$tag" =~ ^sha-[a-f0-9]{12,40}$ ]]; then
+              echo "::error::Image tags must be immutable sha-<commit> tags, got '$tag'"
+              exit 1
+            fi
+          done
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Require the sandbox namespace
+        # The server release owns the namespace and its policies.
+        run: kubectl get namespace "$NAMESPACE" >/dev/null
+      - name: helm upgrade --install
+        # Helm 4's watcher waits for updated workers even with OnDelete.
+        # Legacy waits for the gateway but leaves worker replacement to a drain.
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set gateway.tag="$TEMPLATE_IMAGE_TAG" \
+            --set workers.templateTag="$TEMPLATE_IMAGE_TAG" \
+            --set workers.tag="$SANDBOXD_IMAGE_TAG" \
+            --atomic --timeout 20m --wait=legacy
+      # platform-external-dns publishes the gateway Ingress host to Cloudflare
+      # (DNS-only) within about a minute of the Ingress existing.
+      - name: Wait for the gateway's DNS record
+        run: |
+          set -euo pipefail
+          host=$(yq '.gateway.ingress.host // ""' "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml")
+          [ -n "$host" ] || exit 0
+          for _ in $(seq 1 30); do
+            if [ -n "$(dig +short "$host" @1.1.1.1)" ]; then
+              echo "$host resolves to $(dig +short "$host" @1.1.1.1 | tr '\n' ' ')"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$host has no DNS record five minutes after the deploy; check platform-external-dns"
+          exit 1
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10
+          kubectl -n "$NAMESPACE" get deploy,ds,svc,ingress,pods -l tuist.dev/remote-execution=true -o wide
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -60
