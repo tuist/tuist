@@ -233,11 +233,11 @@ defmodule TuistEx.Analytics.Shards do
   download the build from when one was uploaded.
   """
   def fetch(reference, index, options) do
-    HTTP.project_request(
-      :get,
-      "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}",
-      nil,
-      options
+    path = "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}"
+
+    ShardUpload.retry(
+      fn -> HTTP.project_request(:get, path, nil, options) end,
+      Keyword.get(options, :sleep, &Process.sleep/1)
     )
   end
 
