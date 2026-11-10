@@ -12,15 +12,29 @@ defmodule Pulse.Storage.MetricMetadataCodecTest do
     assert NIF.metric_metadata_api_version() == 2
     assert NIF.otlp_metrics_api_version() == 2
     assert NIF.metric_postings_api_version() == 1
+    assert NIF.metric_reader_api_version() == 1
     assert :ok = NIF.ensure_metric_metadata_api!()
-    assert {:ok, [sample]} = decode(File.read!(Path.join(@directory, "legacy_metric.parquet")))
+    legacy = File.read!(Path.join(@directory, "legacy_metric.parquet"))
+    assert {:ok, [sample]} = decode(legacy)
     assert sample.otlp == nil
     assert sample.labels == %{"__name__" => "legacy_metric"}
     assert sample.series_id == 42
     assert <<sample.value::float-64>> == <<0x8000000000000000::64>>
+    assert {:ok, reader} = NIF.metric_segment_reader_new(legacy, nil, nil, [])
+    assert {:ok, [^sample]} = NIF.metric_segment_reader_next(reader, 1)
+    assert :done = NIF.metric_segment_reader_next(reader, 0)
 
     for filename <- ["invalid_otlp_type.parquet", "invalid_otlp_value.parquet"] do
-      assert :fallback = decode(File.read!(Path.join(@directory, filename)))
+      blob = File.read!(Path.join(@directory, filename))
+      assert :fallback = decode(blob)
+
+      result =
+        case NIF.metric_segment_reader_new(blob, nil, nil, []) do
+          {:ok, reader} -> NIF.metric_segment_reader_next(reader, 4096)
+          :fallback -> :fallback
+        end
+
+      assert :fallback = result
     end
   end
 

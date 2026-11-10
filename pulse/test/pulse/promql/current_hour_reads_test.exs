@@ -390,12 +390,13 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
   test "background maintenance reaches raw sources between already-grouped manifest pages", ctx do
     tenant = ctx.tenant <> "-cursor"
 
+    # Metadata-only full outputs: the fragment packer must not read these.
     grouped =
       for n <- 1..6000 do
         ts = ctx.t0 + n * 1_000_000
         key = S3.object_key(tenant, "metrics", ts, ts, "page-#{n}", nil)
         key = String.replace(key, "-rand-", "-group-")
-        %{Segment.build(key, ts, ts, 1, 1000) | metric_names: ["other"]}
+        %{Segment.build(key, ts, ts, 32_768, 1000) | metric_names: ["other"]}
       end
 
     # These two raw objects sit in the middle of twelve leaves, outside both
@@ -469,6 +470,124 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
     assert {:ok, %{"data" => %{"result" => [%{"values" => values}]}}} = Evaluator.query("count(up)", tenant, opts)
     assert length(values) == 220
     assert Enum.all?(values, fn [_timestamp, count] -> count == "1" end)
+  end
+
+  test "mixed-size raw segments cannot block grouping of later fitting sources", ctx do
+    tenant = ctx.tenant <> "-mixed"
+    from = ctx.t0
+
+    batches =
+      for {size, batch} <- Enum.with_index([20, 20] ++ List.duplicate(1, 40)) do
+        for row <- 1..size do
+          %MetricSample{
+            timestamp_ns: from + batch * @second,
+            value: (batch + row) * 1.0,
+            labels: %{"__name__" => "up", "instance" => "#{batch}-#{row}"}
+          }
+        end
+      end
+
+    Enum.each(batches, &assert(:ok = S3.append(:metrics, tenant, &1)))
+    query_opts = %{end_ts_ns: from + 42 * @second}
+    Runtime.put_env(:pulse, Evaluator, max_scan_segments: 32)
+    assert {:error, :query_scan_limit} = Evaluator.query("count(up)", tenant, query_opts)
+    assert %{limit: :max_scan_segments} = QueryLimit.take()
+
+    opts = [consolidate_settle_ms: 0, consolidate_min_rows: 32, consolidate_max_rows: 32, target_rows: 32]
+
+    # Neither oldest 20-row source fills a batch alone, and together they
+    # exceed its cap. Each can instead group with twelve later singleton rows.
+    for _ <- 1..2 do
+      assert {:ok, %{sources: 13, rows: 32, grouped: 1}} = MetricTiers.consolidate(tenant, ctx.config, opts)
+    end
+
+    reads(ctx.agent)
+
+    assert {:ok, %{"data" => %{"result" => [%{"value" => [_, "80"]}]}}} =
+             Evaluator.query("count(up)", tenant, query_opts)
+
+    assert reads(ctx.agent) == 18
+    assert {:ok, %{hour: nil}} = MetricTiers.consolidate(tenant, ctx.config, opts)
+
+    assert {:ok, actual} = S3.query(:metrics, tenant, start_ts: from, end_ts: from + 42 * @second, limit: 81)
+    samples = &Enum.sort(Enum.map(&1, fn sample -> {sample.labels, sample.timestamp_ns, sample.value} end))
+    assert samples.(actual) == samples.(List.flatten(batches))
+  end
+
+  test "small grouped outputs consolidate without mixing names or repeatedly rewriting full outputs", ctx do
+    tenant = ctx.tenant <> "-fragments"
+    from = ctx.t0
+    opts = [consolidate_settle_ms: 0, consolidate_min_rows: 32, consolidate_max_rows: 1024, target_rows: 1024]
+
+    batch = fn count, ts, names ->
+      for row <- 1..count do
+        %MetricSample{
+          timestamp_ns: ts + row,
+          value: (rem(ts, 997) + row) * 1.0,
+          labels: %{"__name__" => Enum.at(names, rem(row, length(names))), "instance" => "#{rem(row, 4)}"}
+        }
+      end
+    end
+
+    fragments = for n <- 1..32, do: batch.(32, from + n * @second, ["up", "noise"])
+
+    for records <- fragments do
+      assert :ok = S3.append(:metrics, tenant, records)
+      assert {:ok, %{sources: 1, rows: 32, grouped: 1}} = MetricTiers.consolidate(tenant, ctx.config, opts)
+    end
+
+    # Raw grouping must still win over the existing fragment backlog. Keep a
+    # full output, an exact half-full tail, a different name set and a
+    # different hour as merge controls.
+    controls = [
+      batch.(1024, from + 100 * @second, ["up", "noise"]),
+      batch.(512, from + 90 * @second, ["up", "noise"]),
+      batch.(32, from, ["unrelated"]),
+      batch.(32, from - @hour, ["up", "noise"])
+    ]
+
+    for records <- controls do
+      assert :ok = S3.append(:metrics, tenant, records)
+      assert {:ok, %{sources: 1, grouped: 1}} = MetricTiers.consolidate(tenant, ctx.config, opts)
+    end
+
+    all = List.flatten(fragments ++ controls)
+    Runtime.put_env(:pulse, Storage, adapter: Memory)
+    assert :ok = Storage.append(:metrics, tenant <> "-reference", all)
+    query_opts = %{start_ts_ns: from, end_ts_ns: from + 180 * @second, step_ns: 10 * @second}
+    assert {:ok, expected} = Evaluator.query("sum(up)", tenant <> "-reference", query_opts)
+    Runtime.put_env(:pulse, Storage, adapter: S3)
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query("sum(up)", tenant, query_opts)
+    assert reads(ctx.agent) == 34
+
+    Runtime.put_env(:pulse, Evaluator, max_scan_segments: 3)
+    assert {:error, :query_scan_limit} = Evaluator.query("sum(up)", tenant, query_opts)
+    assert %{limit: :max_scan_segments} = QueryLimit.take()
+
+    assert {:ok, before, _} = Retention.load(tenant, "metrics", ctx.config)
+    # Sixteen fragments only reach half the target: the source cap must not
+    # be bypassed to create a qualifying batch.
+    assert {:ok, %{hour: nil}} =
+             MetricTiers.consolidate(tenant, ctx.config, Keyword.put(opts, :consolidate_max_sources, 16))
+
+    assert {:ok, %{sources: 32, rows: 1024, grouped: 1}} = MetricTiers.consolidate(tenant, ctx.config, opts)
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query("sum(up)", tenant, query_opts)
+    assert reads(ctx.agent) == 3
+
+    assert {:ok, after_merge, _} = Retention.load(tenant, "metrics", ctx.config)
+    assert length(before.segments) == 36
+    assert length(after_merge.segments) == 5
+    assert Enum.sum_by(after_merge.segments, & &1.byte_size) < Enum.sum_by(before.segments, & &1.byte_size)
+
+    for _ <- 1..3, do: assert({:ok, %{hour: nil}} = MetricTiers.consolidate(tenant, ctx.config, opts))
+    assert reads(ctx.agent) == 0
+    assert {:ok, ^after_merge, _} = Retention.load(tenant, "metrics", ctx.config)
+
+    assert {:ok, actual} = S3.query(:metrics, tenant, start_ts: from - @hour, end_ts: from + 180 * @second, limit: 2625)
+    samples = &Enum.sort(Enum.map(&1, fn sample -> {sample.labels, sample.timestamp_ns, sample.value} end))
+    assert samples.(actual) == samples.(all)
   end
 
   @tag :query_bench

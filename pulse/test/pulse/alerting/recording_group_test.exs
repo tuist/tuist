@@ -156,6 +156,97 @@ defmodule Pulse.Alerting.RecordingGroupTest do
     assert fixture["evaluations"] |> Enum.filter(&String.starts_with?(&1["expr"], "kura:")) |> length() == 60
   end
 
+  @tag timeout: 60_000
+  test "the Kura regional latency alert fits the production heap with a packed metric object" do
+    # The saved alert, but synthetic samples: two different regional
+    # histograms, an idle region, and a pod without a topology recording.
+    # A single large object exposed whole-object term expansion before any
+    # rate or join could run; splitting these same rows into small objects
+    # masked that failure. Keep the production budgets, not a larger heap.
+    Runtime.put_env(:pulse, Pulse.QueryRunner,
+      max_heap_words: div(160 * 1_048_576, 8),
+      timeout_ms: 15_000
+    )
+
+    Runtime.put_env(:pulse, PromQL, max_samples: 300_000, max_scan_bytes: 268_435_456)
+
+    fixture = @fixture |> File.read!() |> Pulse.JSON.decode!()
+    alert = Enum.find(fixture["alerts"], &Enum.any?(&1["rules"], fn rule -> rule["uid"] == "ffx2xchowcwlce" end))
+    finish = @t0 + 5 * @minute
+
+    samples =
+      Enum.flat_map(1..64, fn pod ->
+        region = if pod == 64, do: "idle", else: if(rem(pod, 2) == 0, do: "eu", else: "us")
+        scale = if region == "us", do: 2, else: 1
+        traffic = if region == "idle", do: 0.001, else: 1.0
+
+        counters =
+          for route <- 1..4, replica <- 1..4, bucket <- 1..17, tick <- 0..10 do
+            labels = %{
+              "cluster" => "tuist-production",
+              "pod" => "kura-#{pod}",
+              "route" => "route-#{route}",
+              "instance" => "instance-#{replica}"
+            }
+
+            labels =
+              if bucket == 17 do
+                Map.put(labels, "__name__", "kura_public_request_latency_seconds_count")
+              else
+                labels
+                |> Map.put("__name__", "kura_public_request_latency_seconds_bucket")
+                |> Map.put("le", if(bucket == 16, do: "+Inf", else: "#{bucket * scale}"))
+              end
+
+            %MetricSample{
+              labels: labels,
+              timestamp_ns: finish - (10 - tick) * div(@minute, 2),
+              value: tick * min(bucket, 16) * traffic
+            }
+          end
+
+        topology =
+          if pod == 63 do
+            []
+          else
+            [
+              %MetricSample{
+                labels: %{
+                  "__name__" => "kura:pod_region",
+                  "cluster" => "tuist-production",
+                  "pod" => "kura-#{pod}",
+                  "region" => region
+                },
+                timestamp_ns: finish,
+                value: 1.0
+              }
+            ]
+          end
+
+        counters ++ topology
+      end)
+
+    assert :ok = Storage.append(:metrics, "kura", samples)
+    assert {:ok, %{"data" => %{"result" => result}}} = PromQL.query(alert["expr"], "kura", %{end_ts_ns: finish})
+
+    # p95 lies in +Inf (15.2 of 16 equal increments): Prometheus returns
+    # the last finite bound, 15 in eu and 30 in us. The idle region's
+    # request rate is below one and the unrecorded pod cannot join.
+    assert Map.new(result, &{&1["metric"], value(List.last(&1["value"]))}) == %{
+             %{"cluster" => "tuist-production", "region" => "eu"} => 15.0,
+             %{"cluster" => "tuist-production", "region" => "us"} => 30.0
+           }
+
+    # The selected-sample limit remains shared across chunks and selectors.
+    # Left-open rate windows select ten scrapes per counter series; the
+    # shared topology selector is loaded once, not once per join branch.
+    selected = 64 * 4 * 4 * 17 * 10 + 63
+    Runtime.put_env(:pulse, PromQL, max_samples: selected)
+    assert {:ok, %{"data" => %{"result" => ^result}}} = PromQL.query(alert["expr"], "kura", %{end_ts_ns: finish})
+    Runtime.put_env(:pulse, PromQL, max_samples: selected - 1)
+    assert {:error, :query_sample_limit} = PromQL.query(alert["expr"], "kura", %{end_ts_ns: finish})
+  end
+
   test "one group tick costs one head commit, one segment, one manifest CAS and one acknowledgement", ctx do
     fixture = @fixture |> File.read!() |> Pulse.JSON.decode!()
     ingest(fixture)

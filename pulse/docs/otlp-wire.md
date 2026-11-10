@@ -142,7 +142,7 @@ OTLP context IDs use hex, not generic Google ProtoJSON's base64 byte spelling.
 Upgrade every serving ingress application/native pair before relying on these
 forms. Matching artifacts must expose shared **OTLP wire capability 3**; startup
 checks it separately from log metadata capability 1, metrics
-`{2,2,1,1,1}` (including remote-write start retention) and traces `{2,1,3,7,12}`. A local check cannot fence an older running
+`{2,2,1,1,1,1}` (including remote-write start retention and streaming reads) and traces `{2,1,3,7,12}`. A local check cannot fence an older running
 pool. Old applications may reject merged requests or the newly accepted numeric
 spellings, interpret an underflowed fractional timestamp as unknown/zero time,
 or silently choose the first duplicate JSON field. Duplicate rejection is input

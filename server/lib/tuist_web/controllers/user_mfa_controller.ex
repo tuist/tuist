@@ -73,7 +73,7 @@ defmodule TuistWeb.UserMFAController do
   defp mfa_purpose(_pending), do: {:mfa, nil}
 
   def show(conn, _params) do
-    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/two-factor-authentication")
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/authentication")
   end
 
   def enroll(conn, _params) do

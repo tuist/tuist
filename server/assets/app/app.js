@@ -154,6 +154,50 @@ liveSocket.connect();
 
 setupQueryMemory();
 
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  const modal = document.getElementById(form.dataset.recoveryModal);
+  if (!modal?.showModal) return;
+  event.preventDefault();
+  const status = form.querySelector("[data-enrollment-status]");
+  const button = event.submitter;
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
+  status.textContent = "";
+  try {
+    // Keep the controller's CSRF protection, session rotation and no-store
+    // response. Plaintext codes live only in the response and this dialog,
+    // never in a LiveView session, URL or browser storage.
+    const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
+    const responseDocument = new DOMParser().parseFromString(await response.text(), "text/html");
+    if (!response.ok) {
+      status.textContent = responseDocument.querySelector(".noora-alert")?.textContent || form.dataset.error;
+      if (button) button.disabled = false;
+      return;
+    }
+    const content = responseDocument.querySelector("#user-security-settings");
+    if (!content?.querySelector("#mfa-recovery-codes")) {
+      window.location.assign(response.url);
+      return;
+    }
+    // The factor change revoked the socket's session. Keep the settings
+    // backdrop frozen until the acknowledgement link loads the new session.
+    liveSocket.disconnect();
+    const sourceModal = document.getElementById(form.dataset.sourceModal);
+    delete sourceModal.dataset.onOpenChange;
+    window.dispatchEvent(new CustomEvent("phx:close-modal", { detail: { id: sourceModal.id } }));
+    modal.querySelector("[data-recovery-content]").replaceChildren(content);
+    modal.addEventListener("cancel", (event) => event.preventDefault());
+    modal.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") event.preventDefault();
+    });
+    modal.showModal();
+  } catch {
+    status.textContent = form.dataset.error;
+    if (button) button.disabled = false;
+  }
+});
+
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy-setup-key], [data-copy-recovery-codes]");
   if (!button) return;
@@ -165,11 +209,11 @@ document.addEventListener("click", async (event) => {
     : Array.from(codes.querySelectorAll("code"), (code) => code.textContent).join("\n");
   status.textContent = "";
   try {
-    await copyTextToClipboard(text);
+    await copyTextToClipboard(text, { container: button.closest("dialog") || document.body });
     status.textContent = button.dataset.copySuccess;
     button.setAttribute("aria-label", button.dataset.copySuccess);
   } catch {
-    if (key) {
+    if (button.hasAttribute("data-copy-setup-key")) {
       key.focus();
       key.select();
     } else {

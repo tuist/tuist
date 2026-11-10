@@ -11,6 +11,19 @@ Keep a versioned contract matrix with supported forms, explicit rejections,
 semantic references, bounds and operational qualifications. The operator-facing
 current boundary is [protocol coverage](../docs/protocol-coverage.md).
 
+### Bounded metric decoding increment
+
+Metric reader API1 extends the current metric tuple to `{2,2,1,1,1,1}`.
+Ordinary S3 selector folds materialize at most 4096 input rows per native call,
+sharing the full decoder's pruning, validation and sample semantics. The Kura
+regional latency regression exercises a packed 191,551-row object at 160 MiB,
+with independently derived regional outputs and an exact shared sample-limit
+boundary. Streamed/full codec comparisons preserve histogram, metadata,
+exemplar, source-start and non-finite fields. No safety limit, keyed encoder
+byte or stored format changes. This is local bounded-allocation evidence,
+not deployed-query parity or total native-memory capacity acceptance; see
+[operator boundaries](../docs/metrics.md#bounded-metric-decoding).
+
 ### Grafana Tempo query-builder increment
 
 The current search/autocomplete profile accepts typed single-spanset filters,

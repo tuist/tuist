@@ -598,6 +598,14 @@ defmodule Pulse.PromQL.Evaluator do
        when is_map_key(@range_functions, name) and name != "absent_over_time",
        do: {matchers, offset, window, Map.fetch!(@range_functions, name)}
 
+  defp fused_source({:binary, op, modifiers, {:selector, matchers, offset}, {:scalar, value}})
+       when op in ["==", "!=", "<", ">", "<=", ">="],
+       do: {matchers, offset, Process.get(:promql_lookback_ns), {:comparison, op, modifiers, value, false}}
+
+  defp fused_source({:binary, op, modifiers, {:scalar, value}, {:selector, matchers, offset}})
+       when op in ["==", "!=", "<", ">", "<=", ">="],
+       do: {matchers, offset, Process.get(:promql_lookback_ns), {:comparison, op, modifiers, value, true}}
+
   defp fused_source(_), do: nil
 
   defp fused_aggregate({:aggregate, op, grouping, _inner}, {matchers, offset, window, fop}, tenant, steps) do
@@ -631,6 +639,9 @@ defmodule Pulse.PromQL.Evaluator do
   end
 
   # The labels of a selector's or range function's result series.
+  defp result_labels(labels, {:comparison, _op, modifiers, _value, _left?}),
+    do: if("bool" in modifiers, do: Map.delete(labels, "__name__"), else: labels)
+
   defp result_labels(labels, op) when op in [:latest, :first_over_time, :last_over_time], do: labels
   defp result_labels(labels, _op), do: Map.delete(labels, "__name__")
 
@@ -1210,6 +1221,35 @@ defmodule Pulse.PromQL.Evaluator do
             do: {sample.timestamp_ns, sample.value}
 
       {:ok, {labels, points}, work}
+    end
+  end
+
+  # Apply the existing scalar/vector operation to one selected series at a
+  # time. It retains comparison/filter semantics and histogram notices without
+  # holding the full input matrix. Colliding output labels take fold_selected's
+  # unfused path so duplicate-result errors are not hidden by aggregation.
+  defp evaluate_series(
+         {labels, _ordered} = group,
+         steps,
+         offset,
+         window,
+         {:comparison, op, modifiers, value, left?} = comparison,
+         work,
+         max_work
+       ) do
+    with {:ok, series, work} <- evaluate_series(group, steps, offset, window, :latest, work, max_work) do
+      scalar = [{%{}, Enum.map(steps, &{&1, value})}]
+      charge(:work, length(elem(series, 1)))
+
+      result =
+        if left?,
+          do: Operations.binary(op, modifiers, scalar, [series], :scalar, :vector, steps),
+          else: Operations.binary(op, modifiers, [series], scalar, :vector, :scalar, steps)
+
+      case result do
+        [] -> {:ok, {result_labels(labels, comparison), []}, work}
+        [series] -> {:ok, series, work}
+      end
     end
   end
 

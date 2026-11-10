@@ -59,7 +59,7 @@ defmodule TuistWeb.SSOLinkHTML do
 
   def reauthentication_notice(assigns) do
     ~H"""
-    <p>
+    <p data-part="reauthentication-explanation">
       {dgettext(
         "dashboard_auth",
         "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."

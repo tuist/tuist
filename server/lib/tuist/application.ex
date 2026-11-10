@@ -83,7 +83,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Tuist.Observability.attach_oban()
-    Tuist.Jams.Checkpoints.attach()
+    Tuist.Threads.Checkpoints.attach()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -408,7 +408,7 @@ defmodule Tuist.Application do
         [
           TuistWeb.Draining,
           TuistWeb.Endpoint,
-          {Task.Supervisor, name: Tuist.Jams.Tasks},
+          {Task.Supervisor, name: Tuist.Threads.Tasks},
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++
         once_events_grpc_children() ++

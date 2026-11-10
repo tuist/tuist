@@ -33,11 +33,33 @@ Use TLS outside a trusted local network. Provider ETags and footer checksums are
 not cryptographic end-to-end authentication or independent integrity proofs.
 
 Every serving application/native pair must have matching artifacts: metric codec
-API `{2,2,1,1,1}` (metadata/start timestamps, OTLP, postings, discovery, footer planning), object-store
+API `{2,2,1,1,1,1}` (metadata/start timestamps, OTLP, postings, discovery, footer planning, streaming reads), object-store
 API `{1,1,1,1}` (retention, keyed publication, snapshot GET, asynchronous requests). Startup checks cannot
 fence old pooled applications. There is no new segment format or change to
 keyed encoder bytes. Existing rich-metadata and immutable-keyed-publication
 all-participant upgrade/drain requirements still apply independently.
+
+## Compact optional postings
+
+New indexed segments (fresh unkeyed writes and compaction outputs) can store
+large postings in an `s1:` envelope: hex-encoded raw Snappy around the existing
+checksummed postings binary. Parquet column compression does not compress this
+footer metadata. Indexes below 1 KiB decoded remain plain hex; larger indexes
+use the envelope only when its complete text is smaller. No setting is needed.
+
+Readers retain the 64 KiB text and 32 KiB decoded-index limits, inspecting the
+Snappy declared size before allocating decoded bytes. Both encodings undergo
+the same checksum, complete-partition and actual row-group coverage checks.
+Truncated/corrupt/unknown envelopes or over-budget decoded sizes make the index
+unknown, never proof of an empty result. Existing plain-hex indexes and historical
+namespace aliases remain readable. Older readers reject the non-hex envelope
+and scan rather than falsely exclude; upgrade app/native pairs to gain pruning.
+
+This reduces newly written object/footer bytes without changing columns,
+keyed encoder bytes, native ABI, publication or scan charging. Existing objects
+are not rewritten merely to adopt compression. Benefit depends on index size
+and compressibility; writing/parsing adds bounded CPU and temporary buffers.
+It is not a row-group range-read implementation or a production-capacity claim.
 
 ## Read and cost contract
 

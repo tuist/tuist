@@ -2,6 +2,8 @@ defmodule Tuist.EntireTrailsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Entire.Client, as: Entire
   alias Tuist.Entire.Installation
   alias Tuist.Entire.Workers.DeliveryWorker
@@ -212,6 +214,22 @@ defmodule Tuist.EntireTrailsTest do
     [report] = Agent.get(context.remote, &Map.values(&1.summaries))
     assert report["body"] == "New results"
     assert map_size(Agent.get(context.remote, & &1.reviews)) == 1
+  end
+
+  test "distinguishes an empty Trail list from a missing items field", context do
+    for body <- [%{"items" => []}, %{"trails" => [%{"number" => 7}]}] do
+      stub(Req, :request, fn opts ->
+        if opts[:url] == @api <> "/api/v1/repos/repo_selected/trails" do
+          response(200, body)
+        else
+          request(opts, context.remote, context.installation)
+        end
+      end)
+
+      log = capture_log(fn -> assert :ok = EntireTrails.sync(context.connection.id) end)
+      assert log =~ "response missing items" == not Map.has_key?(body, "items")
+      assert Agent.get(context.remote, & &1.writes) == 0
+    end
   end
 
   test "links to Tuist when the report exceeds Entire's UTF-8 byte limit", context do

@@ -17,6 +17,8 @@ defmodule Tuist.EntireTrails do
   alias Tuist.Repo
   alias Tuist.VCS
 
+  require Logger
+
   def enabled?(account), do: Entire.configured?() and FunWithFlags.enabled?(:entire_trails, for: account)
 
   def installations(account) do
@@ -108,8 +110,11 @@ defmodule Tuist.EntireTrails do
   def handle_delivery(_), do: :ok
 
   def sync(connection_id) do
+    Logger.info("Entire sync started connection_id=#{connection_id}")
+
     case Repo.get(Connection, connection_id) do
       nil ->
+        Logger.info("Entire sync skipped connection_id=#{connection_id} reason=connection_missing")
         :ok
 
       connection ->
@@ -117,10 +122,19 @@ defmodule Tuist.EntireTrails do
 
         if connection.installation.active and enabled?(connection.project.account) do
           case sync_connection(connection) do
-            {:error, :revoked} -> :ok
-            result -> result
+            {:error, :revoked} ->
+              Logger.warning("Entire sync skipped connection_id=#{connection_id} reason=revoked")
+              :ok
+
+            result ->
+              result
           end
         else
+          Logger.info(
+            "Entire sync skipped connection_id=#{connection_id} reason=disabled " <>
+              "installation_active=#{connection.installation.active} configured=#{Entire.configured?()}"
+          )
+
           :ok
         end
     end
@@ -134,6 +148,8 @@ defmodule Tuist.EntireTrails do
   defp sync_connection(connection) do
     with {:ok, repository} <- Entire.repository(connection.installation, connection.repository_id),
          {:ok, trails} <- Client.trails(connection.installation, repository) do
+      Logger.info("Entire Trail discovery connection_id=#{connection.id} trail_count=#{length(trails)}")
+
       Enum.reduce_while(trails, :ok, fn trail, :ok ->
         case sync_locked_trail(connection.id, repository, trail["number"]) do
           :ok -> {:cont, :ok}
@@ -160,6 +176,10 @@ defmodule Tuist.EntireTrails do
 
     cond do
       current.reported_at != summary.reported_at or current.published_at == current.reported_at ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=already_published_or_superseded"
+        )
+
         nil
 
       current.publication_started ->
@@ -172,8 +192,15 @@ defmodule Tuist.EntireTrails do
           # recovered even if the Trail head changes or has no new insights.
           current |> Ecto.Changeset.change(publication_started: true) |> Repo.update!()
         else
-          {:error, _} = error -> error
-          _ -> nil
+          {:error, _} = error ->
+            error
+
+          _ ->
+            Logger.info(
+              "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=trail_changed"
+            )
+
+            nil
         end
     end
   end
@@ -191,10 +218,18 @@ defmodule Tuist.EntireTrails do
       |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
       |> Repo.update!()
 
+      Logger.info("Entire report published connection_id=#{connection.id} trail_number=#{number}")
       :ok
     else
-      {:error, _} = error -> error
-      _ -> :ok
+      {:error, _} = error ->
+        error
+
+      _ ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=publication_no_longer_eligible"
+        )
+
+        :ok
     end
   end
 
@@ -210,7 +245,9 @@ defmodule Tuist.EntireTrails do
             result -> result
           end
         else
-          _ -> nil
+          _ ->
+            Logger.info("Entire sync skipped connection_id=#{connection_id} reason=connection_missing_or_disabled")
+            nil
         end
       end,
       timeout: 60_000
@@ -218,9 +255,11 @@ defmodule Tuist.EntireTrails do
   end
 
   defp prepare_trail(connection, repository, number) do
+    Logger.info("Entire report preparation started connection_id=#{connection.id} trail_number=#{number}")
+
     with {:ok, trail} <- Client.trail(connection.installation, repository, number),
-         true <- trail["status"] in ["open", "draft"],
-         sha when is_binary(sha) and sha != "" <- trail["head_sha"] do
+         {:eligible_status, true} <- {:eligible_status, trail["status"] in ["open", "draft"]},
+         {:head_sha, sha} when is_binary(sha) and sha != "" <- {:head_sha, trail["head_sha"]} do
       case Repo.get_by(Summary, connection_id: connection.id, trail_id: trail["id"]) do
         %{publication_started: true, published_at: published_at, reported_at: reported_at} = summary
         when published_at != reported_at ->
@@ -233,8 +272,15 @@ defmodule Tuist.EntireTrails do
           prepare_report(connection, trail, summary)
       end
     else
-      {:error, _} = error -> error
-      _ -> nil
+      {:error, _} = error ->
+        error
+
+      {reason, _} ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=invalid_#{reason}"
+        )
+
+        nil
     end
   end
 
@@ -258,6 +304,10 @@ defmodule Tuist.EntireTrails do
         end
 
       nil ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{trail["number"]} reason=no_insights"
+        )
+
         nil
     end
   end

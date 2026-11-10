@@ -6,7 +6,7 @@ This is one application's compatibility acceptance track, not Pulse's product
 boundary. Full public-protocol feature breadth is the generic goal; see
 [the protocol workstream](protocol-breadth.md) and [current coverage](../docs/protocol-coverage.md).
 
-Current metric artifact tuple is `{2,2,1,1,1}` for remote-write source starts;
+Current metric artifact tuple is `{2,2,1,1,1,1}` including remote-write source starts and streaming reads;
 the explicit-distribution tuple below is historical. Source starts require the
 [fleet-wide maintenance upgrade](../docs/metrics.md#remote-write-20-start-timestamps),
 not a rolling deployment under traffic.

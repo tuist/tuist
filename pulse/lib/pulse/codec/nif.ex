@@ -159,15 +159,15 @@ defmodule Pulse.Codec.NIF do
     version =
       try do
         {metric_metadata_api_version(), otlp_metrics_api_version(), metric_postings_api_version(),
-         metric_discovery_api_version(), metric_footer_api_version()}
+         metric_discovery_api_version(), metric_footer_api_version(), metric_reader_api_version()}
       rescue
         ErlangError -> :unavailable
       end
 
-    if version != {2, 2, 1, 1, 1},
+    if version != {2, 2, 1, 1, 1, 1},
       do:
         raise(
-          "codec native artifact cannot preserve metric metadata and remote-write start timestamps, encode metric postings, discover metric labels and plan metric footer reads; rebuild with PULSE_NIF_FORCE_BUILD=1 or install matching release artifacts"
+          "codec native artifact cannot preserve metric metadata and remote-write start timestamps, encode metric postings, discover metric labels, plan metric footer reads and stream metric records; rebuild with PULSE_NIF_FORCE_BUILD=1 or install matching release artifacts"
         )
 
     :ok
@@ -178,6 +178,7 @@ defmodule Pulse.Codec.NIF do
   def metric_postings_api_version, do: :erlang.nif_error(:nif_not_loaded)
   def metric_discovery_api_version, do: :erlang.nif_error(:nif_not_loaded)
   def metric_footer_api_version, do: :erlang.nif_error(:nif_not_loaded)
+  def metric_reader_api_version, do: :erlang.nif_error(:nif_not_loaded)
 
   def metric_segment_footer_plan(_tail, _size, _start, _finish, _matchers), do: :erlang.nif_error(:nif_not_loaded)
   def metric_discovery_new(_mode, _key, _start, _finish, _selectors), do: :erlang.nif_error(:nif_not_loaded)
@@ -351,6 +352,9 @@ defmodule Pulse.Codec.NIF do
 
   def decode_metric_segment_parquet_bounded_v2(_blob, _start_ts, _end_ts, _matchers, _max_samples),
     do: :erlang.nif_error(:nif_not_loaded)
+
+  def metric_segment_reader_new(_blob, _start, _finish, _matchers), do: :erlang.nif_error(:nif_not_loaded)
+  def metric_segment_reader_next(_reader, _max_samples), do: :erlang.nif_error(:nif_not_loaded)
 
   def compile_metric_capture_regex(_pattern), do: :erlang.nif_error(:nif_not_loaded)
   def compile_log_regex(_pattern), do: :erlang.nif_error(:nif_not_loaded)

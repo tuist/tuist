@@ -34,4 +34,8 @@ defmodule TuistWeb.UserSecuritySettingsLive do
   def handle_event("close-security-modal", %{"id" => id}, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: id})}
   end
+
+  def handle_event("open-security-modal", %{"id" => id}, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: id})}
+  end
 end
