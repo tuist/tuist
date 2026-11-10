@@ -9,8 +9,8 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.48.0
-	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260203192932-546029d2fa20
-	google.golang.org/grpc v1.76.0
+	google.golang.org/genproto/googleapis/bytestream v0.0.0-20261110000943-09e21b237f2c
+	google.golang.org/grpc v1.83.1
 )
 
 require (
@@ -22,10 +22,10 @@ require (
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )
 
 godebug default=go1.25
