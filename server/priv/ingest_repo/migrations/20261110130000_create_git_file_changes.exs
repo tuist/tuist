@@ -18,7 +18,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateGitFileChanges do
 
   The default branch's rows are kept (`expires_at` far in the future): every
   later commit's files are read through them. A ref that forks expires its
-  rows together, the file retention after the oldest of them was written.
+  rows together, the file retention after the last write that renewed them
+  (one that found less than half of it left).
   """
   use Ecto.Migration
 
