@@ -16,6 +16,7 @@ defmodule TuistWeb.AuthenticationTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
 
   @remember_me_cookie "_tuist_web_user_remember_me"
 
@@ -1025,6 +1026,45 @@ defmodule TuistWeb.AuthenticationTest do
       assert {:ok, _, _} = live(build_conn(), public_path)
     end
 
+    @tag :sso_boundary
+    test "explains a Google sign-in from another Workspace instead of sending it back to Google", %{
+      conn: conn,
+      user: user
+    } do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      project = ProjectsFixtures.project_fixture(account: organization.account, visibility: :private)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      paths = [
+        ~p"/#{organization.account.name}/projects",
+        ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}"
+      ]
+
+      contractor =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "contractor.authn-example.com"
+          })
+        )
+
+      personal =
+        put_session(
+          Plug.Test.init_test_session(build_conn(), %{}),
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: nil})
+        )
+
+      for path <- paths do
+        assert_raise UnauthorizedError, ~r/from contractor\.authn-example\.com/, fn -> get(contractor, path) end
+        assert_raise UnauthorizedError, ~r/personal Google account/, fn -> get(personal, path) end
+        assert conn |> log_in_user(user) |> get(path) |> redirected_to() == ~p"/users/auth/google"
+      end
+    end
+
     for surface <- [:preview, :account, :project, :authenticated_account, :gradle_task] do
       test "a #{surface} join records its current URL before SSO instead of returning to an older preview", %{
         conn: conn,
@@ -1209,7 +1249,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
       assert_redirect(view, path)
-      assert conn |> get(path) |> redirected_to() == ~p"/users/auth/google"
+      assert_raise UnauthorizedError, ~r/authn-example\.com/, fn -> get(conn, path) end
       assert Tuist.Projects.get_project_by_id(project.id).name == project.name
     end
   end
