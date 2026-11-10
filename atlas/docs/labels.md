@@ -63,7 +63,11 @@ printer, then queue the unprinted labels again or submit a label again to reprin
 A queued batch must start within ten minutes and finish within one minute per label
 after that; labels the relay did not reach by then return to preview unprinted.
 
-Up to 50 previews can be submitted per request, 100 per session. Sessions and their
+Up to 50 previews can be submitted per request. Sessions have no lifetime label-count
+cap, so reaching 100 labels does not require a new connection. The total preview
+image budget remains 16 MB per session; print batches remain limited to 100 labels
+(select `job_ids` when more previews are waiting), with review required above 20.
+Sessions and their
 relay credentials expire after **eight hours without qualifying activity**, not
 eight hours after creation. Each successful connected relay report or owner request
 through the personal API/MCP connection resets the deadline to eight hours from now.

@@ -18,7 +18,10 @@ result time, bounded SDK result and a note explaining why a label returned to
 preview unprinted. Unclaimed standalone cut rows are deleted when they lapse. These may
 contain rack/asset identifiers and text supplied by the owner. No object storage
 or Tuist Server account data is added. PNGs are not encrypted separately from
-the existing database/backups.
+the existing database/backups. Sessions have no lifetime label-count cap; each
+submission accepts up to 50 labels and total stored preview images remain bounded
+to 16 MB per session. Existing jobs and consumed dispatch history are retained
+when more labels are submitted; no pruning or replay is introduced.
 
 Sessions and relay credentials expire after eight hours of inactivity. Successful
 connected relay reports, personal owner API/MCP requests (including status/previews)

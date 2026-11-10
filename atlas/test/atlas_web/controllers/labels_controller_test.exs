@@ -96,6 +96,47 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert byte_size(Repo.get!(Session, s["id"]).relay_token_hash) == 32
   end
 
+  test "sessions accept more than 100 labels while retaining submission and batch limits", c do
+    {id, _token, _r, [first]} = connected_session(c, ["LABEL-1"])
+    job = Repo.get!(Job, first)
+
+    # Fill the session to the old lifetime cap without rendering the same fixture 99 times.
+    Repo.insert_all(
+      Job,
+      for _ <- 2..100 do
+        %{
+          id: Atlas.UUIDv7.generate(),
+          session_id: id,
+          action: job.action,
+          state: job.state,
+          png: job.png,
+          data: job.data,
+          inserted_at: job.inserted_at,
+          updated_at: job.updated_at
+        }
+      end
+    )
+
+    assert mcp(c.mcp, "submit", %{"session_id" => id, "items" => [%{"text" => "LABEL-101"}]}) ==
+             %{"queued" => 1, "state" => "preview-only"}
+
+    status = mcp(c.mcp, "status", %{"session_id" => id})
+    assert length(status["jobs"]) == 101
+    assert status["counts"] == %{"preview-only" => 101}
+    assert List.last(status["jobs"])["title"] == "LABEL-101"
+
+    assert {:error, 400, _} = Labels.request(c.user, :submit, id, %{"items" => []})
+
+    assert {:error, 400, _} =
+             Labels.request(c.user, :submit, id, %{"items" => List.duplicate(%{"text" => "TOO MANY"}, 51)})
+
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{"approval" => true})
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{})
+
+    assert {:ok, %{"count" => 1, "state" => "queued"}} =
+             Labels.request(c.user, :print, id, %{"jobIds" => [List.last(status["jobs"])["id"]]})
+  end
+
   test "connected reports keep the same relay capability alive past its original deadline", c do
     Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
     s = session(c.mcp)

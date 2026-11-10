@@ -148,9 +148,9 @@ defmodule Atlas.Labels do
     current = jobs(s)
 
     ensure(
-      is_list(items) and length(items) in 1..50 and length(items) + length(current) <= 100,
+      is_list(items) and length(items) in 1..50,
       400,
-      "Submit 1–50 labels; at most 100 per session."
+      "Submit 1–50 labels."
     )
 
     ensure(
@@ -240,6 +240,8 @@ defmodule Atlas.Labels do
         ensure(is_list(ids) and length(ids) <= 100 and ids == Enum.uniq(ids), 400, "Pass 1–100 distinct job IDs.")
         Enum.map(ids, &job!(s, &1))
       end
+
+    ensure(length(selected) <= 100, 400, "Choose at most 100 labels per batch using job IDs.")
 
     ensure(
       selected != [] and Enum.all?(selected, &(&1.action == "print" and &1.state == "preview-only")),
