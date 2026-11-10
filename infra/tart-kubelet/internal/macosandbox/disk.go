@@ -63,14 +63,36 @@ func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 	return diskRoom(vms, uint64(fs.Blocks)*uint64(fs.Bsize), uint64(fs.Bavail)*uint64(fs.Bsize), r.MemoryMB)
 }
 
-// Preparation is background work, but a cold image must still leave the CI
-// disk floor intact. An already-cached immutable image needs no registry pull.
-func ensureImage(ctx context.Context, c *tart.Client, image string) error {
-	existing, err := c.Get(ctx, image)
+// hasImage reports whether the store has cached image. `tart get` opens only
+// local VMs, so it is read from `tart list`, which names a cached image by the
+// reference it was pulled as.
+func hasImage(ctx context.Context, c *tart.Client, image string) (bool, error) {
+	vms, err := c.List(ctx)
 	if err != nil {
+		return false, err
+	}
+	for _, vm := range vms {
+		if vm.Source == "OCI" && vm.Name == image {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// Preparation is background work, but a cold image must still leave the CI
+// disk floor intact. An already-cached immutable image needs no registry pull,
+// and one the CI store at ciStore holds is cloned from it (seedImage).
+func ensureImage(ctx context.Context, c *tart.Client, ciStore, image string) error {
+	cached, err := hasImage(ctx, c, image)
+	if err != nil || cached {
 		return err
 	}
-	if existing != nil {
+	if err = seedImage(ciStore, c.HomeDir, image); err != nil {
+		slog.Info("macOS sandbox template not cloned from the CI store", "image", image, "reason", err)
+	} else if cached, err = hasImage(ctx, c, image); err != nil {
+		return err
+	} else if cached {
+		slog.Info("cloned macOS sandbox template from the CI store", "image", image)
 		return nil
 	}
 	var fs syscall.Statfs_t
