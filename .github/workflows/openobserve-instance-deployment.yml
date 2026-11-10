@@ -134,12 +134,16 @@ jobs:
               }]}}
           ' > "$RUNNER_TEMP/openobserve-deploy/storage-probe.json"
           kubectl create -f "$RUNNER_TEMP/openobserve-deploy/storage-probe.json" >/dev/null
-          if ! kubectl -n "$NAMESPACE" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$STORAGE_POD" --timeout=5m; then
-            # This is our credential-safe prerequisite script, never application logs.
-            kubectl -n "$NAMESPACE" logs "$STORAGE_POD" || true
-            exit 1
-          fi
-          kubectl -n "$NAMESPACE" logs "$STORAGE_POD"
+          deadline=$((SECONDS + 300))
+          phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n "$NAMESPACE" get pod "$STORAGE_POD" -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 5
+          done
+          # This is our credential-safe prerequisite script, never application logs.
+          kubectl -n "$NAMESPACE" logs "$STORAGE_POD" || true
+          [[ "$phase" == Succeeded ]]
           kubectl -n "$NAMESPACE" delete pod "$STORAGE_POD" --wait=true --timeout=30s >/dev/null
       - name: Bootstrap independent durable authentication without rotating existing credentials
         run: |

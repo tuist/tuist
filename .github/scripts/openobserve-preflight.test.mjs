@@ -47,7 +47,7 @@ if (url.origin !== 'https://t3.storage.dev' || !url.pathname.startsWith('/tuist-
 const method = args.includes('-X') ? args[args.indexOf('-X') + 1] : 'GET';
 let code = 200, body = '';
 if (url.searchParams.has('lifecycle')) {
-  if (scenario === 'lifecycle unavailable') code = 403;
+  if (scenario === 'lifecycle unavailable') { code = 403; body = '<Error><Code>AccessDenied</Code><Message>test-secret</Message></Error>'; }
   else if (scenario === 'lifecycle rules') body = '<LifecycleConfiguration><Rule><Status>Enabled</Status></Rule></LifecycleConfiguration>';
   else { code = 404; body = '<Error><Code>NoSuchLifecycleConfiguration</Code></Error>'; }
 } else if (url.searchParams.has('list-type')) body = '<ListBucketResult/>';
@@ -70,6 +70,7 @@ process.stdout.write(String(code));
       assert.equal(result.status, scenario === 'success' ? 0 : 1, result.stdout + result.stderr);
       assert.equal(existsSync(join(work, 'object')), scenario === 'failed delete');
       assert.ok(!(result.stdout + result.stderr).includes('test-secret'));
+      if (scenario === 'lifecycle unavailable') assert.match(result.stderr, /HTTP 403, S3 AccessDenied/);
     } finally { rmSync(work, { recursive: true, force: true }); }
   });
 }

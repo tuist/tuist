@@ -38,7 +38,11 @@ elif [ "$code" = 200 ]; then
     exit 1
   fi
 else
-  echo 'FAIL: shared bucket lifecycle could not be verified' >&2
+  error=Unknown
+  for known in AccessDenied NotImplemented InvalidAccessKeyId SignatureDoesNotMatch AuthorizationHeaderMalformed PermanentRedirect NoSuchBucket; do
+    if grep -Fq "<Code>$known</Code>" "$work/response"; then error=$known; break; fi
+  done
+  printf 'FAIL: shared bucket lifecycle could not be verified (HTTP %s, S3 %s)\n' "$code" "$error" >&2
   exit 1
 fi
 code=$(request "$url?list-type=2&prefix=openobserve%2F&max-keys=1")
