@@ -200,3 +200,10 @@ func FilesystemSpace(path string) (available, capacity uint64, err error) {
 	}
 	return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize), nil
 }
+
+// hasXattrs reports whether an open file carries extended attributes, which
+// debugfs's dump does not copy from a master.
+func hasXattrs(f *os.File) bool {
+	size, err := unix.Flistxattr(int(f.Fd()), nil)
+	return err != nil || size > 0
+}
