@@ -134,7 +134,7 @@ defmodule Tuist.Kura.Capacity do
   def resident_gib(%Regions{} = region, %Server{} = server) do
     if thin_volumes?(region, server),
       do: div(resident_bytes(region, server) + @gib - 1, @gib),
-      else: claim_gib(region, server) * replicas(region)
+      else: reservation_gib(region, server) * replicas(region)
   end
 
   @doc """
@@ -158,6 +158,21 @@ defmodule Tuist.Kura.Capacity do
   defp thin_volumes?(_region, %Server{}), do: false
 
   defp claim_gib(%Regions{} = region, %Server{} = server), do: div(instance_claim_bytes(region, server), @gib)
+
+  defp reservation_gib(region, %Server{account: %Account{} = account} = server) do
+    if Regions.shared_disk?(region) do
+      account
+      |> AccountPolicies.sizing_plan()
+      |> Regions.storage_profile()
+      |> Map.fetch!(:claim_size)
+      |> parse_quantity()
+      |> div(@gib)
+    else
+      claim_gib(region, server)
+    end
+  end
+
+  defp reservation_gib(region, server), do: claim_gib(region, server)
 
   # Through the same quantity parser the node and pod readings use, not a
   # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
@@ -723,7 +738,7 @@ defmodule Tuist.Kura.Capacity do
       claim = instance_claim_bytes(region, server)
       %{thin?: true, disk: @kura_disk, request: thin_reservation_bytes(claim), claim: claim}
     else
-      claim = claim_gib(region, server) * @gib
+      claim = reservation_gib(region, server) * @gib
       %{thin?: false, disk: Regions.disk_resource(region), request: claim, claim: claim}
     end
   end

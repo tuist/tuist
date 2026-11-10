@@ -1,0 +1,12 @@
+FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS builder
+WORKDIR /src
+COPY infra/kura-controller/go.mod infra/kura-controller/go.sum ./
+RUN go mod download
+COPY infra/kura-controller/ ./
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /disk-agent ./cmd/disk-agent
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends xfsprogs ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /disk-agent /disk-agent
+ENTRYPOINT ["/disk-agent"]

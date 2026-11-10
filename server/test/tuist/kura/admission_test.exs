@@ -67,6 +67,52 @@ defmodule Tuist.Kura.AdmissionTest do
     assert {:error, :capacity_exhausted} = Admission.admit_replacements?(region, [{current, candidate}])
   end
 
+  test "shared-disk ceiling growth does not require spare node or region reservations" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region = %{region | provisioner_config: Map.put(region.provisioner_config, :shared_disk, true)}
+    current = pending_server(account, region.id)
+    candidate = %{current | storage_claim_size: "64Gi"}
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :pressure_line_gib, fn _ -> 16 end)
+    stub(Capacity, :reserved_gib_by_instance, fn _ -> %{current.provisioner_node_ref => 16} end)
+    stub(Capacity, :placeable?, fn _, _ -> true end)
+
+    assert :ok = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
+  test "shared-disk floor growth still requires regional capacity" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region = %{region | provisioner_config: Map.put(region.provisioner_config, :shared_disk, true)}
+    current = pending_server(account, region.id)
+    candidate = %{current | storage_claim_size: "64Gi"}
+
+    stub(Capacity, :resident_gib, fn
+      ^region, ^current -> 16
+      ^region, ^candidate -> 32
+      ^region, _ -> 16
+    end)
+
+    stub(Capacity, :pressure_line_gib, fn _ -> 31 end)
+    stub(Capacity, :reserved_gib_by_instance, fn _ -> %{} end)
+
+    assert {:error, :capacity_exhausted} = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
+  test "a plan change cannot bypass admission when both rows already resolve the larger floor" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region = %{region | provisioner_config: Map.put(region.provisioner_config, :shared_disk, true)}
+    current = pending_server(account, region.id)
+    candidate = %{current | storage_claim_size: "64Gi"}
+    stub(Capacity, :resident_gib, fn ^region, _ -> 32 end)
+    stub(Capacity, :pressure_line_gib, fn _ -> 31 end)
+    stub(Capacity, :reserved_gib_by_instance, fn _ -> %{current.provisioner_node_ref => 16} end)
+
+    assert {:error, :capacity_exhausted} = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
   # The region-wide totals cannot see that the scheduler places each replica
   # whole on one node, so admitting on them alone leaves an instance Pending
   # and its rolling rebuild deadlocked on a volume that will not release.

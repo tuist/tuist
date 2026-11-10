@@ -703,6 +703,11 @@ pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
 
+The Kura controller image workflow publishes the optional XFS disk allocator
+image alongside the controller. Both depend on the Linux Go tests; PR events
+never publish either image. Managed deployments do not enable shared disk by
+publishing this image.
+
 Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
 release with the same pinned CSI image as the main release. Its offline chart
 regression needs Helm; the CSI workflow installs it before running Go tests.

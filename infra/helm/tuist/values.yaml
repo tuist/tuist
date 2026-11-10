@@ -173,6 +173,12 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  sharedDisk:
+    enabled: false
+    image: ""
+    # Reserve must be sized against the physical filesystem's eviction boundary.
+    reserveBytes: 0
+    capacityBytes: 0
   servingAuthority:
     enabled: false
   privateReplication:
