@@ -85,6 +85,21 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
+  test "explains a Google sign-in from another Workspace instead of sending it back to Google", %{
+    conn: conn,
+    user: user
+  } do
+    client_id = register_client(conn)
+    organization = sso_member_of(user)
+
+    conn =
+      sso_session_conn(user, %{organization | sso_organization_id: "contractor.oauthflow-example.com"})
+
+    assert_raise TuistWeb.Errors.UnauthorizedError, ~r/from contractor\.oauthflow-example\.com/, fn ->
+      get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
+    end
+  end
+
   test "requires the sign-in the user's SSO-enforcing organization requires", %{conn: conn, user: user} do
     client_id = register_client(conn)
     organization = AccountsFixtures.organization_fixture()
