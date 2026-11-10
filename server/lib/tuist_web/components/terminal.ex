@@ -17,14 +17,15 @@ defmodule TuistWeb.Components.Terminal do
         <span data-part="title">
           {@title}
         </span>
-        <.neutral_button
+        <.ghost_button
+          variant="secondary"
           id={@id <> "-button"}
           size="small"
           phx-hook="Clipboard"
           data-clipboard-value={@command}
         >
           <.copy />
-        </.neutral_button>
+        </.ghost_button>
       </div>
       <div data-part="body">
         <span data-part="label">

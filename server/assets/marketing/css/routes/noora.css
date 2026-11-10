@@ -408,6 +408,22 @@
       justify-content: flex-start;
     }
 
+    /* One centered row per child, with 16px between rows and between
+       items, room for controls with shadows such as buttons. */
+    &[data-layout="stack"] {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: var(--noora-spacing-8);
+
+      & > * {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: var(--noora-spacing-8);
+      }
+    }
+
     /* One row per child, each laying out its own items. */
     &[data-layout="rows"] {
       flex-direction: column;
@@ -812,18 +828,18 @@
         }
       }
 
-      /* The neutral button's tokens follow the theme; pin them to the
+      /* The ghost button's tokens follow the theme; pin them to the
          cell's own surface. */
       &[data-surface="light"] > [data-part="download"] {
-        --noora-button-neutral-label: var(--noora-neutral-light-1200);
-        --noora-button-neutral-background-hover: var(--noora-neutral-light-200);
-        --noora-button-neutral-background-active: var(--noora-neutral-light-300);
+        --noora-button-ghost-secondary-label: var(--noora-neutral-light-1200);
+        --noora-button-ghost-secondary-hover: var(--noora-neutral-light-200);
+        --noora-button-ghost-secondary-selected: var(--noora-neutral-light-300);
       }
 
       &[data-surface="dark"] > [data-part="download"] {
-        --noora-button-neutral-label: var(--noora-neutral-light-50);
-        --noora-button-neutral-background-hover: var(--noora-neutral-dark-1000);
-        --noora-button-neutral-background-active: var(--noora-neutral-dark-900);
+        --noora-button-ghost-secondary-label: var(--noora-neutral-light-50);
+        --noora-button-ghost-secondary-hover: var(--noora-neutral-dark-1000);
+        --noora-button-ghost-secondary-selected: var(--noora-neutral-dark-900);
       }
 
       &:hover > [data-part="download"],
@@ -1270,8 +1286,11 @@
    `color-scheme`; the two tokens defined only under `:root[data-theme="dark"]`
    keep the page theme's value. */
 .noora-docs-button-matrix {
+  /* Light above dark. Each panel grows to fit its widest row, so no button
+     spills out of its panel's background; the sheet scrolls sideways when
+     it's wider than the page. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  grid-template-columns: max-content;
   gap: var(--noora-spacing-6);
   width: 100%;
   overflow-x: auto;
@@ -1302,10 +1321,55 @@
 
   & [data-part="row"] {
     display: grid;
-    grid-template-columns: repeat(3, max-content max-content);
+    grid-template-columns: repeat(7, max-content max-content);
     align-items: center;
     justify-items: start;
     gap: var(--noora-spacing-6) var(--noora-spacing-8);
+  }
+
+  & .noora-ghost-button {
+    &[data-variant="primary"][data-preview="hover"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-hover);
+      background: var(--noora-button-ghost-primary-hover);
+    }
+
+    &[data-variant="primary"][data-preview="pressed"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-selected);
+      background: var(--noora-button-ghost-primary-selected);
+    }
+
+    &[data-variant="secondary"][data-preview="hover"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-hover);
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &[data-variant="secondary"][data-preview="pressed"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-selected);
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+
+    &[data-variant="destructive"][data-preview="hover"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-hover);
+      background: var(--noora-button-ghost-destructive-hover);
+    }
+
+    &[data-variant="destructive"][data-preview="pressed"] {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-selected);
+      background: var(--noora-button-ghost-destructive-selected);
+    }
+
+    &[data-variant="outline"][data-preview="hover"] {
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &[data-variant="outline"][data-preview="pressed"] {
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+
+    &[data-preview="focus"] {
+      outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+      outline-offset: var(--noora-focus-ring-offset);
+    }
   }
 
   & .noora-button {

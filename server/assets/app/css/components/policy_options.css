@@ -2,7 +2,7 @@
    cache page's upload-access selector. Every option carries a light border,
    and the selected one is lifted with the primary border + purple surface. */
 .policy-options {
-  --policy-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+  --policy-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
 
   display: flex;
   flex-direction: column;

@@ -100,7 +100,7 @@
       }
     }
 
-    /* The button itself is Noora's neutral button (large): its class
+    /* The button itself is Noora's ghost button (large): its class
        provides the surface, hover/active states and radius. Only the fixed
        32px box, the icon-swap and the "Copied" tooltip are ours. */
     & > [data-part="copy"] {

@@ -2,78 +2,143 @@ defmodule TuistWeb.Noora.Pages.Button do
   @moduledoc false
   use TuistWeb.Noora.Page,
     title: "Button",
-    description: "Triggers an action, submits a form, or navigates to another location.",
-    components: [{Noora.Button, :button}],
+    description:
+      "Triggers an action, submits a form, or navigates to another location. A ghost button does the same for quiet utility controls.",
+    components: [{Noora.Button, :button}, {Noora.Button, :ghost_button}],
     guidelines: [
+      "Use a button for actions that change something, such as saving, deploying, or deleting. Pass `href`, `navigate`, or `patch` when it changes the page instead; it renders a link that looks the same.",
       "Use one primary button per surface, for the action people most likely want. Supporting actions use `secondary`.",
-      "Reserve `destructive` for actions that delete or revoke something, and confirm them in a modal when they cannot be undone.",
+      "Reserve `destructive` for actions that delete or revoke something, and confirm them in a modal when they can't be undone.",
+      "Use a ghost button for utility controls that should stay in the background, such as copying a command, closing a panel, or opening a menu.",
       "Name the button after what happens: Create project, Invite member, Rotate token. Avoid bare verbs such as Submit or OK.",
-      "Pass `href`, `navigate`, or `patch` when the button changes the page. It then renders a link with the same appearance.",
       "Disable a button only when the action is impossible right now, and explain why nearby or in a tooltip.",
-      "Icon-only buttons need an `aria-label` that names the action and its target, such as Copy project URL."
+      "Icon-only buttons need an `aria-label` that names the action and its target, such as Copy project URL. Don't add one to a button with a visible label; it replaces the label for screen readers.",
+      "A ghost button without `label` shows its inner block, usually one icon. With `label`, it shows the label with the `icon_left` and `icon_right` slots."
     ]
 
   example "Variants",
     description:
-      "Primary for the main action, secondary for supporting ones, destructive for actions that delete or revoke." do
+      "Primary for the main action, secondary for supporting ones, destructive for actions that delete or revoke. Ghost buttons come in the same three, with no fill until hovered, for quiet utility controls, plus outline: secondary with a border.",
+    layout: :stack do
     ~H"""
-    <.button label="Primary" variant="primary" />
-    <.button label="Secondary" variant="secondary" />
-    <.button label="Destructive" variant="destructive" />
+    <div>
+      <.button label="Primary" variant="primary" />
+      <.button label="Secondary" variant="secondary" />
+      <.button label="Destructive" variant="destructive" />
+    </div>
+    <div>
+      <.ghost_button label="Primary" variant="primary" />
+      <.ghost_button label="Secondary" variant="secondary" />
+      <.ghost_button label="Destructive" variant="destructive" />
+      <.ghost_button label="Outline" variant="outline" />
+    </div>
     """
   end
 
   example "Sizes",
     description: "Large is the default. Use medium and small in dense layouts such as table rows and toolbars." do
     ~H"""
-    <.button label="Small" size="small" />
-    <.button label="Medium" size="medium" />
-    <.button label="Large" size="large" />
+    <.button label="Small" variant="secondary" size="small" />
+    <.button label="Medium" variant="secondary" size="medium" />
+    <.button label="Large" variant="secondary" size="large" />
     """
   end
 
-  example "With icons", description: "Icons sit before or after the label to reinforce direction or meaning." do
+  example "All variants and sizes",
+    description: "Buttons and ghost buttons share their sizes, so they line up side by side.",
+    layout: :stack do
     ~H"""
-    <.button label="Previous" variant="secondary">
-      <:icon_left><.chevron_left /></:icon_left>
-    </.button>
-    <.button label="Next" variant="secondary">
-      <:icon_right><.chevron_right /></:icon_right>
-    </.button>
-    <.button label="New project">
-      <:icon_left><.plus /></:icon_left>
-    </.button>
+    <div :for={size <- ~w(small medium large)}>
+      <.button
+        :for={variant <- ~w(primary secondary destructive)}
+        label="Demo"
+        variant={variant}
+        size={size}
+      />
+      <.ghost_button
+        :for={variant <- ~w(primary secondary destructive outline)}
+        label="Demo"
+        variant={variant}
+        size={size}
+      />
+    </div>
     """
   end
 
-  example "Icon only", description: "For compact controls whose icon is unambiguous. Always pass an `aria-label`." do
+  example "Icons",
+    description: "An icon before or after the label reinforces direction or meaning." do
     ~H"""
-    <.button icon_only variant="secondary" aria-label="Previous page">
-      <.chevron_left />
+    <.button label="Back" variant="secondary">
+      <:icon_left><.arrow_left /></:icon_left>
     </.button>
-    <.button icon_only variant="secondary" aria-label="Next page">
+    <.button label="Continue" variant="secondary">
+      <:icon_right><.arrow_right /></:icon_right>
+    </.button>
+    <.button label="Demo" variant="secondary">
+      <:icon_left><.arrow_left /></:icon_left>
+      <:icon_right><.arrow_right /></:icon_right>
+    </.button>
+    <.ghost_button label="Copy link" variant="secondary">
+      <:icon_left><.copy /></:icon_left>
+    </.ghost_button>
+    <.ghost_button label="Share" variant="outline">
+      <:icon_right><.external_link /></:icon_right>
+    </.ghost_button>
+    """
+  end
+
+  example "Icon only",
+    description:
+      "Square buttons for compact controls whose icon is unambiguous, at every size. Always pass an `aria-label` that names the action and its target." do
+    ~H"""
+    <.button
+      :for={size <- ~w(small medium large)}
+      icon_only
+      variant="secondary"
+      size={size}
+      aria-label="Next page"
+    >
       <.chevron_right />
     </.button>
-    <.button icon_only variant="destructive" aria-label="Delete project">
-      <.trash />
-    </.button>
+    <.ghost_button
+      :for={size <- ~w(small medium large)}
+      variant="secondary"
+      size={size}
+      aria-label="Copy command"
+    >
+      <.copy />
+    </.ghost_button>
     """
   end
 
-  example "Disabled" do
+  example "Disabled",
+    description: "Every variant looks the same when disabled." do
     ~H"""
     <.button label="Primary" variant="primary" disabled />
     <.button label="Secondary" variant="secondary" disabled />
     <.button label="Destructive" variant="destructive" disabled />
+    <.ghost_button label="Ghost" variant="secondary" disabled />
+    <.ghost_button label="Outline" variant="outline" disabled />
+    <.ghost_button variant="secondary" aria-label="Copy command" disabled>
+      <.copy />
+    </.ghost_button>
     """
   end
 
-  example "As a link",
-    description: "With `href`, `navigate`, or `patch`, the button renders a link styled as a button." do
+  example "Link",
+    description: "With `href`, `navigate`, or `patch`, a button or ghost button renders a link that looks the same." do
     ~H"""
     <.button label="View documentation" variant="secondary" href="https://docs.tuist.dev">
       <:icon_right><.external_link /></:icon_right>
     </.button>
+    <.ghost_button
+      variant="secondary"
+      href="https://github.com/tuist/tuist"
+      target="_blank"
+      aria-label="GitHub"
+    >
+      <.brand_github />
+    </.ghost_button>
     """
   end
 
@@ -84,7 +149,8 @@ defmodule TuistWeb.Noora.Pages.Button do
   # outside dev.
   if Mix.env() == :dev do
     example "All buttons (dev only)",
-      description: "Every size, state, and variant. Rows per size: default, hover, pressed, focus, disabled.",
+      description:
+        "Every size, state, and variant, then neutral. Rows per size: default, hover, pressed, focus, disabled.",
       layout: :column do
       ~H"""
       <div class="noora-docs-button-matrix">
@@ -117,6 +183,29 @@ defmodule TuistWeb.Noora.Pages.Button do
                 >
                   <.chevron_right />
                 </.button>
+              <% end %>
+              <%= for variant <- ["primary", "secondary", "destructive", "outline"] do %>
+                <.ghost_button
+                  label="Button"
+                  variant={variant}
+                  size={size}
+                  data-preview={state}
+                  disabled={state == "disabled"}
+                  tabindex="-1"
+                >
+                  <:icon_left><.chevron_left /></:icon_left>
+                  <:icon_right><.chevron_right /></:icon_right>
+                </.ghost_button>
+                <.ghost_button
+                  variant={variant}
+                  size={size}
+                  data-preview={state}
+                  disabled={state == "disabled"}
+                  tabindex="-1"
+                  aria-label="Next"
+                >
+                  <.chevron_right />
+                </.ghost_button>
               <% end %>
             </div>
           </div>

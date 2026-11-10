@@ -38,7 +38,6 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Menu,
        Pages.MiddleTruncate,
        Pages.Modal,
-       Pages.NeutralButton,
        Pages.PaginationGroup,
        Pages.Popover,
        Pages.ProgressBar,

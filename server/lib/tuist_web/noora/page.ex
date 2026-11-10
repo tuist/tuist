@@ -77,7 +77,8 @@ defmodule TuistWeb.Noora.Page do
     * `:layout` - how the preview arranges its children: `:row` (default)
       wraps them horizontally and centers them, `:column` stacks them at full
       width, `:start` wraps them from the start edge, `:rows` stacks them
-      from the start edge and lays out each child's items as a row.
+      from the start edge and lays out each child's items as a row, `:stack`
+      does the same centered, with 16px between rows and items.
     * `:toast` - renders the example as a toast: the preview shows a "Show
       toast" button that pops the rendered output into the bottom corner of
       the page, where it dismisses itself after a few seconds. Pass

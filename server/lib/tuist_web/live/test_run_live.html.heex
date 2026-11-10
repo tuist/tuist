@@ -715,20 +715,20 @@
                     size="medium"
                   />
                 </div>
-                <.neutral_button
+                <.ghost_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_down />
-                </.neutral_button>
-                <.neutral_button
+                </.ghost_button>
+                <.ghost_button
                   data-part="open-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_up />
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <%= if Enum.any?(test_case_run.arguments) do %>
@@ -746,7 +746,7 @@
                         size="small"
                       />
                       <span data-part="argument-name">{argument.name}</span>
-                      <.neutral_button
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-closed-btn-#{argument.id}"}
                         variant="secondary"
@@ -758,8 +758,8 @@
                         }
                       >
                         <.chevron_down />
-                      </.neutral_button>
-                      <.neutral_button
+                      </.ghost_button>
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-open-btn-#{argument.id}"}
                         variant="secondary"
@@ -772,7 +772,7 @@
                         }
                       >
                         <.chevron_up />
-                      </.neutral_button>
+                      </.ghost_button>
                     </div>
                     <div
                       id={"arg-body-#{argument.id}"}
@@ -908,8 +908,9 @@
                     <span data-part="crash-report-title">
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
-                    <.neutral_button
+                    <.ghost_button
                       :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                      variant="secondary"
                       href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
@@ -917,7 +918,7 @@
                       size="medium"
                     >
                       <.download />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
@@ -1072,10 +1073,10 @@
                     <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
-                <.neutral_button data-part="trigger" variant="secondary" size="medium">
+                <.ghost_button data-part="trigger" variant="secondary" size="medium">
                   <span data-part="icon-closed"><.chevron_down /></span>
                   <span data-part="icon-open"><.chevron_up /></span>
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <div
@@ -1969,20 +1970,20 @@
                   size="medium"
                 />
               </div>
-              <.neutral_button
+              <.ghost_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_down />
-              </.neutral_button>
-              <.neutral_button
+              </.ghost_button>
+              <.ghost_button
                 data-part="open-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_up />
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div data-part="content" data-state="closed">
               <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
@@ -2052,8 +2053,9 @@
                   <span data-part="crash-report-title">
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
-                  <.neutral_button
+                  <.ghost_button
                     :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                    variant="secondary"
                     href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
@@ -2061,7 +2063,7 @@
                     size="medium"
                   >
                     <.download />
-                  </.neutral_button>
+                  </.ghost_button>
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
@@ -2217,10 +2219,10 @@
                 <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
-            <.neutral_button data-part="trigger" variant="secondary" size="medium">
+            <.ghost_button data-part="trigger" variant="secondary" size="medium">
               <span data-part="icon-closed"><.chevron_down /></span>
               <span data-part="icon-open"><.chevron_up /></span>
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="content" data-state="closed">
             <div

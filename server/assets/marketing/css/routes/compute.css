@@ -165,7 +165,7 @@
       }
 
       & [data-part="line"][data-line="added"] {
-        background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+        background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
         color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
 
         & > [data-part="code"] {
@@ -403,7 +403,7 @@
             & [data-part="block"][data-active] {
               animation: marketing-compute-tile-in 0.5s linear;
               border: 1px solid var(--noora-purple-400);
-              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
             }
 
             /* The cycle's free slot: the grid keeps the cell while the
@@ -611,7 +611,7 @@
 
               &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(5) {
                 border: 1px solid var(--noora-purple-400);
-                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               }
 
               @media (max-width: 720px) {
@@ -628,7 +628,7 @@
 
                 &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(9) {
                   border: 1px solid var(--noora-purple-400);
-                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
                 }
               }
             }
@@ -669,7 +669,7 @@
 
               &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(18) {
                 border: 1px solid var(--noora-purple-400);
-                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               }
 
               @media (max-width: 720px) {
@@ -693,7 +693,7 @@
 
                 &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(15) {
                   border: 1px solid var(--noora-purple-400);
-                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
                 }
               }
             }

@@ -40,6 +40,17 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     end
   end
 
+  test "redirects the former neutral button page to the button page", %{conn: conn} do
+    assert redirected_to(get(conn, "/noora/neutral-button"), 301) == "/noora/button"
+  end
+
+  test "documents the ghost button on the button page", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/noora/button")
+
+    assert has_element?(view, ".noora-ghost-button[aria-label='Copy command']")
+    assert has_element?(view, ".noora-ghost-button[data-with-label]", "Copy link")
+  end
+
   test "documents the status badge on the badge page", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/badge")
 

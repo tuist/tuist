@@ -64,7 +64,7 @@
 }
 
 ::selection {
-  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple-32));
   color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 

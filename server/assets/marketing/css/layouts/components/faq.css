@@ -93,7 +93,7 @@
       }
 
       & > [data-part="answer"] {
-        /* Keep clear of the chevron column: the 28px neutral button +
+        /* Keep clear of the chevron column: the 28px ghost button +
            16px gap. */
         margin-inline-end: calc(28px + var(--noora-spacing-6));
         padding: 0 var(--noora-spacing-7) var(--noora-spacing-7);

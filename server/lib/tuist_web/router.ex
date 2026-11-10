@@ -570,6 +570,7 @@ defmodule TuistWeb.Router do
     # The inline and button dropdowns moved into the dropdown page.
     redirect("/noora/inline-dropdown", "/noora/dropdown", :permanent)
     redirect("/noora/button-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/neutral-button", "/noora/button", :permanent)
 
     live_session :noora do
       live "/noora", NooraLive, metadata: %{type: :marketing, robots_txt: false}

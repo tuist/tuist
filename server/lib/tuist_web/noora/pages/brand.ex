@@ -77,7 +77,8 @@ defmodule TuistWeb.Noora.Pages.Brand do
       <ul data-part="brand-grid">
         <li :for={cell <- section.cells} data-part="brand-cell" data-surface={cell.surface}>
           <img src={cell.src} alt={cell.alt} />
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             data-part="download"
             href={cell.src}
             aria-label={"Download #{cell.alt}"}
@@ -85,7 +86,7 @@ defmodule TuistWeb.Noora.Pages.Brand do
             {[download: true]}
           >
             <:icon_left><.download /></:icon_left>
-          </.neutral_button>
+          </.ghost_button>
         </li>
       </ul>
     </section>

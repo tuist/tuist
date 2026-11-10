@@ -108,9 +108,10 @@ defmodule TuistWeb.Noora.Pages.Colors do
     |> Tokens.section()
     |> Enum.flat_map(fn token ->
       case Regex.run(~r/^--noora-(.+)-(\d+)$/, token.name) do
-        # The neutral grays are translucent: their number is an opacity, not
-        # a step, so they appear with the alpha tints instead.
+        # The neutral grays and the alpha tints are translucent: their number
+        # is an opacity, not a step, so they appear with the alpha tints.
         [_, "neutral-gray", _opacity] -> []
+        [_, "alpha-" <> _, _opacity] -> []
         [_, scale, _step] -> [{scale, token}]
         _ -> []
       end
@@ -121,7 +122,7 @@ defmodule TuistWeb.Noora.Pages.Colors do
 
   # The hue tints, then the translucent grays, then black last.
   defp alphas do
-    {black, tints} = Enum.split_with(Tokens.prefixed("--noora-alpha-"), &(&1.name == "--noora-alpha-black"))
+    {black, tints} = Enum.split_with(Tokens.prefixed("--noora-alpha-"), &(&1.name == "--noora-alpha-black-80"))
     tints ++ Tokens.prefixed("--noora-neutral-gray-") ++ black
   end
 

@@ -380,7 +380,12 @@ defmodule TuistWeb.Noora.Components do
               <span data-part="show">Show code</span>
               <span data-part="hide">Hide code</span>
             </button>
-            <div data-part="copy" class="noora-neutral-button" data-size="large">
+            <div
+              data-part="copy"
+              class="noora-ghost-button"
+              data-variant="secondary"
+              data-size="large"
+            >
               <span data-part="copy-icon"><.copy /></span>
               <span data-part="copy-check-icon"><.check /></span>
             </div>
@@ -412,7 +417,7 @@ defmodule TuistWeb.Noora.Components do
     <div id={@id} class="code-window" phx-hook="CodeCopy">
       <div data-part="bar">
         <div data-part="language">{@language}</div>
-        <div data-part="copy" class="noora-neutral-button" data-size="large">
+        <div data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large">
           <span data-part="copy-icon"><.copy /></span>
           <span data-part="copy-check-icon"><.check /></span>
         </div>
