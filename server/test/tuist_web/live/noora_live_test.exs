@@ -51,6 +51,14 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     assert has_element?(view, ".noora-ghost-button[data-with-label]", "Copy link")
   end
 
+  test "documents the spinner, on its own and inside buttons and badges", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/noora/spinner")
+
+    assert has_element?(view, "noora-spinner[role=status][aria-label='Loading']")
+    assert has_element?(view, ".noora-button > noora-spinner")
+    assert has_element?(view, ".noora-badge [data-part=icon] > noora-spinner")
+  end
+
   test "documents the status badge on the badge page", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/badge")
 

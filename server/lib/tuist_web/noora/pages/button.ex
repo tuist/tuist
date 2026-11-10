@@ -12,6 +12,7 @@ defmodule TuistWeb.Noora.Pages.Button do
       "Use a ghost button for utility controls that should stay in the background, such as copying a command, closing a panel, or opening a menu.",
       "Name the button after what happens: Create project, Invite member, Rotate token. Avoid bare verbs such as Submit or OK.",
       "Disable a button only when the action is impossible right now, and explain why nearby or in a tooltip.",
+      "While an action runs, show a spinner in the icon slot and disable the button. Keep the label, or switch it to what's happening, such as Deploying.",
       "Icon-only buttons need an `aria-label` that names the action and its target, such as Copy project URL. Don't add one to a button with a visible label; it replaces the label for screen readers.",
       "A ghost button without `label` shows its inner block, usually one icon. With `label`, it shows the label with the `icon_left` and `icon_right` slots."
     ]
@@ -125,6 +126,33 @@ defmodule TuistWeb.Noora.Pages.Button do
     """
   end
 
+  example "Loading",
+    description:
+      "While an action runs, put a spinner where the icon goes and disable the button, so it can't be pressed twice.",
+    layout: :stack do
+    ~H"""
+    <div>
+      <.button :for={size <- ~w(small medium large)} label="Saving" size={size} disabled>
+        <:icon_left><.spinner /></:icon_left>
+      </.button>
+    </div>
+    <div>
+      <.button label="Deploying" variant="secondary" disabled>
+        <:icon_left><.spinner /></:icon_left>
+      </.button>
+      <.ghost_button label="Loading" variant="secondary" disabled>
+        <:icon_left><.spinner /></:icon_left>
+      </.ghost_button>
+      <.ghost_button label="Syncing" variant="outline" disabled>
+        <:icon_left><.spinner /></:icon_left>
+      </.ghost_button>
+      <.button icon_only variant="secondary" aria-label="Loading" disabled>
+        <.spinner />
+      </.button>
+    </div>
+    """
+  end
+
   example "Link",
     description: "With `href`, `navigate`, or `patch`, a button or ghost button renders a link that looks the same." do
     ~H"""
@@ -140,78 +168,5 @@ defmodule TuistWeb.Noora.Pages.Button do
       <.brand_github />
     </.ghost_button>
     """
-  end
-
-  # Dev only, temporary: every size, state, and variant at once, in a light
-  # and a dark panel, laid out like the Figma component sheet. Hover,
-  # pressed, and focus are forced with `data-preview` (see the
-  # `.noora-docs-button-matrix` rules in routes/noora.css). Never compiled
-  # outside dev.
-  if Mix.env() == :dev do
-    example "All buttons (dev only)",
-      description:
-        "Every size, state, and variant, then neutral. Rows per size: default, hover, pressed, focus, disabled.",
-      layout: :column do
-      ~H"""
-      <div class="noora-docs-button-matrix">
-        <div :for={scheme <- ["light", "dark"]} data-part="panel" data-scheme={scheme}>
-          <div :for={size <- ["large", "medium", "small"]} data-part="size">
-            <div
-              :for={state <- ["default", "hover", "pressed", "focus", "disabled"]}
-              data-part="row"
-            >
-              <%= for variant <- ["primary", "secondary", "destructive"] do %>
-                <.button
-                  label="Button"
-                  variant={variant}
-                  size={size}
-                  data-preview={state}
-                  disabled={state == "disabled"}
-                  tabindex="-1"
-                >
-                  <:icon_left><.chevron_left /></:icon_left>
-                  <:icon_right><.chevron_right /></:icon_right>
-                </.button>
-                <.button
-                  icon_only
-                  variant={variant}
-                  size={size}
-                  data-preview={state}
-                  disabled={state == "disabled"}
-                  tabindex="-1"
-                  aria-label="Next"
-                >
-                  <.chevron_right />
-                </.button>
-              <% end %>
-              <%= for variant <- ["primary", "secondary", "destructive", "outline"] do %>
-                <.ghost_button
-                  label="Button"
-                  variant={variant}
-                  size={size}
-                  data-preview={state}
-                  disabled={state == "disabled"}
-                  tabindex="-1"
-                >
-                  <:icon_left><.chevron_left /></:icon_left>
-                  <:icon_right><.chevron_right /></:icon_right>
-                </.ghost_button>
-                <.ghost_button
-                  variant={variant}
-                  size={size}
-                  data-preview={state}
-                  disabled={state == "disabled"}
-                  tabindex="-1"
-                  aria-label="Next"
-                >
-                  <.chevron_right />
-                </.ghost_button>
-              <% end %>
-            </div>
-          </div>
-        </div>
-      </div>
-      """
-    end
   end
 end

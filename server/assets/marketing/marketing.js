@@ -15,6 +15,8 @@ import NooraCollapsible from "noora/hooks/Collapsible.js";
 import NooraDropdown from "noora/hooks/Dropdown.js";
 import NooraIconTransition from "noora/hooks/IconTransition.js";
 import NooraModal from "noora/hooks/Modal.js";
+// Defines the <noora-spinner> element.
+import "noora/hooks/Spinner.js";
 import NooraPopover from "noora/hooks/Popover.js";
 import NooraScrollArea from "noora/hooks/ScrollArea.js";
 import NooraSelect from "noora/hooks/Select.js";
