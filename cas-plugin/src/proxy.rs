@@ -4868,6 +4868,10 @@ impl Proxy {
             if size <= limit {
                 continue;
             }
+            let sizes = indexed_generation_sizes(&generation_sizes(&cas_path));
+            if plan_generations(&sizes, generation_limit(limit), true) == GenerationPlan::default() {
+                continue;
+            }
             match prune_store(&cas_path, generation_limit(limit)) {
                 Ok(pruned) => crate::log_line(&format!(
                     "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: pruning at startup reclaimed {} bytes{}",
