@@ -235,7 +235,7 @@ The upload policy is recorded per project on the machine that runs `tuist setup 
 
 ### Store size limit {#store-size-limit}
 
-A compilation cache store grows with every build. Xcode limits it with the `COMPILATION_CACHE_LIMIT_SIZE` or `COMPILATION_CACHE_LIMIT_PERCENT` build settings, by default to about half of the disk's free space, but it can only apply that limit when nothing else holds the store open, and Tuist's cache proxy does. So when no project that uses a store sets a limit of its own, Tuist applies the limit Xcode set in the store's most recent build. To choose the project's limit instead, set `storeSizeLimit` in your `Tuist.swift` file:
+A compilation cache store grows with every build. To bound the project's stores, set `storeSizeLimit` in your `Tuist.swift` file:
 
 ```swift
 import ProjectDescription

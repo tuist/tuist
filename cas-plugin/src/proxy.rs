@@ -19,7 +19,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
     parse_publish_wait_payload, read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT,
-    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE, OP_SIZE_LIMIT,
+    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE,
     SATURATED_ERROR, STATUS_ERROR, STATUS_HIT, STATUS_MISS, STORE_STALL_ERROR,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -2524,10 +2524,6 @@ pub struct Proxy {
     // `forget_unused_paths`). Taken after `path_instance` and `path_instances`.
     path_uses: Mutex<HashMap<String, PathUse>>,
     path_use_revision: AtomicU64,
-    // cas_path -> the size limit Xcode last set on its store (OP_SIZE_LIMIT),
-    // persisted beside the registry so a proxy that starts before any build can
-    // bound the store with it.
-    xcode_limits: Mutex<HashMap<String, u64>>,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -2633,10 +2629,6 @@ impl Proxy {
             .as_deref()
             .map(|path| load_path_uses(&uses_path_for(path)))
             .unwrap_or_default();
-        let xcode_limits = registry_path
-            .as_deref()
-            .map(|path| load_xcode_limits(&xcode_limits_path_for(path)))
-            .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
@@ -2650,7 +2642,6 @@ impl Proxy {
             path_instance: Mutex::new(path_instance),
             path_instances: Mutex::new(path_instances),
             path_uses: Mutex::new(path_uses),
-            xcode_limits: Mutex::new(xcode_limits),
             path_use_revision: AtomicU64::new(1),
             instance_sources: Mutex::new(
                 registry_path
@@ -4912,35 +4903,6 @@ impl Proxy {
                 .iter()
                 .map(|instance| self.source_context(instance).store_size_limit),
         )
-        // Xcode's limit is llcas's own per-generation bound, which the runner's
-        // teardown also hands `prune_store` as is: as a footprint, twice that.
-        .or_else(|| {
-            self.xcode_limits
-                .lock()
-                .unwrap()
-                .get(cas_path)
-                .map(|limit| limit.saturating_mul(2))
-        })
-    }
-
-    /// Records the size limit Xcode set on the store at `cas_path` (zero = none),
-    /// persisting it when it changed. Xcode sets it at the start of every build.
-    fn record_xcode_limit(&self, cas_path: &str, limit: u64) {
-        let mut limits = self.xcode_limits.lock().unwrap();
-        let previous = if limit == 0 {
-            limits.remove(cas_path)
-        } else {
-            limits.insert(cas_path.to_string(), limit)
-        };
-        if previous == (limit != 0).then_some(limit) {
-            return;
-        }
-        let Some(registry) = &self.registry_path else { return };
-        let mut body = String::new();
-        for (path, limit) in limits.iter().filter(|(path, _)| !path.contains(['\t', '\n'])) {
-            body.push_str(&format!("{path}\t{limit}\n"));
-        }
-        let _ = replace_file(&xcode_limits_path_for(registry), &body);
     }
 
     /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL
@@ -6494,13 +6456,6 @@ impl Proxy {
                     write_response(&mut stream, STATUS_MISS, owed.to_string().as_bytes())
                 }
             }
-            OP_SIZE_LIMIT => {
-                let Ok(limit) = <[u8; 8]>::try_from(request.payload.as_slice()) else {
-                    return write_response(&mut stream, STATUS_ERROR, b"bad size limit");
-                };
-                self.record_xcode_limit(&request.cas_path, u64::from_be_bytes(limit));
-                write_response(&mut stream, STATUS_HIT, &[])
-            }
             OP_INVALIDATE => {
                 // A prune emptied this path's on-disk CAS in place; drop our marks
                 // so a resolve re-fetches. Only if we already track the path — an
@@ -6651,25 +6606,6 @@ fn uses_path_for(registry: &Path) -> PathBuf {
     let mut path = registry.to_path_buf().into_os_string();
     path.push(".used");
     PathBuf::from(path)
-}
-
-/// Where the size limits Xcode set are written: `<registry>.xcode-limits`, one
-/// `cas_path\tbytes` line per store.
-fn xcode_limits_path_for(registry: &Path) -> PathBuf {
-    let mut path = registry.to_path_buf().into_os_string();
-    path.push(".xcode-limits");
-    PathBuf::from(path)
-}
-
-fn load_xcode_limits(path: &Path) -> HashMap<String, u64> {
-    std::fs::read_to_string(path)
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|line| {
-            let (cas_path, limit) = line.split_once('\t')?;
-            Some((cas_path.to_string(), limit.parse().ok().filter(|limit| *limit > 0)?))
-        })
-        .collect()
 }
 
 fn load_path_uses(path: &Path) -> HashMap<String, PathUse> {
@@ -10370,49 +10306,6 @@ mod tests {
         assert_eq!(generations_at(Path::new(&bounded)), vec!["v1.2"]);
         assert_eq!(generations_at(Path::new(&unbounded)), vec!["v1.1"], "no project bounded it");
         assert_eq!(generations_at(Path::new(&spooled)), vec!["v1.1"], "it still owes publications");
-    }
-
-    /// Xcode sets a size limit on its store at the start of every build
-    /// (`COMPILATION_CACHE_LIMIT_SIZE`, by default half of the store plus the
-    /// disk's free space), which only takes effect when the store's last handle
-    /// closes. It bounds a store no project set a limit for, also after a
-    /// restart, and never replaces a project's.
-    #[test]
-    fn xcodes_limit_bounds_a_store_only_when_no_project_set_one() {
-        const XCODE_LIMIT: u64 = 4 * 1024 * 1024;
-        let dir = TempCasDir::new("xcode-limit");
-        let registry = dir.0.join("registry");
-        let unbounded = store_in(&dir, "unbounded");
-        let bounded = store_in(&dir, "bounded");
-        write_generation(Path::new(&unbounded), 1, "v8.data", 2 * XCODE_LIMIT as usize + 1024 * 1024);
-        std::fs::write(
-            &registry,
-            format!("{unbounded}\ttuist/unbounded\n{bounded}\ttuist/bounded\n"),
-        )
-        .unwrap();
-        std::fs::write(
-            sources_path_for(&registry),
-            r#"{"tuist/bounded":{"storeSizeLimit":1073741824},"tuist/unbounded":{}}"#,
-        )
-        .unwrap();
-
-        let proxy = registry_proxy(&registry);
-        assert_eq!(proxy.store_size_limit(&unbounded), None);
-        proxy.record_xcode_limit(&unbounded, XCODE_LIMIT);
-        proxy.record_xcode_limit(&bounded, XCODE_LIMIT);
-        assert_eq!(proxy.store_size_limit(&bounded), Some(1024 * 1024 * 1024), "the project's limit wins");
-
-        let restarted = registry_proxy(&registry);
-        assert_eq!(
-            generation_limit(restarted.store_size_limit(&unbounded).unwrap()),
-            XCODE_LIMIT,
-            "pruned at Xcode's limit as llcas reads it, the way the runner's teardown prunes"
-        );
-        restarted.bound_registered_stores();
-        assert_eq!(generations_at(Path::new(&unbounded)), vec!["v1.2"]);
-
-        restarted.record_xcode_limit(&unbounded, 0);
-        assert_eq!(registry_proxy(&registry).store_size_limit(&unbounded), None, "a limit of 0 lifts it");
     }
 
     fn registry_proxy(registry: &Path) -> &'static Proxy {
