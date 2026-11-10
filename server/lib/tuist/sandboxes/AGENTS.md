@@ -68,7 +68,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   item without a worker after roughly 10 to 13 minutes). The rejection
   reason (quota, or per node, with each macOS host's first failing check)
   is logged when the item is held, once a minute while it waits and at
-  the deadline. The quota check (`Capacity.quota/2`) asks
+  the deadline. When no node has disk for a new sandbox, `place/2` and the
+  admission check ask `Archives.make_node_room/1` to archive the oldest
+  paused Orb on those nodes, any account's, and the refusal stays
+  `:no_capacity`, which callers retry. The quota check (`Capacity.quota/2`) asks
   `Archives.make_room/1` to archive a paused Orb past the disk limit, as a
   create does, and an item that nothing can make room for
   (`:sandbox_limit`) is released at once. Never leave an item
@@ -230,8 +233,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   snapshots unused for 72 hours and saves stuck for 15 minutes.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
-  unset), or the least recently paused one of an account whose disk quota
-  refused a create or restore (`make_room/1`), is uploaded by its node (`archive` command with presigned multipart
+  unset), the least recently paused one of an account whose disk quota
+  refused a create or restore (`make_room/1`), or the least recently paused
+  one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most
+  one upload from them at a time), is uploaded by its node (`archive` command with presigned multipart
   part URLs; the daemon holds no storage credentials) as kernel, rootfs and
   workspace without the memory image, to `sandbox-archives/<account_id>/`
   in the archive bucket of the in-rack store at the node's site (a shard
@@ -261,7 +266,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
   retryable), and every sandbox on a node, paused included, charges the disk
-  quota (`sandbox_disk_gb_limit`) with its workspace and memory image,
+  quota (`sandbox_disk_gb_limit`) with the ceiling its node reserves
+  (`Capacity.disk_ceiling_bytes/2`: rootfs sized from the connected nodes'
+  template reports, workspace, memory image and overhead; a macOS one its
+  workspace and memory image), as does each of the account's disk snapshots
+  on a node, so the quota binds before the nodes fill up. It is
   checked on create and restore only, so lowering it never strands a paused
   sandbox. Past the disk quota, `Archives.make_room/1` queues the archive of
   the account's least recently paused idle Orb and the refusal is retryable
@@ -438,8 +447,8 @@ socket, the poller and the caller share a replica:
   `update_sandbox/3`, and explicitly where a state is written another way
   (create, delete, `mark_error`, `Archives`). A new state write must record
   its event too, or sessions and concurrency drift. Peak disk follows
-  `Concurrency`'s disk charge: a sandbox holds its workspace and memory image
-  from `created` (or a restore's `started`) until `archived`, `failed` or
+  `Concurrency.disk_bytes/2`, with the platform and template read from the
+  sandbox rows: a sandbox holds its disk ceiling from `created` (or a restore's `started`) until `archived`, `failed` or
   `deleted`, paused or not. `boot/2` times each
   boot (create or restore) and tags its `started` event with what it booted
   from. Before every Amp pause, `AmpOrbs` reads the birth and modification
