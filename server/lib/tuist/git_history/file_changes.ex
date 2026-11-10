@@ -1,0 +1,406 @@
+defmodule Tuist.GitHistory.FileChanges do
+  @moduledoc """
+  A listed commit's files, stored as the paths it changed
+  (`Tuist.GitHistory.FileChange`) rather than as its whole listing.
+
+  A commit takes part once its listing is stored whole (not truncated) and a
+  ref owns it. Its rows are keyed by its place on the first-parent tree and
+  read along its **chain** (`Tuist.GitHistory.chain/2`): its ref up to its
+  position, then each ref it forks from up to the fork, the nearer ref
+  winning for a path. A commit's files are each path's newest row along its
+  chain, without the paths whose newest row has no blob.
+
+  The rows a commit writes are what its listing changes from what the chain
+  holds just below it: a row per path whose blob or mode differs, and a row
+  without a blob per path below it the listing no longer has. The first
+  listed commit of a chain writes every file.
+
+  Listings arrive in any order, and a commit written below others would
+  change what they read. So every write that adds or removes rows first
+  gives the written commits right above the place (`above/3`) a row of their
+  own for each path involved, holding what they read until then. Their
+  files stay what their listings said, and the paths between two commits'
+  rows are at least the paths that differ between them.
+
+  The place a commit's rows were written for is kept on its listing
+  (`changes_ref_id`, `changes_position`). A commit whose place changed (a
+  fast-forward, a rebuild of the refs) is queued again and written at the
+  new place from its listing, or, once the listing expired, from the rows it
+  left at the old one.
+
+  The rows of a ref that forks from none are kept. Any other ref's rows
+  expire together, the file retention after the oldest of them was written,
+  since a commit's files read every row below it: `changes_expires_at` on
+  the listing says until when.
+
+  One repository's writes run one at a time, under its ref lock, so a
+  commit's place holds while its rows are written against what is stored
+  below it.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.GitHistory
+  alias Tuist.GitHistory.Commit
+  alias Tuist.GitHistory.CommitFile
+  alias Tuist.GitHistory.CommitListing
+  alias Tuist.GitHistory.Ref
+  alias Tuist.GitHistory.Workers.FileChangesWorker
+  alias Tuist.IngestRepo
+  alias Tuist.Repo
+
+  @consistent [select_sequential_consistency: 1]
+  @kept ~U[2100-01-01 00:00:00Z]
+  @columns "repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version, is_deleted"
+
+  @doc "Queues the commit's file changes to be written at its place."
+  def enqueue(repository_id, sha), do: FileChangesWorker.enqueue(repository_id, sha)
+
+  @doc """
+  Queues the listed commits whose file changes are not written at the place
+  they hold, lowest position first: all of the repository's, or those among
+  `shas`.
+  """
+  def enqueue_moved(repository_id, shas \\ nil)
+
+  def enqueue_moved(_repository_id, []), do: :ok
+
+  def enqueue_moved(repository_id, shas) do
+    query =
+      from(l in CommitListing,
+        join: c in Commit,
+        on: c.repository_id == l.repository_id and c.sha == l.sha,
+        where: l.repository_id == ^repository_id and not l.truncated,
+        where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
+        order_by: [asc_nulls_first: c.position],
+        select: l.sha
+      )
+
+    query = if shas, do: where(query, [l], l.sha in ^Enum.uniq(shas)), else: query
+    query |> Repo.all() |> Enum.each(&enqueue(repository_id, &1))
+  end
+
+  @doc """
+  Writes the commit's file changes at the place it holds, retiring the rows
+  it left at a place it no longer holds. Returns `:written`; `:moved` when
+  the rows were copied from its old place; `:current` when they are already
+  there; `:pending` while no ref owns the commit; `:unavailable` when its
+  listing's rows do not add up to its file count; or `:skipped` when it has
+  no whole listing to write from.
+  """
+  def write(repository_id, sha) do
+    GitHistory.with_refs_lock(repository_id, fn ->
+      listing = Repo.one(from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == ^sha))
+      if listing && not listing.truncated, do: write_at_place(listing, commit(repository_id, sha)), else: :skipped
+    end)
+  end
+
+  defp commit(repository_id, sha) do
+    Repo.one(
+      from(c in Commit,
+        where: c.repository_id == ^repository_id and c.sha == ^sha and not is_nil(c.ref_id),
+        select: %{place: {c.ref_id, c.position}, generation: c.generation}
+      )
+    )
+  end
+
+  defp write_at_place(listing, commit) do
+    place = commit && commit.place
+    written = written(listing)
+
+    cond do
+      place && written == place ->
+        :current
+
+      is_nil(place) ->
+        if written, do: retire(listing, written)
+        mark(listing, nil, nil)
+        :pending
+
+      staged?(listing) ->
+        write_listing(listing, commit, written)
+
+      written ->
+        copy(listing, commit, written)
+        :moved
+
+      true ->
+        :skipped
+    end
+  end
+
+  defp written(%CommitListing{changes_ref_id: ref_id, changes_position: position, changes_expires_at: expires_at})
+       when is_integer(ref_id) and is_integer(position) do
+    if DateTime.after?(expires_at, DateTime.utc_now()), do: {ref_id, position}
+  end
+
+  defp written(_listing), do: nil
+
+  # A day early: the listing's files expire on their own, part by part.
+  defp staged?(listing) do
+    days = Environment.coverage_retention_days().files
+    DateTime.after?(listing.inserted_at, DateTime.add(DateTime.utc_now(), -(days - 1), :day))
+  end
+
+  # A write over a partial read of the listing (a lagging replica, a part
+  # that expired) would record every file it missed as gone.
+  defp write_listing(listing, commit, written) do
+    if listed_files(listing) == listing.files_count do
+      if written, do: retire(listing, written)
+      vacate(listing, commit.place)
+      expires_at = expires_at(listing.repository_id, commit.place)
+      insert_changes(listing, commit, expires_at)
+      preserve_above(listing, commit.place, :below)
+      mark(listing, commit.place, expires_at)
+      :written
+    else
+      :unavailable
+    end
+  end
+
+  defp listed_files(listing) do
+    ClickHouseRepo.one(
+      from(f in CommitFile,
+        where: f.repository_id == ^listing.repository_id and f.sha == ^listing.sha,
+        select: fragment("uniqExact(?)", f.path)
+      ),
+      settings: @consistent
+    ) || 0
+  end
+
+  defp insert_changes(listing, %{place: {ref_id, position}} = commit, expires_at) do
+    insert(
+      """
+      SELECT {repository_id:Int64}, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, {sha:String},
+        if(l.listed = 1, l.path, s.path), l.git_blob_id, l.mode, {expires_at:DateTime},
+        #{version_sql({ref_id, position})}, 0
+      FROM (
+        SELECT path, argMax(git_blob_id, inserted_at) AS git_blob_id, argMax(mode, inserted_at) AS mode, 1 AS listed
+        FROM git_commit_files
+        WHERE repository_id = {repository_id:Int64} AND sha = {sha:String}
+        GROUP BY path
+        HAVING git_blob_id != ''
+      ) AS l
+      FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below))}) AS s ON s.path = l.path
+      WHERE l.git_blob_id != s.git_blob_id OR l.mode != s.mode
+      """,
+      %{
+        repository_id: listing.repository_id,
+        ref_id: ref_id,
+        position: position,
+        generation: commit.generation,
+        sha: listing.sha,
+        expires_at: expires_at
+      }
+    )
+  end
+
+  # The commit's place moved but its listing is gone: the rows it stored at
+  # its old place are kept as they were, compared with what was below it
+  # there.
+  defp copy(listing, %{place: {ref_id, position} = place} = commit, {old_ref_id, old_position} = written) do
+    vacate(listing, place)
+    expires_at = expires_at(listing.repository_id, place)
+
+    insert(
+      """
+      SELECT repository_id, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, sha, path, git_blob_id, mode,
+        {expires_at:DateTime}, #{version_sql(place)}, 0
+      FROM git_file_changes FINAL
+      WHERE repository_id = {repository_id:Int64} AND ref_id = {old_ref_id:Int64} AND position = {old_position:UInt32}
+        AND sha = {sha:String} AND expires_at > now()
+      """,
+      %{
+        repository_id: listing.repository_id,
+        ref_id: ref_id,
+        position: position,
+        generation: commit.generation,
+        sha: listing.sha,
+        expires_at: expires_at,
+        old_ref_id: old_ref_id,
+        old_position: old_position
+      }
+    )
+
+    preserve_above(listing, place, :below)
+    retire(listing, written)
+    mark(listing, place, expires_at)
+  end
+
+  # Retires the rows the commit left at a place it no longer holds.
+  defp retire(listing, place) do
+    preserve_above(listing, place, :at)
+    delete(listing.repository_id, place, "sha = {sha:String}", %{sha: listing.sha})
+  end
+
+  # Each place has one owner at a time: what another commit left at this one
+  # (a branch rewritten, the refs rebuilt) goes before the commit's own rows.
+  defp vacate(listing, place) do
+    preserve_above(listing, place, :at)
+    delete(listing.repository_id, place, "sha != {sha:String}", %{sha: listing.sha})
+  end
+
+  defp delete(repository_id, {ref_id, position}, condition, params) do
+    insert(
+      """
+      SELECT repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version + 1, 1
+      FROM git_file_changes FINAL
+      WHERE repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}
+        AND #{condition}
+      """,
+      Map.merge(params, %{repository_id: repository_id, ref_id: ref_id, position: position})
+    )
+  end
+
+  # Gives each written commit right above the place a row for every path the
+  # place has rows for and it has none, holding what it read there so far:
+  # the place's own rows before they are retired (`:at`), or what is below
+  # the place after rows were added to it (`:below`).
+  defp preserve_above(listing, {ref_id, position} = place, which) do
+    for commit <- above(listing.repository_id, place, listing.sha) do
+      {above_ref_id, above_position} = commit.place
+      at = "repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}"
+
+      insert(
+        """
+        SELECT {repository_id:Int64}, {above_ref_id:Int64}, {above_position:UInt32}, {generation:UInt32}, {sha:String},
+          p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
+        FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
+        LEFT JOIN (
+          #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
+        ) AS s ON s.path = p.path
+        WHERE p.path NOT IN (
+          SELECT path FROM git_file_changes FINAL
+          WHERE repository_id = {repository_id:Int64} AND ref_id = {above_ref_id:Int64}
+            AND position = {above_position:UInt32} AND expires_at > now()
+        )
+        """,
+        %{
+          repository_id: listing.repository_id,
+          ref_id: ref_id,
+          position: position,
+          above_ref_id: above_ref_id,
+          above_position: above_position,
+          generation: commit.generation,
+          sha: commit.sha,
+          expires_at: commit.expires_at
+        }
+      )
+    end
+  end
+
+  # The commits whose rows were written over what the place holds: the next
+  # written commit above it on its ref, and the first written commit of each
+  # ref that forks from it at or above the place and below that one, through
+  # the forks that have none of their own.
+  defp above(repository_id, {ref_id, position}, sha, seen \\ MapSet.new()) do
+    now = DateTime.utc_now()
+
+    next =
+      Repo.one(
+        from(l in CommitListing,
+          left_join: c in Commit,
+          on: c.repository_id == l.repository_id and c.sha == l.sha,
+          where: l.repository_id == ^repository_id and l.sha != ^sha and l.changes_expires_at > ^now,
+          where: l.changes_ref_id == ^ref_id and l.changes_position > ^position,
+          order_by: [asc: l.changes_position],
+          limit: 1,
+          select: %{
+            sha: l.sha,
+            place: {l.changes_ref_id, l.changes_position},
+            expires_at: l.changes_expires_at,
+            generation: coalesce(c.generation, 0)
+          }
+        )
+      )
+
+    forks = from(r in Ref, where: r.parent_ref_id == ^ref_id and r.fork_position >= ^position)
+    forks = if next, do: where(forks, [r], r.fork_position < ^elem(next.place, 1)), else: forks
+    seen = MapSet.put(seen, ref_id)
+
+    List.wrap(next) ++
+      for(
+        fork <- Repo.all(forks),
+        not MapSet.member?(seen, fork.id),
+        commit <- above(repository_id, {fork.id, fork.fork_position}, sha, seen),
+        do: commit
+      )
+  end
+
+  # Kept on a ref that forks from none. On any other, no later than the rows
+  # below it on the refs of its chain that fork: its files read them all.
+  defp expires_at(repository_id, place) do
+    chain = GitHistory.chain(place, :below)
+    refs = Enum.map(chain, & &1.ref_id)
+    roots = Repo.all(from(r in Ref, where: r.id in ^refs and is_nil(r.parent_ref_id), select: r.id))
+
+    case Enum.reject(chain, &(&1.ref_id in roots)) do
+      [] ->
+        @kept
+
+      forked ->
+        now = DateTime.truncate(DateTime.utc_now(), :second)
+        own = DateTime.add(now, Environment.coverage_retention_days().files, :day)
+
+        below =
+          Repo.one(
+            from(l in CommitListing,
+              where: l.repository_id == ^repository_id and l.changes_expires_at > ^now,
+              where: ^within(forked),
+              select: min(l.changes_expires_at)
+            )
+          )
+
+        if below && DateTime.before?(below, own), do: below, else: own
+    end
+  end
+
+  defp within(segments) do
+    Enum.reduce(segments, dynamic(false), fn %{ref_id: ref_id, hi: hi}, acc ->
+      dynamic([l], ^acc or (l.changes_ref_id == ^ref_id and l.changes_position <= ^hi))
+    end)
+  end
+
+  defp mark(listing, place, expires_at) do
+    {ref_id, position} = place || {nil, nil}
+
+    Repo.update_all(
+      from(l in CommitListing, where: l.repository_id == ^listing.repository_id and l.sha == ^listing.sha),
+      set: [changes_ref_id: ref_id, changes_position: position, changes_expires_at: expires_at]
+    )
+  end
+
+  # Each path's newest row along the chain, the nearest ref first, without
+  # the paths that row says are gone.
+  defp state_sql(chain, condition \\ "1") do
+    refs = Enum.map_join(chain, ", ", & &1.ref_id)
+    newest = "(-toInt64(indexOf([#{refs}], ref_id)), position)"
+
+    segments =
+      Enum.map_join(chain, " OR ", fn %{ref_id: ref_id, hi: hi} -> "(ref_id = #{ref_id} AND position <= #{hi})" end)
+
+    """
+    SELECT path, argMax(git_blob_id, #{newest}) AS git_blob_id, argMax(mode, #{newest}) AS mode
+    FROM git_file_changes FINAL
+    WHERE repository_id = {repository_id:Int64} AND expires_at > now() AND (#{segments}) AND #{condition}
+    GROUP BY path
+    HAVING git_blob_id != ''
+    """
+  end
+
+  # Newer than every row the place ever held, whichever node's clock wrote it.
+  defp version_sql({ref_id, position}) do
+    """
+    greatest(#{System.os_time(:microsecond)}, (
+      SELECT max(row_version) + 1 FROM git_file_changes
+      WHERE repository_id = {repository_id:Int64} AND ref_id = #{ref_id} AND position = #{position}
+    ))
+    """
+  end
+
+  defp insert(select, params) do
+    IngestRepo.query!("INSERT INTO git_file_changes (#{@columns}) #{select}", params, settings: @consistent)
+  end
+end
