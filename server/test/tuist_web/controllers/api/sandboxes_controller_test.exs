@@ -532,7 +532,8 @@ defmodule TuistWeb.API.SandboxesControllerTest do
                "created" => %{"count" => 0, "points" => points},
                "concurrency" => %{
                  "limits" => %{"vcpus" => 32, "memory_gb" => 64.0, "disk_gb" => 420.0},
-                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0, "disk_gb" => 18.0}
+                 # The workspace, memory image and 64 MiB of snapshot state.
+                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0, "disk_gb" => 18.1}
                }
              } =
                conn
