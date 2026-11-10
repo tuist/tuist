@@ -19,6 +19,16 @@ publishes it as `archive_bucket`, and `sandboxNamespace` admits the sandbox
 daemons that upload and restore archives. Never rename the bucket or delete
 it on an existing target, and include it in any store replacement.
 
+`archiveBudgetGiB` sets this store's shared budget for completed Orb and disk
+snapshot archives across all accounts: 500 GiB in production and 100 GiB in
+canary (the default). It is published to the server as `archive_budget_bytes`
+in the target JSON. Targets without that field keep the 100 GiB default.
+At the budget, new archives use account storage (Tigris by default); restores
+and deletes keep using the store recorded on the archive. This is a soft
+routing threshold, not a physical quota: uploads can overshoot. Changing it
+does not move or expire existing archives. Choose a budget that leaves room
+for shard artifacts within the store's storage quota.
+
 The `scw-local-nvme` provisioner enforces the configured PVC with an XFS project
 quota (200 GiB by default, 3 TiB in the production overlay). The pod requests
 the same amount of `ephemeral-storage` for scheduler accounting. Install in

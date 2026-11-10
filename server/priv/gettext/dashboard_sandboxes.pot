@@ -152,7 +152,7 @@ msgid "Sandboxes"
 msgstr ""
 
 #: lib/tuist_web/live/sandbox_live.ex:112
-#: lib/tuist_web/live/sandbox_live.ex:148
+#: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
 msgstr ""
@@ -174,7 +174,7 @@ msgstr ""
 msgid "The machine running it reported an error."
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.ex:146
+#: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
 msgstr ""
@@ -199,7 +199,7 @@ msgstr ""
 msgid "This sandbox failed"
 msgstr ""
 
-#: lib/tuist_web/live/sandbox_live.ex:157
+#: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
 msgstr ""
@@ -482,11 +482,6 @@ msgstr ""
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Archiving…"
-msgstr ""
-
-#: lib/tuist_web/live/sandbox_live.ex:143
-#, elixir-autogen, elixir-format
-msgid "This account's archive storage is full. Delete archived sandboxes to make room."
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:7

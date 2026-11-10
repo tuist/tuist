@@ -89,6 +89,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   describe "making room under the disk limit" do
     test "a create past it queues the archive of the least recently paused idle Orb", %{account: account} do
       {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
       paused_orb(account, paused_at: hours_ago(1))
       oldest = paused_orb(account, paused_at: hours_ago(3))
       reject(&Capacity.place/1)
@@ -161,10 +162,10 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     test "a create queues the archive of the least recently paused idle Orb there, any account's",
          %{account: account} do
       paused_orb(account, paused_at: hours_ago(1))
-      oldest = paused_orb(account_fixture(), paused_at: hours_ago(3))
-      capped = account_fixture()
-      archived_orb(capped, archive_bytes: Archives.max_archived_bytes_per_account())
-      paused_orb(capped, paused_at: hours_ago(5))
+      paused_orb(account_fixture(), paused_at: hours_ago(3))
+      other_account = account_fixture()
+      archived_orb(other_account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
+      oldest = paused_orb(other_account, paused_at: hours_ago(5))
 
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
       assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
@@ -225,17 +226,19 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
 
-    test "refuses accounts at their archive storage cap", %{account: account} do
+    test "queues archives even when the in-rack budget is exhausted", %{account: account} do
       sandbox = paused_orb(account)
-      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
 
-      assert {:error, :archive_storage_full} = Archives.request(sandbox)
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert :ok = Archives.request(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
     end
   end
 
   describe "run/0" do
     test "archives Orbs paused past the threshold and removes them from their node", %{account: account} do
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
       sandbox = paused_orb(account)
       recent = paused_orb(account, paused_at: hours_ago(2))
       parent = self()
@@ -285,7 +288,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert archived.archive_bytes == 2 * @gib
       assert Repo.reload!(recent).state == :paused
-      assert Archives.archived_bytes(account.id) == 2 * @gib
+      assert Archives.archived_bytes(account.id) == 502 * @gib
     end
 
     test "does nothing but clean up while no threshold is configured", %{account: account} do
@@ -304,12 +307,9 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Archives.run()
     end
 
-    test "leaves non-Amp sandboxes, busy Orbs and accounts at their archive cap alone", %{account: account} do
+    test "leaves non-Amp sandboxes and busy Orbs alone", %{account: account} do
       sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: hours_ago(48))
       paused_orb(account, residency_work_id: "amp:busy")
-      capped = account_fixture()
-      paused_orb(capped)
-      archived_orb(capped, archive_bytes: Archives.max_archived_bytes_per_account())
       reject(&Storage.multipart_start/2)
       reject(&Nodes.call/4)
       Archives.run()
@@ -556,16 +556,17 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       refute Archives.queue_disk_snapshot(Repo.reload!(snapshot))
     end
 
-    test "nothing is queued while archiving is off or the account is at its cap", %{account: account} do
+    test "queueing requires archiving on and a ready snapshot, not room in the in-rack budget", %{account: account} do
       snapshot = disk_snapshot_fixture(account: account)
       stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
       refute Archives.queue_disk_snapshot(snapshot)
 
       stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
-      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
-      refute Archives.queue_disk_snapshot(snapshot)
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
+      assert Archives.queue_disk_snapshot(snapshot)
       refute Archives.queue_disk_snapshot(disk_snapshot_fixture(account: account_fixture(), state: :saving))
-      assert [] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert [%{args: %{"disk_snapshot_id" => id}}] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert id == snapshot.id
     end
 
     test "a failed upload is aborted, keeps the node copy and is retried by the run after six hours",
@@ -654,6 +655,100 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       stub(Storage, :available?, fn %S3Target{bucket: "sandbox-archives"} -> true end)
       stub(Sites, :shard_storage_site, fn node -> if node in ["node-a", "node-b"], do: "gra" end)
       :ok
+    end
+
+    for budget_gib <- [nil, 100, 500], offset <- [-1, 0, 1] do
+      @budget_gib budget_gib
+      @offset offset
+      test "routes new Orb and snapshot archives with budget #{inspect(budget_gib)} GiB at offset #{offset}",
+           %{account: account} do
+        budget = (@budget_gib || 100) * @gib
+        store = if @budget_gib, do: Map.put(@store, "archive_budget_bytes", budget), else: @store
+        stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
+
+        # Account storage and other rack stores must not consume this budget.
+        archived_orb(account, archive_bytes: 600 * @gib)
+        archived_orb(account, amp_orb_id: "other-store", archive_store: "retired-store", archive_bytes: 600 * @gib)
+
+        # Share one store's budget across accounts and count restored Orbs
+        # awaiting deletion as well as snapshots whose node copy is gone.
+        retained =
+          archived_orb(account_fixture(),
+            amp_orb_id: "restored",
+            state: :running,
+            archive_store: "gra-v1",
+            archive_bytes: budget - 20 * @gib
+          )
+
+        disk_snapshot_fixture(
+          account: account,
+          node_name: nil,
+          archived_at: hours_ago(1),
+          archive_store: "gra-v1",
+          archive_bytes: 20 * @gib + @offset,
+          archive_key: "snapshot.sbxa"
+        )
+
+        sandbox = paused_orb(account)
+        snapshot = disk_snapshot_fixture(account: account)
+
+        expected_store = if @offset < 0, do: "gra-v1"
+
+        stub(Storage, :multipart_start, fn _key, actor ->
+          case expected_store do
+            nil ->
+              assert %Account{id: id} = actor
+              assert id == account.id
+
+            "gra-v1" ->
+              assert %S3Target{id: "gra-v1"} = actor
+          end
+
+          {:ok, "upload-1"}
+        end)
+
+        stub(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _actor -> :ok end)
+        stub(Storage, :object_exists?, fn _key, _actor -> true end)
+
+        stub(Nodes, :call, fn "node-a", op, _args, _opts ->
+          if op == "delete", do: {:ok, %{}}, else: archive_result()
+        end)
+
+        assert {:ok, archived} = Archives.archive(sandbox)
+        assert archived.archive_store == expected_store
+
+        # Remove only the newly written object from the accounting to test
+        # both kinds against the exact same boundary.
+        Repo.update!(Ecto.Changeset.change(archived, archived_at: nil))
+        assert {:ok, archived_snapshot} = Archives.archive_disk_snapshot(snapshot)
+        assert archived_snapshot.archive_store == expected_store
+
+        if expected_store == nil do
+          # Even if rack usage later falls, reads/deletes must keep using
+          # the recorded account-storage route, not select a new store.
+          Repo.delete!(retained)
+          assert Archives.restore_site(archived) == nil
+
+          expect(Storage, :generate_download_url, fn key, %Account{id: id}, _opts ->
+            assert key == archived.archive_key
+            assert id == account.id
+            "https://account-storage/archive"
+          end)
+
+          assert {:ok, %{url: "https://account-storage/archive", bytes: bytes, sha256: "deadbeef"}} =
+                   Archives.restore_source(archived)
+
+          assert bytes == 2 * @gib
+
+          expect(Storage, :delete_object, fn key, %Account{id: id} ->
+            assert key == archived_snapshot.archive_key
+            assert id == account.id
+            :ok
+          end)
+
+          assert :ok = Archives.delete_disk_snapshot_archive(archived_snapshot)
+        end
+      end
     end
 
     test "archive an Orb to the store at its node's site and restore it on a node at that site", %{account: account} do

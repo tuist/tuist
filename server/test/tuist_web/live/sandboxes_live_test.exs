@@ -298,7 +298,19 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute Repo.get(Sandbox, sandbox.id)
     end
 
-    test "archives a paused sandbox and resumes it from the archive", %{conn: conn, account: account} do
+    test "queues a paused sandbox with a full in-rack budget and shows its archive progress", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(
+        account: AccountsFixtures.account_fixture(),
+        state: :archived,
+        node_name: nil,
+        archive_store: "gra-v1",
+        archive_bytes: 500 * 1024 * 1024 * 1024,
+        archived_at: DateTime.utc_now()
+      )
+
       sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")

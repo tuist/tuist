@@ -241,7 +241,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   workspace without the memory image, to `sandbox-archives/<account_id>/`
   in the archive bucket of the in-rack store at the node's site (a shard
   storage target with an `archive_bucket`, recorded in `archive_store`), or
-  in the account's storage when there is none or the account has its own
+  in the account's storage when there is none available, the store's shared
+  `archive_budget_bytes` is reached (100 GiB by default, production 500 GiB,
+  canary 100 GiB), or the account has its own
   S3 storage. The sandboxd NetworkPolicy lets the daemon reach the store
   and the daemon drops guest traffic to its port. The row
   becomes `archived` with `node_name` nil only after the upload is
@@ -257,8 +259,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
-  node reservation and both limits; accounts stop archiving at 500 GiB of
-  archives. There is no count of paused Orbs per account.
+  node reservation and both limits. Each store's archive budget counts Orb
+  and disk snapshot archives across all accounts, including restored objects
+  awaiting deletion, leaving room for shard artifacts; uploads can cross it.
+  There is no per-account archive limit. Account-storage archives have no cap.
+  Existing archives do not move or expire. There is no count of paused Orbs per account.
   `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
   reverts restores stuck for 15.
@@ -439,7 +444,7 @@ socket, the poller and the caller share a replica:
   Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
   and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
   Archive (`Sandboxes.archive/1`) only queues `ArchiveSandboxesWorker` for
-  one paused sandbox of any source, under the account's archive storage cap,
+  one paused sandbox of any source,
   because the upload outlives a page. The app layout renders no flashes, so
   these pages render theirs with `SandboxesLive.flash_alerts/1`.
   The overview charts come from `Analytics` over ClickHouse
