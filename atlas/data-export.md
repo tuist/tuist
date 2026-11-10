@@ -7,10 +7,12 @@ Atlas's personal LLM connections are separate from Tuist Server customer data an
 `label_sessions` belongs to an Atlas `users.id` through `owner_id` (cascade
 deletion), storing session expiry, a SHA-256 relay capability hash and latest
 relay report: browser client ID, heartbeat, connection claim, printer model/name,
-cartridge, printable zones/dimensions and bounded status/message. `label_jobs`
+cartridge, printable zones/dimensions, the SDK die-cut/continuous flag and bounded status/message. `label_jobs`
 belongs to a session (cascade deletion), storing the exact preview PNG in
 PostgreSQL, title/text, preview dimensions, action/state, batch ID/position/size,
-cut choice, whether review was requested, queued printer/supply/zones, approval
+cut choice, whether review was requested (or required for zoneless continuous tape),
+queued printer/supply/zones plus supply width/height and die-cut flag, sizing mode,
+actual bitmap pixel dimensions, nominal continuous page length and sizing warning, approval
 expiry and start deadline, dispatch client/time, separate print and cut outcomes,
 result time, bounded SDK result and a note explaining why a label returned to
 preview unprinted. Unclaimed standalone cut rows are deleted when they lapse. These may

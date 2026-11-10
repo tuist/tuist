@@ -203,6 +203,106 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert has_element?(connection, "#session-labels")
   end
 
+  test "zoneless continuous nylon requires owner review with bitmap sizing and a frozen supply", c do
+    {id, token, r, [a]} = connected_session(c, ["larch-runner-a01"])
+
+    nylon =
+      Map.merge(r, %{
+        "supply" => "M21-750-499",
+        "dimensions" => "0 x 0.75",
+        "supplyWidth" => "0.75",
+        "supplyHeight" => "0",
+        "mediaIsDieCut" => false,
+        "zoneDimensions" => []
+      })
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    preview = mcp(c.mcp, "preview", %{"session_id" => id, "job_id" => a})
+    assert %{"mode" => "continuous", "bitmapWidthPx" => 400, "bitmapHeightPx" => 96} = preview["sizing"]
+    assert_in_delta preview["sizing"]["nominalLengthMm"], 66.675, 0.001
+
+    # Even direct-output requests must stop at the owner's browser review.
+    batch = mcp(c.mcp, "print", %{"session_id" => id, "approval" => false})
+    assert batch["state"] == "awaiting-approval"
+    assert {:error, 409, _} = claim(id, token, nylon, a)
+    assert {:error, 400, _} = Labels.request(c.user, :approve, id, %{"batchId" => batch["batchId"]}, "mcp")
+    {:ok, view, _} = live(c.browser, URI.parse(batch["approvalUrl"]).path)
+    assert has_element?(view, "#batch-labels [data-part='label-sizing']", "Physical size is not guaranteed")
+    assert has_element?(view, "#batch-labels [data-part='label-sizing']", "66.7 mm")
+
+    for change <- [
+          %{"supplyWidth" => "0.5"},
+          %{"supplyHeight" => "0.5"},
+          %{"mediaIsDieCut" => true},
+          %{"zoneDimensions" => r["zoneDimensions"]},
+          %{"supply" => r["supply"]}
+        ] do
+      assert {:ok, _} = Labels.relay(:relay, id, token, Map.merge(nylon, change))
+      assert {:error, 409, _} = Labels.request(c.user, :approve, id, %{"batchId" => batch["batchId"]}, "dashboard")
+    end
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    view |> element("#approve-label") |> render_click()
+    assert {:ok, _} = Labels.relay(:relay, id, token, %{nylon | "supplyWidth" => "0.5"})
+    assert {:error, 409, _} = claim(id, token, nylon, a)
+    assert {:ok, _} = Labels.relay(:relay, id, token, nylon)
+    assert {:ok, %{"zoneDimensions" => [], "sizing" => sizing}} = claim(id, token, nylon, a)
+    assert sizing == preview["sizing"]
+    assert {:ok, %{"state" => "uncertain"}} = finish(id, token, nylon, a, %{"success" => false})
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{})
+  end
+
+  test "missing or invalid zones only pass for explicitly continuous zero-height media", c do
+    {id, token, r, _} = connected_session(c, ~w(TEST))
+
+    continuous =
+      Map.merge(r, %{"zoneDimensions" => [], "supplyWidth" => 0.75, "supplyHeight" => 0, "mediaIsDieCut" => false})
+
+    for change <- [
+          %{"mediaIsDieCut" => nil},
+          %{"mediaIsDieCut" => true},
+          %{"supplyHeight" => nil},
+          %{"supplyHeight" => "invalid"},
+          %{"supplyHeight" => "0.1"},
+          %{"supplyWidth" => "0"},
+          %{"supplyWidth" => "0.76"},
+          %{"supplyWidth" => "0.75in"},
+          %{"zoneDimensions" => nil},
+          %{"zoneDimensions" => [%{"Width" => 0, "Height" => 0}]}
+        ] do
+      assert {:ok, _} = Labels.relay(:relay, id, token, Map.merge(continuous, change))
+      assert {:error, 409, _} = Labels.request(c.user, :print, id, %{})
+    end
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, continuous)
+    assert {:ok, %{"state" => "awaiting-approval"}} = Labels.request(c.user, :print, id, %{})
+  end
+
+  test "continuous feed limit uses uploaded bitmap aspect ratio, not requested preview mm", c do
+    {id, token, r, _} = connected_session(c, ~w(TEST))
+
+    continuous =
+      Map.merge(r, %{"zoneDimensions" => [], "supplyWidth" => "0.75", "supplyHeight" => "0", "mediaIsDieCut" => false})
+
+    assert {:ok, _} = Labels.relay(:relay, id, token, continuous)
+
+    # 200 x 5 produces a 40:1 bitmap, about 640 mm on this tape, not 200 mm.
+    mcp(c.mcp, "submit", %{"session_id" => id, "items" => [%{"text" => "LONG"}], "width_mm" => 200, "height_mm" => 5})
+    {:ok, %{"jobs" => [_, long]}} = Labels.request(c.user, :status, id)
+    preview = mcp(c.mcp, "preview", %{"session_id" => id, "job_id" => long["id"]})
+
+    mcp(c.mcp, "submit", %{
+      "session_id" => id,
+      "items" => [%{"png" => preview["png"]}],
+      "width_mm" => 50,
+      "height_mm" => 10
+    })
+
+    {:ok, %{"jobs" => [_, _, uploaded]}} = Labels.request(c.user, :status, id)
+    assert {:error, 400, _} = Labels.request(c.user, :print, id, %{"jobIds" => [uploaded["id"]]})
+    assert states(id) == ~w(preview-only preview-only preview-only)
+  end
+
   test "printer or supply changes, lease loss and expiry block output", c do
     {id, token, r, [a]} = connected_session(c, ~w(RACK-09))
     other_zone = %{r | "zoneDimensions" => [%{"Width" => "45", "Height" => "10"}]}

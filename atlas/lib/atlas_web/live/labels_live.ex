@@ -136,7 +136,7 @@ defmodule AtlasWeb.LabelsLive do
           <.card title="While this tab is connected" icon="lock_open_2">
             <.card_section>
               <p>
-                Your agent can print batches and cut through this tab without asking. Disconnect or close the tab to stop it.
+                Your agent can print batches and cut through this tab without asking, except printing on zoneless continuous tape always requires your review. Disconnect or close the tab to stop it.
               </p>
               <p>
                 Labels print one at a time in order and are cut after each label unless the agent turns cutting off. When your agent asks for a review, it sends an Atlas link showing the whole batch first.
@@ -205,6 +205,19 @@ defmodule AtlasWeb.LabelsLive do
           src={"/operations/labels/#{@session_id}/jobs/#{job["id"]}/preview"}
           alt={job["title"]}
         />
+        <div :if={job["sizing"]} data-part="label-sizing">
+          <p>
+            Bitmap: {job["sizing"]["bitmapWidthPx"]} × {job["sizing"]["bitmapHeightPx"]} px.
+            Preview request: {job["widthMm"]} × {job["heightMm"]} mm.
+          </p>
+          <p :if={job["sizing"]["mode"] == "continuous"}>
+            Nominal SDK page length before feed/trailer: {Float.round(
+              job["sizing"]["nominalLengthMm"],
+              1
+            )} mm (before margin adjustments).
+          </p>
+          <p>{job["sizing"]["notice"]}</p>
+        </div>
         <span :if={job["action"] == "cut"}>Cut only</span>
       </:col>
       <:col :let={{job, _}} label="Text">{job["title"]}</:col>
