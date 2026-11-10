@@ -66,7 +66,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         var sideEffects: [SideEffectDescriptor] = []
 
         if targetNeedsCompanionBundle(target) {
-            let companion = synthesizeCompanionBundle(for: target, bundleName: resourceBundleName)
+            let companion = synthesizeCompanionBundle(for: target, bundleName: resourceBundleName, project: project)
             modifiedTarget = companion.modifiedTarget
             additionalTargets.append(companion.bundleTarget)
         }
@@ -135,7 +135,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
     private func buildableFoldersContainBundleResources(target: Target, project: Project) -> Bool {
         let synthesizerExtensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
         return target.buildableFolders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { file in
+            guard folder.contents == nil else { return false }
+            return folder.resolvedFiles.contains(where: { file in
                 file.path.routesThroughResourceBundle
                     || synthesizerExtensions.contains(file.path.extension ?? "")
             })
@@ -151,7 +152,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
     private func synthesizeCompanionBundle(
         for target: Target,
-        bundleName: String
+        bundleName: String,
+        project: Project
     ) -> CompanionBundleResult {
         let partition = partitioner.partition(
             target.buildableFolders,
@@ -163,11 +165,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
             })
         )
 
+        let routing = DeclaredBuildableFolderRouting(
+            folders: partition.declaredMixedFolders,
+            sourceRootPath: project.sourceRootPath
+        )
         let bundleTarget = makeBundleTarget(
             for: target,
             bundleName: bundleName,
             buildableFolders: partition.bundleTargetFolders
-        )
+        ).appendingListSettings(routing.bundleTargetSettings())
 
         var modifiedTarget = target
 
@@ -229,6 +235,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         base["PACKAGE_RESOURCE_TARGET_KIND"] = .string("regular")
         modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
             ?? Settings(base: base, configurations: [:])
+        modifiedTarget = modifiedTarget.appendingListSettings(routing.originalTargetSettings())
 
         return CompanionBundleResult(modifiedTarget: modifiedTarget, bundleTarget: bundleTarget)
     }

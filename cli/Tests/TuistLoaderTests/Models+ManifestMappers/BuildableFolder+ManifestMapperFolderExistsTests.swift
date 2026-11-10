@@ -87,4 +87,52 @@ struct BuildableFolderManifestMapperFolderExistsTests {
         #expect(got.resolvedFiles.count == 1)
         #expect(got.resolvedFiles.first?.path == fileAPath)
     }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func from_whenFolderDoesNotExistAndDeclaresContents_keepsTheFolder(optional: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = temporaryDirectory.appending(component: "Generated")
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryDirectory,
+            rootDirectory: temporaryDirectory
+        )
+        let manifest = ProjectDescription.BuildableFolder.folder(
+            .path(folderPath.pathString),
+            exceptions: .exceptions([.exception(excluded: ["Skipped.swift"])]),
+            optional: optional,
+            contents: [.sources, .resources]
+        )
+
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            targetName: "Target"
+        ))
+
+        #expect(got.path == folderPath)
+        #expect(got.resolvedFiles.isEmpty)
+        #expect(got.contents == [.sources, .resources])
+    }
+
+    @Test(.inTemporaryDirectory) func from_whenFolderExistsAndDeclaresContents_mapsFilesAndContents() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = temporaryDirectory.appending(component: "Generated")
+        try await fileSystem.makeDirectory(at: folderPath)
+        let filePath = folderPath.appending(component: "A.swift")
+        try await fileSystem.touch(filePath)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryDirectory,
+            rootDirectory: temporaryDirectory
+        )
+        let manifest = ProjectDescription.BuildableFolder.folder(.path(folderPath.pathString), contents: [.resources])
+
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            targetName: "Target"
+        ))
+
+        #expect(got.resolvedFiles.map(\.path) == [filePath])
+        #expect(got.contents == [.resources])
+    }
 }

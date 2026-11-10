@@ -28,8 +28,12 @@ extension XcodeGraph.BuildableFolder {
     ) async throws -> XcodeGraph.BuildableFolder? {
         let path = try generatorPaths.resolve(path: manifest.path)
         let fileSystem = FileSystem()
+        let contents = manifest.contents.map { Set($0.map(XcodeGraph.BuildableFolderContent.from(manifest:))) }
 
-        if try await !fileSystem.exists(path) {
+        // Declared contents classify the folder without its files, so it is kept (and created during generation)
+        // even though nothing has written to it yet. `optional` only applies to folders classified by their files.
+        let exists = try await fileSystem.exists(path)
+        if !exists, contents == nil {
             if manifest.optional {
                 AlertController.current.warning(
                     .alert(
@@ -46,6 +50,9 @@ extension XcodeGraph.BuildableFolder {
             buildableFolder: path,
             fileSystem: fileSystem
         )
+        guard exists else {
+            return XcodeGraph.BuildableFolder(path: path, exceptions: exceptions, resolvedFiles: [], contents: contents)
+        }
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
@@ -71,7 +78,17 @@ extension XcodeGraph.BuildableFolder {
         return XcodeGraph.BuildableFolder(
             path: path,
             exceptions: exceptions,
-            resolvedFiles: resolvedFiles
+            resolvedFiles: resolvedFiles,
+            contents: contents
         )
+    }
+}
+
+extension XcodeGraph.BuildableFolderContent {
+    static func from(manifest: ProjectDescription.BuildableFolderContent) -> Self {
+        switch manifest {
+        case .sources: .sources
+        case .resources: .resources
+        }
     }
 }

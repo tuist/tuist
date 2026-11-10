@@ -184,6 +184,11 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
     fileprivate func shouldAddHeadersBuildPhase(_ target: Target) -> Bool {
         guard target.shouldIncludeHeadersBuildPhase else { return false }
         for buildableFolder in target.buildableFolders {
+            // Declared sources may include headers, which need the phase to be built.
+            if let contents = buildableFolder.contents {
+                if contents.contains(.sources) { return true }
+                continue
+            }
             if buildableFolder.resolvedFiles.first(where: { $0.path.extension == "h" }) != nil {
                 return true
             }

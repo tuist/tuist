@@ -15,6 +15,11 @@ struct BuildableFolderResourcePartition {
 
     /// Folders (or per-folder views) that move to the companion resource bundle.
     var bundleTargetFolders: [BuildableFolder] = []
+
+    /// Folders that declare both sources and resources, and therefore sit on both targets without per-file
+    /// exclusions. Their files are routed by file type through build settings instead
+    /// (see `DeclaredBuildableFolderRouting`).
+    var declaredMixedFolders: [AbsolutePath] = []
 }
 
 struct BuildableFolderResourcePartitioner {
@@ -33,6 +38,9 @@ struct BuildableFolderResourcePartitioner {
                 }
                 if let bundle = partition.bundleTargetFolder {
                     result.bundleTargetFolders.append(bundle)
+                }
+                if folder.contents?.isSuperset(of: [.sources, .resources]) == true {
+                    result.declaredMixedFolders.append(folder.path)
                 }
             }
         }
@@ -64,11 +72,15 @@ extension BuildableFolder {
         return BuildableFolder(
             path: path,
             exceptions: exceptions.addingExcluded(paths: excluded),
-            resolvedFiles: resolvedFiles.filter { !paths.contains($0.path) }
+            resolvedFiles: resolvedFiles.filter { !paths.contains($0.path) },
+            contents: contents
         )
     }
 
     fileprivate func partitioned() -> SingleFolderPartition? {
+        if let contents {
+            return declaredContentsPartition(contents)
+        }
         if let folderLevel = folderLevelPartition() {
             return folderLevel
         }
@@ -92,6 +104,24 @@ extension BuildableFolder {
             bundleEntries: split.bundleOnly,
             sharedEntries: split.shared
         )
+    }
+
+    /// A folder that declares its contents is routed as a whole, without looking at its files, so the result is the
+    /// same before and after the folder is filled. A folder with both sources and resources goes to both targets
+    /// with its declared contents narrowed to what each target takes; its files are routed by type through build
+    /// settings, because per-file exclusions need file names.
+    private func declaredContentsPartition(_ contents: Set<BuildableFolderContent>) -> SingleFolderPartition {
+        guard contents.contains(.resources) else {
+            return SingleFolderPartition(originalTargetFolder: self, bundleTargetFolder: nil)
+        }
+        var bundle = self
+        bundle.contents = [.resources]
+        guard contents.contains(.sources) else {
+            return SingleFolderPartition(originalTargetFolder: nil, bundleTargetFolder: bundle)
+        }
+        var original = self
+        original.contents = [.sources]
+        return SingleFolderPartition(originalTargetFolder: original, bundleTargetFolder: bundle)
     }
 
     /// When the folder name itself signals a pure-resource folder (e.g. `Foo.xcassets`), route
