@@ -4,6 +4,6 @@ import PackageDescription
 let package = Package(
     name: "Shop",
     dependencies: [
-        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.4.0")),
+        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.5.0")),
     ]
 )
