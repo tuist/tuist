@@ -50,6 +50,9 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
   `server/AGENTS.md` for the required export documentation details.
 - Before operating on shared infrastructure, read `infra/AGENTS.md`, including
   its human-only elevation rules.
+- Never commit `provenance = "github-attestations"` into the root `mise.lock`.
+  A local `mise install` records it, but release and deploy workflows install
+  with attestations off and then refuse the tool (`mise-lock.yml` checks this).
 
 ## Commits and pull requests
 

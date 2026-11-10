@@ -192,7 +192,7 @@ test('CLI versions without consolidated manifest caching fail; supported release
   }
 });
 
-test('standalone package works outside the source checkout and never overwrites existing output', t => {
+test('standalone package pins nested actions, works outside the source checkout and never overwrites existing output', t => {
   const f = fixture(t);
   f.pkg();
   const output = path.join(f.root, 'standalone action');
@@ -200,6 +200,13 @@ test('standalone package works outside the source checkout and never overwrites 
   success(pack());
   assert.deepEqual(fs.readdirSync(output).sort(), ['LICENSE.md', 'README.md', 'SOURCE_COMMIT', 'action.yml', 'install.sh', 'prepare.sh']);
   assert.match(fs.readFileSync(path.join(output, 'SOURCE_COMMIT'), 'utf8'), /^[a-f0-9]{40}\n$/);
+  // GitHub checks nested actions against the caller's policy even when their steps are skipped.
+  const definition = fs.readFileSync(path.join(output, 'action.yml'), 'utf8');
+  const dependencies = [...definition.matchAll(/^\s+uses:\s+(\S+)/gm)].map(match => match[1]);
+  assert.ok(dependencies.length > 0);
+  for (const dependency of dependencies) {
+    assert.match(dependency, /^[^@\s]+@[a-f0-9]{40}$/, 'nested actions must be allowlistable by immutable SHA');
+  }
   success(f.install(success(f.prepare({}, output)), {}, output));
   assert.notEqual(pack().status, 0);
 });

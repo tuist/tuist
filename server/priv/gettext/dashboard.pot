@@ -523,7 +523,7 @@ msgid "The preview APK doesn't exist or has expired."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:577
-#: lib/tuist_web/live/components/machine_metrics_charts.ex:73
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:85
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr ""

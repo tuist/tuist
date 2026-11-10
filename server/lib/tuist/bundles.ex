@@ -392,6 +392,25 @@ defmodule Tuist.Bundles do
     |> Enum.map(fn app -> %{app | supported_platforms: decode_platforms(app.supported_platforms)} end)
   end
 
+  def project_bundle_tags(%Project{} = project, search \\ "") do
+    tags =
+      from(b in Bundle,
+        where: b.project_id == ^project.id,
+        where: b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day),
+        select: %{tag: fragment("arrayJoin(?)", b.custom_tags)}
+      )
+
+    ClickHouseRepo.all(
+      from(t in subquery(tags),
+        where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", t.tag, ^search),
+        select: t.tag,
+        distinct: true,
+        order_by: t.tag,
+        limit: 1000
+      )
+    )
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def last_project_bundle(%Project{} = project, opts \\ []) do
     query = where(from(b in Bundle), [b], b.project_id == ^project.id)
@@ -417,6 +436,15 @@ defmodule Tuist.Bundles do
         query
       else
         where(query, [b], b.name == ^name)
+      end
+
+    tag = Keyword.get(opts, :tag)
+
+    query =
+      if is_nil(tag) do
+        query
+      else
+        where(query, [b], fragment("has(?, ?)", b.custom_tags, ^tag))
       end
 
     inserted_before = Keyword.get(opts, :inserted_before)

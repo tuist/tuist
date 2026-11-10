@@ -28,7 +28,7 @@ defmodule TuistWeb.UserPasskeyController do
   plug :require_passkeys_enabled
 
   def show(conn, _params) do
-    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/passkeys")
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/authentication")
   end
 
   def new(conn, _params) do
@@ -67,7 +67,7 @@ defmodule TuistWeb.UserPasskeyController do
       {:ok, _passkey} ->
         conn
         |> put_flash(:info, dgettext("dashboard_auth", "Passkey added."))
-        |> redirect(to: ~p"/users/settings/passkeys")
+        |> redirect(to: ~p"/#{user.account.name}/settings/authentication")
 
       {:error, reason} ->
         conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/passkeys")

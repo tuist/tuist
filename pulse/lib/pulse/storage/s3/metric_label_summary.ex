@@ -198,19 +198,26 @@ defmodule Pulse.Storage.S3.MetricLabelSummary do
       _ ->
         []
     end)
+    |> Enum.group_by(fn {name, _op, _expected} -> name end, fn {_name, op, expected} -> {op, expected} end)
   end
 
   @doc """
   Can a segment with these complete value sets match every planned matcher?
   `fetch` returns `{:ok, values}` for a complete set or `:error` when unknown.
-  Each matcher is tested independently, so this never proves a match.
+  One value must satisfy all matchers for the same name. Different names are
+  tested independently, so this never proves a matching sample exists.
   """
   def satisfiable?(plan, fetch) do
-    Enum.all?(plan, fn {name, op, expected} ->
-      case fetch.(name) do
-        {:ok, values} -> Enum.any?(values, &value_may_match?(op, expected, &1))
-        :error -> true
-      end
+    Enum.all?(plan, fn {name, matchers} ->
+      values_may_match?(fetch.(name), matchers)
+    end)
+  end
+
+  defp values_may_match?(:error, _matchers), do: true
+
+  defp values_may_match?({:ok, values}, matchers) do
+    Enum.any?(values, fn value ->
+      Enum.all?(matchers, fn {op, expected} -> value_may_match?(op, expected, value) end)
     end)
   end
 

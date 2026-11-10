@@ -21,6 +21,22 @@ for env in staging canary production; do
   if render --set runnersFleetLinux.nestedVirtualization.enabled=false > /dev/null 2> "$work/error"; then
     echo 'KVM default accepted without device plugin' >&2; exit 1
   fi
+  # Both the global default and explicit pool/shape opt-ins must reject the
+  # pod-level-resources/device-plugin combination that panics kubelet.
+  for setting in \
+    'runnersFleetLinux.exclusiveCPUs.defaultEnabled=true' \
+    'runnersFleetLinux.pools[0].name=test,runnersFleetLinux.pools[0].dispatchLabel=test,runnersFleetLinux.pools[0].runtimeClass=kata-qemu,runnersFleetLinux.pools[0].exclusiveCPUs=true' \
+    'runnersFleetLinux.shapes[0].exclusiveCPUs=true,runnersFleetLinux.shapes[0].vcpus=2,runnersFleetLinux.shapes[0].memoryGb=8'; do
+    if render --set "$setting" > /dev/null 2> "$work/error"; then
+      echo "Unsafe exclusive CPUs with nested KVM accepted: $env $setting" >&2; exit 1
+    fi
+    grep -q 'exclusiveCPUs cannot be combined with nestedVirtualization' "$work/error"
+  done
+  render --set runnersFleetLinux.nestedVirtualization.defaultEnabled=false \
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/exclusive.json"
+  jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
+    length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization != true)' "$work/exclusive.json" >/dev/null
+  jq -e 'all(.[]|select(.kind == "RunnerPool" and .spec.os == "linux"); .spec.exclusiveCPUs != true)' "$work/on.json" >/dev/null
   echo "$env: every Linux pool has KVM; rollback changes the idle rollout revision."
 done
 yq -e '.runnersFleetLinux.nestedVirtualization.defaultEnabled == false and .runnersFleetLinux.nestedVirtualization.enabled == false' "$chart/values.yaml" >/dev/null

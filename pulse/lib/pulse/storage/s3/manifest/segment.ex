@@ -345,7 +345,7 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
 
     # Name matchers a bloom can decide: each needs one of these names present.
     names =
-      for {"__name__", op, expected} <- plan,
+      for {op, expected} <- Map.get(plan, "__name__", []),
           alternatives = bloom_names(op, expected),
           alternatives != nil,
           do: Enum.map(alternatives, &name_hash/1)
@@ -364,7 +364,8 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
 
   @doc """
   Prune metrics only when a complete name or label value set proves that some
-  matcher (equality, inequality, or a recognized regex shape) cannot match, or
+  label's matchers (equality, inequality, or recognized regex shapes) cannot
+  all match the same value, or
   a name bloom proves that no name an equality or literal alternation accepts
   is present.
   """

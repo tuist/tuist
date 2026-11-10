@@ -30,7 +30,12 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  guest-wide memory (`/proc/meminfo`), cgroup memory
+  guest-wide memory (`/proc/meminfo`: total and available, then anon,
+  page cache, shmem, dirty/writeback and slab), the dind sidecar's
+  cgroup (`dind.*`, job containers included; `tuist-cache-volume`'s
+  `dind` and `mount-server` modes write it to the shared
+  `/var/run/tuist-dind-memory` every 3s, so pools without cache volumes
+  omit it, and `dind.age.s` exposes a stale sample), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest

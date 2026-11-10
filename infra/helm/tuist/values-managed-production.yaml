@@ -1364,6 +1364,11 @@ ovhFleets:
     # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
     # concurrent 16 vCPU jobs.
     replicas: 10
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single

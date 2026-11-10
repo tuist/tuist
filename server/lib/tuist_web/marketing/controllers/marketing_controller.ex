@@ -617,7 +617,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:newsletter, layout: false)
   end
 
-  def newsletter_signup(conn, %{"email" => email}) do
+  def newsletter_signup(conn, %{"email" => email}) when is_binary(email) do
     email = String.trim(email)
 
     verification_token = sign_newsletter_verification_token(email)
@@ -633,14 +633,21 @@ defmodule TuistWeb.Marketing.MarketingController do
         })
 
       {:error, _reason} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> put_status(400)
-        |> json(%{
-          success: false,
-          message: dgettext("marketing", "Something went wrong. Please try again.")
-        })
+        newsletter_signup_error(conn)
     end
+  end
+
+  # Automated submissions post without an email, or with a non-string one.
+  def newsletter_signup(conn, _params), do: newsletter_signup_error(conn)
+
+  defp newsletter_signup_error(conn) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_status(400)
+    |> json(%{
+      success: false,
+      message: dgettext("marketing", "Something went wrong. Please try again.")
+    })
   end
 
   def newsletter_verify(conn, %{"token" => token} = _params) do

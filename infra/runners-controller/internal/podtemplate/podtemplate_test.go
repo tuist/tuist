@@ -716,6 +716,13 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 	pool.Spec.NestedVirtualization = true
 	pod := build(t, pool)
 
+	if pod.Spec.Resources != nil {
+		t.Fatal("nested KVM must use container-level resources to avoid kubelet's pod-level device allocation race")
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Fatalf("nested KVM runner CPU limit = %dm, want 4000m", got)
+	}
 	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
 		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
 	}
@@ -726,7 +733,6 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 		t.Errorf("nodeSelector %s = %q, want \"true\"", KVMNodeLabel, got)
 	}
 
-	runner := containerByName(t, pod, "runner")
 	for name, list := range map[string]corev1.ResourceList{"requests": runner.Resources.Requests, "limits": runner.Resources.Limits} {
 		quantity, ok := list[KVMResourceName]
 		if !ok || quantity.Value() != 1 {
@@ -833,7 +839,6 @@ func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
 func TestBuild_ExclusiveCPUsMovesTheBudgetToThePod(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.ExclusiveCPUs = true
-	pool.Spec.NestedVirtualization = true
 	pod := build(t, pool)
 
 	if pod.Spec.Resources == nil {
@@ -864,10 +869,6 @@ func TestBuild_ExclusiveCPUsMovesTheBudgetToThePod(t *testing.T) {
 			}
 		}
 	}
-	runner := containerByName(t, pod, "runner")
-	if quantity := runner.Resources.Limits[KVMResourceName]; quantity.Value() != 1 {
-		t.Errorf("runner limits %s = %v, want 1: devices stay on the container", KVMResourceName, runner.Resources.Limits)
-	}
 	if got := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; got != "true" {
 		t.Errorf("nodeSelector %s = %q, want \"true\"", PodLevelResourceManagersNodeLabel, got)
 	}
@@ -896,6 +897,7 @@ func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
 		"fractional cpus": func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 2500 },
 		"runc":            func(p *tuistv1.RunnerPool) { p.Spec.RuntimeClass = "" },
 		"macos":           func(p *tuistv1.RunnerPool) { p.Spec.OS = "darwin"; p.Spec.RuntimeClass = "" },
+		"nested KVM":      func(p *tuistv1.RunnerPool) { p.Spec.NestedVirtualization = true },
 	} {
 		t.Run(name, func(t *testing.T) {
 			pool := basePool("linux")

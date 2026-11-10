@@ -53,16 +53,17 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   @doc """
   Stores a commit's file listing in the account's fixture repository, as the
   CLI uploads it from a clean checkout: what the unmeasured files are read
-  against.
+  against. `truncated: true` stores it as cut at the file limit.
   """
-  def seed_listing(account, sha, paths) do
+  def seed_listing(account, sha, paths, opts \\ []) do
     repository_id = repository_id(account)
 
     GitHistory.record_listing(
       repository_id,
       sha,
       Enum.map(paths, &%{path: &1, git_blob_id: "blob-" <> &1, mode: 0o100644}),
-      files_count: length(paths)
+      files_count: length(paths),
+      truncated: Keyword.get(opts, :truncated, false)
     )
 
     repository_id
@@ -227,13 +228,20 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   `:runs` (each a keyword list of `id`, `scheme`, `platform` and `partial`;
   by default a whole run of App on iOS) and, for runs with `evidence: true`
   (the default), a test-scoped `coverage_files` row. `:partial_schemes` sets
-  the measured set's. Returns the run ids.
+  the measured set's. The commit gets a complete file listing, which a
+  selection baseline needs, unless `:listing` is `:truncated` or `:none`.
+  Returns the run ids.
   """
   def commit_coverage(project, repository_id, sha, opts \\ []) do
     runs =
       for run <- Keyword.get(opts, :runs, [[]]) do
         Keyword.merge([id: UUIDv7.generate(), scheme: "App", platform: "ios", partial: false, evidence: true], run)
       end
+
+    case Keyword.get(opts, :listing, :complete) do
+      :none -> :ok
+      listing -> GitHistory.record_listing(repository_id, sha, [], files_count: 0, truncated: listing == :truncated)
+    end
 
     Repo.insert!(%CoverageCommit{
       project_id: project.id,

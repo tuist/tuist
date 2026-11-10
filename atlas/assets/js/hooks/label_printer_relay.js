@@ -81,6 +81,7 @@ export default {
       zoneDimensions: sdk?.zoneDimensions,
       supplyWidth: sdk?.supplyWidth,
       supplyHeight: sdk?.supplyHeight,
+      mediaIsDieCut: sdk?.mediaIsDieCut,
       cutReady: typeof sdk?.cut === "function",
       restarted,
     });
@@ -102,6 +103,9 @@ export default {
     const sameSupply = (job) =>
       sdk.printerName === job.printer &&
       sdk.supplyName === job.supply &&
+      String(sdk.supplyWidth ?? "") === job.supplyWidth &&
+      String(sdk.supplyHeight ?? "") === job.supplyHeight &&
+      (sdk.mediaIsDieCut ?? null) === job.mediaIsDieCut &&
       zonesKey(sdk.zoneDimensions) === zonesKey(job.zoneDimensions);
     // Returns true only when the next queued label may follow.
     const dispatch = async (job) => {

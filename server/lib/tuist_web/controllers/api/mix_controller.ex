@@ -144,7 +144,9 @@ defmodule TuistWeb.API.MixController do
                  network_bytes_in: %Schema{type: :integer, minimum: 0, maximum: @int64},
                  network_bytes_out: %Schema{type: :integer, minimum: 0, maximum: @int64},
                  disk_bytes_read: %Schema{type: :integer, minimum: 0, maximum: @int64},
-                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64}
+                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_total_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64, nullable: true},
+                 disk_available_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64, nullable: true}
                },
                required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes]
              }

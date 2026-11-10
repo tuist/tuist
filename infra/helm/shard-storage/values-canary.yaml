@@ -16,4 +16,5 @@ target:
 lifecycle:
   expirationDays: 3
 archiveBucket: sandbox-archives
+archiveBudgetGiB: 100
 sandboxNamespace: tuist-sandboxes

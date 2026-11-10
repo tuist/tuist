@@ -123,8 +123,8 @@ fn pagination_search_and_currency_summary_survive_the_bridge_without_rounding() 
 }
 
 #[test]
-fn list_filters_are_top_level_encoded_queries_and_reminder_groups_survive() {
-    let fields = json!({"title":"Boundary task", "reminder_group":"overdue", "secret":"private"});
+fn list_filters_are_top_level_encoded_queries() {
+    let fields = json!({"title":"Boundary task", "secret":"private"});
     let network = MockTransport::new(vec![
         json!({"items":[{"id":ID,"fields":fields,"can_edit":true,"can_delete":true}],
             "page":2,"total_pages":2,"total_count":26,"can_write":true}),
@@ -132,11 +132,10 @@ fn list_filters_are_top_level_encoded_queries_and_reminder_groups_survive() {
     ]);
     let action: Action = serde_json::from_value(
         json!({"action":"list","page":2,"query":"A&B + €?status=completed#",
-        "filters":{"status":"open","assignee_id":ID,"reminder":"overdue","group_by":"reminder"}}),
+        "filters":{"status":"open","assignee_id":ID}}),
     )
     .unwrap();
     let output = execute_using(&network, saved(), Resource::Tasks, action).unwrap();
-    assert_eq!(output["items"][0]["fields"]["reminder_group"], "overdue");
     assert!(output["items"][0]["fields"].get("secret").is_none());
     assert_eq!(output["total_count"], 26);
     let url = url::Url::parse(&network.requests.borrow()[0].0).unwrap();
@@ -148,8 +147,6 @@ fn list_filters_are_top_level_encoded_queries_and_reminder_groups_survive() {
             ("page".into(), "2".into()),
             ("query".into(), "A&B + €?status=completed#".into()),
             ("assignee_id".into(), ID.into()),
-            ("group_by".into(), "reminder".into()),
-            ("reminder".into(), "overdue".into()),
             ("status".into(), "open".into()),
         ]
     );
@@ -167,12 +164,6 @@ fn resource_filter_allowlists_validate_before_networking() {
     for (resource, key, values) in [
         (Resource::Tasks, "status", vec!["", "open", "completed"]),
         (Resource::Tasks, "assignee_id", vec!["", ID]),
-        (
-            Resource::Tasks,
-            "reminder",
-            vec!["", "overdue", "upcoming", "none"],
-        ),
-        (Resource::Tasks, "group_by", vec!["", "reminder"]),
         (
             Resource::Accounts,
             "segment",
@@ -230,16 +221,12 @@ fn resource_filter_allowlists_validate_before_networking() {
     for (resource, key, value) in [
         (Resource::Tasks, "status", "active"),
         (Resource::Tasks, "assignee_id", "../profile"),
-        (Resource::Tasks, "reminder", "completed"),
-        (Resource::Tasks, "group_by", "due_on"),
         (Resource::Tasks, "segment", ""),
         (Resource::Accounts, "status", "open"),
         (Resource::Accounts, "segment", "other"),
         (Resource::Accounts, "deal_stage", "other"),
         (Resource::Accounts, "assignee_id", ""),
-        (Resource::Accounts, "group_by", "reminder"),
         (Resource::Invoices, "status", "paid"),
-        (Resource::Invoices, "reminder", ""),
         (Resource::Profile, "status", ""),
     ] {
         assert!(
@@ -312,9 +299,6 @@ fn invalid_resources_paths_and_write_fields_never_send_credentials() {
         },
         Action::Create {
             fields: BTreeMap::from([("metadata".into(), Some("manual".into()))]),
-        },
-        Action::Create {
-            fields: BTreeMap::from([("reminder_group".into(), Some("overdue".into()))]),
         },
         Action::Create {
             fields: BTreeMap::from([("due_on".into(), Some("2027-02-29".into()))]),

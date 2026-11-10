@@ -620,6 +620,7 @@
 
 #login,
 #sso-link,
+#authentication-settings,
 #user-security-settings {
   & [data-part="passkey-status"] {
     color: var(--noora-surface-label-secondary);
@@ -637,6 +638,10 @@
   gap: var(--noora-spacing-7);
   width: 100%;
   min-width: 0;
+
+  & [data-part="reauthentication-explanation"] {
+    text-align: center;
+  }
 
   & h2 {
     margin: 0;
@@ -681,30 +686,6 @@
 
   & [data-part="row-actions"] {
     flex-wrap: wrap;
-  }
-
-  & #passkey-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    & > li {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-5);
-      padding-block: var(--noora-spacing-6);
-      overflow-wrap: anywhere;
-    }
-
-    & > li + li {
-      border-top: 1px solid var(--noora-surface-border-primary);
-    }
-
-    & [data-part="passkey-details"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-    }
   }
 
   & .noora-modal [data-part="body"] form {

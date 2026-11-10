@@ -590,7 +590,7 @@ notification delivery or alert lifecycle transitions.
   source for the [supported query subset](querying.md#prometheus-api).
   Bounded label/value/series discovery is also available through `/api/v1/labels`,
   `/api/v1/label/<name>/values` and `/api/v1/series`; see [metadata API limits](metric-discovery.md).
-  Serving app/native pairs require metric codec `{2,2,1,1,1}` (including source-start retention and footer planning). These routes do not
+  Serving app/native pairs require metric codec `{2,2,1,1,1,1}` (including source-start retention, footer planning and streaming reads). These routes do not
   establish complete Grafana datasource/client compatibility.
 - **Loki API**: `/loki/api/v1/query`, `query_range`, `labels`, and
   `label/<name>/values`.

@@ -102,9 +102,11 @@ defmodule TuistWeb.UserLoginLiveTest do
 
       assert has_element?(
                lv,
-               "#login_form ~ #passkey-login[hidden] > .noora-line-divider + button",
+               "#passkey-login[hidden] > button",
                "Log in with a passkey"
              )
+
+      assert has_element?(lv, "#passkey-login ~ #login_form")
     end
 
     test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do

@@ -15,27 +15,27 @@ internal class AtlasBusinessFixtures {
                 mutableListOf(
                     row(
                         "task-1",
-                        """{"title":"Prepare renewal proposal","description":"Review next year’s scope with the team.","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","account_id":"account-1","account_name":"Sample Studio","due_on":"2099-06-11","remind_at":"2026-06-10T07:00:00Z","reminder_group":"overdue"}""",
+                        """{"title":"Prepare renewal proposal","description":"Review next year’s scope with the team.","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","account_id":"account-1","account_name":"Sample Studio","due_on":"2099-06-11"}""",
                     ),
                     row(
                         "task-2",
-                        """{"title":"Review mobile release","description":"Check Android and iOS builds.","status":"completed","assignee_id":"user-2","assignee_name":"Jordan Example","reminder_group":"completed"}""",
+                        """{"title":"Review mobile release","description":"Check Android and iOS builds.","status":"completed","assignee_id":"user-2","assignee_name":"Jordan Example"}""",
                     ),
                     row(
                         "task-3",
-                        """{"title":"Send follow-up","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","reminder_group":"none"}""",
+                        """{"title":"Send follow-up","status":"open","assignee_id":"user-1","assignee_name":"Alex Example"}""",
                     ),
                     row(
                         "task-4",
-                        """{"title":"Check contract details","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example","remind_at":"2026-05-01T09:00:00Z","reminder_group":"overdue"}""",
+                        """{"title":"Check contract details","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example"}""",
                     ),
                     row(
                         "task-5",
-                        """{"title":"Plan next quarter","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","due_on":"2020-01-01","remind_at":"2099-01-01T09:00:00Z","reminder_group":"upcoming"}""",
+                        """{"title":"Plan next quarter","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","due_on":"2020-01-01"}""",
                     ),
                     row(
                         "task-6",
-                        """{"title":"Review onboarding notes","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example","reminder_group":"none"}""",
+                        """{"title":"Review onboarding notes","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example"}""",
                     ),
                 ),
             "accounts" to
@@ -89,14 +89,9 @@ internal class AtlasBusinessFixtures {
                         fields.toString().contains(action.optString("query"), ignoreCase = true) &&
                             filters.keys().asSequence().all { key ->
                                 val expected = filters.getString(key)
-                                key == "group_by" || expected.isEmpty() ||
-                                    fields.optString(if (key == "reminder") "reminder_group" else key) == expected
+                                expected.isEmpty() || fields.optString(key) == expected
                             }
                     }
-                if (filters.optString("group_by") == "reminder") {
-                    val order = listOf("overdue", "upcoming", "none", "completed")
-                    matches = matches.sortedBy { order.indexOf(it.getJSONObject("fields").optString("reminder_group")) }
-                }
                 val page = action.optInt("page", 1).coerceAtLeast(1)
                 JSONObject()
                     .put("items", JSONArray(matches.drop((page - 1) * 2).take(2)))
@@ -125,7 +120,7 @@ internal class AtlasBusinessFixtures {
             }
             "complete" -> {
                 val value = rows.first { it.getString("id") == id }
-                value.getJSONObject("fields").put("status", "completed").put("reminder_group", "completed")
+                value.getJSONObject("fields").put("status", "completed")
                 JSONObject().put("item", value)
             }
             else -> {
@@ -138,7 +133,6 @@ internal class AtlasBusinessFixtures {
                 }
                 if (resource == "tasks") {
                     if (!fields.has("status")) fields.put("status", "open")
-                    if (!fields.has("reminder_group")) fields.put("reminder_group", "none")
                     fields.put("assignee_name", "Alex Example")
                 }
                 JSONObject().put("item", value)

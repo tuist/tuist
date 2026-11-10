@@ -182,6 +182,11 @@ defmodule Pulse.Storage.S3.MetricPruningTest do
       {~S<kube_pod_info{namespace=~"tuist-canary", pod=~"kura-(.*)-.*"}>, 5},
       {~S<cnpg_pg_up{cnpg_cluster=~".*", namespace=~"tuist-canary"}>, 10},
       {~S<oban_jobs{queue=~"process_xcresult|process_build"}>, 7},
+      # The same value must satisfy both matchers, not one value per matcher.
+      {~S<oban_jobs{queue=~"process_build|default", queue!="default"}>, 3},
+      {~S<oban_jobs{queue="default", queue!="default"}>, 0},
+      {~S<oban_jobs{queue=~"process_build|default", queue!~"process_build|default"}>, 0},
+      {~S<{__name__="up", __name__=~"cnpg_.*"}>, 0},
       # Up records lack queue, so "" keeps every segment unless excluded too.
       {~S<sum by (queue) (oban_jobs{queue!~"default"})>, 10},
       {~S<sum by (queue) (oban_jobs{queue!~"default|"})>, 7},
@@ -199,6 +204,36 @@ defmodule Pulse.Storage.S3.MetricPruningTest do
       assert {:ok, ^pruned} = instant(query, tenant, Memory)
       assert {query, pruned["data"]["result"] != []} == {query, expected_reads > 0}
     end
+  end
+
+  test "same-label conjunction saves whole-object bytes without changing query results", %{agent: agent, tenant: tenant} do
+    downloaded = fn ->
+      Agent.get(agent, fn state ->
+        for key <- state.reads, String.ends_with?(key, ".parquet"), reduce: 0 do
+          bytes ->
+            {_etag, body} = Map.fetch!(state.objects, key)
+            bytes + byte_size(body)
+        end
+      end)
+    end
+
+    # The first selector reads both build+default and default-only batches.
+    # Excluding default needs only the three build+default batches, not six.
+    broad = ~S<oban_jobs{queue=~"process_build|default"}>
+    narrow = ~S<oban_jobs{queue=~"process_build|default", queue!="default"}>
+    before = downloaded.()
+    assert {:ok, _} = instant(broad, tenant, S3)
+    broad_bytes = downloaded.() - before
+    before = downloaded.()
+    assert {:ok, result} = instant(narrow, tenant, S3)
+    narrow_bytes = downloaded.() - before
+    assert narrow_bytes > 0
+    assert narrow_bytes < broad_bytes
+    Runtime.put_env(:pulse, Evaluator, max_scan_bytes: narrow_bytes)
+    assert {:ok, ^result} = instant(narrow, tenant, S3)
+    assert {:error, :query_scan_limit} = instant(broad, tenant, S3)
+    assert {:ok, ^result} = instant(narrow, tenant, Memory)
+    assert length(result["data"]["result"]) == 1
   end
 
   test "exact-name scans stay selective after the manifest name dictionary fills", %{agent: agent, tenant: tenant} do

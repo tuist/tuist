@@ -5,11 +5,13 @@ defmodule Tuist.Sandboxes.Archives do
   A paused Orb holds its memory image and disks on one node, reserving its
   full disk ceiling there. Once it has been paused for longer than
   `Tuist.Environment.sandbox_archive_after_hours/0`, or its account's
-  disk quota refuses a create or restore (`make_room/1`, least recently
-  paused first), its node uploads the
+  disk quota refuses a create or restore (`make_room/1`), or no node has
+  disk left for a new sandbox (`make_node_room/1`), least recently paused
+  first, its node uploads the
   kernel, rootfs and workspace (not the memory image) through presigned
   multipart URLs to the in-rack store at its node's site, or to the
-  account's object storage when there is none, and the row becomes
+  account's object storage when there is none available or the store's
+  sandbox archive budget is exhausted, and the row becomes
   `archived` with no node, and the jail is deleted. The next spawn restores
   it on any node with room (`Tuist.Sandboxes` creates it `from_archive`)
   and it cold boots: files survive, processes do not.
@@ -38,7 +40,15 @@ defmodule Tuist.Sandboxes.Archives do
   node can create a sandbox from them (`create` with `from_archive`). The
   node copy stays: it is the fast path on its node. A snapshot archive is
   not the only copy of anything, so it is deleted with its snapshot row.
-  Both kinds count against the account's archive storage cap.
+  Both kinds count toward each in-rack store's `archive_budget_bytes`, shared
+  by all accounts, including restored archives awaiting deletion. The budget
+  defaults to 100 GiB; production configures 500 GiB and canary 100 GiB to
+  leave room for shard artifacts on their respective stores. Once reached,
+  new uploads use account storage (Tigris by default, `archive_store: nil`).
+  There is no per-account archive limit. Account-storage bytes and archives
+  in other stores do not consume a store's budget. Uploads can cross the
+  budget; it is a routing threshold, not a reservation or a measure of the
+  store's physical capacity. Existing archives do not move or expire.
   """
   import Ecto.Query
 
@@ -61,7 +71,7 @@ defmodule Tuist.Sandboxes.Archives do
 
   @mib 1024 * 1024
   @gib 1024 * @mib
-  @max_archived_bytes_per_account 500 * @gib
+  @default_archive_budget_bytes 100 * @gib
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
@@ -79,8 +89,6 @@ defmodule Tuist.Sandboxes.Archives do
   @readable_attempts 20
   @readable_interval_ms 3_000
 
-  def max_archived_bytes_per_account, do: @max_archived_bytes_per_account
-
   def object_prefix(account_id), do: "sandbox-archives/#{account_id}/"
 
   @doc """
@@ -88,15 +96,20 @@ defmodule Tuist.Sandboxes.Archives do
   counting archives of restored Orbs whose deletion is still pending.
   """
   def archived_bytes(account_id) do
-    archived_bytes(Sandbox, account_id) + archived_bytes(DiskSnapshot, account_id)
+    archived_bytes(Sandbox, account_id: account_id) + archived_bytes(DiskSnapshot, account_id: account_id)
   end
 
-  defp archived_bytes(schema, account_id) do
+  defp archived_bytes(schema, filters) do
     Repo.one(
       from s in schema,
-        where: s.account_id == ^account_id and not is_nil(s.archived_at),
+        where: ^filters,
+        where: not is_nil(s.archived_at),
         select: type(coalesce(sum(s.archive_bytes), 0), :integer)
     )
+  end
+
+  defp in_rack_archived_bytes(store) do
+    archived_bytes(Sandbox, archive_store: store) + archived_bytes(DiskSnapshot, archive_store: store)
   end
 
   @doc """
@@ -125,9 +138,8 @@ defmodule Tuist.Sandboxes.Archives do
   Makes room for a create or restore the account's disk limit refused:
   queues the archive of its least recently paused idle Orb. Answers whether
   room is on its way, which is also the case while one of its archives is
-  already uploading. Answers false when archiving is off, the account is at
-  its archive storage cap, or it has no Orb to archive; only deleting
-  sandboxes frees disk then.
+  already uploading. Answers false when archiving is off or the account
+  has no Orb to archive; only deleting sandboxes frees disk then.
   """
   def make_room(account_id) do
     cond do
@@ -137,8 +149,34 @@ defmodule Tuist.Sandboxes.Archives do
       Repo.exists?(from s in Sandbox, where: s.account_id == ^account_id and not is_nil(s.archive_upload_id)) ->
         true
 
-      archived_bytes(account_id) < @max_archived_bytes_per_account and Repo.exists?(archivable(account_id)) ->
+      Repo.exists?(where(archivable(), [s], s.account_id == ^account_id)) ->
         {:ok, _job} = %{account_id: account_id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+        true
+
+      true ->
+        false
+    end
+  end
+
+  @doc """
+  Makes room on nodes whose disk refused a new sandbox, any account's:
+  queues the archive of the least recently paused idle Orb on them. Answers
+  whether room is on its way, which is also the case while an archive is
+  uploading from one of them. Answers false when archiving is off or they
+  hold no Orb to archive.
+  """
+  def make_node_room(node_names) when is_list(node_names) do
+    node_names = node_names |> Enum.uniq() |> Enum.sort()
+
+    cond do
+      !Environment.sandbox_archive_after_hours() or node_names == [] ->
+        false
+
+      Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id)) ->
+        true
+
+      Repo.exists?(on_nodes(archivable(), node_names)) ->
+        {:ok, _job} = %{node_names: node_names} |> ArchiveSandboxesWorker.new() |> Oban.insert()
         true
 
       true ->
@@ -151,18 +189,36 @@ defmodule Tuist.Sandboxes.Archives do
   `make_room/1`.
   """
   def archive_oldest(account_id) do
-    case account_id |> archivable() |> order_by([s], asc: s.paused_at, asc: s.id) |> limit(1) |> Repo.one() do
+    archivable() |> where([s], s.account_id == ^account_id) |> archive_first()
+  end
+
+  @doc """
+  Archives the least recently paused idle Orb on the nodes, queued by
+  `make_node_room/1`.
+  """
+  def archive_oldest_on(node_names) when is_list(node_names) do
+    archivable() |> on_nodes(node_names) |> archive_first()
+  end
+
+  defp archive_first(query) do
+    query
+    |> order_by([s], asc: s.paused_at, asc: s.id)
+    |> limit(1)
+    |> Repo.one()
+    |> case do
       nil -> {:ok, :skipped}
       sandbox -> archive(sandbox)
     end
   end
 
-  defp archivable(account_id) do
+  defp on_nodes(query, node_names), do: where(query, [s], s.node_name in ^node_names)
+
+  defp archivable do
     retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
 
     from s in idle_paused_orbs(),
       where:
-        s.account_id == ^account_id and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+        is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
           (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
   end
 
@@ -186,7 +242,6 @@ defmodule Tuist.Sandboxes.Archives do
     |> order_by([s], asc: s.paused_at)
     |> limit(@per_run)
     |> Repo.all()
-    |> Enum.filter(&(archived_bytes(&1.account_id) < @max_archived_bytes_per_account))
   end
 
   @doc """
@@ -213,16 +268,11 @@ defmodule Tuist.Sandboxes.Archives do
   it completes.
   """
   def request(%Sandbox{} = sandbox) do
-    cond do
-      not archivable?(sandbox) ->
-        {:error, {:invalid_state, sandbox.state}}
-
-      archived_bytes(sandbox.account_id) >= @max_archived_bytes_per_account ->
-        {:error, :archive_storage_full}
-
-      true ->
-        {:ok, _job} = %{sandbox_id: sandbox.id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
-        :ok
+    if archivable?(sandbox) do
+      {:ok, _job} = %{sandbox_id: sandbox.id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+      :ok
+    else
+      {:error, {:invalid_state, sandbox.state}}
     end
   end
 
@@ -464,9 +514,8 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
-  Queues the upload of a ready disk snapshot when the archive tier is on
-  and the account is under its archive storage cap. Answers whether it
-  queued one.
+  Queues the upload of a ready disk snapshot when the archive tier is on.
+  Answers whether it queued one.
   """
   def queue_disk_snapshot(%DiskSnapshot{} = snapshot) do
     if disk_snapshot_archivable?(snapshot) do
@@ -477,10 +526,9 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  defp disk_snapshot_archivable?(%DiskSnapshot{state: :ready, node_name: node_name, archived_at: nil} = snapshot)
+  defp disk_snapshot_archivable?(%DiskSnapshot{state: :ready, node_name: node_name, archived_at: nil})
        when is_binary(node_name) do
-    Environment.sandbox_archive_after_hours() != nil and
-      archived_bytes(snapshot.account_id) < @max_archived_bytes_per_account
+    Environment.sandbox_archive_after_hours() != nil
   end
 
   defp disk_snapshot_archivable?(%DiskSnapshot{}), do: false
@@ -506,7 +554,7 @@ defmodule Tuist.Sandboxes.Archives do
   Uploads a ready disk snapshot from its node (`archive_disks`), which
   keeps its copy. Answers `{:ok, %DiskSnapshot{}}` once the archive is
   readable, `{:ok, :skipped}` when the snapshot is not archivable right now
-  (already archived or uploading, archiving off, storage full, node away)
+  (already archived or uploading, archiving off, node away)
   or changed while uploading, or `{:error, reason}` when the upload failed;
   the next try waits six hours then.
 
@@ -789,12 +837,16 @@ defmodule Tuist.Sandboxes.Archives do
     open =
       for {id, {config, target}} <- Enum.sort(stores()),
           config["enabled"] == true and config["private_network_ready"] == true,
-          do: {id, config["site"], target}
+          do: {id, config, target}
 
     site = if open != [] and not Account.custom_s3_storage_configured?(account), do: Sites.shard_storage_site(node_name)
 
-    Enum.find_value(open, {nil, account}, fn {id, store_site, target} ->
-      if is_binary(site) and store_site == site and Storage.available?(target), do: {id, target}
+    Enum.find_value(open, {nil, account}, fn {id, config, target} ->
+      budget = Map.get(config, "archive_budget_bytes", @default_archive_budget_bytes)
+
+      if is_binary(site) and config["site"] == site and in_rack_archived_bytes(id) < budget and
+           Storage.available?(target),
+         do: {id, target}
     end)
   end
 

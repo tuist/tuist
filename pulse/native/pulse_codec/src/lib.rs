@@ -1123,7 +1123,16 @@ fn decode_metric_segment_parquet_v2<'a>(
     end_ts: Term<'a>,
     matchers: Term<'a>,
 ) -> Term<'a> {
-    decode_metrics(env, blob, start_ts, end_ts, matchers, None, None, false)
+    decode_metrics(
+        env,
+        blob,
+        start_ts,
+        end_ts,
+        matchers,
+        None,
+        None,
+        MetricDecode::Records,
+    )
 }
 
 /// Like `decode_metric_segment_parquet_v2`, keeping only samples that carry
@@ -1136,7 +1145,16 @@ fn decode_metric_exemplars_parquet<'a>(
     end_ts: Term<'a>,
     matchers: Term<'a>,
 ) -> Term<'a> {
-    decode_metrics(env, blob, start_ts, end_ts, matchers, None, None, true)
+    decode_metrics(
+        env,
+        blob,
+        start_ts,
+        end_ts,
+        matchers,
+        None,
+        None,
+        MetricDecode::Exemplars,
+    )
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -1156,8 +1174,74 @@ fn decode_metric_segment_parquet_bounded_v2<'a>(
         matchers,
         Some(max_samples),
         None,
-        false,
+        MetricDecode::Records,
     )
+}
+
+pub struct MetricSegmentReader(std::sync::Mutex<Option<metric_segment_parquet::Reader>>);
+
+#[rustler::resource_impl]
+impl rustler::Resource for MetricSegmentReader {}
+
+#[rustler::nif]
+fn metric_reader_api_version() -> u32 {
+    1
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn metric_segment_reader_new<'a>(
+    env: Env<'a>,
+    blob: Binary<'a>,
+    start: Term<'a>,
+    end: Term<'a>,
+    matchers: Term<'a>,
+) -> Term<'a> {
+    decode_metrics(
+        env,
+        blob,
+        start,
+        end,
+        matchers,
+        None,
+        None,
+        MetricDecode::Reader,
+    )
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn metric_segment_reader_next<'a>(
+    env: Env<'a>,
+    reader: rustler::ResourceArc<MetricSegmentReader>,
+    max_samples: usize,
+) -> Term<'a> {
+    let Ok(mut guard) = reader.0.lock() else {
+        return atoms::fallback().encode(env);
+    };
+    let Some(state) = guard.as_mut() else {
+        return atoms::done().encode(env);
+    };
+    match state.next(env, max_samples) {
+        Ok(Some(records)) => (atoms::ok(), records).encode(env),
+        Ok(None) => {
+            guard.take();
+            atoms::done().encode(env)
+        }
+        Err(reason) => {
+            guard.take();
+            match reason {
+                metric_segment_parquet::DecodeError::TooManySamples => {
+                    error(env, atoms::query_sample_limit())
+                }
+                _ => atoms::fallback().encode(env),
+            }
+        }
+    }
+}
+
+enum MetricDecode {
+    Records,
+    Exemplars,
+    Reader,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1169,7 +1253,7 @@ fn decode_metrics<'a>(
     matchers: Term<'a>,
     max_samples: Option<usize>,
     footer_size: Option<u64>,
-    exemplars_only: bool,
+    mode: MetricDecode,
 ) -> Term<'a> {
     let (Ok(start), Ok(end)) = (optional_int(start_ts), optional_int(end_ts)) else {
         return atoms::fallback().encode(env);
@@ -1211,13 +1295,23 @@ fn decode_metrics<'a>(
         end,
         matchers: matcher_views,
         max_samples,
-        exemplars_only,
+        exemplars_only: matches!(mode, MetricDecode::Exemplars),
     };
     if let Some(size) = footer_size {
         return match metric_footer::plan(erlang_bytes::from_binary(blob), size, &filter) {
             metric_footer::Plan::Scan { rows, empty } => (atoms::ok(), rows, empty).encode(env),
             metric_footer::Plan::More(bytes) => (atoms::ok(), atoms::more(), bytes).encode(env),
             metric_footer::Plan::Unknown => atoms::fallback().encode(env),
+        };
+    }
+    if matches!(mode, MetricDecode::Reader) {
+        return match metric_segment_parquet::Reader::new(&blob, &filter) {
+            Ok(reader) => (
+                atoms::ok(),
+                rustler::ResourceArc::new(MetricSegmentReader(std::sync::Mutex::new(Some(reader)))),
+            )
+                .encode(env),
+            Err(_) => atoms::fallback().encode(env),
         };
     }
     match metric_segment_parquet::decode(env, &blob, &filter) {
@@ -1243,7 +1337,16 @@ fn metric_segment_footer_plan<'a>(
     end: Term<'a>,
     matchers: Term<'a>,
 ) -> Term<'a> {
-    decode_metrics(env, tail, start, end, matchers, None, Some(size), false)
+    decode_metrics(
+        env,
+        tail,
+        start,
+        end,
+        matchers,
+        None,
+        Some(size),
+        MetricDecode::Records,
+    )
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]

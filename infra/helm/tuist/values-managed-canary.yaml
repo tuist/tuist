@@ -944,12 +944,12 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
-  # Whole cores per runner Pod for every even-vCPU shape. The opted-in pools
-  # only land on `tuist.dev/pod-level-resource-managers=true` boxes, so every
-  # box in this fleet must run kubelet v1.36 first
-  # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+  # Keep the container-level budget while nested KVM is enabled. Pod-level
+  # admission skips device allocation and concurrent starts panic kubelet
+  # (kubernetes/kubernetes#143490). Re-enable only after a verified upstream
+  # fix has reached every host; this does not repair an existing checkpoint.
   exclusiveCPUs:
-    defaultEnabled: true
+    defaultEnabled: false
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache

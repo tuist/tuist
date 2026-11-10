@@ -182,6 +182,8 @@ defmodule Tuist.Gradle do
           network_bytes_out: metric.network_bytes_out,
           disk_bytes_read: metric.disk_bytes_read,
           disk_bytes_written: metric.disk_bytes_written,
+          disk_total_bytes: Map.get(metric, :disk_total_bytes),
+          disk_available_bytes: Map.get(metric, :disk_available_bytes),
           inserted_at: now
         }
       end)

@@ -31,7 +31,16 @@ defmodule Pulse.Storage.S3.MetricTiers do
   a selector reads only the segments holding its metric instead of every
   ingested segment, and a partitioned finalization reads each one once.
   A bounded batch qualifies at 32 sources or `:consolidate_min_rows` rows,
-  so low-volume hours also stay below query object limits.
+  so low-volume hours also stay below query object limits. Selection skips
+  sources that do not fit the remaining row budget and keeps considering
+  later sources, stopping when either the row or source cap is full.
+
+  If no raw batch qualifies, consolidation also packs small `-group-`
+  fragments with identical complete metric-name sets in the same hour.
+  Sources each hold at most half of `min(:target_rows, :consolidate_max_rows)`;
+  the batch fits that limit and qualifies at 32 sources or more than half
+  the limit in rows. This produces one output without widening the name set.
+  Fuller outputs and undersized tails are left for later finalization.
 
   Outputs whose sources the hour's series catalogs all covered carry their
   lineage, so catalog maintenance and discovery need not read them
@@ -146,10 +155,11 @@ defmodule Pulse.Storage.S3.MetricTiers do
 
   @doc """
   Consolidate a batch of settled raw segments in the newest eligible hour,
-  oldest segments first within that hour. The segments must lie inside one
-  hour, with at least 32 sources or `:consolidate_min_rows` rows: up to
+  oldest fitting segments first within that hour. The segments must lie inside
+  one hour, with at least 32 sources or `:consolidate_min_rows` rows: up to
   `:consolidate_max_rows` rows are rewritten into `-group-` segments grouped
-  by metric name, published in one manifest transition. Returns
+  by metric name, published in one manifest transition. When no raw batch
+  qualifies, pack compatible small grouped fragments as described above. Returns
   `{:ok, %{hour: start | nil, ...}}` or `{:error, {hour, reason}}`.
   """
   def consolidate(tenant, config, opts \\ []) do
@@ -176,13 +186,43 @@ defmodule Pulse.Storage.S3.MetricTiers do
     max_sources = Keyword.get(opts, :consolidate_max_sources, 512)
 
     with {:ok, candidates} <- candidates(root, tenant, config) do
-      candidates.segments
-      |> Enum.filter(&consolidatable?(&1, settled_before, max_rows))
-      |> Enum.group_by(&hour(&1.min_ts))
-      |> Enum.sort_by(&elem(&1, 0), :desc)
-      |> Enum.find_value(&hour_batch(&1, min_rows, max_rows, max_sources))
-      |> consolidate_batch(root, tenant, config, opts)
+      raw =
+        candidates.segments
+        |> Enum.filter(&(Segment.metric_tier(&1) == :raw and consolidatable?(&1, settled_before, max_rows)))
+        |> Enum.group_by(&hour(&1.min_ts))
+        |> Enum.sort_by(&elem(&1, 0), :desc)
+        |> Enum.find_value(&hour_batch(&1, min_rows, max_rows, max_sources))
+
+      batch =
+        raw ||
+          grouped_batch(
+            candidates.segments,
+            settled_before,
+            max_rows,
+            max_sources,
+            Keyword.get(opts, :target_rows, 32_768)
+          )
+
+      consolidate_batch(batch, root, tenant, config, opts)
     end
+  end
+
+  # Regroup only underfilled outputs with identical complete names. One batch
+  # fits one output; full outputs never re-enter, and small tails wait for
+  # enough peers instead of being rewritten on every maintenance pass.
+  defp grouped_batch(segments, settled_before, max_rows, max_sources, target_rows) do
+    limit = min(max_rows, target_rows)
+
+    segments
+    |> Enum.filter(fn segment ->
+      Segment.metric_tier(segment) == :grouped and is_list(segment.metric_names) and segment.metric_names != [] and
+        consolidatable?(segment, settled_before, limit) and segment.row_count <= div(limit, 2)
+    end)
+    |> Enum.group_by(&{hour(&1.min_ts), Enum.sort(&1.metric_names)})
+    |> Enum.sort_by(&elem(&1, 0), :desc)
+    |> Enum.find_value(fn {{start, _names}, sources} ->
+      hour_batch({start, sources}, div(limit, 2) + 1, limit, max_sources)
+    end)
   end
 
   # Keep low-volume flushes below query object limits too, without rewriting
@@ -193,7 +233,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
   end
 
   defp consolidatable?(segment, settled_before, max_rows) do
-    Segment.metric_tier(segment) == :raw and is_integer(segment.min_ts) and is_integer(segment.max_ts) and
+    is_integer(segment.min_ts) and is_integer(segment.max_ts) and
       hour(segment.min_ts) == hour(segment.max_ts) and segment.max_ts <= settled_before and
       is_integer(segment.row_count) and segment.row_count in 1..max_rows
   end
@@ -201,9 +241,11 @@ defmodule Pulse.Storage.S3.MetricTiers do
   defp take_batch(segments, max_rows, max_sources) do
     segments
     |> Enum.reduce_while({[], 0}, fn segment, {batch, rows} ->
-      if length(batch) < max_sources and rows + segment.row_count <= max_rows,
-        do: {:cont, {[segment | batch], rows + segment.row_count}},
-        else: {:halt, {batch, rows}}
+      cond do
+        length(batch) >= max_sources or rows >= max_rows -> {:halt, {batch, rows}}
+        rows + segment.row_count <= max_rows -> {:cont, {[segment | batch], rows + segment.row_count}}
+        true -> {:cont, {batch, rows}}
+      end
     end)
     |> elem(0)
     |> Enum.reverse()
