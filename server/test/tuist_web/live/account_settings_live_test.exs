@@ -45,7 +45,9 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert has_element?(view, "a[href='/#{user.account.name}/settings/authentication']", "Authentication")
   end
 
-  test "credential management uses the authentication settings page and action-specific confirmation dialogs", %{conn: conn} do
+  test "credential management uses the authentication settings page and action-specific confirmation dialogs", %{
+    conn: conn
+  } do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
 

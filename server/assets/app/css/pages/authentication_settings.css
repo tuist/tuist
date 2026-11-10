@@ -51,8 +51,8 @@
   }
 
   & [data-part="passkey-status"] {
-    order: 1;
     flex-basis: 100%;
+    order: 1;
   }
 
   & [data-part="security-details"] {

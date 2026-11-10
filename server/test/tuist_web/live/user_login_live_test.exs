@@ -105,6 +105,7 @@ defmodule TuistWeb.UserLoginLiveTest do
                "#passkey-login[hidden] > button",
                "Log in with a passkey"
              )
+
       assert has_element?(lv, "#passkey-login ~ #login_form")
     end
 
