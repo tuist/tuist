@@ -45,21 +45,20 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert has_element?(view, "a[href='/#{user.account.name}/settings/authentication']", "Authentication")
   end
 
-  test "credential management uses the login layout and action-specific confirmation dialogs", %{conn: conn} do
+  test "credential management uses the authentication settings page and action-specific confirmation dialogs", %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
 
     assert conn |> get(~p"/users/settings/passkeys") |> redirected_to() ==
-             ~p"/#{user.account.name}/settings/passkeys"
+             ~p"/#{user.account.name}/settings/authentication"
 
     assert conn |> get(~p"/users/settings/mfa") |> redirected_to() ==
-             ~p"/#{user.account.name}/settings/two-factor-authentication"
+             ~p"/#{user.account.name}/settings/authentication"
 
-    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/passkeys")
-    assert has_element?(view, "#sso-link #user-security-settings")
-    assert has_element?(view, "a[href='/users/settings/passkeys/new']", "Add a passkey")
+    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(view, "#authentication-settings #passkeys-settings")
+    assert has_element?(view, "#passkey-add", "Create a passkey")
     refute html =~ "passkey-registration"
-    refute html =~ "layout__content"
 
     session = Accounts.get_user_session(get_session(conn, :user_token))
     {:ok, factor} = UserMFA.begin_enrollment(user, session)
@@ -68,15 +67,14 @@ defmodule TuistWeb.AccountSettingsLiveTest do
       UserMFA.confirm_enrollment(user, session, NimbleTOTP.verification_code(factor.secret))
 
     conn = put_session(conn, :user_token, result.session.token)
-    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/two-factor-authentication")
+    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
     assert has_element?(view, "#mfa-recovery-count", "10 recovery codes remaining")
     document = Floki.parse_document!(html)
 
     assert Floki.find(document, "#regenerate-recovery-modal-portal form[action='/users/settings/mfa/recovery']") != []
     assert Floki.find(document, "#disable-mfa-modal-portal form[action='/users/settings/mfa/disable']") != []
     refute html =~ "<summary>"
-    assert has_element?(view, "#sso-link #user-security-settings")
-    refute html =~ "layout__content"
+    assert has_element?(view, "#authentication-settings #two-factor-settings")
   end
 
   test "credential settings cannot be opened for an organization", %{conn: conn, account: account} do

@@ -35,7 +35,7 @@
     <.button
       variant="primary"
       size="large"
-      href={~p"/users/settings/mfa"}
+      href={~p"/#{@current_user.account.name}/settings/authentication"}
       label={dgettext("dashboard_auth", "I saved my recovery codes")}
     />
   </div>

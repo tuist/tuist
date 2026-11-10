@@ -1,5 +1,5 @@
 <.security_settings_frame
-  title={dgettext("dashboard_auth", "Add a passkey")}
+  title={dgettext("dashboard_auth", "Create a passkey")}
   subtitle={
     dgettext(
       "dashboard_auth",
@@ -27,16 +27,6 @@
       id="passkey-registration"
       data-part="form"
     >
-      <.text_input
-        id="passkey-name"
-        name="name"
-        value=""
-        label={dgettext("dashboard_auth", "Passkey name")}
-        placeholder={dgettext("dashboard_auth", "For example, 1Password")}
-        autocomplete="off"
-        data-1p-ignore
-        show_prefix={false}
-      />
       <span
         id="passkey-status"
         data-part="passkey-status"
@@ -58,11 +48,10 @@
       type="button"
       variant="primary"
       size="large"
-      label={dgettext("dashboard_auth", "Add a passkey")}
+      label={dgettext("dashboard_auth", "Create a passkey")}
       data-passkey-ceremony="register"
       data-options-url={~p"/users/settings/passkeys/options"}
       data-action-url={~p"/users/settings/passkeys"}
-      data-name-input="passkey-name"
       data-status="passkey-status"
     />
     <.link_button

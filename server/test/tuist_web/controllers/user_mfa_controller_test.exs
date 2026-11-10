@@ -60,6 +60,15 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert Floki.find(document, ".layout__content") == []
     assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_enabled"})
     assert UserMFA.enabled?(user)
+    settings = confirmed |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
+    document = Floki.parse_document!(settings)
+    assert Floki.text(Floki.find(document, "#mfa-recovery-count")) =~ "10 recovery codes remaining."
+    assert Floki.find(document, "#regenerate-recovery-modal button") != []
+    assert Floki.find(document, "#disable-mfa-modal button") != []
+    assert Floki.attribute(document, "#mfa-regenerate", "data-recovery-modal") == ["mfa-recovery-modal"]
+    assert Floki.attribute(document, "#mfa-disable", "action") == ["/users/settings/mfa/disable"]
+    refute settings =~ "Manage two-factor authentication"
+    refute settings =~ "setup-authenticator-modal"
     refute Accounts.get_user_by_session_token(old_token)
     render_hook(view, "open_create_project", %{})
     # The projects page also serves signed-out visitors, so a revoked session

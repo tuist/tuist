@@ -8,6 +8,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.SSOLoginDomainVerification
+  alias Tuist.Accounts.UserPasskey
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM
@@ -204,14 +205,23 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     refute has_element?(lv, "#two-factor-settings")
   end
 
-  test "personal authentication settings expose independent passkey and authenticator management", %{conn: conn} do
+  test "personal authentication settings expose independent passkey and authenticator management" do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    conn = log_in_user(conn, user)
+
+    conn =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{"email" => user.email, "password" => AccountsFixtures.valid_user_password()}
+      })
+
+    conn = recycle(conn)
     {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
 
-    assert has_element?(view, "#passkeys-settings a[href='/users/settings/passkeys']", "Manage passkeys")
+    assert has_element?(view, "#passkey-add[data-passkey-ceremony='register']", "Create a passkey")
+    refute has_element?(view, "#passkey-name")
+    refute has_element?(view, "#add-passkey-modal")
+    refute has_element?(view, "#passkeys-settings a", "Manage passkeys")
     assert has_element?(view, "#passkeys-settings", "0 passkeys added")
-    assert has_element?(view, "#two-factor-settings a[href='/users/settings/mfa']", "Manage two-factor authentication")
+    assert has_element?(view, "#two-factor-settings button", "Set up authenticator app")
     assert has_element?(view, "#two-factor-settings", "Not enabled")
     refute has_element?(view, "#two-factor-settings", "passkeys")
 
@@ -221,19 +231,86 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert has_element?(view, "#two-factor-settings")
   end
 
+  test "passkey action menus open their rename and removal dialogs" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    passkey =
+      Repo.insert!(%UserPasskey{
+        user_id: user.id,
+        name: "MacBook",
+        credential_id: :crypto.strong_rand_bytes(32),
+        public_key: :crypto.strong_rand_bytes(32),
+        user_handle: :crypto.strong_rand_bytes(32),
+        aaguid: :crypto.strong_rand_bytes(16)
+      })
+
+    conn =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{"email" => user.email, "password" => AccountsFixtures.valid_user_password()}
+      })
+
+    {:ok, view, _html} = conn |> recycle() |> live(~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#passkey-actions-#{passkey.id}[aria-label='Actions']")
+
+    rename_modal_id = "rename-passkey-#{passkey.id}"
+    render_click(view, "open-security-modal", %{"id" => rename_modal_id})
+    assert_push_event(view, "open-modal", %{id: ^rename_modal_id})
+
+    remove_modal_id = "remove-passkey-#{passkey.id}"
+    render_click(view, "open-security-modal", %{"id" => remove_modal_id})
+    assert_push_event(view, "open-modal", %{id: ^remove_modal_id})
+  end
+
+  test "authenticator setup starts in settings only after a fresh sign-in", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    now = DateTime.utc_now()
+    stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, -301) end)
+    stale = log_in_user(conn, user)
+    stub(Tuist.Time, :utc_now, fn -> now end)
+    {:ok, view, _} = live(stale, ~p"/#{user.account.name}/settings/authentication")
+    refute has_element?(view, "#passkey-add")
+    assert has_element?(view, "#passkeys-settings", "Sign in")
+    view |> element("#setup-authenticator-modal > button") |> render_click()
+    refute has_element?(view, "#mfa-setup-qr")
+    refute Accounts.UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
+
+    fresh =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{
+          "email" => user.email,
+          "password" => AccountsFixtures.valid_user_password()
+        }
+      })
+
+    {:ok, view, _} = fresh |> recycle() |> live(~p"/#{user.account.name}/settings/authentication")
+    view |> element("#setup-authenticator-modal > button") |> render_click()
+    document = view |> render() |> Floki.parse_document!()
+    assert Floki.find(document, "#mfa-setup-qr[src^='data:image/png;base64,']") != []
+    assert Floki.find(document, "form#mfa-enrollment[action='/users/settings/mfa/confirm']") != []
+    assert Floki.attribute(document, "#mfa-enrollment", "data-recovery-modal") == ["mfa-recovery-modal"]
+    assert Floki.find(document, "dialog#mfa-recovery-modal:not([open])") != []
+    assert Floki.find(document, "#mfa-recovery-modal [data-recovery-content] #mfa-recovery-codes") == []
+    refute Accounts.UserMFA.enabled?(user)
+
+    render_hook(view, "authenticator_modal_change", %{"open" => false})
+    session = Accounts.get_user_session(get_session(fresh, :user_token))
+    refute Accounts.UserMFA.get_pending_enrollment(user, session)
+  end
+
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
-    assert has_element?(lv, ~s(#two-factor-settings a[href="/users/settings/mfa"]))
-    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    lv |> element("#oidc-configuration-toggle") |> render_click()
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    assert has_element?(lv, "#setup-authenticator-modal button", "Set up authenticator app")
+    assert has_element?(lv, "#oidc-trust-policy-modal[phx-hook=NooraModal]")
+    assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
+    refute has_element?(lv, "#oidc-configuration-toggle")
     refute has_element?(lv, "#sso-form")
     refute has_element?(lv, "[data-part=scim-card]")
     refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
 
     for event <- ["toggle_sso", "save_sso", "generate_scim_token", "revoke_scim_token"] do
       render_hook(lv, event, %{})
-      assert has_element?(lv, "#oidc-trust-policy-form")
+      assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
       refute has_element?(lv, "#sso-form")
       refute has_element?(lv, "[data-part=scim-card]")
     end

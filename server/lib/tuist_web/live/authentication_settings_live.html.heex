@@ -16,6 +16,15 @@
     title={elem(@flash_message, 1)}
   />
 
+  <.alert
+    :for={kind <- [:info, :error]}
+    :if={Phoenix.Flash.get(@flash, kind)}
+    status={if kind == :error, do: "error", else: "information"}
+    type="secondary"
+    size="small"
+    title={Phoenix.Flash.get(@flash, kind)}
+  />
+
   <.card_section
     :if={
       is_nil(@organization) and @selected_account.user_id == @current_user.id and
@@ -38,12 +47,37 @@
       )}</span>
     </div>
     <div data-part="content">
+      <TuistWeb.SSOLinkHTML.reauthentication_notice
+        :if={!@fresh_session?}
+        return_to={~p"/#{@selected_account.name}/settings/authentication"}
+      />
       <.button
-        href={~p"/users/settings/passkeys"}
+        :if={@fresh_session?}
+        id="passkey-add"
+        type="button"
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_account", "Manage passkeys")}
+        label={dgettext("dashboard_auth", "Create a passkey")}
+        data-passkey-ceremony="register"
+        data-options-url={~p"/users/settings/passkeys/options"}
+        data-action-url={~p"/users/settings/passkeys"}
+        data-status="passkey-status"
       />
+      <span
+        id="passkey-status"
+        role="status"
+        data-part="passkey-status"
+        data-cancelled={dgettext("dashboard_auth", "Adding the passkey was cancelled.")}
+        data-failed={dgettext("dashboard_auth", "The passkey could not be added. Try again.")}
+        data-already-registered={
+          dgettext("dashboard_auth", "This passkey is already registered.")
+        }
+        data-unsupported={dgettext("dashboard_auth", "This browser does not support passkeys.")}
+      ></span>
+      <noscript>{dgettext("dashboard_auth", "JavaScript is required to use passkeys.")}</noscript>
+    </div>
+    <div :if={@passkeys != []} data-part="security-details">
+      <TuistWeb.Components.UserSecurity.passkeys passkeys={@passkeys} editable={@fresh_session?} />
     </div>
   </.card_section>
   <.card_section
@@ -62,12 +96,113 @@
         else: dgettext("dashboard_account", "Not enabled")}</span>
     </div>
     <div data-part="content">
-      <.button
-        href={~p"/users/settings/mfa"}
-        variant="secondary"
-        size="medium"
-        label={dgettext("dashboard_account", "Manage two-factor authentication")}
+      <TuistWeb.Components.UserSecurity.mfa_controls
+        :if={@mfa_enabled? and @fresh_session?}
+        recovery_code_count={@recovery_code_count}
+        recovery_modal="mfa-recovery-modal"
       />
+      <TuistWeb.SSOLinkHTML.reauthentication_notice
+        :if={@mfa_enabled? and !@fresh_session?}
+        return_to={~p"/#{@selected_account.name}/settings/authentication"}
+      />
+      <.modal
+        :if={!@mfa_enabled?}
+        id="setup-authenticator-modal"
+        on_dismiss="close_authenticator_modal"
+        on_open_change="authenticator_modal_change"
+        title={dgettext("dashboard_auth", "Set up authenticator app")}
+        description={
+          dgettext("dashboard_auth", "Scan the QR code, then enter the six-digit code.")
+        }
+      >
+        <:trigger :let={attrs}>
+          <.button
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_auth", "Set up authenticator app")}
+            phx-click="setup_authenticator"
+            {attrs}
+          />
+        </:trigger>
+        <div data-part="security-modal-body">
+          <TuistWeb.SSOLinkHTML.reauthentication_notice
+            :if={!@fresh_session?}
+            return_to={~p"/#{@selected_account.name}/settings/authentication"}
+          />
+          <div :if={@fresh_session? and @mfa_secret} data-part="authenticator-setup">
+            <img
+              id="mfa-setup-qr"
+              src={TuistWeb.UserMFAHTML.enrollment_qr(@mfa_secret, @current_user.email)}
+              width="200"
+              height="200"
+              alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
+            />
+            <details id="mfa-manual-setup">
+              <summary>{dgettext("dashboard_auth", "Can't scan the QR code?")}</summary>
+              <.text_input
+                id="mfa-setup-key"
+                name="setup_key"
+                value={Base.encode32(@mfa_secret, padding: false)}
+                label={dgettext("dashboard_auth", "Setup key")}
+                readonly
+                autocomplete="off"
+                data-1p-ignore
+                dir="ltr"
+                show_prefix={false}
+              />
+            </details>
+            <form
+              id="mfa-enrollment"
+              method="post"
+              action={~p"/users/settings/mfa/confirm"}
+              data-recovery-modal="mfa-recovery-modal"
+              data-source-modal="setup-authenticator-modal"
+              data-error={dgettext("dashboard_auth", "Something went wrong. Please try again.")}
+            >
+              <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+              <.text_input
+                id="mfa-code"
+                name="mfa_code"
+                value=""
+                label={dgettext("dashboard_auth", "Authentication code")}
+                show_prefix={false}
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                required
+              />
+              <span data-enrollment-status role="alert"></span>
+            </form>
+          </div>
+        </div>
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                variant="secondary"
+                label={dgettext("dashboard_auth", "Cancel")}
+                phx-click="close_authenticator_modal"
+              />
+              <.button
+                :if={@fresh_session? and @mfa_secret}
+                type="submit"
+                form="mfa-enrollment"
+                variant="primary"
+                label={dgettext("dashboard_auth", "Enable two-factor authentication")}
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+      <dialog id="mfa-recovery-modal" aria-labelledby="mfa-recovery-title" phx-update="ignore">
+        <h2 id="mfa-recovery-title">{dgettext("dashboard_auth", "Save your recovery codes")}</h2>
+        <p>
+          {dgettext(
+            "dashboard_auth",
+            "Save these codes somewhere safe. You won't see them again."
+          )}
+        </p>
+        <div data-recovery-content></div>
+      </dialog>
     </div>
   </.card_section>
 
