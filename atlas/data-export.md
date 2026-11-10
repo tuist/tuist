@@ -20,7 +20,17 @@ contain rack/asset identifiers and text supplied by the owner. No object storage
 or Tuist Server account data is added. PNGs are not encrypted separately from
 the existing database/backups.
 
-Sessions expire after eight hours, approvals after ten minutes and unstarted
+Sessions and relay credentials expire after eight hours of inactivity. Successful
+connected relay reports, personal owner API/MCP requests (including status/previews)
+and explicit dashboard approval/credential-recovery actions reset `expires_at` to
+eight hours from that activity. Automatic dashboard status/image refreshes, relay
+status/image reads, disconnected reports and failed requests do not extend it.
+An open relay reporting a connected printer counts as active even between prints;
+after reports stop or disconnect, access ends within eight hours unless the owner
+or agent continues using the session. Expired sessions cannot be renewed. Existing
+unexpired rows use this rule without a backfill or credential rotation; already
+expired rows remain inaccessible. No activity history or new fields are stored.
+Approvals expire after ten minutes and unstarted
 queued batches after their start deadline, but rows are
 not swept on expiry: jobs, images and consumed dispatch history remain until
 owner deletion and follow existing backup retention. An expired session cannot

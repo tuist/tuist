@@ -96,6 +96,65 @@ defmodule AtlasWeb.LabelsControllerTest do
     assert byte_size(Repo.get!(Session, s["id"]).relay_token_hash) == 32
   end
 
+  test "connected reports keep the same relay capability alive past its original deadline", c do
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    s = session(c.mcp)
+    path = "/api/labels/relay/sessions/#{s["id"]}"
+    original_expiry = DateTime.to_unix(~U[2026-11-10 16:05:00Z], :millisecond)
+    assert s["expiresAt"] == original_expiry
+    r = report()
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    assert api(s["relayToken"], :post, path <> "/relay", r).status == 200
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 16:05:00.000000Z] end)
+    status = json_response(api(s["relayToken"], :get, path), 200)
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-10 23:05:00Z], :millisecond)
+
+    # Exact deadline is expired: neither a late report nor the owner can revive it.
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 23:05:00.000000Z] end)
+    assert api(s["relayToken"], :post, path <> "/relay", r).status == 404
+    assert api(s["relayToken"], :get, path).status == 404
+    assert {:error, 404, _} = Labels.request(c.user, :status, s["id"])
+  end
+
+  test "successful agent activity and explicit owner actions renew the idle deadline", c do
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    s = session(c.mcp)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    status = mcp(c.mcp, "status", %{"session_id" => s["id"]})
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-10 23:05:00Z], :millisecond)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 22:05:00.000000Z] end)
+    assert {:ok, %{"relayToken" => token}} = Labels.request(c.user, :relay_token, s["id"], %{}, "dashboard")
+    assert {:ok, status} = Labels.relay(:status, s["id"], token)
+    assert status["expiresAt"] == DateTime.to_unix(~U[2026-11-11 06:05:00Z], :millisecond)
+    assert {:error, 401, _} = Labels.relay(:status, s["id"], s["relayToken"])
+  end
+
+  test "passive polling, disconnected reports and rejected requests do not renew sessions", c do
+    {_, other} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 08:05:00.000000Z] end)
+    {id, token, r, [job]} = connected_session(c, ["IDLE"])
+    expiry = DateTime.to_unix(~U[2026-11-10 16:05:00Z], :millisecond)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 15:05:00.000000Z] end)
+    assert {:ok, _} = Labels.relay(:relay, id, token, %{r | "connected" => false})
+    assert {:ok, _} = Labels.relay(:image, id, token, %{"jobId" => job})
+    assert {:ok, _} = Labels.request(c.user, :image, id, %{"jobId" => job}, "dashboard")
+    assert {:ok, %{"expiresAt" => ^expiry}} = Labels.request(c.user, :status, id, %{}, "dashboard")
+    assert {:error, 404, _} = Labels.request(other, :status, id)
+    assert {:error, 401, _} = Labels.relay(:relay, id, "invalid", r)
+    assert {:error, 400, _} = Labels.relay(:relay, id, token, %{r | "clientId" => "invalid"})
+    assert {:error, 409, _} = Labels.request(c.user, :print, id, %{}, "mcp")
+    assert {:ok, %{"expiresAt" => ^expiry}} = Labels.relay(:status, id, token)
+
+    Mimic.stub(DateTime, :utc_now, fn -> ~U[2026-11-10 16:05:00.000000Z] end)
+    assert {:error, 404, _} = Labels.relay(:relay, id, token, r)
+    assert {:error, 404, _} = Labels.request(c.user, :status, id)
+  end
+
   defp connected_session(c, texts) do
     {:ok, s} = Labels.create(c.user, "api")
     r = report()

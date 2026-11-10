@@ -19,7 +19,7 @@ defmodule Atlas.Labels do
   alias Atlas.Users
   alias Atlas.Users.User
 
-  @ttl 8 * 60 * 60
+  @idle_ttl 8 * 60 * 60
   @stale 35_000
   @approval_ttl 600_000
   @start_window 600_000
@@ -45,7 +45,7 @@ defmodule Atlas.Labels do
         Repo.insert!(%Session{
           owner_id: user.id,
           relay_token_hash: hash(token),
-          expires_at: DateTime.add(DateTime.utc_now(), @ttl)
+          expires_at: DateTime.add(DateTime.utc_now(), @idle_ttl)
         })
 
       audit!(user, interface, session, "created")
@@ -65,6 +65,12 @@ defmodule Atlas.Labels do
       session = session!(id)
       ensure(session.owner_id == user.id, 404, "Label session not found.")
       expire!(session)
+      # Dashboard status/image requests include automatic refreshes, not owner activity.
+      session =
+        if interface in ~w(api mcp) or operation not in [:status, :image],
+          do: renew!(session),
+          else: session
+
       act(operation, session, data, user, interface)
     end)
   end
@@ -84,6 +90,9 @@ defmodule Atlas.Labels do
       user = Users.get_user(session.owner_id)
       authorize!(user, operation, "relay")
       expire!(session)
+      # Disconnected tabs still report and poll status. Only a connected report
+      # renews the capability; validation failures roll back the renewal too.
+      session = if operation == :relay and data["connected"] == true, do: renew!(session), else: session
       act(operation, session, data, user, "relay")
     end)
   end
@@ -96,6 +105,12 @@ defmodule Atlas.Labels do
     session = Repo.one(from s in Session, where: s.id == ^id, lock: "FOR UPDATE")
     ensure(session && DateTime.after?(session.expires_at, DateTime.utc_now()), 404, "Label session missing or expired.")
     session
+  end
+
+  # Called only after authorization and expiry checks, under the session row lock.
+  # Renew the existing deadline without rotating the owner's connected relay token.
+  defp renew!(session) do
+    Repo.update!(Ecto.Changeset.change(session, expires_at: DateTime.add(DateTime.utc_now(), @idle_ttl)))
   end
 
   defp authorize!(user, operation, interface) do
