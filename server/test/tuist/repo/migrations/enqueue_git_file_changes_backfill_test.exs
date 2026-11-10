@@ -1,5 +1,5 @@
 Code.require_file(
-  Path.expand("../../../../priv/repo/migrations/20261110140000_enqueue_git_file_changes_backfill.exs", __DIR__)
+  Path.expand("../../../../priv/repo/migrations/20261110160000_enqueue_git_file_changes_backfill.exs", __DIR__)
 )
 
 defmodule Tuist.Repo.Migrations.EnqueueGitFileChangesBackfillTest do
