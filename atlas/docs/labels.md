@@ -63,8 +63,24 @@ printer, then queue the unprinted labels again or submit a label again to reprin
 A queued batch must start within ten minutes and finish within one minute per label
 after that; labels the relay did not reach by then return to preview unprinted.
 
-Up to 50 previews can be submitted per request, 100 per session. Sessions expire
-after eight hours and relay reports after 35 seconds. Text previews use 203 dpi;
+Up to 50 previews can be submitted per request, 100 per session. Sessions and their
+relay credentials expire after **eight hours without qualifying activity**, not
+eight hours after creation. Each successful connected relay report or owner request
+through the personal API/MCP connection resets the deadline to eight hours from now.
+Explicit dashboard actions (approval or relay credential recovery) also renew it;
+automatic dashboard status/image refreshes, relay status/image reads, disconnected
+reports and failed requests do not. Keep the connected Chrome tab reporting to work
+past the original deadline without a new link or Bluetooth pairing. Closing it,
+disconnecting or putting the computer to sleep stops connected reports; without
+further owner/agent activity the session and credential expire within eight hours.
+An open tab still reporting a connected printer counts as active even between prints.
+Expiry cannot be undone by a late report or request.
+
+Existing unexpired sessions benefit automatically after deployment, using the same
+relay link and credential; no page reload or new pairing is needed for this change.
+Already expired sessions stay expired: create one new session and connect it once.
+The `expiresAt` in status is the current idle deadline. Relay reports still become
+stale after 35 seconds, independently of session expiry. Text previews use 203 dpi;
 their dimensions are not a physical-size guarantee. The SDK scales each image to the
 supply preserving aspect ratio. MCP `preview` and `status` include `sizing` alongside
 the PNG/job: actual bitmap pixels, sizing mode, a warning, and (for zoneless
