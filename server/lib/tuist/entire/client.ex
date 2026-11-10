@@ -204,23 +204,7 @@ defmodule Tuist.Entire.Client do
       ] ++ opts
 
     result = Req.request(opts)
-
-    # Log only locally selected context, never headers, bodies, query strings,
-    # source paths or transport exception messages (which may contain credentials).
-    case result do
-      {:ok, %{status: status}} when status not in 200..299 ->
-        Logger.warning(
-          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} status=#{status}"
-        )
-
-      {:error, _} ->
-        Logger.warning(
-          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} reason=transport_error"
-        )
-
-      _ ->
-        :ok
-    end
+    log_request_failure(result, method, url, operation)
 
     case result do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
@@ -241,6 +225,25 @@ defmodule Tuist.Entire.Client do
 
       {:error, _} ->
         {:error, :unavailable}
+    end
+  end
+
+  defp log_request_failure(result, method, url, operation) do
+    # Log only locally selected context, never headers, bodies, query strings,
+    # source paths or transport exception messages (which may contain credentials).
+    case result do
+      {:ok, %{status: status}} when status not in 200..299 ->
+        Logger.warning(
+          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} status=#{status}"
+        )
+
+      {:error, _} ->
+        Logger.warning(
+          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} reason=transport_error"
+        )
+
+      _ ->
+        :ok
     end
   end
 
