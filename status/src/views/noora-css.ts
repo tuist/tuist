@@ -133,15 +133,17 @@ export const NOORA_CSS = String.raw`
   --noora-neutral-gray-24: oklch(32% 0.005 247.968 / 0.24);
   --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
 
-  --noora-alpha-red: oklch(54.8% 0.223 27 / 0.24);
-  --noora-alpha-orange: oklch(66.5% 0.181 48 / 0.24);
-  --noora-alpha-yellow: oklch(84.8% 0.173 86 / 0.24);
-  --noora-alpha-green: oklch(54.8% 0.162 147 / 0.24);
-  --noora-alpha-azure: oklch(54.8% 0.13 242 / 0.24);
-  --noora-alpha-blue: oklch(54.8% 0.223 260 / 0.24);
-  --noora-alpha-purple: oklch(54.8% 0.266 287.4 / 0.32);
-  --noora-alpha-pink: oklch(54.8% 0.219 7.5 / 0.24);
-  --noora-alpha-black: oklch(0% 0 0 / 0.8);
+  --noora-alpha-red-24: oklch(54.8% 0.223 27 / 0.24);
+  --noora-alpha-red-32: oklch(54.8% 0.223 27 / 0.32);
+  --noora-alpha-orange-24: oklch(66.5% 0.181 48 / 0.24);
+  --noora-alpha-yellow-24: oklch(84.8% 0.173 86 / 0.24);
+  --noora-alpha-green-24: oklch(54.8% 0.162 147 / 0.24);
+  --noora-alpha-azure-24: oklch(54.8% 0.13 242 / 0.24);
+  --noora-alpha-blue-24: oklch(54.8% 0.223 260 / 0.24);
+  --noora-alpha-purple-24: oklch(54.8% 0.266 287.4 / 0.24);
+  --noora-alpha-purple-32: oklch(54.8% 0.266 287.4 / 0.32);
+  --noora-alpha-pink-24: oklch(54.8% 0.219 7.5 / 0.24);
+  --noora-alpha-black-80: oklch(0% 0 0 / 0.8);
 
   /* Semantic colors */
   /* Background */
@@ -159,7 +161,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-surface-background-destructive: light-dark(
     var(--noora-red-100),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-surface-overlay: light-dark(
     var(--noora-neutral-gray-24),
@@ -236,19 +238,52 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-light-1200),
     var(--noora-neutral-light-50)
   );
-  --noora-button-neutral-background-hover: light-dark(
+  --noora-button-destructive-background: var(--noora-red-500);
+  --noora-button-destructive-label: var(--noora-neutral-light-50);
+
+  /* Ghost button: no fill at rest, a tint on hover, a stronger one while
+     selected (pressed), per variant. Disabled uses the shared button
+     disabled colors. */
+  --noora-button-ghost-primary-hover: light-dark(
+    var(--noora-purple-50),
+    var(--noora-alpha-purple-24)
+  );
+  --noora-button-ghost-primary-selected: light-dark(
+    var(--noora-purple-100),
+    var(--noora-alpha-purple-32)
+  );
+  --noora-button-ghost-primary-label: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-button-ghost-secondary-hover: light-dark(
     var(--noora-neutral-light-200),
     var(--noora-neutral-dark-1000)
   );
-  --noora-button-neutral-background-active: light-dark(
+  --noora-button-ghost-secondary-selected: light-dark(
     var(--noora-neutral-light-300),
     var(--noora-neutral-dark-900)
   );
-  --noora-button-destructive-background: var(--noora-red-500);
-  --noora-button-destructive-label: var(--noora-neutral-light-50);
-  --noora-button-neutral-label: light-dark(
+  --noora-button-ghost-secondary-label: light-dark(
     var(--noora-neutral-light-1200),
     var(--noora-neutral-light-50)
+  );
+  --noora-button-ghost-destructive-hover: light-dark(
+    var(--noora-red-50),
+    var(--noora-alpha-red-24)
+  );
+  --noora-button-ghost-destructive-selected: light-dark(
+    var(--noora-red-100),
+    var(--noora-alpha-red-32)
+  );
+  --noora-button-ghost-destructive-label: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-400)
+  );
+  /* The outline variant: the secondary colors with this 1px border. */
+  --noora-button-ghost-outline-border: light-dark(
+    oklch(from var(--noora-neutral-light-1100) l c h / 0.15),
+    oklch(from var(--noora-neutral-dark-500) l c h / 0.45)
   );
 
   /* Button Dropdown Trigger */
@@ -315,10 +350,10 @@ export const NOORA_CSS = String.raw`
     0px 1px 3px 0px
       light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-border-primary-hover:
+    0px 1px 0px oklch(100% 0 0 / 0.1) inset,
     0px 1px 1px oklch(32% 0.005 247.968 / 0.12),
     0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
-    0px 2px 3px oklch(32% 0.005 247.968 / 0.16),
-    0px 1px 0px oklch(100% 0 0 / 0.1) inset;
+    0px 2px 3px oklch(32% 0.005 247.968 / 0.16);
   /* The focus ring of every button and button-like control (buttons,
      dropdown and button dropdown triggers, the date picker, table sort
      buttons) over the primary button's shading. */
@@ -701,7 +736,7 @@ export const NOORA_CSS = String.raw`
   /* Icons */
   --noora-icon-destructive-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-icon-destructive-label: light-dark(
     var(--noora-red-600),
@@ -709,7 +744,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-icon-warning-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
   --noora-icon-warning-label: light-dark(
     var(--noora-orange-500),
@@ -717,7 +752,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-icon-success-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
   --noora-icon-success-label: light-dark(
     var(--noora-green-700),
@@ -725,7 +760,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-icon-info-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   --noora-icon-info-label: light-dark(
     var(--noora-azure-700),
@@ -932,7 +967,7 @@ export const NOORA_CSS = String.raw`
       0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.2),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.3),
       0px 0px 0px 1px var(--noora-neutral-dark-200),
-      0px 2px 3px 0px oklch(from var(--noora-alpha-black) l c h / 0.3),
+      0px 2px 3px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.3),
       0px 0px 0px 4px oklch(from var(--noora-neutral-dark-500) l c h / 0.5);
     --noora-border-small-error:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
@@ -940,21 +975,21 @@ export const NOORA_CSS = String.raw`
     --noora-border-small-warning:
       0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.2),
       0px 0px 0px 1px var(--noora-orange-300),
-      0px 2px 3px 0px oklch(from var(--noora-alpha-black) l c h / 0.3);
+      0px 2px 3px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.3);
     --noora-border-medium:
       0px 2px 4px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.12),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
       0px 4px 8px 0px oklch(0% 0 0 / 0.24);
     --noora-border-section: 0 0 0 1px oklch(34.8% 0 0 / 0.55);
     --noora-border-large:
-      0px 4px 8px 0px oklch(from var(--noora-alpha-black) l c h / 0.24),
+      0px 4px 8px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.24),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
-      0px 2px 4px 0px oklch(from var(--noora-alpha-black) l c h / 0.4);
+      0px 2px 4px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.4);
     --noora-border-xlarge:
-      0px 4px 8px 0px oklch(from var(--noora-alpha-black) l c h / 0.16),
+      0px 4px 8px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.16),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
-      0px 8px 16px 0px oklch(from var(--noora-alpha-black) l c h / 0.5),
-      0px 2px 4px 0px oklch(from var(--noora-alpha-black) l c h / 0.4);
+      0px 8px 16px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.5),
+      0px 2px 4px 0px oklch(from var(--noora-alpha-black-80) l c h / 0.4);
   }
 
   @media screen and (min-width: 768px) {
@@ -1012,6 +1047,8 @@ export const NOORA_CSS = String.raw`
   --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-out-circ: cubic-bezier(0.075, 0.82, 0.165, 1);
+  /* Hover and color changes on controls, such as buttons. */
+  --noora-ease-hover: cubic-bezier(0.4, 0, 0.2, 1);
   /* Ease out with a slight overshoot before settling. Used by toasts. */
   --noora-ease-out-overshoot: cubic-bezier(0.21, 1.02, 0.73, 1);
 
@@ -1100,14 +1137,16 @@ export const NOORA_CSS = String.raw`
     --noora-blue-600: oklch(48.5% 0.225 261);
     --noora-blue-700: oklch(41.5% 0.195 262);
 
-    --noora-alpha-red: oklch(54.8% 0.25 27 / 0.24);
-    --noora-alpha-orange: oklch(66.5% 0.205 48 / 0.24);
-    --noora-alpha-yellow: oklch(84.8% 0.195 86 / 0.24);
-    --noora-alpha-green: oklch(54.8% 0.19 147 / 0.24);
-    --noora-alpha-azure: oklch(54.8% 0.169 242 / 0.24);
-    --noora-alpha-blue: oklch(54.8% 0.24 260 / 0.24);
-    --noora-alpha-purple: oklch(54.8% 0.283 287.4 / 0.32);
-    --noora-alpha-pink: oklch(54.8% 0.245 7.5 / 0.24);
+    --noora-alpha-red-24: oklch(54.8% 0.25 27 / 0.24);
+    --noora-alpha-red-32: oklch(54.8% 0.25 27 / 0.32);
+    --noora-alpha-orange-24: oklch(66.5% 0.205 48 / 0.24);
+    --noora-alpha-yellow-24: oklch(84.8% 0.195 86 / 0.24);
+    --noora-alpha-green-24: oklch(54.8% 0.19 147 / 0.24);
+    --noora-alpha-azure-24: oklch(54.8% 0.169 242 / 0.24);
+    --noora-alpha-blue-24: oklch(54.8% 0.24 260 / 0.24);
+    --noora-alpha-purple-24: oklch(54.8% 0.283 287.4 / 0.24);
+    --noora-alpha-purple-32: oklch(54.8% 0.283 287.4 / 0.32);
+    --noora-alpha-pink-24: oklch(54.8% 0.245 7.5 / 0.24);
   }
 }
 
@@ -1132,7 +1171,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-alert-error-secondary-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-alert-success-icon: light-dark(
     var(--noora-green-500),
@@ -1140,7 +1179,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-alert-success-secondary-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
   --noora-alert-warning-icon: light-dark(
     var(--noora-orange-500),
@@ -1148,7 +1187,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-alert-warning-secondary-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
   --noora-alert-information-icon: light-dark(
     var(--noora-azure-500),
@@ -1156,7 +1195,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-alert-information-secondary-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   display: flex;
   /* Everything lines up with the title's first line, so a wrapping title
@@ -1650,7 +1689,7 @@ export const NOORA_CSS = String.raw`
 /* button.css */
 .noora-button,
 .noora-link-button,
-.noora-neutral-button {
+.noora-ghost-button {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -1667,11 +1706,16 @@ export const NOORA_CSS = String.raw`
 }
 
 .noora-button {
-  --noora-button-icon-size: var(--noora-icon-size-large);
-
+  position: relative;
+  isolation: isolate;
   cursor: pointer;
   outline: unset;
-  transition: transform 150ms var(--ease-out-cubic);
+  /* Hover eases in and out: the border shadow here, the background through
+     the layer below. Focus rings stay instant; their shadow layers don't
+     line up with the resting ones, so the browser swaps them. */
+  transition:
+    transform 150ms var(--ease-out-cubic),
+    box-shadow 150ms var(--noora-ease-hover);
   /* Reserve space for box-shadow to ensure consistent height across variants */
   box-shadow:
     0px 0px 0px 0px transparent,
@@ -1691,14 +1735,43 @@ export const NOORA_CSS = String.raw`
     padding: 0rem var(--noora-spacing-2);
   }
 
+  /* The hover background fades in over the resting one, under the label and
+     icons: a gradient can't animate into another, a layer's opacity can. It
+     starts 1px down so the top highlight, an inset shadow painted under it,
+     stays visible. */
+  &::before {
+    position: absolute;
+    inset: 1px 0 0;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 150ms var(--noora-ease-hover);
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--noora-button-hover-background);
+    content: "";
+  }
+
+  &:not(:disabled):hover::before {
+    opacity: 1;
+  }
+
+  /* Pressed shows its own background at once. */
+  &:not(:disabled):active::before {
+    opacity: 0;
+    transition: none;
+  }
+
   &[data-variant="primary"] {
     box-shadow: var(--noora-button-border-primary);
+    --noora-button-hover-background: var(
+      --noora-button-background-primary-hover
+    );
+
     background: var(--noora-button-background-primary);
     color: var(--noora-button-primary-label);
 
     &:hover {
       box-shadow: var(--noora-button-border-primary-hover);
-      background: var(--noora-button-background-primary-hover);
     }
 
     &:focus-visible {
@@ -1719,12 +1792,12 @@ export const NOORA_CSS = String.raw`
 
   &[data-variant="secondary"] {
     box-shadow: var(--noora-button-border-secondary);
+    --noora-button-hover-background: var(
+      --noora-button-background-secondary-hover
+    );
+
     background: var(--noora-button-background-secondary);
     color: var(--noora-button-secondary-label);
-
-    &:hover {
-      background: var(--noora-button-background-secondary-hover);
-    }
 
     &:focus-visible {
       box-shadow: var(--noora-button-border-focus);
@@ -1744,13 +1817,16 @@ export const NOORA_CSS = String.raw`
 
   &[data-variant="destructive"] {
     box-shadow: var(--noora-button-border-destructive);
+    --noora-button-hover-background: var(
+      --noora-button-background-destructive-hover
+    );
+
     background: var(--noora-button-background-destructive);
 
     color: var(--noora-button-destructive-label);
 
     &:hover {
       box-shadow: var(--noora-button-border-destructive-hover);
-      background: var(--noora-button-background-destructive-hover);
     }
 
     &:focus-visible {
@@ -1766,66 +1842,6 @@ export const NOORA_CSS = String.raw`
     &:not(:disabled):active {
       box-shadow: var(--noora-button-border-destructive-active);
       background: var(--noora-button-destructive-background);
-    }
-  }
-
-  &[data-icon-only] {
-    padding: var(--noora-spacing-3);
-  }
-
-  /* Small buttons pad 4px all round with a 16px icon and the 12px label:
-     24px tall, labelled or icon-only. */
-  &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
-    &,
-    &[data-icon-only] {
-      padding: var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  /* Medium buttons take the 14px label with 4px padding all round: 28px
-     tall. Icon-only ones keep 6px around the 16px icon to match. */
-  &[data-size="medium"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  /* Large buttons take a 16px icon, which sits better beside the 14px
-     label; icon-only ones pad 8px to stay 32px square, the labelled height. */
-  &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
-    }
-
-    &[data-icon-only] {
-      padding: var(--noora-spacing-4);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
     }
   }
 }
@@ -1916,7 +1932,7 @@ export const NOORA_CSS = String.raw`
   }
 }
 
-.noora-neutral-button {
+.noora-ghost-button {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -1924,19 +1940,77 @@ export const NOORA_CSS = String.raw`
   border-radius: var(--noora-radius-3);
   background: unset;
   padding: var(--noora-spacing-3);
-  color: var(--noora-button-neutral-label);
   text-decoration: none;
-  transition: transform 150ms var(--ease-out-cubic);
-
-  &:not(:disabled):hover {
-    background: var(--noora-button-neutral-background-hover);
-  }
+  /* Hover and selected fill 1px past the edge, in the same color, so the
+     fill reads the same size as a filled button with its outside ring. */
+  transition:
+    transform 150ms var(--ease-out-cubic),
+    background-color 150ms var(--noora-ease-hover),
+    box-shadow 150ms var(--noora-ease-hover),
+    color 150ms var(--noora-ease-hover);
 
   &:not(:disabled):active {
-    background: var(--noora-button-neutral-background-active);
     transform: scale(0.97);
   }
 
+  &[data-variant="primary"] {
+    color: var(--noora-button-ghost-primary-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-hover);
+      background: var(--noora-button-ghost-primary-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-selected);
+      background: var(--noora-button-ghost-primary-selected);
+    }
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--noora-button-ghost-secondary-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-hover);
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-selected);
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-button-ghost-destructive-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-hover);
+      background: var(--noora-button-ghost-destructive-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-selected);
+      background: var(--noora-button-ghost-destructive-selected);
+    }
+  }
+
+  /* Secondary with a 1px border that stays in every state, and with it the
+     size of a filled button. */
+  &[data-variant="outline"] {
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    color: var(--noora-button-ghost-secondary-label);
+
+    &:not(:disabled):hover {
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &:not(:disabled):active {
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+  }
+
+  /* After the variants, so it wins over their label colors. */
   &[disabled] {
     cursor: not-allowed;
     color: var(--noora-button-disabled-label);
@@ -1947,81 +2021,57 @@ export const NOORA_CSS = String.raw`
   & > [data-part="label"] {
     padding: 0rem var(--noora-spacing-2);
   }
+}
 
-  /* Spacing and positioning mirror .noora-button's size rules exactly, so
-     the two variants can sit side by side (e.g. the navbar's action
-     cluster) without drifting: the same data-icon-only gating, the same
-     per-size paddings, and descendant svg sizing through the shared icon
-     custom property (reaching icons nested in wrapper spans, which a
-     direct-child selector missed). */
-  &[data-icon-only] {
-    padding: var(--noora-spacing-3);
+/* Sizes, shared by buttons and ghost buttons so the two sit side by side
+   (e.g. the navbar's action cluster) with the same geometry. A neutral
+   button is icon-only when it has no label. */
+:is(.noora-button, .noora-ghost-button) {
+  --noora-button-icon-size: var(--noora-icon-size-medium);
+
+  & svg {
+    width: var(--noora-button-icon-size);
+    height: var(--noora-button-icon-size);
   }
 
+  /* 4px all round with a 16px icon and the 12px label: 24px tall,
+     labelled or icon-only. */
   &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-small);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
+    padding: var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
   }
 
-  &[data-size="medium"],
-  &[data-size="large"] {
-    &:not([data-icon-only]) {
+  /* The 14px label with 4px padding all round: 28px tall. Icon-only ones
+     keep 6px around the 16px icon to match. */
+  &[data-size="medium"] {
+    padding: var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:is([data-icon-only], .noora-ghost-button:not([data-with-label])) {
       padding: var(--noora-spacing-3);
     }
   }
 
-  &[data-size="medium"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
+  /* A 16px icon beside the 14px label; icon-only ones pad 8px to stay 32px
+     square, the labelled height. */
   &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-large);
-
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  /* Labeled neutral buttons take .noora-button's per-size paddings. Gated
-     on data-with-label (set by the component in label mode) rather than
-     :not([data-icon-only]) because existing icon-only call sites don't set
-     data-icon-only and must keep their geometry. */
-  &[data-with-label] {
-    &[data-size="small"],
-    &[data-size="medium"] {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    &[data-size="large"] {
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    &:is([data-icon-only], .noora-ghost-button:not([data-with-label])) {
+      padding: var(--noora-spacing-4);
     }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .noora-button,
-  .noora-neutral-button {
+  .noora-ghost-button {
     transition: none;
+
+    &::before {
+      transition: none;
+    }
 
     &:not(:disabled):active {
       transform: none;
