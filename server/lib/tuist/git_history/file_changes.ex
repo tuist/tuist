@@ -50,6 +50,7 @@ defmodule Tuist.GitHistory.FileChanges do
   alias Tuist.GitHistory.Commit
   alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
+  alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Workers.FileChangesWorker
   alias Tuist.IngestRepo
@@ -470,6 +471,181 @@ defmodule Tuist.GitHistory.FileChanges do
   defp within(segments) do
     Enum.reduce(segments, dynamic(false), fn %{ref_id: ref_id, hi: hi}, acc ->
       dynamic([l], ^acc or (l.changes_ref_id == ^ref_id and l.changes_position <= ^hi))
+    end)
+  end
+
+  @doc """
+  Where the commit's files can be read: its place when its file changes are
+  written there and kept, or nil.
+  """
+  def current(repository_id, sha) do
+    Repo.one(
+      from(l in CommitListing,
+        join: c in Commit,
+        on: c.repository_id == l.repository_id and c.sha == l.sha,
+        where: l.repository_id == ^repository_id and l.sha == ^sha and not l.truncated,
+        where: l.changes_ref_id == c.ref_id and l.changes_position == c.position,
+        where: l.changes_expires_at > ^DateTime.utc_now(),
+        select: {c.ref_id, c.position}
+      )
+    )
+  end
+
+  # An `in` list is bound as one array parameter, which ClickHouse refuses
+  # past 128 KiB: a chunk holds this many values at most, and fewer when
+  # they are long.
+  @bound_paths 900
+  @bound_bytes 100_000
+
+  @doc """
+  The files of the commit at `place` with their blobs, as
+  `%{path:, git_blob_id:}`: all of them, or those `:match` (a pattern from
+  `Tuist.Tests.Coverage.ExcludedPaths.pattern/1`) matches, those directly
+  inside `:directories` (as `Path.dirname/1` names them), or `:paths`.
+  """
+  def files(repository_id, place, opts \\ []) do
+    query = state_query(repository_id, GitHistory.chain(place, :at))
+    opts |> narrowed() |> Enum.flat_map(&ClickHouseRepo.all(&1.(query)))
+  end
+
+  @doc "The blob of each of `paths` at `place`, by path; a path the commit lacks is absent."
+  def blobs(repository_id, place, paths), do: blobs_along(repository_id, GitHistory.chain(place, :at), paths)
+
+  # Past one request's worth of bound paths, the whole state read once is
+  # cheaper than a lookup per chunk.
+  defp blobs_along(repository_id, chain, paths) do
+    query = state_query(repository_id, chain)
+
+    if length(paths) > @bound_paths do
+      query |> ClickHouseRepo.all() |> Map.new(&{&1.path, &1.git_blob_id}) |> Map.take(paths)
+    else
+      [paths: paths]
+      |> narrowed()
+      |> Enum.flat_map(&ClickHouseRepo.all(&1.(query)))
+      |> Map.new(&{&1.path, &1.git_blob_id})
+    end
+  end
+
+  @doc """
+  The files that differ between the commits at two places, by path, as
+  `%{path:, from:, to:}` with the blob at each, nil where the commit lacks
+  the path, narrowed as `files/3` is. Only the paths with a row on one
+  commit's chain and not the other's are compared.
+  """
+  def changed(repository_id, from_place, to_place, opts \\ []) do
+    from_chain = GitHistory.chain(from_place, :at)
+    to_chain = GitHistory.chain(to_place, :at)
+
+    case between(from_chain, to_chain) do
+      [] ->
+        []
+
+      ranges ->
+        query =
+          from(c in FileChange,
+            hints: ["FINAL"],
+            where: c.repository_id == ^repository_id and c.expires_at > fragment("now()"),
+            where: ^rows_within(ranges),
+            distinct: true,
+            select: %{path: c.path}
+          )
+
+        paths = opts |> narrowed() |> Enum.flat_map(&ClickHouseRepo.all(&1.(query))) |> Enum.map(& &1.path) |> Enum.uniq()
+        from = blobs_along(repository_id, from_chain, paths)
+        to = blobs_along(repository_id, to_chain, paths)
+
+        for path <- Enum.sort(paths), from[path] != to[path], do: %{path: path, from: from[path], to: to[path]}
+    end
+  end
+
+  # The positions on one chain and not the other, per ref.
+  defp between(from_chain, to_chain) do
+    from = Map.new(from_chain, &{&1.ref_id, &1.hi})
+    to = Map.new(to_chain, &{&1.ref_id, &1.hi})
+
+    for ref_id <- Enum.uniq(Map.keys(from) ++ Map.keys(to)),
+        [lo, hi] = Enum.sort([Map.get(from, ref_id, 0), Map.get(to, ref_id, 0)]),
+        lo < hi,
+        do: %{ref_id: ref_id, lo: lo, hi: hi}
+  end
+
+  defp narrowed(opts) do
+    case Enum.find(opts, fn {key, _value} -> key in [:match, :directories, :paths] end) do
+      {:match, pattern} when is_binary(pattern) ->
+        [&where(&1, [c], fragment("match(?, ?)", c.path, ^pattern))]
+
+      {:directories, directories} ->
+        for chunk <- bound(directories),
+            do:
+              &where(
+                &1,
+                [c],
+                fragment("if(position(?, '/') > 0, replaceRegexpOne(?, '/[^/]*$', ''), '.')", c.path, c.path) in ^chunk
+              )
+
+      {:paths, paths} ->
+        for chunk <- bound(paths), do: &where(&1, [c], c.path in ^chunk)
+
+      _ ->
+        [& &1]
+    end
+  end
+
+  defp bound(values) do
+    values
+    |> Enum.uniq()
+    |> Enum.chunk_while(
+      {[], 0, 0},
+      fn value, {chunk, count, bytes} ->
+        size = byte_size(value) + 3
+
+        if count == @bound_paths or (count > 0 and bytes + size > @bound_bytes),
+          do: {:cont, chunk, {[value], 1, size}},
+          else: {:cont, {[value | chunk], count + 1, bytes + size}}
+      end,
+      fn
+        {[], _count, _bytes} = acc -> {:cont, acc}
+        {chunk, _count, _bytes} = acc -> {:cont, chunk, acc}
+      end
+    )
+  end
+
+  # Each path's newest row along the chain, the nearest ref first, without
+  # the paths that row says are gone.
+  defp state_query(repository_id, chain) do
+    refs = Enum.map(chain, & &1.ref_id)
+
+    from(c in FileChange,
+      hints: ["FINAL"],
+      where: c.repository_id == ^repository_id and c.expires_at > fragment("now()"),
+      where: ^rows_within(chain),
+      group_by: c.path,
+      having:
+        fragment(
+          "argMax(?, (-toInt64(indexOf(?, ?)), ?)) != ''",
+          c.git_blob_id,
+          type(^refs, {:array, :integer}),
+          c.ref_id,
+          c.position
+        ),
+      select: %{
+        path: c.path,
+        git_blob_id:
+          fragment(
+            "argMax(?, (-toInt64(indexOf(?, ?)), ?))",
+            c.git_blob_id,
+            type(^refs, {:array, :integer}),
+            c.ref_id,
+            c.position
+          )
+      }
+    )
+  end
+
+  defp rows_within(segments) do
+    Enum.reduce(segments, dynamic(false), fn %{ref_id: ref_id, hi: hi} = segment, acc ->
+      lo = Map.get(segment, :lo, 0)
+      dynamic([c], ^acc or (c.ref_id == ^ref_id and c.position > ^lo and c.position <= ^hi))
     end)
   end
 

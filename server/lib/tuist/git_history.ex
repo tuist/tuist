@@ -34,7 +34,10 @@ defmodule Tuist.GitHistory do
   A commit's file listing (`Tuist.GitHistory.CommitFile`) is uploaded once per
   commit by the first clean checkout that measured it, and answers what files
   exist at the commit, which of them the project tracks
-  (`tracked_files/3`), and what blob a path had at an ancestor.
+  (`tracked_files/3`), what blob a path had at an ancestor, and what differs
+  between two commits (`changed_files/4`). Once a ref owns the commit, the
+  listing is stored as the paths it changed (`Tuist.GitHistory.FileChanges`)
+  and read from there; the listing's own rows answer until then.
   """
 
   import Ecto.Query
@@ -1084,13 +1087,19 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
-  Whether the commit's whole file listing is stored, so a path missing from
-  it is not in the commit. Not when the client stopped at the file limit
-  (`truncated`), nor once its files expired with the coverage file detail
+  Whether the commit's whole file listing is known, so a path missing from
+  it is not in the commit: its file changes are written where it sits
+  (`Tuist.GitHistory.FileChanges`), or its listing is stored. Not when the
+  client stopped at the file limit (`truncated`), nor, without its file
+  changes, once the listing's files expired with the coverage file detail
   (`Tuist.Environment.coverage_retention_days/1`), after which the next
   upload stores it again.
   """
   def listing_complete?(repository_id, sha) do
+    not is_nil(FileChanges.current(repository_id, sha)) or listed?(repository_id, sha)
+  end
+
+  defp listed?(repository_id, sha) do
     cutoff = listing_cutoff()
 
     Repo.exists?(
@@ -1183,9 +1192,18 @@ defmodule Tuist.GitHistory do
   @doc """
   The files of a commit with their blobs, by path, optionally narrowed to
   the paths one glob pattern matches (`match:` a pattern from
-  `Tuist.Tests.Coverage.ExcludedPaths.pattern/1`).
+  `Tuist.Tests.Coverage.ExcludedPaths.pattern/1`). Like every read of a
+  commit's files, from its file changes once they are written where it sits
+  (`Tuist.GitHistory.FileChanges.current/2`), and from its listing otherwise.
   """
   def commit_files(repository_id, sha, opts \\ []) do
+    case FileChanges.current(repository_id, sha) do
+      nil -> listed_files(repository_id, sha, opts)
+      place -> repository_id |> FileChanges.files(place, Keyword.take(opts, [:match])) |> Enum.sort_by(& &1.path)
+    end
+  end
+
+  defp listed_files(repository_id, sha, opts) do
     query =
       from(f in CommitFile,
         where: f.repository_id == ^repository_id and f.sha == ^sha,
@@ -1210,6 +1228,13 @@ defmodule Tuist.GitHistory do
   def files_in(_repository_id, _sha, []), do: []
 
   def files_in(repository_id, sha, directories) do
+    case FileChanges.current(repository_id, sha) do
+      nil -> listed_files_in(repository_id, sha, directories)
+      place -> FileChanges.files(repository_id, place, directories: directories)
+    end
+  end
+
+  defp listed_files_in(repository_id, sha, directories) do
     directories
     |> Enum.uniq()
     |> Enum.chunk_every(@blob_paths_chunk)
@@ -1245,6 +1270,13 @@ defmodule Tuist.GitHistory do
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
+    case FileChanges.current(repository_id, sha) do
+      nil -> listed_blobs(repository_id, sha, paths)
+      place -> FileChanges.blobs(repository_id, place, paths)
+    end
+  end
+
+  defp listed_blobs(repository_id, sha, paths) do
     paths
     |> Enum.chunk_every(@blob_paths_chunk)
     |> Enum.flat_map(fn chunk ->
@@ -1257,5 +1289,48 @@ defmodule Tuist.GitHistory do
       )
     end)
     |> Map.new()
+  end
+
+  @doc """
+  The files that differ between two commits, by path, as
+  `%{path:, from:, to:}` with the blob at each commit, nil where it lacks
+  the path, or `:unknown` unless both commits' whole listings are known
+  (`listing_complete?/2`). Narrowed to the paths `:match` (a pattern from
+  `Tuist.Tests.Coverage.ExcludedPaths.pattern/1`) matches, to the files
+  directly inside `:directories`, or to `:paths`.
+
+  Between two commits whose file changes are written, only the paths with a
+  row on one commit's chain and not the other's are read.
+  """
+  def changed_files(repository_id, from_sha, to_sha, opts \\ []) do
+    case {FileChanges.current(repository_id, from_sha), FileChanges.current(repository_id, to_sha)} do
+      {from, to} when not is_nil(from) and not is_nil(to) ->
+        FileChanges.changed(repository_id, from, to, opts)
+
+      _places ->
+        if listing_complete?(repository_id, from_sha) and listing_complete?(repository_id, to_sha) do
+          from = narrowed_blobs(repository_id, from_sha, opts)
+          to = narrowed_blobs(repository_id, to_sha, opts)
+
+          for path <- (Map.keys(from) ++ Map.keys(to)) |> Enum.uniq() |> Enum.sort(),
+              from[path] != to[path],
+              do: %{path: path, from: from[path], to: to[path]}
+        else
+          :unknown
+        end
+    end
+  end
+
+  defp narrowed_blobs(repository_id, sha, opts) do
+    cond do
+      directories = opts[:directories] ->
+        repository_id |> files_in(sha, directories) |> Map.new(&{&1.path, &1.git_blob_id})
+
+      paths = opts[:paths] ->
+        blobs_at(repository_id, sha, Enum.uniq(paths))
+
+      true ->
+        repository_id |> commit_files(sha, Keyword.take(opts, [:match])) |> Map.new(&{&1.path, &1.git_blob_id})
+    end
   end
 end
