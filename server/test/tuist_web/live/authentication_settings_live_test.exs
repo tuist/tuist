@@ -398,6 +398,62 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
   end
 
+  describe "additional Google Workspace domains" do
+    setup %{user: user} do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "authsettings-example.com"
+      })
+
+      :ok
+    end
+
+    test "saves and shows the additional domains", %{conn: conn, account: account, organization: organization} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["google"]})
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "google_domain" => "authsettings-example.com",
+          "google_additional_domains" => "Secondary.example, agency.example"
+        }
+      })
+      |> render_submit()
+
+      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+      assert updated_organization.sso_additional_organization_ids == ["secondary.example", "agency.example"]
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      assert html =~ "secondary.example, agency.example"
+    end
+
+    test "rejects the primary domain as an additional one", %{conn: conn, account: account, organization: organization} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["google"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "google_domain" => "authsettings-example.com",
+            "google_additional_domains" => "authsettings-example.com"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must not include the primary domain"
+      refute html =~ "Sso additional organization ids"
+      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+      assert is_nil(updated_organization.sso_provider)
+    end
+  end
+
   describe "Okta SSO" do
     test "disables save button when required fields are empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")

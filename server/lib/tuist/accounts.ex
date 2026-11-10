@@ -2020,9 +2020,10 @@ defmodule Tuist.Accounts do
       |> Enum.map(& &1.organization)
       |> Enum.filter(&(&1.sso_enforced and not is_nil(&1.sso_provider)))
 
-    # A session proves a single organization's sign-in (see
-    # `UserToken.satisfies_sso?/2`; no two organizations share a provider
-    # tenant), so it can satisfy at most one enforcing organization.
+    # A session proves a single provider tenant (see
+    # `UserToken.satisfies_sso?/2`), so several enforcing organizations are
+    # refused even when one Google Workspace domain happens to satisfy them
+    # all through additional domains.
     case enforcing do
       [] -> :ok
       [organization] -> if UserToken.satisfies_sso?(session, organization), do: :ok, else: {:sign_in_with, organization}
@@ -2054,15 +2055,17 @@ defmodule Tuist.Accounts do
         {:ok, Map.take(claims, ["sso"])}
 
       {:sign_in_with, organization} ->
-        if linked_sso_identity?(user, organization) do
-          {:ok,
-           UserToken.sso_claims(%UserToken{
-             auth_provider: to_string(organization.sso_provider),
-             auth_provider_organization_id: organization.sso_organization_id,
-             auth_organization_id: organization.id
-           })}
-        else
-          sso_grace_claims(claims)
+        case linked_sso_provider_organization_id(user, organization) do
+          nil ->
+            sso_grace_claims(claims)
+
+          provider_organization_id ->
+            {:ok,
+             UserToken.sso_claims(%UserToken{
+               auth_provider: to_string(organization.sso_provider),
+               auth_provider_organization_id: provider_organization_id,
+               auth_organization_id: organization.id
+             })}
         end
 
       {:error, :conflicting_requirements} ->
@@ -2080,12 +2083,16 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp linked_sso_identity?(%User{id: user_id}, %Organization{} = organization) do
-    Repo.exists?(
+  # The claim records the identity's own tenant, so dropping an additional
+  # Google domain later also withdraws the proof it gave.
+  defp linked_sso_provider_organization_id(%User{id: user_id}, %Organization{} = organization) do
+    Repo.one(
       from(i in Oauth2Identity,
         where:
           i.user_id == ^user_id and i.provider == ^organization.sso_provider and
-            i.provider_organization_id == ^organization.sso_organization_id
+            i.provider_organization_id in ^Organization.sso_provider_organization_ids(organization),
+        select: i.provider_organization_id,
+        limit: 1
       )
     )
   end

@@ -6938,6 +6938,29 @@ defmodule Tuist.AccountsTest do
       assert {:sign_in_with, %{id: ^organization_id}} = Accounts.sso_requirement(user, nil)
     end
 
+    test "accepts a sign-in from one of the organization's additional Google Workspace domains", %{user: user} do
+      organization =
+        member_of(user,
+          sso_enforced: true,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          sso_additional_organization_ids: ["secondary.example"]
+        )
+
+      organization_id = organization.id
+
+      assert Accounts.sso_requirement(
+               user,
+               session(user, %{auth_method: :google, provider_organization_id: "secondary.example"})
+             ) == :ok
+
+      assert {:sign_in_with, %{id: ^organization_id}} =
+               Accounts.sso_requirement(
+                 user,
+                 session(user, %{auth_method: :google, provider_organization_id: "other.example"})
+               )
+    end
+
     test "cannot be satisfied when several organizations enforce it", %{user: user} do
       google = member_of(user, sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
       other_google = member_of(user, sso_enforced: true, sso_provider: :google, sso_organization_id: "other.com")

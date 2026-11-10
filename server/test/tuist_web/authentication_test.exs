@@ -876,6 +876,43 @@ defmodule TuistWeb.AuthenticationTest do
       refute conn.halted
     end
 
+    test "accepts a session from an additional Google Workspace domain and rejects unlisted ones",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "authn-example.com",
+          preload: [:account]
+        )
+
+      {:ok, _} =
+        Accounts.update_organization(organization, %{
+          sso_enforced: true,
+          sso_additional_organization_ids: ["authn-secondary.example"]
+        })
+
+      check = fn domain ->
+        token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: domain})
+
+        conn
+        |> assign(:current_user_session, Accounts.get_user_session(token))
+        |> Map.merge(%{
+          params: %{"account_handle" => organization.account.name},
+          path_info: [organization.account.name, "projects"],
+          query_string: ""
+        })
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+      end
+
+      refute check.("authn-secondary.example").halted
+
+      conn = check.("authn-other.example")
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
     test "does not redirect when org has SSO but enforcement is disabled",
          %{conn: conn, user: user} do
       organization =
@@ -987,6 +1024,32 @@ defmodule TuistWeb.AuthenticationTest do
 
         assert {:ok, _, _} = live(sso_conn, protected_path)
       end
+    end
+
+    @tag :sso_boundary
+    test "live sessions accept a session from an additional Google Workspace domain", %{conn: conn, user: user} do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "authn-example.com")
+
+      {:ok, _} =
+        Accounts.update_organization(organization, %{
+          sso_enforced: true,
+          sso_additional_organization_ids: ["authn-secondary.example"]
+        })
+
+      protected_path = ~p"/#{organization.account.name}/projects"
+
+      session_conn = fn domain ->
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: domain})
+        )
+      end
+
+      assert {:ok, _, _} = live(session_conn.("authn-secondary.example"), protected_path)
+
+      assert {:error, {:redirect, %{to: "/users/auth/google"}}} =
+               live(session_conn.("authn-other.example"), protected_path)
     end
 
     @tag :sso_boundary

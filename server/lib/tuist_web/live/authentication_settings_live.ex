@@ -462,6 +462,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
              %{
                sso_provider: :google,
                sso_organization_id: domain,
+               sso_additional_organization_ids: parse_domain_list(params["sso"]["google_additional_domains"]),
                sso_enforced: socket.assigns.sso_enforced,
                sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
                sso_default_role: socket.assigns.sso_default_role
@@ -475,7 +476,11 @@ defmodule TuistWeb.AuthenticationSettingsLive do
        |> assign(flash_message: nil, field_errors: %{})}
     else
       {:error, %Changeset{} = changeset} ->
-        {:noreply, assign(socket, flash_message: {"error", changeset_error_message(changeset)})}
+        {:noreply,
+         assign(socket,
+           flash_message: {"error", changeset_error_message(changeset)},
+           field_errors: changeset_to_field_errors(changeset, "google")
+         )}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
@@ -523,6 +528,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   @changeset_to_form_field %{
     sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site", "entra" => "entra_tenant_id"},
+    sso_additional_organization_ids: "google_additional_domains",
     sso_login_domain: "sso_login_domain",
     oauth2_authorize_url: "oauth2_authorize_url",
     oauth2_token_url: "oauth2_token_url",
@@ -755,7 +761,11 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp build_form_data("google", organization) do
-    Map.merge(default_form_data(), %{"provider" => "google", "google_domain" => organization.sso_organization_id || ""})
+    Map.merge(default_form_data(), %{
+      "provider" => "google",
+      "google_domain" => organization.sso_organization_id || "",
+      "google_additional_domains" => Enum.join(organization.sso_additional_organization_ids, ", ")
+    })
   end
 
   defp build_form_data("okta", organization) do
@@ -799,6 +809,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     %{
       "provider" => "google",
       "google_domain" => "",
+      "google_additional_domains" => "",
       "okta_domain" => "",
       "entra_tenant_id" => "",
       "oauth2_client_id" => "",
@@ -810,6 +821,9 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       "oauth2_user_info_url" => ""
     }
   end
+
+  defp parse_domain_list(nil), do: []
+  defp parse_domain_list(domains), do: String.split(domains, [",", " ", "\n"], trim: true)
 
   defp normalize_domain(nil), do: nil
 
@@ -824,9 +838,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     changeset
     |> Changeset.traverse_errors(fn {message, _opts} -> message end)
     |> Enum.map_join("; ", fn {field, messages} ->
-      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
+      "#{changeset_field_label(field)} #{Enum.join(messages, ", ")}"
     end)
   end
+
+  defp changeset_field_label(:sso_additional_organization_ids),
+    do: dgettext("dashboard_account", "Additional Google Workspace domains")
+
+  defp changeset_field_label(field), do: Phoenix.Naming.humanize(field)
 
   defp automatic_enrollment_toggle_disabled?(selected_provider, _organization, trust, automatic_enrollment) do
     selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and

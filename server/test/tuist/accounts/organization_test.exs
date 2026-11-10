@@ -371,6 +371,67 @@ defmodule Tuist.OrganizationTest do
     end
   end
 
+  describe "sso_additional_organization_ids" do
+    test "normalizes and deduplicates the domains" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :google,
+          sso_organization_id: "tuist.io",
+          sso_additional_organization_ids: [" Secondary.example. ", "secondary.example", ""]
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :sso_additional_organization_ids) == ["secondary.example"]
+    end
+
+    test "rejects invalid domains and the primary domain" do
+      invalid =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :google,
+          sso_organization_id: "tuist.io",
+          sso_additional_organization_ids: ["not a domain"]
+        })
+
+      assert "must be valid domains" in errors_on(invalid).sso_additional_organization_ids
+
+      primary =
+        Organization.update_changeset(
+          %Organization{sso_provider: :google, sso_organization_id: "tuist.io"},
+          %{sso_additional_organization_ids: ["TUIST.io"]}
+        )
+
+      assert "must not include the primary domain" in errors_on(primary).sso_additional_organization_ids
+    end
+
+    test "are cleared when the provider is no longer Google" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{
+            sso_provider: :google,
+            sso_organization_id: "tuist.io",
+            sso_additional_organization_ids: ["secondary.example"]
+          },
+          %{sso_provider: nil, sso_organization_id: nil}
+        )
+
+      assert Ecto.Changeset.get_change(changeset, :sso_additional_organization_ids) == []
+    end
+
+    test "are only accepted from Google organizations" do
+      assert Organization.sso_provider_organization_ids(%Organization{
+               sso_provider: :google,
+               sso_organization_id: "tuist.io",
+               sso_additional_organization_ids: ["secondary.example"]
+             }) == ["tuist.io", "secondary.example"]
+
+      assert Organization.sso_provider_organization_ids(%Organization{
+               sso_provider: :okta,
+               sso_organization_id: "org-tuist.okta.com",
+               sso_additional_organization_ids: ["secondary.example"]
+             }) == ["org-tuist.okta.com"]
+    end
+  end
+
   describe "update_changeset/2" do
     test "sso_provider cannot be github" do
       changeset =
