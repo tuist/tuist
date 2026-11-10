@@ -10,6 +10,7 @@ defmodule Tuist.Push.APNs do
   """
 
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
 
   @endpoints %{
     "production" => "https://api.push.apple.com",
@@ -65,32 +66,41 @@ defmodule Tuist.Push.APNs do
   defp classify(400, reason) when reason in ["BadDeviceToken", "DeviceTokenNotForTopic"], do: {:error, :invalid_token}
 
   defp classify(403, reason) when reason in ["ExpiredProviderToken", "InvalidProviderToken"] do
-    :persistent_term.erase(token_key())
+    KeyValueStore.invalidate(token_key(), token_cache_opts())
     {:error, {:retry, reason}}
   end
 
   defp classify(status, reason) when status == 429 or status >= 500, do: {:error, {:retry, reason}}
   defp classify(_status, reason), do: {:error, {:rejected, reason}}
 
+  # APNs sends its JSON error body without a JSON content type, so Req hands it
+  # over undecoded.
   defp reason(%{"reason" => reason}), do: reason
-  defp reason(body) when is_binary(body), do: body
-  defp reason(_body), do: "unknown"
 
-  defp provider_token do
-    now = System.system_time(:second)
-
-    case :persistent_term.get(token_key(), nil) do
-      {token, issued_at} when now - issued_at < @token_lifetime_seconds ->
-        token
-
-      _ ->
-        token = sign(now)
-        :persistent_term.put(token_key(), {token, now})
-        token
+  defp reason(body) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, %{"reason" => reason}} -> reason
+      _ -> body
     end
   end
 
-  defp token_key, do: {__MODULE__, Environment.apns_team_id(), Environment.apns_key_id()}
+  defp reason(_body), do: "unknown"
+
+  # APNs counts token updates per key, not per sender, so every replica (and
+  # every replica a deploy starts) has to present the same token. It is shared
+  # through Redis, signed under a lock by whichever replica misses first, and
+  # expires before APNs would reject it. Without Redis it falls back to a
+  # per-node cache.
+  defp provider_token do
+    opts = token_cache_opts()
+
+    KeyValueStore.get(token_key(), opts) ||
+      KeyValueStore.get_or_update(token_key(), opts, fn -> sign(System.system_time(:second)) end)
+  end
+
+  defp token_key, do: [__MODULE__, "provider_token", Environment.apns_team_id(), Environment.apns_key_id()]
+
+  defp token_cache_opts, do: [ttl: to_timeout(second: @token_lifetime_seconds), persist_across_deployments: true]
 
   defp sign(issued_at) do
     {_, token} =

@@ -76,7 +76,7 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
   end
 
   test "retires the registration when APNs says the token is gone", %{installation: installation} do
-    expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 410, body: %{"reason" => "Unregistered"}}} end)
+    expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 410, body: ~s({"reason":"Unregistered"})}} end)
 
     assert :ok = perform(installation)
     assert %Installation{retired_reason: "rejected", token: nil} = Repo.get!(Installation, installation.id)
@@ -85,7 +85,7 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
 
   test "retries on throttling and server errors without retiring", %{installation: installation} do
     expect(Req, :post, fn _url, _opts ->
-      {:ok, %Req.Response{status: 429, body: %{"reason" => "TooManyRequests"}}}
+      {:ok, %Req.Response{status: 429, body: ~s({"reason":"TooManyRequests"})}}
     end)
 
     assert {:error, "TooManyRequests"} = perform(installation)
@@ -93,10 +93,42 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
   end
 
   test "gives up without retiring when APNs rejects the request itself", %{installation: installation} do
-    expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 400, body: %{"reason" => "TopicDisallowed"}}} end)
+    expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 400, body: ~s({"reason":"TopicDisallowed"})}} end)
 
     assert {:cancel, "TopicDisallowed"} = perform(installation)
     assert %Installation{retired_at: nil} = Repo.get!(Installation, installation.id)
+  end
+
+  test "retires the registration when APNs says the device token is bad", %{installation: installation} do
+    expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 400, body: ~s({"reason":"BadDeviceToken"})}} end)
+
+    assert :ok = perform(installation)
+    assert %Installation{retired_reason: "rejected", token: nil} = Repo.get!(Installation, installation.id)
+  end
+
+  test "reuses one provider token until APNs rejects it as expired", %{installation: installation} do
+    test_pid = self()
+
+    respond = fn response ->
+      fn _url, opts ->
+        send(test_pid, {:authorization, Map.new(opts[:headers])["authorization"]})
+        {:ok, response}
+      end
+    end
+
+    Req
+    |> expect(:post, respond.(%Req.Response{status: 403, body: ~s({"reason":"ExpiredProviderToken"})}))
+    |> expect(:post, 2, respond.(%Req.Response{status: 200, body: ""}))
+
+    assert {:error, "ExpiredProviderToken"} = perform(installation)
+    assert :ok = perform(installation)
+    assert :ok = perform(installation)
+
+    assert_received {:authorization, expired}
+    assert_received {:authorization, renewed}
+    assert_received {:authorization, reused}
+    assert renewed != expired
+    assert reused == renewed
   end
 
   test "skips a registration retired after the job was queued", %{installation: installation} do
