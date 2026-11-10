@@ -6,6 +6,8 @@ defmodule Tuist.EntireTrails.Client do
 
   alias Tuist.Entire.Client, as: Entire
 
+  require Logger
+
   def trails(installation, repository) do
     list(installation, repository, path(repository) <> "/trails", params: [{"status", "open,draft"}])
   end
@@ -78,6 +80,10 @@ defmodule Tuist.EntireTrails.Client do
 
   defp list(installation, repository, path, opts, items \\ []) do
     with {:ok, body} <- request(:get, installation, repository, path, opts) do
+      if is_nil(body["items"]) do
+        Logger.warning("Entire Trail discovery response missing items repository_id=#{repository.id}")
+      end
+
       items = items ++ (body["items"] || [])
 
       case body["next_cursor"] do
