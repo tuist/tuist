@@ -28,6 +28,7 @@ defmodule TuistWeb.Authentication do
   @current_project_key :current_project
   @remember_me_cookie "_tuist_web_user_remember_me"
   @reconnect_recovery_ms 5_000
+  @max_return_to_bytes 2048
   # The origin serves plain HTTP behind Cloudflare, so Plug would not add
   # Secure on its own; follow the session cookie's setting instead.
   @remember_me_options [
@@ -362,6 +363,30 @@ defmodule TuistWeb.Authentication do
   end
 
   def local_return_to(_path), do: nil
+
+  @doc """
+  Returns `path` when it can be remembered in the session as the page to
+  return to: a local path (see `local_return_to/1`) of at most 2048 bytes.
+
+  The session lives in a cookie capped at 4096 bytes and these paths come
+  from the request, so storing an oversized one (scanners send huge query
+  strings) made the response raise `Plug.Conn.CookieOverflowError`. Such a
+  path is not remembered; the visitor lands on the default page instead.
+  """
+  def session_return_to(path) when is_binary(path) and byte_size(path) <= @max_return_to_bytes, do: local_return_to(path)
+
+  def session_return_to(_path), do: nil
+
+  @doc """
+  Remembers `path` under `key` when `session_return_to/1` accepts it, and
+  otherwise clears `key` so an earlier destination is not used instead.
+  """
+  def put_return_to(conn, key, path) do
+    case session_return_to(path) do
+      nil -> delete_session(conn, key)
+      path -> put_session(conn, key, path)
+    end
+  end
 
   @doc """
   Authenticates the user by looking into the session
@@ -810,7 +835,7 @@ defmodule TuistWeb.Authentication do
 
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
-    |> put_session(:user_return_to, current_path(conn))
+    |> put_return_to(:user_return_to, current_path(conn))
     |> redirect(to: sso_provider_path(organization))
     |> halt()
   end
@@ -891,9 +916,7 @@ defmodule TuistWeb.Authentication do
     |> put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
   end
 
-  defp maybe_store_return_to(%{method: "GET"} = conn) do
-    put_session(conn, :user_return_to, current_path(conn))
-  end
+  defp maybe_store_return_to(%{method: "GET"} = conn), do: put_return_to(conn, :user_return_to, current_path(conn))
 
   defp maybe_store_return_to(conn), do: conn
 
