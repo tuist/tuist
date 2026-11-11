@@ -490,6 +490,52 @@ struct CachedModuleDebuggingMetadataTests {
         #expect(try await CachedModuleDebuggingMetadata.capture(target: graphTarget, validateGeneratedSources: true) != before)
     }
 
+    /// Earlier CLIs recorded DocC inputs (and, before that, headers) for slices without observed sources. Their
+    /// artifacts keep their hash, so warming never replaces them.
+    @Test(.inTemporaryDirectory, arguments: ["sources", "buildable-folder"])
+    func admitsEarlierMetadataThatRecordedDocumentationInputs(layout: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let catalog = root.appending(components: "Feature", "Feature.docc")
+        let article = catalog.appending(component: "Article.md")
+        let header = root.appending(components: "Feature", "Feature.h")
+        try await FileSystem().makeDirectory(at: catalog)
+        try await FileSystem().writeText("# Feature", at: article)
+        try await FileSystem().writeText("int feature(void);", at: header)
+        var target = base.target
+        target.headers = .test(public: [header])
+        let documentation: String
+        if layout == "sources" {
+            target.sources.append(SourceFile(path: catalog))
+            documentation = "Feature/Feature.docc"
+        } else {
+            target.buildableFolders = [.init(path: catalog, exceptions: [], resolvedFiles: [
+                .init(path: article, compilerFlags: nil),
+            ])]
+            documentation = "Feature/Feature.docc/Article.md"
+        }
+        var project = base.project
+        project.targets["Feature"] = target
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        func admits(_ recorded: Set<String>) async throws -> Bool {
+            let metadata = CachedModuleDebuggingMetadata(
+                version: 2, moduleName: "Feature", sourceRoot: root,
+                sources: Dictionary(uniqueKeysWithValues: recorded.map { ($0, "checksum") }),
+                sourcePaths: Dictionary(uniqueKeysWithValues: recorded.map { ($0, root.pathString + "/" + $0) }),
+                debugPaths: [:]
+            )
+            let artifact = root.appending(component: "\(UUID().uuidString).xcframework")
+            try await write(metadata, at: artifact)
+            return try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: graphTarget) == []
+        }
+
+        #expect(try await admits(["Feature/Feature.swift"]))
+        #expect(try await admits(["Feature/Feature.swift", documentation]))
+        #expect(try await admits(["Feature/Feature.swift", "Feature/Feature.h", documentation]))
+        #expect(try await !admits(["Feature/Feature.swift", "Feature/Other.docc"]))
+        #expect(try await !admits(["Feature/Feature.swift", "Feature/Removed.swift", documentation]))
+    }
+
     @Test(.inTemporaryDirectory)
     func placeholderGeneratedOutputsCannotBypassSourceVerification() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)

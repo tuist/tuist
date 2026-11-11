@@ -47,7 +47,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         )
     }
 
-    private static func declaredSources(for target: GraphTarget) throws -> [String: SourceFile] {
+    private static func declaredSources(for target: GraphTarget, includingDocC: Bool = false) throws -> [String: SourceFile] {
         let filter = HashingFilesFilter()
         let folders = target.target.buildableFolders.flatMap(\.resolvedFiles).map(\.path).filter(filter.callAsFunction)
         let included = target.project.targets.values.filter { $0.name != target.target.name }
@@ -56,12 +56,12 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         let compiledExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions +
             Target.validHeaderExtensions).subtracting(["docc"])
         let folderSources = (folders + included).filter { path in
-            !path.components.contains(where: { $0.lowercased().hasSuffix(".docc") }) ||
+            includingDocC || !path.components.contains(where: { $0.lowercased().hasSuffix(".docc") }) ||
                 compiledExtensions.contains(path.extension?.lowercased() ?? "")
         }
         // Catalogs enter the sources build phase for DocC, not for the module's debug information.
         // Explicit compiled sources and headers remain validated even beneath a catalog.
-        let sources = target.target.sources.filter { $0.path.extension?.lowercased() != "docc" }
+        let sources = target.target.sources.filter { includingDocC || $0.path.extension?.lowercased() != "docc" }
         let headers = (target.target.headers?.public ?? []) + (target.target.headers?.private ?? []) +
             (target.target.headers?.project ?? [])
         var declared: [String: SourceFile] = [:]
@@ -254,6 +254,9 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         guard !info.libraries.isEmpty else { return nil }
         let declared = try declaredSources(for: target)
         guard !declared.values.contains(where: { $0.contentHashIsPlaceholder == true }) else { return nil }
+        // Earlier versions recorded headers and DocC inputs too, and warming never replaces an artifact whose hash is stored.
+        let admissibleSourceSets = [Set(declared.keys), Set(try declaredSources(for: target, includingDocC: true).keys)]
+            .flatMap { [$0, $0.filter { !isHeader($0) }] }
         var slices: [Self] = []
         for library in info.libraries {
             try Task.checkCancellation()
@@ -269,9 +272,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                   Set(original.debugPaths.keys).isSubset(of: Set(original.sources.keys)),
                   Set(original.debugPaths.keys).isSubset(of: Set(declared.keys)),
                   original.debugPaths.values.allSatisfy({ !$0.isEmpty }),
-                  // Earlier versions recorded headers too, and warming never replaces an artifact whose hash is stored.
-                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys.filter { !isHeader($0) })
-                  || Set(original.sources.keys) == Set(declared.keys)
+                  !original.debugPaths.isEmpty || admissibleSourceSets.contains(Set(original.sources.keys))
             else { return nil }
             slices.append(original)
         }
