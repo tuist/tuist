@@ -2768,6 +2768,11 @@ sandboxes:
   # The next spawn restores it on any node and cold boots it. 0 keeps paused
   # Orbs on their nodes. See infra/amp-orbs/README.md.
   archiveAfterHours: 0
+  # While the archive tier is on, each minute archive the oldest idle Orb
+  # on each node above this percentage of its reserved disk budget (including
+  # node copies of disk snapshots), even if paused less than archiveAfterHours.
+  # Rechecks before uploading; 0 disables only this proactive trigger.
+  archiveDiskHighWaterPercent: 85
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "4x8192,2x4096"

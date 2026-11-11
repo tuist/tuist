@@ -1,6 +1,6 @@
 apiVersion: v2
 name: tuist-greptimedb
-description: Private, synthetic-only GreptimeDB staging pilot
+description: Private GreptimeDB backend with isolated object storage and retained WAL
 type: application
 version: 0.1.0
 appVersion: 1.3.0

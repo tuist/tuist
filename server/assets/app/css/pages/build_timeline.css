@@ -278,11 +278,13 @@
   & [data-part="tooltip"] {
     position: absolute;
     z-index: 2;
+    box-sizing: border-box;
     box-shadow: var(--noora-tooltip-border);
     border: 1px solid var(--noora-surface-border-primary);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-5);
+    width: max-content;
     max-width: min(360px, calc(100% - 16px));
     pointer-events: none;
     color: var(--noora-surface-label-primary);

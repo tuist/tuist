@@ -2177,6 +2177,18 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Percentage of a node's reserved sandbox disk budget above which the
+  archive sweep also archives recently paused Orbs. Defaults to 85; `0`
+  disables pressure archiving. Requires the archive tier to be enabled.
+  """
+  def sandbox_archive_disk_high_water_percent do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT", "85")) do
+      {percent, ""} when percent in 1..100 -> percent
+      _ -> nil
+    end
+  end
+
   def amp_provider_config do
     %{
       image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),

@@ -84,7 +84,7 @@
         }
 
         func send(shareConfirmed: Bool = false) async {
-            guard !busy, !thread.isRunning, thread.status != "outcome_unknown",
+            guard !busy, !voice.isRecording, !thread.isRunning, thread.status != "outcome_unknown",
                   !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             if !isLive, thread.visibility == "private", !draft.people.isEmpty, !shareConfirmed {
                 confirmingShare = true

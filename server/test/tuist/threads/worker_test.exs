@@ -140,6 +140,78 @@ defmodule Tuist.Threads.WorkerTest do
     assert Agent.get(calls, & &1) == 2
   end
 
+  test "an unavailable profile MCP server does not fail an otherwise independent run" do
+    user = AccountsFixtures.user_fixture()
+    server_id = Ecto.UUID.generate()
+
+    stub(MCPServers, :list, fn _ -> [%{id: server_id, url: "https://mcp.example.com", connected: true}] end)
+
+    stub(MCPServers, :credentials, fn _, ^server_id ->
+      {:ok, %{url: "https://mcp.example.com", access_token: "secret"}}
+    end)
+
+    stub(SSRFGuard, :pin, fn _ -> {:error, :unavailable} end)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      refute Enum.any?(request["tools"], &String.starts_with?(&1["function"]["name"], "mcp_"))
+
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{
+            index: 0,
+            message: %{role: "assistant", content: JSON.encode!(%{reply: "Still available.", suggestions: []})},
+            finish_reason: "stop"
+          }
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    assert {:ok, thread} = Threads.create(user, user.account, request("Reply without MCP"))
+    run = Repo.one!(Run)
+
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert List.last(fresh.messages).body == "Still available."
+    assert Repo.reload!(run).status == "succeeded"
+  end
+
+  test "a stale MCP discovery does not dispatch inference" do
+    user = AccountsFixtures.user_fixture()
+    assert {:ok, thread} = Threads.create(user, user.account, request("Do not continue"))
+    run = Repo.one!(Run)
+
+    stub(Provider, :client_opts, fn _, _ ->
+      assert {:ok, _} = Threads.archive(user, user.account, thread.id, "archived")
+      {:ok, []}
+    end)
+
+    reject(MCPServers, :list, 1)
+
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.status == :archived
+    assert Repo.reload!(run).status == "cancelled"
+    refute Enum.any?(fresh.messages, &(&1.kind == "agent"))
+  end
+
   test "an unreadable checkpoint never silently starts a fresh model conversation" do
     user = AccountsFixtures.user_fixture()
     stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)

@@ -34,6 +34,7 @@
         @State var following = true
         @State var pendingJump: String?
         @FocusState var composing: Bool
+        @StateObject var voice = ThreadVoiceInput()
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.accessibilityReduceMotion) var reduceMotion
         @Environment(\.dynamicTypeSize) var typeSize
@@ -172,9 +173,14 @@
                     if error == nil { error = String(localized: "Connection lost. Reconnecting…") }
                 })
             }
-            .onDisappear { lifecycle = UUID(); historyID = UUID() }
+            .onDisappear { lifecycle = UUID(); historyID = UUID(); voice.cancel() }
             .onChange(of: scenePhase) { _, phase in
-                if phase != .active { lifecycle = UUID(); historyID = UUID(); shipPreview = nil }
+                if phase != .active {
+                    lifecycle = UUID()
+                    historyID = UUID()
+                    shipPreview = nil
+                    voice.cancel()
+                }
             }
         }
     }

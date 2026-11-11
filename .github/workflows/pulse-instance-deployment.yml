@@ -142,6 +142,14 @@ jobs:
         run: |
           set -euo pipefail
           kubectl --request-timeout=10s get --raw /version >/dev/null
+          # The staging replacement deliberately retains this Helm release's
+          # ownership. Ownership alone must not permit a Pulse release to
+          # overwrite a qualified Greptime gateway on the next publication.
+          live=$(kubectl -n "$NAMESPACE" get deployment pulse --ignore-not-found -o json)
+          if [[ -n "$live" ]] && jq -e '.metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest"' <<< "$live" >/dev/null; then
+            echo '::error::This environment uses the independent Greptime replacement; refusing to restore a Pulse writer.'
+            exit 1
+          fi
           # Only query known namespaced resource kinds. Never read a Secret or
           # permit a chart to expand this deployment into cluster-level writes.
           jq -r '.[] | [.kind, .metadata.name, (.metadata.namespace // "observability")] | @tsv' \

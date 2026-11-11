@@ -439,6 +439,15 @@
 "Tool result" = "Tool result";
 "Try again" = "Try again";
 "Tuist is working…" = "Tuist is working…";
+"Allow microphone access in Settings to record a message." = "Allow microphone access in Settings to record a message.";
+"Allow speech recognition in Settings to transcribe on this device." = "Allow speech recognition in Settings to transcribe on this device.";
+"Could not start dictation. Your typed draft is unchanged." = "Could not start dictation. Your typed draft is unchanged.";
+"No speech was captured. Your typed draft is unchanged." = "No speech was captured. Your typed draft is unchanged.";
+"Recording on this device" = "Recording on this device";
+"Stop dictation" = "Stop dictation";
+"Tap stop to add editable text. Nothing is sent automatically." = "Tap stop to add editable text. Nothing is sent automatically.";
+"Transcribe a voice message" = "Transcribe a voice message";
+"Uses on-device speech recognition. Nothing is sent automatically." = "Uses on-device speech recognition. Nothing is sent automatically.";
 "What would you like Tuist to do?" = "What would you like Tuist to do?";
 "Worktree branch" = "Worktree branch";
 "You" = "You";

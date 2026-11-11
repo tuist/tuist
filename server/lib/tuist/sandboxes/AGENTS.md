@@ -264,8 +264,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   awaiting deletion, leaving room for shard artifacts; uploads can cross it.
   There is no per-account archive limit. Account-storage archives have no cap.
   Existing archives do not move or expire. There is no count of paused Orbs per account.
-  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
-  `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
+  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (every minute) runs
+  `Archives.run/0`, which also queues the oldest idle Orb on each node above
+  `Environment.sandbox_archive_disk_high_water_percent/0` (default 85% of
+  the reserved disk budget, snapshot copies included), rechecking pressure
+  before uploading. It also aborts uploads abandoned for 45 minutes and
   reverts restores stuck for 15.
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota

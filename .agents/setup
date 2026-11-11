@@ -46,7 +46,7 @@ retry() {
 # requires and Debian 12 does not ship.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
-  inotify-tools postgresql-16 postgresql-client-16
+  ffmpeg inotify-tools postgresql-16 postgresql-client-16
 )
 missing_packages=()
 for package in "${apt_packages[@]}"; do

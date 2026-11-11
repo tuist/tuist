@@ -346,6 +346,8 @@ spec:
             - name: TUIST_SANDBOX_ARCHIVE_AFTER_HOURS
               value: {{ . | quote }}
             {{- end }}
+            - name: TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT
+              value: {{ .Values.sandboxes.archiveDiskHighWaterPercent | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address

@@ -175,7 +175,8 @@ defmodule TuistWeb.PulseLive do
   end
 
   defp authorize!(socket) do
-    if !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account) do
+    if !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account) or
+         (socket.assigns.live_action == :errors and !Pulse.errors_available?()) do
       raise TuistWeb.Errors.NotFoundError, "Not found"
     end
   end
@@ -836,8 +837,13 @@ defmodule TuistWeb.PulseLive do
   defp title("traces"), do: dgettext("dashboard_pulse", "Traces")
   defp title("errors"), do: dgettext("dashboard_pulse", "Errors")
   defp query_language("metrics"), do: "PromQL"
-  defp query_language("traces"), do: "TraceQL"
-  defp query_language(_), do: "LogQL"
+
+  defp query_language("traces"),
+    do: if(Pulse.greptime?(), do: dgettext("dashboard_pulse", "Text search (* for all)"), else: "TraceQL")
+
+  defp query_language(_),
+    do: if(Pulse.greptime?(), do: dgettext("dashboard_pulse", "Text search (* for all)"), else: "LogQL")
+
   defp signal_icon("metrics"), do: "chart_arcs"
   defp signal_icon("traces"), do: "list_tree"
   defp signal_icon("errors"), do: "alert_circle"

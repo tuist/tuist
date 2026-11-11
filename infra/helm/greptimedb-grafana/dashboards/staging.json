@@ -1,0 +1,55 @@
+{
+  "uid": "greptime-staging",
+  "title": "Staging observability · GreptimeDB qualification",
+  "description": "Upstream GreptimeDB staging qualification toward a possible future Pulse fork. No fork or production cutover exists. All queries use the read-only dashboard identity.",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["staging", "greptimedb", "qualification"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {"list": [
+    {"name": "trace_id", "label": "Trace ID (blank selects newest)", "type": "textbox", "current": {"text": "", "value": ""}, "options": []}
+  ]},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Scrape target health",
+      "description": "Actual ingested up series. No series is not a successful health check.",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "greptime-staging-metrics"},
+      "targets": [{"refId": "A", "expr": "up", "range": true, "legendFormat": "{{job}} · {{instance}}"}],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1}, "overrides": []}
+    },
+    {
+      "id": 2, "type": "logs", "title": "Recent logs",
+      "gridPos": {"x": 0, "y": 7, "w": 24, "h": 9},
+      "datasource": {"type": "info8fcc-greptimedb-datasource", "uid": "greptime-staging-sql"},
+      "targets": [{
+        "refId": "A", "editorType": "sql", "queryType": "logs", "format": 2,
+        "rawSql": "SELECT timestamp, body, severity_text AS level, trace_id, span_id, json_get_string(resource_attributes, '[\"service.name\"]') AS service_name FROM opentelemetry_logs WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 100"
+      }],
+      "options": {"showTime": true, "showLabels": false, "wrapLogMessage": true, "sortOrder": "Descending"}
+    },
+    {
+      "id": 3, "type": "table", "title": "Recent spans",
+      "description": "Copy a trace_id into the Trace ID field to inspect its waterfall below.",
+      "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8},
+      "datasource": {"type": "info8fcc-greptimedb-datasource", "uid": "greptime-staging-sql"},
+      "targets": [{
+        "refId": "A", "editorType": "sql", "queryType": "table", "format": 1,
+        "rawSql": "SELECT timestamp, trace_id, span_id, service_name, span_name, duration_nano / 1000000.0 AS duration_ms, span_status_code FROM opentelemetry_traces WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 100"
+      }]
+    },
+    {
+      "id": 4, "type": "traces", "title": "Trace waterfall",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 18},
+      "datasource": {"type": "info8fcc-greptimedb-datasource", "uid": "greptime-staging-sql"},
+      "targets": [{
+        "refId": "Trace ID", "editorType": "sql", "queryType": "traces", "format": 3,
+        "rawSql": "SELECT timestamp, trace_id, span_id, parent_span_id, service_name, span_name, duration_nano, span_status_code FROM opentelemetry_traces WHERE $__timeFilter(timestamp) AND trace_id = COALESCE(NULLIF(${trace_id:sqlstring}, ''), (SELECT trace_id FROM opentelemetry_traces WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 1)) ORDER BY timestamp LIMIT 1000",
+        "meta": {"builderOptions": {"queryType": "traces", "meta": {"isTraceIdMode": true, "traceDurationUnit": "nanoseconds"}}}
+      }]
+    }
+  ]
+}

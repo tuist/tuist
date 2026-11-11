@@ -69,7 +69,7 @@ defmodule TuistWeb.PulseErrorLive do
   end
 
   defp authorize!(socket) do
-    if !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account),
+    if !Pulse.errors_available?() or !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account),
       do: raise(TuistWeb.Errors.NotFoundError, "Not found")
   end
 

@@ -75,6 +75,10 @@
                             .modifier(ThreadGlassSurface(cornerRadius: 28, interactive: true))
                     }.buttonStyle(.plain)
                 } else {
+                    if let error = voice.errorMessage {
+                        Text(error).font(.caption).foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                    }
                     if !isLive, let query = mentionQuery {
                         ScrollView(.horizontal) {
                             HStack {
@@ -92,7 +96,7 @@
                                 }
                             }.padding(.horizontal, 16).padding(.vertical, 6)
                         }.scrollClipDisabled()
-                    } else if draft.text.isEmpty, !busy, !thread.suggestedPrompts.isEmpty {
+                    } else if draft.text.isEmpty, !busy, !voice.isRecording, !thread.suggestedPrompts.isEmpty {
                         ScrollView(.horizontal) {
                             HStack(spacing: 8) {
                                 ForEach(thread.suggestedPrompts, id: \.self) { prompt in
@@ -122,18 +126,26 @@
                     HStack(alignment: .bottom, spacing: 8) {
                         let placeholder = typeSize.isAccessibilitySize ? "Message…" :
                             thread.visibility == "shared" ? "Message, or ask @Tuist…" : "Message Tuist…"
-                        TextField(
-                            placeholder,
-                            text: $draft.text,
-                            prompt: Text(placeholder).foregroundStyle(.primary),
-                            axis: .vertical
-                        )
-                        .lineLimit(1 ... 5).focused($composing)
+                        Group {
+                            if voice.isRecording {
+                                ThreadVoiceLevels(levels: voice.levels)
+                                    .accessibilityLabel("Recording on this device")
+                                    .accessibilityHint("Tap stop to add editable text. Nothing is sent automatically.")
+                            } else {
+                                TextField(
+                                    placeholder,
+                                    text: $draft.text,
+                                    prompt: Text(placeholder).foregroundStyle(.primary),
+                                    axis: .vertical
+                                )
+                                .lineLimit(1 ... 5).focused($composing)
+                                .accessibilityIdentifier("thread-message")
+                            }
+                        }
                         .padding(.leading, 16).padding(.vertical, 12)
                         .padding(.trailing, 8)
                         .frame(minHeight: 52)
                         .modifier(ThreadGlassSurface(cornerRadius: 28))
-                        .accessibilityIdentifier("thread-message")
                         if composing {
                             Button { composing = false } label: {
                                 Image(systemName: "keyboard.chevron.compact.down")
@@ -145,6 +157,24 @@
                             .foregroundStyle(.primary).buttonStyle(.plain)
                             .accessibilityLabel("Hide keyboard")
                         }
+                        Button {
+                            if voice.isRecording {
+                                voice.finish { draft.text = ThreadVoiceInput.appending($0, to: draft.text) }
+                            } else {
+                                Task { await voice.start() }
+                            }
+                        } label: {
+                            Image(systemName: voice.isRecording ? "stop.fill" : "mic.fill")
+                                .font(.system(size: 20, weight: .semibold)).frame(width: 48, height: 48)
+                                .contentShape(Circle())
+                                .modifier(ThreadGlassSurface(cornerRadius: 24, interactive: true))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(voice.isRecording ? "Stop dictation" : "Transcribe a voice message")
+                        .accessibilityHint(voice.isRecording
+                            ? "Adds editable text to your draft. Does not send a message."
+                            : "Uses on-device speech recognition. Nothing is sent automatically.")
+                        .disabled(busy || thread.isRunning || thread.status == "outcome_unknown")
                         Button { Task { await send() } } label: {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 20, weight: .semibold)).frame(width: 48, height: 48)
@@ -152,7 +182,8 @@
                                 .modifier(ThreadGlassSurface(cornerRadius: 24, interactive: true))
                         }
                         .buttonStyle(.plain).accessibilityLabel("Send")
-                        .disabled(draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy ||
+                        .disabled(voice.isRecording || draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty || busy ||
                             thread.isRunning || thread.status == "outcome_unknown")
                     }
                     .padding(.horizontal, 16)
