@@ -356,6 +356,70 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert changes(repository, "p1") == %{"A.swift" => "a1", "B.swift" => "b2"}
   end
 
+  test "a commit listed below more commits than one statement names leaves each with its files", %{
+    repository: repository
+  } do
+    forks = for n <- 1..210, do: "f#{n}"
+    commits(repository, [{"r", []}, {"a", ["r"]}, {"b", ["a"]} | Enum.map(forks, &{&1, ["a"]})])
+    head(repository, "main", "b")
+    for sha <- forks, do: head(repository, "pull/#{sha}", sha)
+
+    list(repository, "r", %{"A.swift" => "a0", "B.swift" => "b0"})
+    list(repository, "b", %{"A.swift" => "a0", "B.swift" => "b1"})
+
+    # Each fork written with the one file it added, without a write per fork.
+    expires_at = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), 90, :day)
+
+    places =
+      Repo.all(
+        from(c in Commit,
+          where: c.repository_id == ^repository and c.sha in ^forks,
+          select: %{sha: c.sha, ref_id: c.ref_id, position: c.position, generation: c.generation}
+        )
+      )
+
+    Repo.insert_all(
+      CommitListing,
+      for place <- places do
+        %{
+          repository_id: repository,
+          sha: place.sha,
+          files_count: 3,
+          truncated: false,
+          inserted_at: DateTime.utc_now(:second),
+          changes_ref_id: place.ref_id,
+          changes_position: place.position,
+          changes_expires_at: expires_at,
+          changes_count: 1
+        }
+      end
+    )
+
+    IngestRepo.insert_all(
+      FileChange,
+      for place <- places do
+        Map.merge(place, %{
+          repository_id: repository,
+          path: "F.swift",
+          git_blob_id: place.sha,
+          mode: @mode,
+          expires_at: DateTime.to_naive(expires_at),
+          row_version: System.os_time(:microsecond),
+          is_deleted: 0
+        })
+      end
+    )
+
+    list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b0"})
+
+    held = for row <- rows(repository), row.path == "A.swift", into: %{}, do: {row.sha, row.git_blob_id}
+    assert held == Map.put(Map.new(["r", "b" | forks], &{&1, "a0"}), "a", "a1")
+    assert files(repository, "f210") == with_mode(%{"A.swift" => "a0", "B.swift" => "b0", "F.swift" => "f210"})
+
+    counts = from(l in CommitListing, where: l.repository_id == ^repository and l.sha in ^forks, select: l.changes_count)
+    assert counts |> Repo.all() |> Enum.uniq() == [2]
+  end
+
   test "a branch that keeps receiving commits keeps its rows", %{repository: repository} do
     commits(repository, [{"a", []}, {"f1", ["a"]}, {"f2", ["f1"]}, {"f3", ["f2"]}])
     head(repository, "main", "a")
