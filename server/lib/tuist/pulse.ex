@@ -539,13 +539,7 @@ defmodule Tuist.Pulse do
   end
 
   defp do_request(client, path, params, extra) do
-    {path, auth, headers} =
-      if client.backend == :greptime do
-        path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
-        {path, {:basic, "dashboard:" <> client.token}, [{"x-greptime-db-name", client.tenant}]}
-      else
-        {path, {:bearer, client.token}, [{"x-scope-orgid", client.tenant}]}
-      end
+    {path, auth, headers} = request_target(client, path)
 
     request =
       Req.new(
@@ -574,6 +568,13 @@ defmodule Tuist.Pulse do
       {:error, _reason} -> {:error, :unavailable}
     end
   end
+
+  defp request_target(%{backend: :greptime} = client, path) do
+    path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
+    {path, {:basic, "dashboard:" <> client.token}, [{"x-greptime-db-name", client.tenant}]}
+  end
+
+  defp request_target(client, path), do: {path, {:bearer, client.token}, [{"x-scope-orgid", client.tenant}]}
 
   defp bounded_body({:data, data}, {request, response}) do
     body = response.body || ""

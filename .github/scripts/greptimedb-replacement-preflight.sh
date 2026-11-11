@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CI-only reads of workload/ESO metadata and desired specs, never Secrets.
 set -euo pipefail
+trap 'echo "::error::Pulse replacement preflight failed at line $LINENO; no gateway upgrade attempted."' ERR
 rendered=${1:?rendered gateway chart required}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -21,13 +22,19 @@ kubectl -n observability get service pulse -o json | jq -e '
   any(.spec.ports[]; .name == "http" and .port == 4000 and .targetPort == "http")' > /dev/null
 kubectl -n observability get externalsecret pulse-credentials -o json > "$tmp/live-eso.json"
 jq -e --slurpfile desired "$tmp/desired.json" '
+  # The API server fills these CRD defaults; compare both source lists with
+  # defaults applied, without dropping non-default choices or other fields.
+  def normalized_sources:
+    map(.remoteRef |= ({conversionStrategy:"Default", decodingStrategy:"None",
+                       metadataPolicy:"None", nullBytePolicy:"Ignore"} + .)) |
+    sort_by(.secretKey);
   ($desired[0][] | select(.kind == "ExternalSecret").spec) as $want |
   .spec.secretStoreRef == $want.secretStoreRef and
   .spec.target.name == $want.target.name and
   .spec.target.creationPolicy == $want.target.creationPolicy and
   .spec.target.template.engineVersion == $want.target.template.engineVersion and
   .spec.target.template.data == $want.target.template.data and
-  (.spec.data | sort_by(.secretKey)) == ($want.data | sort_by(.secretKey))
+  (.spec.data | normalized_sources) == ($want.data | normalized_sources)
 ' "$tmp/live-eso.json" > /dev/null
 # Refuse collisions on the only newly named resource. Existing backend ownership
 # never moves into this release, and no bucket content is listed or deleted here.

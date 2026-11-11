@@ -55,27 +55,31 @@ defmodule Tuist.Pulse.Greptime do
 
     with {:ok, rows} <- sql(request, query),
          true <- Enum.all?(rows, &(is_nil(&1["value"]) or is_number(&1["value"]))) do
-      if mode == :range do
-        if Enum.all?(rows, &(is_integer(&1["bucket"]) and &1["bucket"] > window.start and &1["bucket"] <= window.finish)) do
-          values = Map.new(rows, &{&1["bucket"], &1["value"]})
-          empty = if id == "duration_p95", do: nil, else: 0
-
-          points =
-            for time <- (window.start + window.step)..window.finish//window.step, do: [time, Map.get(values, time, empty)]
-
-          {:ok, points, []}
-        else
-          {:error, :malformed_response}
-        end
-      else
-        case rows do
-          [%{"value" => value}] -> {:ok, value, []}
-          _ -> {:error, :malformed_response}
-        end
-      end
+      aggregate_result(rows, mode, id, window)
     else
       false -> {:error, :malformed_response}
       error -> error
+    end
+  end
+
+  defp aggregate_result(rows, :range, id, window) do
+    if Enum.all?(rows, &(is_integer(&1["bucket"]) and &1["bucket"] > window.start and &1["bucket"] <= window.finish)) do
+      values = Map.new(rows, &{&1["bucket"], &1["value"]})
+      empty = if id == "duration_p95", do: nil, else: 0
+
+      points =
+        for time <- (window.start + window.step)..window.finish//window.step, do: [time, Map.get(values, time, empty)]
+
+      {:ok, points, []}
+    else
+      {:error, :malformed_response}
+    end
+  end
+
+  defp aggregate_result(rows, _mode, _id, _window) do
+    case rows do
+      [%{"value" => value}] -> {:ok, value, []}
+      _ -> {:error, :malformed_response}
     end
   end
 

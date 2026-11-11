@@ -37,11 +37,21 @@ else {
   if (!value) process.exit(98);
   if (scenario === 'owner') value.metadata.annotations['meta.helm.sh/release-name'] = 'other';
   if (scenario === 'selector' && kind === 'deployment') value.spec.selector.matchLabels['app.kubernetes.io/name'] = 'other';
+  if (kind === 'externalsecret') {
+    for (const source of value.spec.data) {
+      source.remoteRef = {conversionStrategy:'Default',decodingStrategy:'None',metadataPolicy:'None',nullBytePolicy:'Ignore',...source.remoteRef};
+    }
+    if (scenario === 'conversion') value.spec.data[0].remoteRef.conversionStrategy = 'Unicode';
+    if (scenario === 'decoding') value.spec.data[0].remoteRef.decodingStrategy = 'Base64';
+    if (scenario === 'metadata') value.spec.data[0].remoteRef.metadataPolicy = 'Fetch';
+    if (scenario === 'null byte') value.spec.data[0].remoteRef.nullBytePolicy = 'Replace';
+    if (scenario === 'source') value.spec.data[0].remoteRef.key = 'other/password';
+  }
   if (scenario === 'ESO' && kind === 'externalsecret') value.spec.target.template.data['pulse-password'] = 'changed';
 }
 if (args.includes('name')) process.stdout.write(value.metadata.name); else process.stdout.write(JSON.stringify(value));
 `, {mode:0o755});
-    for (const scenario of ['success','owner','selector','ESO','extra pool','capacity','config conflict']) {
+    for (const scenario of ['success','owner','selector','ESO','conversion','decoding','metadata','null byte','source','extra pool','capacity','config conflict']) {
       const result = spawnSync('bash', ['.github/scripts/greptimedb-replacement-preflight.sh',join(work,'gateway.yaml')], {
         encoding:'utf8', env:{...process.env,PATH:`${work}:${process.env.PATH}`,FIXTURE:work,SCENARIO:scenario},
       });
