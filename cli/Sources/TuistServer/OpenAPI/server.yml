@@ -1043,8 +1043,8 @@ components:
           x-struct:
           x-validate:
       required:
-        - page
         - end_at
+        - page
         - page_size
         - total_count
         - total_pages
@@ -5789,6 +5789,69 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerJobOutOfMemory:
+      description: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+      nullable: true
+      properties:
+        description:
+          description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+          type: string
+          x-struct:
+          x-validate:
+        first_kill_at:
+          description: When the first kill was reported.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        kill_count:
+          description: Processes the runner VM killed.
+          type: integer
+          x-struct:
+          x-validate:
+        victim:
+          description: The process killed last, or null when the runner did not name it.
+          nullable: true
+          properties:
+            container:
+              description: 'Its Docker container: null outside a container, docker-build for a docker build step.'
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            image:
+              description: That container's image.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            memory_bytes:
+              description: Memory the process was using.
+              type: integer
+              x-struct:
+              x-validate:
+            process:
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - process
+            - memory_bytes
+            - container
+            - image
+          title: RunnerJobOutOfMemoryVictim
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - kill_count
+        - first_kill_at
+        - victim
+        - description
+      title: RunnerJobOutOfMemory
+      type: object
+      x-struct:
+      x-validate:
     RunnerVolumePagination:
       additionalProperties: false
       properties:
@@ -6281,6 +6344,40 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCase
       x-validate:
+    RunnerJobOutOfMemoryVictim:
+      description: The process killed last, or null when the runner did not name it.
+      nullable: true
+      properties:
+        container:
+          description: 'Its Docker container: null outside a container, docker-build for a docker build step.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        image:
+          description: That container's image.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        memory_bytes:
+          description: Memory the process was using.
+          type: integer
+          x-struct:
+          x-validate:
+        process:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - process
+        - memory_bytes
+        - container
+        - image
+      title: RunnerJobOutOfMemoryVictim
+      type: object
+      x-struct:
+      x-validate:
     PulseQuery:
       additionalProperties: false
       properties:
@@ -6317,8 +6414,8 @@ components:
               x-struct:
               x-validate:
           required:
-            - page
             - end_at
+            - page
             - page_size
             - total_count
             - total_pages
@@ -6698,6 +6795,31 @@ components:
       minimum: 1
       title: PreviewIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    SandboxUpload:
+      properties:
+        download_url:
+          description: Presigned URL to GET the file from in the sandbox.
+          type: string
+          x-struct:
+          x-validate:
+        expires_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        upload_url:
+          description: Presigned URL to PUT the file to.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - upload_url
+        - download_url
+        - expires_at
+      title: SandboxUpload
+      type: object
       x-struct:
       x-validate:
     BuildCategory:
@@ -8135,12 +8257,42 @@ components:
           type: string
           x-struct:
           x-validate:
+        anthropic_federation_rule_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_organization_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_service_account_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_workspace_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         enabled:
           type: boolean
           x-struct:
           x-validate:
+        federation_issuer_url:
+          description: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+          type: string
+          x-struct:
+          x-validate:
+        federation_subject:
+          description: The sub claim of the tokens Tuist signs for this environment.
+          type: string
+          x-struct:
+          x-validate:
         has_api_key:
-          description: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+          description: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
           type: boolean
           x-struct:
           x-validate:
@@ -8215,6 +8367,12 @@ components:
         - pause_grace_seconds
         - enabled
         - has_api_key
+        - anthropic_organization_id
+        - anthropic_workspace_id
+        - anthropic_service_account_id
+        - anthropic_federation_rule_id
+        - federation_issuer_url
+        - federation_subject
         - anthropic_agent_id
         - agent_model
         - agent_system_prompt
@@ -9242,6 +9400,30 @@ components:
           x-validate:
         anthropic_environment_id:
           description: 'The Anthropic environment identifier: env_... or, for claude_code, ccpool_...'
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_federation_rule_id:
+          description: "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_organization_id:
+          description: 'Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_service_account_id:
+          description: 'Workload Identity Federation: the service account (svac_...) the tokens act as.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_workspace_id:
+          description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -15153,6 +15335,182 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerJobDetail:
+      properties:
+        claimed_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        completed_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        conclusion:
+          type: string
+          x-struct:
+          x-validate:
+        enqueued_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        head_branch:
+          type: string
+          x-struct:
+          x-validate:
+        head_sha:
+          type: string
+          x-struct:
+          x-validate:
+        job_name:
+          type: string
+          x-struct:
+          x-validate:
+        log_archived_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        out_of_memory:
+          description: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+          nullable: true
+          properties:
+            description:
+              description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+              type: string
+              x-struct:
+              x-validate:
+            first_kill_at:
+              description: When the first kill was reported.
+              format: date-time
+              type: string
+              x-struct:
+              x-validate:
+            kill_count:
+              description: Processes the runner VM killed.
+              type: integer
+              x-struct:
+              x-validate:
+            victim:
+              description: The process killed last, or null when the runner did not name it.
+              nullable: true
+              properties:
+                container:
+                  description: 'Its Docker container: null outside a container, docker-build for a docker build step.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                image:
+                  description: That container's image.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                memory_bytes:
+                  description: Memory the process was using.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                process:
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - process
+                - memory_bytes
+                - container
+                - image
+              title: RunnerJobOutOfMemoryVictim
+              type: object
+              x-struct:
+              x-validate:
+          required:
+            - kill_count
+            - first_kill_at
+            - victim
+            - description
+          title: RunnerJobOutOfMemory
+          type: object
+          x-struct:
+          x-validate:
+        platform:
+          type: string
+          x-struct:
+          x-validate:
+        repository:
+          type: string
+          x-struct:
+          x-validate:
+        requested_dispatch_label:
+          type: string
+          x-struct:
+          x-validate:
+        run_attempt:
+          type: integer
+          x-struct:
+          x-validate:
+        started_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_job_id:
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_name:
+          type: string
+          x-struct:
+          x-validate:
+        workflow_run_id:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - workflow_job_id
+        - repository
+        - workflow_run_id
+        - workflow_name
+        - run_attempt
+        - job_name
+        - head_branch
+        - head_sha
+        - status
+        - conclusion
+        - platform
+        - vcpus
+        - memory_gb
+        - requested_dispatch_label
+        - enqueued_at
+        - updated_at
+      title: RunnerJobDetail
+      type: object
+      x-struct:
+      x-validate:
     PulseErrorFrame:
       additionalProperties: false
       properties:
@@ -16743,6 +17101,31 @@ components:
           type: integer
           x-struct:
           x-validate:
+        oom_kill_count:
+          description: Processes the runner VM killed for running out of memory since the job started.
+          type: integer
+          x-struct:
+          x-validate:
+        oom_victim_container:
+          description: "That process's Docker container: empty outside a container, docker-build for a docker build step."
+          type: string
+          x-struct:
+          x-validate:
+        oom_victim_image:
+          description: That container's image, or empty.
+          type: string
+          x-struct:
+          x-validate:
+        oom_victim_memory_bytes:
+          description: Memory that process was using.
+          type: integer
+          x-struct:
+          x-validate:
+        oom_victim_process:
+          description: The process the runner VM killed last for running out of memory, or empty.
+          type: string
+          x-struct:
+          x-validate:
         timestamp:
           type: number
           x-struct:
@@ -16757,6 +17140,11 @@ components:
         - network_bytes_out
         - disk_used_bytes
         - disk_total_bytes
+        - oom_kill_count
+        - oom_victim_process
+        - oom_victim_memory_bytes
+        - oom_victim_container
+        - oom_victim_image
       title: RunnerJobMetric
       type: object
       x-struct:
@@ -17196,6 +17584,30 @@ components:
           x-validate:
         anthropic_api_key:
           description: An Anthropic API key with access to the environment's organization. Never returned.
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_federation_rule_id:
+          description: "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_organization_id:
+          description: 'Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_service_account_id:
+          description: 'Workload Identity Federation: the service account (svac_...) the tokens act as.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        anthropic_workspace_id:
+          description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -18959,8 +19371,8 @@ components:
               x-struct:
               x-validate:
           required:
-            - page
             - end_at
+            - page
             - page_size
             - total_count
             - total_pages
@@ -22319,6 +22731,69 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  out_of_memory:
+                    description: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+                    nullable: true
+                    properties:
+                      description:
+                        description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      first_kill_at:
+                        description: When the first kill was reported.
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      kill_count:
+                        description: Processes the runner VM killed.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      victim:
+                        description: The process killed last, or null when the runner did not name it.
+                        nullable: true
+                        properties:
+                          container:
+                            description: 'Its Docker container: null outside a container, docker-build for a docker build step.'
+                            nullable: true
+                            type: string
+                            x-struct:
+                            x-validate:
+                          image:
+                            description: That container's image.
+                            nullable: true
+                            type: string
+                            x-struct:
+                            x-validate:
+                          memory_bytes:
+                            description: Memory the process was using.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          process:
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - process
+                          - memory_bytes
+                          - container
+                          - image
+                        title: RunnerJobOutOfMemoryVictim
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kill_count
+                      - first_kill_at
+                      - victim
+                      - description
+                    title: RunnerJobOutOfMemory
+                    type: object
+                    x-struct:
+                    x-validate:
                   platform:
                     type: string
                     x-struct:
@@ -22383,7 +22858,7 @@ paths:
                   - requested_dispatch_label
                   - enqueued_at
                   - updated_at
-                title: RunnerJob
+                title: RunnerJobDetail
                 type: object
                 x-struct:
                 x-validate:
@@ -22670,6 +23145,31 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        oom_kill_count:
+                          description: Processes the runner VM killed for running out of memory since the job started.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        oom_victim_container:
+                          description: "That process's Docker container: empty outside a container, docker-build for a docker build step."
+                          type: string
+                          x-struct:
+                          x-validate:
+                        oom_victim_image:
+                          description: That container's image, or empty.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        oom_victim_memory_bytes:
+                          description: Memory that process was using.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        oom_victim_process:
+                          description: The process the runner VM killed last for running out of memory, or empty.
+                          type: string
+                          x-struct:
+                          x-validate:
                         timestamp:
                           type: number
                           x-struct:
@@ -22684,6 +23184,11 @@ paths:
                         - network_bytes_out
                         - disk_used_bytes
                         - disk_total_bytes
+                        - oom_kill_count
+                        - oom_victim_process
+                        - oom_victim_memory_bytes
+                        - oom_victim_container
+                        - oom_victim_image
                       title: RunnerJobMetric
                       type: object
                       x-struct:
@@ -41558,8 +42063,8 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - page
                       - end_at
+                      - page
                       - page_size
                       - total_count
                       - total_pages
@@ -43952,12 +44457,42 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        anthropic_federation_rule_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        anthropic_organization_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        anthropic_service_account_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        anthropic_workspace_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         enabled:
                           type: boolean
                           x-struct:
                           x-validate:
+                        federation_issuer_url:
+                          description: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        federation_subject:
+                          description: The sub claim of the tokens Tuist signs for this environment.
+                          type: string
+                          x-struct:
+                          x-validate:
                         has_api_key:
-                          description: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                          description: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                           type: boolean
                           x-struct:
                           x-validate:
@@ -44032,6 +44567,12 @@ paths:
                         - pause_grace_seconds
                         - enabled
                         - has_api_key
+                        - anthropic_organization_id
+                        - anthropic_workspace_id
+                        - anthropic_service_account_id
+                        - anthropic_federation_rule_id
+                        - federation_issuer_url
+                        - federation_subject
                         - anthropic_agent_id
                         - agent_model
                         - agent_system_prompt
@@ -44119,6 +44660,30 @@ paths:
                   x-validate:
                 anthropic_environment_id:
                   description: 'The Anthropic environment identifier: env_... or, for claude_code, ccpool_...'
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_federation_rule_id:
+                  description: "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_organization_id:
+                  description: 'Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_service_account_id:
+                  description: 'Workload Identity Federation: the service account (svac_...) the tokens act as.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_workspace_id:
+                  description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+                  nullable: true
                   type: string
                   x-struct:
                   x-validate:
@@ -44227,12 +44792,42 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  anthropic_federation_rule_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_organization_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_service_account_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_workspace_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   enabled:
                     type: boolean
                     x-struct:
                     x-validate:
+                  federation_issuer_url:
+                    description: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  federation_subject:
+                    description: The sub claim of the tokens Tuist signs for this environment.
+                    type: string
+                    x-struct:
+                    x-validate:
                   has_api_key:
-                    description: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                    description: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -44307,6 +44902,12 @@ paths:
                   - pause_grace_seconds
                   - enabled
                   - has_api_key
+                  - anthropic_organization_id
+                  - anthropic_workspace_id
+                  - anthropic_service_account_id
+                  - anthropic_federation_rule_id
+                  - federation_issuer_url
+                  - federation_subject
                   - anthropic_agent_id
                   - agent_model
                   - agent_system_prompt
@@ -44960,8 +45561,8 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - page
                       - end_at
+                      - page
                       - page_size
                       - total_count
                       - total_pages
@@ -50060,7 +50661,7 @@ paths:
         - Sandboxes
     patch:
       callbacks: {}
-      description: Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+      description: Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
       operationId: updateSandboxAgentEnvironment
       parameters:
         - description: The account handle.
@@ -50103,6 +50704,30 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                anthropic_federation_rule_id:
+                  description: "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_organization_id:
+                  description: 'Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_service_account_id:
+                  description: 'Workload Identity Federation: the service account (svac_...) the tokens act as.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                anthropic_workspace_id:
+                  description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
               title: UpdateSandboxAgentEnvironment
               type: object
               x-struct:
@@ -50135,12 +50760,42 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  anthropic_federation_rule_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_organization_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_service_account_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_workspace_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   enabled:
                     type: boolean
                     x-struct:
                     x-validate:
+                  federation_issuer_url:
+                    description: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  federation_subject:
+                    description: The sub claim of the tokens Tuist signs for this environment.
+                    type: string
+                    x-struct:
+                    x-validate:
                   has_api_key:
-                    description: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                    description: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -50215,6 +50870,12 @@ paths:
                   - pause_grace_seconds
                   - enabled
                   - has_api_key
+                  - anthropic_organization_id
+                  - anthropic_workspace_id
+                  - anthropic_service_account_id
+                  - anthropic_federation_rule_id
+                  - federation_issuer_url
+                  - federation_subject
                   - anthropic_agent_id
                   - agent_model
                   - agent_system_prompt
@@ -57011,7 +57672,7 @@ paths:
         - Sandboxes
     post:
       callbacks: {}
-      description: "Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards."
+      description: "Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards."
       operationId: createSandboxAgentSession
       parameters:
         - description: The account handle.
@@ -66496,6 +67157,94 @@ paths:
       summary: Create a new project.
       tags:
         - Projects
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads:
+    post:
+      callbacks: {}
+      description: "Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after."
+      operationId: createSandboxUpload
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  download_url:
+                    description: Presigned URL to GET the file from in the sandbox.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  upload_url:
+                    description: Presigned URL to PUT the file to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - upload_url
+                  - download_url
+                  - expires_at
+                title: SandboxUpload
+                type: object
+                x-struct:
+                x-validate:
+          description: Upload
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Create an upload for a sandbox.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/bazel/invocations:
     get:
       callbacks: {}

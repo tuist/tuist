@@ -336,7 +336,7 @@ These tools manage the authenticated user's own notification rules: when an even
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_runner_jobs` | List continuous-integration runner jobs for an account. | `account_handle` |
-| `get_runner_job` | Get a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `get_runner_job` | Get a continuous-integration runner job, including whether its machine ran out of memory, what it stopped, and what to change. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_steps` | List the steps recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |

@@ -24,6 +24,11 @@ defmodule Tuist.Runners.JobMachineMetric do
     field :network_bytes_out, Ch, type: "Int64", default: 0
     field :disk_used_bytes, Ch, type: "Int64", default: 0
     field :disk_total_bytes, Ch, type: "Int64", default: 0
+    field :oom_kill_count, Ch, type: "Int64", default: 0
+    field :oom_victim_process, Ch, type: "String", default: ""
+    field :oom_victim_memory_bytes, Ch, type: "Int64", default: 0
+    field :oom_victim_container, Ch, type: "String", default: ""
+    field :oom_victim_image, Ch, type: "String", default: ""
     field :inserted_at, Ch, type: "DateTime64(6, 'UTC')"
   end
 end
