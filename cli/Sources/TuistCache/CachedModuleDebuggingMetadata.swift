@@ -47,21 +47,15 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         )
     }
 
-    private static func declaredSources(for target: GraphTarget, includingDocC: Bool = false) throws -> [String: SourceFile] {
+    private static func declaredSources(for target: GraphTarget) throws -> [String: SourceFile] {
         let filter = HashingFilesFilter()
         let folders = target.target.buildableFolders.flatMap(\.resolvedFiles).map(\.path).filter(filter.callAsFunction)
         let included = target.project.targets.values.filter { $0.name != target.target.name }
             .flatMap(\.buildableFolders).flatMap(\.exceptions)
             .filter { $0.target == target.target.name }.flatMap(\.included).filter(filter.callAsFunction)
-        let compiledExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions +
-            Target.validHeaderExtensions).subtracting(["docc"])
-        let folderSources = (folders + included).filter { path in
-            includingDocC || !path.components.contains(where: { $0.lowercased().hasSuffix(".docc") }) ||
-                compiledExtensions.contains(path.extension?.lowercased() ?? "")
-        }
-        // Catalogs enter the sources build phase for DocC, not for the module's debug information.
+        let folderSources = (folders + included).filter { !isDocumentation($0.pathString) }
         // Explicit compiled sources and headers remain validated even beneath a catalog.
-        let sources = target.target.sources.filter { includingDocC || $0.path.extension?.lowercased() != "docc" }
+        let sources = target.target.sources.filter { $0.path.extension?.lowercased() != "docc" }
         let headers = (target.target.headers?.public ?? []) + (target.target.headers?.private ?? []) +
             (target.target.headers?.project ?? [])
         var declared: [String: SourceFile] = [:]
@@ -255,8 +249,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         let declared = try declaredSources(for: target)
         guard !declared.values.contains(where: { $0.contentHashIsPlaceholder == true }) else { return nil }
         // Earlier versions recorded headers and DocC inputs too, and warming never replaces an artifact whose hash is stored.
-        let admissibleSourceSets = [Set(declared.keys), Set(try declaredSources(for: target, includingDocC: true).keys)]
-            .flatMap { [$0, $0.filter { !isHeader($0) }] }
+        let compiledSources = Set(declared.keys.filter { !isDocumentation($0) })
+        let admissibleSourceSets = [compiledSources, compiledSources.filter { !isHeader($0) }]
         var slices: [Self] = []
         for library in info.libraries {
             try Task.checkCancellation()
@@ -272,7 +266,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                   Set(original.debugPaths.keys).isSubset(of: Set(original.sources.keys)),
                   Set(original.debugPaths.keys).isSubset(of: Set(declared.keys)),
                   original.debugPaths.values.allSatisfy({ !$0.isEmpty }),
-                  !original.debugPaths.isEmpty || admissibleSourceSets.contains(Set(original.sources.keys))
+                  !original.debugPaths.isEmpty
+                  || admissibleSourceSets.contains(Set(original.sources.keys.filter { !isDocumentation($0) }))
             else { return nil }
             slices.append(original)
         }
@@ -306,6 +301,15 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     /// Headers are compiled only through the sources that include them, and they are binary-cache hash inputs.
     private static func isHeader(_ path: String) -> Bool {
         ["h", "hh", "hpp", "h++", "hp", "hxx", "ipp", "inl", "tpp"].contains((path as NSString).pathExtension.lowercased())
+    }
+
+    private static let compiledExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions +
+        Target.validHeaderExtensions).subtracting(["docc"])
+
+    /// Catalogs enter the sources build phase for DocC, not for the module's debug information.
+    private static func isDocumentation(_ path: String) -> Bool {
+        path.split(separator: "/").contains { $0.lowercased().hasSuffix(".docc") }
+            && !compiledExtensions.contains((path as NSString).pathExtension.lowercased())
     }
 
     private static func lowercasedFileName(_ path: String) -> String {

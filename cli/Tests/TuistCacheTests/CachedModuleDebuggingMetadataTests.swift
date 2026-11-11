@@ -540,7 +540,7 @@ struct CachedModuleDebuggingMetadataTests {
         #expect(try await admits(["Feature/Feature.swift"]))
         #expect(try await admits(["Feature/Feature.swift", documentation]))
         #expect(try await admits(["Feature/Feature.swift", "Feature/Feature.h", documentation]))
-        #expect(try await !admits(["Feature/Feature.swift", "Feature/Other.docc"]))
+        #expect(try await !admits([documentation]))
         #expect(try await !admits(["Feature/Feature.swift", "Feature/Removed.swift", documentation]))
     }
 
