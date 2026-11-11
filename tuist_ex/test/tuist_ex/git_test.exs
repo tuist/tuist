@@ -264,6 +264,22 @@ defmodule TuistEx.GitTest do
       assert git!(clone, ["rev-list", "--count", "HEAD"]) == "61"
     end
 
+    test "stops at a branch the remote rewrote", %{repo: repo} do
+      commits = empty_commits!(repo, 8)
+      head = List.last(commits)
+      clone = shallow_clone!(repo, "main")
+      # A force-push between the checkout and the report: the remote's branch
+      # no longer leads to the run's commit, so no fetch through it brings the
+      # commit's parent.
+      git!(repo, ["reset", "--quiet", "--hard", Enum.at(commits, 3)])
+      [rewritten] = empty_commits!(repo, 1)
+      assert {:ok, history} = Git.history(clone, head, nil)
+
+      assert Git.connected_history(clone, history, "main", server([])) == history
+      assert asked() == [[Enum.at(commits, 6)]]
+      assert git!(clone, ["rev-parse", "FETCH_HEAD"]) == rewritten
+    end
+
     test "fetches nothing when the server has the parent", %{repo: repo} do
       [parent, head] = empty_commits!(repo, 2)
       clone = shallow_clone!(repo, "main")

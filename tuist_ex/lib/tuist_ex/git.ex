@@ -198,8 +198,19 @@ defmodule TuistEx.Git do
     if limits.remote_access == :history and branch do
       heads = Enum.uniq([history.head_sha | List.wrap(history.base_head_sha)])
       deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
-      commits = connect(dir, history.commits, heads, branch, limits, unknown, deadline, {0, 50})
-      %{history | commits: commits}
+
+      state = %{
+        commits: history.commits,
+        parents: boundary_first_parents(dir, history.commits, heads),
+        unreachable: MapSet.new(),
+        depth: 0,
+        step: 50
+      }
+
+      # The full ref, so a branch name is never read as a tag or as an option
+      # of `git fetch`.
+      ref = "refs/heads/#{branch}"
+      %{history | commits: connect(dir, state, heads, ref, limits, unknown, deadline)}
     else
       history
     end
@@ -209,23 +220,38 @@ defmodule TuistEx.Git do
   # branch the remote has also deepens a head that is not on it, a pull
   # request's merge commit. The empty refmap keeps the checkout's own
   # `origin/<branch>` where the job's later steps expect it.
-  defp connect(dir, commits, heads, branch, limits, unknown, deadline, {depth, step}) do
+  defp connect(dir, state, heads, ref, limits, unknown, deadline) do
     max_depth = max(limits.window_commits, 50)
-    step = min(step, max_depth - depth)
-    parents = boundary_first_parents(dir, commits, heads)
+    step = min(state.step, max_depth - state.depth)
 
     fetch =
       ["fetch", "--quiet", "--no-tags", "--refmap=", "--filter=blob:none", "--deepen=#{step}"] ++
-        ["origin", branch]
+        ["origin", ref]
 
-    with true <- parents != [] and depth < max_depth,
+    with true <- state.parents != [] and state.depth < max_depth,
          true <- System.monotonic_time(:millisecond) < deadline,
-         false <- Enum.empty?(unknown.(parents)),
+         false <- Enum.empty?(unknown.(state.parents)),
          {:succeeded, _} <- run_until(dir, fetch, deadline),
-         [_ | _] = deepened <- window_commits(dir, heads, limits) do
-      connect(dir, deepened, heads, branch, limits, unknown, deadline, {depth + step, step * 2})
+         [_ | _] = commits <- window_commits(dir, heads, limits) do
+      # A parent the fetch left out of reach is not where the remote's branch
+      # leads, as after a force-push: a deeper fetch would bring more of that
+      # branch, never the parent.
+      reached = boundary_first_parents(dir, commits, heads)
+
+      still_missing = Enum.filter(reached, &(&1 in state.parents))
+      unreachable = MapSet.union(state.unreachable, MapSet.new(still_missing))
+
+      state = %{
+        commits: commits,
+        parents: Enum.reject(reached, &MapSet.member?(unreachable, &1)),
+        unreachable: unreachable,
+        depth: state.depth + step,
+        step: step * 2
+      }
+
+      connect(dir, state, heads, ref, limits, unknown, deadline)
     else
-      _ -> commits
+      _ -> state.commits
     end
   end
 

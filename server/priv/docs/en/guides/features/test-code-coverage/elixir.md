@@ -41,7 +41,7 @@ As in Mix, the threshold belongs to the summary, so `summary: false` turns off b
 
 Tuist tracks coverage per commit, so it needs your project in a Git repository: a run outside one uploads its test results but no coverage.
 
-Coverage relies on the <.localized_link href="/guides/features/test-insights/elixir#git-history">Git history</.localized_link> the package uploads, which places the commit on its branch. Runs on continuous integration always upload it, and `--cover` runs upload it on any machine. With `--cover`, the package also finds where a pull request branched off: it fetches the base branch and deepens a shallow clone as far as it needs. A shallow checkout is also deepened, without file contents, until it reaches the commits Tuist already has, so a commit is never uploaded without the parent it sits on. Set `TUIST_GIT_UNSHALLOW_ENABLED=false` to keep it from contacting the remote.
+Coverage relies on the <.localized_link href="/guides/features/test-insights/elixir#git-history">Git history</.localized_link> the package uploads, which places the commit on its branch. Runs on continuous integration always upload it, and `--cover` runs upload it on any machine. With `--cover`, the package also finds where a pull request branched off: it fetches the base branch and deepens a shallow clone as far as it needs. On continuous integration, a shallow checkout is also deepened, without file contents, until it reaches the commits Tuist already has, so a commit is never uploaded without the parent it sits on. Set `TUIST_GIT_UNSHALLOW_ENABLED=false` to keep it from contacting the remote.
 
 ### Sharded runs {#sharded-runs}
 

@@ -156,7 +156,12 @@ while any is missing deepens through the base branch, or the run's own on a
 push, with the merge base's steps and bounds (`--filter=blob:none`, 50 then
 doubling, within the window and one budget, stopping at a failed fetch; with
 `--refmap=`, so the checkout's `origin/<branch>` does not move) and lists the
-commits again. Only with `:history` access and a branch to name.
+commits again; a parent a fetch leaves out of reach (the remote's branch was
+rewritten) is dropped rather than fetched for again. Only with `:history`
+access and a branch to name, fetched through its full ref
+(`refs/heads/<branch>`, never read as a tag or an option), and only on CI
+(`Env.ci?/1`): the fetch turns the clone into a partial one, which a
+developer's own clone must not become.
 `GitHistory.publish/2` sends the commits the server lacks and the branch heads
 (the run's, and the base branch's when it differs, listed or not: it is how
 the default branch's head advances between its own runs) before the runs are

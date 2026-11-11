@@ -58,6 +58,10 @@ defmodule TuistEx.Analytics.GitHistoryTest do
     &Map.get(variables, &1)
   end
 
+  defp push_environment(head, extra \\ %{}) do
+    environment(head, Map.merge(%{"GITHUB_BASE_REF" => nil, "GITHUB_REF" => nil}, extra))
+  end
+
   defp stub_settings do
     stub(HTTP, :project_request, fn :get, "/tests/git-history/settings", nil, _options ->
       {:ok,
@@ -336,8 +340,7 @@ defmodule TuistEx.Analytics.GitHistoryTest do
           {:ok, %{}}
       end)
 
-      push = environment(head, %{"GITHUB_BASE_REF" => nil, "GITHUB_REF" => nil})
-      collected = GitHistory.collect(clone, [], push, true)
+      collected = GitHistory.collect(clone, [], push_environment(head, %{"CI" => "true"}), true)
 
       assert_received {:asked, [^base]}
       assert Enum.map(collected.history.commits, & &1.sha) == [head, base]
@@ -362,12 +365,32 @@ defmodule TuistEx.Analytics.GitHistoryTest do
         :post, "/tests/git-history/commits/missing", _, _ -> {:error, :timeout}
       end)
 
-      push = environment(head, %{"GITHUB_BASE_REF" => nil, "GITHUB_REF" => nil})
+      push = push_environment(head, %{"CI" => "true"})
 
       assert [%{sha: ^head, parents: [^base]}] =
                GitHistory.collect(clone, [], push, true).history.commits
 
       assert git!(clone, ["rev-list", "--count", "HEAD"]) == "1"
+    end
+
+    test "fetches nothing for a pushed commit outside CI", %{
+      clone: clone,
+      base: base,
+      head: head
+    } do
+      stub(HTTP, :project_request, fn
+        :get, "/tests/git-history/settings", nil, _ ->
+          {:ok, %{}}
+
+        :post, "/tests/git-history/commits/missing", _, _ ->
+          flunk("a run outside CI asked which commits the server lacks")
+      end)
+
+      assert [%{sha: ^head, parents: [^base]}] =
+               GitHistory.collect(clone, [], push_environment(head), true).history.commits
+
+      assert git!(clone, ["rev-list", "--count", "HEAD"]) == "1"
+      refute git!(clone, ["config", "--list"]) =~ "promisor"
     end
 
     test "contacts no remote when unshallowing is turned off", %{clone: clone, head: head} do
