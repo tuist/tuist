@@ -70,25 +70,6 @@ let target: Target = .target(
 <!-- -->
 :::
 
-#### Folders filled after generation {#buildable-folders-declared-contents}
-
-Tuist looks at a buildable folder's files to decide whether a target needs a Sources phase or a resource bundle. If the files only appear after `tuist generate`, for example because a build phase script or another tool writes them, declare what the folder will contain:
-
-```swift
-.target(
-  name: "Networking",
-  destinations: .iOS,
-  product: .staticFramework,
-  bundleId: "dev.tuist.Networking",
-  buildableFolders: [
-    "Networking/Sources",
-    .folder("Networking/Generated", contents: [.sources, .resources]),
-  ]
-)
-```
-
-Tuist then ignores the folder's files, so the project is the same before and after the folder is filled, and creates the folder if it doesn't exist. In a static target, declared resources go to the companion resource bundle; a folder that declares both is added to both targets, and build settings route its files by type.
-
 ### Dependencies
 
 #### Force resolved versions on CI
