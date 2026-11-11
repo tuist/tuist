@@ -1326,10 +1326,12 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
+                // These repositories are stripped below; detached maintenance must not
+                // keep creating and deleting objects while we remove their Git metadata.
                 do {
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "--depth=1", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 } catch {
@@ -1340,7 +1342,7 @@ enum WorkspaceRestorer {
                     }
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 }
@@ -1377,7 +1379,7 @@ enum WorkspaceRestorer {
         guard try await !submodulePaths(in: destination).isEmpty else {
             return
         }
-        var arguments = ["-C", destination.path]
+        var arguments = ["-C", destination.path, "-c", "maintenance.auto=false"]
         if allowFileProtocol {
             arguments.append(contentsOf: ["-c", "protocol.file.allow=always"])
         }
