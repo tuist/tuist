@@ -4,12 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Inspect first; repair only the observed staging ServiceAccount UID
+        description: Inspect first; repair only the selected observed staging resource UID
         type: choice
         options: [inspect, repair]
         default: inspect
+      resource:
+        description: Inspect all related objects, or select one exact object for repair
+        type: choice
+        options: [all, serviceaccount, role, rolebinding, daemonset-runners, daemonset-rack]
+        default: all
       expected_uid:
-        description: ServiceAccount UID from the preceding inspection (required for repair)
+        description: Resource UID from the preceding inspection (required for repair)
         type: string
         required: false
 
@@ -28,6 +33,7 @@ jobs:
     env:
       DEPLOY_ENV: staging
       MODE: ${{ inputs.mode }}
+      RESOURCE: ${{ inputs.resource }}
       EXPECTED_UID: ${{ inputs.expected_uid }}
       KUBECONFIG: ${{ github.workspace }}/.kube/sandbox-ownership-config
     steps:

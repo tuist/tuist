@@ -14,7 +14,7 @@ test('staging ownership repair preserves identity and fails closed without expos
 const fs = require('node:fs');
 const path = process.env.FIXTURE;
 const args = process.argv.slice(2);
-if (args.includes('secret') || !args.includes('tuist-macos-sandboxd') || !args.includes('tuist-sandboxes')) process.exit(99);
+if (args.includes('secret') || !args.includes(process.env.RESOURCE_NAME) || !args.includes('tuist-sandboxes')) process.exit(99);
 if (args.includes('get')) {
   if (process.env.SCENARIO === 'read failure') {
     process.stdout.write(process.env.SYNTHETIC_SECRET);
@@ -43,7 +43,8 @@ if (args.includes('get')) {
 `, { mode: 0o755 });
     for (const scenario of ['inspect', 'repair', 'already owned', 'wrong uid', 'foreign release',
       'foreign namespace', 'foreign manager', 'controller', 'token policy', 'production', 'race',
-      'read failure', 'tampered result']) {
+      'read failure', 'tampered result', 'role', 'rolebinding', 'daemonset-runners', 'daemonset-rack',
+      'wrong role permissions', 'wrong binding subject', 'wrong workload identity', 'all repair']) {
       rmSync(join(work, 'mutation'), { force: true });
       const identity = {
         apiVersion: 'v1', kind: 'ServiceAccount', automountServiceAccountToken: false,
@@ -51,6 +52,26 @@ if (args.includes('get')) {
           resourceVersion: '123', labels: { retained: 'yes' }, annotations: { private: secret } },
         imagePullSecrets: [{ name: 'existing-reference' }],
       };
+      let resource = 'serviceaccount';
+      if (scenario === 'role' || scenario === 'wrong role permissions') {
+        resource = 'role';
+        identity.kind = 'Role';
+        identity.metadata.name = 'tuist-tuist-macos-sandbox-reader';
+        identity.rules = [{ apiGroups: [''], resources: ['pods'], verbs: [scenario === 'role' ? 'get' : '*'] }];
+      } else if (scenario === 'rolebinding' || scenario === 'wrong binding subject') {
+        resource = 'rolebinding';
+        identity.kind = 'RoleBinding';
+        identity.metadata.name = 'tuist-tuist-macos-sandbox-reader';
+        identity.subjects = [{ kind: 'ServiceAccount', name: scenario === 'rolebinding' ? 'tuist-server' : 'other', namespace: 'tuist-staging' }];
+        identity.roleRef = { apiGroup: 'rbac.authorization.k8s.io', kind: 'Role', name: identity.metadata.name };
+      } else if (scenario.startsWith('daemonset-') || scenario === 'wrong workload identity') {
+        resource = scenario.startsWith('daemonset-') ? scenario : 'daemonset-rack';
+        identity.kind = 'DaemonSet';
+        identity.metadata.name = `tuist-macos-sandboxd-${resource.slice('daemonset-'.length)}`;
+        identity.spec = { selector: { matchLabels: { 'tuist.dev/macos-sandbox-role': 'control',
+          'tuist.dev/macos-sandbox-fleet': resource.slice('daemonset-'.length) } },
+          template: { spec: { serviceAccountName: scenario === 'wrong workload identity' ? 'other' : 'tuist-macos-sandboxd' } } };
+      }
       if (scenario === 'already owned') {
         identity.metadata.labels['app.kubernetes.io/managed-by'] = 'Helm';
         identity.metadata.annotations['meta.helm.sh/release-name'] = 'tuist';
@@ -65,14 +86,16 @@ if (args.includes('get')) {
       const result = spawnSync('bash', ['.github/scripts/staging-sandbox-ownership.sh'], {
         encoding: 'utf8', env: { ...process.env, PATH: `${work}:${process.env.PATH}`, FIXTURE: work,
           SCENARIO: scenario, SYNTHETIC_SECRET: secret, MODE: scenario === 'inspect' ? 'inspect' : 'repair',
+          RESOURCE: scenario === 'all repair' ? 'all' : resource, RESOURCE_NAME: identity.metadata.name,
           DEPLOY_ENV: scenario === 'production' ? 'production' : 'staging',
           EXPECTED_UID: scenario === 'wrong uid' ? 'bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee' : uid },
       });
-      assert.equal(result.status === 0, ['inspect', 'repair', 'already owned'].includes(scenario), scenario);
+      const repaired = ['repair', 'already owned', 'role', 'rolebinding', 'daemonset-runners', 'daemonset-rack'].includes(scenario);
+      assert.equal(result.status === 0, scenario === 'inspect' || repaired, `${scenario}: ${result.stderr}`);
       assert.equal(existsSync(join(work, 'mutation')),
-        ['repair', 'already owned', 'race', 'tampered result'].includes(scenario), scenario);
+        repaired || ['race', 'tampered result'].includes(scenario), scenario);
       assert.equal((result.stdout + result.stderr).includes(secret), false, scenario);
-      if (scenario === 'repair' || scenario === 'already owned') {
+      if (repaired) {
         const after = JSON.parse(readFileSync(join(work, 'identity.json')));
         assert.equal(after.metadata.uid, uid);
         assert.equal(after.metadata.annotations.private, secret);
