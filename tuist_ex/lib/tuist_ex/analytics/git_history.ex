@@ -83,6 +83,8 @@ defmodule TuistEx.Analytics.GitHistory do
 
         case Git.history(dir, head, base_branch, limits) do
           {:ok, history} ->
+            history = connected(history, base, limits, options)
+
             %{base | settings: settings, dirty?: dirty?, history: history}
             |> Map.put(:fallback_reason, history.fallback_reason)
 
@@ -90,6 +92,33 @@ defmodule TuistEx.Analytics.GitHistory do
             %{base | settings: settings, dirty?: dirty?} |> Map.put(:fallback_reason, reason)
         end
     end
+  end
+
+  # A shallow clone's history with the commits between it and the server's
+  # fetched, through the base branch on a pull request and the run's own branch
+  # on a push. A server that cannot be asked counts as having them, and nothing
+  # is fetched.
+  defp connected(history, %{repository_url: url}, _limits, _options) when url in [nil, ""],
+    do: history
+
+  defp connected(history, collected, limits, options) do
+    Git.connected_history(
+      collected.dir,
+      history,
+      collected.base_branch || collected.branch,
+      limits,
+      fn shas ->
+        case missing(
+               shas,
+               "/tests/git-history/commits/missing",
+               collected.repository_url,
+               options
+             ) do
+          {:ok, missing} -> MapSet.to_list(missing)
+          {:error, _reason} -> []
+        end
+      end
+    )
   end
 
   @doc "The fields the run reports about its history."

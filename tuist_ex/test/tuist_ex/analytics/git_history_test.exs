@@ -316,6 +316,60 @@ defmodule TuistEx.Analytics.GitHistoryTest do
                GitHistory.collect(clone, [], environment(head), true).history
     end
 
+    test "with coverage, uploads the parents the server lacks with a pushed commit", %{
+      clone: clone,
+      base: base,
+      head: head
+    } do
+      test_pid = self()
+
+      stub(HTTP, :project_request, fn
+        :get, "/tests/git-history/settings", nil, _ ->
+          {:ok, %{"upload_batch_size" => 1}}
+
+        :post, "/tests/git-history/commits/missing", %{shas: shas}, _ ->
+          send(test_pid, {:asked, shas})
+          {:ok, %{"missing" => shas}}
+
+        :post, "/tests/git-history/commits", body, _ ->
+          send(test_pid, {:commits, body})
+          {:ok, %{}}
+      end)
+
+      push = environment(head, %{"GITHUB_BASE_REF" => nil, "GITHUB_REF" => nil})
+      collected = GitHistory.collect(clone, [], push, true)
+
+      assert_received {:asked, [^base]}
+      assert Enum.map(collected.history.commits, & &1.sha) == [head, base]
+      assert GitHistory.publish(collected, []) == []
+
+      assert_received {:commits, %{commits: [%{sha: ^base, parents: []}], branch_heads: []}}
+
+      assert_received {:commits,
+                       %{
+                         commits: [%{sha: ^head, parents: [^base]}],
+                         branch_heads: [%{branch: "feature", sha: ^head}]
+                       }}
+    end
+
+    test "leaves the history as collected when the server cannot be asked", %{
+      clone: clone,
+      base: base,
+      head: head
+    } do
+      stub(HTTP, :project_request, fn
+        :get, "/tests/git-history/settings", nil, _ -> {:ok, %{}}
+        :post, "/tests/git-history/commits/missing", _, _ -> {:error, :timeout}
+      end)
+
+      push = environment(head, %{"GITHUB_BASE_REF" => nil, "GITHUB_REF" => nil})
+
+      assert [%{sha: ^head, parents: [^base]}] =
+               GitHistory.collect(clone, [], push, true).history.commits
+
+      assert git!(clone, ["rev-list", "--count", "HEAD"]) == "1"
+    end
+
     test "contacts no remote when unshallowing is turned off", %{clone: clone, head: head} do
       stub_settings()
 

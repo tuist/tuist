@@ -181,6 +181,76 @@ defmodule TuistEx.Git do
     end
   end
 
+  @doc """
+  The history with the gap a shallow clone leaves below it closed. The server
+  places a commit on its branch from the parents it has when the commit
+  arrives, so a commit uploaded before its parent leaves the parent off the
+  branch for good. `unknown` answers which of the given commits the server
+  lacks, and is asked about the first parents the clone stops at on the
+  first-parent chain of each head the run reports. While any is missing, the
+  clone is deepened through `branch` and its commits listed again, with the
+  steps and bounds of the merge base's deepening. Only with `:history` access
+  and a branch to name.
+  """
+  def connected_history(dir, history, branch, limits \\ @default_limits, unknown) do
+    limits = Map.merge(@default_limits, limits)
+
+    if limits.remote_access == :history and branch do
+      heads = Enum.uniq([history.head_sha | List.wrap(history.base_head_sha)])
+      deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+      commits = connect(dir, history.commits, heads, branch, limits, unknown, deadline, {0, 50})
+      %{history | commits: commits}
+    else
+      history
+    end
+  end
+
+  # Deepening is relative to every commit the clone stops at, so naming one
+  # branch the remote has also deepens a head that is not on it, a pull
+  # request's merge commit. The empty refmap keeps the checkout's own
+  # `origin/<branch>` where the job's later steps expect it.
+  defp connect(dir, commits, heads, branch, limits, unknown, deadline, {depth, step}) do
+    max_depth = max(limits.window_commits, 50)
+    step = min(step, max_depth - depth)
+    parents = boundary_first_parents(dir, commits, heads)
+
+    fetch =
+      ["fetch", "--quiet", "--no-tags", "--refmap=", "--filter=blob:none", "--deepen=#{step}"] ++
+        ["origin", branch]
+
+    with true <- parents != [] and depth < max_depth,
+         true <- System.monotonic_time(:millisecond) < deadline,
+         false <- Enum.empty?(unknown.(parents)),
+         {:succeeded, _} <- run_until(dir, fetch, deadline),
+         [_ | _] = deepened <- window_commits(dir, heads, limits) do
+      connect(dir, deepened, heads, branch, limits, unknown, deadline, {depth + step, step * 2})
+    else
+      _ -> commits
+    end
+  end
+
+  # The first parents the checkout lacks: where each head's first-parent chain
+  # reaches a commit the shallow clone stops at. A chain that ends at a root,
+  # or at the history window, has none. Only first parents count: they are
+  # what places a commit on its branch.
+  defp boundary_first_parents(dir, commits, heads) do
+    boundary = shallow_boundary(dir)
+    by_sha = Map.new(commits, &{&1.sha, &1})
+
+    heads
+    |> Enum.flat_map(&List.wrap(boundary_first_parent(by_sha[&1], by_sha, boundary)))
+    |> Enum.uniq()
+  end
+
+  defp boundary_first_parent(%{sha: sha, parents: [parent | _]}, by_sha, boundary) do
+    case by_sha do
+      %{^parent => commit} -> boundary_first_parent(commit, by_sha, boundary)
+      _ -> if MapSet.member?(boundary, sha), do: parent
+    end
+  end
+
+  defp boundary_first_parent(_commit, _by_sha, _boundary), do: nil
+
   defp commit_sha(dir, ref) do
     case capture(dir, ["rev-parse", "--verify", "--quiet", "#{ref}^{commit}"]) do
       {:ok, output} -> if String.trim(output) != "", do: String.trim(output)
@@ -213,14 +283,18 @@ defmodule TuistEx.Git do
     end
   end
 
+  # The commits a shallow clone's history stops at; none in a whole clone.
+  defp shallow_boundary(dir) do
+    with {:ok, path} <- capture(dir, ["rev-parse", "--git-path", "shallow"]),
+         {:ok, contents} <- File.read(Path.expand(String.trim(path), dir)) do
+      contents |> String.split("\n", trim: true) |> MapSet.new()
+    else
+      _ -> MapSet.new()
+    end
+  end
+
   defp with_boundary_parents(commits, dir) do
-    boundary =
-      with {:ok, path} <- capture(dir, ["rev-parse", "--git-path", "shallow"]),
-           {:ok, contents} <- File.read(Path.expand(String.trim(path), dir)) do
-        contents |> String.split("\n", trim: true) |> MapSet.new()
-      else
-        _ -> MapSet.new()
-      end
+    boundary = shallow_boundary(dir)
 
     case Enum.filter(commits, &MapSet.member?(boundary, &1.sha)) do
       [] ->
