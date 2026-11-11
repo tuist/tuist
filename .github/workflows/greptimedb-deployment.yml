@@ -53,6 +53,14 @@ on:
         description: Roll existing collectors and require recent live signals after replacement
         type: boolean
         default: false
+      inspect_readers:
+        description: Also report non-secret staging account enrollment and serving images during backend qualification
+        type: boolean
+        default: false
+      rollback_pulse_revision:
+        description: Restore a known pre-cutover staging Pulse Helm revision instead of deploying Greptime
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -106,7 +114,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision == ''
     needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
@@ -158,6 +166,42 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           [[ "$DEPLOY_ENV" == staging ]]
           op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+      - name: Inspect staging reader identity without changing enrollment
+        if: inputs.inspect_readers
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_ENV" == staging ]]
+          kubectl -n tuist-staging get deployments -l app.kubernetes.io/component=server \
+            -o custom-columns=NAME:.metadata.name,IMAGES:.spec.template.spec.containers[*].image
+          pod=$(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o json | jq -er '
+            [.items[] | select(.metadata.deletionTimestamp == null and
+              any(.status.conditions[]?; .type == "Ready" and .status == "True"))][0].metadata.name')
+          # Capture runtime chatter/errors privately; print only typed IDs and
+          # booleans. Even a credential-bearing endpoint must not reach logs.
+          umask 077
+          inspection="$RUNNER_TEMP/greptimedb-deploy/reader-inspection"
+          if ! kubectl -n tuist-staging exec "$pod" -c server -- /app/bin/tuist rpc '
+            account = Tuist.Accounts.get_account_by_handle("tuist") || raise "staging tuist account missing"
+            config = Tuist.Environment.pulse_config()
+            IO.puts("STAGING_READER_INSPECTION=" <> Jason.encode!(%{
+              account_id: account.id,
+              enrolled_account_id: Keyword.get(config, :account_id),
+              greptime_backend: Keyword.get(config, :backend, :pulse) == :greptime,
+              expected_endpoint: Keyword.get(config, :base_url) == "http://greptimedb.observability.svc.cluster.local:4000",
+              expected_database: Keyword.get(config, :tenant) == "public",
+              pulse_flag: Tuist.FeatureFlags.pulse_enabled?(account)
+            }))' > "$inspection.out" 2> "$inspection.err"; then
+            echo '::error::Staging reader inspection failed; raw runtime output is withheld.'
+            exit 1
+          fi
+          sed -n 's/^STAGING_READER_INSPECTION=//p' "$inspection.out" | jq -es '
+            select(length == 1) | .[0] |
+            select((.account_id | type) == "number" and
+              (.enrolled_account_id == null or (.enrolled_account_id | type) == "number") and
+              ([.greptime_backend, .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
+            {account_id, enrolled_account_id, greptime_backend, expected_endpoint, expected_database, pulse_flag}'
+          rm -f "$inspection.out" "$inspection.err"
+          helm history pulse -n observability -o json | jq '[.[] | {revision, chart, status}]'
       - name: Check prerequisites, ownership and capacity before creating backend resources
         run: |
           set -euo pipefail
@@ -306,6 +350,9 @@ jobs:
           bash .github/scripts/pulse-readiness.sh
           helm template pulse "$dir/greptimedb-ingest-0.1.0.tgz" -n observability --set "environment=$DEPLOY_ENV" > "$dir/gateway.yaml"
           bash .github/scripts/greptimedb-replacement-preflight.sh "$dir/gateway.yaml"
+          helm history pulse -n observability -o json | jq -r '
+            .[] | select(.status == "deployed") |
+            "Pre-cutover Pulse rollback revision: \(.revision), chart: \(.chart)"' | tee -a "$GITHUB_STEP_SUMMARY"
           # --atomic restores only the pulse release on rollout failure. The
           # independent backend, PVC and all historical S3 objects stay untouched.
           helm upgrade pulse "$dir/greptimedb-ingest-0.1.0.tgz" -n observability \
@@ -363,3 +410,52 @@ jobs:
           if [[ -f "$KUBECONFIG" ]]; then
             kubectl -n observability delete pod "$SMOKE_POD" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
           fi
+
+  rollback:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision != ''
+    needs: validate
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    environment: server-k8s-staging
+    concurrency:
+      group: server-deploy-staging-observability
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      PULSE_REVISION: ${{ inputs.rollback_pulse_revision }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/greptime-rollback-config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl jq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+      - name: Load staging rollback identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_ENV" == staging && "$PULSE_REVISION" =~ ^[1-9][0-9]*$ ]]
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get 'kubeconfig: tuist-staging' --vault tuist-k8s-staging --output "$KUBECONFIG"
+      - name: Restore staging Pulse release without touching Greptime data
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_ENV" == staging && "$PULSE_REVISION" =~ ^[1-9][0-9]*$ ]]
+          kubectl -n observability get deployment pulse -o json | jq -e '
+            .metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest" and
+            .metadata.annotations["meta.helm.sh/release-name"] == "pulse" and
+            .metadata.annotations["meta.helm.sh/release-namespace"] == "observability"' >/dev/null
+          helm history pulse -n observability -o json | jq -e --arg revision "$PULSE_REVISION" '
+            any(.[]; (.revision | tostring) == $revision and
+              (.chart | startswith("pulse-")) and (.status == "superseded" or .status == "deployed"))' >/dev/null
+          helm rollback pulse "$PULSE_REVISION" -n observability --wait --timeout 5m
+          bash .github/scripts/pulse-readiness.sh
+          echo 'PASS: staging Pulse origin ready; no Greptime storage operations performed. Restore server readers through the normal staging server deployment and verify retained data with live reads.'
+      - name: Remove CI-local rollback identity
+        if: always()
+        run: rm -f "$KUBECONFIG"

@@ -73,6 +73,33 @@ always `observability`. Never read credentials into agent context.
    text search rather than LogQL/TraceQL, and Errors are unavailable in this mode;
    this is not yet Grafana feature parity or approval to retire Cloud.
 
+### Full staging rehearsal
+
+Backend qualification alone does not qualify a cutover. Set `inspect_readers=true`
+on a backend-only staging dispatch to report serving images, the live `tuist`
+account ID, configured enrollment and the Pulse flag. This is an optional read-only
+inspection **within a backend qualification run**, not a read-only dispatch: the
+backend install and restart still run. It does not enable flags or print tokens.
+Runtime stdout/stderr are captured privately and removed during CI cleanup;
+only numeric account IDs, boolean configuration checks and selected image/revision
+metadata reach logs. Endpoint strings and raw RPC errors are withheld.
+Do not assume staging uses the production account ID or enable readers before
+confirming the account and flag. Keep managed reader settings unchanged until then.
+
+Before replacing the origin, record the currently deployed server image and
+chart commit and prepare a reader rollback using the normal staging server
+deployment workflow. Deploy the adapter and verified account settings to staging
+only, then exercise the authenticated metrics, logs and traces pages. Do not
+substitute a synthetic local UI for these live acceptance checks.
+
+After cutover with real collectors, record non-CI signal identities and run an
+ordinary staging server deployment with the replacement active. Then rehearse
+the origin rollback below, restore the prior reader backend through a normal
+staging server deployment, and query the recorded Greptime identities read-only
+to prove data survived rollback. Verify old Pulse ingestion and reader recovery
+separately. Only then consider another staging cutover or promotion. None of
+these steps authorizes removing Grafana Cloud destinations, rules or dashboards.
+
 ## Routine deployments remain independent
 
 The server's collector readiness gate follows the actual live `pulse` Deployment.
@@ -158,8 +185,23 @@ known-good prior Pulse revision. Backend release/PVC/S3 history remain untouched
 New Greptime data are not copied back to old Pulse, and historical Pulse objects
 are neither imported nor deleted. Do not uninstall the backend or shrink its PVC
 as a rollback shortcut. The independent Pulse deployment preflight intentionally
-refuses this gateway; a rollback needs an explicit, reviewed recovery procedure,
-including restoring query clients, not merely rerunning a Pulse release.
+refuses this gateway; do not rerun a Pulse release to force recovery.
+
+The cutover records the deployed Pulse chart/revision in its run summary.
+Dispatch `GreptimeDB Staging Replacement` on trusted main with
+`environment=staging,rollback_pulse_revision=<recorded revision>`. This selects
+the separate rollback job, not the backend deployment or collector rollout.
+It refuses non-staging environments, nonnumeric/unknown revisions, revisions
+that are not a deployed/superseded `pulse-*` chart, and deployments that are not
+the Helm-owned replacement gateway. It rolls back only release `pulse`, waits
+for readiness, and executes the same legacy-writer/readiness gate as routine
+deploys. It never upgrades/uninstalls Greptime or touches its PVC/S3 objects.
+
+This restores the ingestion origin only. Explicitly restore the reader backend
+using the previously recorded chart/image and normal staging server deployment;
+until then readers continue querying Greptime and will not see new Pulse writes.
+Backend data preservation and both reader/ingest recovery must be demonstrated
+with live reads; a successful Helm rollback is not that evidence.
 
 ## Validation
 
