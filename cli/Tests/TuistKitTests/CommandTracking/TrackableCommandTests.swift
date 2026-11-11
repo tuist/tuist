@@ -315,6 +315,62 @@ final class TrackableCommandTests: TuistTestCase {
         )
     }
 
+    func test_whenDefaultSubcommandIsNamedRun_uploadsItsParentCommand() async throws {
+        // Given
+        try makeSubject(
+            command: GenerateLikeRunCommand(),
+            commandArguments: ["generate", "--no-open", "--configuration", "Release"]
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(
+                commandEvent: .matching { event in
+                    event.name == "generate" &&
+                        event.subcommand == "run" &&
+                        event.commandArguments == ["generate", "--no-open", "--configuration", "Release"]
+                },
+                fullHandle: .any,
+                serverURL: .any,
+                sessionDirectory: .any
+            )
+            .called(1)
+    }
+
+    func test_whenTopLevelRunCommand_uploadsOnlyItsName() async throws {
+        // Given
+        try makeSubject(
+            command: GenerateLikeRunCommand(),
+            commandArguments: ["run", "https://tuist.dev/tuist/tuist/previews/1", "--", "--token", "secret"]
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(
+                commandEvent: .matching { event in
+                    event.name == "run" && event.subcommand == nil && event.commandArguments == ["run"]
+                },
+                fullHandle: .any,
+                serverURL: .any,
+                sessionDirectory: .any
+            )
+            .called(1)
+    }
+
     func test_whenCommandStoresResolvedAnalyticsMetadata_uploadsCanonicalValues() async throws {
         // Given
         try makeSubject(
@@ -601,6 +657,16 @@ private struct ConfigObservingCommand: TrackableParsableCommand, AsyncParsableCo
 private struct UnnamedCommand: TrackableParsableCommand, ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration()
+    }
+
+    var analyticsRequired: Bool { true }
+
+    func run() throws {}
+}
+
+private struct GenerateLikeRunCommand: TrackableParsableCommand, ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "run", _superCommandName: "generate")
     }
 
     var analyticsRequired: Bool { true }
