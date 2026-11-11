@@ -159,6 +159,10 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test kubelet Lease telemetry and host alerts
+        run: |
+          python3 infra/helm/k8s-monitoring/test-kubelet-telemetry.py
+          python3 infra/helm/k8s-monitoring/test-runner-kubelet-alerts.py
       - name: Test per-node Hubble collection with Alloy
         run: bash infra/helm/k8s-monitoring/test-hubble-metrics.sh
       - name: Test runner macOS host health alerts
