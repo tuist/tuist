@@ -229,8 +229,10 @@ defmodule TuistEx.GitTest do
       commits = empty_commits!(repo, 60)
       head = List.last(commits)
       clone = shallow_clone!(repo, "main")
-      # The remote moves on after the checkout, as it does while a job runs.
-      git!(repo, ["commit", "--quiet", "--allow-empty", "-m", "later"])
+      # The remote moves on after the checkout, as it does while a job runs,
+      # and has a tag named like the branch, which a bare name would fetch.
+      [later] = empty_commits!(repo, 1)
+      git!(repo, ["tag", "main", hd(commits)])
 
       assert {:ok, %{commits: [%{sha: ^head}]} = history} = Git.history(clone, head, nil)
 
@@ -246,6 +248,7 @@ defmodule TuistEx.GitTest do
 
       assert %{connected | commits: history.commits} == history
       assert git!(clone, ["rev-parse", "origin/main"]) == head
+      assert git!(clone, ["rev-parse", "FETCH_HEAD"]) == later
     end
 
     test "keeps the deepening steps within the window together", %{repo: repo} do
