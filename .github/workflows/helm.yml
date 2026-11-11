@@ -153,6 +153,7 @@ jobs:
         run: |
           bash infra/helm/pulse/test-managed.sh
           bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh
+          python3 infra/helm/k8s-monitoring/test-log-destination-outage.py
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
