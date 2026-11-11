@@ -29,33 +29,6 @@ for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
     echo "FAIL: unsafe storage setting accepted: $setting" >&2
     exit 1
   fi
-  grep -Fq "selected environment's isolated greptimedb/ prefix" "$tmp/refused.log"
+  grep -Fq "pilot must use staging's isolated greptimedb/ prefix" "$tmp/refused.log"
 done
-for environment in staging canary production; do
-  ns="tuist-$environment"
-  if [[ "$environment" == production ]]; then ns=tuist; fi
-  helm template greptimedb "$chart" -n observability \
-    --set "environment=$environment,storage.bucket=tuist-pulso-$environment,dashboard.enabled=true" > "$tmp/scoped.yaml"
-  yq ea -o=json -I=0 '.' "$tmp/scoped.yaml" | jq -s --arg ns "$ns" '
-    map(select(. != null)) |
-    length == 6 and
-    any(.[]; .kind == "ExternalSecret" and .metadata.name == "greptimedb-dashboard-auth" and
-      .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
-      (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo="))) and
-    any(.[]; .kind == "StatefulSet" and
-      .spec.template.spec.initContainers[0].name == "combine-auth" and
-      any(.spec.template.spec.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and
-    any(.[]; .kind == "NetworkPolicy" and
-      .spec.ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
-        podSelector:{matchLabels:{"app.kubernetes.io/component":"server"}}}] and
-      .spec.ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
-        podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
-      .spec.ingress[2].ports == [{port:4000,protocol:"TCP"}])
-  ' | grep -qx true
-done
-if helm template greptimedb "$chart" -n observability --set environment=other > /dev/null 2>&1; then exit 1; fi
-if helm template greptimedb "$chart" -n default > /dev/null 2>&1; then exit 1; fi
-helm template greptimedb "$chart" -n observability -f "$chart/values-production.yaml" > "$tmp/prod.yaml"
-yq -o=json 'select(.kind == "StatefulSet").spec.template.spec.containers[0].resources' "$tmp/prod.yaml" |
-  jq -e '. == {requests:{cpu:"1",memory:"2Gi"},limits:{memory:"4Gi"}}' >/dev/null
-echo 'PASS: per-environment private backend, scoped auth, isolated S3 prefix and retained WAL volume'
+echo 'PASS: staging-only private backend, authenticated API, isolated S3 prefix and retained WAL volume'

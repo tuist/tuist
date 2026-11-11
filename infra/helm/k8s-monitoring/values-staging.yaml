@@ -5,8 +5,6 @@
 #     -n observability --create-namespace \
 #     -f infra/helm/k8s-monitoring/values-staging.yaml
 
-# pulse-* names and ingestion URLs stay stable when its release becomes the
-# ingest-only GreptimeDB gateway. Grafana Cloud queues remain independent.
 k8s-monitoring:
   cluster:
     name: tuist-staging

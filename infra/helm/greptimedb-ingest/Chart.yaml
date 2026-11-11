@@ -1,6 +1,0 @@
-apiVersion: v2
-name: greptimedb-ingest
-description: Ingest-only Pulse origin compatibility gateway for GreptimeDB
-type: application
-version: 0.1.0
-appVersion: "1.28.0"

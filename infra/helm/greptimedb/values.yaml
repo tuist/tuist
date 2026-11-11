@@ -1,7 +1,4 @@
-# Explicit managed environment. Origin replacement is independently gated.
-environment: staging
-dashboard:
-  enabled: false
+# Deliberately staging-only. No production ingestion, ingress or dashboard cutover.
 image: docker.io/greptime/greptimedb:v1.3.0
 storage:
   bucket: tuist-pulso-staging

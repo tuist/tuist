@@ -592,7 +592,6 @@ defmodule TuistWeb.AppLayoutComponents do
           selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
         />
         <.sidebar_item
-          :if={Tuist.Pulse.errors_available?()}
           label={dgettext("dashboard", "Errors")}
           icon="alert_circle"
           navigate={~p"/#{@selected_account.name}/~/pulse/errors"}

@@ -1,16 +1,11 @@
-name: GreptimeDB Replacement
+name: GreptimeDB Staging Pilot
 
 on:
   pull_request:
     paths:
       - infra/helm/greptimedb/**
-      - infra/helm/greptimedb-ingest/**
-      - infra/helm/greptimedb-grafana/**
       - .github/workflows/greptimedb-deployment.yml
       - .github/scripts/greptimedb*
-      - infra/helm/k8s-monitoring/values-staging.yaml
-      - infra/helm/k8s-monitoring/values-canary.yaml
-      - infra/helm/k8s-monitoring/values-production.yaml
       - .github/scripts/openobserve-capacity.mjs
       - .github/scripts/openobserve-storage-check.sh
       - .github/scripts/openobserve-preflight.test.mjs
@@ -18,35 +13,12 @@ on:
     branches: [main]
     paths:
       - infra/helm/greptimedb/**
-      - infra/helm/greptimedb-ingest/**
-      - infra/helm/greptimedb-grafana/**
       - .github/workflows/greptimedb-deployment.yml
       - .github/scripts/greptimedb*
-      - infra/helm/k8s-monitoring/values-staging.yaml
-      - infra/helm/k8s-monitoring/values-canary.yaml
-      - infra/helm/k8s-monitoring/values-production.yaml
       - .github/scripts/openobserve-capacity.mjs
       - .github/scripts/openobserve-storage-check.sh
       - .github/scripts/openobserve-preflight.test.mjs
   workflow_dispatch:
-    inputs:
-      environment:
-        description: Explicit rollout target (qualify staging then canary before production)
-        required: true
-        type: choice
-        options: [staging, canary, production]
-      dashboard:
-        description: Enable readonly dashboard and write-only ingestion identities
-        type: boolean
-        default: false
-      replace_pulse:
-        description: Replace existing Pulse runtime/origin AFTER backend qualification (requires dashboard)
-        type: boolean
-        default: false
-      deploy_collectors:
-        description: Roll existing collectors and require recent live signals after replacement
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -66,31 +38,14 @@ jobs:
         with:
           install_args: "--locked helm jq yq node"
           cache: "false"
-      - name: Validate backend, replacement origin and shared prerequisites
+      - name: Validate isolated staging configuration and shared prerequisites
         run: |
           set -euo pipefail
           bash infra/helm/greptimedb/test-managed.sh
-          bash infra/helm/greptimedb-ingest/test-managed.sh
-          helm lint infra/helm/greptimedb-grafana -n observability
-          helm template greptime-grafana-staging infra/helm/greptimedb-grafana -n observability > /dev/null
-          python3 -m venv "$RUNNER_TEMP/greptime-chart-tests"
-          "$RUNNER_TEMP/greptime-chart-tests/bin/pip" install PyYAML==6.0.3
-          "$RUNNER_TEMP/greptime-chart-tests/bin/python" infra/helm/greptimedb-grafana/test_chart.py
-          sudo apt-get update -qq
-          sudo apt-get install --no-install-recommends -y nginx
-          NGINX_BINARY=/usr/sbin/nginx node --test .github/scripts/greptimedb-gateway.test.mjs
           node --check .github/scripts/greptimedb-smoke.mjs
-          node --check .github/scripts/greptimedb-live-smoke.mjs
           node --test .github/scripts/openobserve-preflight.test.mjs
-          node --test .github/scripts/greptimedb-storage.test.mjs
-          node --test .github/scripts/greptimedb-replacement-preflight.test.mjs
-          node --test .github/scripts/greptimedb-live-smoke.test.mjs
-          helm repo add grafana https://grafana.github.io/helm-charts
-          helm dependency build infra/helm/k8s-monitoring
-          bash .github/scripts/greptimedb-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/greptimedb-chart"
           helm package infra/helm/greptimedb --destination "$RUNNER_TEMP/greptimedb-chart"
-          helm package infra/helm/greptimedb-ingest --destination "$RUNNER_TEMP/greptimedb-chart"
       - uses: actions/upload-artifact@v4
         with:
           name: greptimedb-chart
@@ -98,19 +53,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  deploy:
+  staging:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
     needs: validate
     runs-on: tuist-linux
-    timeout-minutes: 60
+    timeout-minutes: 30
     environment:
-      name: server-k8s-${{ inputs.environment }}
+      name: server-k8s-staging
     concurrency:
-      group: server-deploy-${{ inputs.environment }}-observability
+      group: server-deploy-staging-observability
       cancel-in-progress: false
     env:
-      DEPLOY_ENV: ${{ inputs.environment }}
-      DASHBOARD_ENABLED: ${{ inputs.dashboard }}
       KUBECONFIG: ${{ github.workspace }}/.kube/greptimedb-config
       STORAGE_POD: greptimedb-storage-${{ github.run_id }}-${{ github.run_attempt }}
       SMOKE_POD: greptimedb-smoke-${{ github.run_id }}-${{ github.run_attempt }}
@@ -132,28 +85,17 @@ jobs:
           set -euo pipefail
           umask 077
           dir="$RUNNER_TEMP/greptimedb-deploy"
-          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
-          if [[ '${{ inputs.replace_pulse }}' == true && "$DASHBOARD_ENABLED" != true ]]; then
-            echo '::error::Origin replacement requires scoped identities.'
-            exit 1
-          fi
-          if [[ '${{ inputs.deploy_collectors }}' == true && '${{ inputs.replace_pulse }}' != true ]]; then exit 1; fi
-          extra=()
-          if [[ "$DEPLOY_ENV" == production ]]; then extra=(-f infra/helm/greptimedb/values-production.yaml); fi
-          helm template greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" -n observability \
-            "${extra[@]}" \
-            --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" > "$dir/rendered.yaml"
+          helm template greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" -n observability > "$dir/rendered.yaml"
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
       - uses: 1password/install-cli-action@v4
-      - name: Load selected deployment identity in CI only
+      - name: Load staging deployment identity in CI only
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           set -euo pipefail
           umask 077
           mkdir -p "$(dirname "$KUBECONFIG")"
-          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
-          op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+          op document get 'kubeconfig: tuist-staging' --vault tuist-k8s-staging --output "$KUBECONFIG"
       - name: Check prerequisites, ownership and capacity before creating backend resources
         run: |
           set -euo pipefail
@@ -163,13 +105,6 @@ jobs:
           kubectl get storageclass hcloud-volumes > /dev/null
           kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
           kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
-          if [[ "$DASHBOARD_ENABLED" != true ]]; then
-            kubectl -n observability get deployment pulse -o json | jq -e '
-              .metadata.labels["app.kubernetes.io/name"] != "greptimedb-ingest"' > /dev/null || {
-                echo '::error::Cannot remove scoped identities from an active replacement backend.'
-                exit 1
-              }
-          fi
           jq -r '.[] | [.kind, .metadata.name] | @tsv' "$dir/resources.json" > "$dir/resources.tsv"
           while IFS=$'\t' read -r kind name; do
             case "$kind" in ConfigMap|Service|StatefulSet|ExternalSecret|NetworkPolicy) ;; *) exit 1 ;; esac
@@ -183,8 +118,6 @@ jobs:
           kubectl -n observability get externalsecrets -o json | jq -e '
             all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-credentials" or
               .metadata.name == "greptimedb-credentials") and
-            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-dashboard-auth" or
-              .metadata.name == "greptimedb-dashboard-auth") and
             all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-auth")' > /dev/null
           kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
           kubectl get pods -A -o json > "$dir/pods.json"
@@ -193,8 +126,8 @@ jobs:
       - name: Verify shared S3 lifecycle, privacy and isolated prefix access
         run: |
           set -euo pipefail
-          jq -n --arg name "$STORAGE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$DEPLOY_ENV" --arg environment "$DEPLOY_ENV" \
-            --rawfile script .github/scripts/greptimedb-storage-check.sh '
+          jq -n --arg name "$STORAGE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-staging" \
+            --rawfile script .github/scripts/openobserve-storage-check.sh '
             {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
               restartPolicy:"Never",activeDeadlineSeconds:300,automountServiceAccountToken:false,
               nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
@@ -204,7 +137,7 @@ jobs:
                 securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
                 volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
                 resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"64Mi"}},
-                env:[{name:"DEPLOY_ENV",value:$environment},{name:"STORAGE_PREFIX",value:"greptimedb"},
+                env:[{name:"DEPLOY_ENV",value:"staging"},{name:"STORAGE_PREFIX",value:"greptimedb"},
                   {name:"CHECK_RUN",value:$run},
                   {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_ACCESS_KEY_ID"}}},
                   {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_SECRET_ACCESS_KEY"}}}]
@@ -236,43 +169,31 @@ jobs:
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
-          extra=()
-          if [[ "$DEPLOY_ENV" == production ]]; then extra=(-f infra/helm/greptimedb/values-production.yaml); fi
           if ! helm upgrade --install greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" \
-            "${extra[@]}" \
-            --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
             -n observability --timeout 10m --wait > "$dir/helm.log" 2>&1; then
             echo '::error::GreptimeDB rollout failed; state retained for diagnosis.'
             exit 1
           fi
           kubectl -n observability wait --for=condition=Ready externalsecret/greptimedb-credentials --timeout=60s
-          if [[ "$DASHBOARD_ENABLED" == true ]]; then
-            kubectl -n observability wait --for=condition=Ready externalsecret/greptimedb-dashboard-auth --timeout=60s
-          fi
       - name: Require OTLP metrics, error logs and traces, then reread after restart without rewriting
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
-          jq -n --arg name "$SMOKE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$DEPLOY_ENV" --arg dashboard "$DASHBOARD_ENABLED" --arg environment "$DEPLOY_ENV" \
+          jq -n --arg name "$SMOKE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-staging" \
             --rawfile script .github/scripts/greptimedb-smoke.mjs '
             {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
               restartPolicy:"Never",activeDeadlineSeconds:180,automountServiceAccountToken:false,
               nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
               securityContext:{runAsNonRoot:true,runAsUser:1000,fsGroup:1000,seccompProfile:{type:"RuntimeDefault"}},
-              volumes:([{name:"auth",secret:{secretName:"greptimedb-auth",defaultMode:288}}] +
-                if $dashboard == "true" then [{name:"dashboard",secret:{secretName:"greptimedb-dashboard-auth",defaultMode:288}}] else [] end),
+              volumes:[{name:"auth",secret:{secretName:"greptimedb-auth",defaultMode:288}}],
               containers:[{name:"probe",image:"node:22.14.0-alpine3.21",command:["node","--input-type=module","-e",$script],
                 securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
-                volumeMounts:([{name:"auth",mountPath:"/auth",readOnly:true}] +
-                  if $dashboard == "true" then [{name:"dashboard",mountPath:"/dashboard",readOnly:true}] else [] end),
+                volumeMounts:[{name:"auth",mountPath:"/auth",readOnly:true}],
                 resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"128Mi"}},
-                env:[{name:"GREPTIMEDB_URL",value:"http://greptimedb.observability:4000"},{name:"DEPLOY_ENV",value:$environment},
-                  {name:"SMOKE_RUN",value:$run},{name:"GREPTIMEDB_AUTH_FILE",value:"/auth/passwd"}] +
-                  if $dashboard == "true" then [{name:"GREPTIMEDB_DASHBOARD_AUTH_FILE",value:"/dashboard/passwd"}] else [] end
+                env:[{name:"GREPTIMEDB_URL",value:"http://greptimedb.observability:4000"},
+                  {name:"SMOKE_RUN",value:$run},{name:"GREPTIMEDB_AUTH_FILE",value:"/auth/passwd"}]
               }]}}
-          ' > "$dir/native.json"
-          jq --rawfile pipeline infra/helm/greptimedb/loki-otlp.yaml \
-            '.spec.containers[0].env += [{name:"GREPTIMEDB_LOKI_PIPELINE",value:$pipeline}]' "$dir/native.json" > "$dir/smoke.json"
+          ' > "$dir/smoke.json"
           kubectl create -f "$dir/smoke.json" > /dev/null
           kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
           kubectl -n observability logs "$SMOKE_POD"
@@ -283,56 +204,6 @@ jobs:
           kubectl create -f "$dir/read.json" > /dev/null
           kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
           kubectl -n observability logs "$SMOKE_POD"
-      - name: Replace existing Pulse release only after independent backend qualification
-        if: inputs.replace_pulse
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/greptimedb-deploy"
-          helm status pulse -n observability > /dev/null
-          helm template pulse "$dir/greptimedb-ingest-0.1.0.tgz" -n observability --set "environment=$DEPLOY_ENV" > "$dir/gateway.yaml"
-          bash .github/scripts/greptimedb-replacement-preflight.sh "$dir/gateway.yaml"
-          # --atomic restores only the pulse release on rollout failure. The
-          # independent backend, PVC and all historical S3 objects stay untouched.
-          helm upgrade pulse "$dir/greptimedb-ingest-0.1.0.tgz" -n observability \
-            --reset-values --set "environment=$DEPLOY_ENV" --atomic --wait --timeout 5m
-          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
-          kubectl -n observability delete pod "$SMOKE_POD" --ignore-not-found --wait=true --timeout=30s > /dev/null
-          jq '.spec.containers[0].env |= map(if .name == "SMOKE_RUN" then .value += "-gateway" else . end) |
-            .spec.containers[0].env += [{name:"GREPTIMEDB_INGEST_URL",value:"http://pulse.observability.svc.cluster.local:4000"}]' \
-            "$dir/smoke.json" > "$dir/gateway-smoke.json"
-          kubectl create -f "$dir/gateway-smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
-          kubectl -n observability logs "$SMOKE_POD"
-      - name: Roll collectors and verify recent real telemetry
-        if: inputs.deploy_collectors
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/greptimedb-deploy"
-          helm status k8s-monitoring -n observability > /dev/null
-          helm repo add grafana https://grafana.github.io/helm-charts
-          helm dependency build infra/helm/k8s-monitoring
-          helm upgrade k8s-monitoring infra/helm/k8s-monitoring -n observability \
-            -f "infra/helm/k8s-monitoring/values-$DEPLOY_ENV.yaml" --timeout 10m --wait
-          kubectl -n observability delete pod "$SMOKE_POD" --wait=true --timeout=30s > /dev/null
-          jq --rawfile script .github/scripts/greptimedb-live-smoke.mjs \
-            '.spec.activeDeadlineSeconds = 360 | .spec.containers[0].command = ["node","--input-type=module","-e",$script]' \
-            "$dir/gateway-smoke.json" > "$dir/live-smoke.json"
-          kubectl create -f "$dir/live-smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s
-          kubectl -n observability logs "$SMOKE_POD"
-      - name: Install private staging Grafana after backend and gateway qualification
-        if: inputs.replace_pulse && inputs.environment == 'staging'
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/greptimedb-deploy"
-          helm template greptime-grafana-staging infra/helm/greptimedb-grafana -n observability > "$dir/grafana.yaml"
-          yq ea -o=json -I=0 '.' "$dir/grafana.yaml" | jq -s 'map(select(. != null))' > "$dir/grafana.json"
-          kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
-          kubectl get pods -A -o json > "$dir/pods.json"
-          node .github/scripts/openobserve-capacity.mjs "$dir/nodes.json" "$dir/pods.json" "$dir/grafana.json"
-          rm -f "$dir/nodes.json" "$dir/pods.json"
-          helm upgrade --install greptime-grafana-staging infra/helm/greptimedb-grafana \
-            -n observability --wait --timeout 5m
       - name: Sanitized failure diagnostics
         if: failure()
         run: |

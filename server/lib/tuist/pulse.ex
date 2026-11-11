@@ -10,9 +10,6 @@ defmodule Tuist.Pulse do
   last_seen_ns/first_seen_ns/count/title/service/project/issue_id. Missing
   measurements sort last. Native expressions apply to metrics/logs/traces;
   error `query` is a literal, case-insensitive title search, defaulting to empty.
-  With the Greptime backend, metrics retain PromQL; log bodies and span names
-  accept literal, case-insensitive text instead of LogQL/TraceQL (`*` selects
-  all). Errors are unavailable. Greptime trace rows represent individual spans.
 
   Service filters apply to every signal, level to logs, and project/environment/
   release to errors. Each has an optional `_op`: eq (default, case-sensitive),
@@ -48,7 +45,6 @@ defmodule Tuist.Pulse do
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Pulse.Errors
-  alias Tuist.Pulse.Greptime
   alias Tuist.Pulse.Table
   alias Tuist.Tasks
 
@@ -58,13 +54,10 @@ defmodule Tuist.Pulse do
   @points 361
 
   def default_query("metrics"), do: "up"
-  def default_query("logs"), do: if(greptime?(), do: "*", else: ~s({service_name=~".+"}))
-  def default_query("traces"), do: if(greptime?(), do: "*", else: "{}")
+  def default_query("logs"), do: ~s({service_name=~".+"})
+  def default_query("traces"), do: "{}"
   def default_query("errors"), do: ""
   def default_query(_signal), do: nil
-
-  def greptime?, do: Keyword.get(Environment.pulse_config(), :backend, :pulse) == :greptime
-  def errors_available?, do: not greptime?()
 
   def available?(%{id: id} = account) do
     account_id = Keyword.get(Environment.pulse_config(), :account_id)
@@ -83,7 +76,6 @@ defmodule Tuist.Pulse do
 
   def query(user, account, signal, params) do
     with true <- authorized?(user, account),
-         true <- signal != "errors" or errors_available?(),
          {:ok, opts} <- Table.validate(signal, params),
          {:ok, client} <- credentials() do
       execute(signal, opts, client)
@@ -94,7 +86,7 @@ defmodule Tuist.Pulse do
   end
 
   def error_issue(user, account, issue_id, params) do
-    with true <- errors_available?() and authorized?(user, account),
+    with true <- authorized?(user, account),
          :ok <- valid_ids(issue_id),
          {:ok, opts} <- Table.validate("errors", params, :detail),
          {:ok, client} <- credentials() do
@@ -106,7 +98,7 @@ defmodule Tuist.Pulse do
   end
 
   def error_event(user, account, issue_id, event_id, params) do
-    with true <- errors_available?() and authorized?(user, account),
+    with true <- authorized?(user, account),
          :ok <- valid_ids(issue_id, event_id),
          {:ok, opts} <- Table.validate("errors", params, :detail),
          {:ok, client} <- credentials() do
@@ -143,7 +135,6 @@ defmodule Tuist.Pulse do
   """
   def analytics(user, account, signal, params) do
     with true <- authorized?(user, account),
-         true <- signal != "errors" or errors_available?(),
          {:ok, seconds} <- analytics_range(signal, params),
          {:ok, client} <- credentials() do
       # Minute multiples keep log/error buckets eligible for native rollups.
@@ -199,18 +190,10 @@ defmodule Tuist.Pulse do
 
   defp analytics_sample(client, signal, {id, query, unit}, period, window) do
     mode = if period == :previous, do: :instant, else: period
+    {path, params} = analytics_request(signal, id, query, mode, window)
 
-    result =
-      if client.backend == :greptime and signal in ~w(logs traces) do
-        Greptime.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1))
-      else
-        {path, params} = analytics_request(signal, id, query, mode, window)
-
-        with {:ok, body} <- request(client, path, params),
-             do: analytics_result(signal, mode, body, window)
-      end
-
-    with {:ok, values, warnings} <- result do
+    with {:ok, body} <- request(client, path, params),
+         {:ok, values, warnings} <- analytics_result(signal, mode, body, window) do
       {:ok, {id, unit, period, values, warnings}}
     end
   end
@@ -437,7 +420,6 @@ defmodule Tuist.Pulse do
       {:ok,
        %{
          base_url: String.trim_trailing(url, "/"),
-         backend: Keyword.get(config, :backend, :pulse),
          tenant: tenant,
          token: token,
          token_file: Keyword.get(config, :token_file)
@@ -477,15 +459,10 @@ defmodule Tuist.Pulse do
   defp execute("errors", opts, client), do: Errors.list(opts, &error_call(client, &1, &2))
 
   defp execute(signal, opts, client) do
-    result =
-      if client.backend == :greptime and signal in ~w(logs traces) do
-        Greptime.query(signal, opts, &request(client, "/v1/sql", &1))
-      else
-        {path, params} = request_params(signal, opts.query, opts.finish - opts.seconds, opts.finish, opts.seconds)
-        with {:ok, body} <- request(client, path, params), do: normalize(signal, body)
-      end
+    {path, params} = request_params(signal, opts.query, opts.finish - opts.seconds, opts.finish, opts.seconds)
 
-    with {:ok, result} <- result,
+    with {:ok, body} <- request(client, path, params),
+         {:ok, result} <- normalize(signal, body),
          :ok <- complete_result(signal, result) do
       {rows, meta} = Table.page(result.rows, opts)
 
@@ -539,14 +516,12 @@ defmodule Tuist.Pulse do
   end
 
   defp do_request(client, path, params, extra) do
-    {path, auth, headers} = request_target(client, path)
-
     request =
       Req.new(
         method: Keyword.get(extra, :method, :get),
         url: client.base_url <> path,
-        auth: auth,
-        headers: [{"accept", "application/json"}] ++ headers ++ Keyword.get(extra, :headers, []),
+        auth: {:bearer, client.token},
+        headers: [{"accept", "application/json"}, {"x-scope-orgid", client.tenant}] ++ Keyword.get(extra, :headers, []),
         params: params,
         compressed: false,
         into: &bounded_body/2,
@@ -568,13 +543,6 @@ defmodule Tuist.Pulse do
       {:error, _reason} -> {:error, :unavailable}
     end
   end
-
-  defp request_target(%{backend: :greptime} = client, path) do
-    path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
-    {path, {:basic, "dashboard:" <> client.token}, [{"x-greptime-db-name", client.tenant}]}
-  end
-
-  defp request_target(client, path), do: {path, {:bearer, client.token}, [{"x-scope-orgid", client.tenant}]}
 
   defp bounded_body({:data, data}, {request, response}) do
     body = response.body || ""
