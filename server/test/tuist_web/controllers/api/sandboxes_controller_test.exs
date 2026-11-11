@@ -731,10 +731,17 @@ defmodule TuistWeb.API.SandboxesControllerTest do
         "https://storage/#{key}?get"
       end)
 
-      assert %{"upload_url" => "https://storage/" <> upload, "download_url" => "https://storage/" <> download} =
+      assert %{
+               "upload_url" => "https://storage/" <> upload,
+               "download_url" => "https://storage/" <> download,
+               "expires_at" => expires_at
+             } =
                conn
                |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/uploads")
                |> json_response(:ok)
+
+      # Whole seconds: the CLI's generated client fails to decode fractional ones.
+      assert expires_at =~ ~r/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/
 
       key = String.trim_trailing(upload, "?put")
       assert download == key <> "?get"
