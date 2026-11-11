@@ -1,0 +1,57 @@
+name: Staging Sandbox Ownership
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Inspect first; repair only the observed staging ServiceAccount UID
+        type: choice
+        options: [inspect, repair]
+        default: inspect
+      expected_uid:
+        description: ServiceAccount UID from the preceding inspection (required for repair)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  ownership:
+    if: github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    environment: server-k8s-staging
+    concurrency:
+      group: server-deploy-staging-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENV: staging
+      MODE: ${{ inputs.mode }}
+      EXPECTED_UID: ${{ inputs.expected_uid }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/sandbox-ownership-config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq node"
+          cache: "false"
+      - name: Validate metadata-only repair safety guards
+        run: node --test .github/scripts/staging-sandbox-ownership.test.mjs
+      - uses: 1password/install-cli-action@v4
+      - name: Load staging deployment identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get 'kubeconfig: tuist-staging' --vault tuist-k8s-staging --output "$KUBECONFIG"
+      - name: Inspect or reconcile the existing sandbox identity
+        run: bash .github/scripts/staging-sandbox-ownership.sh
+      - name: Remove deployment credential
+        if: always()
+        run: rm -f "$KUBECONFIG"
