@@ -1242,7 +1242,12 @@ ovhFleets:
     # the fifth Machine 65 ms after the scale-up, still with offer advance-1. It
     # never matched the Advance-2, and the release rolled back on the
     # MachineDeployment wait (2026-11-04).
-    replicas: 5
+    #
+    # The sixth box is temporary landing room for moving the region onto
+    # encrypted thin volumes: an Advance-1 (EPYC 4244P, 4x960 GB NVMe, order
+    # 9501675), sized to take a whole host's instances while that host is
+    # reinstalled as lvm-v1. It is retired once every host is converted.
+    replicas: 6
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
