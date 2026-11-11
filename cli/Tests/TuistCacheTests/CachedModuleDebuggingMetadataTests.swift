@@ -492,7 +492,7 @@ struct CachedModuleDebuggingMetadataTests {
 
     /// Earlier CLIs recorded DocC inputs (and, before that, headers) for slices without observed sources. Their
     /// artifacts keep their hash, so warming never replaces them.
-    @Test(.inTemporaryDirectory, arguments: ["sources", "buildable-folder"])
+    @Test(.inTemporaryDirectory, arguments: ["sources", "buildable-folder", "sibling-inclusion"])
     func admitsEarlierMetadataThatRecordedDocumentationInputs(layout: String) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let base = try await target(at: root)
@@ -504,17 +504,25 @@ struct CachedModuleDebuggingMetadataTests {
         try await FileSystem().writeText("int feature(void);", at: header)
         var target = base.target
         target.headers = .test(public: [header])
+        var project = base.project
         let documentation: String
         if layout == "sources" {
             target.sources.append(SourceFile(path: catalog))
             documentation = "Feature/Feature.docc"
-        } else {
+        } else if layout == "buildable-folder" {
             target.buildableFolders = [.init(path: catalog, exceptions: [], resolvedFiles: [
                 .init(path: article, compilerFlags: nil),
             ])]
             documentation = "Feature/Feature.docc/Article.md"
+        } else {
+            project.targets["Sibling"] = .test(name: "Sibling", buildableFolders: [.init(
+                path: root, exceptions: [.init(
+                    excluded: [], compilerFlags: [:], publicHeaders: [], privateHeaders: [],
+                    target: "Feature", included: [article]
+                )], resolvedFiles: []
+            )])
+            documentation = "Feature/Feature.docc/Article.md"
         }
-        var project = base.project
         project.targets["Feature"] = target
         let graphTarget = GraphTarget(path: root, target: target, project: project)
         func admits(_ recorded: Set<String>) async throws -> Bool {
