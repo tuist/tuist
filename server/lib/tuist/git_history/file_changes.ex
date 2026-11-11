@@ -28,7 +28,10 @@ defmodule Tuist.GitHistory.FileChanges do
   what reading its files from there costs. A commit whose place changed (a
   fast-forward, a rebuild of the refs) is queued again and written at the
   new place from its listing, or, once the listing expired, from the rows it
-  left at the old one.
+  left at the old one. Only rows that would move up their own ref (a rebuild
+  placed a commit below them) are not copied but retired: every commit above
+  would be copied onto the rows of the next, so those commits' files are
+  unknown until they are listed again.
 
   The rows of a ref that forks from none are kept. Any other ref's rows
   expire together, since a commit's files read every row below it:
@@ -105,7 +108,7 @@ defmodule Tuist.GitHistory.FileChanges do
   `:pending` while no ref owns the commit; `:unavailable` when its listing's
   rows do not add up to its file count; or `:skipped` when it has no whole
   listing to write from, or would be copied above a commit that is not
-  going to move.
+  going to move, or up its own ref (its rows are retired).
   """
   def write(repository_id, sha) do
     GitHistory.with_refs_lock(repository_id, fn ->
@@ -218,20 +221,36 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   # A commit written below written ones changes what they read: each of them
-  # gets, for every path the commit changes and it has no row for, a row
-  # holding what was below the commit. They go in the statement that writes
-  # the commit's own rows, so no attempt can leave one without the other. A
-  # path the commit already has a row for is from an earlier attempt that
-  # did: a commit written since reads that row.
+  # gets, for every path the commit changes and it reads from below the
+  # commit, a row holding what was there. It reads a path from below when
+  # neither it nor anything between the two has a row for it: rows of commits
+  # still to move up the ref may lie between. The rows go in the statement
+  # that writes the commit's own, so no attempt can leave one without the
+  # other. A path the commit already has a row for is from an earlier attempt
+  # that did: a commit written since reads that row.
   defp insert_changes(listing, %{place: {ref_id, position} = place} = commit, expires_at, above) do
     held = held_sql([place | Enum.map(above, & &1.place)])
+    read = Enum.map(above, &read_above(&1.place, place))
+
+    reads =
+      Enum.map_join([[{ref_id, position - 1, position}] | read], " OR ", fn ranges ->
+        Enum.map_join(ranges, " OR ", fn {ref_id, low, high} ->
+          "(ref_id = #{ref_id} AND position > #{low} AND position <= #{high})"
+        end)
+      end)
 
     targets =
       above
+      |> Enum.zip(read)
       |> Enum.with_index(1)
-      |> Enum.map_join(", ", fn {%{place: {above_ref_id, above_position}, generation: generation}, index} ->
+      |> Enum.map_join(", ", fn {{%{place: {above_ref_id, above_position}, generation: generation}, ranges}, index} ->
+        ranges =
+          Enum.map_join(ranges, ", ", fn {ref_id, low, high} ->
+            "(toInt64(#{ref_id}), toUInt32(#{low}), toUInt32(#{high}))"
+          end)
+
         "(toInt64(#{above_ref_id}), toUInt32(#{above_position}), toUInt32(#{generation}), " <>
-          "{above_shas:Array(String)}[#{index}], toDateTime({above_expires_at:Array(UInt32)}[#{index}]))"
+          "{above_shas:Array(String)}[#{index}], toDateTime({above_expires_at:Array(UInt32)}[#{index}]), [#{ranges}])"
       end)
 
     insert(
@@ -247,7 +266,12 @@ defmodule Tuist.GitHistory.FileChanges do
               c.git_blob_id, c.mode, {expires_at:DateTime})],
             arrayMap(
               a -> (a.1, a.2, a.3, a.4, c.below_blob_id, c.below_mode, a.5),
-              arrayFilter(a -> h.own = 0 AND NOT has(h.places, (a.1, a.2)), [#{targets}])
+              arrayFilter(
+                a -> h.own = 0 AND NOT arrayExists(
+                  row -> arrayExists(r -> row.1 = r.1 AND row.2 > r.2 AND row.2 <= r.3, a.6), h.places
+                ),
+                [#{targets}]
+              )
             )
           ) AS targets
         FROM (
@@ -260,7 +284,7 @@ defmodule Tuist.GitHistory.FileChanges do
           SELECT path, groupArray((ref_id, position)) AS places,
             max(ref_id = {ref_id:Int64} AND position = {position:UInt32} AND sha = {sha:String}) AS own
           FROM git_file_changes FINAL
-          WHERE repository_id = {repository_id:Int64} AND expires_at > now() AND (#{held})
+          WHERE repository_id = {repository_id:Int64} AND expires_at > now() AND (#{reads})
           GROUP BY path
         ) AS h ON h.path = c.path
       ) ARRAY JOIN targets AS t
@@ -277,6 +301,17 @@ defmodule Tuist.GitHistory.FileChanges do
         above_expires_at: Enum.map(above, &DateTime.to_unix(&1.expires_at))
       }
     )
+  end
+
+  # Where a commit above the place reads from before it reaches the place:
+  # its own place and its chain down to the place, as `{ref, above, up to}`.
+  defp read_above(above, {ref_id, position}) do
+    above
+    |> GitHistory.chain(:at)
+    |> Enum.reduce_while([], fn
+      %{ref_id: ^ref_id, hi: high}, ranges -> {:halt, [{ref_id, position, high} | ranges]}
+      %{ref_id: other, hi: high}, ranges -> {:cont, [{other, 0, high} | ranges]}
+    end)
   end
 
   defp held_sql(places) do
@@ -334,6 +369,16 @@ defmodule Tuist.GitHistory.FileChanges do
     ) AS l
     FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below))}) AS s ON s.path = l.path
     """
+  end
+
+  # Rows that move up their own ref (a rebuild placed a commit below them)
+  # cannot be copied a commit at a time: they would land on, or be read
+  # over, the rows the commits above are still to copy. Retired, they leave
+  # the commit's files unknown rather than another commit's.
+  defp move(listing, %{place: {ref_id, position}}, {ref_id, old_position} = written) when position > old_position do
+    retire(listing, written)
+    mark(listing, nil, nil, nil)
+    :skipped
   end
 
   defp move(listing, commit, written) do
@@ -429,13 +474,18 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   # Gives each written commit right above the place a row for every path the
-  # place has rows for and it has none, holding what it read there so far:
-  # the place's own rows before they are retired (`:at`), or what is below
-  # the place after rows were added to it (`:below`).
+  # place has rows for and it has none, holding what it read so far: with
+  # the place's rows before they are retired (`:at`), or without them after
+  # rows were added to it (`:below`). Read along the commit's own chain, not
+  # the place's: rows of commits still to move up the ref may lie between.
   defp preserve_above(listing, {ref_id, position} = place, which) do
     for commit <- above(listing.repository_id, place, listing.sha) do
       {above_ref_id, above_position} = commit.place
       at = "repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}"
+      paths = "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})"
+
+      read =
+        if which == :at, do: paths, else: "#{paths} AND NOT (ref_id = {ref_id:Int64} AND position = {position:UInt32})"
 
       added =
         insert(
@@ -444,7 +494,7 @@ defmodule Tuist.GitHistory.FileChanges do
             p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
           FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
           LEFT JOIN (
-            #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
+            #{state_sql(GitHistory.chain(commit.place, :below), read)}
           ) AS s ON s.path = p.path
           WHERE p.path NOT IN (
             SELECT path FROM git_file_changes FINAL
