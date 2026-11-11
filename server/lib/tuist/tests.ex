@@ -4403,8 +4403,8 @@ defmodule Tuist.Tests do
       corrections
       |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
       |> Enum.flat_map(fn {{project_id, git_commit_sha}, grouped_corrections} ->
-        latest_flaky_states =
-          latest_test_case_run_flaky_states(
+        latest_states =
+          latest_test_case_run_states(
             project_id,
             git_commit_sha,
             grouped_corrections
@@ -4412,12 +4412,12 @@ defmodule Tuist.Tests do
 
         {already_applied, corrections_to_insert} =
           Enum.split_with(grouped_corrections, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == true
+            match?({true, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         corrections_to_insert =
           Enum.filter(corrections_to_insert, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == false
+            match?({false, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         insert_test_case_run_flaky_corrections(
@@ -4426,7 +4426,12 @@ defmodule Tuist.Tests do
           corrections_to_insert
         )
 
-        mark_legacy_test_runs_as_flaky(already_applied ++ corrections_to_insert)
+        (already_applied ++ corrections_to_insert)
+        |> Enum.map(fn correction ->
+          {_is_flaky, test_run_id} = Map.fetch!(latest_states, correction.test_case_run_id)
+          test_run_id
+        end)
+        |> mark_legacy_test_runs_as_flaky()
 
         if corrections_to_insert != [] do
           report_test_case_run_multiplicity(project_id, git_commit_sha, corrections_to_insert)
@@ -4455,17 +4460,8 @@ defmodule Tuist.Tests do
   # after a buffered create with the same version.
   defp mark_legacy_test_runs_as_flaky([]), do: :ok
 
-  defp mark_legacy_test_runs_as_flaky(corrections) do
-    test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
-
-    test_run_ids =
-      from(tcr in TestCaseRun.query(),
-        hints: ["FINAL"],
-        where: tcr.id in ^test_case_run_ids,
-        select: tcr.test_run_id
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.uniq()
+  defp mark_legacy_test_runs_as_flaky(test_run_ids) do
+    test_run_ids = Enum.uniq(test_run_ids)
 
     parents =
       ClickHouseRepo.all(
@@ -4531,7 +4527,10 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp latest_test_case_run_flaky_states(project_id, git_commit_sha, corrections) do
+  # Returns `%{test_case_run_id => {is_flaky, test_run_id}}`. The parent ID is
+  # read here, inside the `(project_id, test_case_id)` sort-key range, because
+  # looking case runs up by `id` alone scans the whole table.
+  defp latest_test_case_run_states(project_id, git_commit_sha, corrections) do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
 
@@ -4540,14 +4539,15 @@ defmodule Tuist.Tests do
       where: tcr.test_case_id in ^test_case_ids,
       where: tcr.git_commit_sha == ^git_commit_sha,
       where: tcr.id in ^test_case_run_ids,
-      group_by: tcr.id,
+      group_by: [tcr.id, tcr.test_run_id],
       select: {
         tcr.id,
-        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
+        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at),
+        tcr.test_run_id
       }
     )
     |> ClickHouseRepo.all(settings: @flaky_correction_lookup_settings)
-    |> Map.new()
+    |> Map.new(fn {id, is_flaky, test_run_id} -> {id, {is_flaky, test_run_id}} end)
   end
 
   defp insert_test_case_run_flaky_corrections(_project_id, _git_commit_sha, []), do: :ok
