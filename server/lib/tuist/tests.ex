@@ -41,6 +41,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakinessEvidence
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
+  alias Tuist.Tests.LegacySuiteIdentity
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
@@ -1332,6 +1333,13 @@ defmodule Tuist.Tests do
 
     Batch.insert_all(TestCase, test_cases)
 
+    # A test case that inherits its legacy ID's ledger already has a history, so it
+    # gets no `first_run` event or `test_case.created` webhook of its own.
+    carried_over =
+      LegacySuiteIdentity.carry_over(project_id, Enum.filter(test_cases, &MapSet.member?(new_test_case_ids, &1.id)))
+
+    new_test_case_ids = MapSet.difference(new_test_case_ids, carried_over)
+
     test_case_id_map =
       Map.new(test_cases, fn tc ->
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
@@ -2580,20 +2588,29 @@ defmodule Tuist.Tests do
 
   # A test case is new until it has run in CI on the default branch, or on a
   # commit the default branch has since reached (a merge queue's, typically).
+  # A test case in a nested suite is also known under the ID it had before
+  # nested suites were recorded whole (`LegacySuiteIdentity`).
   defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project)
        when is_binary(default_branch) and default_branch != "" do
     existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(project.id, default_branch)
 
+    test_case_data =
+      Enum.map(test_case_data, fn %{identity_key: {name, module_name, suite_name}} = data ->
+        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, name, module_name, suite_name)
+        Map.put(data, :known_ids, Enum.reject([data.test_case_id, legacy_id], &is_nil/1))
+      end)
+
     landed =
       test_case_data
-      |> Enum.map(& &1.test_case_id)
+      |> Enum.flat_map(& &1.known_ids)
       |> Enum.reject(&MapSet.member?(existing_on_default_branch, &1))
       |> then(&test_case_ids_landed_on_default_branch(project, default_branch, &1))
 
     Enum.map(test_case_data, fn data ->
+      {known_ids, data} = Map.pop!(data, :known_ids)
+
       is_new =
-        not MapSet.member?(existing_on_default_branch, data.test_case_id) and
-          not MapSet.member?(landed, data.test_case_id)
+        not Enum.any?(known_ids, &(MapSet.member?(existing_on_default_branch, &1) or MapSet.member?(landed, &1)))
 
       Map.put(data, :is_new, is_new)
     end)

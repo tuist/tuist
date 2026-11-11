@@ -24,6 +24,7 @@ defmodule Tuist.Tests.StressNewTests do
   alias Tuist.ClickHouseRepo
   alias Tuist.Ingestion.Batch
   alias Tuist.Tests
+  alias Tuist.Tests.LegacySuiteIdentity
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestRunStressCandidate
@@ -121,24 +122,30 @@ defmodule Tuist.Tests.StressNewTests do
 
   defp identity(test_case), do: {test_case.module_name, test_case.suite_name, test_case.name}
 
+  # A test case in a nested suite is also known under the ID it had before
+  # nested suites were recorded whole (`LegacySuiteIdentity`).
   defp reject_known(project, default_branch, test_cases) do
-    by_id =
-      Map.new(test_cases, fn test_case ->
-        {Tests.generate_test_case_id(project.id, test_case.name, test_case.module_name, test_case.suite_name), test_case}
+    with_ids =
+      Enum.map(test_cases, fn test_case ->
+        %{name: name, module_name: module_name, suite_name: suite_name} = test_case
+        id = Tests.generate_test_case_id(project.id, name, module_name, suite_name)
+        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, name, module_name, suite_name)
+        {Enum.reject([id, legacy_id], &is_nil/1), test_case}
       end)
 
     known =
-      by_id
-      |> Map.keys()
+      with_ids
+      |> Enum.flat_map(&elem(&1, 0))
+      |> Enum.uniq()
       |> Enum.chunk_every(@batch_size)
       |> Enum.flat_map(&known_test_case_ids(project.id, default_branch, &1))
       |> MapSet.new()
 
-    unknown = Enum.reject(by_id, fn {id, _} -> MapSet.member?(known, id) end)
-    landed = Tests.test_case_ids_landed_on_default_branch(project, default_branch, Enum.map(unknown, &elem(&1, 0)))
+    unknown = Enum.reject(with_ids, fn {ids, _} -> Enum.any?(ids, &MapSet.member?(known, &1)) end)
+    landed = Tests.test_case_ids_landed_on_default_branch(project, default_branch, Enum.flat_map(unknown, &elem(&1, 0)))
 
     unknown
-    |> Enum.reject(fn {id, _} -> MapSet.member?(landed, id) end)
+    |> Enum.reject(fn {ids, _} -> Enum.any?(ids, &MapSet.member?(landed, &1)) end)
     |> Enum.map(fn {_, test_case} -> test_case end)
   end
 
