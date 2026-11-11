@@ -17,6 +17,7 @@
     "./css/*.css",
     "./js/index.js",
     "./js/Spinner.js",
+    "./js/ButtonGroup.js",
     "./priv/static/*.css",
     "./priv/static/noora.js"
   ],
