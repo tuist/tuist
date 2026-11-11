@@ -13,7 +13,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -30,17 +32,122 @@ const dockerDataRoot = "/var/lib/docker"
 const dindMemoryFile = "/var/run/tuist-dind-memory"
 
 // publishDindMemory rewrites dindMemoryFile every three seconds, vitals.sh's
-// default interval, for the life of the sidecar. Best-effort: a sample it
-// cannot read or write is skipped, never an error.
+// default interval, for the life of the sidecar, with the process the guest
+// kernel last killed for memory once there is one. It also keeps the job's
+// containers first in line for the OOM killer. Best-effort: a sample it cannot
+// read or write is skipped, never an error.
 func publishDindMemory() {
+	go func() {
+		for {
+			raiseJobContainerOOMScores("/proc")
+			time.Sleep(time.Second)
+		}
+	}()
+	var kills int64
+	victim := ""
 	for {
+		// Only this privileged sidecar can read the kernel log, so it names the
+		// victim for the runner's job-completed hook.
+		if n := guestOOMKills("/proc/vmstat"); n > kills {
+			kills = n
+			if found := latestOOMVictim(kernelLog()); found != "" {
+				victim = found
+			}
+		}
 		if line := dindMemory("/sys/fs/cgroup"); line != "" {
+			if victim != "" {
+				line += " " + victim
+			}
 			if os.WriteFile(dindMemoryFile+".tmp", []byte(line+"\n"), 0o644) == nil {
 				_ = os.Rename(dindMemoryFile+".tmp", dindMemoryFile)
 			}
 		}
 		time.Sleep(3 * time.Second)
 	}
+}
+
+// jobContainerOOMScoreAdj puts the job's containers first in line when the
+// guest runs out of memory. Docker starts them at 0 while the Pod's own
+// processes run at the kubelet's ~870, so the kernel used to kill the runner
+// ("lost communication") and dockerd before the build's JVMs. At the maximum,
+// the container process using the most memory goes first, the step fails with
+// exit code 137 and the runner survives to report it.
+const jobContainerOOMScoreAdj = "1000"
+
+// raiseJobContainerOOMScores sets every process in dockerd's cgroup tree, the
+// job's containers and BuildKit's build steps, to jobContainerOOMScoreAdj and
+// returns how many it changed. Children inherit the score; the sweep catches
+// each new container and `docker exec` within a second.
+func raiseJobContainerOOMScores(proc string) int {
+	entries, err := os.ReadDir(proc)
+	if err != nil {
+		return 0
+	}
+	raised := 0
+	for _, entry := range entries {
+		if _, err := strconv.Atoi(entry.Name()); err != nil {
+			continue
+		}
+		cgroup, err := os.ReadFile(filepath.Join(proc, entry.Name(), "cgroup"))
+		if err != nil || !strings.HasPrefix(string(cgroup), "0::/docker/") {
+			continue
+		}
+		path := filepath.Join(proc, entry.Name(), "oom_score_adj")
+		if current, err := os.ReadFile(path); err != nil || strings.TrimSpace(string(current)) == jobContainerOOMScoreAdj {
+			continue
+		}
+		if os.WriteFile(path, []byte(jobContainerOOMScoreAdj), 0o644) == nil {
+			raised++
+		}
+	}
+	return raised
+}
+
+// guestOOMKills is the guest kernel's count of processes killed for memory,
+// the oom_kill line of /proc/vmstat, or 0 when it cannot be read.
+func guestOOMKills(vmstat string) int64 {
+	data, _ := os.ReadFile(vmstat)
+	for _, line := range strings.Split(string(data), "\n") {
+		if value, ok := strings.CutPrefix(line, "oom_kill "); ok {
+			n, _ := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			return n
+		}
+	}
+	return 0
+}
+
+// kernelLog reads the guest kernel's ring buffer.
+func kernelLog() string {
+	size, err := unix.Klogctl(unix.SYSLOG_ACTION_SIZE_BUFFER, nil)
+	if err != nil || size <= 0 {
+		return ""
+	}
+	buffer := make([]byte, size)
+	n, err := unix.Klogctl(unix.SYSLOG_ACTION_READ_ALL, buffer)
+	if err != nil {
+		return ""
+	}
+	return string(buffer[:n])
+}
+
+var oomKilledProcess = regexp.MustCompile(`Killed process \d+ \((.*)\) total-vm:\d+kB, anon-rss:(\d+)kB`)
+var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+
+// latestOOMVictim renders the last process the kernel log reports killed for
+// memory as vitals fields, or "" when it reports none. The name is the job's
+// own process name, so it keeps only characters safe in a vitals line and a
+// GitHub annotation.
+func latestOOMVictim(log string) string {
+	matches := oomKilledProcess.FindAllStringSubmatch(log, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	last := matches[len(matches)-1]
+	name := unsafeName.ReplaceAllString(last[1], "_")
+	if name == "" {
+		name = "unknown"
+	}
+	return "oom.victim=" + name + " oom.victim.anon.kb=" + last[2]
 }
 
 // dindMemory renders the cgroup v2 memory of the cgroup at path as vitals.sh

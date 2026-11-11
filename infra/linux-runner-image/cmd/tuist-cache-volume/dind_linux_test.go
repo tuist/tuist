@@ -229,3 +229,59 @@ func TestDindMemoryRendersTheSidecarCgroupAsVitalsFields(t *testing.T) {
 		t.Fatalf("a cgroup without memory accounting published %q", got)
 	}
 }
+
+func TestRaiseJobContainerOOMScoresPutsOnlyDockerProcessesFirst(t *testing.T) {
+	proc := t.TempDir()
+	for pid, process := range map[string][2]string{
+		"10": {"0::/docker/3f1c\n", "0\n"},        // job container
+		"11": {"0::/docker/buildkit/x9\n", "0\n"}, // BuildKit build step
+		"12": {"0::/\n", "872\n"},                 // dockerd, shim, the supervisor
+		"13": {"0::/docker/3f1c\n", "1000\n"},     // already raised
+		"14": {"0::/dockerish/a\n", "0\n"},        // not dockerd's tree
+	} {
+		if err := os.MkdirAll(filepath.Join(proc, pid), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.WriteFile(filepath.Join(proc, pid, "cgroup"), []byte(process[0]), 0o644)
+		_ = os.WriteFile(filepath.Join(proc, pid, "oom_score_adj"), []byte(process[1]), 0o644)
+	}
+	_ = os.MkdirAll(filepath.Join(proc, "self"), 0o755)
+	if raised := raiseJobContainerOOMScores(proc); raised != 2 {
+		t.Fatalf("raised %d processes, want 2", raised)
+	}
+	for pid, want := range map[string]string{"10": "1000", "11": "1000", "12": "872", "13": "1000", "14": "0"} {
+		got, _ := os.ReadFile(filepath.Join(proc, pid, "oom_score_adj"))
+		if strings.TrimSpace(string(got)) != want {
+			t.Errorf("pid %s oom_score_adj = %q, want %s", pid, got, want)
+		}
+	}
+}
+
+func TestLatestOOMVictimNamesTheLastKilledProcessSafely(t *testing.T) {
+	log := "<6>[ 10.1] docker0: port 1 entered disabled state\n" +
+		"<3>[ 2000.5] Out of memory: Killed process 812 (Runner.Worker) total-vm:4096kB, anon-rss:130000kB, file-rss:0kB, shmem-rss:0kB, UID:1001 pgtables:500kB oom_score_adj:872\n" +
+		"<3>[ 2100.7] Out of memory: Killed process 4242 (java) total-vm:40000000kB, anon-rss:27262976kB, file-rss:1024kB, shmem-rss:0kB, UID:0 pgtables:60000kB oom_score_adj:1000\n"
+	if got, want := latestOOMVictim(log), "oom.victim=java oom.victim.anon.kb=27262976"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	// A job names its own processes, so the name must not break a vitals line
+	// or start a workflow command.
+	hostile := "Out of memory: Killed process 7 (a b::error%0A) total-vm:1kB, anon-rss:2kB, file-rss:0kB"
+	if got, want := latestOOMVictim(hostile), "oom.victim=a_b__error_0A oom.victim.anon.kb=2"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := latestOOMVictim("<6>[ 1.0] nothing to see\n"); got != "" {
+		t.Fatalf("a log without an OOM kill named %q", got)
+	}
+}
+
+func TestGuestOOMKillsReadsVmstat(t *testing.T) {
+	vmstat := filepath.Join(t.TempDir(), "vmstat")
+	_ = os.WriteFile(vmstat, []byte("pgfault 12\noom_kill 3\nthp_fault_alloc 0\n"), 0o644)
+	if got := guestOOMKills(vmstat); got != 3 {
+		t.Fatalf("got %d, want 3", got)
+	}
+	if got := guestOOMKills(filepath.Join(t.TempDir(), "missing")); got != 0 {
+		t.Fatalf("an unreadable vmstat reported %d kills", got)
+	}
+}

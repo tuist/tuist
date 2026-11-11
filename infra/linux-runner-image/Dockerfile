@@ -473,7 +473,7 @@ COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/acti
 # into another layer whenever a script changes.
 COPY --chmod=0755 buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
 COPY --chmod=0755 bitrise-hooks/ /usr/local/share/tuist/bitrise-hooks/
-COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh /usr/local/bin/
+COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh memory-report.sh metrics-sampler.sh /usr/local/bin/
 
 USER runner
 RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
