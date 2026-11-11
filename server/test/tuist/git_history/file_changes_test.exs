@@ -7,7 +7,6 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Workers.FileChangesWorker
-  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -163,49 +162,67 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_count: 3} = listing(repository, "c")
   end
 
-  test "a write that stopped after its own rows leaves the commit above with its files", %{repository: repository} do
-    commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
-    head(repository, "main", "c")
+  describe "a write that stopped before it marked the listing, tried again" do
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+      head(repository, "main", "c")
+      list(repository, "a", %{"Kept.swift" => "k1", "Reverted.swift" => "r1"})
 
-    b = %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "Added.swift" => "n1"}
-    c = %{"Kept.swift" => "k1", "Reverted.swift" => "r1"}
+      %{b: %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "Added.swift" => "n1"}}
+    end
 
-    list(repository, "a", %{"Kept.swift" => "k1", "Reverted.swift" => "r1"})
-    list(repository, "c", c)
+    defp unmark(repository, sha) do
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [changes_ref_id: nil, changes_position: nil, changes_expires_at: nil, changes_count: nil]
+      )
+    end
 
-    # The rows of `b`, written by an attempt that stopped before it gave `c`
-    # its own and marked the listing.
-    GitHistory.record_listing(
-      repository,
-      "b",
-      Enum.map(b, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: @mode} end),
-      files_count: map_size(b)
-    )
+    test "leaves a child written since with its files", %{repository: repository, b: b} do
+      c = Map.put(b, "New.swift", "x1")
 
-    IngestRepo.insert_all(
-      FileChange,
-      for {path, blob} <- %{"Reverted.swift" => "r2", "Added.swift" => "n1"} do
-        %{
-          repository_id: repository,
-          ref_id: ref_id(repository, "main"),
-          position: 2,
-          generation: 2,
-          sha: "b",
-          path: path,
-          git_blob_id: blob,
-          mode: @mode,
-          expires_at: ~N[2100-01-01 00:00:00],
-          row_version: System.os_time(:microsecond),
-          is_deleted: 0
-        }
-      end
-    )
+      list(repository, "b", b)
+      unmark(repository, "b")
+      list(repository, "c", c)
 
-    settle()
+      assert FileChanges.write(repository, "b") == :written
+      assert files(repository, "b") == with_mode(b)
+      assert files(repository, "c") == with_mode(c)
+    end
 
-    assert %{changes_position: 2} = listing(repository, "b")
-    assert files(repository, "b") == with_mode(b)
-    assert files(repository, "c") == with_mode(c)
+    test "leaves a child written before it with its files", %{repository: repository, b: b} do
+      c = %{"Kept.swift" => "k1", "Reverted.swift" => "r1"}
+
+      list(repository, "c", c)
+      list(repository, "b", b)
+      unmark(repository, "b")
+
+      assert FileChanges.write(repository, "b") == :written
+      assert files(repository, "b") == with_mode(b)
+      assert files(repository, "c") == with_mode(c)
+    end
+  end
+
+  test "a moved commit whose listing does not add up keeps the rows it had", %{repository: repository} do
+    commits(repository, [{"a", []}, {"f1", ["a"]}])
+    head(repository, "main", "a")
+    head(repository, "feature", "f1")
+
+    f1 = %{"A.swift" => "a2", "B.swift" => "b1"}
+    list(repository, "a", %{"A.swift" => "a1"})
+    list(repository, "f1", f1)
+
+    listing = from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "f1")
+    Repo.update_all(listing, set: [files_count: 99])
+    GitHistory.advance_ref(repository, "main", nil, "f1")
+
+    assert FileChanges.write(repository, "f1") == :unavailable
+    assert changes(repository, "f1") == f1
+
+    # Once the listing is gone the rows move with the commit.
+    Repo.update_all(listing, set: [inserted_at: DateTime.add(DateTime.utc_now(:second), -200, :day)])
+
+    assert FileChanges.write(repository, "f1") == :moved
+    assert files(repository, "f1") == with_mode(f1)
   end
 
   test "a truncated listing is never written, and the next commit compares with the one below it", %{
