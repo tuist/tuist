@@ -31,7 +31,8 @@ defmodule Tuist.Sandboxes.Uploads do
     %{
       upload_url: Storage.generate_upload_url(key, account, expires_in: @url_ttl_seconds),
       download_url: Storage.generate_download_url(key, account, expires_in: @url_ttl_seconds),
-      expires_at: DateTime.add(DateTime.utc_now(), @url_ttl_seconds)
+      # Whole seconds, like the API's other timestamps: the CLI's generated client rejects fractional ones.
+      expires_at: DateTime.add(DateTime.utc_now(:second), @url_ttl_seconds)
     }
   end
 end
