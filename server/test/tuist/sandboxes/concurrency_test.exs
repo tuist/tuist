@@ -57,6 +57,7 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
   end
 
   test "execution VMs count against the account's execution concurrency, not its sandbox limits" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
     account = account_fixture()
     agent = sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
 
@@ -70,6 +71,7 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
   end
 
   test "the disk limit refuses a create past it, admits one up to it, and never refuses a resume" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
     stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
     account = account_fixture()
     # Two default-shape sandboxes: 10 GB workspace, a 4 GB memory image and
