@@ -1,12 +1,11 @@
-name: Pulse Deployment
+name: Pulse Deployment (retired)
 
-# Control code always comes from main. Rollbacks consume the released chart,
-# image digest and managed overlay from the same immutable source commit.
+# Retain the old caller interface without granting it deployment access.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Published Pulse version to deploy or roll back to (for example 1.39.0)"
+        description: Retired input; no version will be deployed
         required: true
         type: string
   workflow_call:
@@ -15,156 +14,18 @@ on:
         required: true
         type: string
       source_sha:
-        description: "Exact source commit published by the calling release workflow"
         required: true
         type: string
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN:
-        required: true
+        required: false
 
 permissions:
   contents: read
-  packages: read
-
-concurrency:
-  group: pulse-deploy-environments
-  cancel-in-progress: false
-
-defaults:
-  run:
-    shell: bash
 
 jobs:
-  resolve:
-    name: Verify published Pulse release
-    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
-    runs-on: tuist-linux
-    timeout-minutes: 10
-    outputs:
-      version: ${{ steps.resolve.outputs.version }}
-      tag: ${{ steps.resolve.outputs.tag }}
-      source-sha: ${{ steps.resolve.outputs.source-sha }}
-      image-digest: ${{ steps.resolve.outputs.image-digest }}
-      chart-sha256: ${{ steps.resolve.outputs.chart-sha256 }}
-      staging-overlay-sha256: ${{ steps.resolve.outputs.staging-overlay-sha256 }}
-      canary-overlay-sha256: ${{ steps.resolve.outputs.canary-overlay-sha256 }}
-      production-overlay-sha256: ${{ steps.resolve.outputs.production-overlay-sha256 }}
-    env:
-      VERSION: ${{ inputs.version }}
-      EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
-      GH_TOKEN: ${{ github.token }}
-      GH_ACTOR: ${{ github.actor }}
+  retired:
+    name: Retired — no runtime deployed
+    runs-on: ubuntu-latest
     steps:
-      - name: Validate deployment inputs
-        run: |
-          set -euo pipefail
-          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          if [[ -n "$EXPECTED_SOURCE_SHA" ]]; then [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; fi
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked helm jq yq oras"
-          cache: "false"
-          github_token: ${{ github.token }}
-      - name: Resolve and verify release artifacts
-        id: resolve
-        run: |
-          set -euo pipefail
-          tag="pulse@$VERSION"
-          dir="$RUNNER_TEMP/pulse-release"
-          mkdir -p "$dir/assets" "$dir/deploy"
-          gh release view "$tag" --repo tuist/tuist --json tagName,isDraft,isPrerelease \
-            | jq -e --arg tag "$tag" '.tagName == $tag and .isDraft == false and .isPrerelease == false' >/dev/null
-          gh release download "$tag" --repo tuist/tuist --dir "$dir/assets" \
-            --pattern pulse-release.json --pattern "pulse-$VERSION.tgz"
-          manifest="$dir/assets/pulse-release.json"
-          jq -e --arg tag "$tag" --arg version "$VERSION" \
-            '.tag == $tag and .version == $version and
-             (.source_sha | test("^[0-9a-f]{40}$")) and
-             (.image_digest | test("^sha256:[0-9a-f]{64}$")) and
-             (.chart_sha256 | test("^[0-9a-f]{64}$"))' "$manifest" >/dev/null
-          source_sha=$(jq -r .source_sha "$manifest")
-          image_digest=$(jq -r .image_digest "$manifest")
-          chart_sha256=$(jq -r .chart_sha256 "$manifest")
-          if [[ -n "$EXPECTED_SOURCE_SHA" ]]; then [[ "$source_sha" == "$EXPECTED_SOURCE_SHA" ]]; fi
-          git fetch --no-tags origin "refs/tags/$tag:refs/tags/$tag"
-          [[ "$(git rev-parse "refs/tags/$tag^{commit}")" == "$source_sha" ]]
-          mix_version=$(git show "$source_sha:pulse/mix.exs" \
-            | sed -nE 's/^[[:space:]]*version: "([^"]+)",?$/\1/p')
-          [[ "$mix_version" == "$VERSION" ]]
-          git show "$source_sha:infra/helm/pulse/Chart.yaml" \
-            | yq -o=json | jq -e --arg version "$VERSION" \
-              '.name == "pulse" and .version == $version and .appVersion == $version' >/dev/null
-          # Do not execute scripts/actions from the historical release tree.
-          for environment in staging canary production; do
-            overlay="values-managed-$environment.yaml"
-            git show "$source_sha:infra/helm/pulse/$overlay" > "$dir/deploy/$overlay"
-            overlay_sha256=$(sha256sum "$dir/deploy/$overlay" | cut -d' ' -f1)
-            echo "$environment-overlay-sha256=$overlay_sha256" >> "$GITHUB_OUTPUT"
-          done
-          echo "$chart_sha256  $dir/assets/pulse-$VERSION.tgz" | sha256sum -c -
-          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
-          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GH_ACTOR" --password-stdin
-          helm pull oci://ghcr.io/tuist/charts/pulse --version "$VERSION" --destination "$dir/deploy"
-          echo "$chart_sha256  $dir/deploy/pulse-$VERSION.tgz" | sha256sum -c -
-          helm show chart "$dir/deploy/pulse-$VERSION.tgz" \
-            | yq -o=json | jq -e --arg version "$VERSION" \
-              '.name == "pulse" and .version == $version and .appVersion == $version' >/dev/null
-          published_digest=$(oras manifest fetch --descriptor "ghcr.io/tuist/pulse:$VERSION" | jq -r .digest)
-          [[ "$published_digest" == "$image_digest" ]]
-          {
-            echo "version=$VERSION"
-            echo "tag=$tag"
-            echo "source-sha=$source_sha"
-            echo "image-digest=$image_digest"
-            echo "chart-sha256=$chart_sha256"
-          } >> "$GITHUB_OUTPUT"
-      - name: Retain verified deployment inputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: pulse-deployment-inputs
-          path: ${{ runner.temp }}/pulse-release/deploy/*
-          if-no-files-found: error
-          retention-days: 1
-
-  staging:
-    name: Deploy Pulse staging
-    needs: resolve
-    uses: ./.github/workflows/pulse-instance-deployment.yml
-    with:
-      environment: staging
-      version: ${{ needs.resolve.outputs.version }}
-      source_sha: ${{ needs.resolve.outputs.source-sha }}
-      image_digest: ${{ needs.resolve.outputs.image-digest }}
-      chart_sha256: ${{ needs.resolve.outputs.chart-sha256 }}
-      overlay_sha256: ${{ needs.resolve.outputs.staging-overlay-sha256 }}
-    secrets: inherit
-
-  canary:
-    name: Deploy Pulse canary
-    needs: [resolve, staging]
-    uses: ./.github/workflows/pulse-instance-deployment.yml
-    with:
-      environment: canary
-      version: ${{ needs.resolve.outputs.version }}
-      source_sha: ${{ needs.resolve.outputs.source-sha }}
-      image_digest: ${{ needs.resolve.outputs.image-digest }}
-      chart_sha256: ${{ needs.resolve.outputs.chart-sha256 }}
-      overlay_sha256: ${{ needs.resolve.outputs.canary-overlay-sha256 }}
-    secrets: inherit
-
-  production:
-    name: Deploy Pulse production
-    needs: [resolve, canary]
-    uses: ./.github/workflows/pulse-instance-deployment.yml
-    with:
-      environment: production
-      version: ${{ needs.resolve.outputs.version }}
-      source_sha: ${{ needs.resolve.outputs.source-sha }}
-      image_digest: ${{ needs.resolve.outputs.image-digest }}
-      chart_sha256: ${{ needs.resolve.outputs.chart-sha256 }}
-      overlay_sha256: ${{ needs.resolve.outputs.production-overlay-sha256 }}
-    secrets: inherit
+      - run: echo 'The old Pulse runtime is retired. Use GreptimeDB Replacement; no deployment was performed.'

@@ -115,21 +115,19 @@ compatibility readers preserve historical rollups without rewriting objects.
 Respect the cutover and rollback boundaries described in
 [Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
 
-### GreptimeDB staging evaluation
+### GreptimeDB storage
 
-The prepared GreptimeDB staging pilot adds an independent `greptimedb/` prefix
-inside `tuist-pulso-staging` for GreptimeDB-managed data/indexes and disposable
-`greptimedb/ci-preflight/<run>` storage probes. Its retained 10 GiB Kubernetes PVC
-holds local WAL and standalone state. CI writes only synthetic metric values,
-ERROR logs and error-status spans identified by a CI run ID; no collector fan-out,
-customer ingestion, account mapping or customer export integration is enabled.
-Synthetic samples have no time-based expiry and remain until explicitly removed;
-the storage probe deletes only its own run-scoped key. State is retained after a
-failed rollout. This is desired configuration, not evidence of deployment or an
-S3 restore. Before collecting real telemetry, document its subject attribution,
-bounded retention and an exercised subject-filtered SQL/export procedure here;
-do not treat a Pulse or Grafana export as covering GreptimeDB's separate copy.
-Authentication and object-store credentials are excluded from exports.
+The GreptimeDB replacement uses an independent `greptimedb/` prefix in each
+environment's `tuist-pulso-<environment>` bucket for database-managed data and
+indexes, and disposable `greptimedb/ci-preflight/<run>` storage probes. A retained
+10 GiB Kubernetes PVC holds local WAL and standalone state. CI synthetic telemetry
+is identified by its run ID and shares the database's retention policy. The
+storage probe deletes only its own run-scoped key. Failed rollouts preserve data
+and PVCs; qualification across a restart is not an exercised S3 disaster restore.
+The replacement does not import or delete historical Pulse objects. Export
+requests spanning the cutover must cover both stores. Authentication and
+object-store credentials are excluded from exports. See the telemetry export
+procedure below for subject attribution and retention.
 
 ### Managed outbound email delivery
 
@@ -1231,6 +1229,55 @@ retention period is imposed here. Customer exports or erasure requests should
 search those backends using selected/auth IDs and legacy handles, distinguish
 caller from target, and include retained matching flag observations. Process-local
 snapshots are ephemeral and disappear with their request, socket, task or job.
+
+### Managed GreptimeDB telemetry
+
+The replacement configuration routes staging, canary and production operational
+metrics, pod logs and OTLP spans to each environment's private GreptimeDB `public`
+database through the existing Pulse ingestion origins. Grafana Cloud destinations
+remain independent and unchanged. This describes the prepared configuration, not
+proof that any environment has completed its cutover. Logs live in `opentelemetry_logs`
+(nanosecond `timestamp`, `body`, severity, trace/span IDs and JSON log/resource
+attributes). Spans live in `opentelemetry_traces` (trace/span/parent IDs, service,
+operation, status, duration and JSON events/links). Prometheus metric tables retain
+their metric names, timestamps, values and labels. These are operational records,
+not new account-owned application tables; identifiers in log bodies or attributes
+and span events can relate to a customer as described above.
+
+Each environment stores its own data under `tuist-pulso-<environment>/greptimedb/`
+in Tigris and on its standalone WAL/state PVC. The deployment verifies a seven-day
+database TTL in staging and canary before enabling ingestion; physical object
+reclamation can lag logical expiry. Production explicitly uses no database expiry
+(`forever`), preserving the old deployment's effective retention: its configured
+30/14/90-day log/trace/metric periods were observation-only, not enforced. A later
+production retention policy needs a separate deliberate change. Switching an
+ingestion route stops new writes to the old backend but erases neither store.
+
+Loki stream labels are retained in log `resource_attributes`, with `service_name`
+also promoted to `service.name` unless already present. Structured metadata is
+retained separately in `log_attributes`, including same-key collisions with stream
+labels; its trace ID takes precedence in the projected `trace_id` column. Native
+OTLP logs retain their original log/resource attributes. Operational account
+allowlisting in the Tuist dashboard is not per-customer storage isolation: the
+`public` database contains the whole environment's operational telemetry and must
+not be exposed to arbitrary customer accounts.
+
+For a legal export, an authorized operator must query `/v1/sql` using the
+environment's read-only `dashboard` identity and `x-greptime-db-name: public`, and
+export matching rows as JSON. Use the subject's verified authenticated/selected
+IDs and legacy handles in `log_attributes`, `resource_attributes`, span events and
+log bodies; JSON paths for dotted keys require bracket syntax (for example
+`json_get_string(resource_attributes, '["service.name"]')`). Discover retained
+attribute keys and their types first rather than assuming every producer promotes
+the same columns. Include related spans by the matching log/span trace IDs and
+metric series only when their labels identify the subject. Never export the whole
+environment, credential, provider file, bucket or PVC for a customer. The Tuist
+dashboard's latest-100-row view and literal text search are not a complete legal
+export; paginate the time/identity-scoped SQL result independently. There is no
+automated archive or per-subject erasure workflow for this backend; scoped deletion
+requires separate authorized operator handling. The SQL projections, nanosecond
+timestamps and aggregate queries have been exercised against GreptimeDB v1.3.0;
+this does not establish complete attribution for every collector or source.
 
 ## Bazel remote execution
 

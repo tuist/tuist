@@ -104,7 +104,7 @@ server:
   appUrl: https://tuist.dev
 
   config:
-    # PULSE_TOKEN/password already backs the production Pulse tenant in the
+    # PULSE_TOKEN/password backs the production Greptime dashboard identity in the
     # observability namespace. ESO supplies it without copying a cluster Secret.
     pulse:
       enabled: true
@@ -247,12 +247,14 @@ server:
       value: prod
     # Stable account ID, not organization ID (which is 1). Membership and the
     # default-off account feature flag are still required on every surface.
+    - name: TUIST_PULSE_BACKEND
+      value: greptime
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "3"
     - name: TUIST_PULSE_URL
-      value: http://pulse.observability.svc.cluster.local:4000
+      value: http://greptimedb.observability.svc.cluster.local:4000
     - name: TUIST_PULSE_TENANT
-      value: tuist
+      value: public
     # Registered production plugin; its private signing key stays in ESO.
     - name: TUIST_ENTIRE_PLUGIN_SLUG
       value: tuist
@@ -467,12 +469,12 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
+  # Pin the tunnel to CNPG, ClickHouse and the private Greptime query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
-    - pulse.observability.svc.cluster.local:4000
+    - greptimedb.observability.svc.cluster.local:4000
 
 capi:
   ovhRunnerEgress:

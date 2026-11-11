@@ -22,6 +22,21 @@ defmodule TuistWeb.PulseLiveTest do
     %{conn: log_in_user(conn, user), user: user, account: account, organization: organization}
   end
 
+  test "Greptime hides Errors and rejects direct issue and event pages", ctx do
+    stub(Environment, :pulse_config, fn -> [account_id: ctx.account.id, backend: :greptime] end)
+    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    render_async(view)
+    refute has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
+    view |> element("#pulse-toggle-query") |> render_click()
+    assert has_element?(view, "#pulse-expression[value='*']")
+
+    for path <- ["errors", "errors/issues/issue", "errors/issues/issue/events/event"] do
+      assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{path}") end
+    end
+  end
+
   for signal <- ~w(metrics logs traces errors) do
     test "renders #{signal} with organization navigation and escaped telemetry", ctx do
       signal = unquote(signal)

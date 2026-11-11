@@ -31,6 +31,7 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist-staging.svc.cluster.local:8123
+    - greptimedb.observability.svc.cluster.local:4000
 
 capi:
   ovhRunnerEgress:
@@ -111,6 +112,8 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    pulse:
+      enabled: true
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
       enabled: true
@@ -160,6 +163,14 @@ server:
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
+    - name: TUIST_PULSE_BACKEND
+      value: greptime
+    - name: TUIST_PULSE_ACCOUNT_ID
+      value: "2"
+    - name: TUIST_PULSE_URL
+      value: http://greptimedb.observability.svc.cluster.local:4000
+    - name: TUIST_PULSE_TENANT
+      value: public
     # Selects the runtime deployment target (Tuist.Environment.env()). The
     # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
     # env's config the release runs as.

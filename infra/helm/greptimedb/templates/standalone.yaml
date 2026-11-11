@@ -1,8 +1,11 @@
 {{- if ne .Release.Namespace "observability" }}
 {{- fail "pilot must be in observability" }}
 {{- end }}
-{{- if or (ne .Values.storage.bucket "tuist-pulso-staging") (ne .Values.storage.prefix "greptimedb/") }}
-{{- fail "pilot must use staging's isolated greptimedb/ prefix" }}
+{{- if not (has .Values.environment (list "staging" "canary" "production")) }}
+{{- fail "GreptimeDB requires an explicit managed environment" }}
+{{- end }}
+{{- if or (ne .Values.storage.bucket (printf "tuist-pulso-%s" .Values.environment)) (ne .Values.storage.prefix "greptimedb/") }}
+{{- fail "GreptimeDB must use the selected environment's isolated greptimedb/ prefix" }}
 {{- end }}
 apiVersion: v1
 kind: ConfigMap
@@ -109,6 +112,25 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      {{- if .Values.dashboard.enabled }}
+      initContainers:
+        - name: combine-auth
+          image: busybox:1.37.0
+          command: [sh, -ec]
+          args:
+            - 'umask 077; cat /inputs/pilot /inputs/dashboard > /auth/passwd'
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          volumeMounts:
+            - {name: auth-inputs, mountPath: /inputs, readOnly: true}
+            - {name: auth, mountPath: /auth}
+      {{- end }}
       containers:
         - name: greptimedb
           image: {{ .Values.image | quote }}
@@ -142,7 +164,21 @@ spec:
         - name: config
           configMap: {name: greptimedb-config}
         - name: auth
+          {{- if .Values.dashboard.enabled }}
+          emptyDir: {medium: Memory, sizeLimit: 1Mi}
+        - name: auth-inputs
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: greptimedb-auth
+                  items: [{key: passwd, path: pilot}]
+              - secret:
+                  name: greptimedb-dashboard-auth
+                  items: [{key: passwd, path: dashboard}]
+          {{- else }}
           secret: {secretName: greptimedb-auth, defaultMode: 0440}
+          {{- end }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
   volumeClaimTemplates:
@@ -169,3 +205,25 @@ spec:
         - podSelector: {}
       ports:
         - {port: 4000, protocol: TCP}
+    {{- if .Values.dashboard.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+      ports:
+        - {port: 4000, protocol: TCP}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tuist
+              app.kubernetes.io/instance: tuist
+              app.kubernetes.io/component: pdc-agent
+      ports:
+        - {port: 4000, protocol: TCP}
+    {{- end }}
