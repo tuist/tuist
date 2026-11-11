@@ -142,6 +142,70 @@ else
 fi
 
 echo
+echo "oom_kill_count reports the guest's OOM kills"
+cat > "${fixtures}/vmstat" <<'VMSTAT'
+pgfault 123456
+oom_kill 3
+pgmajfault 7
+VMSTAT
+printf 'pgfault 1\n' > "${fixtures}/vmstat_old_kernel"
+assert_eq "oom_kill counter" 3 "$(oom_kills "${fixtures}/vmstat")"
+assert_eq "kernel without the counter" 0 "$(oom_kills "${fixtures}/vmstat_old_kernel")"
+assert_eq "unreadable vmstat" 0 "$(oom_kills "${fixtures}/missing")"
+payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 2)"
+if [[ "${payload}" == *'"oom_kill_count":2}'* ]]; then
+  echo "  ok   payload has the OOM kills since the job started"
+else
+  echo "  FAIL payload missing \"oom_kill_count\":2: ${payload}"
+  failures=$((failures + 1))
+fi
+
+echo
+echo "SIGTERM sends a final sample without waiting out the interval"
+# Kubelet stops the sidecar right after the runner exits. When the
+# kernel killed the runner for memory, only this last sample reports
+# it, and it must go out before kubelet's grace period ends.
+bin="${fixtures}/bin"
+mkdir -p "${bin}"
+cat > "${bin}/curl" <<CURL
+#!/usr/bin/env bash
+while [ \$# -gt 0 ]; do
+  if [ "\$1" = "--data" ]; then echo "\$2" >> "${fixtures}/posted"; fi
+  shift
+done
+CURL
+chmod +x "${bin}/curl"
+echo token > "${fixtures}/token"
+touch "${fixtures}/jit"
+PATH="${bin}:${PATH}" \
+  TUIST_RUNNER_DISPATCH_URL=http://server.invalid/dispatch \
+  TUIST_RUNNER_POD_NAME=pod \
+  TUIST_RUNNER_TOKEN_PATH="${fixtures}/token" \
+  TUIST_RUNNER_JIT_PATH="${fixtures}/jit" \
+  TUIST_RUNNER_DISK_PATH=/ \
+  TUIST_RUNNER_METRICS_INTERVAL=600 \
+  bash ./metrics-sampler.sh > "${fixtures}/sampler.log" 2>&1 &
+sampler=$!
+for _ in $(seq 50); do
+  [ -s "${fixtures}/posted" ] && break
+  sleep 0.1
+done
+kill -TERM "${sampler}"
+for _ in $(seq 30); do
+  kill -0 "${sampler}" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "${sampler}" 2>/dev/null; then
+  echo "  FAIL sampler still running 3s after SIGTERM"
+  kill -KILL "${sampler}"
+  failures=$((failures + 1))
+else
+  echo "  ok   sampler exited on SIGTERM"
+fi
+wait "${sampler}" 2>/dev/null
+assert_eq "samples posted (first + final)" 2 "$(grep -c '"oom_kill_count":0}' "${fixtures}/posted" 2>/dev/null || echo 0)"
+
+echo
 if [ "${failures}" -ne 0 ]; then
   echo "${failures} assertion(s) failed"
   exit 1
