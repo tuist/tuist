@@ -4,7 +4,9 @@ defmodule Tuist.Sandboxes.Archives do
 
   A paused Orb holds its memory image and disks on one node, reserving its
   full disk ceiling there. Once it has been paused for longer than
-  `Tuist.Environment.sandbox_archive_after_hours/0`, or its account's
+  `Tuist.Environment.sandbox_archive_after_hours/0`, or its node's reserved
+  disk exceeds `Tuist.Environment.sandbox_archive_disk_high_water_percent/0`,
+  or its account's
   disk quota refuses a create or restore (`make_room/1`), or no node has
   disk left for a new sandbox (`make_node_room/1`), least recently paused
   first, its node uploads the
@@ -114,7 +116,8 @@ defmodule Tuist.Sandboxes.Archives do
 
   @doc """
   One pass of the archive tier: deletes the archives of restored Orbs,
-  aborts uploads and restores whose caller died, then archives Orbs paused
+  aborts uploads and restores whose caller died, queues the oldest idle Orb
+  on each node above its disk high-water mark, then archives Orbs paused
   for longer than the configured threshold and queues the archives of
   ready disk snapshots not archived yet. Archiving is off while no
   threshold is configured; the cleanups always run.
@@ -129,6 +132,7 @@ defmodule Tuist.Sandboxes.Archives do
         :ok
 
       hours ->
+        for node <- pressure_nodes(), do: make_node_room([node.name], disk_pressure: true)
         hours |> candidates() |> Enum.each(&archive/1)
         queue_disk_snapshot_archives()
     end
@@ -163,20 +167,23 @@ defmodule Tuist.Sandboxes.Archives do
   queues the archive of the least recently paused idle Orb on them. Answers
   whether room is on its way, which is also the case while an archive is
   uploading from one of them. Answers false when archiving is off or they
-  hold no Orb to archive.
+  hold no Orb to archive. With `disk_pressure: true`, the worker rechecks
+  the high-water mark before archiving; used by the proactive sweep.
   """
-  def make_node_room(node_names) when is_list(node_names) do
+  def make_node_room(node_names, opts \\ []) when is_list(node_names) do
     node_names = node_names |> Enum.uniq() |> Enum.sort()
 
     cond do
       !Environment.sandbox_archive_after_hours() or node_names == [] ->
         false
 
-      Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id)) ->
+      uploading_on?(node_names) ->
         true
 
       Repo.exists?(on_nodes(archivable(), node_names)) ->
-        {:ok, _job} = %{node_names: node_names} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+        args = %{node_names: node_names}
+        args = if opts[:disk_pressure], do: Map.put(args, :disk_pressure, true), else: args
+        {:ok, _job} = args |> ArchiveSandboxesWorker.new() |> Oban.insert()
         true
 
       true ->
@@ -194,10 +201,43 @@ defmodule Tuist.Sandboxes.Archives do
 
   @doc """
   Archives the least recently paused idle Orb on the nodes, queued by
-  `make_node_room/1`.
+  `make_node_room/1`. With
+  `disk_pressure: true`, only nodes still above the high-water mark qualify.
   """
-  def archive_oldest_on(node_names) when is_list(node_names) do
-    archivable() |> on_nodes(node_names) |> archive_first()
+  def archive_oldest_on(node_names, opts \\ []) when is_list(node_names) do
+    # Recheck a queued pressure job: a delete or another archive may have
+    # freed room since the sweep. On-demand jobs still make room unconditionally.
+    node_names =
+      if opts[:disk_pressure] do
+        if Environment.sandbox_archive_after_hours() do
+          for node <- pressure_nodes(), node.name in node_names, do: node.name
+        else
+          []
+        end
+      else
+        node_names
+      end
+
+    if uploading_on?(node_names) do
+      {:ok, :skipped}
+    else
+      archivable() |> on_nodes(node_names) |> archive_first()
+    end
+  end
+
+  defp pressure_nodes do
+    case Environment.sandbox_archive_disk_high_water_percent() do
+      nil ->
+        []
+
+      percent ->
+        Enum.filter(Nodes.connected_nodes(), fn node ->
+          case Capacity.disk_budget_bytes(node) do
+            :unbounded -> false
+            budget -> Capacity.reserved_disk_bytes(node) * 100 > budget * percent
+          end
+        end)
+    end
   end
 
   defp archive_first(query) do
@@ -212,6 +252,10 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   defp on_nodes(query, node_names), do: where(query, [s], s.node_name in ^node_names)
+
+  defp uploading_on?(node_names) do
+    Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id))
+  end
 
   defp archivable do
     retry_before = DateTime.add(now(), -@retry_after_hours, :hour)

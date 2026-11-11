@@ -31,6 +31,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   setup do
     account = account_fixture()
     stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+    stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 85 end)
     stub(Nodes, :connected_nodes, fn -> [@node] end)
     stub(Storage, :supports_signed_upload_headers?, fn _account -> true end)
 
@@ -193,6 +194,127 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Repo.update!(Ecto.Changeset.change(uploading, archive_upload_id: nil))
       assert {:error, :no_room} = Capacity.admission(environment, "new-session")
       assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
+  describe "proactive node disk pressure" do
+    setup do
+      stub(Nodes, :connected_nodes, fn ->
+        for name <- ["node-a", "node-b"], do: Map.merge(@node, %{name: name, disk: %{budget_bytes: 40 * @gib}})
+      end)
+
+      :ok
+    end
+
+    test "archives the longest-paused idle Orb on each pressured node before demand", %{account: account} do
+      oldest = paused_orb(account, paused_at: hours_ago(3))
+      recent = paused_orb(account_fixture(), paused_at: hours_ago(1))
+      other_node = paused_orb(account, node_name: "node-b", paused_at: hours_ago(4))
+      paused_orb(account, node_name: "node-b", state: :running, paused_at: nil)
+
+      Archives.run()
+      Archives.run()
+      jobs = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      assert Enum.sort(Enum.map(jobs, & &1.args)) == [
+               %{"disk_pressure" => true, "node_names" => ["node-a"]},
+               %{"disk_pressure" => true, "node_names" => ["node-b"]}
+             ]
+
+      for sandbox <- [oldest, other_node] do
+        expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+        expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+        expect(Storage, :object_exists?, fn _key, _account -> true end)
+
+        expect(Nodes, :call, fn node, "archive", %{sandbox_id: id}, _opts ->
+          assert node == sandbox.node_name
+          assert id == sandbox.id
+          archive_result()
+        end)
+
+        expect(Nodes, :call, fn node, "delete", %{sandbox_id: id}, _opts ->
+          assert node == sandbox.node_name
+          assert id == sandbox.id
+          {:ok, %{}}
+        end)
+
+        job = Enum.find(jobs, &(&1.args["node_names"] == [sandbox.node_name]))
+        assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+        assert Repo.reload!(sandbox).state == :archived
+        # Replaying a stale queued job must not archive the next Orb.
+        assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      end
+
+      assert Repo.reload!(recent).state == :paused
+      Archives.run()
+      # No further uploads: both nodes are now below the mark.
+      reject(&Storage.multipart_start/2)
+      for job <- jobs, do: assert(:ok = perform_job(ArchiveSandboxesWorker, job.args))
+    end
+
+    test "counts node snapshot copies and skips busy, uploading and backed-off Orbs", %{account: account} do
+      paused_orb(account, paused_at: hours_ago(1), residency_work_id: "amp:busy", workspace_gb: 1, memory_mb: 2048)
+      paused_orb(account, paused_at: hours_ago(2), archive_attempted_at: hours_ago(1), workspace_gb: 1, memory_mb: 2048)
+      disk_snapshot_fixture(account: account, node_name: "node-a", workspace_gb: 20, archived_at: hours_ago(1))
+      eligible = paused_orb(account, paused_at: hours_ago(0), workspace_gb: 1, memory_mb: 2048)
+      paused_orb(account, node_name: "node-b", paused_at: hours_ago(1), archive_upload_id: "in-flight")
+      paused_orb(account, node_name: "node-b", paused_at: hours_ago(2))
+
+      Archives.run()
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert job.args == %{"disk_pressure" => true, "node_names" => ["node-a"]}
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == eligible.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+    end
+
+    test "uses the configured mark, strictly above the boundary, and ignores unbudgeted nodes", %{account: account} do
+      sandbox = paused_orb(account, paused_at: hours_ago(1))
+      # Default Orb: 4 GiB rootfs + 10 GiB workspace + 4 GiB memory + 64 MiB.
+      ceiling = 18 * @gib + 64 * 1024 * 1024
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 80 end)
+
+      stub(Nodes, :connected_nodes, fn ->
+        [Map.put(@node, :disk, %{budget_bytes: div(ceiling * 100, 80)})]
+      end)
+
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      stub(Nodes, :connected_nodes, fn -> [Map.put(@node, :disk, %{budget_bytes: div(ceiling * 100, 80) - 1})] end)
+      Archives.run()
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      # An upload can start after enqueueing, including on another replica.
+      uploading = paused_orb(account, paused_at: hours_ago(0), archive_upload_id: "started-after-sweep")
+      reject(&Storage.multipart_start/2)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      Repo.delete!(uploading)
+
+      stub(Nodes, :connected_nodes, fn -> [@node] end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      assert Repo.reload!(sandbox).state == :paused
+    end
+
+    test "disabling pressure or the archive tier leaves recent Orbs alone", %{account: account} do
+      for _ <- 1..3, do: paused_orb(account, paused_at: hours_ago(1))
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> nil end)
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      reject(&Storage.multipart_start/2)
+      assert :ok = perform_job(ArchiveSandboxesWorker, %{"node_names" => ["node-a"], "disk_pressure" => true})
+
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 85 end)
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert :ok = perform_job(ArchiveSandboxesWorker, %{"node_names" => ["node-a"], "disk_pressure" => true})
     end
   end
 

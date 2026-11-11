@@ -589,6 +589,8 @@ operations; retain them until an administrator removes them.
 
 ### Agent Sandboxes
 
+While the archive tier is enabled, the minute sweep also archives the longest-paused idle Amp Orb on each node whose reserved sandbox disk exceeds `TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT` (default 85; `0` disables this trigger). Reservations include node-local disk snapshot copies. This may move an Orb to the archive before its configured pause age; files remain exportable through the recorded archive store, but its memory image and processes are not retained. The object keys, archive deletion policy and export procedure below are unchanged. Nodes with no eligible paused Orb cannot be relieved by this trigger; on-demand archiving remains the fallback.
+
 - **Atlas environment mappings** (Postgres `sandbox_provider_environments`): account
   foreign key (account deletion cascades), UUID primary key, SHA-256 `external_key`
   of `[configured Atlas issuer, verified user subject, Atlas environment UUID]`,
