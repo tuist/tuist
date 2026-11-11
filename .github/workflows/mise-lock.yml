@@ -84,24 +84,31 @@ jobs:
       - uses: 1password/install-cli-action@v2
         if: steps.check.outputs.count != '0'
       - name: Load GitHub App credentials from 1Password
+        id: app-credentials
         if: steps.check.outputs.count != '0'
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           set -euo pipefail
+          # Not GITHUB_ENV: its values are printed unmasked in every later step's
+          # env. add-mask matches single lines, so each PEM line is masked.
+          key="$(op read 'op://tuist/Tuist Automation GitHub App/private-key')"
+          while IFS= read -r line; do
+            [ -n "$line" ] && echo "::add-mask::$line"
+          done <<< "$key"
           {
-            echo "APP_ID=$(op read 'op://tuist/Tuist Automation GitHub App/app-id')"
-            echo "APP_PRIVATE_KEY<<__OP_PEM__"
-            op read 'op://tuist/Tuist Automation GitHub App/private-key'
+            echo "app-id=$(op read 'op://tuist/Tuist Automation GitHub App/app-id')"
+            echo "private-key<<__OP_PEM__"
+            printf '%s\n' "$key"
             echo "__OP_PEM__"
-          } >> "$GITHUB_ENV"
+          } >> "$GITHUB_OUTPUT"
       - name: Mint a GitHub App token
         id: app-token
         if: steps.check.outputs.count != '0'
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ env.APP_ID }}
-          private-key: ${{ env.APP_PRIVATE_KEY }}
+          app-id: ${{ steps.app-credentials.outputs.app-id }}
+          private-key: ${{ steps.app-credentials.outputs.private-key }}
       # Only sed and git touch the branch's content; nothing from it runs.
       - uses: actions/checkout@v4
         if: steps.check.outputs.count != '0'
