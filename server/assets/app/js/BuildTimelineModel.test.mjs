@@ -249,7 +249,11 @@ test("cursor time follows the visible interval and clamps to the plot edges", ()
   assert.equal(cursorTime(-10, 424, range), 5000);
   assert.equal(cursorTime(112, 224, range), 7000);
   assert.equal(cursorTimeLabel(6875), "6 s 875 ms");
-  assert.equal(cursorTimeLabel(999.8), "1 s 000 ms");
+  assert.equal(cursorTimeLabel(999.8), "1 s");
+  assert.equal(cursorTimeLabel(1000), "1 s");
+  assert.equal(cursorTimeLabel(2000), "2 s");
+  assert.equal(cursorTimeLabel(1001), "1 s 001 ms");
+  assert.equal(cursorTimeLabel(0), "0 ms");
 });
 
 test("horizontal overflow exists only when zoomed, with scroll positions spanning the entire build", () => {

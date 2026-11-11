@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
 // scheduling and transport without mounting Noora's DOM controls. Keep the
@@ -78,6 +79,55 @@ test("metric and step cursors share a time across different plot widths and colu
   view.hideCursor();
   assert.ok(view.surfaces.every((s) => s.cursor.hidden));
   assert.equal(reading, null);
+});
+
+test("metric hover shows only the hovered graph's recorded sample, units and series, preserving gaps", () => {
+  const view = fixture();
+  view.hideTooltip = hook.hideTooltip;
+  view.metrics = new TimelineMetrics(
+    [0, 1000, 2000, 10000, 11000].map((offset_ms) => ({
+      offset_ms,
+      cpu_usage_percent: 73.125,
+      memory_used_bytes: 12_345_678_901,
+      network_bytes_in: 1048576,
+      network_bytes_out: 0,
+      disk_bytes_read: null,
+      disk_bytes_written: 2097152,
+      disk_total_bytes: 383_145_517_056,
+      disk_available_bytes: 139_825_270_784,
+    })),
+  );
+  const title = {},
+    values = {};
+  const tooltip = view.part("tooltip");
+  tooltip.querySelector = (selector) => (selector === "strong" ? title : values);
+  view.positionTooltip = () => {};
+  view.surfaces = [];
+  view.updateMetricValues = () => {};
+  for (const [key, label, expected] of [
+    ["cpu", "CPU", "73.13 %"],
+    ["memory", "Memory", "12.35 GB"],
+    ["network", "Network", "In 1 MiB/s · Out 0 MiB/s"],
+    ["disk", "Disk I/O", "Read — · Write 2 MiB/s"],
+    ["disk-space", "Disk space", "Used 243.32 GB · Total 383.15 GB"],
+  ]) {
+    view.cursorSource = {
+      dataset: { metricCanvas: key },
+      closest: () => ({ querySelector: () => ({ textContent: label }) }),
+    };
+    view.hoverMetric(1490);
+    assert.equal(tooltip.hidden, false);
+    assert.equal(title.textContent, `${label} · 1 s 490 ms`);
+    assert.equal(values.textContent, expected);
+    view.hoverMetric(6000);
+    assert.equal(tooltip.hidden, true);
+    view.hoverMetric(11001);
+    assert.equal(tooltip.hidden, true);
+    view.hoverMetric(1000);
+    assert.equal(title.textContent, `${label} · 1 s`);
+    view.hideCursor();
+    assert.equal(tooltip.hidden, true);
+  }
 });
 
 test("drag focus highlights the same interval on every independently sized plot", () => {
