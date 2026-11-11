@@ -23,6 +23,9 @@
         private let importSourceCodeScanner: ImportSourceCodeScanner
         private let maxConcurrentFileScans: Int
         private let sourceCodeReader: (AbsolutePath) async throws -> String?
+        /// Scanned imports of every file read so far. Checks for implicit and redundant dependencies, and
+        /// targets sharing sources, resolve the same files with different reachable modules.
+        private let scannedImportsCache = ScannedImportsCache()
 
         init(
             importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
@@ -61,7 +64,7 @@
             }
             var imports = Set(
                 try await filesToScan.concurrentMap(maxConcurrentTasks: maxConcurrentFileScans) { file in
-                    try await matchPattern(at: file, reachableModules: reachableModules)
+                    ImportSourceCodeScanner.imports(in: try await scannedImports(at: file), reachableModules: reachableModules)
                 }
                 .flatMap { $0 }
             )
@@ -69,10 +72,11 @@
             return imports
         }
 
-        private func matchPattern(
-            at path: AbsolutePath,
-            reachableModules: Set<String>?
-        ) async throws -> Set<String> {
+        private func scannedImports(at path: AbsolutePath) async throws -> [ScannedImport] {
+            if let scannedImports = await scannedImportsCache.scannedImports(at: path) {
+                return scannedImports
+            }
+
             let language: ProgrammingLanguage
             switch path.extension {
             case "swift":
@@ -83,15 +87,25 @@
                 return []
             }
 
-            guard let sourceCode = try await sourceCodeReader(path) else {
-                return Set()
+            let scannedImports = if let sourceCode = try await sourceCodeReader(path) {
+                importSourceCodeScanner.scanImports(from: sourceCode, language: language)
+            } else {
+                [ScannedImport]()
             }
+            await scannedImportsCache.store(scannedImports, at: path)
+            return scannedImports
+        }
+    }
 
-            return try importSourceCodeScanner.extractImports(
-                from: sourceCode,
-                language: language,
-                reachableModules: reachableModules
-            )
+    private actor ScannedImportsCache {
+        private var scannedImportsByPath: [AbsolutePath: [ScannedImport]] = [:]
+
+        func scannedImports(at path: AbsolutePath) -> [ScannedImport]? {
+            scannedImportsByPath[path]
+        }
+
+        func store(_ scannedImports: [ScannedImport], at path: AbsolutePath) {
+            scannedImportsByPath[path] = scannedImports
         }
     }
 #endif
