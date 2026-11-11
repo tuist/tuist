@@ -216,10 +216,11 @@ defmodule TuistEx.Git do
     end
   end
 
-  # Deepening is relative to every commit the clone stops at, so naming one
-  # branch the remote has also deepens a head that is not on it, a pull
-  # request's merge commit. The empty refmap keeps the checkout's own
-  # `origin/<branch>` where the job's later steps expect it.
+  # Deepening is relative to every commit the clone stops at that a ref of the
+  # remote still reaches, so naming one branch the remote has also deepens a
+  # head that is not on it, a pull request's merge commit. The empty refmap
+  # keeps the checkout's own `origin/<branch>` where the job's later steps
+  # expect it.
   defp connect(dir, state, heads, ref, limits, unknown, deadline) do
     max_depth = max(limits.window_commits, 50)
     step = min(state.step, max_depth - state.depth)
@@ -473,7 +474,10 @@ defmodule TuistEx.Git do
   end
 
   # Runs git until it exits or the deadline passes. A fetch still running at
-  # the deadline is killed, as a stalled remote would otherwise keep it alive.
+  # the deadline is stopped, as a stalled remote would otherwise keep it alive:
+  # with SIGTERM, on which git removes its lock files, and with SIGKILL only
+  # when that does not end it. A deepening killed outright leaves
+  # `shallow.lock` behind, which fails every later deepening of the checkout.
   defp run_until(dir, args, deadline) do
     remaining = deadline - System.monotonic_time(:millisecond)
 
@@ -502,8 +506,16 @@ defmodule TuistEx.Git do
       {^port, {:exit_status, _}} -> :failed
     after
       remaining ->
-        System.cmd("kill", ["-KILL", to_string(os_pid)], stderr_to_stdout: true)
-        Port.close(port)
+        System.cmd("kill", ["-TERM", to_string(os_pid)], stderr_to_stdout: true)
+
+        receive do
+          {^port, {:exit_status, _}} -> :ok
+        after
+          1000 ->
+            System.cmd("kill", ["-KILL", to_string(os_pid)], stderr_to_stdout: true)
+            Port.close(port)
+        end
+
         :timed_out
     end
   end

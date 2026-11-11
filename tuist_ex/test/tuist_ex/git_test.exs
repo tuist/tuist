@@ -283,6 +283,32 @@ defmodule TuistEx.GitTest do
       assert git!(clone, ["rev-parse", "FETCH_HEAD"]) == rewritten
     end
 
+    test "leaves the clone able to deepen after a fetch the budget stopped", %{repo: repo} do
+      head = repo |> empty_commits!(60) |> List.last()
+      clone = shallow_clone!(repo, "main")
+      # A remote slow enough for the budget to end while the pack is on its
+      # way, which is when git holds the clone's `shallow.lock`.
+      slow = Path.join(clone, ".git/slow-upload-pack")
+
+      File.write!(slow, """
+      #!/bin/sh
+      git upload-pack "$@" |
+        perl -e '$|=1; while (sysread(STDIN, $b, 64)) { print $b; select(undef, undef, undef, 0.02) }'
+      """)
+
+      File.chmod!(slow, 0o755)
+      git!(clone, ["config", "remote.origin.uploadpack", slow])
+      assert {:ok, history} = Git.history(clone, head, nil)
+
+      limits = %{deepen_budget_seconds: 1}
+      assert Git.connected_history(clone, history, "main", limits, server([])) == history
+
+      refute File.exists?(Path.join(clone, ".git/shallow.lock"))
+      git!(clone, ["config", "--unset", "remote.origin.uploadpack"])
+      git!(clone, ["fetch", "--quiet", "--deepen=1", "origin", "refs/heads/main"])
+      assert git!(clone, ["rev-list", "--count", "HEAD"]) == "2"
+    end
+
     test "fetches nothing when the server has the parent", %{repo: repo} do
       [parent, head] = empty_commits!(repo, 2)
       clone = shallow_clone!(repo, "main")
