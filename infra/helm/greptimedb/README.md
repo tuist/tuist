@@ -83,6 +83,8 @@ backend install and restart still run. It does not enable flags or print tokens.
 Runtime stdout/stderr are captured privately and removed during CI cleanup;
 only numeric account IDs, boolean configuration checks and selected image/revision
 metadata reach logs. Endpoint strings and raw RPC errors are withheld.
+Inspection works before the adapter is installed and reports reader/adapter
+availability explicitly; it does not call application APIs added by the adapter.
 Do not assume staging uses the production account ID or enable readers before
 confirming the account and flag. Keep managed reader settings unchanged until then.
 

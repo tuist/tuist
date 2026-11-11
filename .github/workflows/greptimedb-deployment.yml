@@ -182,14 +182,16 @@ jobs:
           inspection="$RUNNER_TEMP/greptimedb-deploy/reader-inspection"
           if ! kubectl -n tuist-staging exec "$pod" -c server -- /app/bin/tuist rpc '
             account = Tuist.Accounts.get_account_by_handle("tuist") || raise "staging tuist account missing"
-            config = Tuist.Environment.pulse_config()
+            config = Application.get_env(:tuist, :pulse, [])
             IO.puts("STAGING_READER_INSPECTION=" <> Jason.encode!(%{
               account_id: account.id,
               enrolled_account_id: Keyword.get(config, :account_id),
+              pulse_reader_available: Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4),
+              greptime_adapter_available: Code.ensure_loaded?(Tuist.Pulse.Greptime),
               greptime_backend: Keyword.get(config, :backend, :pulse) == :greptime,
               expected_endpoint: Keyword.get(config, :base_url) == "http://greptimedb.observability.svc.cluster.local:4000",
               expected_database: Keyword.get(config, :tenant) == "public",
-              pulse_flag: Tuist.FeatureFlags.pulse_enabled?(account)
+              pulse_flag: FunWithFlags.enabled?(:pulse, for: account)
             }))' > "$inspection.out" 2> "$inspection.err"; then
             echo '::error::Staging reader inspection failed; raw runtime output is withheld.'
             exit 1
@@ -198,8 +200,10 @@ jobs:
             select(length == 1) | .[0] |
             select((.account_id | type) == "number" and
               (.enrolled_account_id == null or (.enrolled_account_id | type) == "number") and
-              ([.greptime_backend, .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
-            {account_id, enrolled_account_id, greptime_backend, expected_endpoint, expected_database, pulse_flag}'
+              ([.pulse_reader_available, .greptime_adapter_available, .greptime_backend,
+                .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
+            {account_id, enrolled_account_id, pulse_reader_available, greptime_adapter_available,
+              greptime_backend, expected_endpoint, expected_database, pulse_flag}'
           rm -f "$inspection.out" "$inspection.err"
           helm history pulse -n observability -o json | jq '[.[] | {revision, chart, status}]'
       - name: Check prerequisites, ownership and capacity before creating backend resources

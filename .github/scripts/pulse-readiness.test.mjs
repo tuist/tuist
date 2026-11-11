@@ -165,7 +165,7 @@ if (args.includes('deployments')) {
   console.log('runtime startup ' + canary);
   console.error('runtime diagnostic ' + canary);
   if (scenario === 'RPC failure') process.exit(1);
-  const record = {account_id:11,enrolled_account_id:null,greptime_backend:false,
+  const record = {account_id:11,enrolled_account_id:null,pulse_reader_available:false,greptime_adapter_available:false,greptime_backend:false,
     expected_endpoint:false,expected_database:false,pulse_flag:true,password:canary,url:'https://user:'+canary+'@example.invalid'};
   if (scenario === 'untyped metadata') record.account_id=canary;
   console.log('STAGING_READER_INSPECTION=' + JSON.stringify(record));
