@@ -29,8 +29,9 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
 
   The commit also needs a complete file listing
   (`Tuist.GitHistory.listing_complete?/2`), which the baseline's blobs are
-  read from: a commit with a full run but a missing, expired or truncated
-  listing is passed over, and the walk goes on to the next ancestor.
+  read from: a commit with a full run whose files can't be read whole (no
+  file changes written, and a missing, expired or truncated listing) is
+  passed over, and the walk goes on to the next ancestor.
 
   A commit's measured set is only written once its runs' coverage is folded,
   so a run still being processed isn't eligible yet.
@@ -38,10 +39,8 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
-  alias Tuist.GitHistory.CommitListing
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
@@ -259,28 +258,16 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
 
   defp chunked(ids, fun), do: ids |> Coverage.id_chunks(1) |> Enum.flat_map(fun)
 
-  # Selection reads the baseline's blobs from its file listing, so a path the
-  # listing lacks would read as changed and select every test that ran it.
-  # The filter is `Tuist.GitHistory.listing_complete?/2`'s, for every commit
-  # with a full run at once.
+  # Selection reads the baseline's blobs, so a path its files lack would read
+  # as changed and select every test that ran it.
   defp with_complete_listing(runs, _repository_id) when runs == %{}, do: runs
 
   defp with_complete_listing(runs, repository_id) do
-    days = Environment.coverage_retention_days().files
-    cutoff = DateTime.add(DateTime.utc_now(), -(days - 1) * 86_400, :second)
-
     complete =
       runs
       |> Map.keys()
       |> Coverage.id_chunks(2)
-      |> Enum.flat_map(fn shas ->
-        Repo.all(
-          from(l in CommitListing,
-            where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff and not l.truncated,
-            select: l.sha
-          )
-        )
-      end)
+      |> Enum.flat_map(&GitHistory.complete_listings(repository_id, &1))
 
     Map.take(runs, complete)
   end

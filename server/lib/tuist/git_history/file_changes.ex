@@ -662,15 +662,23 @@ defmodule Tuist.GitHistory.FileChanges do
   written there and kept, or nil.
   """
   def current(repository_id, sha) do
-    Repo.one(
-      from(l in CommitListing,
-        join: c in Commit,
-        on: c.repository_id == l.repository_id and c.sha == l.sha,
-        where: l.repository_id == ^repository_id and l.sha == ^sha and not l.truncated,
-        where: l.changes_ref_id == c.ref_id and l.changes_position == c.position,
-        where: l.changes_expires_at > ^DateTime.utc_now(),
-        select: {c.ref_id, c.position}
-      )
+    Repo.one(from([l, c] in placed(repository_id), where: l.sha == ^sha, select: {c.ref_id, c.position}))
+  end
+
+  @doc "Those of `shas` whose files can be read from their file changes (`current/2`)."
+  def current_among(_repository_id, []), do: []
+
+  def current_among(repository_id, shas) do
+    Repo.all(from([l, c] in placed(repository_id), where: l.sha in ^shas, select: l.sha))
+  end
+
+  defp placed(repository_id) do
+    from(l in CommitListing,
+      join: c in Commit,
+      on: c.repository_id == l.repository_id and c.sha == l.sha,
+      where: l.repository_id == ^repository_id and not l.truncated,
+      where: l.changes_ref_id == c.ref_id and l.changes_position == c.position,
+      where: l.changes_expires_at > ^DateTime.utc_now()
     )
   end
 
