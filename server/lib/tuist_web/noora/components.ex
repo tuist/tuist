@@ -237,6 +237,27 @@ defmodule TuistWeb.Noora.Components do
           }
         }
       </script>
+      <%!-- Examples render real components but the page keeps no state, so the
+      button groups in them are made live here: choosing an item selects it,
+      as an app would from its own state. --%>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".NooraDocsPreview">
+        export default {
+          mounted() {
+            this.el.addEventListener("click", (event) => {
+              const item = event.target.closest(".noora-button-group-item")
+              if (!item || item.disabled || !this.el.contains(item)) return
+              const group = item.closest(".noora-button-group")
+              for (const sibling of group.querySelectorAll(":scope > .noora-button-group-item")) {
+                const selected = sibling === item
+                sibling.toggleAttribute("data-selected", selected)
+                if (sibling.hasAttribute("aria-pressed")) {
+                  sibling.setAttribute("aria-pressed", String(selected))
+                }
+              }
+            })
+          },
+        }
+      </script>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".NooraDocsSearch">
         export default {
           mounted() {
@@ -340,7 +361,13 @@ defmodule TuistWeb.Noora.Components do
         <.rich_text text={@example.description} />
       </p>
       <div data-part="frame">
-        <div :if={!@example.toast} data-part="preview" data-layout={@example.layout}>
+        <div
+          :if={!@example.toast}
+          id={"#{@example.id}-preview"}
+          data-part="preview"
+          data-layout={@example.layout}
+          phx-hook=".NooraDocsPreview"
+        >
           {apply(@page, @example.function, [%{__changed__: nil}])}
         </div>
         <%!-- A toast example shows a trigger. Its rendered output waits in a
