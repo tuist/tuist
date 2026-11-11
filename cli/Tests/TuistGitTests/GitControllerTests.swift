@@ -1154,14 +1154,63 @@ struct GitControllerTests {
     @Test(.inTemporaryDirectory) func connectedGitHistory_keeps_the_deepening_steps_within_the_window_together() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
+        let shallow = path.appending(components: ".git", "shallow")
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("head\n", at: shallow)
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(deepen(git, by: 50))
+        commandRunner.succeedCommand(deepen(git, by: 10))
+        let commandRunner = commandRunner
+        // The server has none of the branch, and each fetch moves the clone one commit down it.
+        let server = Server(replies: Array(repeating: ["unknown"], count: 10)) { asks in
+            let chain = ["head"] + (1 ... asks).map { "c\($0)" }
+            try? "c\(asks)\n".write(toFile: shallow.pathString, atomically: true, encoding: .utf8)
+            commandRunner.succeedCommand(
+                git + ["log", "--format=%H %P %ct", "--max-count=60", "--since=30.days.ago", "head"],
+                output: zip(chain, chain.dropFirst()).map { "\($0) \($1) 1700000100\n" }.joined() + "c\(asks)  1700000000\n"
+            )
+            commandRunner.succeedCommand(
+                git + ["log", "--no-walk", "--no-decorate", "--format=raw", "c\(asks)"],
+                output: "commit c\(asks)\ntree t\nparent c\(asks + 1)\nauthor A <a@tuist.dev> 1700000000 +0000\n\n    message\n"
+            )
+        }
+
+        let history = await subject.connectedGitHistory(
+            GitHistory(
+                objectFormat: "sha1",
+                headSHA: "head",
+                baseBranch: nil,
+                mergeBaseSHA: nil,
+                commits: [GitHistoryCommit(
+                    sha: "head",
+                    parents: ["c1"],
+                    committedAt: Date(timeIntervalSince1970: 1_700_000_100)
+                )],
+                fallbackReason: nil
+            ),
+            workingDirectory: path,
+            refs: ["main"],
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 60, deepenBudgetSeconds: 5),
+            unknown: server.unknown
+        )
+
+        #expect(server.asked == [["c1"], ["c2"]])
+        #expect(commandRunner.called(deepen(git, by: 50)))
+        #expect(commandRunner.called(deepen(git, by: 10)))
+        #expect(!commandRunner.called(deepen(git, by: 100)))
+        #expect(history.commits.map(\.sha) == ["head", "c1", "c2"])
+    }
+
+    @Test(.inTemporaryDirectory) func connectedGitHistory_stops_when_a_fetch_leaves_the_parent_out_of_reach() async throws {
+        // The branch was rewritten on the remote, so deepening it never brings the head's parent.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
         try await FileSystem().writeText("head\n", at: path.appending(components: ".git", "shallow"))
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(deepen(git, by: 50))
-        commandRunner.succeedCommand(deepen(git, by: 10))
-        // The remote has nothing below the head, so every step leaves the checkout as it was.
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=60", "--since=30.days.ago", "head"],
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
             output: "head  1700000100\n"
         )
         commandRunner.succeedCommand(
@@ -1171,18 +1220,13 @@ struct GitControllerTests {
         let server = Server(replies: Array(repeating: ["previous"], count: 10))
 
         let history = await subject.connectedGitHistory(
-            depthOneHistory(),
-            workingDirectory: path,
-            refs: ["main"],
-            limits: GitHistoryLimits(windowDays: 30, windowCommits: 60, deepenBudgetSeconds: 5),
-            unknown: server.unknown
+            depthOneHistory(), workingDirectory: path, refs: ["main"], limits: GitHistoryLimits(), unknown: server.unknown
         )
 
+        #expect(server.asked == [["previous"]])
         #expect(commandRunner.called(deepen(git, by: 50)))
-        #expect(commandRunner.called(deepen(git, by: 10)))
         #expect(!commandRunner.called(deepen(git, by: 100)))
-        #expect(server.asked.count == 2)
-        #expect(history.commits.map(\.sha) == ["head"])
+        #expect(history == depthOneHistory())
     }
 
     @Test(.inTemporaryDirectory) func connectedGitHistory_stops_deepening_when_a_fetch_fails() async throws {

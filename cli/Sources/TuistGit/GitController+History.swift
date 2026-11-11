@@ -125,9 +125,10 @@ extension GitController {
     ) async -> GitHistory {
         let git = ["git", "-C", workingDirectory.pathString]
         let heads = [history.headSHA] + [history.baseHeadSHA].compactMap { $0 }.filter { $0 != history.headSHA }
+        guard limits.remoteAccess == .history, !refs.isEmpty else { return history }
         var commits = history.commits
         var parents = await boundaryFirstParents(git: git, workingDirectory: workingDirectory, commits: commits, heads: heads)
-        guard limits.remoteAccess == .history, !refs.isEmpty, !parents.isEmpty else { return history }
+        var unreachable: Set<String> = []
 
         // The bounds the merge base's deepening has: the steps add up, stay within the history
         // window together, share one budget, and stop at a fetch that failed.
@@ -148,7 +149,11 @@ extension GitController {
                   )
             else { break }
             commits = deepened
-            parents = await boundaryFirstParents(git: git, workingDirectory: workingDirectory, commits: commits, heads: heads)
+            // A parent the fetch left out of reach is not where the remote's branch leads, as
+            // after a force-push: a deeper fetch would bring more of that branch, never the parent.
+            let reached = await boundaryFirstParents(git: git, workingDirectory: workingDirectory, commits: commits, heads: heads)
+            unreachable.formUnion(reached.filter(parents.contains))
+            parents = reached.filter { !unreachable.contains($0) }
             depth += step
             step *= 2
         }

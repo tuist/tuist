@@ -73,6 +73,7 @@ struct GitHistoryServiceTests {
 
     @Test(.withMockedEnvironment())
     func connectsTheHistoryToWhatTheServerHasBeforeUploadingIt() async throws {
+        Environment.mocked?.variables["CI"] = "1"
         // The checkout stopped at `base`, whose parent the server lacks: the deepened history
         // brings it, and it is uploaded with the commits above it.
         given(missingCommitsService)
@@ -106,7 +107,7 @@ struct GitHistoryServiceTests {
         let parent = GitHistoryCommit(sha: "parent", parents: [], committedAt: Date(timeIntervalSince1970: 1))
         nonisolated(unsafe) var unknown: (([String]) async -> [String])?
         given(gitController)
-            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["main"]), limits: .any, unknown: .any)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["refs/heads/main"]), limits: .any, unknown: .any)
             .willProduce { history, _, _, _, ask in
                 unknown = ask
                 return GitHistory(
@@ -143,7 +144,27 @@ struct GitHistoryServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func neverDeepensADevelopersOwnClone() async throws {
+        // Off CI, a coverage run still collects the history, but the clone is the developer's.
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+
+        #expect(collected?.history.commits.map(\.sha) == ["base", "head"])
+        verify(gitController)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .any, limits: .any, unknown: .any)
+            .called(0)
+    }
+
+    @Test(.withMockedEnvironment())
     func connectsAPushThroughItsOwnBranchAndTakesAServerThatCannotBeAskedAsHavingTheCommits() async throws {
+        Environment.mocked?.variables["CI"] = "1"
         given(missingCommitsService)
             .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willThrow(TestError("the server predates the commit graph"))
@@ -164,7 +185,7 @@ struct GitHistoryServiceTests {
             )
         nonisolated(unsafe) var unknown: (([String]) async -> [String])?
         given(gitController)
-            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["feature"]), limits: .any, unknown: .any)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["refs/heads/feature"]), limits: .any, unknown: .any)
             .willProduce { history, _, _, _, ask in
                 unknown = ask
                 return history
