@@ -1097,12 +1097,14 @@ PY
 EOF
 
   # Control: prove this Git version/configuration actually triggers maintenance.
-  # Keep the control synchronous so its repack cannot outlive the fixture.
+  # Keep the control synchronous so its repack cannot outlive the fixture. Some Git
+  # versions warn about unreachable loose objects during that repack; only SwifterPM's
+  # stderr is under test.
   scoped_env "${tmp}" env GIT_TEMPLATE_DIR="${tmp}/template" \
     /usr/bin/git init -q "${tmp}/control" || return 1
   scoped_env "${tmp}" env GIT_TRACE2_EVENT="${tmp}/control-trace.json" \
     /usr/bin/git -C "${tmp}/control" -c maintenance.autoDetach=false -c gc.autoDetach=false \
-    fetch -q --depth=1 "file://${tmp}/Dependency" "${revision}" || return 1
+    fetch -q --depth=1 "file://${tmp}/Dependency" "${revision}" 2>/dev/null || return 1
   python3 - "${tmp}/control-trace.json" <<'PY' || return 1
 import json, sys
 events = [json.loads(line) for line in open(sys.argv[1])]
