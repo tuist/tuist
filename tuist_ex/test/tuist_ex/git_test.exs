@@ -110,6 +110,46 @@ defmodule TuistEx.GitTest do
       assert Enum.find(history.commits, &(&1.sha == head)).parents != []
     end
 
+    # `actions/checkout`'s default: `refs/pull/N/merge` at depth 1. The merge
+    # commit is one of the checkout's shallow commits, outside the base
+    # branch's history, so it is named on the deepen too, or Git 2.54 and later
+    # leave it without parents.
+    test "finds the merge base of a depth-1 merge checkout", %{repo: repo} do
+      write!(repo, "a.ex", "a\n")
+      commit!(repo, "base")
+      git!(repo, ["checkout", "--quiet", "-b", "feature"])
+      write!(repo, "feature.ex", "feature\n")
+      commit!(repo, "feature")
+      git!(repo, ["checkout", "--quiet", "main"])
+      write!(repo, "main.ex", "main\n")
+      base_head = commit!(repo, "main")
+      git!(repo, ["merge", "--quiet", "--no-ff", "feature", "-m", "Merge feature into main"])
+      git!(repo, ["update-ref", "refs/pull/1/merge", "HEAD"])
+      git!(repo, ["reset", "--quiet", "--hard", "HEAD^1"])
+      git!(repo, ["config", "uploadpack.allowFilter", "true"])
+
+      clone = repo <> "-clone"
+      on_exit(fn -> File.rm_rf!(clone) end)
+      File.mkdir_p!(clone)
+      git!(clone, ["init", "--quiet"])
+      git!(clone, ["remote", "add", "origin", "file://" <> repo])
+
+      git!(clone, [
+        "fetch",
+        "--quiet",
+        "--depth=1",
+        "origin",
+        "+refs/pull/1/merge:refs/remotes/pull/1/merge"
+      ])
+
+      git!(clone, ["checkout", "--quiet", "--detach", "refs/remotes/pull/1/merge"])
+      merge_commit = git!(clone, ["rev-parse", "HEAD"])
+
+      assert {:ok, history} = Git.history(clone, merge_commit, "main")
+      assert history.merge_base_sha == base_head
+      assert history.fallback_reason == nil
+    end
+
     test "reports the base branch's head and lists its commits", %{repo: repo} do
       write!(repo, "a.ex", "a\n")
       base = commit!(repo, "base")
