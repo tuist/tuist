@@ -120,6 +120,8 @@ let project = Project(
                     "CFBundleShortVersionString": "0.25.3",
                     "CFBundleVersion": "14606",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "NSMicrophoneUsageDescription": "Tuist uses the microphone to transcribe a Thread message on this device.",
+                    "NSSpeechRecognitionUsageDescription": "Tuist uses on-device speech recognition to transcribe a Thread message.",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
                     ],
