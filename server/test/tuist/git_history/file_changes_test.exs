@@ -7,6 +7,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Workers.FileChangesWorker
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -160,6 +161,51 @@ defmodule Tuist.GitHistory.FileChangesTest do
     # the paths that differ between the two commits.
     assert changes(repository, "c") == %{"Reverted.swift" => "r1", "Changed.swift" => "x2", "Added.swift" => ""}
     assert %{changes_count: 3} = listing(repository, "c")
+  end
+
+  test "a write that stopped after its own rows leaves the commit above with its files", %{repository: repository} do
+    commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+    head(repository, "main", "c")
+
+    b = %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "Added.swift" => "n1"}
+    c = %{"Kept.swift" => "k1", "Reverted.swift" => "r1"}
+
+    list(repository, "a", %{"Kept.swift" => "k1", "Reverted.swift" => "r1"})
+    list(repository, "c", c)
+
+    # The rows of `b`, written by an attempt that stopped before it gave `c`
+    # its own and marked the listing.
+    GitHistory.record_listing(
+      repository,
+      "b",
+      Enum.map(b, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: @mode} end),
+      files_count: map_size(b)
+    )
+
+    IngestRepo.insert_all(
+      FileChange,
+      for {path, blob} <- %{"Reverted.swift" => "r2", "Added.swift" => "n1"} do
+        %{
+          repository_id: repository,
+          ref_id: ref_id(repository, "main"),
+          position: 2,
+          generation: 2,
+          sha: "b",
+          path: path,
+          git_blob_id: blob,
+          mode: @mode,
+          expires_at: ~N[2100-01-01 00:00:00],
+          row_version: System.os_time(:microsecond),
+          is_deleted: 0
+        }
+      end
+    )
+
+    settle()
+
+    assert %{changes_position: 2} = listing(repository, "b")
+    assert files(repository, "b") == with_mode(b)
+    assert files(repository, "c") == with_mode(c)
   end
 
   test "a truncated listing is never written, and the next commit compares with the one below it", %{

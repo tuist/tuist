@@ -57,6 +57,11 @@ defmodule Tuist.GitHistory.FileChanges do
   alias Tuist.Repo
 
   @consistent [select_sequential_consistency: 1]
+  # A write reads back the rows of the statement before it, on whichever
+  # replica it reaches, so each statement returns once the replicas have its
+  # rows: `auto` is a majority, which is all of them up to two replicas. With
+  # one of them away the statement fails and the job comes back.
+  @replicated [insert_quorum: "auto", insert_quorum_timeout: 10_000, select_sequential_consistency: 1]
   @kept ~U[2100-01-01 00:00:00Z]
   @columns "repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version, is_deleted"
 
@@ -271,35 +276,33 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   # Retires the rows the commit left at a place it no longer holds.
-  defp retire(listing, place) do
-    preserve_above(listing, place, :at)
-    delete(listing.repository_id, place, "sha = {sha:String}", %{sha: listing.sha})
-  end
+  defp retire(listing, place), do: delete(listing, place, "sha = {owner:String}")
 
   # Each place has one owner at a time: what another commit left at this one
   # (a branch rewritten, the refs rebuilt) goes before the commit's own rows.
-  defp vacate(listing, place) do
-    preserve_above(listing, place, :at)
-    delete(listing.repository_id, place, "sha != {sha:String}", %{sha: listing.sha})
-  end
+  # The commit's own stay: an attempt that stopped halfway left them, and the
+  # commits above never read them.
+  defp vacate(listing, place), do: delete(listing, place, "sha != {owner:String}")
 
-  defp delete(repository_id, {ref_id, position}, condition, params) do
+  defp delete(listing, {ref_id, position} = place, rows) do
+    preserve_above(listing, place, :at, rows)
+
     insert(
       """
       SELECT repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version + 1, 1
       FROM git_file_changes FINAL
       WHERE repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}
-        AND #{condition}
+        AND #{rows}
       """,
-      Map.merge(params, %{repository_id: repository_id, ref_id: ref_id, position: position})
+      %{repository_id: listing.repository_id, ref_id: ref_id, position: position, owner: listing.sha}
     )
   end
 
   # Gives each written commit right above the place a row for every path the
   # place has rows for and it has none, holding what it read there so far:
-  # the place's own rows before they are retired (`:at`), or what is below
-  # the place after rows were added to it (`:below`).
-  defp preserve_above(listing, {ref_id, position} = place, which) do
+  # the place's own rows before they are retired (`:at`, for the `rows` that
+  # go), or what is below the place after rows were added to it (`:below`).
+  defp preserve_above(listing, {ref_id, position} = place, which, rows \\ "1") do
     for commit <- above(listing.repository_id, place, listing.sha) do
       {above_ref_id, above_position} = commit.place
       at = "repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}"
@@ -309,7 +312,9 @@ defmodule Tuist.GitHistory.FileChanges do
           """
           SELECT {repository_id:Int64}, {above_ref_id:Int64}, {above_position:UInt32}, {generation:UInt32}, {sha:String},
             p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
-          FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
+          FROM (
+            SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND #{rows} AND expires_at > now()
+          ) AS p
           LEFT JOIN (
             #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
           ) AS s ON s.path = p.path
@@ -327,7 +332,8 @@ defmodule Tuist.GitHistory.FileChanges do
             above_position: above_position,
             generation: commit.generation,
             sha: commit.sha,
-            expires_at: commit.expires_at
+            expires_at: commit.expires_at,
+            owner: listing.sha
           }
         )
 
@@ -688,7 +694,7 @@ defmodule Tuist.GitHistory.FileChanges do
 
   # Returns how many rows were written.
   defp insert(select, params) do
-    IngestRepo.query!("INSERT INTO git_file_changes (#{@columns}) #{select}", params, settings: @consistent).num_rows ||
+    IngestRepo.query!("INSERT INTO git_file_changes (#{@columns}) #{select}", params, settings: @replicated).num_rows ||
       0
   end
 end
