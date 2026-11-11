@@ -134,7 +134,7 @@ defmodule TuistWeb.UserSessionController do
   end
 
   def new(conn, params) do
-    case Authentication.local_return_to(params["return_to"]) do
+    case Authentication.session_return_to(params["return_to"]) do
       nil ->
         redirect(conn, to: ~p"/users/log_in")
 

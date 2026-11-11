@@ -438,6 +438,17 @@ defmodule TuistWeb.AuthenticationTest do
       refute get_session(halted_conn, :user_return_to)
     end
 
+    test "does not store a path too long for the session cookie", %{conn: conn} do
+      halted_conn =
+        %{conn | path_info: ["foo"], query_string: String.duplicate("a", 5000)}
+        |> put_session(:user_return_to, "/stale")
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user([])
+
+      assert redirected_to(halted_conn) == ~p"/users/log_in"
+      refute get_session(halted_conn, :user_return_to)
+    end
+
     test "does not redirect if user is authenticated", %{conn: conn, user: user} do
       conn = conn |> assign(:current_user, user) |> Authentication.require_authenticated_user([])
       refute conn.halted
