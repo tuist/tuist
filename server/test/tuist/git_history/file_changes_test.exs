@@ -237,6 +237,21 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_ref_id: nil} = listing(repository, "a")
   end
 
+  test "a listing read in part records none of the files it lacks as gone", %{repository: repository} do
+    commits(repository, [{"a", []}, {"b", ["a"]}])
+    head(repository, "main", "b")
+
+    a = %{"A.swift" => "a1", "B.swift" => "b1", "C.swift" => "c1"}
+    list(repository, "a", a)
+
+    GitHistory.record_listing(repository, "b", [%{path: "A.swift", git_blob_id: "a2", mode: @mode}], files_count: 3)
+
+    assert FileChanges.write(repository, "b") == :unavailable
+    assert changes(repository, "b") == %{}
+    assert %{changes_ref_id: nil} = listing(repository, "b")
+    assert files(repository, "a") == with_mode(a)
+  end
+
   test "a commit listed before a ref owns it is written once it is placed", %{repository: repository} do
     commits(repository, [{"a", []}, {"b", ["a"]}])
 

@@ -48,7 +48,6 @@ defmodule Tuist.GitHistory.FileChanges do
   alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
-  alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.Ref
@@ -56,12 +55,17 @@ defmodule Tuist.GitHistory.FileChanges do
   alias Tuist.IngestRepo
   alias Tuist.Repo
 
-  @consistent [select_sequential_consistency: 1]
   # A write reads back the rows of the statement before it, on whichever
   # replica it reaches, so each statement returns once the replicas have its
   # rows: `auto` is a majority, which is all of them up to two replicas. With
   # one of them away the statement fails and the job comes back.
   @replicated [insert_quorum: "auto", insert_quorum_timeout: 10_000, select_sequential_consistency: 1]
+  @changed "(l.git_blob_id != s.git_blob_id OR l.mode != s.mode)"
+  @complete """
+  (
+    SELECT uniqExact(path) FROM git_commit_files WHERE repository_id = {repository_id:Int64} AND sha = {sha:String}
+  ) = {files_count:UInt64}
+  """
   @kept ~U[2100-01-01 00:00:00Z]
   @columns "repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version, is_deleted"
 
@@ -155,14 +159,13 @@ defmodule Tuist.GitHistory.FileChanges do
     DateTime.after?(listing.inserted_at, DateTime.add(DateTime.utc_now(), -(days - 1), :day))
   end
 
-  # A write over a partial read of the listing (a lagging replica, a part
-  # that expired) would record every file it missed as gone.
   defp write_listing(listing, commit, written) do
-    if listed_files(listing) == listing.files_count do
-      if written, do: retire(listing, written)
-      vacate(listing, commit.place)
-      expires_at = expires_at(listing.repository_id, commit.place)
-      count = insert_changes(listing, commit, expires_at)
+    if written, do: retire(listing, written)
+    vacate(listing, commit.place)
+    expires_at = expires_at(listing.repository_id, commit.place)
+    count = insert_changes(listing, commit, expires_at)
+
+    if count > 0 or unchanged?(listing, commit) do
       preserve_above(listing, commit.place, :below)
       mark(listing, commit.place, expires_at, count)
       :written
@@ -171,31 +174,18 @@ defmodule Tuist.GitHistory.FileChanges do
     end
   end
 
-  defp listed_files(listing) do
-    ClickHouseRepo.one(
-      from(f in CommitFile,
-        where: f.repository_id == ^listing.repository_id and f.sha == ^listing.sha,
-        select: fragment("uniqExact(?)", f.path)
-      ),
-      settings: @consistent
-    ) || 0
-  end
-
+  # A write over a partial read of the listing (a lagging replica, a part
+  # that expired) would record every file it missed as gone. The statement
+  # that reads the listing counts it too, on the replica it reads it from,
+  # and writes nothing unless the files add up.
   defp insert_changes(listing, %{place: {ref_id, position}} = commit, expires_at) do
     insert(
       """
       SELECT {repository_id:Int64}, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, {sha:String},
         if(l.listed = 1, l.path, s.path), l.git_blob_id, l.mode, {expires_at:DateTime},
         #{version_sql({ref_id, position})}, 0
-      FROM (
-        SELECT path, argMax(git_blob_id, inserted_at) AS git_blob_id, argMax(mode, inserted_at) AS mode, 1 AS listed
-        FROM git_commit_files
-        WHERE repository_id = {repository_id:Int64} AND sha = {sha:String}
-        GROUP BY path
-        HAVING git_blob_id != ''
-      ) AS l
-      FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below))}) AS s ON s.path = l.path
-      WHERE l.git_blob_id != s.git_blob_id OR l.mode != s.mode
+      #{compared_sql(commit)}
+      WHERE #{@changed} AND #{@complete}
       """,
       %{
         repository_id: listing.repository_id,
@@ -203,9 +193,36 @@ defmodule Tuist.GitHistory.FileChanges do
         position: position,
         generation: commit.generation,
         sha: listing.sha,
-        expires_at: expires_at
+        expires_at: expires_at,
+        files_count: listing.files_count
       }
     )
+  end
+
+  # Nothing written is a commit that changed nothing only when a replica
+  # that has the whole listing says so.
+  defp unchanged?(listing, commit) do
+    %{rows: [[unchanged]]} =
+      ClickHouseRepo.query!(
+        "SELECT countIf(#{@changed}) = 0 AND #{@complete} #{compared_sql(commit)}",
+        %{repository_id: listing.repository_id, sha: listing.sha, files_count: listing.files_count}
+      )
+
+    unchanged == 1
+  end
+
+  # The listing's files beside the ones below the commit.
+  defp compared_sql(commit) do
+    """
+    FROM (
+      SELECT path, argMax(git_blob_id, inserted_at) AS git_blob_id, argMax(mode, inserted_at) AS mode, 1 AS listed
+      FROM git_commit_files
+      WHERE repository_id = {repository_id:Int64} AND sha = {sha:String}
+      GROUP BY path
+      HAVING git_blob_id != ''
+    ) AS l
+    FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below))}) AS s ON s.path = l.path
+    """
   end
 
   defp move(listing, commit, written) do
