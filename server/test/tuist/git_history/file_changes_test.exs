@@ -162,6 +162,69 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_count: 3} = listing(repository, "c")
   end
 
+  describe "a write that stopped before it marked the listing, tried again" do
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+      head(repository, "main", "c")
+      list(repository, "a", %{"Kept.swift" => "k1", "Reverted.swift" => "r1"})
+
+      %{b: %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "Added.swift" => "n1"}}
+    end
+
+    defp unmark(repository, sha) do
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [changes_ref_id: nil, changes_position: nil, changes_expires_at: nil, changes_count: nil]
+      )
+    end
+
+    test "leaves a child written since with its files", %{repository: repository, b: b} do
+      c = Map.put(b, "New.swift", "x1")
+
+      list(repository, "b", b)
+      unmark(repository, "b")
+      list(repository, "c", c)
+
+      assert FileChanges.write(repository, "b") == :written
+      assert files(repository, "b") == with_mode(b)
+      assert files(repository, "c") == with_mode(c)
+    end
+
+    test "leaves a child written before it with its files", %{repository: repository, b: b} do
+      c = %{"Kept.swift" => "k1", "Reverted.swift" => "r1"}
+
+      list(repository, "c", c)
+      list(repository, "b", b)
+      unmark(repository, "b")
+
+      assert FileChanges.write(repository, "b") == :written
+      assert files(repository, "b") == with_mode(b)
+      assert files(repository, "c") == with_mode(c)
+    end
+  end
+
+  test "a moved commit whose listing does not add up keeps the rows it had", %{repository: repository} do
+    commits(repository, [{"a", []}, {"f1", ["a"]}])
+    head(repository, "main", "a")
+    head(repository, "feature", "f1")
+
+    f1 = %{"A.swift" => "a2", "B.swift" => "b1"}
+    list(repository, "a", %{"A.swift" => "a1"})
+    list(repository, "f1", f1)
+
+    listing = from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "f1")
+    Repo.update_all(listing, set: [files_count: 99])
+    GitHistory.advance_ref(repository, "main", nil, "f1")
+
+    assert FileChanges.write(repository, "f1") == :unavailable
+    assert changes(repository, "f1") == f1
+
+    # Once the listing is gone the rows move with the commit.
+    Repo.update_all(listing, set: [inserted_at: DateTime.add(DateTime.utc_now(:second), -200, :day)])
+
+    assert FileChanges.write(repository, "f1") == :moved
+    assert files(repository, "f1") == with_mode(f1)
+  end
+
   test "a truncated listing is never written, and the next commit compares with the one below it", %{
     repository: repository
   } do
@@ -189,6 +252,21 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert FileChanges.write(repository, "a") == :unavailable
     assert rows(repository) == []
     assert %{changes_ref_id: nil} = listing(repository, "a")
+  end
+
+  test "a listing read in part records none of the files it lacks as gone", %{repository: repository} do
+    commits(repository, [{"a", []}, {"b", ["a"]}])
+    head(repository, "main", "b")
+
+    a = %{"A.swift" => "a1", "B.swift" => "b1", "C.swift" => "c1"}
+    list(repository, "a", a)
+
+    GitHistory.record_listing(repository, "b", [%{path: "A.swift", git_blob_id: "a2", mode: @mode}], files_count: 3)
+
+    assert FileChanges.write(repository, "b") == :unavailable
+    assert changes(repository, "b") == %{}
+    assert %{changes_ref_id: nil} = listing(repository, "b")
+    assert files(repository, "a") == with_mode(a)
   end
 
   test "a commit listed before a ref owns it is written once it is placed", %{repository: repository} do
