@@ -232,6 +232,9 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 device: .any
             )
             .willReturn()
+        given(simulatorController)
+            .booted(device: .any)
+            .willProduce { $0 }
 
         // Then
         try await subject.runTarget(
@@ -253,6 +256,10 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 minVersion: .value(minVersion),
                 deviceName: .value(deviceName)
             )
+            .called(1)
+
+        verify(simulatorController)
+            .booted(device: .any)
             .called(1)
 
         verify(simulatorController)
