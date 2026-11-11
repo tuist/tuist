@@ -1,0 +1,188 @@
+{{- if or (ne .Values.environment "staging") (ne .Release.Namespace "observability") }}
+{{- fail "GreptimeDB Grafana is staging-only and must run in observability" }}
+{{- end }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ .Release.Name }}
+    creationPolicy: Owner
+  data:
+    - secretKey: dashboardPassword
+      remoteRef:
+        key: PULSE_TOKEN/password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: greptimedb-grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts: [{{ .Values.hostname | quote }}]
+  defaultBackend:
+    service:
+      name: {{ .Release.Name }}
+      port:
+        name: http
+---
+# Only the identity-injecting Tailscale Serve proxy may reach Grafana.
+# A direct pod/client must not be able to spoof Tailscale-User-Login.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: greptimedb-grafana
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale-operator
+          podSelector:
+            matchLabels:
+              tailscale.com/managed: "true"
+              tailscale.com/parent-resource-type: ingress
+              tailscale.com/parent-resource: {{ .Release.Name }}
+              tailscale.com/parent-resource-ns: observability
+      ports:
+        - port: 3000
+          protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: greptimedb-grafana
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: greptimedb-grafana
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: greptime-plugin
+          image: alpine:3.22.2
+          command: [sh, -ec]
+          args:
+            - |
+              wget -q -O /tmp/plugin.zip {{ .Values.plugin.url | quote }}
+              echo '{{ .Values.plugin.sha256 }}  /tmp/plugin.zip' | sha256sum -c -
+              unzip -q /tmp/plugin.zip -d /plugins
+              chmod -R u+rwX /plugins
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: plugins, mountPath: /plugins}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: grafana
+          image: {{ .Values.image | quote }}
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - name: GREPTIME_DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}
+                  key: dashboardPassword
+            - {name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS, value: info8fcc-greptimedb-datasource}
+            - {name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true"}
+            - {name: GF_PLUGINS_PLUGIN_ADMIN_ENABLED, value: "false"}
+            - {name: GF_AUTH_PROXY_ENABLED, value: "true"}
+            - {name: GF_AUTH_PROXY_HEADER_NAME, value: Tailscale-User-Login}
+            - {name: GF_AUTH_PROXY_HEADER_PROPERTY, value: username}
+            - {name: GF_AUTH_PROXY_AUTO_SIGN_UP, value: "true"}
+            - {name: GF_AUTH_ANONYMOUS_ENABLED, value: "false"}
+            - {name: GF_AUTH_BASIC_ENABLED, value: "false"}
+            - {name: GF_AUTH_DISABLE_LOGIN_FORM, value: "true"}
+            - {name: GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION, value: "true"}
+            - {name: GF_USERS_AUTO_ASSIGN_ORG_ROLE, value: Viewer}
+            - {name: GF_USERS_VIEWERS_CAN_EDIT, value: "true"}
+            - {name: GF_USERS_ALLOW_SIGN_UP, value: "false"}
+            - {name: GF_SECURITY_COOKIE_SECURE, value: "true"}
+            - {name: GF_ANALYTICS_REPORTING_ENABLED, value: "false"}
+            - {name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false"}
+            - {name: GF_ALERTING_ENABLED, value: "false"}
+            - {name: GF_UNIFIED_ALERTING_ENABLED, value: "false"}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ printf "https://%s.%s" .Values.hostname .Values.tailnet | quote }}
+            - {name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /etc/grafana/staging-dashboards/staging.json}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          startupProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/grafana}
+            - {name: plugins, mountPath: /var/lib/grafana/plugins}
+            - {name: tmp, mountPath: /tmp}
+            - {name: config, mountPath: /etc/grafana/provisioning/datasources/datasources.yaml, subPath: datasources.yaml, readOnly: true}
+            - {name: config, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml, subPath: dashboards.yaml, readOnly: true}
+            - {name: config, mountPath: /etc/grafana/staging-dashboards/staging.json, subPath: staging.json, readOnly: true}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: plugins
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}

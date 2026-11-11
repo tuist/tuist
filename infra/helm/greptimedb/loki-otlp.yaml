@@ -1,0 +1,33 @@
+processors:
+  - vrl:
+      source: |
+        labels = {}
+        metadata = {}
+        for_each(object!(.)) -> |key, value| {
+          if starts_with(key, "loki_label_") {
+            labels = set!(labels, [replace(key, r'^loki_label_', "")], value)
+          }
+          if starts_with(key, "loki_metadata_") {
+            metadata = set!(metadata, [replace(key, r'^loki_metadata_', "")], value)
+          }
+        }
+        if !exists(labels."service.name") && exists(labels.service_name) {
+          labels."service.name" = labels.service_name
+        }
+        .timestamp = to_unix_timestamp(timestamp!(.greptime_timestamp), unit: "nanoseconds")
+        .body = .loki_line
+        level = if exists(.loki_label_level) { .loki_label_level } else { .loki_metadata_level }
+        trace = if exists(.loki_metadata_trace_id) { .loki_metadata_trace_id } else { .loki_label_trace_id }
+        .severity_text = upcase(to_string(level) ?? "")
+        .trace_id = to_string(trace) ?? ""
+        .resource_attributes = labels
+        .log_attributes = metadata
+        .
+transform:
+  - field: timestamp
+    type: epoch, nanosecond
+    index: timestamp
+  - fields: [body, severity_text, trace_id]
+    type: string
+  - fields: [resource_attributes, log_attributes]
+    type: json

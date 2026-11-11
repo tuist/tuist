@@ -60,7 +60,7 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:617
+#: lib/tuist_web/components/app_layout_components.ex:618
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr ""
@@ -104,7 +104,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:751
+#: lib/tuist_web/components/app_layout_components.ex:752
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -116,13 +116,13 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:595
-#: lib/tuist_web/components/app_layout_components.ex:766
+#: lib/tuist_web/components/app_layout_components.ex:596
+#: lib/tuist_web/components/app_layout_components.ex:767
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:744
+#: lib/tuist_web/components/app_layout_components.ex:745
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -138,13 +138,13 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:774
+#: lib/tuist_web/components/app_layout_components.ex:775
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:665
+#: lib/tuist_web/components/app_layout_components.ex:666
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr ""
@@ -161,7 +161,7 @@ msgid "Invalid installation request. Please try again."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:518
-#: lib/tuist_web/components/app_layout_components.ex:738
+#: lib/tuist_web/components/app_layout_components.ex:739
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -171,7 +171,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:732
+#: lib/tuist_web/components/app_layout_components.ex:733
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -210,7 +210,7 @@ msgstr ""
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
 #: lib/tuist_web/live/pulse_error_live.ex:303
-#: lib/tuist_web/live/pulse_live.ex:559
+#: lib/tuist_web/live/pulse_live.ex:560
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -261,7 +261,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:53
 #: lib/tuist_web/live/pulse_error_live.ex:294
-#: lib/tuist_web/live/pulse_live.ex:550
+#: lib/tuist_web/live/pulse_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -286,7 +286,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:630
+#: lib/tuist_web/components/app_layout_components.ex:631
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -311,7 +311,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:758
+#: lib/tuist_web/components/app_layout_components.ex:759
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -399,8 +399,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:813
-#: lib/tuist_web/components/app_layout_components.ex:851
+#: lib/tuist_web/components/app_layout_components.ex:814
+#: lib/tuist_web/components/app_layout_components.ex:852
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -509,8 +509,8 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:610
-#: lib/tuist_web/components/app_layout_components.ex:701
+#: lib/tuist_web/components/app_layout_components.ex:611
+#: lib/tuist_web/components/app_layout_components.ex:702
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -645,7 +645,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:714
+#: lib/tuist_web/components/app_layout_components.ex:715
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -653,7 +653,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:671
+#: lib/tuist_web/components/app_layout_components.ex:672
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr ""
@@ -929,7 +929,7 @@ msgstr ""
 msgid "Japan"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:707
+#: lib/tuist_web/components/app_layout_components.ex:708
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1331,7 +1331,7 @@ msgstr ""
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:653
+#: lib/tuist_web/components/app_layout_components.ex:654
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr ""
@@ -1341,7 +1341,7 @@ msgstr ""
 msgid "Runners"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:603
+#: lib/tuist_web/components/app_layout_components.ex:604
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr ""
@@ -1439,7 +1439,7 @@ msgstr ""
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:726
+#: lib/tuist_web/components/app_layout_components.ex:727
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1487,7 +1487,7 @@ msgid "Export"
 msgstr ""
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
-#: lib/tuist_web/live/pulse_live.ex:381
+#: lib/tuist_web/live/pulse_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
@@ -1740,7 +1740,7 @@ msgid "Size"
 msgstr ""
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
-#: lib/tuist_web/live/pulse_live.ex:367
+#: lib/tuist_web/live/pulse_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
@@ -1822,17 +1822,17 @@ msgstr ""
 msgid "Write lag (bytes)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:623
+#: lib/tuist_web/components/app_layout_components.ex:624
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:834
+#: lib/tuist_web/components/app_layout_components.ex:835
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:659
+#: lib/tuist_web/components/app_layout_components.ex:660
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr ""
@@ -2922,7 +2922,7 @@ msgstr ""
 msgid "Invalid Origin installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:264
+#: lib/tuist_web/live/pulse_live.ex:265
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2979,7 +2979,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
-#: lib/tuist_web/live/pulse_live.ex:574
+#: lib/tuist_web/live/pulse_live.ex:575
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -3126,7 +3126,7 @@ msgstr ""
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:685
+#: lib/tuist_web/components/app_layout_components.ex:686
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #: lib/tuist_web/live/organization_ai_settings_live.ex:14
 #, elixir-autogen, elixir-format
