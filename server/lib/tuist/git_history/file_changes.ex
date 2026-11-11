@@ -309,13 +309,18 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   # Gives each written commit right above the place a row for every path the
-  # place has rows for and it has none, holding what it read there so far:
-  # the place's own rows before they are retired (`:at`), or what is below
-  # the place after rows were added to it (`:below`).
+  # place has rows for and it has none, holding what it read so far: with
+  # the place's rows before they are retired (`:at`), or without them after
+  # rows were added to it (`:below`). Read along the commit's own chain, not
+  # the place's: rows of commits still to move up the ref may lie between.
   defp preserve_above(listing, {ref_id, position} = place, which) do
     for commit <- above(listing.repository_id, place, listing.sha) do
       {above_ref_id, above_position} = commit.place
       at = "repository_id = {repository_id:Int64} AND ref_id = {ref_id:Int64} AND position = {position:UInt32}"
+      paths = "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})"
+
+      read =
+        if which == :at, do: paths, else: "#{paths} AND NOT (ref_id = {ref_id:Int64} AND position = {position:UInt32})"
 
       added =
         insert(
@@ -324,7 +329,7 @@ defmodule Tuist.GitHistory.FileChanges do
             p.path, s.git_blob_id, s.mode, {expires_at:DateTime}, #{version_sql(commit.place)}, 0
           FROM (SELECT DISTINCT path FROM git_file_changes FINAL WHERE #{at} AND expires_at > now()) AS p
           LEFT JOIN (
-            #{state_sql(GitHistory.chain(place, which), "path IN (SELECT path FROM git_file_changes FINAL WHERE #{at})")}
+            #{state_sql(GitHistory.chain(commit.place, :below), read)}
           ) AS s ON s.path = p.path
           WHERE p.path NOT IN (
             SELECT path FROM git_file_changes FINAL

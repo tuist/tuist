@@ -453,17 +453,22 @@ defmodule Tuist.GitHistory.FileChangesTest do
   end
 
   describe "commits a rebuild of the refs moves up their own ref" do
-    # `late` changes one file and adds another; its child `c` has both back
-    # as they were, so neither is among the paths `c` changed from `b`.
+    # `late` changes two files and adds another; its child `c` has them back
+    # as they were, so none is among the paths `c` changed from `b`. `c` and
+    # `d` both change a file `e` leaves as `d` has it, and `d` one `late`
+    # changes: `e` reads them through rows that lie between it and the
+    # places below.
     @shifted %{
       "a" => %{"A.swift" => "a1", "B.swift" => "b1", "C.swift" => "c1"},
       "b" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c1"},
-      "late" => %{"A.swift" => "a2", "B.swift" => "b2", "C.swift" => "c1", "Late.swift" => "l1"},
+      "late" => %{"A.swift" => "a2", "B.swift" => "b9", "C.swift" => "c1", "Late.swift" => "l1"},
       "c" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c2"},
-      "d" => %{"A.swift" => "a1", "B.swift" => "b3", "C.swift" => "c2", "D.swift" => "d1"},
-      "e" => %{"A.swift" => "a3", "B.swift" => "b3", "C.swift" => "c2"},
+      "d" => %{"A.swift" => "a1", "B.swift" => "b3", "C.swift" => "c3", "D.swift" => "d1"},
+      "e" => %{"A.swift" => "a3", "B.swift" => "b3", "C.swift" => "c3"},
       "p1" => %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c2", "P.swift" => "p1"}
     }
+
+    @earlier %{"A.swift" => "a1", "B.swift" => "b8", "C.swift" => "c8", "Earlier.swift" => "e1"}
 
     # main: a, b, then c, d, e above a parent of c that is not stored yet.
     # pull/1 forks at c: p1.
@@ -480,13 +485,9 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
     # `c`'s parent is stored and the refs are placed again: main is now
     # a, b, late, c, d, e.
-    defp rebuild_through_late(repository) do
-      GitHistory.record_commits(repository, "sha1", [CoverageFixtures.commit("late", ["b"], 30)])
+    defp rebuild_through(repository, late \\ [{"late", ["b"]}]) do
+      commits(repository, late)
       GitHistory.rebuild_refs(repository)
-    end
-
-    defp drain do
-      Oban.drain_queue(queue: :coverage_deltas, with_scheduled: true, with_recursion: true, with_safety: false)
     end
 
     defp expire(repository, shas) do
@@ -521,8 +522,8 @@ defmodule Tuist.GitHistory.FileChangesTest do
       assert GitHistory.position(repository, "c") == {main, 3}
       assert changes(repository, "c") == %{"C.swift" => "c2"}
 
-      rebuild_through_late(repository)
-      drain()
+      rebuild_through(repository)
+      settle()
 
       assert GitHistory.position(repository, "late") == {main, 3}
       assert GitHistory.position(repository, "c") == {main, 4}
@@ -534,15 +535,15 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
       assert_settled(repository, @shifted)
       # What `c` read from `b` until `late` was written below it.
-      assert changes(repository, "c") == %{"A.swift" => "a1", "C.swift" => "c2", "Late.swift" => ""}
+      assert changes(repository, "c") == %{"A.swift" => "a1", "B.swift" => "b2", "C.swift" => "c2", "Late.swift" => ""}
     end
 
     # Their rows would be copied up the ref, each onto the rows of the next.
     test "are left without files once their listings expired, not with another commit's", %{repository: repository} do
       expire(repository, ["c", "d", "e", "p1"])
 
-      rebuild_through_late(repository)
-      drain()
+      rebuild_through(repository)
+      settle()
       assert_settled(repository, Map.delete(@shifted, "late"), ["c", "d", "e", "p1"])
 
       list(repository, "late", @shifted["late"])
@@ -561,24 +562,41 @@ defmodule Tuist.GitHistory.FileChangesTest do
       expire(repository, ["d", "p1"])
       list(repository, "late", @shifted["late"])
 
-      rebuild_through_late(repository)
-      drain()
+      rebuild_through(repository)
+      settle()
 
       assert_settled(repository, @shifted, ["d", "p1"])
     end
 
-    for seed <- 1..3 do
-      test "settle the same whichever of them is written first (#{seed})", %{repository: repository} do
-        expire(repository, ["d"])
+    # Written above the others first, `e` reads the rows `c` and `d` left at
+    # their old places until those go.
+    for order <- [~w(e c d p1 late), ~w(e late c p1 d), ~w(late e c p1 d)], expired <- [[], ["d"]] do
+      test "settle the same written as #{Enum.join(order, ", ")}, #{length(expired)} listings expired", %{
+        repository: repository
+      } do
+        expire(repository, unquote(expired))
         list(repository, "late", @shifted["late"])
-        rebuild_through_late(repository)
+        rebuild_through(repository)
 
-        :rand.seed(:exsss, {unquote(seed), 2, 3})
-        queued = Enum.shuffle(all_enqueued(worker: FileChangesWorker))
-        assert queued |> Enum.map(& &1.args["sha"]) |> Enum.sort() == ~w(c d e late p1)
-        for job <- queued, do: assert(:ok = perform_job(FileChangesWorker, job.args))
+        queued = Map.new(all_enqueued(worker: FileChangesWorker), &{&1.args["sha"], &1.args})
+        assert queued |> Map.keys() |> Enum.sort() == ~w(c d e late p1)
+        for sha <- unquote(order), do: assert(:ok = perform_job(FileChangesWorker, queued[sha]))
 
-        assert_settled(repository, @shifted, ["d"])
+        assert_settled(repository, @shifted, unquote(expired))
+      end
+    end
+
+    for expired <- [["c", "d", "e", "p1"], ["d", "p1"]] do
+      test "settle the same two positions up, #{length(expired)} listings expired", %{repository: repository} do
+        expire(repository, unquote(expired))
+        list(repository, "earlier", @earlier)
+        list(repository, "late", @shifted["late"])
+
+        rebuild_through(repository, [{"earlier", ["b"]}, {"late", ["earlier"]}])
+        settle()
+
+        assert GitHistory.position(repository, "c") == {ref_id(repository, "main"), 5}
+        assert_settled(repository, Map.put(@shifted, "earlier", @earlier), unquote(expired))
       end
     end
   end
