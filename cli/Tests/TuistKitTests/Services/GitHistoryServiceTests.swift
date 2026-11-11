@@ -52,6 +52,7 @@ struct GitHistoryServiceTests {
                     fallbackReason: nil
                 )
             )
+        stubConnectedHistory(gitController)
         given(settingsService)
             .getGitHistorySettings(fullHandle: .any, serverURL: .any)
             .willReturn(GitHistorySettings(
@@ -61,6 +62,130 @@ struct GitHistoryServiceTests {
                 uploadBatchSize: 50,
                 commitFileLimit: 3
             ))
+    }
+
+    /// A checkout whose history already reaches what the server has.
+    private func stubConnectedHistory(_ gitController: MockGitControlling) {
+        given(gitController)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .any, limits: .any, unknown: .any)
+            .willProduce { history, _, _, _, _ in history }
+    }
+
+    @Test(.withMockedEnvironment())
+    func connectsTheHistoryToWhatTheServerHasBeforeUploadingIt() async throws {
+        // The checkout stopped at `base`, whose parent the server lacks: the deepened history
+        // brings it, and it is uploaded with the commits above it.
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .value(["parent"]))
+            .willReturn(["parent"])
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .value(["parent", "base", "head"]))
+            .willReturn(["parent", "head"])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any, serverURL: .any, repositoryURL: .any, objectFormat: .any, commits: .any, branchHeads: .any
+            )
+            .willReturn(())
+        gitController.reset()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        let collected = GitHistory(
+            objectFormat: "sha1",
+            headSHA: "head",
+            baseBranch: "main",
+            mergeBaseSHA: "base",
+            commits: [
+                GitHistoryCommit(sha: "base", parents: ["parent"], committedAt: Date(timeIntervalSince1970: 2)),
+                GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 3)),
+            ],
+            fallbackReason: nil
+        )
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(collected)
+        let parent = GitHistoryCommit(sha: "parent", parents: [], committedAt: Date(timeIntervalSince1970: 1))
+        nonisolated(unsafe) var unknown: (([String]) async -> [String])?
+        given(gitController)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["main"]), limits: .any, unknown: .any)
+            .willProduce { history, _, _, _, ask in
+                unknown = ask
+                return GitHistory(
+                    objectFormat: history.objectFormat,
+                    headSHA: history.headSHA,
+                    baseBranch: history.baseBranch,
+                    mergeBaseSHA: history.mergeBaseSHA,
+                    commits: [parent] + history.commits,
+                    fallbackReason: history.fallbackReason
+                )
+            }
+
+        _ = await subject.publish(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+
+        verify(uploadCommitsService).uploadCommits(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            objectFormat: .any,
+            commits: .value([
+                GitHistoryCommitPayload(sha: "parent", parents: [], committedAt: Date(timeIntervalSince1970: 1)),
+                GitHistoryCommitPayload(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 3)),
+            ]),
+            branchHeads: .any
+        ).called(1)
+        // What the checkout is deepened by is what the server says it lacks.
+        #expect(await unknown?(["parent"]) == ["parent"])
+    }
+
+    @Test(.withMockedEnvironment())
+    func connectsAPushThroughItsOwnBranchAndTakesAServerThatCannotBeAskedAsHavingTheCommits() async throws {
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willThrow(TestError("the server predates the commit graph"))
+        gitController.reset()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(
+                GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: "head",
+                    baseBranch: nil,
+                    mergeBaseSHA: nil,
+                    commits: [GitHistoryCommit(sha: "head", parents: ["parent"], committedAt: Date(timeIntervalSince1970: 2))],
+                    fallbackReason: nil
+                )
+            )
+        nonisolated(unsafe) var unknown: (([String]) async -> [String])?
+        given(gitController)
+            .connectedGitHistory(.any, workingDirectory: .any, refs: .value(["feature"]), limits: .any, unknown: .any)
+            .willProduce { history, _, _, _, ask in
+                unknown = ask
+                return history
+            }
+
+        let collected = await subject.collect(
+            gitInfo: GitInfo(
+                ref: "refs/heads/feature",
+                branch: "feature",
+                sha: "head",
+                remoteURLOrigin: "git@github.com:acme/app.git",
+                baseBranch: nil
+            ),
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+
+        #expect(collected?.history.commits.map(\.sha) == ["head"])
+        #expect(await unknown?(["parent"]) == [])
     }
 
     @Test(.withMockedEnvironment())
@@ -381,6 +506,7 @@ struct GitHistoryServiceTests {
         // The merge queue's run that tested the commit sent it; this checkout only knows its SHA.
         Environment.mocked?.variables["CI"] = "1"
         let gitController = MockGitControlling()
+        stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(gitController)
@@ -446,6 +572,7 @@ struct GitHistoryServiceTests {
     func reportsTheBaseBranchHeadTheCheckoutSaw() async throws {
         Environment.mocked?.variables["CI"] = "1"
         let gitController = MockGitControlling()
+        stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(gitController)
@@ -676,6 +803,7 @@ struct GitHistoryServiceTests {
         // A re-run of a commit older than the window lists nothing; the server would take an
         // unknown head as the branch's new one.
         let gitController = MockGitControlling()
+        stubConnectedHistory(gitController)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
         given(gitController)

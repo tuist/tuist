@@ -310,6 +310,45 @@ struct GitControllerTestImpactTests {
         ]
     }
 
+    @Test(.inTemporaryDirectory) func connectedGitHistory_deepens_a_depth_one_clone_to_what_the_server_has() async throws {
+        // A push's checkout holds its commit alone, and the server has the branch's first five.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let origin = try await makeRepository(at: path.appending(component: "origin"))
+        var commits: [String] = []
+        for index in 1 ... 60 {
+            try write("money v\(index)", to: "Core/Money.swift", in: origin)
+            commits.append(try commit("change \(index)", in: origin))
+        }
+        let clone = path.appending(component: "clone")
+        try git(["clone", "-q", "--depth=1", "--branch=main", "file://\(origin.pathString)", clone.pathString], in: path)
+        // The branch moves on before the run reports.
+        try write("money v61", to: "Core/Money.swift", in: origin)
+        _ = try commit("change 61", in: origin)
+        let limits = GitHistoryLimits(deepenBudgetSeconds: 30)
+        let collected = try await GitController().gitHistory(
+            workingDirectory: clone, headSHA: nil, baseBranch: nil, limits: limits
+        )
+        let known = Set(commits.prefix(5))
+        nonisolated(unsafe) var asked: [[String]] = []
+
+        let history = await GitController().connectedGitHistory(
+            collected, workingDirectory: clone, refs: ["main"], limits: limits,
+            unknown: { shas in
+                asked.append(shas)
+                return shas.filter { !known.contains($0) }
+            }
+        )
+
+        #expect(collected.commits.map(\.sha) == [commits[59]])
+        // 50 commits, then 100 more, which reaches the root: nothing is left to ask about.
+        #expect(asked == [[commits[58]], [commits[8]]])
+        #expect(Set(history.commits.map(\.sha)) == Set(commits))
+        #expect(history.commits.first { $0.sha == commits[59] }?.parents == [commits[58]])
+        #expect(history.commits.first { $0.sha == commits[0] }?.parents == [])
+        // The checkout's own branch stays where the job's later steps expect it.
+        #expect(try git(["rev-parse", "origin/main"], in: clone) == commits[59])
+    }
+
     private func makeRepository(at path: AbsolutePath) async throws -> AbsolutePath {
         try await FileSystem().makeDirectory(at: path)
         try git(["init", "-q", "--initial-branch=main"], in: path)

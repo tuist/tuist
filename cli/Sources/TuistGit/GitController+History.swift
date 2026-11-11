@@ -90,14 +90,7 @@ extension GitController {
                 "--since=\(limits.windowDays).days.ago",
             ] + heads
         )
-        guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
-              let path = try? AbsolutePath(
-                  validating: shallowFile.trimmingCharacters(in: .whitespacesAndNewlines),
-                  relativeTo: workingDirectory
-              ),
-              let boundary = try? String(contentsOfFile: path.pathString, encoding: .utf8)
-        else { return GitHistoryParser.parseCommits(output) }
-        let boundarySHAs = Set(boundary.split(whereSeparator: \.isNewline).map(String.init))
+        let boundarySHAs = await shallowBoundary(git: git, workingDirectory: workingDirectory)
         let commits = GitHistoryParser.parseCommits(output)
         let windowBoundary = commits.map(\.sha).filter(boundarySHAs.contains)
         guard !windowBoundary.isEmpty else { return commits }
@@ -109,6 +102,89 @@ extension GitController {
             guard let real = parents[commit.sha] else { return nil }
             return GitHistoryCommit(sha: commit.sha, parents: real, committedAt: commit.committedAt)
         }
+    }
+
+    /// The commits a shallow clone's history stops at (its `shallow` file); none in a full clone.
+    private func shallowBoundary(git: [String], workingDirectory: AbsolutePath) async -> Set<String> {
+        guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
+              let path = try? AbsolutePath(
+                  validating: shallowFile.trimmingCharacters(in: .whitespacesAndNewlines),
+                  relativeTo: workingDirectory
+              ),
+              let boundary = try? String(contentsOfFile: path.pathString, encoding: .utf8)
+        else { return [] }
+        return Set(boundary.split(whereSeparator: \.isNewline).map(String.init))
+    }
+
+    public func connectedGitHistory(
+        _ history: GitHistory,
+        workingDirectory: AbsolutePath,
+        refs: [String],
+        limits: GitHistoryLimits,
+        unknown: @escaping ([String]) async -> [String]
+    ) async -> GitHistory {
+        let git = ["git", "-C", workingDirectory.pathString]
+        let heads = [history.headSHA] + [history.baseHeadSHA].compactMap { $0 }.filter { $0 != history.headSHA }
+        var commits = history.commits
+        var parents = await boundaryFirstParents(git: git, workingDirectory: workingDirectory, commits: commits, heads: heads)
+        guard limits.remoteAccess == .history, !refs.isEmpty, !parents.isEmpty else { return history }
+
+        // The bounds the merge base's deepening has: the steps add up, stay within the history
+        // window together, share one budget, and stop at a fetch that failed.
+        let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
+        let maxDepth = max(limits.windowCommits, 50)
+        var depth = 0
+        var step = 50
+        while !parents.isEmpty, Date() < deadline, depth < maxDepth, await !unknown(parents).isEmpty {
+            step = min(step, maxDepth - depth)
+            // Deepening is relative to every commit the clone stops at, so naming one branch the
+            // remote has also deepens a head that is not on it, a pull request's merge commit. The
+            // empty refmap keeps the checkout's own `origin/<branch>` where the job's later steps
+            // expect it.
+            let deepen = git + ["fetch", "--no-tags", "--refmap=", "--filter=blob:none", "--deepen=\(step)", "origin"] + refs
+            guard await fetch(arguments: deepen, deadline: deadline) == .succeeded,
+                  let deepened = try? await windowCommits(
+                      git: git, workingDirectory: workingDirectory, heads: heads, limits: limits
+                  )
+            else { break }
+            commits = deepened
+            parents = await boundaryFirstParents(git: git, workingDirectory: workingDirectory, commits: commits, heads: heads)
+            depth += step
+            step *= 2
+        }
+        return GitHistory(
+            objectFormat: history.objectFormat,
+            headSHA: history.headSHA,
+            baseBranch: history.baseBranch,
+            mergeBaseSHA: history.mergeBaseSHA,
+            baseHeadSHA: history.baseHeadSHA,
+            commits: commits,
+            fallbackReason: history.fallbackReason
+        )
+    }
+
+    /// The first parents the checkout lacks: where each head's first-parent chain reaches a commit
+    /// the shallow clone stops at. A chain that ends at a root, or at the history window, has none.
+    private func boundaryFirstParents(
+        git: [String],
+        workingDirectory: AbsolutePath,
+        commits: [GitHistoryCommit],
+        heads: [String]
+    ) async -> [String] {
+        let boundary = await shallowBoundary(git: git, workingDirectory: workingDirectory)
+        guard !boundary.isEmpty else { return [] }
+        let bySHA = Dictionary(commits.map { ($0.sha, $0) }, uniquingKeysWith: { first, _ in first })
+        var parents: [String] = []
+        for head in heads {
+            var commit = bySHA[head]
+            var walked: Set<String> = []
+            while let current = commit, walked.insert(current.sha).inserted {
+                guard let parent = current.parents.first else { break }
+                commit = bySHA[parent]
+                if commit == nil, boundary.contains(current.sha), !parents.contains(parent) { parents.append(parent) }
+            }
+        }
+        return parents
     }
 
     /// The merge base between the head and the base branch, fetching the base ref when the
