@@ -28,7 +28,8 @@ def unused_port():
 def block(config, prefix):
     lines = config.splitlines()
     start = next(i for i, line in enumerate(lines) if line.startswith(prefix))
-    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+    indentation = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == indentation + "}")
     return "\n".join(lines[start:end + 1])
 
 
@@ -60,28 +61,38 @@ with tempfile.TemporaryDirectory(prefix="log-destination-outage-") as temporary:
     config = next(item["data"]["config.alloy"] for item in resources
                   if item and item.get("kind") == "ConfigMap"
                   and item["metadata"]["name"].endswith("alloy-receiver"))
-    pulse = block(config, 'loki.write "pulse_logs"')
-    # Retain the shipped writer, WAL, retry policy and labels; replace only the
-    # network/credential boundary with a disposable unauthenticated backend.
-    pulse = re.sub(r"(?m)^\s*tenant_id = .*\n", "\n", pulse)
-    pulse = re.sub(r"(?ms)^\s*basic_auth \{.*?^\s*\}", "", pulse)
-    pulse = re.sub(r"(?ms)^\s*tls_config \{.*?^\s*\}", "", pulse)
+    # Execute the entire receiver graph, including the OTLP-to-Loki adapter.
+    # Extracting only Faro and the writers misses invalid destination exports.
+    # Replace external credentials and discovery, not the component wiring.
+    config = re.sub(r'remote\.kubernetes\.secret "[^"]+" \{\n.*?\n\}', "", config, flags=re.S)
+    config = re.sub(
+        r'remote\.kubernetes\.secret\.\w+\.data\["([^"]+)"\]',
+        lambda match: '""' if match[1] in ["ca", "cert", "key"] else '"fixture"', config)
+    config = re.sub(
+        r'kubernetes \{\s*service = "[^"]+"\s*\}',
+        'static { hostnames = ["127.0.0.1:14317"] }', config)
+    # Kubernetes enrichment is an external API boundary; keep its input and
+    # outputs in the graph with a local passthrough processor.
+    attributes = block(config, '  otelcol.processor.k8sattributes "default"')
+    output = attributes[attributes.index("    output {"):]
+    config = config.replace(attributes, '  otelcol.processor.batch "k8s_fixture" {\n' + output)
+    config = config.replace("otelcol.processor.k8sattributes.default.input",
+                            "otelcol.processor.batch.k8s_fixture.input")
     backend = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Backend)
     threading.Thread(target=backend.serve_forever, daemon=True).start()
-    pulse = pulse.replace(
-        "http://pulse.observability.svc.cluster.local:4000/loki/api/v1/push",
-        f"http://127.0.0.1:{backend.server_port}/pulse")
-    ingest, admin = unused_port(), unused_port()
-    faro = block(config, 'faro.receiver "tuist_web"').replace('"0.0.0.0"', '"127.0.0.1"')
-    faro = faro.replace("12347", str(ingest))
-    (temporary / "config.alloy").write_text(faro + "\n" + pulse + f'''
-loki.write "grafana_cloud_logs" {{
-  endpoint {{
-    url = "http://127.0.0.1:{backend.server_port}/cloud"
-    batch_wait = "100ms"
-  }}
-}}
-''')
+    config = re.sub(r'url = "[^"]+"', f'url = "http://127.0.0.1:{backend.server_port}/cloud"', config)
+    pulse = block(config, 'loki.write "pulse_logs"')
+    config = config.replace(pulse, pulse.replace('/cloud"', '/pulse"'))
+    ingest, admin, otlp = unused_port(), unused_port(), unused_port()
+    config = re.sub(
+        r'endpoint = "([^"]+)"',
+        lambda match: f'endpoint = "http://127.0.0.1:{backend.server_port}"' if "://" in match[1]
+        else f'endpoint = "127.0.0.1:{otlp if match[1] == "0.0.0.0:4318" else unused_port()}"',
+        config)
+    config = config.replace('"0.0.0.0"', '"127.0.0.1"')
+    for port in [3100, 9009, 12347]:
+        config = config.replace(f"listen_port = {port}", f"listen_port = {ingest if port == 12347 else unused_port()}")
+    (temporary / "config.alloy").write_text(config)
     container = f"log-destination-outage-{os.getpid()}"
     binary = os.environ.get("ALLOY_BINARY")
     command = [binary] if binary else [
@@ -140,6 +151,25 @@ loki.write "grafana_cloud_logs" {{
                 assert time.monotonic() < deadline, "Pulse did not recover buffered logs"
                 time.sleep(.1)
             print("Pulse recovered: all 1800 buffered logs delivered")
+
+            payload = {"resourceLogs": [{
+                "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "otlp-fixture"}}]},
+                "scopeLogs": [{"logRecords": [{
+                    "timeUnixNano": str(time.time_ns()),
+                    "body": {"stringValue": "OTLP adapter regression"},
+                    "severityText": "INFO",
+                }]}],
+            }]}
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{otlp}/v1/logs", data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(request, timeout=2) as response:
+                assert response.status == 200, response.status
+            deadline = time.monotonic() + 30
+            while delivered("grafana_cloud_logs") != 1801 or delivered("pulse_logs") != 1801:
+                assert time.monotonic() < deadline, "OTLP log did not reach both destinations"
+                time.sleep(.1)
+            print("Full receiver graph: OTLP log delivered to both Cloud and Pulse")
         except BaseException:
             print((temporary / "alloy.log").read_text())
             raise
