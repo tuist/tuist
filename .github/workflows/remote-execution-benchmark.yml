@@ -48,7 +48,7 @@ defaults:
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
-  MODE: ${{ inputs.mode || 'remote' }}
+  MODE: ${{ inputs.mode || 'local' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags }}
 
@@ -101,7 +101,7 @@ jobs:
           ulimit -n 65536
           [ "$TUIST_URL" = https://tuist.dev ] || unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
-          ../.github/scripts/retry-bazel-command.sh bazel "$COMMAND" //... --nobuild \
+          ../.github/scripts/retry-bazel-command.sh bazel build //... --nobuild \
             --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
 
       - name: Cold run
