@@ -39,7 +39,7 @@ When the project isn't enabled, the baseline request answers `not_enabled`, the 
 
 **Not every hook is pluggable yet.** The shared code reads Xcode's names directly:
 
-- **Build context and scope.** The server reads only the `xcode` block. `Runs` stores it as `build_context`, and `Storage` keeps only its `scheme`, `test_plan` and `destination`. `Runs` and the baseline endpoint pass its `scheme` to `Baselines`. The Test Selection page searches runs by that scheme or test plan, and the run tab finds the baseline's runs by that scheme. A request without an `xcode` block has no scheme, so any commit whose measured set lists a scheme can be its baseline.
+- **Build context and scope.** The server reads only the `xcode` block. `Runs` stores it as `build_context`, and `Storage` keeps only its `scheme`, `test_plan` and `destination`. `Runs` and the baseline endpoint pass its `scheme` to `Baselines`. The Test Selection page searches runs by that scheme or test plan, and the run tab reads the baseline's runs the impact run stores (`baseline_run_ids`), or the baseline commit's runs of that scheme for a run that stores none: a fallback that found its baseline. A request without an `xcode` block has no scheme, so any commit whose measured set lists a scheme can be its baseline.
 - **Tracked files.** There's one server-wide list (`GitHistory.settings/1`'s `tracked_file_globs`, from configuration, with no per-project override) for every build system, and its defaults are Xcode's inputs. `build_system` picks nothing: it's stored on the impact run and shown on its Configuration sub-tab.
 - **Module hashing.** The run tab's module-level hash data is Xcode's `xcode_targets` (see [UI](#ui)).
 

@@ -60,6 +60,7 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         head_sha: Keyword.get(attrs, :head_sha, commit_sha),
         commit_sha: commit_sha,
         baseline_sha: Keyword.get(attrs, :baseline_sha, "0f0f0f0f0f0f"),
+        baseline_run_ids: Keyword.get(attrs, :baseline_run_ids, []),
         git_branch: Keyword.get(attrs, :git_branch, "feature/search"),
         dirty: false,
         strategy: "coverage",

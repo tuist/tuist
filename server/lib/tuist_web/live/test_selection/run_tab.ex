@@ -56,7 +56,8 @@ defmodule TuistWeb.TestSelection.RunTab do
   @doc """
   Loads what the tab shows for `selection_run`, the impact run the test run
   `test_run_id` points to, from the page's query `params`. The run's
-  summary, diff and shard plan are loaded once and kept.
+  summary, with its tests per module, its diff and its shard plan are loaded
+  once and kept.
   """
   def assign_data(socket, selection_run, test_run_id, params) do
     socket =
@@ -73,6 +74,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
         Phoenix.Component.assign(socket,
           selection_summary: summary,
+          selection_targets: summary.targets,
           selection_diff: diff,
           selection_plan: plan,
           selection_baseline_coverage?: baseline_coverage?
@@ -145,9 +147,6 @@ defmodule TuistWeb.TestSelection.RunTab do
       selection_filters: %{search: search, tracked: tracked}
     )
   end
-
-  defp assign_tab(socket, "modules", run, _test_run_id, _params),
-    do: Phoenix.Component.assign(socket, :selection_targets, Selections.run_targets(run))
 
   defp assign_tab(socket, _tab, _run, _test_run_id, _params), do: socket
 

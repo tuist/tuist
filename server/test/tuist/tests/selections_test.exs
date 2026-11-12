@@ -239,6 +239,58 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
+  describe "run_tests/3 pages" do
+    test "count every test, also on a page past the last", %{project: project} do
+      %{run: run, test_run: test_run} = run(project)
+
+      assert {[%{name: "test_gone()"}, %{name: "test_load()"}], %{current_page: 1, total_pages: 3, total_count: 5}} =
+               Selections.run_tests(run, test_run.id, page_size: 2)
+
+      assert {[%{name: "test_total()"}], %{current_page: 3, total_pages: 3, total_count: 5}} =
+               Selections.run_tests(run, test_run.id, page_size: 2, page: 3)
+
+      assert {[], %{current_page: 9, total_pages: 3, total_count: 5}} =
+               Selections.run_tests(run, test_run.id, page_size: 2, page: 9)
+    end
+  end
+
+  describe "the baseline's runs" do
+    setup %{project: project} do
+      test = fn name ->
+        %{test_case_id: UUIDv7.generate(), module_name: "AuthTests", suite_name: "SessionTests", name: name}
+      end
+
+      read = TestSelectionFixtures.baseline_fixture(project_id: project.id, tests: [test.("test_refresh()")])
+      # A run of the baseline commit the decision didn't read.
+      TestSelectionFixtures.baseline_fixture(project_id: project.id, tests: [test.("test_reset()")])
+
+      %{read: read}
+    end
+
+    test "are the ones the impact run stores", %{project: project, read: read} do
+      run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          requested_modules: ["AuthTests"],
+          baseline_run_ids: [read.id]
+        )
+
+      assert {[%{name: "test_refresh()", decision: "skipped"}], %{total_count: 1}} =
+               Selections.run_tests(run, UUIDv7.generate())
+
+      assert [%{module_name: "AuthTests", requested: 1, skipped: 1}] = Selections.run_summary(run, nil).targets
+    end
+
+    test "are the baseline commit's coverage runs of the scheme for an impact run that stores none", %{project: project} do
+      run = TestSelectionFixtures.run_fixture(project_id: project.id, requested_modules: ["AuthTests"])
+
+      assert {[%{name: "test_refresh()"}, %{name: "test_reset()"}], %{total_count: 2}} =
+               Selections.run_tests(run, UUIDv7.generate())
+
+      assert [%{module_name: "AuthTests", requested: 2, skipped: 2}] = Selections.run_summary(run, nil).targets
+    end
+  end
+
   describe "a fallback that found its baseline" do
     test "lists the requested modules' baseline tests as ran under its reason and saves the hash-skipped ones' time",
          %{project: project} do
@@ -336,16 +388,16 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "run_targets/1" do
+  describe "run_summary/2 targets" do
     test "add up the run's tests per module", %{project: project} do
-      %{run: run, plan: plan} = run(project)
+      %{run: run, test_run: test_run, plan: plan} = run(project)
 
       assert Selections.shard_plan(run).id == plan.id
 
       assert [
                %{module_name: "SearchTests", requested: 2, selected: 2, skipped: 0},
                %{module_name: "AuthTests", requested: 2, selected: 0, skipped: 2, estimated_skipped_duration: 700}
-             ] = Selections.run_targets(run)
+             ] = Selections.run_summary(run, test_run.id).targets
 
       assert Selections.skipped_modules(run) == [
                %{module_name: "BillingTests", tests: 3},
