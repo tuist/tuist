@@ -11,6 +11,14 @@ defmodule Tuist.Sandboxes.AgentSessionsTest do
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Anthropic.Federation
+
+  @federation_ids [
+    anthropic_organization_id: "00000000-0000-4000-8000-000000000001",
+    anthropic_workspace_id: "wrkspc_01Abc",
+    anthropic_service_account_id: "svac_01Abc",
+    anthropic_federation_rule_id: "fdrl_01Abc"
+  ]
 
   describe "start_agent_session/3" do
     test "creates and caches the agent, opens the session with the prompt and records it" do
@@ -27,12 +35,12 @@ defmodule Tuist.Sandboxes.AgentSessionsTest do
       default_prompt = AgentSessions.default_system_prompt()
       test_pid = self()
 
-      expect(ControlPlane, :create_agent, fn "sk-ant-api", attrs ->
+      expect(ControlPlane, :create_agent, fn {:api_key, "sk-ant-api"}, attrs ->
         assert attrs == %{name: "tuist-" <> account.name, model: "claude-sonnet-5", system: default_prompt}
         {:ok, %{"id" => "agent_new", "version" => 1}}
       end)
 
-      expect(ControlPlane, :create_session, fn "sk-ant-api", attrs ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, attrs ->
         assert attrs.agent == "agent_new"
         assert attrs.environment_id == "env_start"
         assert attrs.title == "Fix the build"
@@ -98,7 +106,7 @@ Fix the build."
 
       reject(&ControlPlane.create_agent/2)
 
-      expect(ControlPlane, :create_session, fn "sk-ant-api", %{agent: "agent_cached", metadata: metadata} ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{agent: "agent_cached", metadata: metadata} ->
         assert metadata["repository_url"] == ""
         assert metadata["repository_ref"] == ""
         {:ok, %{"id" => "sesn_cached", "status" => "running"}}
@@ -106,6 +114,27 @@ Fix the build."
 
       assert {:ok, %AgentSession{anthropic_agent_id: "agent_cached", model: "claude-sonnet-5"}} =
                Sandboxes.start_agent_session(account, %{prompt: "Hello"})
+    end
+
+    test "a macOS session on a Linux environment records its platform and names the macOS checkout" do
+      account = account_fixture()
+      agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_cached")
+
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{metadata: metadata, initial_events: [event]} ->
+        assert metadata["tuist_platform"] == "darwin"
+
+        assert [%{text: "The repository https://github.com/tuist/tuist is cloned at /Users/runner/work/tuist." <> _}] =
+                 event.content
+
+        {:ok, %{"id" => "sesn_mac", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{platform: :darwin}} =
+               Sandboxes.start_agent_session(account, %{
+                 prompt: "Build the app.",
+                 repository_url: "https://github.com/tuist/tuist",
+                 platform: "darwin"
+               })
     end
 
     test "creates a one-off agent for a model override without caching it" do
@@ -119,11 +148,11 @@ Fix the build."
           agent_system_prompt: "Be terse."
         )
 
-      expect(ControlPlane, :create_agent, fn "sk-ant-api", %{model: "claude-opus-5", system: "Be terse."} ->
+      expect(ControlPlane, :create_agent, fn {:api_key, "sk-ant-api"}, %{model: "claude-opus-5", system: "Be terse."} ->
         {:ok, %{"id" => "agent_opus"}}
       end)
 
-      expect(ControlPlane, :create_session, fn "sk-ant-api", %{agent: "agent_opus"} ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{agent: "agent_opus"} ->
         {:ok, %{"id" => "sesn_opus", "status" => "running"}}
       end)
 
@@ -139,7 +168,7 @@ Fix the build."
 
       reject(&ControlPlane.create_agent/2)
 
-      expect(ControlPlane, :create_session, fn "sk-ant-api", %{agent: "agent_custom"} ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{agent: "agent_custom"} ->
         {:ok, %{"id" => "sesn_custom", "status" => "running"}}
       end)
 
@@ -147,15 +176,62 @@ Fix the build."
                Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_id: "agent_custom"})
     end
 
-    test "refuses an environment without an API key" do
+    test "refuses an environment without an API key or federation ids" do
       account = account_fixture()
       agent_environment_fixture(account: account)
 
       reject(&ControlPlane.create_agent/2)
       reject(&ControlPlane.create_session/2)
 
-      assert {:error, :missing_api_key} = Sandboxes.start_agent_session(account, %{prompt: "Hello"})
+      assert {:error, :missing_credentials} = Sandboxes.start_agent_session(account, %{prompt: "Hello"})
       assert [] = Sandboxes.list_agent_sessions(account)
+    end
+
+    test "uses a federated token signed for the environment's own account over a stored API key" do
+      account = account_fixture()
+
+      agent_environment =
+        agent_environment_fixture(
+          Keyword.merge(@federation_ids,
+            account: account,
+            anthropic_api_key: "sk-ant-api",
+            anthropic_agent_id: "agent_1"
+          )
+        )
+
+      expect(Req, :post, fn _url, opts ->
+        %JOSE.JWT{fields: claims} = JOSE.JWT.peek_payload(opts[:json].assertion)
+        assert claims["iss"] == Federation.issuer(account.id)
+        assert claims["sub"] == "account:#{account.id}:agent-environment:#{agent_environment.id}"
+        {:ok, %Req.Response{status: 200, body: %{"access_token" => "sk-ant-oat01-fed", "expires_in" => 600}}}
+      end)
+
+      expect(ControlPlane, :create_session, fn {:bearer, "sk-ant-oat01-fed"}, %{agent: "agent_1"} ->
+        {:ok, %{"id" => "sesn_fed", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{anthropic_session_id: "sesn_fed"}} =
+               Sandboxes.start_agent_session(account, %{prompt: "Hello"})
+    end
+
+    test "never signs a token for another account's environment" do
+      account = account_fixture()
+      other_account = account_fixture()
+      other_environment = agent_environment_fixture(Keyword.put(@federation_ids, :account, other_account))
+
+      reject(&Req.post/2)
+      reject(&ControlPlane.create_session/2)
+
+      assert {:error, :no_agent_environment} =
+               Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_environment_id: other_environment.id})
+
+      other_session =
+        agent_session_fixture(account: other_account, agent_environment: other_environment)
+
+      # A session row pointing at another account's environment does not
+      # resolve to that environment's credentials.
+      forged = %{other_session | account_id: account.id}
+      assert {:error, :no_agent_environment} = Sandboxes.send_agent_session_message(forged, "Hello")
     end
 
     test "needs exactly one enabled environment unless one is named" do
@@ -177,7 +253,7 @@ Fix the build."
 
       # Exactly one expected call also proves none of the refusals above
       # reached Anthropic.
-      expect(ControlPlane, :create_session, fn "sk-ant-api", %{agent: "agent_1"} ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{agent: "agent_1"} ->
         {:ok, %{"id" => "sesn_named", "status" => "running"}}
       end)
 
@@ -185,6 +261,31 @@ Fix the build."
                Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_environment_id: first.id})
 
       assert id == first.id
+    end
+
+    test "only starts sessions on Managed Agents environments" do
+      account = account_fixture()
+
+      managed =
+        agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_1")
+
+      claude_code =
+        agent_environment_fixture(
+          account: account,
+          kind: :claude_code,
+          anthropic_environment_id: "ccpool_one",
+          anthropic_api_key: "sk-ant-api"
+        )
+
+      assert {:error, :no_agent_environment} =
+               Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_environment_id: claude_code.id})
+
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, %{agent: "agent_1"} ->
+        {:ok, %{"id" => "sesn_only_managed", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{agent_environment_id: id}} = Sandboxes.start_agent_session(account, %{prompt: "Hello"})
+      assert id == managed.id
     end
 
     test "rejects invalid params before talking to Anthropic" do
@@ -253,7 +354,7 @@ Fix the build."
           sandbox_id: sandbox.id
         )
 
-      expect(ControlPlane, :get_session, fn "sk-ant-api", "sesn_refresh" ->
+      expect(ControlPlane, :get_session, fn {:api_key, "sk-ant-api"}, "sesn_refresh" ->
         {:ok,
          %{
            "id" => "sesn_refresh",
@@ -268,7 +369,7 @@ Fix the build."
          }}
       end)
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api", "sesn_refresh", opts ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api"}, "sesn_refresh", opts ->
         assert opts[:order] == "desc"
 
         {:ok,
@@ -341,11 +442,11 @@ Fix the build."
         event("sevt_7", "session.usage", "2026-09-05T10:00:06Z", %{"usage" => %{"input_tokens" => 1}})
       ]
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", [limit: 1000] ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_events", [limit: 1000] ->
         {:ok, %{data: first_page, next_page: "page_2"}}
       end)
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", opts ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_events", opts ->
         assert Enum.sort(opts) == [limit: 1000, page: "page_2"]
         {:ok, %{data: second_page, next_page: nil}}
       end)
@@ -372,7 +473,7 @@ Fix the build."
       assert %{type: "session.usage", text: nil, stop_reason: nil} = Enum.at(all, 6)
       assert %AgentSession{last_stop_reason: "end_turn"} = Repo.reload!(agent_session)
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", opts ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_events", opts ->
         assert Enum.sort(opts) == [created_at_gte: "2026-09-05T10:00:06Z", limit: 1000]
         {:ok, %{data: [List.last(second_page)], next_page: nil}}
       end)
@@ -461,7 +562,7 @@ Fix the build."
     test "send_agent_session_message/2 posts a user message" do
       agent_session = agent_session_fixture(anthropic_session_id: "sesn_message")
 
-      expect(ControlPlane, :send_message, fn "sk-ant-api-fixture", "sesn_message", "Also run the tests." ->
+      expect(ControlPlane, :send_message, fn {:api_key, "sk-ant-api-fixture"}, "sesn_message", "Also run the tests." ->
         {:ok, %{"data" => [%{"id" => "sevt_9", "type" => "user.message"}]}}
       end)
 
@@ -483,13 +584,13 @@ Fix the build."
       agent_session = agent_session_fixture(account: account, agent_environment: keyless)
       reject(&ControlPlane.send_message/3)
 
-      assert {:error, :missing_api_key} = Sandboxes.send_agent_session_message(agent_session, "Hello")
+      assert {:error, :missing_credentials} = Sandboxes.send_agent_session_message(agent_session, "Hello")
     end
 
     test "archive_agent_session/1 archives the session at Anthropic and marks the row" do
       agent_session = agent_session_fixture(anthropic_session_id: "sesn_archive")
 
-      expect(ControlPlane, :archive_session, fn "sk-ant-api-fixture", "sesn_archive" ->
+      expect(ControlPlane, :archive_session, fn {:api_key, "sk-ant-api-fixture"}, "sesn_archive" ->
         {:ok, %{"id" => "sesn_archive", "archived_at" => "2026-09-05T10:00:00Z"}}
       end)
 

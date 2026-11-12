@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "94853a7a36abfbef6f635e041f349cedf78368ff0e3a60c98d9663edfe9030a9",
+  "hash": "11850876e1db682207852f06591878eb8a7added5daab0684d7990e49e159d55",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,10 +14,10 @@
                   "content_hash": "50079c7da0a7719566d26161811cde52e8ead04961800227e8691d07e180b2d8"
                 },
                 "## Accounts {#accounts}": {
-                  "content_hash": "898cab4b14393b6bc299ce0f1f9ff9e0b249b5373121e0382e921e2413608b90"
+                  "content_hash": "88d752944bb13285bbf78da7501b6992ffb668c06a30d7e528cc12405d90963f"
                 },
                 "## Projects {#projects}": {
-                  "content_hash": "14f5ec35badc49cbd387b62e29e53ca93a9c7df43b5e56bf207b50368f5fb080"
+                  "content_hash": "77da39652bd7cd42652591ade7f1ee2668846ed2c9e0733bcc863528a01efb68"
                 },
                 "### Organization membership {#organization-membership}": {
                   "content_hash": "9d173b36070e4061defaac7370b7c3158397a32c56a6b8868be6fcb28ef9e653"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "20a2a2a4f2c05be40cae8a56e03e2b8cd932989e6687330c1bde9d519377f20c",
+          "hash": "7b6470eab753c0e3c5ad0abe9135ad44ea3533b08e7323d484483c233e7f9815",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/accounts-and-projects.md",
           "metadata": {
-            "content_hash": "5ed3a0ddf0f1c5be9fef3d4618d2aae61568e72eef652d9c708db11451657b09"
+            "content_hash": "5d12136d4ee574a6246af22114f75bf6c62f4621bac7348a67a38c5f9c1de06a"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -238,21 +238,21 @@
             }
           ],
           "details": {},
-          "hash": "64c6368bed03078e29e214e560da808185cf9bd16679fa38da6e2cabab7baa38",
+          "hash": "4ee4404d0f11c3ed5dd8a040e97b786f949db2f3f02b2b754fa37efe36697188",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "94853a7a36abfbef6f635e041f349cedf78368ff0e3a60c98d9663edfe9030a9",
+      "hash": "11850876e1db682207852f06591878eb8a7added5daab0684d7990e49e159d55",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/accounts-and-projects.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "0ccc62ce3b798161097cc7f90217cef3141653ef311a737a1c21e4b9eb97b93e",
+  "output_hash": "dcce04c70659bacaf4feefa0783f6e41639a84f407a8cf8c1c35ff058e54d286",
   "output_path": "server/priv/docs/yue_Hant/guides/server/accounts-and-projects.md",
   "protection_state": "recorded",
   "provider": "",
@@ -274,8 +274,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/server/accounts-and-projects.md",
-  "translated_at": "2026-11-02T16:04:37.787394Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-06T22:34:11.010039Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

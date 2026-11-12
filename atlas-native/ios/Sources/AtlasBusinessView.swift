@@ -100,7 +100,7 @@ struct AtlasBusinessView: View {
                         Text(activeFilters).font(.subheadline).foregroundStyle(.secondary)
                             .accessibilityIdentifier("business-active-filters")
                     }
-                    if model.filters["group_by"] != "reminder" { rows(page.items) }
+                    rows(page.items)
                     if page.items.isEmpty {
                         ContentUnavailableView(
                             model.query.isEmpty && model.filters.isEmpty ? "No \(model.resource.title.lowercased()) yet" : "No results",
@@ -111,12 +111,6 @@ struct AtlasBusinessView: View {
                     }
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
-                }
-                if model.filters["group_by"] == "reminder" {
-                    ForEach(AtlasTaskReminderGroup.allCases) { group in
-                        let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }
-                        if !items.isEmpty { Section(group.title) { rows(items) } }
-                    }
                 }
                 if page.page < page.totalPages, !model.nextPageFailed {
                     Section {
@@ -169,16 +163,6 @@ struct AtlasBusinessView: View {
                     Text("Anyone").tag("")
                     ForEach(model.options.users) { Text($0.name).tag($0.id) }
                 }.pickerStyle(.menu)
-                Picker("Reminder", selection: filterBinding("reminder")) {
-                    Text("Any reminder").tag("")
-                    Text("Overdue").tag("overdue")
-                    Text("Upcoming").tag("upcoming")
-                    Text("No reminder").tag("none")
-                }.pickerStyle(.menu)
-                Picker("Group by", selection: filterBinding("group_by")) {
-                    Text("None").tag("")
-                    Text("Reminder").tag("reminder")
-                }.pickerStyle(.menu)
             case .accounts:
                 filterPicker("Lifecycle", key: "segment", values: model.options.segments)
                 filterPicker("Status", key: "status", values: model.options.statuses)
@@ -212,8 +196,6 @@ struct AtlasBusinessView: View {
     private var activeFilters: String {
         model.filters.sorted { $0.key < $1.key }.map { key, value in
             if key == "assignee_id" { return model.options.users.first { $0.id == value }?.name ?? "Assigned to someone" }
-            if key == "group_by" { return "Grouped by reminder" }
-            if key == "reminder" { return value == "none" ? "No reminder" : "\(value.capitalized) reminders" }
             return value.replacingOccurrences(of: "_", with: " ").capitalized
         }.joined(separator: " · ")
     }
@@ -239,11 +221,6 @@ private struct AtlasBusinessRow: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                     if !item["due_on"].isEmpty {
                         Text("Due \(AtlasBusinessFormatting.date(item["due_on"]))").font(.caption).foregroundStyle(.secondary)
-                    }
-                    if !item["remind_at"].isEmpty, item["status"] != "completed" {
-                        Label("\(item["reminder_group"] == "overdue" ? "Overdue reminder" : "Reminder") · " +
-                            AtlasBusinessFormatting.dateTime(item["remind_at"]), systemImage: "bell")
-                            .font(.caption).foregroundStyle(item["reminder_group"] == "overdue" ? Color.red : Color.secondary)
                     }
                 case .accounts:
                     Text([item["segment"].capitalized, item["deal_stage"].replacingOccurrences(of: "_", with: " ").capitalized,
@@ -354,7 +331,7 @@ struct AtlasBusinessDetail: View {
         switch model.resource {
         case .tasks:
             [("description", "Notes"), ("status", "Status"), ("assignee_name", "Assigned to"),
-             ("account_name", "Account"), ("due_on", "Due date"), ("remind_at", "Reminder")]
+             ("account_name", "Account"), ("due_on", "Due date")]
         case .accounts:
             []
         case .invoices:
@@ -368,7 +345,6 @@ struct AtlasBusinessDetail: View {
         if field == "total_amount_value" {
             return AtlasBusinessFormatting.money(item[field], currency: item["total_amount_currency"])
         }
-        if field == "remind_at" { return AtlasBusinessFormatting.dateTime(item[field]) }
         if field.hasSuffix("_date") || field == "due_on" { return AtlasBusinessFormatting.date(item[field]) }
         return item[field]
     }

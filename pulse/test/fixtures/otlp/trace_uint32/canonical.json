@@ -1,0 +1,48 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "droppedAttributesCount": 4294967295
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "droppedAttributesCount": 1,
+            "name": "uint32.fixture"
+          },
+          "spans": [
+            {
+              "droppedAttributesCount": 1,
+              "droppedEventsCount": 1000,
+              "droppedLinksCount": 4294967295,
+              "endTimeUnixNano": "1700000000123456799",
+              "events": [
+                {
+                  "droppedAttributesCount": 4294967295,
+                  "name": "event",
+                  "timeUnixNano": "1700000000123456790"
+                }
+              ],
+              "flags": 4294967295,
+              "kind": 2,
+              "links": [
+                {
+                  "flags": 4294967295,
+                  "spanId": "696a6b6c6d6e6f70",
+                  "traceId": "30313233343536373839616263646566"
+                }
+              ],
+              "name": "quoted-counts",
+              "spanId": "6162636465666768",
+              "startTimeUnixNano": "1700000000123456789",
+              "status": {
+                "code": 1
+              },
+              "traceId": "30313233343536373839616263646566"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

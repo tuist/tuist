@@ -13,11 +13,25 @@ kura_lvm_setup() (
   if [ -e /var/lib/tuist/joined-node ] || systemctl is-active --quiet kubelet; then
     vgs "$vg" >/dev/null 2>&1 || fail "existing node needs a reinstall"
   fi
-  if ! command -v pvcreate >/dev/null || ! command -v mkfs.xfs >/dev/null; then
+  # thin-provisioning-tools provides thin_check, which LVM runs to activate the
+  # CSI driver's thin pool, including after a reboot.
+  if ! command -v pvcreate >/dev/null || ! command -v mkfs.xfs >/dev/null || ! command -v thin_check >/dev/null; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y lvm2 xfsprogs
+    apt-get install -y lvm2 xfsprogs thin-provisioning-tools
   fi
+  command -v thin_check >/dev/null || fail "thin_check missing after installing thin-provisioning-tools"
+  # The CSI driver creates a dm-thin pool in this VG. Load the kernel target
+  # now and on every boot, and refuse before any destructive step without it.
+  local modules_conf=/etc/modules-load.d/kura-thin-pool.conf
+  mkdir -p "$(dirname "$modules_conf")"
+  if [ "$(cat "$modules_conf" 2>/dev/null || true)" != dm_thin_pool ]; then
+    printf 'dm_thin_pool\n' > "$modules_conf.new"
+    mv "$modules_conf.new" "$modules_conf"
+  fi
+  modprobe dm_thin_pool || fail "cannot load the dm_thin_pool kernel module"
+  dmsetup targets | awk '$1 == "thin-pool" { found = 1 } END { exit !found }' ||
+    fail "dmsetup targets does not list thin-pool after modprobe dm_thin_pool"
   mkdir -p /var/lib/tuist
   if ! vgs "$vg" >/dev/null 2>&1; then
     if [ -f "$marker" ]; then
@@ -72,7 +86,11 @@ kura_lvm_setup() (
   if ! lvs "$vg/data" >/dev/null 2>&1; then
     touch /var/lib/tuist/kura-data-unformatted
     sync /var/lib/tuist
-    lvcreate -L 128G -n data "$vg"
+    # /data holds only containerd's store (capped by its 64 GiB project quota)
+    # and the kubelet root; cache volumes live in the rest of the VG. 80 GiB
+    # keeps that quota below the kubelet's 85% image GC and imagefs eviction
+    # line (68 GiB) and hands the rest to the thin pool.
+    lvcreate -L 80G -n data "$vg"
   fi
   vgchange -ay "$vg"
   if [ "$(blkid -s TYPE -o value "$lv" || true)" != xfs ]; then

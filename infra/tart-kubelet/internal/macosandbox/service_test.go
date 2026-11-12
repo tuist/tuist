@@ -194,3 +194,50 @@ func TestControlPreparationFailureDoesNotBlockCIEviction(t *testing.T) {
 		t.Fatalf("evicted sandbox retained capacity: %v", err)
 	}
 }
+
+// Template preparation can wait an hour or more for an image pull or disk
+// room. The control Pod must be Ready before that, or a chart rollout that
+// waits on the DaemonSet times out while hosts prepare in the background.
+func TestControlPodReadyBeforeTemplatePreparation(t *testing.T) {
+	capacity, node, _ := capacityFixture()
+	control := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name: "control", Namespace: Namespace, UID: "control-1",
+		Labels:      map[string]string{RoleLabel: "control"},
+		Annotations: map[string]string{ConfigAnnotation: `{"url":"https://tuist.dev","image":"ghcr.io/tuist/tuist-runner@sha256:abc","template":"macos"}`},
+	}, Spec: corev1.PodSpec{NodeName: node.Name, ServiceAccountName: ServiceAccount}}
+	if _, err := capacity.Kube.CoreV1().Pods(Namespace).Create(context.Background(), control, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Service{Kube: capacity.Kube, Node: node.Name, Root: t.TempDir()}
+	// A cancelled context stops the runtime build before it starts, so
+	// preparation never finishes during this tick.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var controlUID string
+	var stop context.CancelFunc
+	if err := s.tick(ctx, ctx, &controlUID, &stop); err == nil {
+		t.Fatal("preparation finished without building the runtime")
+	}
+	pod, err := capacity.Kube.CoreV1().Pods(Namespace).Get(context.Background(), control.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pod.Status.Phase != corev1.PodRunning || len(pod.Status.Conditions) != 1 || pod.Status.Conditions[0].Type != corev1.PodReady || pod.Status.Conditions[0].Status != corev1.ConditionTrue {
+		t.Fatalf("control Pod not Ready while preparation is pending: %+v", pod.Status)
+	}
+
+	// After an API outage the node lifecycle controller marks the Pod NotReady
+	// and leaves it Running. The next tick must make it Ready again.
+	pod.Status.Conditions[0].Status = corev1.ConditionFalse
+	if _, err = capacity.Kube.CoreV1().Pods(Namespace).UpdateStatus(context.Background(), pod, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.tick(ctx, ctx, &controlUID, &stop)
+	pod, err = capacity.Kube.CoreV1().Pods(Namespace).Get(context.Background(), control.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pod.Status.Phase != corev1.PodRunning || len(pod.Status.Conditions) != 1 || pod.Status.Conditions[0].Status != corev1.ConditionTrue {
+		t.Fatalf("control Pod stayed NotReady after the node recovered: %+v", pod.Status)
+	}
+}

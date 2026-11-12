@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4c267d5f7bd6facbada544b15f7e2bd62c6d3ed9dffadb0b791f07dceddda755",
+  "hash": "9c9fcebea84a03ad1a2b3db3bb38b9cd3e075f636e6ce333d74599ca3f3ac535",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,22 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Generated Xcode project {#generated-xcode-project-build-insights}": {
-                  "content_hash": "1f7fa9856ccbe9045b250a77c094509d9d117d1c24aac586b1ccb482039cb6d8"
-                },
-                "## Build Insights in CI {#continuous-integration}": {
-                  "content_hash": "3c4c3e9abdb0522f4df9f319342b1f03cfddadf3af1b52fb69cab63b9b68f684"
-                },
-                "## Custom metadata {#custom-metadata}": {
-                  "content_hash": "e97790b3ad0313d66a99839324e13b8c8f33b5f2ccad46656b42b5ef71cc110f"
-                },
-                "## Machine metrics {#machine-metrics}": {
-                  "content_hash": "7feed3ab65d3169de7be23598eb80a87c3cc4fcc86b4785c5c4b46b0f06fbe91"
-                },
-                "### Environment variables": {
-                  "content_hash": "66bba5c62a6f40e756e5a3c6fe8cb240163bd1c42c1619990ea0e09b5cfe5868"
-                },
-                "### Examples": {
-                  "content_hash": "035d48ca8b3cf402003ca9f8e6d50fe0fdc374598a6303601b4b21047df26895"
+                  "content_hash": "4f8ebde1ccb55805bf767c31145446d4b286403bfaafc97449b7ef337d7e1529"
                 },
                 "Preamble": {
                   "content_hash": "1a8302efa652cf4f40fce93d8e4b5c42b65f8510bfeb31d09ffd0e4e5c4c39a5"
@@ -35,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "80f6c34c0ba6cc9d12f0ff1828c796cad4f43d7045940431ce64deb7ee3a2e88",
+          "hash": "75e3e9926391feb30efdabcef605c8d22a93ffb3f6d859e8df96569f6273173c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/build-insights/generated-xcode-project.md",
           "metadata": {
-            "content_hash": "708de2fe347a7bdb45c87dbe9722bb6c01930449ba2abc86ef034fb64d664a89"
+            "content_hash": "7213ced455a399e6c0eb6f4950f7180526819fb9141eaab06033ff601d1b06ac"
           }
         },
         {
@@ -236,14 +221,14 @@
         }
       ],
       "details": {},
-      "hash": "4c267d5f7bd6facbada544b15f7e2bd62c6d3ed9dffadb0b791f07dceddda755",
+      "hash": "9c9fcebea84a03ad1a2b3db3bb38b9cd3e075f636e6ce333d74599ca3f3ac535",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights/generated-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5b9da0b862ee2762207ad5984eca59f4d57b78559edcf620441b1df5309ea523",
+  "output_hash": "f110e706c3780c93e80662d1cfd0c37b8b610f85f7dcda9491f8d28e65d5cde4",
   "output_path": "server/priv/docs/ka/guides/features/build-insights/generated-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/build-insights/generated-xcode-project.md",
-  "translated_at": "2026-11-04T18:38:29.554217Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:42:12.445157Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

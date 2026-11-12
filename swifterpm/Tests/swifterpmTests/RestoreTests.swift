@@ -1289,8 +1289,8 @@ struct RestoreTests {
 
             let artifactPath = scratch
                 .appendingPathComponent("artifacts/binary/Foo/Foo.xcframework")
-            #expect(try await fileSystem.exists(archivePath.absolutePath))
-            #expect(try Hashing.sha256Hex(fileAt: archivePath) == checksum)
+            // The re-downloaded archive is deleted once extracted; the cache keeps the artifact.
+            #expect(try await !fileSystem.exists(archivePath.absolutePath))
             #expect(try await fileSystem.exists(artifactPath.absolutePath))
         }
     }

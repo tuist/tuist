@@ -9,11 +9,11 @@ defmodule TuistWeb.SSOLoginLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   test "shows an actionable error instead of choosing an ambiguous organization", %{conn: conn} do
-    for issuer <- ["first.okta.com", "second.okta.com"] do
+    for issuer <- ["ssologin-first.okta.com", "ssologin-second.okta.com"] do
       AccountsFixtures.organization_fixture(
         sso_provider: :okta,
         sso_organization_id: issuer,
-        sso_login_domain: "example.com",
+        sso_login_domain: "ssologin-example.com",
         oauth2_client_id: "client",
         oauth2_client_secret: "secret"
       )
@@ -21,7 +21,7 @@ defmodule TuistWeb.SSOLoginLiveTest do
 
     stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
     {:ok, lv, _} = live(conn, ~p"/users/log_in/sso")
-    html = render_submit(lv, "submit", %{"user" => %{"email" => "new@example.com"}})
+    html = render_submit(lv, "submit", %{"user" => %{"email" => "new@ssologin-example.com"}})
     assert html =~ "Multiple organizations use this login domain"
     assert html =~ "SSO sign-in link"
   end

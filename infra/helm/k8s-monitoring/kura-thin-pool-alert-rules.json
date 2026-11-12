@@ -1,0 +1,513 @@
+[
+  {
+    "annotations": {
+      "description": "The pool is created with error_if_no_space, so once its data is full every new write from a tenant on this node fails with an I/O error instead of queueing. In ceiling-backed-v1 every volume is fully backed, so growth past the reserve means unattributed mappings or a pool shared beyond its ceilings. Read /v1/node on the node's allocator socket, compare committed and mapped bytes, and reclaim or move volumes before it fills. Never extend or convert the pool by hand as a fix.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-data-usage",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) data is {{ $values.A.Value | humanizePercentage }} used"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.8
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool data usage high",
+    "uid": "kura-thin-pool-data-high"
+  },
+  {
+    "annotations": {
+      "description": "The pool is created with error_if_no_space, so once its data is full every new write from a tenant on this node fails with an I/O error instead of queueing. In ceiling-backed-v1 every volume is fully backed, so growth past the reserve means unattributed mappings or a pool shared beyond its ceilings. Read /v1/node on the node's allocator socket, compare committed and mapped bytes, and reclaim or move volumes before it fills. Never extend or convert the pool by hand as a fix.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-data-usage",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) data is {{ $values.A.Value | humanizePercentage }} used"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.9
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool data almost full",
+    "uid": "kura-thin-pool-data-full"
+  },
+  {
+    "annotations": {
+      "description": "Thin pool metadata exhaustion is worse than data exhaustion: the pool goes read-only or fails and needs an offline thin_check. The conservative profile sizes metadata at 128 bytes per chunk, 1 MiB per device slot and a reserve, so growth past this level means more devices than planned or snapshots. Stop new placements on the node and inspect lvs -a before metadata runs out. Never run thin_check against the live metadata device.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-metadata-usage",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) metadata is {{ $values.A.Value | humanizePercentage }} used"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_metadata_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_metadata_size_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.7
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool metadata usage high",
+    "uid": "kura-thin-pool-metadata-high"
+  },
+  {
+    "annotations": {
+      "description": "Thin pool metadata exhaustion is worse than data exhaustion: the pool goes read-only or fails and needs an offline thin_check. The conservative profile sizes metadata at 128 bytes per chunk, 1 MiB per device slot and a reserve, so growth past this level means more devices than planned or snapshots. Stop new placements on the node and inspect lvs -a before metadata runs out. Never run thin_check against the live metadata device.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-metadata-usage",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) metadata is {{ $values.A.Value | humanizePercentage }} used"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_metadata_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_metadata_size_bytes)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.85
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool metadata almost full",
+    "uid": "kura-thin-pool-metadata-full"
+  },
+  {
+    "annotations": {
+      "description": "device-mapper reports the pool as out_of_data_space, read-only, needs_check or failed. Tenant writes on every thin volume of this node fail now. Check dmsetup status and the kernel log on the node, keep every volume, and move instances off the node through the planned migration path. Do not run thin_check or lvconvert --repair against an active pool.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-read-only-or-out-of-data-space",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) is read-only or out of data space"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node, vg, pool) ({__name__=~\"kura_volumes_thin_pool_(read_only|out_of_data_space)\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "2m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "affected_service": "Cache",
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool read-only or out of data space",
+    "uid": "kura-thin-pool-degraded"
+  },
+  {
+    "annotations": {
+      "description": "A node labelled tuist.dev/kura-thin-ready=true has published no fresh pool observation for 15 minutes. Either its CSI plugin is down or not scraped, or the plugin's observations fail, which also withdraws the node's tuist.dev/kura-disk capacity. The usage alerts are blind for this node until it recovers. Read the driver container's logs for the observation error and check the pod's scrape target.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-metrics-missing",
+      "summary": "Kura thin pool metrics are missing on {{ $labels.node }} ({{ $labels.cluster }})"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready=\"true\"}) unless on (cluster, node) (max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes) and on (cluster, node) (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Kura thin pools",
+    "title": "Kura thin pool metrics missing",
+    "uid": "kura-thin-pool-metrics-missing"
+  }
+]

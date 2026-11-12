@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
@@ -10,6 +11,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct PrecompiledAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_ios_app_with_static_frameworks"), .inTemporaryDirectory)
     func ios_app_with_static_frameworks() async throws {

@@ -18,7 +18,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.35.10
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -95,16 +95,11 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
-            # Keeps this pool's kubelet on v1.34 while the control plane and
-            # the hcloud pools move to v1.35 (one minor of skew is supported).
-            # Upgrading it rolls the Machines, which reinstalls the boxes under
-            # ClickHouse, and the stateful-worker template installs from the
-            # fixed v1.34 apt channel. CAPI does not copy this annotation to
-            # the MachineDeployment, so adding it rolls nothing.
-            # The Cluster webhook refuses the next minor bump while this pool
-            # is behind, so decide how ClickHouse moves before going to v1.36.
-            annotations:
-              topology.cluster.x-k8s.io/defer-upgrade: ""
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.
         - class: hcloud-worker
           name: md-0
           # Holds the three CNPG instances (4Gi requests each) plus capacity

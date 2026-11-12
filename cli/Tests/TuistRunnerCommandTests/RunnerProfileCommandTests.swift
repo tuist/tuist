@@ -88,7 +88,8 @@ struct RunnerProfileCommandTests {
         let response: RunnerCatalogResult = try RunnerVolumeTestData.decode("""
         {"shapes":[{"platform":"linux","vcpus":4,"memory_gb":8,"default":false},
                    {"platform":"macos","vcpus":6,"memory_gb":14,"default":true}],
-         "xcode_versions":[{"xcode_version":"26.5","default":true},{"xcode_version":"26.4.1","default":false}]}
+         "xcode_versions":[{"xcode_version":"26.5","default":true},{"xcode_version":"26.4.1","default":false}],
+         "os_versions":[]}
         """)
         given(service).getRunnerCatalog(
             accountHandle: .value("acme"),

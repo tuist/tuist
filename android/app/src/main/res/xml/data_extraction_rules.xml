@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Push installation IDs identify one physical device and must not be restored onto another. -->
+<!-- Push installation IDs and notification permission state belong to one physical device and must not be restored onto another. -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="tuist_secure_prefs.xml" />
         <exclude domain="sharedpref" path="tuist_push.xml" />
+        <exclude domain="sharedpref" path="tuist_notifications.xml" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="tuist_secure_prefs.xml" />
         <exclude domain="sharedpref" path="tuist_push.xml" />
+        <exclude domain="sharedpref" path="tuist_notifications.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -1,5 +1,15 @@
 {{- if and .Values.enabled .Values.target.id }}
 {{- $reader := printf "%s-target-reader" .Release.Name }}
+{{- $capacityURLs := list }}
+{{- if .Values.archiveBucket }}
+{{- if eq (int .Values.replicas) 3 }}
+{{- range $i := until 3 }}
+{{- $capacityURLs = append $capacityURLs (printf "http://%s-%d.%s-peers.%s.svc.cluster.local:3903/metrics" $.Release.Name $i $.Release.Name $.Release.Namespace) }}
+{{- end }}
+{{- else }}
+{{- $capacityURLs = list (printf "http://%s.%s.svc.cluster.local:3903/metrics" .Release.Name .Release.Namespace) }}
+{{- end }}
+{{- end }}
 {{- $config := dict
   "site" .Values.target.site
   "enabled" .Values.target.enabled
@@ -7,6 +17,8 @@
   "endpoint" (printf "http://%s.%s.svc.cluster.local:3900" .Release.Name .Release.Namespace)
   "bucket" .Values.bucket
   "archive_bucket" .Values.archiveBucket
+  "archive_budget_bytes" (mul .Values.archiveBudgetGiB 1073741824)
+  "archive_capacity_urls" $capacityURLs
   "actions_cache_bucket" .Values.actionsCache.bucket
   "actions_cache_bytes" (mul (int64 .Values.actionsCache.maxGB) 1000000000)
   "region" "garage"

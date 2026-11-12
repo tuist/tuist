@@ -6,12 +6,15 @@ defmodule Tuist.OIDC do
   - GitHub Actions
   - CircleCI
   - Bitrise
+  - Amp orbs, through account-connected Amp workspaces
   - Configured workload identity providers
   """
 
   alias Tuist.Accounts.OIDCTrustPolicy
+  alias Tuist.Accounts.User
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
+  alias Tuist.ReportActor
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
@@ -21,7 +24,10 @@ defmodule Tuist.OIDC do
   @github_actions_jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
   @bitrise_issuer "https://token.builds.bitrise.io"
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
+  @amp_issuer "https://ampcode.com/api/workload-identity"
   @audience "tuist"
+  # Amp recommends an audience that names the relying service.
+  @amp_audience "https://tuist.dev"
 
   def claims(token, account_handle \\ nil)
 
@@ -58,6 +64,77 @@ defmodule Tuist.OIDC do
   end
 
   def github_actions_claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
+  Verifies an Amp token against the account's custom trust policies, which
+  predate Amp workspace connections and also cover personal threads.
+  """
+  def amp_policy_claims(token, account_handle), do: Workload.claims(token, @amp_issuer, account_handle)
+
+  @doc "The signed creator of an Amp thread, for attribution only, never authorization."
+  def amp_creator(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{"token_use" => "exchanged", "user_id" => user_id, "thread_id" => thread_id, "sub" => subject} <- claims,
+         true <- is_binary(subject),
+         true <- is_binary(user_id) and Regex.match?(~r/\Auser_[A-Za-z0-9_-]{1,120}\z/, user_id),
+         {:ok, thread_uuid} <- amp_thread_uuid(thread_id),
+         ^subject <- amp_creator_subject(claims, user_id, thread_id) do
+      name =
+        Enum.find(
+          [claims["preferred_username"], claims["name"], claims["email"], user_id],
+          &ReportActor.valid_identifier?/1
+        )
+
+      {:ok,
+       %{
+         user_id: user_id,
+         thread_id: "T-" <> thread_uuid,
+         name: name,
+         email: amp_creator_email(claims),
+         username: if(ReportActor.valid_identifier?(claims["preferred_username"]), do: claims["preferred_username"])
+       }}
+    else
+      _ -> {:error, :invalid_token}
+    end
+  rescue
+    _ -> {:error, :invalid_token}
+  end
+
+  def amp_creator(_, _), do: {:error, :invalid_token}
+
+  defp amp_creator_email(%{"email_verified" => true, "email" => email})
+       when is_binary(email) and byte_size(email) in 1..254 do
+    if String.valid?(email) and User.email_valid?(email), do: email
+  end
+
+  defp amp_creator_email(_), do: nil
+
+  defp amp_thread_uuid("T-" <> uuid), do: Ecto.UUID.cast(uuid)
+  defp amp_thread_uuid(_), do: :error
+
+  defp amp_creator_subject(claims, user_id, thread_id) do
+    workspace = claims["workspace_id"]
+    project = claims["project_id"]
+
+    case {workspace, project, amp_uuid(workspace), amp_uuid(project)} do
+      {nil, nil, _, _} ->
+        "user:#{user_id}:thread:#{thread_id}"
+
+      {_, nil, workspace_uuid, _} when is_binary(workspace_uuid) ->
+        "workspace:#{workspace}:user:#{user_id}:thread:#{thread_id}"
+
+      {nil, _, _, project_uuid} when is_binary(project_uuid) ->
+        "user:#{user_id}:project:#{project}:thread:#{thread_id}"
+
+      {_, _, workspace_uuid, project_uuid} when is_binary(workspace_uuid) and is_binary(project_uuid) ->
+        "workspace:#{workspace}:project:#{project}:user:#{user_id}:thread:#{thread_id}"
+
+      _ ->
+        nil
+    end
+  end
 
   defp audience_includes(%{"aud" => audience}, audience), do: :ok
 
@@ -98,6 +175,7 @@ defmodule Tuist.OIDC do
   end
 
   defp provider(@bitrise_issuer), do: {:ok, :bitrise}
+  defp provider(@amp_issuer), do: {:ok, :amp}
 
   defp provider(@circleci_issuer_prefix <> org_id = issuer) do
     if org_id == "" do
@@ -113,7 +191,17 @@ defmodule Tuist.OIDC do
 
   defp jwks_uri(:bitrise, _issuer), do: {:ok, "#{@bitrise_issuer}/.well-known/jwks"}
 
+  defp jwks_uri(:amp, _issuer), do: {:ok, amp_jwks_uri()}
+
   defp jwks_uri(:circleci, issuer), do: {:ok, "#{issuer}/.well-known/jwks-pub.json"}
+
+  defp amp_jwks_uri, do: "#{@amp_issuer}/jwks.json"
+
+  # Workspace connections follow Amp's trust guidance and accept only tokens
+  # printed by `amp orb id-token`. Other tokens, and personal threads without
+  # a workspace, can still match the account's custom trust policies.
+  defp identity_from_claims(%{"token_use" => "exchanged"} = claims, :amp), do: {:ok, amp_identity(claims)}
+  defp identity_from_claims(_claims, :amp), do: {:ok, %{amp_workspace_id: nil, amp_project_id: nil}}
 
   defp identity_from_claims(claims, provider) do
     with {:ok, repository} <- repository_from_claims(claims, provider) do
@@ -144,6 +232,37 @@ defmodule Tuist.OIDC do
     case claims["oidc.circleci.com/vcs-origin"] do
       "github.com/" <> repo -> {:ok, repo}
       _ -> {:error, :missing_repository_claim}
+    end
+  end
+
+  # Like Amp's trust recipes, the subject must name the same workspace (and
+  # project) as the custom claims. A subject without a project segment, as
+  # `--subject-scope workspace` mints, proves only the workspace.
+  defp amp_identity(claims) do
+    workspace_id = amp_uuid(claims["workspace_id"])
+    project_id = amp_uuid(claims["project_id"])
+
+    subject = if is_binary(claims["sub"]), do: claims["sub"], else: ""
+
+    case String.split(subject, ":") do
+      ["workspace", ^workspace_id, "project", ^project_id | _] ->
+        %{amp_workspace_id: workspace_id, amp_project_id: project_id}
+
+      ["workspace", ^workspace_id, "project" | _] ->
+        %{amp_workspace_id: nil, amp_project_id: nil}
+
+      ["workspace", ^workspace_id | _] ->
+        %{amp_workspace_id: workspace_id, amp_project_id: nil}
+
+      _ ->
+        %{amp_workspace_id: nil, amp_project_id: nil}
+    end
+  end
+
+  defp amp_uuid(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} -> uuid
+      :error -> nil
     end
   end
 
@@ -220,6 +339,8 @@ defmodule Tuist.OIDC do
 
   defp validate_not_before(%{"nbf" => _}), do: {:error, :invalid_token}
   defp validate_not_before(_), do: :ok
+
+  defp validate_audience(claims, :amp), do: audience_includes(claims, @amp_audience)
 
   defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise] do
     :ok

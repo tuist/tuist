@@ -172,3 +172,7 @@ Each worktree resolves Swift packages independently. On a project with a large d
 #### Give agents access to project insights {#worktrees-mcp}
 
 Once builds and tests are running across many worktrees, the most useful thing an agent can do is reason about *which* of those runs regressed, which tests are flaky, or how the bundle size has changed. Tuist exposes that data through the <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> and the <.localized_link href="/guides/features/agentic-coding/skills">Skills</.localized_link> package. Pick one per workflow and stick to it; mixing both for the same task tends to produce inconsistent agent behavior.
+
+## Related {#related}
+
+Read [how Monzo keeps a growing modular project consistent with Tuist](https://tuist.dev/customers/monzo) for a team's experience applying generated projects at scale.

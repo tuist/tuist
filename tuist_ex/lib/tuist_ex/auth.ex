@@ -17,7 +17,8 @@ defmodule TuistEx.Auth do
         email || password ->
           password_login(server_url, email, password, options)
 
-        continuous_integration?(environment) or not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
+        continuous_integration?(environment) or amp_orb?(environment) or
+            not is_nil(environment.("TUIST_OIDC_TOKEN")) ->
           provider_login(server_url, environment, options)
 
         true ->
@@ -121,12 +122,13 @@ defmodule TuistEx.Auth do
   end
 
   defp oidc_supplied?(environment) do
-    Enum.any?(
-      ~w(TUIST_OIDC_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    amp_orb?(environment) or
+      Enum.any?(
+        ~w(TUIST_OIDC_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
                           CIRCLE_OIDC_TOKEN_V2 CIRCLE_OIDC_TOKEN BITRISE_OIDC_ID_TOKEN
                           BITRISE_IDENTITY_TOKEN),
-      &(not is_nil(environment.(&1)))
-    )
+        &(not is_nil(environment.(&1)))
+      )
   end
 
   defp provider_or_network_token(server_url, environment, options) do
@@ -327,6 +329,9 @@ defmodule TuistEx.Auth do
       truthy?(environment.("BITRISE_IO")) ->
         {:ok, :bitrise}
 
+      amp_orb?(environment) ->
+        {:ok, :amp_orb}
+
       true ->
         {:ok, :unsupported}
     end
@@ -380,6 +385,9 @@ defmodule TuistEx.Auth do
           "Bitrise identity token is missing"
         )
 
+      amp_orb?(environment) ->
+        Keyword.get(options, :amp_identity_token, &amp_identity_token/0).()
+
       true ->
         :unsupported
     end
@@ -417,6 +425,17 @@ defmodule TuistEx.Auth do
     end
   end
 
+  # Amp recommends an audience that names the relying service; the command line tool asks for the same one.
+  defp amp_identity_token do
+    case System.cmd("amp", ["orb", "id-token", "--audience", "https://tuist.dev"]) do
+      {output, 0} -> present(String.trim(output), "amp orb id-token printed no identity token")
+      {_output, status} -> {:error, "amp orb id-token failed with exit status #{status}"}
+    end
+  rescue
+    error in ErlangError ->
+      {:error, "Could not run amp orb id-token: #{Exception.message(error)}"}
+  end
+
   defp transient?({:ok, status, _}), do: status == 429 or status >= 500
   defp transient?({:error, _}), do: true
 
@@ -426,6 +445,8 @@ defmodule TuistEx.Auth do
   defp continuous_integration?(environment) do
     Enum.any?(["CI", "GITHUB_ACTIONS", "CIRCLECI", "BITRISE_IO"], &truthy?(environment.(&1)))
   end
+
+  defp amp_orb?(environment), do: truthy?(environment.("AMP_ORB"))
 
   defp truthy?(value), do: value not in [nil, "", "0", "false", "FALSE"]
 

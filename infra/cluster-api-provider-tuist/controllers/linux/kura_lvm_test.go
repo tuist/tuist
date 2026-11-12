@@ -27,7 +27,7 @@ func TestKuraLVMConversion(t *testing.T) {
 				os.WriteFile(filepath.Join(dir, "fail"), []byte(interruption), 0644)
 			}
 			run := func() ([]byte, error) {
-				script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/fstab", dir+"/fstab", "/data", dir+"/data").Replace(kuraLVMSetupScript)
+				script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/fstab", dir+"/fstab", "/etc/modules-load.d", dir+"/modules-load.d", "/data", dir+"/data").Replace(kuraLVMSetupScript)
 				// Do not rewrite the LV name or LVM query, which are not host paths.
 				script = strings.ReplaceAll(script, "/dev/kura-volumes"+dir+"/data", "/dev/kura-volumes/data")
 				script = strings.ReplaceAll(script, "$vg"+dir+"/data", "$vg/data")
@@ -59,6 +59,12 @@ func TestKuraLVMConversion(t *testing.T) {
 					t.Fatalf("%s must happen exactly once across retries:\n%s", destructive, after)
 				}
 			}
+			if conf, _ := os.ReadFile(filepath.Join(dir, "modules-load.d", "kura-thin-pool.conf")); string(conf) != "dm_thin_pool\n" {
+				t.Fatalf("dm_thin_pool must persist across reboots: %q", conf)
+			}
+			if loads, _ := os.ReadFile(filepath.Join(dir, "modprobe")); !strings.Contains(string(loads), "dm_thin_pool\n") {
+				t.Fatalf("dm_thin_pool not loaded: %s", loads)
+			}
 			fstab, _ := os.ReadFile(filepath.Join(dir, "fstab"))
 			if strings.Count(string(fstab), "UUID=data-lv") != 1 || strings.Contains(string(fstab), "UUID=old") || !strings.Contains(string(fstab), "prjquota") || !strings.Contains(string(fstab), "UUID=root") {
 				t.Fatalf("fstab: %s", fstab)
@@ -81,7 +87,7 @@ func TestKuraLVMRefusesExistingData(t *testing.T) {
 				file = dir + "/kubelet"
 			}
 			os.WriteFile(file, []byte("existing"), 0644)
-			script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/data", dir+"/data").Replace(kuraLVMSetupScript)
+			script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/modules-load.d", dir+"/modules-load.d", "/data", dir+"/data").Replace(kuraLVMSetupScript)
 			cmd := exec.Command("bash", "-c", lvmTestHost+"\n"+script+"\nkura_lvm_setup")
 			cmd.Env = append(os.Environ(), "TEST_LVM_ROOT="+dir)
 			if out, err := cmd.CombinedOutput(); err == nil {
@@ -115,7 +121,7 @@ func TestKuraLVMUnmountedInstallerData(t *testing.T) {
 			if scenario == "shadowed-directory" {
 				os.WriteFile(dir+"/data/cache", []byte("existing"), 0644)
 			}
-			script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/fstab", dir+"/fstab", "/data", dir+"/data").Replace(kuraLVMSetupScript)
+			script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/fstab", dir+"/fstab", "/etc/modules-load.d", dir+"/modules-load.d", "/data", dir+"/data").Replace(kuraLVMSetupScript)
 			script = strings.ReplaceAll(script, "/dev/kura-volumes"+dir+"/data", "/dev/kura-volumes/data")
 			script = strings.ReplaceAll(script, "$vg"+dir+"/data", "$vg/data")
 			cmd := exec.Command("bash", "-c", lvmTestHost+"\n"+script+"\nkura_lvm_setup")
@@ -132,6 +138,46 @@ func TestKuraLVMUnmountedInstallerData(t *testing.T) {
 				}
 				if _, err := os.Stat(dir + "/unmounted"); err != nil {
 					t.Fatal("failed inspection must not leave the filesystem mounted")
+				}
+			}
+		})
+	}
+}
+
+// Thin-pool host preparation happens before any destructive step, so a kernel
+// without the dm-thin target refuses before its data disk is wiped.
+func TestKuraLVMThinPoolPreparation(t *testing.T) {
+	for _, scenario := range []string{"tools-installed", "tools-missing", "module-missing"} {
+		t.Run(scenario, func(t *testing.T) {
+			dir := t.TempDir()
+			os.MkdirAll(dir+"/data", 0755)
+			os.WriteFile(dir+"/fstab", []byte("UUID=root / ext4 defaults 0 1\n"), 0644)
+			if scenario == "tools-missing" {
+				os.WriteFile(dir+"/no-thin-tools", nil, 0644)
+			}
+			if scenario == "module-missing" {
+				os.WriteFile(dir+"/no-thin-module", nil, 0644)
+			}
+			script := strings.NewReplacer("/var/lib/tuist", dir+"/state", "/etc/fstab", dir+"/fstab", "/etc/modules-load.d", dir+"/modules-load.d", "/data", dir+"/data").Replace(kuraLVMSetupScript)
+			script = strings.ReplaceAll(script, "/dev/kura-volumes"+dir+"/data", "/dev/kura-volumes/data")
+			script = strings.ReplaceAll(script, "$vg"+dir+"/data", "$vg/data")
+			cmd := exec.Command("bash", "-c", lvmTestHost+"\n"+script+"\nkura_lvm_setup")
+			cmd.Env = append(os.Environ(), "TEST_LVM_ROOT="+dir)
+			out, err := cmd.CombinedOutput()
+			apt, _ := os.ReadFile(dir + "/apt")
+			commands, _ := os.ReadFile(dir + "/commands")
+			switch scenario {
+			case "tools-installed":
+				if err != nil || len(apt) != 0 {
+					t.Fatalf("installed host: %v\n%s\n%s", err, out, apt)
+				}
+			case "tools-missing":
+				if err != nil || !strings.Contains(string(apt), "install -y lvm2 xfsprogs thin-provisioning-tools") {
+					t.Fatalf("thin-provisioning-tools not installed: %v\n%s\n%s", err, out, apt)
+				}
+			case "module-missing":
+				if err == nil || !strings.Contains(string(out), "does not list thin-pool") || len(commands) != 0 {
+					t.Fatalf("missing thin-pool target accepted or host mutated: %v\n%s\n%s", err, out, commands)
 				}
 			}
 		})
@@ -193,12 +239,19 @@ lvcreate() { touch "$r/lv"; step lvcreate; }
 vgchange() { :; }
 blkid() { case "$*" in *TYPE*) [ -f "$r/formatted" ] && echo xfs;; *UUID*) echo data-lv;; esac; }
 mkfs.xfs() { touch "$r/formatted"; step mkfs.xfs; }
+if [ ! -f "$r/no-thin-tools" ]; then thin_check() { :; }; fi
+apt-get() {
+  echo "apt-get $*" >> "$r/apt"
+  if [[ "$*" == *thin-provisioning-tools* ]]; then thin_check() { :; }; fi
+}
+modprobe() { echo "$*" >> "$r/modprobe"; [ -f "$r/no-thin-module" ] || touch "$r/thin-loaded"; }
+dmsetup() { echo "striped          v1.6.0"; [ ! -f "$r/thin-loaded" ] || echo "thin-pool        v1.23.0"; }
 `
 
 func TestKuraLVMBootstrapRequiresExplicitOptIn(t *testing.T) {
 	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
 		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "legacy-cache", Taints: []corev1.Taint{{Key: key}}})
-		if strings.Contains(script, "kura_lvm_setup()") {
+		if strings.Contains(script, "kura_lvm_setup()") || strings.Contains(script, "dm_thin_pool") {
 			t.Fatal("cache taint alone must retain the full legacy data disk")
 		}
 	}
@@ -208,10 +261,13 @@ func TestKuraLVMBootstrapRequiresExplicitOptIn(t *testing.T) {
 	if !kuraLVMRequested(map[string]string{"tuist.dev/kura-storage-layout": "lvm-v1"}) {
 		t.Fatal("explicit LVM opt-in ignored")
 	}
-	if strings.Contains(renderVultrConversionScript(false), "kura_lvm_setup") {
+	if strings.Contains(renderVultrConversionScript(false), "kura_lvm_setup") || strings.Contains(renderVultrConversionScript(false), "dm_thin_pool") {
 		t.Fatal("legacy Vultr conversion must retain its full XFS disk")
 	}
 	if !strings.Contains(renderVultrConversionScript(true), "kura_lvm_setup") {
 		t.Fatal("enrolled Vultr conversion omitted LVM")
+	}
+	if !strings.Contains(renderVultrConversionScript(true), "/etc/modules-load.d/kura-thin-pool.conf") {
+		t.Fatal("enrolled Vultr conversion omitted thin-pool host preparation")
 	}
 }

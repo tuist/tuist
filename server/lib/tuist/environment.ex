@@ -86,6 +86,10 @@ defmodule Tuist.Environment do
   """
   def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
+  def blocked_account_handles, do: Application.fetch_env!(:tuist, :blocked_account_handles)
+
+  def blocked_project_handles, do: Application.fetch_env!(:tuist, :blocked_project_handles)
+
   def test? do
     @compile_env == :test
   end
@@ -542,6 +546,14 @@ defmodule Tuist.Environment do
 
   def kura_thin_region_ids do
     "TUIST_KURA_THIN_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_thin_enrolled_region_ids do
+    "TUIST_KURA_THIN_ENROLLED_REGIONS"
     |> System.get_env("")
     |> String.split(",", trim: true)
     |> Enum.map(&String.trim/1)
@@ -2098,6 +2110,8 @@ defmodule Tuist.Environment do
     get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
   end
 
+  def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
   the server presents to Atlas' support ingest, where agent feedback reported
@@ -2167,6 +2181,18 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Percentage of a node's reserved sandbox disk budget above which the
+  archive sweep also archives recently paused Orbs. Defaults to 85; `0`
+  disables pressure archiving. Requires the archive tier to be enabled.
+  """
+  def sandbox_archive_disk_high_water_percent do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT", "85")) do
+      {percent, ""} when percent in 1..100 -> percent
+      _ -> nil
+    end
+  end
+
   def amp_provider_config do
     %{
       image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),
@@ -2174,6 +2200,14 @@ defmodule Tuist.Environment do
       url: System.get_env("TUIST_AMP_PROVIDER_URL"),
       node_selector: "TUIST_AMP_PROVIDER_NODE_SELECTOR" |> System.get_env("{}") |> JSON.decode!()
     }
+  end
+
+  @doc """
+  Where Claude Code orchestrator workloads run: the Amp provider namespace,
+  URL and node selector, with their own image.
+  """
+  def claude_code_provider_config do
+    Map.put(amp_provider_config(), :image, System.get_env("TUIST_CLAUDE_CODE_PROVIDER_IMAGE"))
   end
 
   @doc """

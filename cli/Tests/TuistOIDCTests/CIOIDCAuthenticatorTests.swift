@@ -252,4 +252,56 @@ struct CIOIDCAuthenticatorTests {
         // Then
         #expect(token == "bitrise-identity-token")
     }
+
+    @Test(
+        .withMockedEnvironment(),
+        arguments: [
+            ([:], false),
+            (["CI": "true"], false),
+            (["GITHUB_ACTIONS": "true"], false),
+            (["GITHUB_ACTIONS": "true", "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.com"], false),
+            (
+                [
+                    "GITHUB_ACTIONS": "true",
+                    "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.com",
+                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "request-token",
+                ],
+                true
+            ),
+            (["CIRCLECI": "true"], false),
+            (["CIRCLECI": "true", "CIRCLE_OIDC_TOKEN_V2": "identity"], true),
+            (["BITRISE_IO": "true"], false),
+            (["BITRISE_IO": "true", "BITRISE_IDENTITY_TOKEN": "identity"], true),
+            (["AMP_ORB": "1"], true),
+            (["AMP_ORB": "0"], false),
+            (["TUIST_OIDC_TOKEN": "identity"], true),
+        ] as [([String: String], Bool)]
+    )
+    func hasWorkloadIdentity_matches_the_environments_fetchOIDCToken_can_mint_in(
+        variables: [String: String],
+        expected: Bool
+    ) throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = variables
+
+        // When / Then
+        #expect(subject.hasWorkloadIdentity == expected)
+    }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_mints_an_amp_orb_token_for_the_tuist_dev_audience() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = ["AMP_ORB": "1"]
+        given(oidcTokenFetcher)
+            .fetchAmpOrbToken(audience: .value("https://tuist.dev"))
+            .willReturn("amp-orb-token")
+
+        // When
+        let token = try await subject.fetchOIDCToken()
+
+        // Then
+        #expect(token == "amp-orb-token")
+    }
 }

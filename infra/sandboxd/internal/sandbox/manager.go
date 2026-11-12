@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
@@ -54,6 +55,9 @@ type Config struct {
 	AllowedShapes []template.Shape
 	// SnapshotDir holds disk snapshots; empty disables them.
 	SnapshotDir string
+	// FirecrackerVersion is the running binary's version, recorded with
+	// every memory image a pause writes.
+	FirecrackerVersion string
 }
 
 type Deps struct {
@@ -68,6 +72,9 @@ type Deps struct {
 	// HTTPClient moves archives to and from object storage.
 	HTTPClient *http.Client
 	Metrics    *Metrics
+	// Blobs, when set, serves execution guests large input blobs from the
+	// node; see serveBlobs.
+	Blobs *blobcache.Cache
 	Events     func(protocol.Event)
 	Log        *slog.Logger
 }
@@ -86,6 +93,7 @@ type Manager struct {
 	events    func(protocol.Event)
 	log       *slog.Logger
 	claims    *Claims
+	blobs     *blobcache.Cache
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -168,6 +176,7 @@ func New(cfg Config, deps Deps) *Manager {
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
+		blobs:     deps.Blobs,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -349,6 +358,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0
+	sb.meta.FirecrackerVersion = artifacts.Meta.FirecrackerVersion
 	sb.meta.Error = ""
 	err = sb.meta.Save(root)
 	sb.mu.Unlock()
@@ -785,6 +795,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	sb.mu.Lock()
 	sb.meta.State = protocol.StatePaused
 	sb.meta.Generation++
+	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
 	sb.meta.DisksSynced = synced
 	sb.meta.Error = ""
 	err = sb.meta.Save(sb.root)
@@ -955,6 +966,7 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 		return res, err
 	}
 	defer sb.releaseAgent()
+	defer m.serveBlobs(sb, args)()
 	if args.TimeoutMs > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(args.TimeoutMs)*time.Millisecond+10*time.Second)
@@ -1215,7 +1227,12 @@ func (m *Manager) Recover(ctx context.Context) error {
 		}
 		hasDisks := vm.Exists(filepath.Join(root, firecracker.RootfsPath)) && vm.Exists(filepath.Join(root, firecracker.WorkspacePath)) && vm.Exists(filepath.Join(root, firecracker.KernelPath))
 		switch meta.State {
-		case protocol.StatePaused, protocol.StateError:
+		case protocol.StatePaused:
+			if !meta.ColdBoot && meta.FirecrackerVersion != m.cfg.FirecrackerVersion && hasDisks {
+				m.log.Warn("sandbox memory image was written by another Firecracker version; it will cold boot on its next resume", "sandbox", meta.ID, "image_version", meta.FirecrackerVersion, "firecracker", m.cfg.FirecrackerVersion)
+				meta.ColdBoot = true
+			}
+		case protocol.StateError:
 		default:
 			// The VM was running when the daemon stopped, so its disks have
 			// moved on since whatever memory image is on disk; restoring that

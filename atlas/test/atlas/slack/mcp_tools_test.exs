@@ -31,7 +31,8 @@ defmodule Atlas.Slack.MCPToolsTest do
     names = user |> MCPTools.tools_for(claims) |> Enum.map(&Tool.name/1)
 
     for name <-
-          ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag) do
+          ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
+             get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits) do
       refute name in names
     end
   end

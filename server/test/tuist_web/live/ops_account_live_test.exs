@@ -44,7 +44,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ "Plan &amp; billing"
     assert html =~ "Kura"
     assert html =~ "Runner concurrency"
-    assert html =~ "value=\"12\""
+    assert html =~ "value=\"16\""
   end
 
   test "toggles the account's dashboard visibility", %{conn: conn, user: user} do

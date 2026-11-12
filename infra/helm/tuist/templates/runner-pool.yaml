@@ -180,7 +180,7 @@ chart defaults (replicas: 0, the long-standing pod sizing).
 {{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict }}
 {{- /*
 Pod sizing for the default shape's pools follows the catalog's
-`default: true` entry, so a pool inherits 6 vCPU / 14 GB without each
+`default: true` entry, so a pool inherits 8 vCPU / 24 GB without each
 env re-stating it. An `xcodeOverrides` entry can still pin custom pod
 sizing. Non-default shapes size their Pods from the shape itself
 (that is what makes them a distinct shape) and take their scaling
@@ -205,7 +205,7 @@ A non-empty catalog must tag exactly one default, and the render fails
 rather than guessing. The default shape is what owns the shape-free pool
 name, and `Catalog.pool_name/1` answers `nil` from `default_shape/1` by
 routing EVERY shape to that one name — so a catalog with no default
-would have the server sending 12 vCPU profiles at a 6 vCPU pool, while
+would have the server sending 16 vCPU profiles at an 8 vCPU pool, while
 this template rendered a suffixed pool for each shape that nothing ever
 dispatches to. Two defaults are equally ambiguous: the server takes the
 first match and this loop keeps the last.
@@ -494,6 +494,7 @@ value without comparing those immutable Pod fields to live cluster state.
 {{- $autoscaling := $pool.autoscaling }}
 {{- $runtimeClass := $pool.runtimeClass | default "" }}
 {{- $nested := dig "nestedVirtualization" $.Values.runnersFleetLinux.nestedVirtualization.defaultEnabled $pool }}
+{{- $exclusive := dig "exclusiveCPUs" (and $.Values.runnersFleetLinux.exclusiveCPUs.defaultEnabled (eq (mod (int $podCPU) 2000) 0)) $pool }}
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $pool.provisioning) }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
 {{- $image = (get ($.Values.runnersFleetLinux.imageHolds | default dict) $poolName) | default $image }}
@@ -548,6 +549,18 @@ spec:
   {{- fail (printf "runnersFleetLinux.pools[%s].nestedVirtualization requires runnersFleetLinux.nestedVirtualization.enabled, which deploys the device plugin its Pods request /dev/kvm from" $name) }}
   {{- end }}
   nestedVirtualization: true
+  {{- end }}
+  {{- if $exclusive }}
+  {{- if $nested }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs cannot be combined with nestedVirtualization: kubelet device allocation during pod-level admission is broken (kubernetes/kubernetes#143490)" $name) }}
+  {{- end }}
+  {{- if ne $runtimeClass "kata-qemu" }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs requires runtimeClass kata-qemu" $name) }}
+  {{- end }}
+  {{- if ne (mod (int $podCPU) 2000) 0 }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs requires pod.cpuMilli to be a whole, even number of CPUs, got %v" $name $podCPU) }}
+  {{- end }}
+  exclusiveCPUs: true
   {{- end }}
   provisioning:
     maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}
@@ -612,6 +625,7 @@ can raise it.
 {{- $dispatchLabel := printf "shape-linux-%s%s" $shapeKey $osSuffix }}
 {{- $podCPU := mul $vcpus 1000 }}
 {{- $podMem := mul $memoryGb 1024 }}
+{{- $exclusive := dig "exclusiveCPUs" (and $.Values.runnersFleetLinux.exclusiveCPUs.defaultEnabled (eq (mod $vcpus 2) 0)) $shape }}
 {{- $isDefault := dig "default" false $shape }}
 {{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
 {{- if not $os.default }}
@@ -679,6 +693,18 @@ spec:
   {{- fail "nested virtualization requires runnersFleetLinux.nestedVirtualization.enabled" }}
   {{- end }}
   nestedVirtualization: true
+  {{- end }}
+  {{- if $exclusive }}
+  {{- if $nested }}
+  {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs cannot be combined with nestedVirtualization: kubelet device allocation during pod-level admission is broken (kubernetes/kubernetes#143490)" $shapeKey) }}
+  {{- end }}
+  {{- if ne $shapeRuntimeClass "kata-qemu" }}
+  {{- fail "exclusive CPUs require runnersFleetLinux.shapeRuntimeClass kata-qemu" }}
+  {{- end }}
+  {{- if ne (mod $vcpus 2) 0 }}
+  {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs requires an even number of vcpus" $shapeKey) }}
+  {{- end }}
+  exclusiveCPUs: true
   {{- end }}
   provisioning:
     maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}

@@ -19,6 +19,43 @@ publishes it as `archive_bucket`, and `sandboxNamespace` admits the sandbox
 daemons that upload and restore archives. Never rename the bucket or delete
 it on an existing target, and include it in any store replacement.
 
+`archiveBudgetGiB` sets this store's shared budget for completed Orb and disk
+snapshot archives across all accounts: 500 GiB in production and 100 GiB in
+canary (the default). It is published to the server as `archive_budget_bytes`
+in the target JSON. Targets without that field keep the 100 GiB default.
+At the budget, new archives use account storage (Tigris by default); restores
+and deletes keep using the store recorded on the archive. This is a soft
+routing threshold, not a physical quota: uploads can overshoot. Budget or
+measured-space pressure queues oldest-first offloading of completed Orb and
+snapshot archives to account storage, across accounts, so newer archives
+prefer the rack. The periodic archive pass checks for pressure too. Transfers
+stream to a fresh key and verify destination size and SHA-256 before switching
+the row's recorded store. Retired rack copies remain for two hours to protect
+existing signed restore URLs and still count toward the budget until cleanup
+succeeds. Failed transfers leave the source untouched; unreferenced migration
+copies have durable cleanup jobs. New uploads keep falling back to account
+storage until both the budget and measured free space admit them. No archive
+expiry is added. Choose a budget that leaves room for shard artifacts within
+the store's storage quota.
+
+Archive placement also checks Garage's `garage_local_disk_avail` metrics for
+data and metadata before starting a multipart upload. Every replica must have
+the archive's worst-case size (rootfs, workspace, kernel and framing allowance)
+plus 1 GiB free. These filesystem readings include shard artifacts, incomplete
+uploads and objects awaiting reclamation, unlike the completed-archive budget.
+The target publishes `archive_capacity_urls`: the singleton's metrics URL, or
+one pod-specific URL per replica through the peers Service. Missing URLs,
+unreachable endpoints or missing/invalid readings route new archives to account
+storage, not an archive refusal. This is a sampled admission check, not a
+reservation: concurrent writers can still consume space after it succeeds.
+
+Roll out the store Service/NetworkPolicy and target JSON before the server
+uses the guard, and refresh server processes to pick up the updated target
+environment. Old target configurations without capacity URLs safely use
+account storage until refreshed; missing readings alone do not trigger
+offloading. No Garage restart, manual migration or expiry change is required.
+Restores and deletes continue using the archive's recorded key and store.
+
 With `actionsCache.bucket` set (`actions-cache` in every environment), it also
 holds the GitHub Actions cache of the Linux runners at its site
 (`server/lib/tuist/runners/AGENTS.md`). The hourly lifecycle job creates the
@@ -26,7 +63,7 @@ bucket through Garage's admin API, grants it to the store's key, and caps it at
 `actionsCache.maxGB` decimal GB with a bucket quota: Garage refuses any write
 beyond it, and the server evicts least recently used entries at 90% of it. The
 target publishes the bucket and the cap as `actions_cache_bucket` and
-`actions_cache_bytes`. The admin token is the RPC secret, so enabling it on an
+`actions_cache_bytes`. The admin token, given only to the lifecycle job, is the RPC secret, so enabling it on an
 existing store takes one controlled restart (`OnDelete`): until the store pod
 is recreated, the lifecycle job's `actions-cache` container fails and runners
 keep using GitHub's cache. Entries are rebuildable, so the bucket may be
@@ -45,8 +82,12 @@ change its storage class to work around a full node.
 Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and
 DNS to CoreDNS; a separate headless Service publishes peer addresses even before
-readiness. The admin API (3903) is exposed only with `actionsCache.bucket` set,
-and then only to the lifecycle job.
+readiness. With an archive bucket, the Service also exposes port 3903 and the
+NetworkPolicy admits it from `serverNamespace`, not runners or sandbox guests.
+Garage's `/metrics` needs no token; administrative operations still require an
+admin token, which the server is not given. With an Actions cache bucket, the
+NetworkPolicy also admits the lifecycle job there. Without either the listener
+remains unexposed.
 Fresh environment overlays apply **three-day archive expiration** and one-day
 incomplete multipart abortion through S3 lifecycle. This applies only to this
 store's disposable Mix/Cargo archives: shard plans, test results, Xcode artifacts,

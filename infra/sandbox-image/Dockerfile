@@ -19,6 +19,10 @@ ARG NODE_MAJOR=22
 ARG ANT_VERSION=1.30.0
 ARG AMP_VERSION=0.0.1793104576-gc52692
 ARG AGENT_BROWSER_VERSION=0.38.1
+# Keep with claudeCodeVersion and its checksums in cmd/sbx-worker/claude_code.go:
+# sbx-worker uses this copy only when it is that exact build.
+ARG CLAUDE_CODE_VERSION=2.1.311
+ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be8489ada
 # agent-browser's Chrome and libraries take about 1 GiB, and a project's
 # .agents/setup fills home (mise, caches) on this same filesystem.
 ARG ROOTFS_SIZE=12G
@@ -46,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
         xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
         e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
+        ffmpeg imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js from nodesource and the GitHub CLI from its own repo; both signed.
@@ -91,6 +96,14 @@ RUN curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/amp-linu
     && chmod 0440 /etc/sudoers.d/amp-user \
     && visudo -cf /etc/sudoers.d/amp-user
 COPY --chmod=0755 orb-bootstrap.sh /usr/local/bin/sbx-orb-bootstrap
+
+# Claude Code's self-hosted runner, which sbx-worker runs as `user` for Claude
+# Code cloud sessions.
+ARG CLAUDE_CODE_VERSION
+ARG CLAUDE_CODE_SHA256
+RUN curl -fsSL --retry 3 "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude" -o /usr/local/bin/claude \
+    && echo "${CLAUDE_CODE_SHA256}  /usr/local/bin/claude" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/claude
 
 # Amp's own orb image ships agent-browser the same way: a global npm install,
 # then Chrome for Testing and its system libraries installed as `user`, so the

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "589ff0e6783172704dc80eb3ea6a82c8529a763e9a77de61b787ec978f4b2e37",
+  "hash": "e37d9c6a8412d1da5e9e83f7bab6b062f91dbf7a9d3a1d4f35067b2f9293937b",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Rust build insights {#rust-build-insights}": {
-                  "content_hash": "1e800bbd5d51c7ab0d492c58c703a3d27bc421b6709a4d195fbd5ed5f86affb9"
+                  "content_hash": "71ef7b4346b6e96990233ba8a73686ffa42bc30c2fc0c180c123160ff1480fac"
                 },
                 "## Find what slows a build down {#explore-your-builds}": {
                   "content_hash": "bf79642c19461aa6deb7e8af6d4770cc495341ec454881504f7de4296b779ae9"
@@ -20,7 +20,7 @@
                   "content_hash": "687ef1c6a7ec5072ec6372b3f8427a7323a3a1b69dd87942d711ae4386283b11"
                 },
                 "## Read cache measurements {#cache-measurements}": {
-                  "content_hash": "ec398a99db01ab61808f7aa096a357a48c4de7d6c292995033e2e230a5f41420"
+                  "content_hash": "3fd67ac638bb6f209d61b7baa7061ade408c199fcdc376757900bec6996c9b40"
                 },
                 "## Read the timings {#timing-boundaries}": {
                   "content_hash": "91ac76949999f9a642e6354fca9a52f44439076c7c0c2b81bc3154abb8252b70"
@@ -38,7 +38,7 @@
                   "content_hash": "1549df8308bb5a238a802881a2fb2538e99e0579721b61d44b0c49306aef96d5"
                 },
                 "### Track crates across builds {#crate-history}": {
-                  "content_hash": "ccf891f1cc884acf487fd4c9096fd2fef5278f8b13a015723937db1fc20dea52"
+                  "content_hash": "7a215ea65e78308231978cb1668efdf0160391fc016dedc472d907bcae2e8e5c"
                 },
                 "Preamble": {
                   "content_hash": "541589e5b3f5d6d7c79f734b7ac9c3a89fd4cd596eafa99d583318ad4c8a0962"
@@ -47,11 +47,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0b591764ffd3fb50465e5d1532fc9596ec75c915690a1675e2189c81f564f455",
+          "hash": "2162d6dc1f76486a66b1f005dd0a391efc687aab4fce42caf1b6fdc7ed25dcaf",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/build-insights/rust.md",
           "metadata": {
-            "content_hash": "c12ec77864e0dd7de23fe8e0812b8731c2f43dec9eba6d20081e20cac6589f20"
+            "content_hash": "9c25f498924827065d809cbb5ba8a8ce8fb6ce16050bd681833cc575014aa011"
           }
         },
         {
@@ -260,14 +260,14 @@
         }
       ],
       "details": {},
-      "hash": "589ff0e6783172704dc80eb3ea6a82c8529a763e9a77de61b787ec978f4b2e37",
+      "hash": "e37d9c6a8412d1da5e9e83f7bab6b062f91dbf7a9d3a1d4f35067b2f9293937b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7edd1d68e5bafbfee95aadee94bfc2b2fa62724fb64f91a3de16b307a22f2bdb",
+  "output_hash": "3689670190180a11a533ea56e8e2f324df52375640e07465aa69c9f158c725a7",
   "output_path": "server/priv/docs/zh_Hans/guides/features/build-insights/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -289,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/build-insights/rust.md",
-  "translated_at": "2026-11-04T18:43:00.747366Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:42:39.601469Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

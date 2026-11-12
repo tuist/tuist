@@ -103,6 +103,7 @@ defmodule Tuist.MCP.Components.Tools.ConnectClaudeSubscription do
     name: "connect_claude_subscription",
     title: "Connect Claude Subscription",
     read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

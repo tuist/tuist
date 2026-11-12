@@ -34,7 +34,7 @@ msgstr "უკვე გაქვთ ანგარიში?"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "უკვე გაქვთ Tuist-ის პროექტი? გამოტოვეთ მოწყობა და გადადით ინფორმაციულ პანელზე."
+msgstr "Tuist-ის პროექტი უკვე მორგებული გაქვთ? გამოტოვეთ მორგება და გადადით დაფზე."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:73
@@ -51,19 +51,19 @@ msgstr "პაროლის შეცვლა"
 #: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Check your email"
-msgstr "შეამოწმეთ თქვენი ელფოსტა"
+msgstr "შეამოწმეთ თქვენი ელ. ფოსტა"
 
 #: lib/tuist_web/live/user_registration_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "შეამოწმეთ შემომავალი წერილები დადასტურების ელფოსტისთვის და გადადით ბმულზე გასაგრძელებლად."
+msgstr "შეამოწმეთ თქვენი ელფოსტა დადასტურების წერილისთვის და დააჭირეთ ბმულს გასაგრძელებლად."
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Choose a username"
 msgstr "აირჩიეთ მომხმარებლის სახელი"
 
-#: lib/tuist_web/live/user_reset_password_live.ex:51
+#: lib/tuist_web/live/user_reset_password_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
 msgstr "დაადასტურეთ პაროლი"
@@ -93,7 +93,7 @@ msgstr "მიუერთეთ თქვენი პროექტი"
 #: lib/tuist_web/live/connect_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
-msgstr "დააკავშირეთ თქვენი პროექტი დაფასთან"
+msgstr "მიუერთეთ თქვენი პროექტი დაფის პანელს"
 
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
@@ -111,13 +111,14 @@ msgstr "დაგვიკავშირდით"
 msgid "Continue"
 msgstr "გაგრძელება"
 
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:14
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:64
+#: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "დაფა"
 
-#: lib/tuist_web/live/user_login_live.ex:217
+#: lib/tuist_web/live/user_login_live.ex:256
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "არ გაქვთ ანგარიში?"
@@ -129,7 +130,7 @@ msgstr "არ გაქვთ ანგარიში?"
 #: lib/tuist_web/live/user_registration_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Email address"
-msgstr "ელ. ფოსტის მისამართი"
+msgstr "ელფოსტის მისამართი"
 
 #: lib/tuist_web/live/user_registration_live.ex:480
 #, elixir-autogen, elixir-format
@@ -139,47 +140,47 @@ msgstr "ელფოსტა უკვე დაკავებულია"
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "გაეცანით Tuist-ის ფუნქციებს, როგორიცაა ბინარული ქეშირება და შერჩევითი ტესტირება, რათა აუჩქაროთ განვითარების პროცესს."
+msgstr "შეისწავლეთ Tuist-ის ფუნქციები, როგორიცაა ბინარული ქეშირება და შერჩევითი ტესტირება, რათა დააჩქაროთ თქვენი განვითარება."
 
-#: lib/tuist_web/live/user_login_live.ex:176
+#: lib/tuist_web/live/user_login_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
-msgstr "დაგავიწყდათ პაროლი?"
+msgstr "პაროლი დაგავიწყდათ?"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
-msgstr "დაგავიწყდათ პაროლი?"
+msgstr "პაროლი დაგავიწყდათ?"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "თუ თქვენი ელფოსტა ჩვენს მონაცემთა ბაზაში არსებობს, მალე მიიღებთ აღდგენის ინსტრუქციებს."
+msgstr "თუ თქვენი ელფოსტა ჩვენს ბაზაში არსებობს, მალე მიიღებთ აღდგენის ინსტრუქციას."
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "დააყენეთ Tuist CLI"
+msgstr "Tuist CLI-ის ინსტალაცია"
 
 #: lib/tuist_web/live/user_registration_live.ex:79
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "გააზიარეთ თქვენი აპლიკაცია მყისიერად URL-ის მეშვეობით."
+msgstr "გაუზიარეთ თქვენი აპლიკაცია მყისიერად URL-ის მეშვეობით."
 
 #: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "გაინტერესებთ SSO?"
 
-#: lib/tuist_web/live/user_login_live.ex:169
+#: lib/tuist_web/live/user_login_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
-msgstr "შემიყვანე სისტემაში"
+msgstr "დამახსოვრე შესვლა"
 
 #: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
-#: lib/tuist_web/live/user_login_live.ex:192
+#: lib/tuist_web/live/user_login_live.ex:194
 #: lib/tuist_web/live/user_registration_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Log in"
@@ -194,9 +195,9 @@ msgstr "Tuist-ში შესვლა"
 #: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
-msgstr "SSO-ს მეშვეობით შედით თქვენს კორპორატიულ ანგარიშზე"
+msgstr "SSO-ს საშუალებით თქვენს კორპორატიულ ანგარიშზე შესვლა"
 
-#: lib/tuist_web/live/user_reset_password_live.ex:43
+#: lib/tuist_web/live/user_reset_password_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "New password"
 msgstr "ახალი პაროლი"
@@ -212,16 +213,17 @@ msgstr "შემდეგი ნაბიჯები"
 msgid "OR"
 msgstr "ან"
 
-#: lib/tuist_web/live/user_login_live.ex:155
+#: lib/tuist_web/live/user_login_live.ex:156
 #: lib/tuist_web/live/user_registration_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr "პაროლი"
 
-#: lib/tuist_web/live/user_reset_password_live.ex:101
+#: lib/tuist_web/controllers/user_reset_password_controller.ex:18
+#: lib/tuist_web/live/user_reset_password_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
-msgstr "პაროლის წარმატებით განახლება."
+msgstr "პაროლის აღდგენა წარმატებით დასრულდა."
 
 #: lib/tuist_web/live/user_registration_live.ex:76
 #, elixir-autogen, elixir-format
@@ -234,7 +236,7 @@ msgid "Project Ready? Proceed to dashboard"
 msgstr "პროექტი მზადაა? გადადით დაშბორდზე"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:62
-#: lib/tuist_web/live/user_reset_password_live.ex:58
+#: lib/tuist_web/live/user_reset_password_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Reset password"
 msgstr "პაროლის აღდგენა"
@@ -247,14 +249,14 @@ msgstr "Tuist CLI-ის დასაყენებლად შეასრუ
 #: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
-msgstr "ამ ბრძანების შესრულებით თქვენი პროექტი დაშბორდთან დაკავშირდება."
+msgstr "ამ ბრძანების შესრულებით დააკავშირეთ თქვენი პროექტი დაშბორდთან."
 
 #: lib/tuist_web/live/user_registration_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Selective testing"
 msgstr "შერჩევითი ტესტირება"
 
-#: lib/tuist_web/live/user_login_live.ex:222
+#: lib/tuist_web/live/user_login_live.ex:261
 #: lib/tuist_web/live/user_registration_live.ex:233
 #: lib/tuist_web/live/user_registration_live.ex:315
 #, elixir-autogen, elixir-format
@@ -271,14 +273,14 @@ msgstr "დარეგისტრირდით Tuist-ზე"
 msgid "This username has already been taken"
 msgstr "ეს მომხმარებლის სახელი უკვე დაკავებულია"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:44
+#: lib/tuist_web/live/device_codes_success_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "Tuist CLI დაკავშირებულია!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:33
+#: lib/tuist_web/live/device_codes_success_live.ex:20
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +293,7 @@ msgstr "Tuist CLI დაკავშირებულია!"
 msgid "Tuist Logo"
 msgstr "Tuist-ის ლოგო"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:42
+#: lib/tuist_web/live/device_codes_success_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "Tuist აპლიკაცია დაკავშირებულია!"
@@ -299,7 +301,7 @@ msgstr "Tuist აპლიკაცია დაკავშირებულ�
 #: lib/tuist_web/live/connect_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Tuist dashboard"
-msgstr "Tuist-ის ინტერფეისი"
+msgstr "Tuist-ის დაშბორდი"
 
 #: lib/tuist_web/live/connect_live.ex:149
 #: lib/tuist_web/live/connect_live.ex:190
@@ -308,7 +310,7 @@ msgstr "Tuist-ის ინტერფეისი"
 msgid "Tuist documentation"
 msgstr "Tuist-ის დოკუმენტაცია"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:46
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist დაკავშირებულია!"
@@ -316,7 +318,7 @@ msgstr "Tuist დაკავშირებულია!"
 #: lib/tuist_web/live/user_confirmation_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
-msgstr "მომხმარებლის დადასტურების ბმული არასწორია ან ვადა ამოწურულია."
+msgstr "მომხმარებლის დადასტურების ბმული არასწორია ან ვადა ამოეწურა."
 
 #: lib/tuist_web/live/choose_username_live.ex:72
 #: lib/tuist_web/live/user_registration_live.ex:203
@@ -328,17 +330,17 @@ msgstr "მომხმარებლის სახელი"
 #: lib/tuist_web/live/user_registration_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "მომხმარებლის სახელი შეიძლება შეიცავდეს მხოლოდ ასო-ციფრულ სიმბოლოებს"
+msgstr "მომხმარებლის სახელი შეიძლება შეიცავდეს მხოლოდ ალფანუმერულ სიმბოლოებს"
 
 #: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Waiting for connection"
-msgstr "მიმდინარეობს კავშირის მოლოდინი"
+msgstr "კავშირის მოლოდინი"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
-msgstr "პაროლის აღდგენის ბმულს გამოგიგზავნით ელ. ფოსტაზე"
+msgstr "პაროლის აღდგენის ბმულს გამოგიგზავნით თქვენს ელფოსტაზე"
 
 #: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
@@ -350,20 +352,20 @@ msgstr "მოგესალმებით! შესვლა გაგრძ
 msgid "Welcome! Create an account to continue"
 msgstr "მოგესალმებით! შექმენით ანგარიში გაგრძელებისთვის"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:56
+#: lib/tuist_web/live/device_codes_success_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
-msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და გააგრძელოთ"
+msgstr "შეგიძლიათ დახუროთ ჩანართი და გააგრძელოთ"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:52
+#: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
-msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და აპში გააგრძელოთ"
+msgstr "შეგიძლიათ დახუროთ ჩანართი და აპში გააგრძელოთ"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:54
+#: lib/tuist_web/live/device_codes_success_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
-msgstr "შეგიძლიათ ჩაუკეტოთ ტაბი და ტერმინალში გააგრძელოთ"
+msgstr "შეგიძლიათ დახუროთ ჩანართი და ტერმინალში გააგრძელოთ"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:44
 #, elixir-autogen, elixir-format
@@ -378,12 +380,12 @@ msgstr "თქვენი ანგარიში დადასტურე�
 #: lib/tuist_web/live/user_confirmation_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
-msgstr "თქვენი ანგარიში დადასტურებულია. მალე გადამისამართდებით..."
+msgstr "თქვენი ანგარიში დადასტურებულია. მალე გადამისამარდებით..."
 
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "ახალი პაროლი უნდა განსხვავდებოდეს წინათ გამოყენებული პაროლებისგან."
+msgstr "ახალი პაროლი უნდა განსხვავდებოდეს ადრე გამოყენებული პაროლებისგან."
 
 #: lib/tuist_web/live/connect_live.ex:116
 #: lib/tuist_web/live/connect_live.ex:134
@@ -400,7 +402,7 @@ msgstr "mise"
 #: lib/tuist_web/live/connect_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "using CLI"
-msgstr "CLI-ს გამოყენება"
+msgstr "CLI-ის გამოყენება"
 
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
@@ -410,22 +412,22 @@ msgstr "გაგრძელებით თქვენ ეთანხმე�
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
 msgid "Privacy Policy"
-msgstr "კონფიდენციალურობის პოლიტიკას"
+msgstr "კონფიდენციალურობის პოლიტიკა"
 
 #: lib/tuist_web/components/app_auth_components.ex:15
 #, elixir-autogen, elixir-format
 msgid "Terms of Service"
-msgstr "მომსახურების პირობებს"
+msgstr "მომსახურების პირობები"
 
 #: lib/tuist_web/components/app_auth_components.ex:17
 #, elixir-autogen, elixir-format
 msgid "and"
 msgstr "და"
 
-#: lib/tuist_web/live/user_login_live.ex:212
+#: lib/tuist_web/live/user_login_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
-msgstr "შედით სატესტო მომხმარებლის სახელით"
+msgstr "შესვლა სატესტო მომხმარებლის სახელით"
 
 #: lib/tuist_web/live/choose_username_live.ex:59
 #, elixir-autogen, elixir-format
@@ -440,12 +442,12 @@ msgstr "SSO-ით შესვლა"
 #: lib/tuist_web/live/sso_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "ამ ელფოსტისთვის SSO ორგანიზაცია არ არის კონფიგურირებული. შეამოწმეთ მისამართი და სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს გადაამოწმოს SSO დომენის პარამეტრები."
+msgstr "ამ ელ.ფოსტისთვის SSO ორგანიზაცია არ არის კონფიგურირებული. შეამოწმეთ მისამართი და სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს გადაამოწმოს SSO დომენის მორგება."
 
-#: lib/tuist_web/controllers/auth_controller.ex:584
+#: lib/tuist_web/controllers/auth_controller.ex:709
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
-msgstr "ანგარიში ამ ელფოსტით უკვე არსებობს. გთხოვთ, შეხვიდეთ სისტემაში."
+msgstr "ანგარიში ამ ელ.ფოსტით უკვე არსებობს. გთხოვთ, შეხვიდეთ ანგარიშზე."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
@@ -455,7 +457,7 @@ msgstr "დაადასტურეთ ელფოსტა"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Confirm your email address to finish signing in"
-msgstr "შესასვლელად დაადასტურეთ თქვენი ელფოსტის მისამართი"
+msgstr "ელფოსტის მისამართის დასადასტურებლად, რათა სისტემაში შესვლა დაასრულოთ"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
@@ -471,7 +473,7 @@ msgstr "დადასტურების ელფოსტის ხელ�
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "ახალ დადასტურების ბმულს გამოგიგზავნით %{email}-ზე."
+msgstr "ახალ დადასტურების ბმულს გავუგზავნით მისამართზე %{email}."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
@@ -483,38 +485,38 @@ msgstr "თქვენი ელფოსტა ჯერ არ არის �
 #: lib/tuist_web/live/user_registration_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Please complete the security check and try again."
-msgstr "გთხოვთ, გაიაროთ უსაფრთხოების შემოწმება და სცადეთ ხელახლა."
+msgstr "გთხოვთ, გაიაროთ უსაფრთხოების შემოწმება და სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/choose_username_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "უსაფრთხოების შემოწმების ჩატვირთვა ვერ მოხერხდა. შეამოწმეთ, ხომ არ ბლოკავს challenges.cloudflare.com-ს რაიმე პროგრამა და გადატვირთეთ გვერდი."
+msgstr "უსაფრთხოების შემოწმების ჩატვირთვა ვერ მოხერხდა. შეამოწმეთ, ხომ არ აბლოკებს challenges.cloudflare.com და გადატვირთეთ გვერდი."
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "The security check failed. Please reload the page and try again."
-msgstr "უსაფრთხოების შემოწმება ვერ გაიარა. გთხოვთ, გადატვირთოთ გვერდი და სცადოთ ხელახლა."
+msgstr "უსაფრთხოების შემოწმება ვერ მოხერხდა. გთხოვთ, გადატვირთოთ გვერდი და სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/choose_username_live.ex:147
 #: lib/tuist_web/live/user_registration_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Too many sign-up attempts. Please try again later."
-msgstr "რეგისტრაციის ძალიან ბევრი მცდელობა. გთხოვთ, სცადოთ მოგვიანებით."
+msgstr "რეგისტრაციის მცდელობები ძალიან ბევრია. გთხოვთ, სცადოთ მოგვიანებით."
 
 #: lib/tuist_web/live/choose_username_live.ex:155
 #: lib/tuist_web/live/user_registration_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "Your session has expired. Please reload the page and try again."
-msgstr "თქვენი სესია ამოიწურა. გთხოვთ, გადატვირთოთ გვერდი და სცადოთ ხელახლა."
+msgstr "თქვენი სესიის ვადა ამოიწურა. გთხოვთ, გადატვირთოთ გვერდი და სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/choose_username_live.ex:251
 #: lib/tuist_web/live/choose_username_live.ex:279
 #: lib/tuist_web/live/choose_username_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
-msgstr "რაღაც შეცდომა მოხდა. გთხოვთ, სცადოთ ხელახლა."
+msgstr "რაღაც არასწორად წავიდა. გთხოვთ, სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/choose_username_live.ex:94
 #: lib/tuist_web/live/user_registration_live.ex:228
@@ -530,22 +532,22 @@ msgstr "მოკლე შემოწმება"
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
 msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
-msgstr "საჯარო დაფები დაცულია ავტომატური სკრეპინგისგან. გაგრძელებისთვის დაადასტურეთ, რომ ადამიანი ხართ."
+msgstr "საჯარო დაშბორდები დაცულია ავტომატიზებული სკრეპინგისგან. გაგრძელებისთვის დაადასტურეთ, რომ ადამიანი ხართ."
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please wait a moment and try again."
-msgstr "ზედმეტად ბევრი მცდელობა. გთხოვთ, მოიცადოთ და სცადოთ თავიდან."
+msgstr "მცდელობები ძალიან ბევრია. გთხოვთ, დაიცადოთ ცოტა ხანი და სცადოთ ხელახლა."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
 msgid "Turnstile is unavailable. Please try again shortly."
-msgstr "Turnstile მიუწვდომელია. გთხოვთ, მალე სცადოთ თავიდან."
+msgstr "Turnstile მიუწვდომელია. გთხოვთ, მოგვიანებით სცადოთ."
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try again."
-msgstr "ვერიფიკაცია ვერ მოხერხდა. გთხოვთ, სცადოთ თავიდან."
+msgstr "ვერიფიკაცია ვერ მოხერხდა. გთხოვთ, თავიდან სცადოთ."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:26
 #, elixir-autogen, elixir-format
@@ -555,15 +557,22 @@ msgstr "დაადასტურეთ, რომ ადამიანი �
 #: lib/tuist_web/controllers/auth_controller.ex:80
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
-msgstr "Google-ით შესვლა ვერ დასრულდა. გთხოვთ, სცადოთ ხელახლა შესვლა."
+msgstr "Google-ით შესვლა ვერ დასრულდა. გთხოვთ, ხელახლა შეხვიდეთ."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:61
+#: lib/tuist_web/controllers/sso_link_controller.ex:62
 #, elixir-autogen, elixir-format
 msgid "Already linked"
 msgstr "უკვე დაკავშირებულია"
 
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:72
+#: lib/tuist_web/live/user_security_settings_live.html.heex:106
+#: lib/tuist_web/live/user_security_settings_live.html.heex:198
+#: lib/tuist_web/live/user_security_settings_live.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "გაუქმება"
@@ -571,54 +580,57 @@ msgstr "გაუქმება"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Link account"
-msgstr "ანგარიშის მიბმა"
+msgstr "ანგარიშის დაკავშირება"
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:125
+#: lib/tuist_web/controllers/sso_link_controller.ex:120
 #, elixir-autogen, elixir-format
 msgid "Link expired"
-msgstr "მიბმის ვადა ამოიწურა"
+msgstr "ბმული გაუქმდა"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
-msgstr "მიბმა შესაძლებელია მხოლოდ მაშინ, თუ %{organization} თქვენი ორგანიზაციაა. ნებისმიერს, ვისაც შეუძლია ამ იდენტობის პროვაიდერის ანგარიშში შესვლა, შეეძლება თქვენს სრულ Tuist-ის ანგარიშში შესვლა."
+msgstr "დააკავშირეთ მხოლოდ მაშინ, თუ %{organization} თქვენი ორგანიზაციაა. ნებისმიერს, ვისაც შეუძლია ამ იდენტობის პროვაიდერის ანგარიშში შესვლა, შეეძლება თქვენს სრულ Tuist-ის ანგარიშში შესვლა."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:133
+#: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
-msgstr "ერთიანი შესვლის მიბმა · Tuist"
+msgstr "ერთიანი შესვლის დაკავშირება · Tuist"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on?"
-msgstr "მივაბათ ერთიანი შესვლა?"
+msgstr "დააკავშიროთ ერთიანი შესვლა?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:441
+#: lib/tuist_web/controllers/auth_controller.ex:515
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
-msgstr "შედით თქვენს Tuist-ის ანგარიშში, რათა მიუბათ ის თქვენი ორგანიზაციის ერთიან შესვლას."
+msgstr "შედით თქვენს Tuist-ის ანგარიშში, რათა დააკავშიროთ ის თქვენი ორგანიზაციის ერთიან შესვლასთან (SSO)."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:126
+#: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
-msgstr "კიდევ ერთხელ გაიარეთ ავტორიზაცია ერთიანი შესვლით, რათა მიუბათ თქვენი ანგარიში."
+msgstr "ხელახლა შედით ერთიანი შესვლის საშუალებით, რათა დააკავშიროთ თქვენი ანგარიში."
 
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
+#: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Signed in to Tuist as %{email}"
-msgstr "Tuist-ში შესული ხართ, როგორც %{email}"
+msgstr "Tuist-ში შესული ხართ როგორც %{email}"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
-msgstr "%{organization}-ის იდენტობის პროვაიდერის ანგარიში, რომლითაც შეხვალთ თქვენს Tuist-ის ანგარიშზე."
+msgstr "%{organization}-ის იდენტობის პროვაიდერის ანგარიში, რომელიც გამოყენებული იქნება თქვენს Tuist-ის ანგარიშში შესასვლელად."
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:63
+#: lib/tuist_web/controllers/sso_link_controller.ex:64
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
 msgstr "ეს იდენტობის პროვაიდერის ანგარიში უკვე დაკავშირებულია სხვა Tuist-ის ანგარიშთან."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:19
+#: lib/tuist_web/controllers/device_code_html.ex:19
+#: lib/tuist_web/controllers/sso_link_html.ex:34
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
 msgstr "Tuist-ის ლოგო"
@@ -626,7 +638,7 @@ msgstr "Tuist-ის ლოგო"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Let the %{organization} identity provider sign you in to your Tuist account."
-msgstr "მიეცით %{organization}-ის იდენტობის პროვაიდერს თქვენს Tuist-ის ანგარიშში შესვლის უფლება."
+msgstr "მიეცით %{organization} იდენტიფიკაციის პროვაიდერს თქვენს Tuist ანგარიშში შესვლის უფლება."
 
 #: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
@@ -647,23 +659,23 @@ msgstr "დაამატეთ ეს პროექტის პარამ
 #: lib/tuist_web/live/connect_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Log in and run your tests"
-msgstr "შედი და გაუშვი ტესტები"
+msgstr "შედით და გაუშვით ტესტები"
 
 #: lib/tuist_web/live/connect_live.ex:172
 #: lib/tuist_web/live/connect_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Point it at this project"
-msgstr "მიუთითე ეს პროექტი"
+msgstr "მიუთითეთ ამ პროექტზე"
 
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "აგზავნე ბილდების მონაცემები, აღმოაჩინე არასტაბილური ტესტები და გაანაწილე ტესტები რამდენიმე მანქანაზე."
+msgstr "მოხსენეთ ბილდები, აღმოაჩინეთ არასტაბილური ტესტები და გაანაწილეთ ტესტები მრავალ მანქანაზე."
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "The test run shows up in the dashboard when it finishes."
-msgstr "ტესტების გაშვება დასრულების შემდეგ გამოჩნდება დაფაზე."
+msgstr "ტესტების გაშვება დასრულების შემდეგ ჩანს დაფაზე."
 
 #: lib/tuist_web/live/connect_live.ex:95
 #, elixir-autogen, elixir-format
@@ -673,7 +685,7 @@ msgstr "Mix-ის გამოყენებით"
 #: lib/tuist_web/live/connect_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Add a tuist.toml file at your repository root."
-msgstr "დაამატე tuist.toml ფაილი შენი რეპოზიტორიის ძირში."
+msgstr "დაამატეთ tuist.toml ფაილი თქვენი რეპოზიტორიის ძირში."
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
@@ -683,7 +695,7 @@ msgstr "Cargo-ს გამოყენებით"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Choose an organization"
-msgstr "აირჩიე ორგანიზაცია"
+msgstr "აირჩიეთ ორგანიზაცია"
 
 #: lib/tuist_web/controllers/integration_installation_controller.ex:53
 #, elixir-autogen, elixir-format
@@ -713,7 +725,7 @@ msgstr "ინტეგრაციის დასაკავშირებ�
 #: lib/tuist_web/live/sso_login_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
-msgstr "ამ შესვლის დომენს რამდენიმე ორგანიზაცია იყენებს. გამოიყენეთ თქვენი ორგანიზაციის SSO შესვლის ბმული ან სთხოვეთ ადმინისტრატორს, დაადასტუროს დომენი DNS-ით."
+msgstr "ამ შესვლის დომენს რამდენიმე ორგანიზაცია იყენებს. გამოიყენეთ თქვენი ორგანიზაციის SSO-ს შესვლის ბმული ან სთხოვეთ ადმინისტრატორს, დაადასტუროს დომენი DNS-ით."
 
 #: lib/tuist_web/live/user_registration_live.ex:55
 #, elixir-autogen, elixir-format
@@ -723,7 +735,7 @@ msgstr "გააანალიზეთ ბილდები და ტეს
 #: lib/tuist_web/live/user_registration_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Build and test insights"
-msgstr "ბილდისა და ტესტირების ანალიტიკა"
+msgstr "ბილდებისა და ტესტების ანალიტიკა"
 
 #: lib/tuist_web/live/user_registration_live.ex:34
 #, elixir-autogen, elixir-format
@@ -733,12 +745,12 @@ msgstr "ქეში"
 #: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Cut build times by caching and reusing binaries."
-msgstr "შეამცირეთ ბილდის დრო ბინარული ფაილების ქეშირებითა და ხელახლა გამოყენებით."
+msgstr "შეამცირეთ ბილდის დრო ბინარული ფაილების ქეშირებითა და ხელახალი გამოყენებით."
 
 #: lib/tuist_web/live/user_registration_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "Detect, track, and quarantine flaky tests automatically."
-msgstr "ავტომატურად აღმოაჩინეთ, თვალყური ადევნეთ და იზოლირეთ არასტაბილური ტესტები."
+msgstr "ავტომატურად აღმოაჩინეთ, თვალყური ადევნეთ და კარანტინში მოათავსეთ არასტაბილური ტესტები."
 
 #: lib/tuist_web/live/user_registration_live.ex:64
 #, elixir-autogen, elixir-format
@@ -748,153 +760,533 @@ msgstr "არასტაბილური ტესტები"
 #: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Speed up CI by testing only what changed."
-msgstr "დააჩქარეთ CI მხოლოდ შეცვლილი კომპონენტების ტესტირებით."
+msgstr "დააჩქარეთ CI, გაუშვით მხოლოდ შეცვლილი ტესტები."
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Add this setup key to your authenticator app, then enter its six-digit code. The key expires in five minutes."
-msgstr "დაამატეთ ეს გასაღები თქვენს აუთენტიფიკატორის აპლიკაციაში, შემდეგ კი შეიყვანეთ მისი ექვსნიშნა კოდი. გასაღების ვადა იწურება ხუთ წუთში."
-
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Authentication code"
-msgstr "აუთენტიფიკაციის კოდი"
+msgstr "ავტორიზაციის კოდი"
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:17
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:24
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:42
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:36
+#: lib/tuist_web/live/user_security_settings_live.html.heex:187
+#: lib/tuist_web/live/user_security_settings_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Authentication or recovery code"
-msgstr "აუთენტიფიკაციის ან აღდგენის კოდი"
+msgstr "ავტორიზაციის ან აღდგენის კოდი"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:100
-#, elixir-autogen, elixir-format
-msgid "Back to dashboard"
-msgstr "დაბრუნება დაფაზე"
-
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:30
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Back to sign in"
 msgstr "დაბრუნება შესვლაზე"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:79
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Cancel setup"
-msgstr "გასაღების მითითების გაუქმება"
+msgstr "მოწყობის გაუქმება"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:95
-#, elixir-autogen, elixir-format
-msgid "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
-msgstr "ფაქტორის შეცვლა მოითხოვს ბოლო ხუთი წუთის განმავლობაში შესვლას. პაროლის აღდგენა არ აშორებს მას. შეინახეთ აღდგენის კოდები უსაფრთხო ადგილას."
-
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:33
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:166
+#: lib/tuist_web/live/user_security_settings_live.html.heex:231
+#: lib/tuist_web/live/user_security_settings_live.html.heex:237
+#: lib/tuist_web/live/user_security_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Disable two-factor authentication"
-msgstr "ორფაქტორიანი აუთენტიფიკაციის გამორთვა"
+msgstr "ორფაქტორიანი ავტორიზაციის გამორთვა"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Enable two-factor authentication"
-msgstr "ორფაქტორიანი ავთენტიკაციის ჩართვა"
+msgstr "ორფაქტორიანი ავტორიზაციის ჩართვა"
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Enter a code from your authenticator app or an unused recovery code."
-msgstr "შეიყვანეთ კოდი თქვენი ავთენტიკატორის აპლიკაციიდან ან გამოუყენებელი აღდგენის კოდი."
+msgstr "შეიყვანეთ კოდი თქვენი აუთენტიფიკატორის აპლიკაციიდან ან გამოუყენებელი აღდგენის კოდი."
 
-#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:23
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "I saved my recovery codes"
-msgstr "ჩემი აღდგენის კოდები შევინახე"
+msgstr "შევინახე ჩემი აღდგენის კოდები"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:4
+#: lib/tuist_web/live/user_security_settings_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Protect your account with an authenticator app and recovery codes."
-msgstr "დაიცავით თქვენი ანგარიში ავთენტიკატორის აპლიკაციისა და აღდგენის კოდების საშუალებით."
+msgstr "დაიცავით თქვენი ანგარიში აუთენტიფიკატორის აპლიკაციისა და აღდგენის კოდების მეშვეობით."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
 msgstr "შეინახეთ აღდგენის კოდები"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:89
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:172
+#: lib/tuist_web/live/user_security_settings_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Set up authenticator app"
-msgstr "ავთენტიკატორის აპლიკაციის მორგება"
+msgstr "აუთენტიფიკატორის აპლიკაციის მორგება"
 
-#: lib/tuist_web/controllers/user_mfa_controller.ex:160
-#, elixir-autogen, elixir-format
-msgid "Sign out and sign in again before changing two-factor authentication."
-msgstr "ორფაქტორიანი ავთენტიკაციის შეცვლამდე გავიდეთ სისტემიდან და ხელახლა შედით."
-
-#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
-#, elixir-autogen, elixir-format
-msgid "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
-msgstr "შეინახეთ ეს კოდები უსაფრთხოდ. ავთენტიკატორისა და აღდგენის კოდების დაკარგვამ შეიძლება დაგიბლოკოს წვდომა ანგარიშზე."
-
-#: lib/tuist_web/controllers/user_mfa_controller.ex:166
+#: lib/tuist_web/controllers/user_mfa_controller.ex:203
 #, elixir-autogen, elixir-format
 msgid "The code is invalid, already used, or too many attempts were made. Try a new code later."
-msgstr "კოდი არასწორია, უკვე გამოყენებულია ან ძალიან ბევრი მცდელობა განხორციელდა. სცადეთ ახალი კოდი მოგვიანებით."
-
-#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
-#, elixir-autogen, elixir-format
-msgid "These codes are shown only once. Each code replaces your authenticator code for one sign-in."
-msgstr "ეს კოდები ნაჩვენებია მხოლოდ ერთხელ. თითოეული კოდი ცვლის თქვენს აუთენტიფიკატორის კოდს ერთი შესვლისთვის."
+msgstr "კოდი არასწორია, უკვე გამოყენებულია ან ძალიან ბევრი მცდელობა განხორციელდა. მოგვიანებით სცადეთ ახალი კოდი."
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:2
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:2
+#: lib/tuist_web/live/user_security_settings_live.ex:21
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication"
 msgstr "ორეტაპიანი აუთენტიფიკაცია"
 
-#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:13
-#, elixir-autogen, elixir-format
-msgid "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
-msgstr "ორეტაპიანი აუთენტიფიკაცია ჩართულია ყველა ახალი ბრაუზერით შესვლისთვის, მათ შორის ერთჯერადი შესვლის (SSO) დროსაც."
-
-#: lib/tuist_web/controllers/user_mfa_controller.ex:155
+#: lib/tuist_web/controllers/user_mfa_controller.ex:193
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication · Tuist"
 msgstr "ორეტაპიანი აუთენტიფიკაცია · Tuist"
 
-#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:27
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Verify"
-msgstr "დადასტურება"
+msgstr "ვერიფიკაცია"
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:53
+#: lib/tuist_web/controllers/user_passkey_controller.ex:69
 #, elixir-autogen, elixir-format
 msgid "Passkey added."
-msgstr "პარაკლი გაემატა."
+msgstr "პასკეი დაემატა."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:68
+#: lib/tuist_web/controllers/user_passkey_controller.ex:117
 #, elixir-autogen, elixir-format
 msgid "Passkey removed."
-msgstr "პარაკლი წაიშალა."
+msgstr "პასკეი წაიშალა."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:125
+#: lib/tuist_web/controllers/user_passkey_controller.ex:178
 #, elixir-autogen, elixir-format
 msgid "Remove a passkey before adding another one."
-msgstr "სანამ სხვას დაამატებთ, წაშალეთ არსებული პაროლის გასაღები."
+msgstr "ახალი პასკეის დამატებამდე წაშალეთ არსებული."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:123
-#, elixir-autogen, elixir-format
-msgid "Sign out and sign in again before changing passkeys."
-msgstr "პაროლის გასაღების შესაცვლელად ჯერ გამოდით და ხელახლა შედით სისტემაში."
-
-#: lib/tuist_web/controllers/user_mfa_controller.ex:162
-#: lib/tuist_web/controllers/user_passkey_controller.ex:92
-#: lib/tuist_web/controllers/user_passkey_controller.ex:129
+#: lib/tuist_web/controllers/user_mfa_controller.ex:199
+#: lib/tuist_web/controllers/user_passkey_controller.ex:145
+#: lib/tuist_web/controllers/user_passkey_controller.ex:182
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be verified. Try again."
-msgstr "პაროლის გასაღების ვერიფიკაცია ვერ მოხერხდა. სცადეთ ხელახლა."
+msgstr "პასკეის ვერიფიკაცია ვერ მოხერხდა. სცადეთ ხელახლა."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:127
+#: lib/tuist_web/controllers/user_passkey_controller.ex:180
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
-msgstr "ეს პაროლის გასაღები უკვე დარეგისტრირებულია."
+msgstr "ეს პასკეი უკვე რეგისტრირებულია."
 
-#: lib/tuist_web/authentication.ex:698
+#: lib/tuist_web/authentication.ex:789
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
-msgstr "თქვენს თითოეულ ორგანიზაციას სჭირდება საკუთარი ერთიანი შესვლა (SSO), ამიტომ ამ სესიით ვერ შეხვალთ Tuist CLI-ში, აპლიკაციაში ან MCP კლიენტებში. დახმარებისთვის მიმართეთ ორგანიზაციის ადმინისტრატორს."
+msgstr "თქვენს თითოეულ ორგანიზაციას საჭიროებს საკუთარ ერთჯერად შესვლას (SSO), ამიტომ ეს სესია ვერ შეძლებს Tuist CLI-ში, აპლიკაციაში ან MCP კლიენტებში შესვლას. დახმარებისთვის მიმართეთ ორგანიზაციის ადმინისტრატორს."
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:2
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
+#: lib/tuist_web/live/user_security_settings_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Add a passkey"
+msgstr "პასკეის დამატება"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Adding the passkey was cancelled."
+msgstr "პაროლის გასაღების დამატება გაუქმდა."
+
+#: lib/tuist_web/live/user_login_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Log in with a passkey"
+msgstr "შესვლა პაროლის გასაღებით"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
+#: lib/tuist_web/live/user_security_settings_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Passkey name"
+msgstr "პაროლის გასაღების სახელი"
+
+#: lib/tuist_web/live/user_login_live.ex:231
+#, elixir-autogen, elixir-format
+msgid "Passkey sign-in was cancelled."
+msgstr "პაროლის გასაღებით შესვლა გაუქმდა."
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Passkey verification was cancelled."
+msgstr "პაროლის გასაღების ვერიფიკაცია გაუქმდა."
+
+#: lib/tuist_web/live/user_security_settings_live.ex:20
+#, elixir-autogen, elixir-format
+msgid "Passkeys"
+msgstr "პაროლის გასაღებები"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:126
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr "წაშლა"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Remove %{name}"
+msgstr "%{name}-ის წაშლა"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be added. Try again."
+msgstr "პაროლის გასაღების დამატება ვერ მოხერხდა. სცადეთ ხელახლა."
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:32
+#: lib/tuist_web/live/user_login_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "The passkey could not be used. Try again."
+msgstr "პაროლის გასაღების გამოყენება ვერ მოხერხდა. სცადეთ ხელახლა."
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:33
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "This browser does not support passkeys."
+msgstr "ეს ბრაუზერი არ უჭერს მხარს პაროლის გასაღებებს."
+
+#: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "Use a passkey"
+msgstr "გამოიყენეთ პაროლის გასაღები"
+
+#: lib/tuist_web/controllers/auth_controller.ex:420
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Log in with its email and password instead."
+msgstr "ანგარიში ამ ელფოსტით უკვე არსებობს. შედით მისი ელფოსტით და პაროლით."
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just started this sign-in from your terminal or app."
+msgstr "გააგრძელეთ მხოლოდ მაშინ, თუ ამ ავტორიზაციას ტერმინალიდან ან აპლიკაციიდან დაიწყეთ."
+
+#: lib/tuist_web/live/device_authorization_live.ex:31
+#, elixir-autogen, elixir-format
+msgid "Enter the code shown in your terminal."
+msgstr "შეიყვანეთ კოდი, რომელიც ნაჩვენებია თქვენს ტერმინალში."
+
+#: lib/tuist_web/live/device_authorization_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Only enter a code from a terminal you are using. Never enter a code someone sent you."
+msgstr "შეიყვანეთ კოდი მხოლოდ იმ ტერმინალიდან, რომელსაც იყენებთ. არასდროს შეიყვანოთ კოდი, რომელიც ვინმემ გამოგიგზავნათ."
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:32
+#: lib/tuist_web/live/device_authorization_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Sign in"
+msgstr "შესვლა"
+
+#: lib/tuist_web/controllers/auth_controller.ex:602
+#: lib/tuist_web/live/device_authorization_live.ex:19
+#, elixir-autogen, elixir-format
+msgid "Sign in to Tuist"
+msgstr "Tuist-ში შესვლა"
+
+#: lib/tuist_web/live/device_authorization_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist CLI"
+msgstr "Tuist CLI-ში შესვლა"
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist CLI?"
+msgstr "Tuist CLI-ში შესვლა?"
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist app?"
+msgstr "Tuist აპლიკაციაში შესვლა?"
+
+#: lib/tuist_web/controllers/auth_controller.ex:650
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Sign-in link expired"
+msgstr "შესვლის ბმული ვადაგასულია"
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
+msgstr "შესვლა თქვენს Tuist ანგარიშზე წვდომას ანიჭებს იმ პირს, ვინც პროცესი დაიწყო. თუ ეს თქვენ არ გაგიკეთებიათ, გააუქმეთ."
+
+#: lib/tuist_web/controllers/auth_controller.ex:632
+#, elixir-autogen, elixir-format
+msgid "That code is incorrect or has expired. Check it and try again."
+msgstr "კოდი არასწორია ან ვადა ამოეწურა. შეამოწმეთ და სცადეთ ხელახლა."
+
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "This sign-in link has expired or was already used. Start the sign-in again."
+msgstr "ეს შესვლის ბმული ვადაგასულია ან უკვე გამოყენებული. დაიწყეთ შესვლა თავიდან."
+
+#: lib/tuist_web/controllers/auth_controller.ex:638
+#, elixir-autogen, elixir-format
+msgid "Too many attempts. Wait a few minutes and try again."
+msgstr "ძალიან ბევრი მცდელობა. დაელოდეთ რამდენიმე წუთი და სცადეთ ხელახლა."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "%{count} recovery code remaining."
+msgid_plural "%{count} recovery codes remaining."
+msgstr[0] "დარჩენილია %{count} აღდგენის კოდი."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Authenticator setup QR code"
+msgstr "აუთენტიფიკატორის QR-კოდი"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Can't scan the QR code?"
+msgstr "QR-კოდის სკანირება ვერ მოხერხდა?"
+
+#: lib/tuist_web/controllers/user_reset_password_controller.ex:30
+#, elixir-autogen, elixir-format
+msgid "Check that your passwords match and meet the password requirements."
+msgstr "შეამოწმეთ, რომ პაროლები ემთხვევა ერთმანეთს და აკმაყოფილებს პაროლის მოთხოვნებს."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Copy recovery codes"
+msgstr "აღდგენის კოდების კოპირება"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Copy setup key"
+msgstr "დააყენეთ გასაღები"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "Could not copy automatically. Select and copy the setup key."
+msgstr "ვერ მოხერხდა ავტომატური კოპირება. აირჩიეთ და დააკოპირეთ დაყენების გასაღები."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Could not copy automatically. Select and copy your recovery codes."
+msgstr "ვერ მოხერხდა ავტომატური კოპირება. აირჩიეთ და დააკოპირეთ აღდგენის კოდები."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Enter this setup key in your authenticator app."
+msgstr "შეიყვანეთ ეს დაყენების გასაღები თქვენს აუთენტიფიკატორის აპლიკაციაში."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:163
+#: lib/tuist_web/live/user_security_settings_live.html.heex:208
+#, elixir-autogen, elixir-format
+msgid "Generate new recovery codes"
+msgstr "ახალი აღდგენის კოდების გენერირება"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "JavaScript is required to use passkeys."
+msgstr "Passkeys-ის გამოყენებისთვის საჭიროა JavaScript."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Never used"
+msgstr "არასოდეს გამოყენებულა"
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:83
+#, elixir-autogen, elixir-format
+msgid "Passkey renamed."
+msgstr "Passkey გადაერქვა."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "Recovery codes copied"
+msgstr "აღდგენის კოდები დაკოპირებულია"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:161
+#: lib/tuist_web/live/user_security_settings_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Regenerate recovery codes"
+msgstr "აღდგენის კოდების ხელახლა გენერაცია"
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Remove %{name} from your Tuist account."
+msgstr "წაშალეთ %{name} თქვენი Tuist ანგარიშიდან."
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Remove passkey"
+msgstr "პასკის წაშლა"
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:105
+#, elixir-autogen, elixir-format
+msgid "Remove passkey · Tuist"
+msgstr "პასკის წაშლა · Tuist"
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Remove passkey?"
+msgstr "წავშალოთ პასკი?"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Rename"
+msgstr "სახელის შეცვლა"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Rename %{name}"
+msgstr "%{name}-ის სახელის შეცვლა"
+
+#: lib/tuist_web/controllers/user_reset_password_controller.ex:23
+#, elixir-autogen, elixir-format
+msgid "Reset password link is invalid or it has expired."
+msgstr "პაროლის აღდგენის ბმული არასწორია ან ვადა გაუვიდა."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Setup key"
+msgstr "დაყენების გასაღები"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Setup key copied"
+msgstr "დაყენების გასაღები დაკოპირდა"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "You haven't added any passkeys yet."
+msgstr "ჯერ არ დაგიმატებიათ passkey-ები."
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Your other sessions will be signed out"
+msgstr "თქვენი სხვა სესიებიდან გამოხვალთ"
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:39
+#, elixir-autogen, elixir-format
+msgid "Add a passkey · Tuist"
+msgstr "Passkey-ის დამატება · Tuist"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr "დამატებულია"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:136
+#, elixir-autogen, elixir-format
+msgid "Authenticator app"
+msgstr "Authenticator აპლიკაცია"
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Enter an authentication or recovery code to confirm this change."
+msgstr "შეიყვანეთ ავთენტიკაციის ან აღდგენის კოდი ამ ცვლილების დასადასტურებლად."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Last used"
+msgstr "ბოლო გამოყენება"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Recovery codes"
+msgstr "აღდგენის კოდები"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "Rename passkey"
+msgstr "Passkey-ის სახელის შეცვლა"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr "შენახვა"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:244
+#, elixir-autogen, elixir-format
+msgid "Your account will no longer require an authenticator code at sign-in."
+msgstr "თქვენს ანგარიშზე შესვლისას აღარ იქნება საჭირო ავთენტიკატორის კოდი."
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "For example, 1Password"
+msgstr "მაგალითად, 1Password"
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Each code can be used once if you lose access to your authenticator."
+msgstr "თითოეული კოდი ერთხელ არის გამოსაყენებელი, თუ ავთენტიკატორთან წვდომას დაკარგავთ."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
+msgstr "გახსენით ბრაუზერის გაფართოება, აირჩიეთ თქვენი Tuist-ის ანგარიში და სამწერტილიანი მენიუდან აირჩიეთ „2FA QR კოდის სკანირება“. შეინახეთ ის და შემდეგ შეიყვანეთ გენერირებული კოდი."
+
+#: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Save these codes somewhere safe. You won't see them again."
+msgstr "შეინახეთ ეს კოდები უსაფრთხო ადგილას. მათ ხელახლა ვეღარ ნახავთ."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Scan the QR code, then enter the six-digit code."
+msgstr "დაასკანერეთ QR კოდი და შემდეგ შეიყვანეთ ექვსნიშნა კოდი."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Sign in without a password."
+msgstr "შედით პაროლის გარეშე."
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "The saved credential will remain in your password manager or on your security key."
+msgstr "შენახული საიდენტიფიკაციო მონაცემები დარჩება თქვენს პაროლების მენეჯერში ან უსაფრთხოების გასაღებზე."
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "This browser stays signed in."
+msgstr "ამ ბრაუზერში შესული რჩებით."
+
+#: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
+msgstr "ეს თქვენი ბოლო passkey-ია. დარწმუნდით, რომ შეძლებთ სხვა გზით შესვლას, ან ჯერ პაროლის აღდგენის საშუალებით დააყენეთ პაროლი."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "This name is only used in Tuist."
+msgstr "ეს სახელი გამოიყენება მხოლოდ Tuist-ში."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
+msgstr "საწყისი გასაღების გამოყენებისთვის შეცვალეთ თქვენი Tuist-ის შესვლის მონაცემები 1Password-ში, დაამატეთ ერთჯერადი პაროლის ველი, ჩასვით გასაღები და შეინახეთ."
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Use your password manager or a security key."
+msgstr "გამოიყენეთ პაროლების მენეჯერი ან უსაფრთხოების გასაღები."
+
+#: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Using 1Password?"
+msgstr "იყენებთ 1Password-ს?"
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "Your old codes will stop working and other sessions will be signed out."
+msgstr "ძველი კოდები აღარ იმუშავებს და სხვა სესიებიდან გამოხვალთ."
+
+#: lib/tuist_web/controllers/sso_link_html.ex:78
+#, elixir-autogen, elixir-format
+msgid "Sign in again"
+msgstr "კვლავ შედით"
+
+#: lib/tuist_web/controllers/user_passkey_controller.ex:176
+#, elixir-autogen, elixir-format
+msgid "Sign in again to continue changing passkeys."
+msgstr "გასაღებების ცვლილების გასაგრძელებლად კვლავ შედით."
+
+#: lib/tuist_web/controllers/user_mfa_controller.ex:197
+#, elixir-autogen, elixir-format
+msgid "Sign in again to continue changing two-factor authentication."
+msgstr "ორფაქტორიანი ავთენტიკაციის ცვლილების გასაგრძელებლად კვლავ შედით."
+
+#: lib/tuist_web/controllers/sso_link_html.ex:63
+#, elixir-autogen, elixir-format
+msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
+msgstr "ანგარიშის დასაცავად უსაფრთხოების პარამეტრების ცვლილებამდე დაადასტურეთ თქვენი იდენტობა. შესვლის შემდეგ აქ დაბრუნდებით."

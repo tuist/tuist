@@ -7,13 +7,13 @@
 ---
 # Xcode 프로젝트 마이그레이션 {#migrate-an-xcode-project}
 
-<.localized_link href="/guides/features/projects/adoption/new-project">Tuist를 사용하여 새 프로젝트를 생성</.localized_link>하는 경우 모든 설정이 자동으로 이루어지지만, 그렇지 않다면 Tuist의 기본 요소를 사용하여 Xcode 프로젝트를 정의해야 합니다. 이 과정의 번거로움은 프로젝트의 복잡도에 따라 달라집니다.
+<.localized_link href="/guides/features/projects/adoption/new-project">Tuist를 사용하여 새 프로젝트를 생성</.localized_link>하지 않는 경우, 모든 설정이 자동으로 이루어지지 않으므로 Tuist의 기본 요소를 사용하여 Xcode 프로젝트를 정의해야 합니다. 이 과정이 얼마나 지루한지는 프로젝트의 복잡도에 따라 달라집니다.
 
-아시다시피, 시간이 지남에 따라 Xcode 프로젝트는 복잡해질 수 있습니다. 디렉터리 구조와 일치하지 않는 그룹, 여러 타겟에서 공유되는 파일, 존재하지 않는 파일을 가리키는 파일 참조 등이 그 예입니다. 이렇게 누적된 복잡성 때문에 프로젝트를 안정적으로 마이그레이션하는 명령어를 제공하기 어렵습니다.
+알다시피, Xcode 프로젝트는 시간이 지남에 따라 지저분하고 복잡해질 수 있습니다. 디렉터리 구조와 일치하지 않는 그룹, 타겟 간에 공유되는 파일, 또는 존재하지 않는 파일을 참조하는 파일 참조 등이 그 예입니다. 이렇게 누적된 복잡성으로 인해 프로젝트를 안정적으로 마이그레이션하는 명령을 제공하기 어렵습니다.
 
-또한 수동 마이그레이션은 프로젝트를 정리하고 단순화하는 데 좋은 방법입니다. 프로젝트의 개발자들뿐만 아니라 처리 및 인덱싱 속도가 빨라지는 Xcode에도 도움이 됩니다. Tuist를 완전히 도입하면 프로젝트가 일관되게 정의되고 단순하게 유지됩니다.
+또한, 수동 마이그레이션은 프로젝트를 정리하고 단순화하는 데 훌륭한 연습이 됩니다. 프로젝트의 개발자들뿐만 아니라 처리 및 인덱싱 속도가 빨라지는 Xcode도 이를 환영할 것입니다. Tuist를 완전히 도입하면 프로젝트가 일관되게 정의되고 단순하게 유지됩니다.
 
-이 작업을 쉽게 하기 위해 사용자 피드백을 바탕으로 몇 가지 가이드라인을 제공합니다.
+이 작업을 쉽게 하기 위해 사용자로부터 받은 피드백을 바탕으로 몇 가지 가이드라인을 제공합니다.
 
 ## 프로젝트 스캐폴드 생성 {#create-project-scaffold}
 
@@ -58,24 +58,24 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
     ]
 )
 ```
 <!-- -->
 :::
 
-`Project.swift`은 프로젝트를 정의하는 매니페스트 파일이고, `Package.swift`은 의존성을 정의하는 매니페스트 파일입니다. `Tuist.swift` 파일에서는 프로젝트 범위 Tuist 설정을 정의할 수 있습니다.
+`Project.swift`는 프로젝트를 정의하는 매니페스트 파일이고, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. `Tuist.swift` 파일에서는 프로젝트 범위의 Tuist 설정을 정의할 수 있습니다.
 
 > [!TIP]
-> **-Tuist 접미사가 있는 프로젝트 이름**
+> **프로젝트 이름에 -Tuist 접미사 추가**
 >
-> 기존 Xcode 프로젝트와의 충돌을 방지하기 위해 프로젝트 이름에 `-Tuist` 접미사를 추가하는 것을 권장합니다. Tuist로 프로젝트를 완전히 마이그레이션한 후에는 이 접미사를 제거해도 됩니다.
+> 기존 Xcode 프로젝트와의 충돌을 방지하기 위해 프로젝트 이름에 `-Tuist` 접미사를 추가하는 것이 좋습니다. 프로젝트를 Tuist로 완전히 마이그레이션한 후에는 이 접미사를 제거할 수 있습니다.
 
 
 ## CI에서 Tuist 프로젝트 빌드 및 테스트 {#build-and-test-the-tuist-project-in-ci}
 
-각 변경 사항의 마이그레이션이 유효한지 확인하려면, 매니페스트 파일로부터 Tuist가 생성한 프로젝트를 빌드하고 테스트하도록 지속적 통합(CI)을 확장하는 것을 권장합니다:
+각 변경 사항의 마이그레이션이 유효한지 확인하려면, 매니페스트 파일에서 Tuist가 생성한 프로젝트를 빌드하고 테스트하도록 지속적 통합(CI)을 확장하는 것이 좋습니다:
 
 ```bash
 tuist install
@@ -85,7 +85,7 @@ xcodebuild build {xcodebuild flags} # or tuist test
 
 ## 프로젝트 빌드 설정을 `.xcconfig` 파일로 추출 {#extract-the-project-build-settings-into-xcconfig-files}
 
-프로젝트를 더 가볍게 만들고 마이그레이션을 쉽게 하려면 프로젝트의 빌드 설정을 `.xcconfig` 파일로 추출하세요. 다음 명령어를 사용하여 프로젝트의 빌드 설정을 `.xcconfig` 파일로 추출할 수 있습니다:
+프로젝트를 더 가볍고 마이그레이션하기 쉽게 만들기 위해 프로젝트의 빌드 설정을 `.xcconfig` 파일로 추출하세요. 다음 명령을 사용하여 프로젝트의 빌드 설정을 `.xcconfig` 파일로 추출할 수 있습니다:
 
 
 ```bash
@@ -93,7 +93,7 @@ mkdir -p xcconfigs/
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Project.xcconfig
 ```
 
-그런 다음 방금 만든 `.xcconfig` 파일을 가리키도록 `Project.swift` 파일을 업데이트하세요:
+그런 다음 방금 만든 `.xcconfig` 파일을 참조하도록 `Project.swift` 파일을 업데이트하세요:
 
 ```swift
 import ProjectDescription
@@ -101,8 +101,8 @@ import ProjectDescription
 let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
-        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
-        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
+        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
+        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
     ]),
     targets: [
         /** Targets will go here **/
@@ -110,7 +110,7 @@ let project = Project(
 )
 ```
 
-빌드 설정 변경 사항이 직접 `.xcconfig` 파일에 적용되도록 하려면 다음 명령어를 실행하도록 지속적 통합 파이프라인을 확장하세요:
+빌드 설정 변경 사항이 직접 `.xcconfig` 파일에 적용되도록 하려면 다음 명령을 실행하도록 지속적 통합 파이프라인을 확장하세요:
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
@@ -140,8 +140,8 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
@@ -154,22 +154,22 @@ let package = Package(
 
 ## 마이그레이션 순서 결정 {#determine-the-migration-order}
 
-가장 많이 의존되는 타겟부터 가장 적게 의존되는 타겟 순으로 마이그레이션하는 것을 권장합니다. 다음 명령어를 사용하여 의존성 수에 따라 정렬된 프로젝트 타겟 목록을 확인할 수 있습니다:
+가장 많이 의존받는 타겟부터 가장 적게 의존받는 타겟 순으로 마이그레이션하는 것이 좋습니다. 다음 명령을 사용하여 의존성 수에 따라 정렬된 프로젝트의 타겟 목록을 확인할 수 있습니다:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-목록의 맨 위에 있는 타겟부터 마이그레이션을 시작하세요. 이들은 가장 많이 의존되는 타겟입니다.
+목록의 맨 위에 있는 타겟부터 마이그레이션을 시작하세요. 이들은 가장 많이 의존받는 타겟입니다.
 
 
 ## 타겟 마이그레이션 {#migrate-targets}
 
-타겟을 하나씩 마이그레이션하세요. 각 타겟에 대해 풀 리퀘스트를 만들어 병합 전에 변경 사항을 검토하고 테스트하는 것을 권장합니다.
+타겟을 하나씩 마이그레이션하세요. 각 타겟에 대해 풀 리퀘스트를 만들어 변경 사항을 병합하기 전에 검토하고 테스트하는 것이 좋습니다.
 
 ### 타겟 빌드 설정을 `.xcconfig` 파일로 추출 {#extract-the-target-build-settings-into-xcconfig-files}
 
-프로젝트 빌드 설정과 마찬가지로, 타겟을 더 가볍게 만들고 마이그레이션을 쉽게 하려면 타겟 빌드 설정을 `.xcconfig` 파일로 추출하세요. 다음 명령어를 사용하여 타겟의 빌드 설정을 `.xcconfig` 파일로 추출할 수 있습니다:
+프로젝트 빌드 설정과 마찬가지로, 타겟을 더 가볍고 마이그레이션하기 쉽게 만들기 위해 타겟 빌드 설정을 `.xcconfig` 파일로 추출하세요. 다음 명령을 사용하여 타겟의 빌드 설정을 `.xcconfig` 파일로 추출할 수 있습니다:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
@@ -189,22 +189,22 @@ let project = Project(
         .release(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
     ]),
     targets: [
-        .target( // [!code ++]
-            name: "TargetX", // [!code ++]
-            destinations: .iOS, // [!code ++]
-            product: .framework, // [!code ++] // or .staticFramework, .staticLibrary...
-            bundleId: "dev.tuist.targetX", // [!code ++]
-            sources: ["Sources/TargetX/**"], // [!code ++]
-            dependencies: [ // [!code ++]
-                /** Dependencies go here **/ // [!code ++]
-                /** .external(name: "Kingfisher") **/ // [!code ++]
-                /** .target(name: "OtherProjectTarget") **/ // [!code ++]
-            ], // [!code ++]
-            settings: .settings(configurations: [ // [!code ++]
-                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-                .debug(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-            ]) // [!code ++]
-        ), // [!code ++]
+        .target(
+            name: "TargetX",
+            destinations: .iOS,
+            product: .framework, // or .staticFramework, .staticLibrary...
+            bundleId: "dev.tuist.targetX",
+            sources: ["Sources/TargetX/**"],
+            dependencies: [
+                /** Dependencies go here **/
+                /** .external(name: "Kingfisher") **/
+                /** .target(name: "OtherProjectTarget") **/
+            ],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+                .release(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+            ])
+        ),
     ]
 )
 ```
@@ -212,7 +212,7 @@ let project = Project(
 > [!NOTE]
 > **테스트 타겟**
 >
-> 타겟에 연결된 테스트 타겟이 있는 경우, 동일한 단계를 반복하여 `Project.swift` 파일에서도 정의해야 합니다.
+> 타겟에 연결된 테스트 타겟이 있는 경우, 동일한 단계를 반복하여 `Project.swift` 파일에도 정의해야 합니다.
 
 
 ### 타겟 마이그레이션 검증 {#validate-the-target-migration}
@@ -221,10 +221,10 @@ let project = Project(
 
 ### 반복 {#repeat}
 
-모든 타겟이 완전히 마이그레이션될 때까지 반복하세요. 완료되면 CI 및 CD 파이프라인을 업데이트하여 `tuist generate`를 실행한 후 `xcodebuild build` 및 `tuist test`를 사용하여 프로젝트를 빌드하고 테스트하는 것을 권장합니다.
+모든 타겟이 완전히 마이그레이션될 때까지 반복하세요. 완료되면 CI 및 CD 파이프라인을 업데이트하여 `tuist generate`를 실행한 후 `xcodebuild build` 및 `tuist test`를 사용하여 프로젝트를 빌드하고 테스트하는 것이 좋습니다.
 
 ## 문제 해결 {#troubleshooting}
 
 ### 누락된 파일로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
 
-Xcode 프로젝트 타겟과 관련된 파일들이 타겟을 나타내는 파일 시스템 디렉터리에 모두 포함되지 않은 경우, 컴파일되지 않는 프로젝트가 될 수 있습니다. Tuist로 프로젝트를 생성한 후 파일 목록이 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고, 파일 구조를 타겟 구조와 맞추는 기회를 활용하세요.
+Xcode 프로젝트 타겟과 관련된 파일들이 타겟을 나타내는 파일 시스템 디렉터리에 모두 포함되지 않은 경우, 컴파일되지 않는 프로젝트가 될 수 있습니다. Tuist로 프로젝트를 생성한 후 파일 목록이 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고, 파일 구조를 타겟 구조와 일치시킬 기회를 활용하세요.

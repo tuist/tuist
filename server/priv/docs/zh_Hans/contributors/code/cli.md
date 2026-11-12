@@ -1,7 +1,7 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · 代码 · 贡献者 · Tuist",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "为 Tuist CLI 做出贡献。"
 }
 ---
@@ -30,21 +30,21 @@ CLI 是 Tuist 的核心。它负责项目生成、自动化工作流（测试、
 生成的项目会自动打开。如果之后需要重新打开，请运行 `open Tuist.xcworkspace`。
 
 > [!NOTE]
-> **xed .**
+> **`xed .`**
 >
-> 如果你尝试使用 `xed .` 打开项目，它会打开软件包，而不是 Tuist 生成的工作区。请使用 `Tuist.xcworkspace`。
+> 如果你尝试使用 `xed .` 打开项目，它将打开包而不是 Tuist 生成的工作区。请使用 `Tuist.xcworkspace`。
 
 
 ### 运行 Tuist {#run-tuist}
 
 #### 从 Xcode {#from-xcode}
 
-编辑 `tuist` Scheme 并设置参数，例如 `generate --no-open`。将工作目录设置为项目根目录（或使用 `--path`）。
+编辑 `tuist` scheme 并设置参数，例如 `generate --no-open`。将工作目录设置为项目根目录（或使用 `--path`）。
 
 > [!WARNING]
 > **ProjectDescription 编译**
 >
-> CLI 依赖于已构建的 `ProjectDescription`。如果运行失败，请先构建 `Tuist-Workspace` Scheme。
+> CLI 依赖于已构建的 `ProjectDescription`。如果运行失败，请先构建 `Tuist-Workspace` scheme。
 
 
 #### 从终端 {#from-the-terminal}

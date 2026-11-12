@@ -32,6 +32,9 @@ const (
 	OpSaveDisks   = "save_disks"
 	OpDeleteDisks = "delete_disks"
 	OpArchive     = "archive"
+	// OpArchiveDisks uploads a disk snapshot in the archive format, so any
+	// node can create a sandbox from it with CreateArgs.FromArchive.
+	OpArchiveDisks = "archive_disks"
 	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
 	// detached guest work (an Amp Orb's turn) that the host cannot observe
 	// runs; a pause or OpReleaseResidency with the same work ID ends it.
@@ -171,6 +174,10 @@ type Hello struct {
 	Templates          []TemplateInfo     `json:"templates"`
 	Sandboxes          []SandboxInfo      `json:"sandboxes"`
 	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
+	// DefaultTemplate and DefaultTemplateTag are the template the daemon was
+	// configured with. Templates also lists tags kept from earlier rollouts.
+	DefaultTemplate    string `json:"default_template,omitempty"`
+	DefaultTemplateTag string `json:"default_template_tag,omitempty"`
 	// DirectExecEndpoint serves claims of claimed execs.
 	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
 }
@@ -282,6 +289,15 @@ type ArchiveArgs struct {
 	SandboxID string   `json:"sandbox_id"`
 	PartSize  int64    `json:"part_size"`
 	PartURLs  []string `json:"part_urls"`
+}
+
+// ArchiveDisksArgs asks for a disk snapshot's kernel and disks to be
+// uploaded like ArchiveArgs. The snapshot stays on the node. The answer is
+// an ArchiveResult.
+type ArchiveDisksArgs struct {
+	SnapshotID string   `json:"snapshot_id"`
+	PartSize   int64    `json:"part_size"`
+	PartURLs   []string `json:"part_urls"`
 }
 
 // ArchiveSource is an archive to restore: a presigned GET URL and the size

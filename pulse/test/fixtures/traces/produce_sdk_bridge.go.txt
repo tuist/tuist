@@ -1,0 +1,303 @@
+// Optional external producer. Build with sdk-bridge.go.mod.txt outside the repo.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"math"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	collectortrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/instrumentation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdk "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// Deterministic IDs/timestamps make captured artifacts reproducible. The SDK,
+// W3C propagator, batch processor, gRPC exporter and HTTP hop are real.
+type ids struct {
+	mu sync.Mutex
+	n  byte
+}
+
+func (g *ids) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID) {
+	id, _ := trace.TraceIDFromHex("0102030405060708090a0b0c0d0e0f10")
+	return id, g.NewSpanID(ctx, id)
+}
+func (g *ids) NewSpanID(context.Context, trace.TraceID) trace.SpanID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.n++
+	return trace.SpanID{0, 0, 0, 0, 0, 0, 0, g.n}
+}
+func scalarFloat(f float64) any {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	}
+	// Decimal string prevents the oracle's generic JSON parser losing signed zero.
+	return strconv.FormatFloat(f, 'g', -1, 64)
+}
+func value(v attribute.Value) map[string]any {
+	switch v.Type() {
+	case attribute.STRING:
+		return map[string]any{"stringValue": v.AsString()}
+	case attribute.INT64:
+		return map[string]any{"intValue": strconv.FormatInt(v.AsInt64(), 10)}
+	case attribute.BOOL:
+		return map[string]any{"boolValue": v.AsBool()}
+	case attribute.FLOAT64:
+		return map[string]any{"doubleValue": scalarFloat(v.AsFloat64())}
+	case attribute.STRINGSLICE:
+		a := []any{}
+		for _, x := range v.AsStringSlice() {
+			a = append(a, map[string]any{"stringValue": x})
+		}
+		return map[string]any{"arrayValue": map[string]any{"values": a}}
+	case attribute.FLOAT64SLICE:
+		a := []any{}
+		for _, x := range v.AsFloat64Slice() {
+			a = append(a, map[string]any{"doubleValue": scalarFloat(x)})
+		}
+		return map[string]any{"arrayValue": map[string]any{"values": a}}
+	default:
+		panic(fmt.Sprintf("unhandled SDK attribute type %v", v.Type()))
+	}
+}
+func attrs(a []attribute.KeyValue) []any {
+	out := []any{}
+	for _, x := range a {
+		out = append(out, map[string]any{"key": string(x.Key), "value": value(x.Value)})
+	}
+	return out
+}
+func scope(s instrumentation.Scope) map[string]any {
+	return map[string]any{"name": s.Name, "version": s.Version, "schema": s.SchemaURL, "attributes": attrs(s.Attributes.ToSlice())}
+}
+func snapshot(s sdk.ReadOnlySpan) map[string]any {
+	events := []any{}
+	for _, e := range s.Events() {
+		events = append(events, map[string]any{"name": e.Name, "time": strconv.FormatInt(e.Time.UnixNano(), 10), "attributes": attrs(e.Attributes), "dropped": e.DroppedAttributeCount})
+	}
+	links := []any{}
+	for _, l := range s.Links() {
+		links = append(links, map[string]any{"trace_id": l.SpanContext.TraceID().String(), "span_id": l.SpanContext.SpanID().String(), "state": l.SpanContext.TraceState().String(), "flags": int(l.SpanContext.TraceFlags()), "remote": l.SpanContext.IsRemote(), "attributes": attrs(l.Attributes), "dropped": l.DroppedAttributeCount})
+	}
+	parent := ""
+	if s.Parent().IsValid() {
+		parent = s.Parent().SpanID().String()
+	}
+	status := 0
+	if s.Status().Code == codes.Ok {
+		status = 1
+	}
+	if s.Status().Code == codes.Error {
+		status = 2
+	}
+	return map[string]any{"name": s.Name(), "trace_id": s.SpanContext().TraceID().String(), "span_id": s.SpanContext().SpanID().String(), "parent_id": parent, "parent_remote": s.Parent().IsRemote(), "state": s.SpanContext().TraceState().String(), "flags": int(s.SpanContext().TraceFlags()), "kind": int(s.SpanKind()), "start": strconv.FormatInt(s.StartTime().UnixNano(), 10), "end": strconv.FormatInt(s.EndTime().UnixNano(), 10), "status": status, "message": s.Status().Description, "attributes": attrs(s.Attributes()), "resource": attrs(s.Resource().Attributes()), "resource_schema": s.Resource().SchemaURL(), "scope": scope(s.InstrumentationScope()), "events": events, "links": links, "dropped_attributes": s.DroppedAttributes(), "dropped_events": s.DroppedEvents(), "dropped_links": s.DroppedLinks()}
+}
+
+type capture struct {
+	sdk.SpanExporter
+	mu       sync.Mutex
+	spans    []any
+	failures []string
+}
+
+func (c *capture) ExportSpans(ctx context.Context, spans []sdk.ReadOnlySpan) error {
+	c.mu.Lock()
+	for _, s := range spans {
+		c.spans = append(c.spans, snapshot(s))
+	}
+	c.mu.Unlock()
+	err := c.SpanExporter.ExportSpans(ctx, spans)
+	if err != nil {
+		c.mu.Lock()
+		c.failures = append(c.failures, err.Error())
+		c.mu.Unlock()
+	}
+	return err
+}
+
+// This deliberately malformed case uses public OTLP protobuf types, not the SDK.
+func partialProbe(ctx context.Context, endpoint, output string) error {
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	sid := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	request := &collectortrace.ExportTraceServiceRequest{ResourceSpans: []*tracepb.ResourceSpans{{ScopeSpans: []*tracepb.ScopeSpans{{Spans: []*tracepb.Span{
+		{TraceId: id, SpanId: sid, Name: "partial valid", StartTimeUnixNano: 1700000000123456789, EndTimeUnixNano: 1700000000123456790},
+		{TraceId: make([]byte, 16), SpanId: sid, Name: "partial invalid", StartTimeUnixNano: 1700000000123456789, EndTimeUnixNano: 1700000000123456790},
+	}}}}}}
+	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(strings.TrimSuffix(output, "-oracle.json")+"-producer.protobuf", raw, 0600); err != nil {
+		return err
+	}
+	response, exportErr := collectortrace.NewTraceServiceClient(conn).Export(ctx, request)
+	result := map[string]any{"producer": "public OTLP protobuf client; malformed IDs cannot be emitted by an ordinary SDK", "grpc_code": status.Code(exportErr).String(), "response": fmt.Sprint(response)}
+	if exportErr != nil {
+		result["error"] = exportErr.Error()
+	}
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(output, data, 0600)
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+func run() error {
+	endpoint := flag.String("endpoint", "", "loopback Collector gRPC endpoint")
+	tenant := flag.String("tenant", "alpha", "fixture resource environment")
+	output := flag.String("oracle", "", "SDK ReadOnlySpan oracle destination")
+	partial := flag.Bool("partial", false, "send one valid and one invalid public-protobuf span, not SDK-generated data")
+	flag.Parse()
+	if *endpoint == "" || *output == "" {
+		return fmt.Errorf("endpoint and oracle are required")
+	}
+	host, port, err := net.SplitHostPort(*endpoint)
+	if err != nil {
+		return err
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 || !net.ParseIP(host).IsLoopback() {
+		return fmt.Errorf("endpoint must be a loopback IP and positive port")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if *partial {
+		return partialProbe(ctx, *endpoint, *output)
+	}
+	gen := &ids{}
+	var wireMu sync.Mutex
+	var wires [][]byte
+	intercept := func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoke grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if strings.HasSuffix(method, "/Export") {
+			raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(req.(proto.Message))
+			if err != nil {
+				return err
+			}
+			wireMu.Lock()
+			wires = append(wires, raw)
+			wireMu.Unlock()
+		}
+		return invoke(ctx, method, req, reply, cc, opts...)
+	}
+	collectors := []*capture{}
+	providers := []*sdk.TracerProvider{}
+	for _, name := range []string{"frontend", "worker"} {
+		e, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpoint(*endpoint), otlptracegrpc.WithInsecure(), otlptracegrpc.WithTimeout(5*time.Second), otlptracegrpc.WithDialOption(grpc.WithChainUnaryInterceptor(intercept)), otlptracegrpc.WithHeaders(map[string]string{"x-scope-orgid": "untrusted-incoming-tenant"}))
+		if err != nil {
+			return err
+		}
+		c := &capture{SpanExporter: e}
+		collectors = append(collectors, c)
+		r := resource.NewWithAttributes("https://opentelemetry.io/schemas/1.34.0", attribute.String("service.name", name), attribute.String("service.namespace", "sdk-bridge"), attribute.String("deployment.environment.name", *tenant), attribute.Int64("resource.int", 9007199254740993))
+		p := sdk.NewTracerProvider(sdk.WithResource(r), sdk.WithIDGenerator(gen), sdk.WithSampler(sdk.AlwaysSample()), sdk.WithRawSpanLimits(sdk.SpanLimits{AttributeValueLengthLimit: -1, AttributeCountLimit: 8, EventCountLimit: 1, LinkCountLimit: 1, AttributePerEventCountLimit: 2, AttributePerLinkCountLimit: 2}), sdk.WithBatcher(c, sdk.WithMaxQueueSize(16), sdk.WithMaxExportBatchSize(2), sdk.WithBatchTimeout(time.Hour), sdk.WithExportTimeout(5*time.Second)))
+		providers = append(providers, p)
+	}
+	tracer := func(i int) trace.Tracer {
+		return providers[i].Tracer("pulse-sdk-bridge", trace.WithInstrumentationVersion("1.0.0"), trace.WithSchemaURL("https://example.test/scope"), trace.WithInstrumentationAttributes(attribute.Bool("scope.bool", true)))
+	}
+	start := time.Unix(1700000000, 123456789)
+	rootCtx, root := tracer(0).Start(ctx, "frontend request", trace.WithSpanKind(trace.SpanKindClient), trace.WithTimestamp(start))
+	state, _ := trace.ParseTraceState("vendor=opaque")
+	propagated := trace.ContextWithSpanContext(rootCtx, root.SpanContext().WithTraceState(state))
+	remoteTrace, _ := trace.TraceIDFromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	remoteSpan, _ := trace.SpanIDFromHex("bbbbbbbbbbbbbbbb")
+	link := trace.Link{SpanContext: trace.NewSpanContext(trace.SpanContextConfig{TraceID: remoteTrace, SpanID: remoteSpan, TraceFlags: trace.FlagsSampled, Remote: true, TraceState: state}), Attributes: []attribute.KeyValue{attribute.Bool("link.bool", true), attribute.Float64("link.inf", math.Inf(-1)), attribute.String("link.dropped", "extra")}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		extracted := propagation.TraceContext{}.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		sc := trace.SpanContextFromContext(extracted)
+		if !sc.IsRemote() || sc.TraceID() != root.SpanContext().TraceID() || sc.SpanID() != root.SpanContext().SpanID() || sc.TraceState().String() != "vendor=opaque" {
+			http.Error(w, "propagation mismatch", 500)
+			return
+		}
+		sctx, s := tracer(1).Start(extracted, "worker request", trace.WithTimestamp(start.Add(100*time.Nanosecond)), trace.WithSpanKind(trace.SpanKindServer), trace.WithLinks(link, link))
+		s.SetAttributes(attribute.Int64("typed.int", 9007199254740993), attribute.Float64("typed.zero", math.Copysign(0, -1)), attribute.Float64("typed.nan", math.NaN()), attribute.Bool("typed.bool", true), attribute.StringSlice("typed.strings", []string{"one", "🌍"}), attribute.Float64Slice("typed.floats", []float64{math.Inf(1), math.Copysign(0, -1)}), attribute.String("literal.nan", "NaN"), attribute.String("retained", "yes"))
+		s.SetAttributes(attribute.String("dropped", "extra"))
+		s.AddEvent("dropped", trace.WithTimestamp(start.Add(200*time.Nanosecond)))
+		s.AddEvent("kept", trace.WithTimestamp(start.Add(300*time.Nanosecond)), trace.WithAttributes(attribute.Float64("event.inf", math.Inf(1)), attribute.Int64("event.int", 9007199254740993), attribute.String("event.dropped", "extra")))
+		_, db := tracer(1).Start(sctx, "database request", trace.WithTimestamp(start.Add(400*time.Nanosecond)), trace.WithSpanKind(trace.SpanKindClient))
+		db.SetStatus(codes.Ok, "")
+		db.End(trace.WithTimestamp(start.Add(500 * time.Nanosecond)))
+		s.SetStatus(codes.Error, "backend failed")
+		s.End(trace.WithTimestamp(start.Add(900 * time.Nanosecond)))
+		w.WriteHeader(204)
+	}))
+	defer server.Close()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	propagation.TraceContext{}.Inject(propagated, propagation.HeaderCarrier(req.Header))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 204 {
+		return fmt.Errorf("HTTP propagation failed: %d", resp.StatusCode)
+	}
+	root.End(trace.WithTimestamp(start.Add(time.Millisecond)))
+	flushErrors := []string{}
+	for _, p := range providers {
+		if err := p.ForceFlush(ctx); err != nil {
+			flushErrors = append(flushErrors, err.Error())
+		}
+		if err := p.Shutdown(ctx); err != nil {
+			flushErrors = append(flushErrors, err.Error())
+		}
+	}
+	spans := []any{}
+	exportErrors := []string{}
+	for _, c := range collectors {
+		spans = append(spans, c.spans...)
+		exportErrors = append(exportErrors, c.failures...)
+	}
+	data, err := json.MarshalIndent(map[string]any{"sdk": "go.opentelemetry.io/otel v" + otel.Version(), "tenant": *tenant, "spans": spans, "export_errors": exportErrors, "flush_errors": flushErrors}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(*output, data, 0600); err != nil {
+		return err
+	}
+	var wire []byte
+	for _, part := range wires {
+		wire = append(wire, part...)
+	}
+	return os.WriteFile(strings.TrimSuffix(*output, "-oracle.json")+"-sdk.protobuf", wire, 0600)
+}

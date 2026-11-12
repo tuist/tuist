@@ -267,7 +267,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.50.0"
+      assert response["serverInfo"]["version"] == "1.60.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
@@ -447,13 +447,36 @@ defmodule TuistWeb.WellKnownControllerTest do
                  "details" => [
                    %{
                      "appID" => "U6LC622NKF.dev.tuist.app",
-                     "paths" => ["/*/*/previews/*"]
+                     "paths" => ["NOT /*/*/previews/latest", "NOT /*/*/previews/*/*", "/*/*/previews/*"]
                    }
                  ]
                }
              }
 
       assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
+    end
+
+    test "shared mobile canonical URLs use the existing preview web route" do
+      fixtures =
+        __DIR__
+        |> Path.join("../../../../app/Fixtures/Navigation/routes.json")
+        |> File.read!()
+        |> JSON.decode!()
+
+      for fixture <- fixtures["previews"] do
+        canonical = URI.parse(fixture["canonical"])
+        base_path = fixture["server"] |> URI.parse() |> Map.fetch!(:path) |> then(&String.trim_trailing(&1 || "", "/"))
+        path = String.replace_prefix(canonical.path, base_path, "")
+        account = fixture["account"]
+        project = fixture["project"]
+        id = fixture["id"]
+
+        assert path == ~p"/#{account}/#{project}/previews/#{id}"
+        route = Phoenix.Router.route_info(TuistWeb.Router, "GET", path, canonical.host)
+        assert route.plug == Phoenix.LiveView.Plug
+        decoded_params = Map.new(route.path_params, fn {key, value} -> {key, URI.decode(value)} end)
+        assert decoded_params == %{"account_handle" => account, "project_handle" => project, "id" => id}
+      end
     end
   end
 

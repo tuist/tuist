@@ -20,7 +20,9 @@ clickhouse_database_exists() {
 }
 
 bootstrap_postgres_database() {
-  mix ecto.create -r Tuist.Repo
+  # The project's ecto.create alias starts the application. Call Ecto directly
+  # while bootstrapping, before all databases exist (as db:migrate --create does).
+  mix run --no-start -e 'Mix.Tasks.Ecto.Create.run(["-r", "Tuist.Repo"])'
   mix ecto.migrate -r Tuist.Repo
 }
 
@@ -30,7 +32,7 @@ rebootstrap_postgres_database() {
 }
 
 bootstrap_clickhouse_database() {
-  mix ecto.create -r Tuist.IngestRepo
+  mix run --no-start -e 'Mix.Tasks.Ecto.Create.run(["-r", "Tuist.IngestRepo"])'
   mix ecto.load -r Tuist.IngestRepo
 }
 
@@ -41,28 +43,42 @@ if [ -n "${CI:-}" ]; then
   exit 0
 fi
 
-mix deps.get
-aube install
+TIMEFORMAT='<== Fetching Mix dependencies: %3Rs'
+time mix deps.get
+TIMEFORMAT='<== Installing server assets: %3Rs'
+time aube install
 pushd ../noora >/dev/null
-aube install
-aube run build
+TIMEFORMAT='<== Installing Noora assets: %3Rs'
+time aube install
+TIMEFORMAT='<== Building Noora assets: %3Rs'
+time aube run build
 popd >/dev/null
 
+# Compile through the cache-aware alias before discovering database tasks.
+# On a cold checkout, discovering db.create first compiles dependencies before
+# the alias has a chance to restore them.
+TIMEFORMAT='<== Compiling the server dev build: %3Rs'
+time mix compile
+
 # Fresh worktrees use isolated database names, so bootstrap missing repos independently.
-if ! postgres_database_exists; then
-  bootstrap_postgres_database
-elif ! postgres_database_bootstrapped; then
-  # A previous install may have created the DB but exited before migrations
-  # finished. In that state later runs skip bootstrapping and migrations fail
-  # against missing base tables such as `users`, so rebuild the local DB.
-  rebootstrap_postgres_database
-fi
+TIMEFORMAT='<== Bootstrapping databases: %3Rs'
+time {
+  if ! postgres_database_exists; then
+    bootstrap_postgres_database
+  elif ! postgres_database_bootstrapped; then
+    # A previous install may have created the DB but exited before migrations
+    # finished. In that state later runs skip bootstrapping and migrations fail
+    # against missing base tables such as `users`, so rebuild the local DB.
+    rebootstrap_postgres_database
+  fi
 
-if ! clickhouse_database_exists; then
-  bootstrap_clickhouse_database
-fi
+  if ! clickhouse_database_exists; then
+    bootstrap_clickhouse_database
+  fi
+}
 
-mise run db:migrate
+TIMEFORMAT='<== Migrating dev databases: %3Rs'
+time mise run db:migrate
 
 # Amp orb setup seeds separately, only when the database is empty.
 if [ "${1:-}" != "--no-seed" ]; then

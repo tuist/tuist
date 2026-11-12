@@ -8,10 +8,12 @@ defmodule Tuist.Sandboxes.Analytics do
   yet runs until now. Compute, session durations and peak vCPUs and memory
   are derived from those sessions.
 
-  Disk is held for longer: a sandbox keeps its workspace and memory image on
-  its node from `created` (or the `started` of a restore) until it is
-  archived, fails or is deleted, paused or not, as `Concurrency` charges it.
-  Peak disk is derived from those holds.
+  Disk is held for longer: a sandbox holds its disk ceiling on its node from
+  `created` (or the `started` of a restore) until it is archived, fails or
+  is deleted, paused or not, and is charged as `Concurrency.disk_bytes/2`
+  charges it, with the platform and template of its row (a deleted one's
+  as a Linux sandbox). Peak disk is derived from those holds; the disk
+  snapshots the limit also counts are not charted.
 
   Setup and time to start come straight from the durations events carry: a
   `setup` event's is how long an Orb's `.agents/setup` ran, and a
@@ -22,7 +24,11 @@ defmodule Tuist.Sandboxes.Analytics do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Repo
+  alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Events
+  alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
 
   @hourly_bucket_max_hours 36
@@ -51,7 +57,7 @@ defmodule Tuist.Sandboxes.Analytics do
 
     by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
     sessions = sessions(by_sandbox, query_end_dt)
-    holds = holds(by_sandbox, query_end_dt)
+    holds = holds(by_sandbox, disk_charge(by_sandbox), query_end_dt)
     events = List.flatten(by_sandbox)
     durations = &event_durations(events, &1, buckets, prev_start_dt, start_dt, query_end_dt)
 
@@ -276,11 +282,32 @@ defmodule Tuist.Sandboxes.Analytics do
     end)
   end
 
-  # Each sandbox's stretches on a node, holding its workspace and memory
-  # image: from `created`, or a `started` while off any node (a restore),
-  # until it is archived, fails or is deleted. One still on a node holds
-  # until now.
-  defp holds(by_sandbox, end_dt) do
+  # The disk, in MiB, a sandbox with an event's shape holds, given its row's
+  # platform and template, which events do not carry.
+  defp disk_charge(by_sandbox) do
+    rows =
+      from(s in Sandbox,
+        where: s.id in ^Enum.map(by_sandbox, &hd(&1).sandbox_id),
+        select: {s.id, map(s, [:platform, :template])}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    fleet = Capacity.fleet_node()
+
+    fn event ->
+      rows
+      |> Map.get(event.sandbox_id, %{platform: :linux, template: nil})
+      |> Map.merge(%{workspace_gb: event.workspace_gb, memory_mb: event.memory_mb})
+      |> Concurrency.disk_bytes(fleet)
+      |> div(1024 * 1024)
+    end
+  end
+
+  # Each sandbox's stretches on a node, holding its disk: from `created`, or
+  # a `started` while off any node (a restore), until it is archived, fails
+  # or is deleted. One still on a node holds until now.
+  defp holds(by_sandbox, disk_charge, end_dt) do
     open_until = open_until(end_dt)
 
     Enum.flat_map(by_sandbox, fn events ->
@@ -290,7 +317,7 @@ defmodule Tuist.Sandboxes.Analytics do
 
           cond do
             is_nil(open) and event.event in ["created", "started"] ->
-              {holds, %{started_at: at, ended_at: nil, disk_mb: event.workspace_gb * 1024 + event.memory_mb}}
+              {holds, %{started_at: at, ended_at: nil, disk_mb: disk_charge.(event)}}
 
             open && event.event in ["archived", "failed", "deleted"] ->
               {[%{open | ended_at: at} | holds], nil}

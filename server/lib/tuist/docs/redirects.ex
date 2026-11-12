@@ -11,6 +11,12 @@ defmodule Tuist.Docs.Redirects do
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
 
   @rules [
+    # Release navigation
+    {:exact, "/cli/release-channels", "/cli/release/channels"},
+    {:exact, "/cli/release-channels/calendar", "/cli/release/calendar"},
+    {:exact, "/guides/server/self-host/release-channels", "/guides/server/self-host/release/channels"},
+    {:exact, "/guides/server/self-host/release-channels/calendar", "/guides/server/self-host/release/calendar"},
+
     # Legacy docs.tuist.io pages
     {:exact, "/documentation/tuist/installation", "/guides/install-tuist"},
     {:exact, "/documentation/tuist/project-structure", "/guides/features/projects/directory-structure"},

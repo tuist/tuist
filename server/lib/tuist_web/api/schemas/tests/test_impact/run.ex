@@ -22,12 +22,12 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
       outcome: %Schema{
         type: :string,
         description:
-          "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          "`selected` or `fallback`. On `fallback` the client runs default selective testing: the tests in the modules hashing left. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
       },
       reason: %Schema{
         type: :string,
         description:
-          "Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
+          "Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
       },
       matched_path: %Schema{
         type: :string,

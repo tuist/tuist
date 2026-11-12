@@ -1,0 +1,630 @@
+{
+  "attribution": "Grafana Labs contributors; extraction adapted for Pulse on 2026-10-28. See adjacent LICENSE. No upstream runtime implementation is included.",
+  "counts": {
+    "engine_evaluations": 10,
+    "engine_expected_entries": 3,
+    "engine_expected_series": 10,
+    "engine_fixtures": 3,
+    "engine_instant_evaluations": 5,
+    "engine_load_rows": 6,
+    "engine_loaded_entries": 16,
+    "engine_numeric_slots": 13,
+    "engine_range_evaluations": 2,
+    "engine_select_evaluations": 3,
+    "engine_sparse_slots": 0,
+    "expression_rows": 1,
+    "parse_rows": 1,
+    "table_evaluations": 3,
+    "table_rows": 2,
+    "total_evaluations": 13
+  },
+  "fixtures": [
+    {
+      "source_start": 37,
+      "source_end": 48,
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "sl": "s",
+            "sm": "s",
+            "tri": "s"
+          },
+          "line": "sl=p md=p tri=p",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {
+            "md": "m",
+            "sm": "m",
+            "tri": "m"
+          },
+          "purpose": "complete load row",
+          "source_start": 39,
+          "source_end": 39,
+          "sha256": "912771e7acb0c2693e6ecfae9edcd57e29df785870e5c412341c04553afb6a34",
+          "raw": "  {app=\"a\", sl=\"s\", sm=\"s\", tri=\"s\"} `sl=p md=p tri=p` @ 20s [repeat every 20s for 3] [metadata md=\"m\" sm=\"m\" tri=\"m\"]\n"
+        },
+        {
+          "labels": {
+            "app": "noise"
+          },
+          "line": "z=1",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 40,
+          "source_end": 40,
+          "sha256": "900f24ec18b6eb8366cc89c9e915b9b3f62dc706f25ce00c6373f63dcad165e2",
+          "raw": "  {app=\"noise\"} \"z=1\" @ 20s [repeat every 20s for 3]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=\"a\"} | logfmt [1m])",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 42,
+          "source_end": 43,
+          "sha256": "dac1aeeb696f7c0fa6dc24fa90150d07d53331a1578c295af8912c8e33ecd32f",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | logfmt [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | logfmt [1m])",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "2",
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 44,
+          "source_end": 45,
+          "sha256": "6a0b6b92bd135a0c11b3cbafa34d0d831f93a77d3dc06cd009b4c8869636fc52",
+          "raw": "eval range from 40s to 60s step 20s count_over_time({app=\"a\"} | logfmt [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n"
+        },
+        {
+          "query": "count_over_time({app=\"a\"} | logfmt sl, md, sm, tri [1m])",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "md": "m",
+                "md_extracted": "p",
+                "sl": "s",
+                "sl_extracted": "p",
+                "sm": "s",
+                "sm_extracted": "m",
+                "tri": "s",
+                "tri_extracted": "p"
+              },
+              "values": [
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 47,
+          "source_end": 48,
+          "sha256": "269694974d91b3634e593f1d454c056bafbbdc2b73cb99a23b42e36264cc0bf7",
+          "raw": "eval instant at 60s count_over_time({app=\"a\"} | logfmt sl, md, sm, tri [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n"
+        }
+      ]
+    },
+    {
+      "source_start": 51,
+      "source_end": 65,
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "name": "stream"
+          },
+          "line": "name=parsed",
+          "start": 10,
+          "every": 0,
+          "count": 1,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 53,
+          "source_end": 53,
+          "sha256": "3d6075782cee30571be6c57b9c0c3a3b6bc514f97d79d3a7f95ab4032c0cdbc7",
+          "raw": "  {app=\"a\", name=\"stream\"} \"name=parsed\" @ 10s\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "{app=\"a\"} | drop name | logfmt",
+          "mode": "select",
+          "start": 0,
+          "end": 30,
+          "step": 0,
+          "direction": "forward",
+          "outcome": "entries",
+          "expected": [],
+          "expected_entries": [
+            {
+              "labels": {
+                "app": "a"
+              },
+              "line": "name=parsed",
+              "timestamp": 10,
+              "metadata": {},
+              "parsed": {
+                "name": "parsed"
+              },
+              "purpose": "categorized select oracle",
+              "source_start": 56,
+              "source_end": 56,
+              "sha256": "9bd208d8f5f63c0d169e7c8b4e580a62c65a50324227bf4b5d40b87fdc7eb334",
+              "raw": "  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"parsed\"]\n"
+            }
+          ],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 55,
+          "source_end": 56,
+          "sha256": "3d29a12bb7c32c3bdc5b6a0f0383ead47c13f000a518f04aad465ce752de1a1b",
+          "raw": "eval select from 0 to 30s forward {app=\"a\"} | drop name | logfmt\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"parsed\"]\n"
+        },
+        {
+          "query": "{app=\"a\"} | logfmt | drop name",
+          "mode": "select",
+          "start": 0,
+          "end": 30,
+          "step": 0,
+          "direction": "forward",
+          "outcome": "entries",
+          "expected": [],
+          "expected_entries": [
+            {
+              "labels": {
+                "app": "a"
+              },
+              "line": "name=parsed",
+              "timestamp": 10,
+              "metadata": {},
+              "parsed": {
+                "name_extracted": "parsed"
+              },
+              "purpose": "categorized select oracle",
+              "source_start": 58,
+              "source_end": 58,
+              "sha256": "98e739fa71a843b8ceb364a4bc8ffda4bf2a02c7a64b2e7129df5d2eb6e743fa",
+              "raw": "  {app=\"a\"} \"name=parsed\" @ 10s [parsed name_extracted=\"parsed\"]\n"
+            }
+          ],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 57,
+          "source_end": 58,
+          "sha256": "7b63422265e884c314b86a298908f097665c496d2bc44318de21757e4ecbbabf",
+          "raw": "eval select from 0 to 30s forward {app=\"a\"} | logfmt | drop name\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name_extracted=\"parsed\"]\n"
+        },
+        {
+          "query": "{app=\"a\"} | drop name | label_format name=\"x\" | logfmt",
+          "mode": "select",
+          "start": 0,
+          "end": 30,
+          "step": 0,
+          "direction": "forward",
+          "outcome": "entries",
+          "expected": [],
+          "expected_entries": [
+            {
+              "labels": {
+                "app": "a"
+              },
+              "line": "name=parsed",
+              "timestamp": 10,
+              "metadata": {},
+              "parsed": {
+                "name": "x"
+              },
+              "purpose": "categorized select oracle",
+              "source_start": 62,
+              "source_end": 62,
+              "sha256": "1ccb9fba7a4e772ae705c3a787ea46cbe3bf4e42921cf534eab36d922f828e59",
+              "raw": "  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"x\"]\n"
+            }
+          ],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 61,
+          "source_end": 62,
+          "sha256": "980bddd2016c52a89d775f24d254571a2d8ab8c45bfb9d32740fee25fcfcce63",
+          "raw": "eval select from 0 to 30s forward {app=\"a\"} | drop name | label_format name=\"x\" | logfmt\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"x\"]\n"
+        },
+        {
+          "query": "sum by (name) (count_over_time({app=\"a\"} | drop name | logfmt [1m]))",
+          "mode": "instant",
+          "start": 10,
+          "end": 10,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "name": "parsed"
+              },
+              "values": [
+                "1"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 64,
+          "source_end": 65,
+          "sha256": "955d27e89087316bc76646cf7665b1c51023a90188f5d6cf85bc3ef23ea3cd6f",
+          "raw": "eval instant at 10s sum by (name) (count_over_time({app=\"a\"} | drop name | logfmt [1m]))\n  {name=\"parsed\"} 1\n"
+        }
+      ]
+    },
+    {
+      "source_start": 68,
+      "source_end": 82,
+      "loads": [
+        {
+          "labels": {
+            "app": "a",
+            "k": "s"
+          },
+          "line": "k_extracted=pext k=p",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 70,
+          "source_end": 70,
+          "sha256": "d5fcac94a106a566ac8d56bf9b29e0f9533b6eb603a0267e7cd6a5b5d8006be1",
+          "raw": "  {app=\"a\", k=\"s\"}     \"k_extracted=pext k=p\" @ 20s [repeat every 20s for 3]\n"
+        },
+        {
+          "labels": {
+            "app": "b",
+            "k": "s"
+          },
+          "line": "k_extracted=pext k=p",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 71,
+          "source_end": 71,
+          "sha256": "55c9a7c6936d96b90054a44925939d79d95e24c081ad155344d737fcbb477d2b",
+          "raw": "  {app=\"b\", k=\"s\"}     \"k_extracted=pext k=p\" @ 20s [repeat every 20s for 3]\n"
+        },
+        {
+          "labels": {
+            "app": "noise",
+            "k": "s"
+          },
+          "line": "k=p",
+          "start": 20,
+          "every": 20,
+          "count": 3,
+          "metadata": {},
+          "purpose": "complete load row",
+          "source_start": 72,
+          "source_end": 72,
+          "sha256": "551cd4c37a193b714a4cfc1b218f06680bd8015e642607b86f4e4a2ff5a9d9d9",
+          "raw": "  {app=\"noise\", k=\"s\"} \"k=p\"                  @ 20s [repeat every 20s for 3]\n"
+        }
+      ],
+      "cases": [
+        {
+          "query": "count_over_time({app=~\"a|b\"} | logfmt [1m])",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "k": "s",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "3"
+              ]
+            },
+            {
+              "labels": {
+                "app": "b",
+                "k": "s",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 74,
+          "source_end": 76,
+          "sha256": "41c290a9e98d889da3d854f332cabdf31fcd24d277c5d75140bbad166c40f84e",
+          "raw": "eval instant at 60s count_over_time({app=~\"a|b\"} | logfmt [1m])\n  {app=\"a\", k=\"s\", k_extracted=\"pext\"} 3\n  {app=\"b\", k=\"s\", k_extracted=\"pext\"} 3\n"
+        },
+        {
+          "query": "count_over_time({app=~\"a|b\"} | logfmt [1m])",
+          "mode": "range",
+          "start": 40,
+          "end": 60,
+          "step": 20,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "k": "s",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "2",
+                "3"
+              ]
+            },
+            {
+              "labels": {
+                "app": "b",
+                "k": "s",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "2",
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 77,
+          "source_end": 79,
+          "sha256": "680c058d8f009cf22c290217d1b4b38c9551278b869dd1ab4c56656e101d582b",
+          "raw": "eval range from 40s to 60s step 20s count_over_time({app=~\"a|b\"} | logfmt [1m])   # overlapping\n  {app=\"a\", k=\"s\", k_extracted=\"pext\"} 2 3\n  {app=\"b\", k=\"s\", k_extracted=\"pext\"} 2 3\n"
+        },
+        {
+          "query": "sum by (app, k_extracted) (count_over_time({app=~\"a|b\"} | logfmt [1m]))",
+          "mode": "instant",
+          "start": 60,
+          "end": 60,
+          "step": 0,
+          "outcome": "series",
+          "expected": [
+            {
+              "labels": {
+                "app": "a",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "3"
+              ]
+            },
+            {
+              "labels": {
+                "app": "b",
+                "k_extracted": "pext"
+              },
+              "values": [
+                "3"
+              ]
+            }
+          ],
+          "expected_entries": [],
+          "purpose": "complete evaluation and exact oracle",
+          "source_start": 80,
+          "source_end": 82,
+          "sha256": "4e5dde7f71fd0b0cca6a3d4960d898f5aff36e69c85ac5f7176d8eddadeeea8c",
+          "raw": "eval instant at 60s sum by (app, k_extracted) (count_over_time({app=~\"a|b\"} | logfmt [1m]))\n  {app=\"a\", k_extracted=\"pext\"} 3\n  {app=\"b\", k_extracted=\"pext\"} 3\n"
+        }
+      ]
+    }
+  ],
+  "license": "AGPL-3.0-only",
+  "limitations": [
+    "These are frozen upstream table/engine fixtures, not results of actual Loki or Pulse runtime execution. Counts describe selected upstream evaluations, not passing Pulse tests or HTTP/Parquet/S3 acceptance.",
+    "Only parsers.logqltest:34-83 and the two selected parser_test.go rows are exported for replay. Neighboring sources are preserved solely as schema/input/harness provenance. This does not establish general repeated-parser ownership, hints, client/deployment/capacity or full parser compatibility, and invents no repeated-parser example.",
+    "The analogous expression row is actually parser_test.go:1728-1739 at this pin; 1744-1757 is its harness. Table assertions are flat labels; only the three select evaluations provide categorized output oracles.",
+    "Existing logfmt.json (60 evaluations) and logfmt-expressions.json (15 rows) are separate, unchanged selections. No production changes or HTTP replay are included here."
+  ],
+  "provenance": {
+    "method": "Standard-library Go AST plus bounded logqltest source extraction, following logfmt-producer.go.txt; no runtime evaluation.",
+    "producer": "test/fixtures/logs/loki-upstream/logfmt-ownership-producer.go.txt",
+    "range_hash_convention": "SHA-256 of exact inclusive complete source lines, including the final newline. All raw fields preserve indentation, comments and spelling.",
+    "repository": "https://github.com/grafana/loki",
+    "sources": [
+      {
+        "path": "pkg/logql/log/parser_test.go",
+        "sha256": "346b91ced2d38e51d8cf7fd8acb3335ea5796e9286fd901b45dd625c0b3634ff",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/log/parser_test.go",
+        "selections": [
+          {
+            "purpose": "parse table schema",
+            "source_start": 1181,
+            "source_end": 1190,
+            "sha256": "71a6b865f232195fe7ca3382b568e6e0e5975df3e095710d6788df450a2f70ae",
+            "raw": "func TestLogfmtParser_parse(t *testing.T) {\n\ttests := []struct {\n\t\tname               string\n\t\tline               []byte\n\t\tlbs                labels.Labels\n\t\twant               labels.Labels\n\t\twantStrict         labels.Labels\n\t\thints              ParserHint\n\t\tstructuredMetadata map[string]string\n\t}{\n"
+          },
+          {
+            "purpose": "complete structured-metadata conflict parse row",
+            "source_start": 1418,
+            "source_end": 1429,
+            "sha256": "bca8bf0dbfd04eed93b9c01afb1bbc6fd95c62fc7f38e8ed2789364d915fac74",
+            "raw": "\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\t[]byte(`app=foo level=error`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t\t\"level\", \"error\",\n\t\t\t),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"app\": \"foo_sm\"},\n\t\t},\n"
+          },
+          {
+            "purpose": "non-strict and strict parse harnesses; metadata and effective strict oracle",
+            "source_start": 1432,
+            "source_end": 1468,
+            "sha256": "7ddbca12d38bf4dce569fa23d7eaf5f1bc61646a09d482bfe11ba1065b4486e0",
+            "raw": "\t{\n\t\tp := NewLogfmtParser(false, false)\n\t\tfor _, tt := range tests {\n\t\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\t\tb := NewBaseLabelsBuilderWithGrouping(nil, tt.hints, false, false).ForLabels(tt.lbs, labels.StableHash(tt.lbs))\n\t\t\t\tb.Reset()\n\t\t\t\t// Set structured metadata if specified\n\t\t\t\tfor key, value := range tt.structuredMetadata {\n\t\t\t\t\tb.Set(StructuredMetadataLabel, key, value)\n\t\t\t\t}\n\t\t\t\t_, _ = p.Process(0, tt.line, b)\n\t\t\t\trequire.Equal(t, tt.want, b.LabelsResult().Labels())\n\t\t\t})\n\t\t}\n\t}\n\n\tt.Run(\"strict\", func(t *testing.T) {\n\t\tp := NewLogfmtParser(true, false)\n\t\tfor _, tt := range tests {\n\t\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\t\tb := NewBaseLabelsBuilderWithGrouping(nil, tt.hints, false, false).ForLabels(tt.lbs, labels.StableHash(tt.lbs))\n\t\t\t\tb.Reset()\n\t\t\t\t// Set structured metadata if specified\n\t\t\t\tfor key, value := range tt.structuredMetadata {\n\t\t\t\t\tb.Set(StructuredMetadataLabel, key, value)\n\t\t\t\t}\n\t\t\t\t_, _ = p.Process(0, tt.line, b)\n\n\t\t\t\twant := tt.want\n\t\t\t\tif !tt.wantStrict.IsEmpty() {\n\t\t\t\t\twant = tt.wantStrict\n\t\t\t\t}\n\t\t\t\trequire.Equal(t, want, b.LabelsResult().Labels())\n\t\t\t})\n\t\t}\n\t})\n}\n"
+          },
+          {
+            "purpose": "expression shared input and table schema",
+            "source_start": 1611,
+            "source_end": 1621,
+            "sha256": "1ffa522e37cdda1c075c66be142b7e37c2ff73521796f0163c864d7be7d9f1db",
+            "raw": "func TestLogfmtExpressionParser(t *testing.T) {\n\ttestLine := []byte(`app=foo level=error spaces=\"value with ÜFT8👌\" ts=2021-02-12T19:18:10.037940878Z`)\n\n\ttests := []struct {\n\t\tname               string\n\t\tline               []byte\n\t\texpressions        []LabelExtractionExpr\n\t\tlbs                labels.Labels\n\t\twant               labels.Labels\n\t\tstructuredMetadata map[string]string\n\t}{\n"
+          },
+          {
+            "purpose": "complete structured-metadata conflict expression row (not 1744-1757)",
+            "source_start": 1728,
+            "source_end": 1739,
+            "sha256": "027d8a086475c5eaa8f3647c31d2aa449ddc02f46d462edc32e61b1c840e1eba",
+            "raw": "\t\t{\n\t\t\t\"structured metadata conflict\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t),\n\t\t\tmap[string]string{\"app\": \"foo_sm\"},\n\t\t},\n"
+          },
+          {
+            "purpose": "expression harness: strict=false, metadata before parsing, flat label assertion",
+            "source_start": 1741,
+            "source_end": 1757,
+            "sha256": "33a8bae2a8ab2e0111b5209ea67912f473574653073e49519a0dece054e02a56",
+            "raw": "\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tl, err := NewLogfmtExpressionParser(tt.expressions, false)\n\t\t\tif err != nil {\n\t\t\t\tt.Fatalf(\"cannot create logfmt expression parser: %s\", err.Error())\n\t\t\t}\n\t\t\tb := NewBaseLabelsBuilder().ForLabels(tt.lbs, labels.StableHash(tt.lbs))\n\t\t\tb.Reset()\n\t\t\t// Set structured metadata if specified\n\t\t\tfor key, value := range tt.structuredMetadata {\n\t\t\t\tb.Set(StructuredMetadataLabel, key, value)\n\t\t\t}\n\t\t\t_, _ = l.Process(0, tt.line, b)\n\t\t\trequire.Equal(t, tt.want, b.LabelsResult().Labels())\n\t\t})\n\t}\n}\n"
+          }
+        ]
+      },
+      {
+        "path": "pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "sha256": "07d63941842085ca40bbc3944884377e802df38ede67027b9702594e840114ea",
+        "url": "https://github.com/grafana/loki/blob/5aa4b9212d64d723f63b2770452054aa23df114d/pkg/logql/internal/logqltest/testdata/parsers.logqltest",
+        "selections": [
+          {
+            "purpose": "complete omitted ownership block, including all comments and whitespace",
+            "source_start": 34,
+            "source_end": 83,
+            "sha256": "3cc5a88ffeaf5a7345f45ea30c8547f0f9442829214934ea2bd457b25084dc0c",
+            "raw": "\n# logfmt() clashing labels keep the loser under `<name>_extracted`, following the base-name\n# precedence stream > metadata > parsed (the same for every parser).\nclear\nload\n  {app=\"a\", sl=\"s\", sm=\"s\", tri=\"s\"} `sl=p md=p tri=p` @ 20s [repeat every 20s for 3] [metadata md=\"m\" sm=\"m\" tri=\"m\"]\n  {app=\"noise\"} \"z=1\" @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=\"a\"} | logfmt [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\neval range from 40s to 60s step 20s count_over_time({app=\"a\"} | logfmt [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 2 3\n# logfmt() label-expression form resolves the same clashes the same way.\neval instant at 60s count_over_time({app=\"a\"} | logfmt sl, md, sm, tri [1m])\n  {app=\"a\", sl=\"s\", sl_extracted=\"p\", md=\"m\", md_extracted=\"p\", sm=\"s\", sm_extracted=\"m\", tri=\"s\", tri_extracted=\"p\"} 3\n\n# logfmt() after `drop`: a dropped stream label does not clash with parsed keys.\nclear\nload\n  {app=\"a\", name=\"stream\"} \"name=parsed\" @ 10s\n\neval select from 0 to 30s forward {app=\"a\"} | drop name | logfmt\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"parsed\"]\neval select from 0 to 30s forward {app=\"a\"} | logfmt | drop name\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name_extracted=\"parsed\"]\n# A label re-added after the drop is a parsed label, not a stream label: logfmt neither renames\n# around it nor overwrites it, exactly as for a stream that never had the label.\neval select from 0 to 30s forward {app=\"a\"} | drop name | label_format name=\"x\" | logfmt\n  {app=\"a\"} \"name=parsed\" @ 10s [parsed name=\"x\"]\n# Grouping sees the parsed label added after the drop, matching the full label output.\neval instant at 10s sum by (name) (count_over_time({app=\"a\"} | drop name | logfmt [1m]))\n  {name=\"parsed\"} 1\n\n# logfmt() with a line key that ends in `_extracted`.\nclear\nload\n  {app=\"a\", k=\"s\"}     \"k_extracted=pext k=p\" @ 20s [repeat every 20s for 3]\n  {app=\"b\", k=\"s\"}     \"k_extracted=pext k=p\" @ 20s [repeat every 20s for 3]\n  {app=\"noise\", k=\"s\"} \"k=p\"                  @ 20s [repeat every 20s for 3]\n\neval instant at 60s count_over_time({app=~\"a|b\"} | logfmt [1m])\n  {app=\"a\", k=\"s\", k_extracted=\"pext\"} 3\n  {app=\"b\", k=\"s\", k_extracted=\"pext\"} 3\neval range from 40s to 60s step 20s count_over_time({app=~\"a|b\"} | logfmt [1m])   # overlapping\n  {app=\"a\", k=\"s\", k_extracted=\"pext\"} 2 3\n  {app=\"b\", k=\"s\", k_extracted=\"pext\"} 2 3\neval instant at 60s sum by (app, k_extracted) (count_over_time({app=~\"a|b\"} | logfmt [1m]))\n  {app=\"a\", k_extracted=\"pext\"} 3\n  {app=\"b\", k_extracted=\"pext\"} 3\n\n"
+          }
+        ]
+      }
+    ]
+  },
+  "replay": {
+    "engine": "All exported times, steps and repeat intervals are integer seconds relative to upstream epoch 2026-01-01T00:00:00Z (logqltest/parser.go:19-25). Replay may shift the entire fixture to a deterministic retained epoch, preserving every relative timestamp. A repeat count includes the first entry; expand start+i*every for i=0..count-1 (parser.go:129-134). Preserve load order, noise and metadata; never flatten metadata into stream labels.",
+    "fields": "Expression fields are ordered [destination, source-expression] pairs; fields_expression and line_definition preserve original Go text. line_expression=testLine is resolved from the exact shared declaration at parser_test.go:1612. Parse-all has no fields column. hint_expression is inert Go source, not evaluated; the selected parse row uses NoParserHints().",
+    "metrics": "mode=instant has equal start/end and step=0; mode=range has its explicit step. outcome=series uses expected label maps and original numeric-string values (or sparse underscores); evaluate at start+i*step. Labels are the exact combined metric oracle, not category assertions. Preserve all per-fixture loads across its evaluations, resetting only on clear.",
+    "requirements": "Normal replay reads committed JSON using Elixir/Rust only, without Go, network or expectation generation. The producer is an optional provenance tool, not a test dependency.",
+    "select": "mode=select uses explicit direction, start/end and step=0. outcome=entries uses expected_entries: labels is the stream owner only; metadata and parsed are separate per-entry owners. Omitted category clauses become empty maps, not unknown data. timestamp and line are exact source expectations. Match all categories, text and time, not just flattened labels, following logqltest/runner.go:490-545 (categorize-labels encoding). Empty expected/expected_entries arrays are mode placeholders, NOT expect-empty assertions.",
+    "strict": "Run the parse row with strict_values=[false,true]. Non-strict uses want; strict uses effective_strict_want, selecting nonempty want_strict or falling back to want (parser_test.go:1460-1464). Run the expression row only with strict=false, as asserted by its harness at 1743. Do not invent a strict expression evaluation.",
+    "table": "base_labels is the initial stream owner, structured_metadata is attached by the harness before parsing, initial_parsed_labels={} records the absence of preexisting parsed labels after builder reset. want is the exact flat LabelsResult().Labels() assertion, NOT a categorized output oracle. Do not infer upstream owner assertions from flat labels. keep_empty=false follows the parse harness and is inapplicable to explicit expression extraction."
+  },
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "schema_version": 1,
+  "table_cases": [
+    {
+      "base_labels": {},
+      "effective_strict_want": {
+        "app": "foo_sm",
+        "app_extracted": "foo",
+        "level": "error"
+      },
+      "function": "TestLogfmtParser_parse",
+      "hint_expression": "NoParserHints()",
+      "initial_parsed_labels": {},
+      "keep_empty": false,
+      "line": "app=foo level=error",
+      "line_expression": "[]byte(`app=foo level=error`)",
+      "name": "duplicate conflict with structured metadata",
+      "raw": "\t\t{\n\t\t\t\"duplicate conflict with structured metadata\",\n\t\t\t[]byte(`app=foo level=error`),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t\t\"level\", \"error\",\n\t\t\t),\n\t\t\tlabels.EmptyLabels(),\n\t\t\tNoParserHints(),\n\t\t\tmap[string]string{\"app\": \"foo_sm\"},\n\t\t},\n",
+      "sha256": "bca8bf0dbfd04eed93b9c01afb1bbc6fd95c62fc7f38e8ed2789364d915fac74",
+      "source_end": 1429,
+      "source_start": 1418,
+      "strict_values": [
+        false,
+        true
+      ],
+      "structured_metadata": {
+        "app": "foo_sm"
+      },
+      "want": {
+        "app": "foo_sm",
+        "app_extracted": "foo",
+        "level": "error"
+      },
+      "want_strict": {}
+    },
+    {
+      "base_labels": {},
+      "fields": [
+        [
+          "app",
+          "app"
+        ]
+      ],
+      "fields_expression": "[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t}",
+      "function": "TestLogfmtExpressionParser",
+      "initial_parsed_labels": {},
+      "keep_empty": false,
+      "line": "app=foo level=error spaces=\"value with ÜFT8👌\" ts=2021-02-12T19:18:10.037940878Z",
+      "line_definition": "[]byte(`app=foo level=error spaces=\"value with ÜFT8👌\" ts=2021-02-12T19:18:10.037940878Z`)",
+      "line_expression": "testLine",
+      "name": "structured metadata conflict",
+      "raw": "\t\t{\n\t\t\t\"structured metadata conflict\",\n\t\t\ttestLine,\n\t\t\t[]LabelExtractionExpr{\n\t\t\t\tNewLabelExtractionExpr(\"app\", \"app\"),\n\t\t\t},\n\t\t\tlabels.EmptyLabels(),\n\t\t\tlabels.FromStrings(\"app\", \"foo_sm\",\n\t\t\t\t\"app_extracted\", \"foo\",\n\t\t\t),\n\t\t\tmap[string]string{\"app\": \"foo_sm\"},\n\t\t},\n",
+      "sha256": "027d8a086475c5eaa8f3647c31d2aa449ddc02f46d462edc32e61b1c840e1eba",
+      "source_end": 1739,
+      "source_start": 1728,
+      "strict_values": [
+        false
+      ],
+      "structured_metadata": {
+        "app": "foo_sm"
+      },
+      "want": {
+        "app": "foo_sm",
+        "app_extracted": "foo"
+      }
+    }
+  ]
+}

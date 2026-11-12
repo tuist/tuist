@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistCacheCommand
 import TuistEnvironment
@@ -8,6 +9,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct CacheAcceptanceTests {
     @Test(.withFixture("generated_ios_app_with_frameworks"), .withMockedDependencies())
     func ios_app_with_frameworks() async throws {
@@ -19,6 +21,7 @@ struct CacheAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct CacheConfigAcceptanceTests {
     @Test(
         .disabled(),

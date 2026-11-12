@@ -687,7 +687,8 @@ func unplacedFootprint(pool *tuistv1.RunnerPool, pods []corev1.Pod) corev1.Resou
 }
 
 // podFootprint is a Pod's scheduling request: the larger of its containers'
-// sum and its largest init container, plus overhead.
+// sum and its largest init container, or the Pod-level budget where the Pod
+// sets one, plus overhead.
 func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
@@ -702,6 +703,11 @@ func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 			if current, ok := total[name]; !ok || quantity.Cmp(current) > 0 {
 				total[name] = quantity.DeepCopy()
 			}
+		}
+	}
+	if pod.Spec.Resources != nil {
+		for name, quantity := range pod.Spec.Resources.Requests {
+			total[name] = quantity.DeepCopy()
 		}
 	}
 	for name, quantity := range pod.Spec.Overhead {
@@ -954,6 +960,9 @@ func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 		}
 		if pool.Spec.NestedVirtualization {
 			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			labels[podtemplate.PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return labels
 	default:

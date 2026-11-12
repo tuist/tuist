@@ -253,7 +253,7 @@ let tuist = Tuist(
 )
 ```
 
-While no build is running, Tuist checks each of the project's stores every 10 minutes. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+Tuist checks each of the project's stores when its cache proxy starts, before any build uses them, and every 10 minutes while no build is running. `tuist setup cache` starts the proxy when it isn't running, so a CI job that runs `tuist setup cache` before its builds and `tuist teardown cache` after them bounds a long-lived runner's stores at the start of every job. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit. A cache proxy that is already running keeps running and applies the new limit at its next check.
 
 ### Module cache hashes {#module-cache-hashes}
 
@@ -352,3 +352,7 @@ If you are not using the Xcode cache, remove the `COMPILATION_CACHE_*` build set
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
 When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so Tuist still receives them, but it does not publish anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+
+## Related {#related}
+
+Explore [Tuist's shared cache](https://tuist.dev/cache) to see how engineering teams and coding agents reuse build artifacts.

@@ -28,18 +28,36 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     end
   end
 
-  test "the disk limit charges every sandbox on a node, paused included, with its workspace and memory image" do
+  test "the disk limit charges every sandbox and disk snapshot on a node with the ceiling the node reserves" do
+    stub(Nodes, :connected_nodes, fn ->
+      [
+        %{name: "node-a", templates: [%{name: "default", ready: true, rootfs_bytes: 8 * 1024 * 1024 * 1024}]},
+        %{name: "node-b", templates: [%{name: "large", ready: true, rootfs_bytes: 12 * 1024 * 1024 * 1024}]}
+      ]
+    end)
+
     account = account_fixture()
     sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
-    sandbox_fixture(account: account, state: :paused, workspace_gb: 20, memory_mb: 8192)
+    sandbox_fixture(account: account, state: :paused, template: "large", workspace_gb: 20, memory_mb: 8192)
+    sandbox_fixture(account: account, state: :paused, platform: :darwin, template: "macos", memory_mb: 8192)
     sandbox_fixture(account: account, state: :archived, node_name: nil, workspace_gb: 50)
     sandbox_fixture(account: account, state: :error, workspace_gb: 50)
     sandbox_fixture(account: account_fixture(), state: :running, workspace_gb: 50)
+    disk_snapshot_fixture(account: account, workspace_gb: 10)
+    disk_snapshot_fixture(account: account, node_name: nil, workspace_gb: 50)
+    disk_snapshot_fixture(account: account_fixture(), workspace_gb: 50)
 
-    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096 + (20 * 1024 + 8192)
+    # Rootfs, workspace, memory image and 64 MiB of snapshot state on Linux;
+    # workspace and memory image on macOS, whose hosts budget no disk.
+    assert Concurrency.disk_usage_mb(account.id) ==
+             8 * 1024 + 10 * 1024 + 4096 + 64 +
+               (12 * 1024 + 20 * 1024 + 8192 + 64) +
+               (10 * 1024 + 8192) +
+               (8 * 1024 + 10 * 1024 + 64)
   end
 
   test "execution VMs count against the account's execution concurrency, not its sandbox limits" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
     account = account_fixture()
     agent = sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
 
@@ -49,14 +67,16 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     |> Repo.update!()
 
     assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus, memory_mb: 4096}
-    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096
+    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096 + 64
   end
 
   test "the disk limit refuses a create past it, admits one up to it, and never refuses a resume" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
     stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
     account = account_fixture()
-    # Two default-shape sandboxes: 10 GB workspace and a 4 GB memory image each.
-    {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
+    # Two default-shape sandboxes: 10 GB workspace, a 4 GB memory image and
+    # 64 MiB of snapshot state each, with no node reporting a rootfs.
+    {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 29})
     sandbox_fixture(account: account, state: :running)
 
     expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)

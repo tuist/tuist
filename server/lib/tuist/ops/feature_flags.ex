@@ -21,6 +21,8 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
+    {:pulse, "account",
+     "Opt-in organization Pulse dashboards and APIs; configured tenant ownership and membership still apply."},
     {:bazel_remote_execution, "account",
      "Opt-in Linux Bazel execution; configured capacity and project grants still apply."},
     {:immutable_shard_reports, "account",
@@ -60,6 +62,7 @@ defmodule Tuist.Ops.FeatureFlags do
   @fields ~w(operation scope account_id project_id percentage expected_revision reason change_id actor interface)
 
   @evaluators %{
+    pulse: {FeatureFlags, :pulse_enabled?},
     bazel_remote_execution: {FeatureFlags, :bazel_remote_execution_enabled?},
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
     runner_shard_storage: {FeatureFlags, :runner_shard_storage_enabled?},

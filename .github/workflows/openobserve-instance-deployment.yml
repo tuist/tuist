@@ -1,0 +1,216 @@
+name: OpenObserve Instance Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: tuist-linux
+    timeout-minutes: 40
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}-observability
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      NAMESPACE: observability
+      KUBECONFIG: ${{ github.workspace }}/.kube/openobserve-config
+      SMOKE_POD: openobserve-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      STORAGE_POD: openobserve-storage-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Refuse production and arbitrary environment names
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_ENV" in staging|canary) ;; *) exit 1 ;; esac
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl jq yq node"
+          cache: "false"
+      - uses: actions/download-artifact@v4
+        with:
+          name: openobserve-chart
+          path: ${{ runner.temp }}/openobserve-deploy
+      - name: Render the same packaged chart qualified by validation
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/openobserve-deploy"
+          # Overlays are inside the immutable artifact too, not fetched from a moving branch.
+          tar -xzf "$dir/tuist-openobserve-0.1.0.tgz" -C "$dir" "tuist-openobserve/values-$DEPLOY_ENV.yaml"
+          helm template openobserve "$dir/tuist-openobserve-0.1.0.tgz" -n "$NAMESPACE" \
+            -f "$dir/tuist-openobserve/values-$DEPLOY_ENV.yaml" > "$dir/rendered.yaml"
+          yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
+      - uses: 1password/install-cli-action@v4
+      - name: Load environment deployment identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-$DEPLOY_ENV" \
+            --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Check prerequisites and refuse resource adoption
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/openobserve-deploy"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+          kubectl get namespace "$NAMESPACE" >/dev/null
+          kubectl get crd clusters.postgresql.cnpg.io externalsecrets.external-secrets.io >/dev/null
+          kubectl get storageclass hcloud-volumes >/dev/null
+          kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
+          jq -r '.[] | [.kind, .metadata.name, (.metadata.namespace // "observability")] | @tsv' \
+            "$dir/resources.json" > "$dir/resources.tsv"
+          while IFS=$'\t' read -r kind name namespace; do
+            case "$kind" in Deployment|StatefulSet|Service|ServiceAccount|ConfigMap|Cluster|ExternalSecret|PodDisruptionBudget|NetworkPolicy|Secret) ;; *) exit 1 ;; esac
+            [[ "$namespace" == "$NAMESPACE" ]]
+            # The dependency always emits two unused Secrets even with externalSecret enabled.
+            if [[ "$kind" == Secret ]]; then
+              [[ "$name" == openobserve || "$name" == openobserve-report-server ]]
+            fi
+            # CAPI also defines Cluster; never resolve this through an ambiguous short name.
+            if [[ "$kind" == Cluster ]]; then kind=clusters.postgresql.cnpg.io; fi
+            # Read only ownership metadata, never Secret values or raw resources into CI logs.
+            existing=$(kubectl -n "$NAMESPACE" get "$kind" "$name" --ignore-not-found \
+              -o 'jsonpath={.metadata.name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-namespace}{"\t"}{.metadata.labels.app\.kubernetes\.io/managed-by}')
+            if [[ -n "$existing" && "$existing" != "$(printf '%s\topenobserve\t%s\tHelm' "$name" "$NAMESPACE")" ]]; then
+              echo "::error::OpenObserve ownership conflict ($kind/$name); refusing adoption."
+              exit 1
+            fi
+          done < "$dir/resources.tsv"
+          kubectl -n "$NAMESPACE" get externalsecrets -o json | jq -e '
+            all(.items[]; (.spec.target.name // .metadata.name) != "openobserve-credentials" or
+              .metadata.name == "openobserve-credentials") and
+            all(.items[]; (.spec.target.name // .metadata.name) != "openobserve-auth")' >/dev/null
+      - name: Check general-pool capacity while retaining server surge headroom
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/openobserve-deploy"
+          kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
+          kubectl get pods -A -o json > "$dir/pods.json"
+          node .github/scripts/openobserve-capacity.mjs "$dir/nodes.json" "$dir/pods.json" "$dir/resources.json"
+          rm -f "$dir/nodes.json" "$dir/pods.json"
+      - name: Verify private shared bucket, lifecycle and isolated prefix access before installation
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
+          jq -n --arg name "$STORAGE_POD" --arg namespace "$NAMESPACE" --arg environment "$DEPLOY_ENV" \
+            --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${DEPLOY_ENV}" \
+            --rawfile script .github/scripts/openobserve-storage-check.sh '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:$namespace},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:300,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:65532,fsGroup:65532,seccompProfile:{type:"RuntimeDefault"}},
+              volumes:[{name:"scratch",emptyDir:{sizeLimit:"1Mi"}}],
+              containers:[{name:"probe",image:"curlimages/curl:8.12.1",command:["sh","-c",$script],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
+                resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"64Mi"}},
+                env:[{name:"DEPLOY_ENV",value:$environment},{name:"CHECK_RUN",value:$run},
+                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_ACCESS_KEY_ID"}}},
+                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_SECRET_ACCESS_KEY"}}}]
+              }]}}
+          ' > "$RUNNER_TEMP/openobserve-deploy/storage-probe.json"
+          kubectl create -f "$RUNNER_TEMP/openobserve-deploy/storage-probe.json" >/dev/null
+          deadline=$((SECONDS + 300))
+          phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n "$NAMESPACE" get pod "$STORAGE_POD" -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 5
+          done
+          # This is our credential-safe prerequisite script, never application logs.
+          kubectl -n "$NAMESPACE" logs "$STORAGE_POD" || true
+          [[ "$phase" == Succeeded ]]
+          kubectl -n "$NAMESPACE" delete pod "$STORAGE_POD" --wait=true --timeout=30s >/dev/null
+      - name: Bootstrap independent durable authentication without rotating existing credentials
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/openobserve-deploy"
+          openssl rand -hex 32 | tr -d '\n' > "$dir/root-password"
+          openssl rand -hex 32 | tr -d '\n' > "$dir/internal-token"
+          # create, never apply: a rerun must preserve credentials already stored in the cluster.
+          if ! kubectl -n "$NAMESPACE" create secret generic openobserve-auth \
+            --from-file=root-password="$dir/root-password" --from-file=internal-token="$dir/internal-token" \
+            > "$dir/bootstrap.log" 2>&1; then
+            if ! grep -q 'secrets "openobserve-auth" already exists' "$dir/bootstrap.log"; then
+              echo '::error::OpenObserve credential bootstrap failed.'
+              exit 1
+            fi
+          fi
+          rm -f "$dir/root-password" "$dir/internal-token" "$dir/bootstrap.log"
+      - name: Install private shadow backend without automatic stateful rollback
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/openobserve-deploy"
+          if ! helm upgrade --install openobserve "$dir/tuist-openobserve-0.1.0.tgz" \
+            -n "$NAMESPACE" -f "$dir/tuist-openobserve/values-$DEPLOY_ENV.yaml" \
+            --timeout 15m --wait > "$dir/helm.log" 2>&1; then
+            echo '::error::OpenObserve rollout failed; retaining state for diagnosis, not uninstalling or rolling back.'
+            exit 1
+          fi
+          kubectl -n "$NAMESPACE" wait --for=condition=Ready externalsecret/openobserve-credentials --timeout=5m
+          kubectl -n "$NAMESPACE" wait --for=condition=Ready clusters.postgresql.cnpg.io/openobserve-metadata --timeout=5m
+      - name: Require authenticated metric, log and trace round trips
+        run: |
+          set -euo pipefail
+          jq -n --arg name "$SMOKE_POD" --arg namespace "$NAMESPACE" \
+            --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${DEPLOY_ENV}" \
+            --rawfile script .github/scripts/openobserve-smoke.mjs '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:$namespace},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:300,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:65532,seccompProfile:{type:"RuntimeDefault"}},
+              containers:[{name:"probe",image:"node:22.14.0-alpine3.21",
+                command:["node","--input-type=module","-e",$script],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"128Mi"}},
+                env:[{name:"OPENOBSERVE_URL",value:"http://openobserve-router.observability:5080"},
+                  {name:"SMOKE_RUN",value:$run},
+                  {name:"OPENOBSERVE_PASSWORD",valueFrom:{secretKeyRef:{name:"openobserve-auth",key:"root-password"}}}]
+              }]}}
+          ' > "$RUNNER_TEMP/openobserve-deploy/probe.json"
+          kubectl create -f "$RUNNER_TEMP/openobserve-deploy/probe.json" >/dev/null
+          kubectl -n "$NAMESPACE" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=5m
+      - name: Sanitized failure diagnostics
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance=openobserve \
+            -o custom-columns=NAME:.metadata.name,PHASE:.status.phase --no-headers || true
+          kubectl -n "$NAMESPACE" get clusters.postgresql.cnpg.io openobserve-metadata \
+            -o custom-columns=NAME:.metadata.name,READY:'.status.conditions[?(@.type=="Ready")].status' || true
+          kubectl -n "$NAMESPACE" get externalsecret openobserve-credentials \
+            -o custom-columns=NAME:.metadata.name,READY:'.status.conditions[?(@.type=="Ready")].status' || true
+          kubectl -n "$NAMESPACE" get events --field-selector type=Warning \
+            -o custom-columns=REASON:.reason,KIND:.involvedObject.kind --no-headers | tail -20 || true
+      - name: Remove disposable probe and local credentials only
+        if: always()
+        run: |
+          set -euo pipefail
+          trap 'rm -rf "$RUNNER_TEMP/openobserve-deploy"; rm -f "$KUBECONFIG"' EXIT
+          if [[ -f "$KUBECONFIG" ]]; then
+            kubectl -n "$NAMESPACE" delete pod "$SMOKE_POD" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
+          fi

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0aea431a1527e30260374fe9bc023c02adad1ab987a9e5d94731eeb9f037782f",
+  "hash": "88db0f8f5c0aff0d573495154c2e589e9eed9f5f6b8adba89107ed2e80406ac5",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# GitHub Actions {#github-actions}": {
-                  "content_hash": "8eda7f275761ee199f8ba0c9b2c1daf38f623c68e849d875688078529f3d8447"
+                  "content_hash": "1f770c1fe3683d2a6c90f602decebfc6472eff55796e29cd3882a81d951a4306"
                 },
                 "## Cache volumes {#cache-volumes}": {
                   "content_hash": "c4e631bcbd82082a49f1b04a6dbf9847cb538548d0a561d4faaffbe181fbb167"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "166252e76acdd9fdd16bb274be38f942c0da8e40f80fe493dd7e7877e07ee53c",
+          "hash": "a247b2336677619f0c28394cfefa91824b449890708fe303dcc38f5a7970c41d",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
           "metadata": {
-            "content_hash": "2949cce39019728746fe0775cdb5c813dbd677b6a4f469daca1660ea73204aa8"
+            "content_hash": "475b9022cf811c4dde8fc9ba0bf86e57acbbaa9bafcaa8e3b8990c809bd01f6e"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -217,21 +217,21 @@
             }
           ],
           "details": {},
-          "hash": "eb10e762c780d48af176e309f888b5079ac8b2d76fc99a2dbe435329c3ecc744",
+          "hash": "b2c62c9dd2f223515e4c40a2f6b7288a19c137c6f03fc2ccfb3ea0aa33066372",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "0aea431a1527e30260374fe9bc023c02adad1ab987a9e5d94731eeb9f037782f",
+      "hash": "88db0f8f5c0aff0d573495154c2e589e9eed9f5f6b8adba89107ed2e80406ac5",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "bc3b9d8d5f630bdee868280b30966d06aa3481f785d4aef65c0a266ca2d18052",
+  "output_hash": "e1ab66a4304486523bfc3411df8370392f56c471bdcedc5c0bc06ddd48e30af9",
   "output_path": "server/priv/docs/zh_Hant/guides/features/runners/ci-providers/github-actions.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "55ef5fb40fca36a9ea4338d50cfbe9a3cbe066b0",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/github-actions.md",
-  "translated_at": "2026-11-03T15:56:38.573272Z",
-  "translation_session_id": "01a1a21e-5be9-7c42-8d31-29aa7da82eb9"
+  "translated_at": "2026-11-06T19:14:08.982109Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

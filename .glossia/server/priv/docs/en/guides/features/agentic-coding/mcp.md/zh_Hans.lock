@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bcd6a32388d6d2b6ab50ade1ecdf19d2674282a11484f27e91284e7c0ab40c8f",
+  "hash": "82ab08b4f06513b459aa97a733a178b546cb240051ba65d4d0d1a91ab160010c",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "96302518cb6aab6e284be7e1c6aaf4f3f04705337f8ed8283a121e57b36a5b5c"
                 },
                 "## WebMCP": {
-                  "content_hash": "d3a4a55253232cabe098f020ba256cce6ab1b89f3500bf76de86ea4babb81a29"
+                  "content_hash": "4e1e5293ec4f74841f98cbb766b68e413ab8885ee7de70983e1b245eca17e3b5"
                 },
                 "### Events": {
                   "content_hash": "c772e92fa6f357d052340fdf7a6cb956a73d6916a74b9a1bb04a4b7c46477068"
@@ -38,7 +38,7 @@
                   "content_hash": "375339b6975176eee068df783423d82cdfaf6465103fb1231e720c2ba17c59e2"
                 },
                 "#### AI subscriptions": {
-                  "content_hash": "f37899ab8f5b51dcb2a08f3eae173a5f3560ea6def090d0e99ce450323045e1f"
+                  "content_hash": "07059a7a05eedab86d512f351b7792c74e90b9cb489a2c62029866037982d959"
                 },
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
@@ -62,7 +62,7 @@
                   "content_hash": "ed44687f9af41f66d81ee390965cc33edcff710946d610e04f541e2cc6394fb7"
                 },
                 "#### Continuous-integration runners": {
-                  "content_hash": "1504f3c46f12a521a0f7273aeaad6a5bb113680306b826cc1c0b366dd2eb0f5e"
+                  "content_hash": "ad89c8341c370a98b4890bd8adaa6efddfc61112829e299f26ab13bb30b35e56"
                 },
                 "#### Documentation and community search": {
                   "content_hash": "be0281c95f07aa659c0e782cf4b415c0a9b0cdf9f4aba8f926dc8fa8ef8aff0e"
@@ -74,13 +74,16 @@
                   "content_hash": "523df7dff63c17a7ec6882b295d128efc58440b140649c490684c2c4b7693a0e"
                 },
                 "#### Gradle builds": {
-                  "content_hash": "da489770b6c3717932a3aed92cc9454bb4cf30e19d70c89fbe40591fc1dc0200"
+                  "content_hash": "d3ca6fba27b784ec0b8ea19ef64239ea44c49310115b4c42276f8573c0d983e8"
                 },
                 "#### Gradle integration prompt features": {
                   "content_hash": "2780de881b82675f156aeda61362068ce842ad926e6b7999fb5ae1636e96e459"
                 },
                 "#### Mix builds": {
                   "content_hash": "772c60fc6c8dc2554262ec0f1e656ef8f86606f317ef1fa1310829ff128d6be3"
+                },
+                "#### Notification rules": {
+                  "content_hash": "9f951a83ef43b1017a6e4d4995320ce3e7ed3b77757d9ff549b303f7cd570280"
                 },
                 "#### Once runs": {
                   "content_hash": "bd0da2319b17a7606d7ebc93fa429d869259c82a5e1b02af47eca92cd6e48ad7"
@@ -90,6 +93,9 @@
                 },
                 "#### Projects": {
                   "content_hash": "68d4d961127f060ae6f8e8c6003a4e7cd673508a405ea4677c4f4a375a1f38eb"
+                },
+                "#### Sandboxes": {
+                  "content_hash": "121e32c377964047501188fbb197184aeed2397626a3257183a677e05ebf36be"
                 },
                 "#### Source-backed answers": {
                   "content_hash": "c49cd881ec13ebd3498414893a10faebd03e291e1d58d284520bef22b2f3f722"
@@ -116,11 +122,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "afc91f876a207b5971b7bf25c6b76a01d213877e3e1e1d2786f9e1bee9958983",
+          "hash": "52569c01a3003078dbd99929a3b325c28e67be8ff02daa839b02c3759b173d5a",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "1e9fbb4a3e2af71d29dd5670cbe450a4cd3b06db4428a009c9bfc752f4ab36b8"
+            "content_hash": "842271b261acd0be74ffa1f995407416ed6e3f0f74ac044d28deae20b39735fe"
           }
         },
         {
@@ -347,14 +353,14 @@
         }
       ],
       "details": {},
-      "hash": "bcd6a32388d6d2b6ab50ade1ecdf19d2674282a11484f27e91284e7c0ab40c8f",
+      "hash": "82ab08b4f06513b459aa97a733a178b546cb240051ba65d4d0d1a91ab160010c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e9ba24fc1208bddd1f3a940c9b3cbbb0ac6ec0333af82bc8530f42015f22f78b",
+  "output_hash": "dbd6c436f8c35298505936b4d8d4099ed4325ca4934021d1c5b07e1d0efea4fb",
   "output_path": "server/priv/docs/zh_Hans/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -379,8 +385,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-04T18:35:06.894006Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T15:51:37.843958Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

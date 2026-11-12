@@ -41,11 +41,14 @@ type Config struct {
 type Service struct {
 	Kube              kubernetes.Interface
 	Node, Root, Tools string
-	mu                sync.Mutex
-	manager           *Manager
-	capacity          *KubeCapacity
-	ready             bool
-	err               error
+	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
+	// image preparation clones instead of pulling it again.
+	CIStore  string
+	mu       sync.Mutex
+	manager  *Manager
+	capacity *KubeCapacity
+	ready    bool
+	err      error
 }
 
 func (s *Service) NeedLeaderElection() bool { return false }
@@ -189,6 +192,22 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 				return errors.New("multiple sandbox control Pods")
 			}
 			control = p
+		}
+	}
+	// A control Pod is Ready once the host accepts its configuration. Template
+	// preparation can take an hour or wait for disk, and the server learns a
+	// host can place sandboxes from its connection, not from this Pod, so
+	// readiness must not hold a chart rollout on that background work.
+	if control != nil {
+		var cfg Config
+		if err = json.Unmarshal([]byte(control.Annotations[ConfigAnnotation]), &cfg); err != nil {
+			return err
+		}
+		if err = validateConfig(cfg); err != nil {
+			return err
+		}
+		if err = s.markRunning(ctx, control); err != nil {
+			return err
 		}
 	}
 	s.mu.Lock()
@@ -338,9 +357,10 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = validateConfig(cfg); err != nil {
 			return err
 		}
-		if runtime, ok := m.Runtime.(*TartRuntime); ok {
+		tartRuntime, _ := m.Runtime.(*TartRuntime)
+		if tartRuntime != nil {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, runtime.Client, cfg.Image)
+				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, cfg.Image)
 			}); err != nil {
 				return err
 			}
@@ -356,20 +376,41 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			runtime.Template = cfg.Template
 		}
 		m.Gate.Unlock()
+		// After Image is set: the cached image's size is looked up by name.
+		// Until a size is known the server reserves no root disk here, and
+		// checkDisk learns it on the next create, resume or save.
+		if tartRuntime != nil {
+			if err = tartRuntime.learnRootDisk(parent); err != nil {
+				slog.Warn("macOS sandbox root disk size unknown", "image", cfg.Image, "error", err)
+			}
+		}
+		// A runtime without a store reports no disk budget, which the server does not budget.
+		disk := func() protocol.DiskReport {
+			if tartRuntime == nil {
+				return protocol.DiskReport{}
+			}
+			return diskReport(tartRuntime.Client.HomeDir)
+		}
+		rootfs := func() int64 {
+			if tartRuntime == nil {
+				return 0
+			}
+			return tartRuntime.rootfs.Load()
+		}
 		clientCtx, stop := context.WithCancel(parent)
 		*cancel = stop
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
 		templates := func() []protocol.TemplateInfo {
-			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, Warm: m.warmShapes()}}
+			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, RootfsBytes: rootfs(), Warm: m.warmShapes()}}
 		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates(), Sandboxes: m.Snapshot()}
+				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot(), Templates: templates()}
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Sandboxes: m.Snapshot(), Templates: templates()}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()
@@ -402,20 +443,35 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 				continue
 			}
 		}
-		if pod.Labels[RoleLabel] == "control" || pod.Labels[RoleLabel] == "execution" {
-			if pod.Status.Phase != corev1.PodRunning && pod.DeletionTimestamp.IsZero() {
-				copy := pod.DeepCopy()
-				copy.Status.Phase = corev1.PodRunning
-				copy.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()}}
-				if _, err = s.Kube.CoreV1().Pods(Namespace).UpdateStatus(ctx, copy, metav1.UpdateOptions{}); err != nil {
-					return err
-				}
+		if pod.Labels[RoleLabel] == "execution" {
+			if err = s.markRunning(ctx, pod); err != nil {
+				return err
 			}
 		}
 	}
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	return s.repairReservations(ctx, m)
+}
+
+// markRunning also restores Ready: the node lifecycle controller marks every
+// Pod on a node NotReady when its lease lapses and leaves the phase Running.
+func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
+	if !pod.DeletionTimestamp.IsZero() {
+		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return nil
+			}
+		}
+	}
+	copy := pod.DeepCopy()
+	copy.Status.Phase = corev1.PodRunning
+	copy.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()}}
+	_, err := s.Kube.CoreV1().Pods(Namespace).UpdateStatus(ctx, copy, metav1.UpdateOptions{})
+	return err
 }
 
 // repairReservations runs under the launch gate, including immediately before

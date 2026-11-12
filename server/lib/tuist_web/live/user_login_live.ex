@@ -8,16 +8,18 @@ defmodule TuistWeb.UserLoginLive do
   alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.Authentication
   alias TuistWeb.GoogleOneTap
   alias TuistWeb.Turnstile
 
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
+      |> assign(:return_to, Authentication.session_return_to(Map.get(params, "return_to", session["user_return_to"])))
       |> assign(:form, form)
       |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
       |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
@@ -40,7 +42,7 @@ defmodule TuistWeb.UserLoginLive do
   def render(assigns) do
     ~H"""
     <div id="login">
-      <GoogleOneTap.prompt current_user={assigns[:current_user]} live />
+      <GoogleOneTap.prompt current_user={assigns[:current_user]} return_to={@return_to} live />
       <div data-part="frame">
         <div data-part="content">
           <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
@@ -62,7 +64,7 @@ defmodule TuistWeb.UserLoginLive do
             >
               <.button
                 :if={@github_configured?}
-                href={~p"/users/auth/github"}
+                href={Authentication.login_path(~p"/users/auth/github", @return_to)}
                 variant="secondary"
                 size="medium"
                 label="GitHub"
@@ -75,7 +77,7 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
               <.button
                 :if={@google_configured?}
-                href={~p"/users/auth/google"}
+                href={Authentication.login_path(~p"/users/auth/google", @return_to)}
                 variant="secondary"
                 size="medium"
                 label="Google"
@@ -88,7 +90,7 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
               <.button
                 :if={@apple_configured?}
-                href={~p"/users/auth/apple"}
+                href={Authentication.login_path(~p"/users/auth/apple", @return_to)}
                 variant="secondary"
                 size="medium"
                 label="Apple"
@@ -102,7 +104,7 @@ defmodule TuistWeb.UserLoginLive do
             </div>
             <div :if={sso_login_available?(assigns)} data-part="sso">
               <.button
-                href={~p"/users/log_in/sso"}
+                href={Authentication.login_path(~p"/users/log_in/sso", @return_to)}
                 variant="secondary"
                 size="medium"
                 label={dgettext("dashboard_auth", "Log in with SSO")}
@@ -113,7 +115,34 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
             </div>
           </div>
-          <.line_divider :if={oauth_configured?(assigns) and @email_auth_enabled?} text="OR" />
+          <div
+            :if={@email_auth_enabled?}
+            id="passkey-login"
+            data-part="passkey"
+            phx-hook="PasskeyLogin"
+            phx-update="ignore"
+            hidden
+            data-options-url={~p"/users/log_in/passkey/options"}
+            data-action-url={Authentication.login_path(~p"/users/log_in/passkey", @return_to)}
+          >
+            <.button
+              type="button"
+              variant="secondary"
+              size="large"
+              label={dgettext("dashboard_auth", "Log in with a passkey")}
+            >
+              <:icon_left>
+                <.lock_password />
+              </:icon_left>
+            </.button>
+            <span
+              data-part="passkey-status"
+              role="status"
+              data-cancelled={dgettext("dashboard_auth", "Passkey sign-in was cancelled.")}
+              data-failed={dgettext("dashboard_auth", "The passkey could not be used. Try again.")}
+            ></span>
+          </div>
+          <.line_divider :if={@email_auth_enabled?} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -127,7 +156,7 @@ defmodule TuistWeb.UserLoginLive do
             data-part="form"
             for={@form}
             id="login_form"
-            action={~p"/users/log_in"}
+            action={Authentication.login_path(~p"/users/log_in", @return_to)}
             phx-update="ignore"
           >
             <.alert
@@ -157,6 +186,7 @@ defmodule TuistWeb.UserLoginLive do
               id="password"
               type="password"
               input_type="password"
+              autocomplete="current-password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
               show_error_message={false}
@@ -202,37 +232,9 @@ defmodule TuistWeb.UserLoginLive do
             size="small"
             title={Flash.get(@flash, :passkey_error)}
           />
-          <%!-- Hidden until the hook confirms the browser supports WebAuthn. --%>
-          <div
-            :if={@email_auth_enabled?}
-            id="passkey-login"
-            data-part="passkey"
-            phx-hook="PasskeyLogin"
-            phx-update="ignore"
-            hidden
-            data-options-url={~p"/users/log_in/passkey/options"}
-            data-action-url={~p"/users/log_in/passkey"}
-          >
-            <.button
-              type="button"
-              variant="secondary"
-              size="large"
-              label={dgettext("dashboard_auth", "Log in with a passkey")}
-            >
-              <:icon_left>
-                <.lock_password />
-              </:icon_left>
-            </.button>
-            <span
-              data-part="passkey-status"
-              role="status"
-              data-cancelled={dgettext("dashboard_auth", "Passkey sign-in was cancelled.")}
-              data-failed={dgettext("dashboard_auth", "The passkey could not be used. Try again.")}
-            ></span>
-          </div>
           <form
             :if={@test_user_login_enabled?}
-            action={~p"/users/log_in"}
+            action={Authentication.login_path(~p"/users/log_in", @return_to)}
             method="post"
             style="display: contents;"
           >

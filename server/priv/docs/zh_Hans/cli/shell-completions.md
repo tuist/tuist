@@ -5,19 +5,19 @@
   "description": "了解如何配置 Shell 以自动补全 Tuist 命令。"
 }
 ---
-# Shell 补全
+# Shell 补全 {#shell-completions}
 
-如果你已**全局安装** Tuist（例如通过 Homebrew），可以为 Bash 和 Zsh 安装 Shell 补全，以自动补全命令和选项。
+如果你已**全局安装** Tuist（例如通过 Homebrew），可以为 Zsh、Bash 和 Fish 安装 Shell 补全，以自动补全命令和选项。
 
-> [!WARNING]
+> [!NOTE]
 > **什么是全局安装**
 >
-> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录下运行 `tuist`。这是 Homebrew 的默认安装方式。
+> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装方式。这意味着你可以在终端的任何目录中运行 `tuist`。这是 Homebrew 的默认安装方式。
 
 
-#### Zsh {#zsh}
+## Zsh {#zsh}
 
-如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你 already 拥有一个会自动加载补全脚本的目录 — `.oh-my-zsh/completions`。将新生成的补全脚本复制到该目录中名为 `_tuist` 的新文件：
+如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你已经拥有一个会自动加载补全脚本的目录——`.oh-my-zsh/completions`。将新生成的补全脚本复制到该目录中名为 `_tuist` 的新文件：
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -31,27 +31,34 @@ autoload -U compinit
 compinit
 ```
 
-接下来，在 `~/.zsh/completion` 处创建一个目录，并将补全脚本复制到新目录中，同样保存为名为 `_tuist` 的文件。
+接下来，在 `~/.zsh/completion` 创建一个目录，并将补全脚本复制到新目录中，同样保存为名为 `_tuist` 的文件。
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash {#bash}
+## Bash {#bash}
 
-如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新生成的补全脚本复制到文件 `/usr/local/etc/bash_completion.d/_tuist`：
-
-```bash
-tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
-```
-
-如果没有 bash-completion，你需要直接 source 补全脚本。将其复制到类似 `~/.bash_completions/` 的目录，然后将以下行添加到 `~/.bash_profile` 或 `~/.bashrc`：
+如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新生成的补全脚本复制到 bash-completion 的目录中：
 
 ```bash
-source ~/.bash_completions/example.bash
+tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-#### Fish {#fish}
+如果没有 bash-completion，你需要直接 source 补全脚本。将其写入类似 `~/.bash_completions/` 的目录：
+
+```bash
+mkdir -p ~/.bash_completions
+tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
+```
+
+然后将以下行添加到 `~/.bash_profile` 或 `~/.bashrc`：
+
+```bash
+source ~/.bash_completions/tuist.bash
+```
+
+## Fish {#fish}
 
 如果你使用 [fish shell](https://fishshell.com)，可以将新生成的补全脚本复制到 `~/.config/fish/completions/tuist.fish`：
 

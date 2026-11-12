@@ -33,23 +33,35 @@ tuistServer:
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
 
-# Pulso (observability backends in the Tuist clusters), proxied over MCP as
+# tuist-ops grants orb thread canary/production elevations once the person an
+# agent works for approves the exact `request_cluster_elevation` call in
+# Atlas. tuist-ops pins this cluster's JWKS (ATLAS_TOKEN_JWKS in
+# infra/helm/tuist-ops) and accepts only `atlas-production:atlas` tokens for
+# the `ops.tuist.dev` audience.
+tuistOps:
+  enabled: true
+  url: https://ops.tuist.dev
+  tokenAudience: ops.tuist.dev
+  tokenMountPath: /var/run/secrets/tuist-ops
+  tokenExpirationSeconds: 3600
+
+# Pulse (observability backends in the Tuist clusters), proxied over MCP as
 # one upstream per environment; tools surface as `<name>__<tool>`, so
-# production reads are `pulso__query_promql` and canary's
-# `pulso_canary__query_promql`. Each Pulso verifies the projected
+# production reads are `pulse__query_promql` and canary's
+# `pulse_canary__query_promql`. Each Pulse verifies the projected
 # ServiceAccount token offline against this cluster's pinned JWKS and trusts
 # `system:serviceaccount:atlas-production:atlas` read-only for its own
 # audience (infra/helm/k8s-monitoring `workloadIdentity`). Staging is left out:
-# it often runs another branch without Pulso, and an unreachable upstream slows
+# it often runs another branch without Pulse, and an unreachable upstream slows
 # every tools/list.
-pulso:
+pulse:
   upstreams:
-    - name: pulso
-      mcpUrl: https://pulso.tuist.dev/mcp
-      audience: pulso.tuist.dev
-    - name: pulso_canary
-      mcpUrl: https://pulso-canary.tuist.dev/mcp
-      audience: pulso-canary.tuist.dev
+    - name: pulse
+      mcpUrl: https://pulse.tuist.dev/mcp
+      audience: pulse.tuist.dev
+    - name: pulse_canary
+      mcpUrl: https://pulse-canary.tuist.dev/mcp
+      audience: pulse-canary.tuist.dev
 
 image:
   repository: ghcr.io/tuist/atlas
@@ -106,7 +118,10 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
-  ATLAS_MAILER_PROVIDER: "ses"
+  # Mailgun until ATLAS_SES_STARTS_AT, then SES without a restart, after 30
+  # days' notice of the subprocessor change. Afterwards set the provider to ses.
+  ATLAS_MAILER_PROVIDER: "mailgun"
+  ATLAS_SES_STARTS_AT: "2026-12-06T00:00:00Z"
   ATLAS_SES_REGION: "eu-west-1"
   ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
   # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.

@@ -214,7 +214,7 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
       AccountsFixtures.organization_fixture(
         creator: user,
         sso_provider: :okta,
-        sso_organization_id: "example.okta.com",
+        sso_organization_id: "overview-example.okta.com",
         oauth2_client_id: "client",
         oauth2_client_secret: "secret"
       )
@@ -237,7 +237,12 @@ defmodule TuistWeb.PublicProjectOverviewLiveTest do
     {:ok, view, _html} = live(conn, "/#{user.account.name}/#{source.name}")
     assert {:error, {:redirect, %{to: to}}} = live_redirect(view, to: protected_path)
     # The connected organization boundary now runs before overview admission.
-    assert to == "/users/auth/okta?organization_id=#{organization.id}"
+    assert to == "/#{account.name}/projects"
+    # Without a mount hint, anonymous clients reload the private account entry
+    # page. Its HTTP login guard records the return URL before any SSO proof.
+    challenged = get(conn, to)
+    assert redirected_to(challenged) == ~p"/users/log_in?#{%{return_to: to}}"
+    assert get_session(challenged, :user_return_to) == to
     assert conn |> get(protected_path) |> redirected_to() =~ "/users/auth/okta"
   end
 

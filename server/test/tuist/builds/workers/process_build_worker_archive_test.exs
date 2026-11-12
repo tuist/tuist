@@ -13,7 +13,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
 
   # One CLI sample inside the recording window (Apple reference time 0.125..1.325).
   @sample ~s({"timestamp":978307200.625,"cpu_usage_percent":50,"memory_used_bytes":1,"memory_total_bytes":2,) <>
-            ~s("network_bytes_in":3,"network_bytes_out":4,"disk_bytes_read":5,"disk_bytes_written":6})
+            ~s("network_bytes_in":3,"network_bytes_out":4,"disk_bytes_read":5,"disk_bytes_written":6,) <>
+            ~s("disk_total_bytes":500000000000,"disk_available_bytes":125000000000})
 
   setup :verify_on_exit!
 
@@ -108,6 +109,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
       assert sample.offset_ms == 500.0
       assert sample.cpu_usage_percent == 50
       assert sample.disk_bytes_written == 6
+      assert sample.disk_total_bytes == 500_000_000_000
+      assert sample.disk_available_bytes == 125_000_000_000
       {:ok, attrs}
     end)
 

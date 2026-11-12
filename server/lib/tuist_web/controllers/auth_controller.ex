@@ -14,6 +14,7 @@ defmodule TuistWeb.AuthController do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.GoogleOneTap
+  alias TuistWeb.Plugs.OAuthReturnToPlug
   alias Ueberauth.Auth
   alias Ueberauth.Auth.Credentials
   alias Ueberauth.Auth.Extra
@@ -24,6 +25,16 @@ defmodule TuistWeb.AuthController do
 
   @google_one_tap_max_age 3600
   @google_one_tap_max_challenges 10
+  # Read outstanding aggregate challenges from the compatibility release;
+  # new starts always own a distinct cookie.
+  @google_one_tap_cookie "_tuist_google_one_tap"
+  @google_one_tap_cookie_prefix "_tuist_google_one_tap_"
+  @google_one_tap_cookie_options [
+    path: "/auth/google/one-tap",
+    http_only: true,
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
+  ]
 
   defp log(level, message) do
     if not Tuist.Environment.test?() do
@@ -37,14 +48,22 @@ defmodule TuistWeb.AuthController do
   end
 
   def google_one_tap_start(conn, _params) do
-    if GoogleOneTap.enabled?(conn.assigns[:current_user]) do
+    conn = fetch_google_one_tap_cookies(conn)
+
+    # Refuse excess starts instead of evicting an active tab. This admission
+    # bound is per incoming snapshot; simultaneous starts can exceed it.
+    if GoogleOneTap.enabled?(conn.assigns[:current_user]) and
+         length(google_one_tap_challenges(conn)) < @google_one_tap_max_challenges do
       nonce = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
       challenge = %{nonce: nonce, issued_at: DateTime.to_unix(DateTime.utc_now())}
-      challenges = Enum.take([challenge | google_one_tap_challenges(conn)], @google_one_tap_max_challenges)
 
       conn
+      |> put_resp_cookie(
+        @google_one_tap_cookie_prefix <> nonce,
+        challenge,
+        [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
+      )
       |> put_resp_header("cache-control", "private, no-store")
-      |> put_session(:google_one_tap, challenges)
       |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce, csrf_token: get_csrf_token()})
     else
       send_resp(conn, :no_content, "")
@@ -52,16 +71,19 @@ defmodule TuistWeb.AuthController do
   end
 
   def google_one_tap(conn, params) do
-    {matching, remaining} = Enum.split_with(google_one_tap_challenges(conn), &(&1.nonce == params["nonce"]))
+    conn = fetch_google_one_tap_cookies(conn)
+    matching = Enum.filter(google_one_tap_challenges(conn), &(&1.nonce == params["nonce"]))
 
     conn =
       conn
-      |> put_google_one_tap_challenges(remaining)
+      |> consume_google_one_tap_challenge(params["nonce"])
       |> put_resp_header("cache-control", "private, no-store")
 
     with true <- GoogleOneTap.enabled?(conn.assigns[:current_user]),
          [%{nonce: nonce}] <- matching,
          {:ok, claims} <- Google.verify_identity_token(params["credential"], nonce) do
+      conn = Authentication.restore_login_return_to(conn, params)
+
       if Google.authoritative_email?(claims) or match?({:ok, _}, Accounts.get_oauth2_identity(:google, claims["sub"])) do
         complete_oauth_callback(conn, %Auth{
           provider: :google,
@@ -70,26 +92,40 @@ defmodule TuistWeb.AuthController do
           extra: %Extra{raw_info: %{user: claims}}
         })
       else
-        redirect(conn, to: ~p"/users/auth/google")
+        redirect(conn, to: Authentication.login_path(~p"/users/auth/google", get_session(conn, :user_return_to)))
       end
     else
-      _ ->
+      failure ->
+        log(:warning, "Google One Tap sign-in failed: #{inspect(failure)}")
+
         conn
         |> put_flash(
           :error,
           dgettext("dashboard_auth", "Google sign-in could not be completed. Please try logging in again.")
         )
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
     end
+  end
+
+  defp fetch_google_one_tap_cookies(conn) do
+    conn = fetch_cookies(conn)
+    names = Enum.filter(Map.keys(conn.req_cookies), &String.starts_with?(&1, @google_one_tap_cookie_prefix))
+    fetch_cookies(conn, signed: [@google_one_tap_cookie | names])
   end
 
   defp google_one_tap_challenges(conn) do
     now = DateTime.to_unix(DateTime.utc_now())
 
-    conn
-    |> get_session(:google_one_tap)
-    |> List.wrap()
-    |> Enum.filter(fn
+    independent =
+      Enum.flat_map(conn.cookies, fn
+        {name, %{nonce: nonce} = challenge} when is_binary(nonce) ->
+          if name == @google_one_tap_cookie_prefix <> nonce, do: [challenge], else: []
+
+        _ ->
+          []
+      end)
+
+    Enum.filter(independent ++ List.wrap(conn.cookies[@google_one_tap_cookie]), fn
       %{nonce: nonce, issued_at: issued_at} when is_binary(nonce) and is_integer(issued_at) ->
         age = now - issued_at
         age >= 0 and age < @google_one_tap_max_age
@@ -99,8 +135,41 @@ defmodule TuistWeb.AuthController do
     end)
   end
 
-  defp put_google_one_tap_challenges(conn, []), do: delete_session(conn, :google_one_tap)
-  defp put_google_one_tap_challenges(conn, challenges), do: put_session(conn, :google_one_tap, challenges)
+  defp consume_google_one_tap_challenge(conn, nonce) do
+    conn =
+      if is_binary(nonce) and byte_size(nonce) == 43 and nonce =~ ~r/\A[A-Za-z0-9_-]+\z/ do
+        delete_resp_cookie(conn, @google_one_tap_cookie_prefix <> nonce, @google_one_tap_cookie_options)
+      else
+        conn
+      end
+
+    # Do not write the legacy aggregate at all for independent challenges.
+    # Legacy requests retain their old consumption semantics during rollout.
+    case conn.cookies[@google_one_tap_cookie] do
+      challenges when is_list(challenges) ->
+        if Enum.any?(challenges, &match?(%{nonce: ^nonce}, &1)) do
+          remaining = Enum.filter(google_one_tap_challenges(conn), &(&1.nonce != nonce and &1 in challenges))
+          put_google_one_tap_challenges(conn, remaining)
+        else
+          conn
+        end
+
+      _ ->
+        conn
+    end
+  end
+
+  defp put_google_one_tap_challenges(conn, []),
+    do: delete_resp_cookie(conn, @google_one_tap_cookie, @google_one_tap_cookie_options)
+
+  defp put_google_one_tap_challenges(conn, challenges) do
+    put_resp_cookie(
+      conn,
+      @google_one_tap_cookie,
+      challenges,
+      [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
+    )
+  end
 
   def okta_request(conn, params), do: sso_request(conn, params, :okta)
   def oauth2_request(conn, params), do: sso_request(conn, params, :oauth2)
@@ -113,7 +182,7 @@ defmodule TuistWeb.AuthController do
       %{"organization_id" => organization_id} ->
         with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
              {:ok, config} <- Accounts.oauth2_config_for_organization(organization) do
-          state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+          state = OAuthReturnToPlug.version_state(Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false))
 
           query_params =
             maybe_put_login_hint(
@@ -130,6 +199,7 @@ defmodule TuistWeb.AuthController do
           url = config.authorize_url <> "?" <> URI.encode_query(query_params)
 
           conn
+          |> OAuthReturnToPlug.put(state, Map.get(params, "return_to", get_session(conn, :user_return_to)))
           |> put_session(:sso_organization_id, organization_id)
           |> put_session(:sso_state, state)
           |> put_session(:sso_route_provider, route_provider)
@@ -165,6 +235,7 @@ defmodule TuistWeb.AuthController do
           |> delete_session(:sso_organization_id)
           |> delete_session(:sso_state)
           |> delete_session(:sso_route_provider)
+          |> OAuthReturnToPlug.restore(conn.params)
           |> complete_oauth_callback(auth, sso_organization: organization)
         else
           {:error, :not_found} ->
@@ -186,9 +257,7 @@ defmodule TuistWeb.AuthController do
   def delete(conn, _params) do
     conn
     |> put_flash(:info, "You have been logged out!")
-    |> clear_session()
-    |> redirect(to: ~p"/")
-    |> halt()
+    |> Authentication.log_out_user()
   end
 
   def callback(%{assigns: %{ueberauth_failure: failure}} = _conn, _params) do
@@ -200,9 +269,9 @@ defmodule TuistWeb.AuthController do
     raise UnauthorizedError, oauth_failure_message(failure)
   end
 
-  def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_auth: auth}} = conn, params) do
     if provider_auth_enabled?(auth.provider) do
-      complete_oauth_callback(conn, auth)
+      conn |> OAuthReturnToPlug.restore(params) |> complete_oauth_callback(auth)
     else
       raise NotFoundError,
             dgettext("dashboard", "The authentication URL is not supported")
@@ -244,6 +313,7 @@ defmodule TuistWeb.AuthController do
   defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
+    conn = adopt_legacy_return_to(conn)
     sso_organization = Keyword.get(opts, :sso_organization)
     provider_organization_id = Accounts.extract_provider_organization_id(auth)
 
@@ -256,20 +326,11 @@ defmodule TuistWeb.AuthController do
     case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
         user = record_returning_mailbox_proof(oauth2_identity.user, auth)
-        oauth_return_url = get_session(conn, :oauth_return_to)
-
-        if oauth_return_url do
-          conn
-          |> put_session(:user_return_to, oauth_return_url)
-          |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(user, auth_params)
-        else
-          Authentication.log_in_user(conn, user, auth_params)
-        end
+        Authentication.log_in_user(conn, user, auth_params)
 
       {:error, :not_found} ->
         ensure_provider_email_verified!(auth)
-        oauth_return_url = get_session(conn, :oauth_return_to)
+        return_to = get_session(conn, :user_return_to)
 
         case Accounts.get_user_by_email(auth.info.email) do
           {:error, :not_found} ->
@@ -289,7 +350,7 @@ defmodule TuistWeb.AuthController do
                   auth,
                   sso_organization,
                   provider_organization_id,
-                  oauth_return_url
+                  return_to
                 )
 
               new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) ->
@@ -299,12 +360,11 @@ defmodule TuistWeb.AuthController do
                   "email" => auth.info.email,
                   "provider_organization_id" => provider_organization_id,
                   "sso_organization_id" => get_in(sso_organization, [Access.key(:id)]),
-                  "oauth_return_url" => oauth_return_url,
+                  "oauth_return_url" => return_to,
                   "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
                 }
 
                 conn
-                |> delete_session(:oauth_return_to)
                 |> put_session(:pending_oauth_signup, oauth_data)
                 |> redirect(to: ~p"/users/choose-username")
                 |> halt()
@@ -321,7 +381,7 @@ defmodule TuistWeb.AuthController do
               auth_params,
               sso_organization,
               provider_organization_id,
-              oauth_return_url
+              return_to
             )
         end
     end
@@ -334,7 +394,7 @@ defmodule TuistWeb.AuthController do
          auth_params,
          sso_organization,
          provider_organization_id,
-         oauth_return_url
+         return_to
        ) do
     invitation =
       pending_invitation_for(
@@ -352,19 +412,16 @@ defmodule TuistWeb.AuthController do
           invitation,
           sso_organization,
           provider_organization_id,
-          oauth_return_url
+          return_to
         )
 
       signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
-        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
+        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, return_to)
 
       invitation ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
         conn
         |> maybe_put_post_invitation_context(
-          prior_return_to,
+          return_to,
           existing_user.id,
           invitation.token
         )
@@ -392,7 +449,7 @@ defmodule TuistWeb.AuthController do
          invitation,
          sso_organization,
          provider_organization_id,
-         oauth_return_url
+         return_to
        ) do
     case Accounts.link_oauth_identity_by_email(existing_user, %{
            provider: auth.provider,
@@ -408,7 +465,7 @@ defmodule TuistWeb.AuthController do
           invitation,
           auth_params,
           sso_organization,
-          oauth_return_url
+          return_to
         )
 
       {:error, :email_changed} ->
@@ -438,32 +495,20 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do
-    cond do
-      invitation &&
-          not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
-        conn
-        |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(
-          existing_user,
-          Map.merge(auth_params, %{
-            post_invitation_return_to: prior_return_to,
-            post_invitation_token: invitation.token
-          })
-        )
-
-      oauth_return_url ->
-        conn
-        |> put_session(:user_return_to, oauth_return_url)
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(existing_user, auth_params)
-
-      true ->
-        Authentication.log_in_user(conn, existing_user, auth_params)
+  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, return_to) do
+    if invitation &&
+         not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) do
+      conn
+      |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
+      |> Authentication.log_in_user(
+        existing_user,
+        Map.merge(auth_params, %{
+          post_invitation_return_to: return_to,
+          post_invitation_token: invitation.token
+        })
+      )
+    else
+      Authentication.log_in_user(conn, existing_user, auth_params)
     end
   end
 
@@ -495,9 +540,9 @@ defmodule TuistWeb.AuthController do
 
   defp signed_in_sso_link_user(_conn, _provider, _organization), do: nil
 
-  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, oauth_return_url) do
+  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, return_to) do
     conn
-    |> delete_session(:oauth_return_to)
+    |> delete_session(:user_return_to)
     |> put_session(:pending_sso_link, %{
       "user_id" => user.id,
       "organization_id" => organization.id,
@@ -505,11 +550,28 @@ defmodule TuistWeb.AuthController do
       "uid" => to_string(auth.uid),
       "provider_organization_id" => provider_organization_id,
       "email" => auth.info.email,
-      "return_to" => oauth_return_url,
+      "return_to" => return_to,
       "issued_at" => System.system_time(:second)
     })
     |> redirect(to: ~p"/auth/sso/link")
     |> halt()
+  end
+
+  # Older provider sign-ins may still carry the provider-only `:oauth_return_to`.
+  # Only provider sign-ins ever honored it,
+  # so it is adopted here, and only when nothing newer was recorded. Cookie
+  # sessions have no server-side expiry, so removing this later costs such
+  # sessions their pending return path and nothing else.
+  defp adopt_legacy_return_to(conn) do
+    case get_session(conn, :oauth_return_to) do
+      nil ->
+        conn
+
+      legacy ->
+        conn
+        |> delete_session(:oauth_return_to)
+        |> put_session(:user_return_to, get_session(conn, :user_return_to) || legacy)
+    end
   end
 
   defp log_in_to_link_sso(conn, provider, organization) do

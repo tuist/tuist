@@ -1,0 +1,9 @@
+{{- include "pulse.validate" . }}
+{{- if .Values.pools.enabled }}
+{{- range $pool := list "ingest" "query" "maintenance" }}
+---
+{{ include "pulse.deployment" (dict "root" $ "pool" $pool "values" (index $.Values.pools $pool)) }}
+{{- end }}
+{{- else }}
+{{ include "pulse.deployment" (dict "root" . "pool" "" "values" (dict "replicas" .Values.replicaCount "autoscaling" .Values.autoscaling)) }}
+{{- end }}

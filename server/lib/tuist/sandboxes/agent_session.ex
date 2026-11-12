@@ -3,8 +3,8 @@ defmodule Tuist.Sandboxes.AgentSession do
   A Managed Agents session Tuist started on an account's connected
   environment. Anthropic owns the conversation; this row keeps the ids
   needed to follow it (`anthropic_session_id`, `anthropic_agent_id`), what
-  was asked (`prompt`, repository), the budget and the last status the
-  server saw. `sandbox_id` is bound by the router once the session's first
+  was asked (`prompt`, repository, `platform`), the budget and the last
+  status the server saw. A nil `platform` runs the environment's. `sandbox_id` is bound by the router once the session's first
   work item creates its VM.
   """
   use Ecto.Schema
@@ -26,6 +26,7 @@ defmodule Tuist.Sandboxes.AgentSession do
     field :repository_ref, :string
     field :model, :string
     field :budget_cents, :integer
+    field :platform, Ecto.Enum, values: [:linux, :darwin]
     field :last_status, :string
     field :last_stop_reason, :string
 
@@ -43,7 +44,7 @@ defmodule Tuist.Sandboxes.AgentSession do
   """
   def params_changeset(agent_session, attrs) do
     agent_session
-    |> cast(attrs, [:prompt, :title, :repository_url, :repository_ref, :model, :budget_cents])
+    |> cast(attrs, [:prompt, :title, :repository_url, :repository_ref, :model, :budget_cents, :platform])
     |> validate_required([:prompt])
     |> validate_length(:title, max: 255)
     |> validate_length(:model, min: 1, max: 255)

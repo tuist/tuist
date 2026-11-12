@@ -29,6 +29,15 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     network_out_data = Enum.map(metrics, fn m -> bytes_to_mib(m.network_bytes_out) end)
     disk_read_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_read) end)
     disk_write_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_written) end)
+    disk_total_data = Enum.map(metrics, &bytes_to_gb(Map.get(&1, :disk_total_bytes)))
+
+    disk_used_data =
+      Enum.map(metrics, fn metric ->
+        case {Map.get(metric, :disk_total_bytes), Map.get(metric, :disk_available_bytes)} do
+          {total, available} when is_number(total) and is_number(available) -> bytes_to_gb(total - available)
+          _ -> nil
+        end
+      end)
 
     label_custom_values =
       case labels do
@@ -66,6 +75,9 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
       |> assign(:network_out_data, network_out_data)
       |> assign(:disk_read_data, disk_read_data)
       |> assign(:disk_write_data, disk_write_data)
+      |> assign(:disk_total_data, disk_total_data)
+      |> assign(:disk_used_data, disk_used_data)
+      |> assign(:has_disk_space, Enum.any?(disk_total_data ++ disk_used_data, &is_number/1))
       |> assign(:legend_config, legend_config)
 
     ~H"""
@@ -219,11 +231,49 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               }
             />
           </.card_section>
+          <.card_section :if={@has_disk_space} data-part="chart-card">
+            <span data-part="chart-title">{dgettext("dashboard_builds", "Disk space")}</span>
+            <.chart
+              id="disk-space-chart"
+              type="line"
+              labels={@labels}
+              smooth={0.1}
+              series={[
+                %{name: dgettext("dashboard_builds", "Used"), values: @disk_used_data},
+                %{name: dgettext("dashboard_builds", "Total"), values: @disk_total_data}
+              ]}
+              colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
+              extra_options={
+                %{
+                  grid: %{left: "3%", right: "5%", bottom: "25%", top: "8%", containLabel: true},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0],
+                      formatter: "fn:toLocaleTime"
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GB"}
+                  },
+                  tooltip: %{valueFormat: "{value} GB", dateFormat: "minute"},
+                  legend: @legend_config
+                }
+              }
+            />
+          </.card_section>
         </.card_section>
       </.card>
     </div>
     """
   end
+
+  defp bytes_to_gb(nil), do: nil
 
   defp bytes_to_gb(bytes) do
     Float.round(bytes / (1000 * 1000 * 1000), 1)

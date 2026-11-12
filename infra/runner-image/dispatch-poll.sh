@@ -942,7 +942,7 @@ RUNNER_DIAG_DIR=/Users/runner/actions-runner/_diag
 
 # read_job_result prints how the job on this machine ended, lowercased
 # (succeeded, failed, canceled, ...), or "unknown" when the agent left no
-# verdict. `$1` names the agent: github, buildkite or gitlab.
+# verdict. `$1` names the agent: github, buildkite, gitlab or api.
 #
 # This, and not the runner's exit status, is what gates saving the cache
 # volumes. `run.sh` maps every Listener exit code except a restart to 0, and the
@@ -1070,6 +1070,22 @@ while true; do
           exit 1
         fi
       fi
+      # A job created through the Tuist API, staged the same way: the server
+      # is its coordinator, so the whole job travels in the response.
+      if ! api_job=$("${JQ}" -r 'has("api_job")' /tmp/dispatch.json); then
+        echo "dispatch-poll: invalid assignment response; aborting"
+        exit 1
+      fi
+      if [ "${api_job}" = "true" ]; then
+        api_tmp=$(umask 077; mktemp /tmp/tuist-api-job.XXXXXX) || exit 1
+        if ! { "${JQ}" -e --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.api_job + {report_url: $report_url}' /tmp/dispatch.json >"${api_tmp}" &&
+          mv -f "${api_tmp}" /tmp/tuist-api-job.json; }; then
+          rm -f "${api_tmp}" 2>/dev/null || true
+          echo "dispatch-poll: API job could not be staged; aborting"
+          exit 1
+        fi
+      fi
       # GitHub and Buildkite credentials are opaque ASCII, so their extraction
       # below does not need to interpret nested JSON or escape sequences.
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
@@ -1084,7 +1100,8 @@ while true; do
       # is read with the JSON parser rather than the sed extraction above.
       bitrise_secret=$("${JQ}" -r '.bitrise_intro_secret // empty' /tmp/dispatch.json 2>/dev/null)
       bitrise_report_token=$("${JQ}" -r '.bitrise_report_token // empty' /tmp/dispatch.json 2>/dev/null)
-      if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ -z "${bitrise_secret}" ] && [ "${gitlab_job}" != "true" ]; then
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ -z "${bitrise_secret}" ] && [ "${gitlab_job}" != "true" ] &&
+        [ "${api_job}" != "true" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
@@ -1225,6 +1242,8 @@ HOOK
       # go back to waiting, so a received message does not always become a
       # Worker. Bound how long the watchdog defers on one.
       WORKER_GRACE_SECONDS=60
+      IDLE_STOP_MARKER=/tmp/tuist-runner-idle-stop
+      rm -f "${IDLE_STOP_MARKER}"
       job_message_received() {
         grep -q 'MessageReceived_PipelineAgentJobRequest\|MessageReceived_RunnerJobRequest' \
           "${RUNNER_PERF_FILE}" 2>/dev/null
@@ -1250,7 +1269,14 @@ HOOK
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
-      if [ "${gitlab_job}" = "true" ]; then
+      if [ "${api_job}" = "true" ]; then
+        /opt/tuist/tuist-job-runner --job-file /tmp/tuist-api-job.json \
+          --builds-dir /Users/runner/work --result-file "${JOB_RESULT_FILE}" &
+        runner_pid=$!
+        wait "${runner_pid}"
+        rc=$?
+        JOB_RESULT=$(read_job_result api)
+      elif [ "${gitlab_job}" = "true" ]; then
         /opt/tuist/tuist-gitlab-runner --job-file /tmp/tuist-gitlab-job.json \
           --builds-dir /Users/runner/work --result-file "${JOB_RESULT_FILE}" &
         runner_pid=$!
@@ -1392,7 +1418,9 @@ AGENT_CONFIG
           # Deferring on the Listener's own record of the inbound message
           # covers that gap, because that record predates the acknowledgment
           # rather than trailing it. What stays exposed is the interval
-          # between the last read and the signal below, not the fetch.
+          # between the last read and the Listener deleting its session
+          # after the signal below; a job that lands there is cancelled by
+          # the Listener, which GitHub reports at once.
           worker_wait=0
           while :; do
             [ -e "${JOB_STARTED_MARKER}" ] && exit 0
@@ -1404,6 +1432,26 @@ AGENT_CONFIG
             worker_wait=$((worker_wait + 1))
           done
           echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+          : >"${IDLE_STOP_MARKER}"
+          # Signal the Listener, not run.sh. run.sh has no trap, so a SIGTERM
+          # killed only that wrapper: the Listener kept its broker session
+          # through the teardown below, GitHub handed it a queued job, and
+          # the halt cut the job off, which GitHub reports ten minutes later
+          # as "lost communication". Evidence: the 11 such jobs from
+          # 2026-10-14 to 10-20 ran their first steps alongside this script's
+          # teardown output. On SIGTERM the Listener deletes its session, so
+          # GitHub stops routing to it, cancels a job that reached it in the
+          # meantime, and exits; run.sh then exits with it. Not
+          # RUNNER_MANUALLY_TRAP_SIG: run.sh forwards SIGINT, which a job
+          # started with `&` from this script ignores. The Listener gives up
+          # on its shutdown after 30 s, so the fallback signal below only
+          # bounds the wait if it hangs.
+          pkill -TERM -f 'actions-runner/bin/Runner.Listener' 2>/dev/null || true
+          stop_wait=0
+          while kill -0 "${runner_pid}" 2>/dev/null && [ "${stop_wait}" -lt 45 ]; do
+            sleep 1
+            stop_wait=$((stop_wait + 1))
+          done
           kill -TERM "${runner_pid}" 2>/dev/null || true
         ) &
         watchdog_pid=$!
@@ -1411,6 +1459,9 @@ AGENT_CONFIG
       fi
       wait "${runner_pid}"
       rc=$?
+      # A Listener stopped by the watchdog exits cleanly; keep reporting an
+      # idle stop as the SIGTERM exit it was before.
+      [ -e "${IDLE_STOP_MARKER}" ] && rc=143
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       JOB_RESULT=$(read_job_result github)

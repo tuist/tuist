@@ -46,12 +46,12 @@ jq --exit-status '
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.volumes[]? | .projected.sources[]? |
       select(has("serviceAccountToken")) | .serviceAccountToken.audience ] ==
-    ["tuist-server", "pulso.tuist.dev", "pulso-canary.tuist.dev"]) and
+    ["tuist-server", "ops.tuist.dev", "pulse.tuist.dev", "pulse-canary.tuist.dev"]) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
-      .spec.template.spec.volumes[]? | select(.name == "pulso-token") |
+      .spec.template.spec.volumes[]? | select(.name == "pulse-token") |
       .projected.sources[]? | .serviceAccountToken ] ==
-    [{"path": "pulso", "audience": "pulso.tuist.dev", "expirationSeconds": 3600},
-     {"path": "pulso_canary", "audience": "pulso-canary.tuist.dev", "expirationSeconds": 3600}]) and
+    [{"path": "pulse", "audience": "pulse.tuist.dev", "expirationSeconds": 3600},
+     {"path": "pulse_canary", "audience": "pulse-canary.tuist.dev", "expirationSeconds": 3600}]) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.containers[] | .env[] |
       select(.name == "TUIST_SERVER_TOKEN_PATH") | .value ] == ["/var/run/secrets/tuist/token"]) and
@@ -62,7 +62,10 @@ jq --exit-status '
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.volumes[]? | select(.name == "tuist-server-token") |
       .projected.sources[]? | .serviceAccountToken ] ==
-    [{"path": "token", "audience": "tuist-server", "expirationSeconds": 3600}])
+    [{"path": "token", "audience": "tuist-server", "expirationSeconds": 3600}]) and
+  ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
+      .spec.template.spec.containers[] | .env[] |
+      select(.name == "TUIST_OPS_TOKEN_PATH") | .value ] == ["/var/run/secrets/tuist-ops/token"])
 ' "$work/managed.json" > /dev/null
 
 # Old operator values cannot restore API access. This next check proves only

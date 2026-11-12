@@ -6,13 +6,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
@@ -79,6 +85,22 @@ func main() {
 		logger.Error("DISK_BUDGET_GIB must not be negative", "value", diskBudgetGiB)
 		os.Exit(1)
 	}
+	blobCacheGiB := intEnv(logger, "BLOB_CACHE_GIB", 0)
+	if blobCacheGiB < 0 {
+		logger.Error("BLOB_CACHE_GIB must not be negative", "value", blobCacheGiB)
+		os.Exit(1)
+	}
+	// The blob cache comes out of the disk budget: the server places sandboxes
+	// against the budget the daemon reports, so it never counts on the bytes
+	// the cache may hold.
+	sandboxBudgetGiB := diskBudgetGiB
+	if diskBudgetGiB > 0 && blobCacheGiB > 0 {
+		if blobCacheGiB >= diskBudgetGiB {
+			logger.Error("BLOB_CACHE_GIB must be below DISK_BUDGET_GIB", "blob_cache_gib", blobCacheGiB, "disk_budget_gib", diskBudgetGiB)
+			os.Exit(1)
+		}
+		sandboxBudgetGiB -= blobCacheGiB
+	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
@@ -117,11 +139,13 @@ func main() {
 	if len(dns) == 0 {
 		logger.Warn("no resolvers found in /etc/resolv.conf; guests get no DNS")
 	}
-	fcVersion := "unknown"
-	if v, err := firecracker.BinaryVersion(context.Background(), firecrackerBin); err == nil {
-		fcVersion = v
-	} else {
-		logger.Warn("firecracker version unavailable", "bin", firecrackerBin, "error", err)
+	// Startup discards template shapes and memory images another version
+	// wrote, so a daemon that cannot tell its own version must not start:
+	// guessing would throw away every snapshot on the node.
+	fcVersion, err := firecracker.BinaryVersion(context.Background(), firecrackerBin)
+	if err != nil {
+		logger.Error("reading the firecracker version", "bin", firecrackerBin, "error", err)
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -130,10 +154,32 @@ func main() {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	metrics := sandbox.NewMetrics(registry)
+	var blobs *blobcache.Cache
+	if blobCacheGiB > 0 {
+		if blobs, err = blobcache.New(filepath.Join(dataDir, "blobs"), int64(blobCacheGiB)<<30, logger, blobcache.NewMetrics(registry)); err != nil {
+			logger.Error("creating the blob cache", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
-	netManager.DaemonOnlyTCPPort = intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0)
+	netManager.DaemonOnlyTCPPorts = tcpPortsEnv(logger, "DAEMON_ONLY_TCP_PORTS")
+	// The single-port variable an older chart sets.
+	if port := intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0); port > 0 {
+		netManager.DaemonOnlyTCPPorts = append(netManager.DaemonOnlyTCPPorts, port)
+	}
+	// Guests reach the Tuist API through its public URL. The in-cluster
+	// server is the daemon's control channel, so the guests are kept off
+	// its Service address unless the deployment needs them to reach it.
+	if serverURL != "" && !boolEnv(logger, "GUESTS_REACH_SERVER", false) {
+		endpoints, err := serviceEndpoints(ctx, serverURL)
+		if err != nil {
+			logger.Error("resolving SERVER_URL to keep the guests off it", "error", err)
+			os.Exit(1)
+		}
+		netManager.DaemonOnlyEndpoints = endpoints
+	}
 	switch backend := os.Getenv("NETWORK_BACKEND"); backend {
 	case "", "iproute2":
 	case "netlink":
@@ -157,7 +203,7 @@ func main() {
 		os.Exit(1)
 	}
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}
@@ -203,14 +249,38 @@ func main() {
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
 		AllowedShapes: allowedShapes,
-		SnapshotDir:   snapshotDir,
+		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion,
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
+		Blobs: blobs,
 	})
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
+	}
+	// Remote-execution daemons keep their old tags: the server places
+	// executions on the tag most nodes are configured with, so a node that
+	// dropped the old one during an OnDelete rollout would take no work until
+	// most nodes rolled.
+	if templateTag != "" && executionSlots == 0 {
+		inUse := map[string]bool{}
+		for _, sb := range manager.List() {
+			if sb.Template == templateName {
+				inUse[sb.TemplateTag] = true
+			}
+		}
+		for _, snap := range manager.DiskSnapshots() {
+			if snap.Template == templateName {
+				inUse[snap.TemplateTag] = true
+			}
+		}
+		removed, err := store.RemoveStaleTags(templateName, templateTag, func(tag string) bool { return inUse[tag] })
+		if err != nil {
+			logger.Warn("removing stale template tags", "template", templateName, "removed", removed, "error", err)
+		} else if len(removed) > 0 {
+			logger.Info("removed stale template tags", "template", templateName, "tags", removed)
+		}
 	}
 
 	go func() {
@@ -263,7 +333,7 @@ func main() {
 
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
-		BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+		BlobCacheDir: filepath.Join(dataDir, "blobs"), BudgetBytes: uint64(sandboxBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
 	}
 	diskReport := func() protocol.DiskReport {
 		report, err := disk.Report()
@@ -286,6 +356,8 @@ func main() {
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
 					DirectExecEndpoint: directExecEndpoint,
+					DefaultTemplate:    templateName,
+					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
 				}
@@ -366,6 +438,60 @@ func boolEnv(logger *slog.Logger, key string, fallback bool) bool {
 		os.Exit(1)
 	}
 	return parsed
+}
+
+func tcpPortsEnv(logger *slog.Logger, key string) []int {
+	var ports []int
+	for _, field := range strings.Split(os.Getenv(key), ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		port, err := strconv.Atoi(field)
+		if err != nil || port < 1 || port > 65535 {
+			logger.Error("invalid TCP port", "env", key, "value", field)
+			os.Exit(1)
+		}
+		ports = append(ports, port)
+	}
+	return ports
+}
+
+// serviceEndpoints resolves a URL's host to its IPv4 addresses and port.
+// Cluster DNS can lag a Pod's start, so a failed lookup is retried for
+// about a minute before startup gives up.
+func serviceEndpoints(ctx context.Context, rawURL string) ([]netip.AddrPort, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return nil, fmt.Errorf("parsing %q: no host", rawURL)
+	}
+	port := 80
+	if u.Scheme == "https" {
+		port = 443
+	}
+	if u.Port() != "" {
+		if port, err = strconv.Atoi(u.Port()); err != nil {
+			return nil, fmt.Errorf("parsing the port of %q: %w", rawURL, err)
+		}
+	}
+	var addrs []netip.Addr
+	for attempt := 1; ; attempt++ {
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		addrs, err = net.DefaultResolver.LookupNetIP(lookupCtx, "ip4", u.Hostname())
+		cancel()
+		if err == nil || attempt == 12 || ctx.Err() != nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	if err != nil {
+		return nil, err
+	}
+	endpoints := make([]netip.AddrPort, 0, len(addrs))
+	for _, addr := range addrs {
+		endpoints = append(endpoints, netip.AddrPortFrom(addr.Unmap(), uint16(port)))
+	}
+	return endpoints, nil
 }
 
 func intEnv(logger *slog.Logger, key string, fallback int) int {

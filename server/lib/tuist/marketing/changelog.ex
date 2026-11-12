@@ -19,6 +19,9 @@ defmodule Tuist.Marketing.Changelog do
     Enum.reverse(content_entries())
   end
 
+  # Only English article sources exist; UI translations are not article translations.
+  def available_locales(%Entry{}), do: ["en"]
+
   def get_categories do
     get_entries() |> Enum.map(& &1.category) |> Enum.uniq()
   end

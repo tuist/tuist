@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4afb193fdc5b867d8261e92282523ec5e576b8c1d36adeee868e8880eed3f98d",
+  "hash": "bf21652af5be60bfaf963fceb6421d75ed82d97ccdde5f62d5880897f6492084",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,13 +14,13 @@
                   "content_hash": "f36e56d72a0e7e94dbca7e9047500235072845d2f0cb053884891318c7929e10"
                 },
                 "## Choosing a version {#choosing-a-version}": {
-                  "content_hash": "cf37b2db39017447965afe495217ce718da34dcc19a6c2acb9830ed2aec569b9"
+                  "content_hash": "2189ee856a7a70a04cd78a098846982a34efb86277dd2d7aeb938afae7923e6d"
                 },
                 "## Recommended strategy {#recommended-strategy}": {
                   "content_hash": "36820397151f63d6c7a0827e71c1152f15a5bcc60befb0a42faebba963b703c6"
                 },
                 "## Support and backports {#support-and-backports}": {
-                  "content_hash": "5f9850b9cab54bcfd7e7af5cd411de65e5df756bc018d69692cf4d57a26c5d73"
+                  "content_hash": "b7787ab238cdc915b9a7b07bcb4ef378c6408edb27a7f902b177b5af9589ecdc"
                 },
                 "## The channels {#the-channels}": {
                   "content_hash": "aab38b3fce7695ef1b984527da936739fa614e7b48f82003ba9f79fcf0a6d213"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "306b94095a9d5b30d8f7e2b3cd237b7035a207629a422a5103b475975d5dd601",
+          "hash": "33ba7d89ef8217d8e1b478c1d7ac99ddf2180ebe3089cf7dad4f03ce1f80cd96",
           "kind": "source",
           "label": "server/priv/docs/en/cli/release-channels.md",
           "metadata": {
-            "content_hash": "eb0d1920fa1fffd21d76bacbbc98ae20151b2b1f3be42b451947e14b2f8a0201"
+            "content_hash": "5351ef34de4c402cb83c33b808631254086d51cb71923cbd5e5a34259f7d559b"
           }
         },
         {
@@ -242,14 +242,14 @@
         }
       ],
       "details": {},
-      "hash": "4afb193fdc5b867d8261e92282523ec5e576b8c1d36adeee868e8880eed3f98d",
+      "hash": "bf21652af5be60bfaf963fceb6421d75ed82d97ccdde5f62d5880897f6492084",
       "kind": "translation_input",
       "label": "server/priv/docs/en/cli/release-channels.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5902febf215e3173a4a66d981d7c77c483a85da070d57440c06cf46c31b34907",
+  "output_hash": "1680ce4d734d39ff5279fa3916738799b621ca918296d8b4e2d319d17c68bf87",
   "output_path": "server/priv/docs/zh_Hant/cli/release-channels.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "92cdb470cfe891bd71471ea92bd1b14409c523db",
   "source_path": "server/priv/docs/en/cli/release-channels.md",
-  "translated_at": "2026-11-04T17:45:58.012362Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:36:35.234161Z",
+  "translation_session_id": "01a1b17e-ce4a-773d-acc9-dd237d9e7e04"
 }

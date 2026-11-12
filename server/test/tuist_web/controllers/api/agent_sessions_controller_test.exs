@@ -39,7 +39,7 @@ defmodule TuistWeb.API.AgentSessionsControllerTest do
 
       reject(&ControlPlane.create_agent/2)
 
-      expect(ControlPlane, :create_session, fn "sk-ant-api", attrs ->
+      expect(ControlPlane, :create_session, fn {:api_key, "sk-ant-api"}, attrs ->
         assert attrs.agent == "agent_cached"
         assert attrs.environment_id == "env_ctrl"
         assert attrs.budget_cents == 1000
@@ -112,7 +112,34 @@ Fix the build."
         |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions", %{prompt: "Fix the build."})
         |> json_response(:bad_request)
 
-      assert response["message"] =~ "API key"
+      assert response["message"] =~ "no Anthropic credentials"
+    end
+
+    test "answers 502 naming the authentication history when Anthropic rejects the federation", %{
+      conn: conn,
+      account: account
+    } do
+      agent_environment_fixture(
+        account: account,
+        anthropic_organization_id: "00000000-0000-4000-8000-000000000001",
+        anthropic_workspace_id: "wrkspc_01Abc",
+        anthropic_service_account_id: "svac_01Abc",
+        anthropic_federation_rule_id: "fdrl_01Abc"
+      )
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 401, body: %{"error" => %{"message" => "Authentication failed"}}}}
+      end)
+
+      reject(&ControlPlane.create_session/2)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions", %{prompt: "Fix the build."})
+        |> json_response(:bad_gateway)
+
+      assert response["message"] =~ "rejected the federated token exchange (401: Authentication failed)"
+      assert response["message"] =~ "workload-identity-federation?tab=history"
     end
 
     test "answers 400 for invalid params", %{conn: conn, account: account} do
@@ -160,7 +187,7 @@ Fix the build."
       assert %{"agent_sessions" => [%{"id" => ^id, "status" => "running"}]} =
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions") |> json_response(:ok)
 
-      expect(ControlPlane, :get_session, fn "sk-ant-api-fixture", "sesn_show" ->
+      expect(ControlPlane, :get_session, fn {:api_key, "sk-ant-api-fixture"}, "sesn_show" ->
         {:ok,
          %{
            "status" => "idle",
@@ -168,7 +195,7 @@ Fix the build."
          }}
       end)
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_show", _opts ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_show", _opts ->
         {:ok,
          %{data: [%{"type" => "session.status_idle", "stop_reason" => %{"type" => "budget_reached"}}], next_page: nil}}
       end)
@@ -201,7 +228,7 @@ Fix the build."
     test "queues a message for the session", %{conn: conn, account: account} do
       agent_session = agent_session_fixture(account: account, anthropic_session_id: "sesn_msg")
 
-      expect(ControlPlane, :send_message, fn "sk-ant-api-fixture", "sesn_msg", "Now run the tests." ->
+      expect(ControlPlane, :send_message, fn {:api_key, "sk-ant-api-fixture"}, "sesn_msg", "Now run the tests." ->
         {:ok, %{"data" => []}}
       end)
 
@@ -243,7 +270,7 @@ Fix the build."
         }
       ]
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_evt", [limit: 1000] ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_evt", [limit: 1000] ->
         {:ok, %{data: raw, next_page: nil}}
       end)
 
@@ -269,7 +296,7 @@ Fix the build."
 
       newer = %{"id" => "sevt_4", "type" => "agent.thinking", "processed_at" => "2026-09-05T10:00:03Z"}
 
-      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_evt", opts ->
+      expect(ControlPlane, :list_events, fn {:api_key, "sk-ant-api-fixture"}, "sesn_evt", opts ->
         assert Enum.sort(opts) == [created_at_gte: "2026-09-05T10:00:02Z", limit: 1000]
         {:ok, %{data: [List.last(raw), newer], next_page: nil}}
       end)
@@ -297,7 +324,9 @@ Fix the build."
       agent_session = agent_session_fixture(account: account, anthropic_session_id: "sesn_arch")
       id = agent_session.id
 
-      expect(ControlPlane, :archive_session, fn "sk-ant-api-fixture", "sesn_arch" -> {:ok, %{"id" => "sesn_arch"}} end)
+      expect(ControlPlane, :archive_session, fn {:api_key, "sk-ant-api-fixture"}, "sesn_arch" ->
+        {:ok, %{"id" => "sesn_arch"}}
+      end)
 
       assert %{"id" => ^id, "status" => "archived"} =
                conn

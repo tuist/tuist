@@ -83,6 +83,28 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert get_resp_header(result, "x-tuist-orb-retry") == []
   end
 
+  test "fails a pause whose snapshot cannot be saved, so Amp records none", %{
+    conn: conn,
+    integration: integration,
+    user: user
+  } do
+    identity(integration)
+
+    SandboxesFixtures.sandbox_fixture(
+      account: user.account,
+      amp_orb_id: "amp-thread",
+      amp_integration_id: integration.id,
+      state: :archived,
+      node_name: nil
+    )
+
+    result = request(conn, %{"operation" => "pause", "snapshot_id" => "proj-1"})
+
+    assert response(result, 503)
+    assert get_resp_header(result, "x-tuist-orb-refusal") == ["snapshot-not-saved"]
+    assert get_resp_header(result, "x-tuist-orb-retry") == []
+  end
+
   test "requires workload authentication", %{conn: conn} do
     stub(Client, :create_amp_provider_token_review, fn _ -> {:error, :unauthenticated} end)
     assert response(request(conn), 401)
@@ -160,8 +182,11 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "macos"})
     assert_received {:shape, %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192}}
 
-    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "template" => "macos", "vcpus" => 8})
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "linux-small"})
     assert_received {:shape, %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096}}
+
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "template" => "macos", "vcpus" => 8})
+    assert_received {:shape, %{platform: :linux, template: "default", vcpus: 4, memory_mb: 8192}}
   end
 
   test "an unknown orb type is refused before dispatch", %{conn: conn, integration: integration} do
@@ -201,29 +226,46 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              Tuist.Repo.get_by!(Sandbox, account_id: user.account.id, amp_orb_id: "amp-thread")
   end
 
-  test "concurrent integration work is retried instead of crossing a rotation", %{conn: conn, integration: integration} do
+  test "a slow operation on one Orb only refuses that Orb's concurrent jobs", %{
+    integration: integration,
+    user: user
+  } do
     identity(integration)
     parent = self()
 
-    task =
-      Task.async(fn ->
-        AmpIntegrations.with_lock(integration.account_id, fn ->
-          send(parent, :integration_locked)
+    SandboxesFixtures.sandbox_fixture(
+      account: user.account,
+      amp_orb_id: "amp-slow",
+      amp_integration_id: integration.id,
+      state: :paused
+    )
 
-          receive do
-            :release -> :ok
-          after
-            5_000 -> :timeout
-          end
-        end)
-      end)
+    stub(Tuist.Sandboxes, :delete, fn sandbox ->
+      send(parent, {:deleting, self()})
+
+      receive do
+        :release -> {:ok, sandbox}
+      after
+        5_000 -> {:error, :timeout}
+      end
+    end)
+
+    slow_delete = fn ->
+      build_conn()
+      |> put_req_header("authorization", "Bearer workload")
+      |> post("/api/internal/amp-orbs/amp-slow", %{"operation" => "delete"})
+    end
+
+    task = Task.async(slow_delete)
+    assert_receive {:deleting, deleting}
 
     try do
-      assert_receive :integration_locked
-      assert response(request(conn), 409)
+      assert response(request(build_conn()), 204)
+      assert response(slow_delete.(), 409)
     after
-      send(task.pid, :release)
-      Task.await(task)
+      send(deleting, :release)
     end
+
+    assert response(Task.await(task), 204)
   end
 end

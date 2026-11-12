@@ -1,0 +1,129 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"sort"
+	"testing"
+)
+
+func TestPulseFilteredDiscovery(t *testing.T) {
+	a := batch(1, "worker", "api", 1, 0, 10_000_000_000, 11_000_000_000)
+	b := batch(2, "frontend", "rpc", 1, 0, 20_000_000_000, 21_000_000_000)
+	a.ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("request.kind", "api"), value("pred.a", "left"), value("only.api", "first"), value("filter.text", "first\nsecond"), value("empty", ""), {Key: "retries", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: -9223372036854775808}}}, {Key: "cached", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: false}}}, {Key: "opaque", Value: &cv.AnyValue{Value: &cv.AnyValue_BytesValue{BytesValue: []byte("abc")}}}}
+	sibling := batch(1, "worker", "rpc-sibling", 2, 1, 12_000_000_000, 13_000_000_000).ScopeSpans[0].Spans[0]
+	sibling.Attributes = []*cv.KeyValue{value("request.kind", "rpc"), value("pred.b", "right"), value("only.sibling", "second"), value("empty", ""), {Key: "retries", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 7}}}, {Key: "cached", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: true}}}}
+	a.ScopeSpans[0].Spans = append(a.ScopeSpans[0].Spans, sibling)
+	b.ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("request.kind", "rpc"), {Key: "retries", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 9223372036854775807}}}}
+	all := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{a, b}}
+	var rows []*Trace
+	for _, r := range all.ResourceSpans {
+		tr := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}
+		row, _ := traceToParquet(&backend.BlockMeta{}, r.ScopeSpans[0].Spans[0].TraceId, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	engine := traceql.NewEngine()
+	ctx := context.Background()
+	opts := common.DefaultSearchOptions()
+	type Case struct {
+		Name      string      `json:"name"`
+		Query     string      `json:"query"`
+		Target    string      `json:"target"`
+		Supported bool        `json:"supported"`
+		Response  interface{} `json:"response"`
+	}
+	cases := []Case{
+		{Name: "resource-to-span", Query: `{resource.service.name="worker"}`, Target: "span.retries", Supported: true},
+		{Name: "span-to-resource", Query: `{span.request.kind="api"}`, Target: "resource.service.name", Supported: true},
+		{Name: "other-resource", Query: `{resource.service.name="frontend"}`, Target: "span.retries", Supported: true},
+		{Name: "same-span-conjunction", Query: `{resource.service.name="worker" && span.request.kind="rpc"}`, Target: "span.retries", Supported: true},
+		{Name: "no-cross-span-conjunction", Query: `{span.pred.a="left" && span.pred.b="right"}`, Target: "span.retries", Supported: true},
+		{Name: "regex", Query: `{span.request.kind=~"a.*"}`, Target: "resource.service.name", Supported: true},
+		{Name: "regex-full-anchoring", Query: `{span.request.kind=~"p"}`, Target: "resource.service.name", Supported: true},
+		{Name: "regex-newline", Query: `{span.filter.text=~"first.*second"}`, Target: "resource.service.name", Supported: true},
+		{Name: "regex-alternation", Query: `{span.request.kind=~"api|rpc"}`, Target: "resource.service.name", Supported: true},
+		{Name: "same-target-regex", Query: `{span.request.kind=~"a.*"}`, Target: "span.request.kind", Supported: true},
+		{Name: "all-owner-spans", Query: `{resource.service.name=~"worker"}`, Target: "span.request.kind", Supported: true},
+		{Name: "missing-on-matching-span", Query: `{resource.service.name="worker" && span.request.kind="api"}`, Target: "span.only.sibling", Supported: true},
+		{Name: "present-on-matching-span", Query: `{resource.service.name="worker" && span.request.kind="rpc"}`, Target: "span.only.sibling", Supported: true},
+		{Name: "no-bool-string-coercion", Query: `{span.cached="false"}`, Target: "resource.service.name", Supported: true},
+		{Name: "bool-values", Query: `{resource.service.name="worker"}`, Target: "span.cached", Supported: true},
+		{Name: "empty-value", Query: `{span.request.kind="api"}`, Target: "span.empty", Supported: true},
+		{Name: "absent-value", Query: `{span.request.kind="api"}`, Target: "span.absent", Supported: true},
+		{Name: "no-match", Query: `{resource.service.name="absent"}`, Target: "span.retries", Supported: true},
+		// Actual upstream returns query literals without proving any stored match.
+		// Pulse explicitly refuses this rather than reporting an invented stored value.
+		{Name: "query-literal-shortcut", Query: `{span.request.kind="invented" && resource.service.name="absent"}`, Target: "span.request.kind", Supported: false},
+	}
+	for i := range cases {
+		c := &cases[i]
+		tag, err := traceql.ParseIdentifier(c.Target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		set := map[tempopb.TagValue]bool{}
+		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+			return block.FetchTagValues(ctx, req, cb, func(uint64) {}, opts)
+		})
+		err = engine.ExecuteTagValues(ctx, tag, c.Query, traceql.MakeCollectTagValueFunc(func(v tempopb.TagValue) bool { set[v] = true; return false }), fetcher)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vals := []tempopb.TagValue{}
+		for v := range set {
+			vals = append(vals, v)
+		}
+		sort.Slice(vals, func(i, j int) bool {
+			if vals[i].Type == vals[j].Type {
+				return vals[i].Value < vals[j].Value
+			}
+			return vals[i].Type < vals[j].Type
+		})
+		c.Response = map[string]interface{}{"tagValues": vals}
+		// Optional one-off actual public protobuf consumer, not a replay dependency.
+		if c.Supported {
+			wire, err := os.ReadFile("/tmp/pulse-tempo-filtered/" + c.Name + ".protobuf")
+			if err == nil {
+				var actual tempopb.SearchTagValuesV2Response
+				if err = proto.Unmarshal(wire, &actual); err != nil {
+					t.Fatal(err)
+				}
+				expected := tempopb.SearchTagValuesV2Response{}
+				for i := range vals {
+					expected.TagValues = append(expected.TagValues, &vals[i])
+				}
+				got, _ := json.Marshal(&actual)
+				want, _ := json.Marshal(&expected)
+				if string(got) != string(want) {
+					t.Fatalf("public protobuf consumer mismatch %s: %s vs %s", c.Name, got, want)
+				}
+			} else if !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
+	}
+	dir := "/tmp/pulse-tempo-filtered"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.MarshalIndent(cases, "", "  ")
+	if err := os.WriteFile(dir+"/oracle.json", append(raw, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -10,6 +10,7 @@ defmodule TuistWeb.EndpointTest do
       |> put_req_header("x-tuist-atlas-identity", "sa-token")
       |> put_req_header("x-tuist-operator-grant", "grant")
       |> put_req_header("authorization", "Bearer token")
+      |> put_req_header("sec-websocket-protocol", "phoenix, base64url.bearer.phx.secret")
       |> put_req_header("x-tuist-actor-id", "jane.doe")
       |> put_req_header("x-tuist-runner-grant", "signed.runner.grant")
       |> put_req_header("x-csrf-token", "session-csrf-token")
@@ -25,6 +26,20 @@ defmodule TuistWeb.EndpointTest do
     assert request.headers == %{"accept" => "application/json"}
   end
 
+  test "keeps private thread request bodies out of Sentry" do
+    for collection <- ["threads", "jams"] do
+      conn = %{
+        Plug.Test.conn(:post, "/api/accounts/account/#{collection}/thread/messages")
+        | params: %{"content" => "Private conversation", "request_id" => "private-approval"}
+      }
+
+      request =
+        Sentry.PlugContext.build_request_interface_data(conn, body_scrubber: {TuistWeb.Endpoint, :scrub_sentry_body})
+
+      assert request.data == %{}
+    end
+  end
+
   test "keeps second-factor codes out of Sentry request bodies" do
     conn = %{Plug.Test.conn(:post, "/users/mfa") | params: %{"mfa_code" => "RECOVERYCODE", "recovery" => "true"}}
 
@@ -34,13 +49,16 @@ defmodule TuistWeb.EndpointTest do
     assert request.data == %{"recovery" => "true"}
   end
 
-  test "keeps subscription tokens and MCP tool arguments out of Sentry request bodies" do
+  test "keeps provider keys, subscription tokens and MCP tool arguments out of logs and Sentry request bodies" do
     params = %{
       "token" => "sk-ant-oat01-secret",
+      "route" => %{"provider" => "openai", "api_key" => "provider-secret"},
       "jsonrpc" => "2.0",
       "params" => %{"name" => "connect_claude_subscription", "arguments" => %{"token" => "sk-ant-oat01-secret"}},
       "batch" => [%{"params" => %{"arguments" => %{"token" => "sk-ant-oat01-secret"}}}]
     }
+
+    assert Phoenix.Logger.filter_values(params)["route"] == %{"provider" => "openai", "api_key" => "[FILTERED]"}
 
     conn = %{Plug.Test.conn(:post, "/mcp") | params: params}
 
@@ -49,6 +67,7 @@ defmodule TuistWeb.EndpointTest do
 
     assert request.data == %{
              "jsonrpc" => "2.0",
+             "route" => %{"provider" => "openai"},
              "params" => %{"name" => "connect_claude_subscription"},
              "batch" => [%{"params" => %{}}]
            }

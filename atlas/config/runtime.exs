@@ -2,8 +2,10 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Engineering.Errors.PulseMirror
 alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
+alias Atlas.MCP.Proxy.StripeCallPolicy
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
@@ -261,6 +263,21 @@ case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
 
   provider ->
     raise "unsupported mailing provider: #{inspect(provider)}"
+end
+
+# Atlas.Mailer sends through SES from this instant on, without a restart.
+if ses_starts_at = System.get_env("ATLAS_SES_STARTS_AT") do
+  {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+  config :atlas, Atlas.Mailer,
+    ses_cutover:
+      {ses_starts_at,
+       [
+         adapter: AmazonSES,
+         region: System.fetch_env!("ATLAS_SES_REGION"),
+         access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+         secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+       ]}
 end
 
 allowed_email_domain =
@@ -614,13 +631,13 @@ case System.get_env("MCP_PROXY_SERVERS") do
       # governs anything beyond their memberships.
       tuist_mcp_base_url = System.get_env("TUIST_MCP_BASE_URL") || "https://tuist.dev"
 
-      # Pulso holds each Tuist cluster's metrics, logs, traces and Kubernetes
+      # Pulse holds each Tuist cluster's metrics, logs, traces and Kubernetes
       # events. Its MCP tools are read-only queries scoped to one tenant.
       # Atlas authenticates to each with its own projected ServiceAccount
-      # token (audience = that Pulso's host), so there is no shared secret.
-      # The chart renders PULSO_MCP_UPSTREAMS from `pulso.upstreams`.
-      pulso_servers =
-        case JSON.decode(System.get_env("PULSO_MCP_UPSTREAMS") || "[]") do
+      # token (audience = that Pulse's host), so there is no shared secret.
+      # The chart renders PULSE_MCP_UPSTREAMS from `pulse.upstreams`.
+      pulse_servers =
+        case JSON.decode(System.get_env("PULSE_MCP_UPSTREAMS") || "[]") do
           {:ok, upstreams} when is_list(upstreams) ->
             Enum.map(upstreams, fn upstream ->
               %{
@@ -635,7 +652,7 @@ case System.get_env("MCP_PROXY_SERVERS") do
             end)
 
           _ ->
-            raise "environment variable PULSO_MCP_UPSTREAMS must be a JSON array"
+            raise "environment variable PULSE_MCP_UPSTREAMS must be a JSON array"
         end
 
       config :atlas, :mcp_proxy,
@@ -731,8 +748,58 @@ case System.get_env("MCP_PROXY_SERVERS") do
               registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
               scopes: ["all"],
               tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
+            },
+            # Vultr's hosted MCP server, compute area only: Cloud Compute and
+            # Bare Metal, where the Kura hosts in ord and scl live. Each person
+            # connects their own Vultr login, one organization per sign-in,
+            # after an org admin enables MCP and attaches the "Use MCP" policy.
+            # The server has no write tools at all and marks every tool with
+            # readOnlyHint, so read_only is enough on its own; it also withholds
+            # VNC URLs, userdata and startup-script bodies.
+            #
+            # There is no write here. Tagging a box `tuist-kura-vultr-production`
+            # makes the fleet adopt it and convert its disks, but the token this
+            # session holds is the MCP server's own JWT, which it swaps for the
+            # real Vultr token server-side, so it cannot call api.vultr.com.
+            # Tagging and ordering stay in the Vultr console.
+            %{
+              name: "vultr-compute",
+              url: "https://mcp.vultr.com/mcp/compute",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.vultr.com/authorize",
+              token_url: "https://mcp.vultr.com/token",
+              registration_url: "https://mcp.vultr.com/register",
+              read_only: true
+            },
+            # Stripe's hosted MCP server, reached with each person's own Stripe
+            # login: Stripe's consent screen picks the accounts and sandboxes
+            # the session covers, so Atlas holds no Stripe key. Reserved for the
+            # people who run billing. Reads pass; `stripe_api_write` takes any
+            # write operation, so StripeCallPolicy judges each call: live-mode
+            # writes wait for the caller's approval of that exact call at
+            # /admin/mcps, test-mode writes run, and meter events are refused.
+            %{
+              name: "stripe",
+              url: "https://mcp.stripe.com",
+              auth_type: "oauth2",
+              authorization_url: "https://access.stripe.com/mcp/oauth2/authorize",
+              token_url: "https://access.stripe.com/mcp/oauth2/token",
+              registration_url: "https://access.stripe.com/mcp/oauth2/register",
+              scopes: ["mcp"],
+              authorization_params: %{"resource" => "https://mcp.stripe.com"},
+              allowed_user_emails: ["marek@tuist.dev", "pedro@tuist.dev"],
+              tool_allowlist: [
+                "list_available_accounts_or_orgs",
+                "get_stripe_account_info",
+                "stripe_api_search",
+                "stripe_api_details",
+                "stripe_api_read",
+                "search_stripe_documentation",
+                "stripe_api_write"
+              ],
+              call_policy: StripeCallPolicy
             }
-          ] ++ pulso_servers
+          ] ++ pulse_servers
     end
 
   value ->
@@ -768,6 +835,12 @@ config :atlas, :slack,
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
 config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
+
+# No mirroring unless explicitly provisioned. This is independent of the SDK
+# DSN: the shared Atlas recorder also covers native LoggerHandler capture.
+if routes = System.get_env("ATLAS_PULSE_ERROR_ROUTES_JSON") do
+  config :atlas, PulseMirror, routes: Jason.decode!(routes)
+end
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
@@ -919,6 +992,14 @@ end
 
 clickhouse_enabled? =
   parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
+# tuist-ops, which grants orb thread cluster elevations a person approved in
+# Atlas (`request_cluster_elevation`). Atlas authenticates with a projected
+# ServiceAccount token (audience `ops.tuist.dev`); without the token file the
+# tool reports elevations as unavailable.
+config :atlas, :tuist_ops,
+  base_url: System.get_env("TUIST_OPS_URL") || "https://ops.tuist.dev",
+  token_path: System.get_env("TUIST_OPS_TOKEN_PATH") || "/var/run/secrets/tuist-ops/token"
 
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount

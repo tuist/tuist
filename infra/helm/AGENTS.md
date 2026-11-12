@@ -147,7 +147,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   templates, status, create, update or delete. RBAC does not restrict fields;
   scope each repair to the diagnosed drift (for example, backfilling a live
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
-  Staging has standing write access; canary/production require human elevation.
+  `patch vultrmachines` follows the same rules; it exists to annotate one
+  replacement VultrMachine `tuist.dev/kura-storage-layout: lvm-v1` before it
+  converts. Staging has standing write access; canary/production require human
+  elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
 - Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
 - Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
@@ -277,6 +280,11 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   `kuraVolumesCSI.enabled`. It only makes a region thin-capable; accounts move
   through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
   until a region has `tuist.dev/kura-thin-ready=true` nodes.
+- `kuraVolumesCSI.thinEnrolledRegions` renders `TUIST_KURA_THIN_ENROLLED_REGIONS`:
+  every account in a listed region moves to thin without the flag. Existing
+  instances still move only through the source-node gate. Enroll a region only
+  while converting it host by host with enough thin-ready capacity, since new
+  instances and claim growth there are admitted only against thin-ready nodes.
 
 - Kura CSI's retained admission policies constrain its pod-bound identity to
   its own node's PV lifecycle and disk capacity, and preserve PVC ownership.

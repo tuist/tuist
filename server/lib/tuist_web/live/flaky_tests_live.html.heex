@@ -522,7 +522,11 @@
       <div :if={Enum.empty?(@flaky_tests)} data-part="empty-flaky-tests">
         <.empty_card_section
           title={dgettext("dashboard_tests", "No flaky tests")}
-          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+          get_started_href={
+            if Tuist.Projects.Project.once_project?(@selected_project),
+              do: "https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests/once",
+              else: "https://tuist.dev/en/docs/guides/features/build-insights#tests"
+          }
           data-part="empty-flaky-tests-table-card-section"
         >
           <:image>

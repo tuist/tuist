@@ -59,7 +59,10 @@ run || { cat "$scratch/output"; exit 1; }
 [[ $(grep -c '^fallocate ' "$scratch/calls") == 1 ]]
 
 export PROVISION_TEST_SIZE=100000000000
-reject 'size change must never reformat or resize'
+run || { cat "$scratch/output"; exit 1; }
+grep -q 'Keeping the existing 100000000000-byte backing file' "$scratch/output"
+[[ $(grep -c '^mkfs.xfs ' "$scratch/calls") == 1 ]]
+[[ $(grep -c '^fallocate ' "$scratch/calls") == 1 ]]
 unset PROVISION_TEST_SIZE
 export PROVISION_TEST_SOURCE=/dev/unrelated
 reject 'foreign filesystem already mounted'
@@ -72,4 +75,4 @@ mv "$root.img" "$scratch/original.img"
 ln -s "$scratch/original.img" "$root.img"
 reject 'symlink backing file'
 [[ $(cat "$scratch/original.img") == filesystem ]]
-echo 'Provisioning checks passed: cold setup, retry, nonempty directory, low space, size mismatch, foreign mount, symlink.'
+echo 'Provisioning checks passed: cold setup, retry, nonempty directory, low space, existing image of another size kept, foreign mount, symlink.'

@@ -144,7 +144,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "name" => question,
             "acceptedAnswer" => %{
               "@type" => "Answer",
-              "text" => answer |> Floki.parse_fragment() |> Floki.text()
+              "text" => answer |> Floki.parse_fragment!() |> Floki.text()
             }
           }
         end)
@@ -165,17 +165,22 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "offers" =>
         Enum.map(plans, fn plan ->
-          %{
+          offer = %{
             "@type" => "Offer",
             "name" => "Tuist #{plan.name}",
             "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
-            "priceCurrency" => "USD",
-            "price" => if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
             "description" => plan.description,
             "availability" => "https://schema.org/InStock",
-            "priceValidUntil" => "2025-12-31",
             "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png")
           }
+
+          # Display prices are localized labels, not fixed totals. Only Air is free;
+          # Pro is metered above allowances and Enterprise has negotiated pricing.
+          if plan.id == :air do
+            Map.merge(offer, %{"price" => "0.00", "priceCurrency" => "USD"})
+          else
+            offer
+          end
         end)
     }
   end
@@ -220,6 +225,11 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@context" => "https://schema.org",
       "@type" => "Organization",
       "name" => "Tuist",
+      "description" =>
+        dgettext(
+          "marketing",
+          "Tuist is build infrastructure for engineering teams and coding agents."
+        ),
       "url" => Tuist.Environment.app_url(),
       "logo" => Tuist.Environment.app_url(path: "/images/tuist_social.jpeg"),
       "sameAs" => [
@@ -259,7 +269,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "description" =>
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, and share app previews from a URL."
+          "Tuist is build infrastructure for engineering teams and coding agents."
         ),
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "publisher" => get_organization_structured_data(),
@@ -365,7 +375,11 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           end)
       },
       "name" => dgettext("marketing", "Tuist's blog"),
-      "description" => dgettext("marketing", "Read engaging stories and expert insights."),
+      "description" =>
+        dgettext(
+          "marketing",
+          "Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions."
+        ),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end

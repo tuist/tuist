@@ -23,19 +23,21 @@ defmodule Atlas.MCP.Proxy do
   @protocol_version "2025-03-26"
   # Revisions without the initialize handshake: every request carries its
   # version and client capabilities in `params._meta` and mirrors the version,
-  # method and tool name in headers. Pulso speaks only these.
+  # method and tool name in headers. Pulse speaks only these.
   @stateless_protocol_versions ["2026-07-28"]
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
-  # same "observability" ("Production systems") group as the Grafana, Pulso and
-  # Tuist database tools — granted by the same identity toggle. OVH's reads
-  # describe the production fleet, so they belong there too.
+  # same "observability" ("Production systems") group as the Grafana, Pulse and
+  # Tuist database tools — granted by the same identity toggle. OVH's and
+  # Vultr's reads describe the production fleet, so they belong there too.
   @server_tool_groups %{
     "grafana" => "observability",
     "tuist" => "observability",
     "ovh-servers" => "observability",
     "ovh-services" => "observability",
-    "ovh-orders" => "observability"
+    "ovh-orders" => "observability",
+    "vultr-compute" => "observability",
+    "stripe" => "finance"
   }
 
   def list_servers(config \\ proxy_config()) do
@@ -186,12 +188,36 @@ defmodule Atlas.MCP.Proxy do
   defp proxy_config, do: Config.get()
 
   defp server_allowed?(conn, %Server{} = server) do
-    not restricted_mcp_session?(conn) or server_tool_group(server) in allowed_tool_groups(conn)
+    caller_allowed?(server, conn) and
+      (not restricted_mcp_session?(conn) or server_tool_group(server) in allowed_tool_groups(conn))
   end
 
-  # One Pulso upstream per Tuist environment (`pulso` for production,
-  # `pulso_canary`, ...), all reading cluster telemetry.
-  defp server_tool_group(%Server{name: "pulso" <> _}), do: "observability"
+  @doc """
+  Whether `user` may see and use `server` at all. A server with
+  `allowed_user_emails` is reserved for those people; any other server is open
+  to every authenticated caller its tool groups admit.
+  """
+  def user_allowed?(%Server{allowed_user_emails: []}, _user), do: true
+
+  def user_allowed?(%Server{allowed_user_emails: emails}, %User{email: email}) when is_binary(email),
+    do: String.downcase(email) in emails
+
+  def user_allowed?(%Server{}, _user), do: false
+
+  # A server reserved for named people is reachable only by those people over
+  # their own MCP connection. The Slack agent and workers act as one fixed
+  # operator (the Slack agent runs as a configured person's account), so they
+  # never reach it, whatever that account's email.
+  defp caller_allowed?(%Server{allowed_user_emails: []}, _conn), do: true
+
+  defp caller_allowed?(%Server{} = server, %{assigns: %{current_user: %User{} = user, audit_interface: "mcp"}}),
+    do: user_allowed?(server, user)
+
+  defp caller_allowed?(%Server{}, _conn), do: false
+
+  # One Pulse upstream per Tuist environment (`pulse` for production,
+  # `pulse_canary`, ...), all reading cluster telemetry.
+  defp server_tool_group(%Server{name: "pulse" <> _}), do: "observability"
   defp server_tool_group(%Server{name: name}), do: Map.get(@server_tool_groups, name, "default")
 
   defp restricted_mcp_session?(%{assigns: %{mcp_claims: %{"mcp_tool_groups" => groups}}}) when is_list(groups), do: true
@@ -238,6 +264,9 @@ defmodule Atlas.MCP.Proxy do
           read_only: truthy?(get_config(raw, :read_only, false)),
           tool_allowlist: normalize_scopes(get_config(raw, :tool_allowlist, [])),
           approval_required_tools: normalize_scopes(get_config(raw, :approval_required_tools, [])),
+          allowed_user_emails:
+            raw |> get_config(:allowed_user_emails, []) |> normalize_scopes() |> Enum.map(&String.downcase/1),
+          call_policy: normalize_call_policy(get_config(raw, :call_policy)),
           atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
           token_path: get_config(raw, :token_path),
@@ -298,6 +327,11 @@ defmodule Atlas.MCP.Proxy do
   defp normalize_scopes(scopes) when is_list(scopes), do: Enum.map(scopes, &to_string/1)
   defp normalize_scopes(scopes) when is_binary(scopes), do: String.split(scopes, " ", trim: true)
   defp normalize_scopes(_scopes), do: []
+
+  # Only deployment configuration names a module; JSON-provided server lists
+  # and runtime-managed rows carry strings, which never become a policy.
+  defp normalize_call_policy(policy) when is_atom(policy) and not is_nil(policy) and not is_boolean(policy), do: policy
+  defp normalize_call_policy(_policy), do: nil
 
   defp normalize_timeout(timeout) when is_integer(timeout) and timeout > 0, do: timeout
 
@@ -420,31 +454,44 @@ defmodule Atlas.MCP.Proxy do
     end
   end
 
-  # A gated tool runs only on a person's sign-off for that exact call. Only a
+  # A server's `call_policy` judges each call by its arguments, for upstreams
+  # whose one generic tool covers both harmless and consequential writes.
+  defp ensure_call_approved(%Server{} = server, conn, tool_name, arguments) do
+    case call_decision(server, tool_name, arguments) do
+      :allow -> :ok
+      :approval_required -> require_approval(server, conn, tool_name, arguments)
+      {:deny, reason} -> {:error, "#{server.name}/#{tool_name} refused this call: #{reason}"}
+    end
+  end
+
+  defp call_decision(%Server{} = server, tool_name, arguments) do
+    cond do
+      tool_name in server.approval_required_tools -> :approval_required
+      server.call_policy -> server.call_policy.decide(tool_name, arguments)
+      true -> :allow
+    end
+  end
+
+  # A gated call runs only on a person's sign-off for that exact call. Only a
   # caller authenticated as that person over MCP can spend one: the Slack agent
   # and other internal callers act as a fixed operator, so they never reach a
-  # gated tool.
-  defp ensure_call_approved(%Server{} = server, conn, tool_name, arguments) do
-    cond do
-      tool_name not in server.approval_required_tools ->
-        :ok
+  # gated call.
+  defp require_approval(%Server{} = server, conn, tool_name, arguments) do
+    if match?(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}}, conn) do
+      case MCPContext.authorize_tool_call(conn.assigns.current_user, server.name, tool_name, arguments) do
+        {:ok, _approval} ->
+          :ok
 
-      match?(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}}, conn) ->
-        case MCPContext.authorize_tool_call(conn.assigns.current_user, server.name, tool_name, arguments) do
-          :ok ->
-            :ok
-
-          {:approval_required, approval} ->
-            {:error,
-             "#{server.name}/#{tool_name} needs a person's approval for this exact call. " <>
-               "Ask the person you are working for to approve request #{approval.id} at " <>
-               "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
-               "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
-               "Never approve it yourself."}
-        end
-
-      true ->
-        {:error, "#{server.name}/#{tool_name} needs a person's approval and is only callable over Atlas MCP."}
+        {:approval_required, approval} ->
+          {:error,
+           "#{server.name}/#{tool_name} needs a person's approval for this exact call. " <>
+             "Ask the person you are working for to approve request #{approval.id} at " <>
+             "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+             "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
+             "Never approve it yourself."}
+      end
+    else
+      {:error, "#{server.name}/#{tool_name} needs a person's approval and is only callable over Atlas MCP."}
     end
   end
 
@@ -458,10 +505,15 @@ defmodule Atlas.MCP.Proxy do
     original_description = tool["description"] || "Upstream MCP tool."
 
     description =
-      if tool_name in server.approval_required_tools do
-        "[#{server.name}] Each call needs its own approval: the first call files a request and returns a link, the person approves it in Atlas, and the same call with identical arguments then runs once. #{original_description}"
-      else
-        "[#{server.name}] #{original_description}"
+      cond do
+        tool_name in server.approval_required_tools ->
+          "[#{server.name}] Each call needs its own approval: the first call files a request and returns a link, the person approves it in Atlas, and the same call with identical arguments then runs once. #{original_description}"
+
+        policy_note = server.call_policy && server.call_policy.describe(tool_name) ->
+          "[#{server.name}] #{policy_note} #{original_description}"
+
+        true ->
+          "[#{server.name}] #{original_description}"
       end
 
     tool

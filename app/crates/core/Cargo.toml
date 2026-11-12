@@ -1,0 +1,24 @@
+[package]
+name = "tuist-app-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+tuist-jwt.workspace = true
+tuist-oauth = { path = "../oauth", default-features = false }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
+[dev-dependencies]
+base64.workspace = true
+# Compile-check JNI marshalling in Linux unit-test builds as well as Android.
+jni = "0.21"

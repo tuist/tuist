@@ -1,4 +1,8 @@
-<div id="runner-job">
+<div
+  id="runner-job"
+  phx-hook="PageFavicon"
+  data-favicon-status={TuistWeb.RunnerJobLive.header_status(@job)}
+>
   <.button
     navigate={~p"/#{@selected_account.name}/runners/jobs"}
     variant="secondary"
@@ -15,7 +19,7 @@
         GitHub deep link it builds would point at a repository that does
         not exist. --%>
   <% github_url =
-    if @buildkite_job || @gitlab_job || @bitrise_build,
+    if @buildkite_job || @gitlab_job || @bitrise_build || @api_job,
       do: nil,
       else: TuistWeb.RunnerJobLive.github_job_url(@job) %>
   <% buildkite_url = TuistWeb.RunnerJobLive.buildkite_build_url(@buildkite_job) %>
@@ -219,6 +223,16 @@
       </.card_section>
     </.card>
 
+    <.alert
+      :if={@out_of_memory}
+      id="runner-job-out-of-memory-alert"
+      status="error"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard_runners", "Ran out of memory")}
+      description={Tuist.Runners.JobMetrics.out_of_memory_description(@out_of_memory)}
+    />
+
     <.job_volumes
       volumes={@volumes}
       account_name={@selected_account.name}
@@ -420,7 +434,10 @@
     </.card>
 
     <.card
-      :if={is_nil(@buildkite_job) and is_nil(@gitlab_job) and is_nil(@bitrise_build)}
+      :if={
+        is_nil(@buildkite_job) and is_nil(@gitlab_job) and is_nil(@bitrise_build) and
+          is_nil(@api_job)
+      }
       title={dgettext("dashboard_runners", "Steps")}
       icon="apps"
       data-part="steps-card"

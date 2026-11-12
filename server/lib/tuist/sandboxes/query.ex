@@ -133,11 +133,17 @@ defmodule Tuist.Sandboxes.Query do
        "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."}
 
   def error(:sandbox_account_busy), do: {:conflict, "Another sandbox admission is in progress. Retry shortly."}
+  def error(:busy), do: {:conflict, "An agent turn or another command is running in the sandbox."}
+
+  def error(:invalid_command),
+    do:
+      {:bad_request,
+       "Invalid command: it needs a non-empty command, string arguments, environment names of letters, digits and underscores, and stdin data of at most 256 KiB in base64."}
+
+  def error(:stdin_not_attached), do: {:conflict, "The command was not started with stdin attached."}
+  def error(:stdin_closed), do: {:conflict, "The command's stdin is closed."}
   def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
-
-  def error(:archive_storage_full),
-    do: {:conflict, "The account's archive storage is full. Delete archived sandboxes first."}
 
   def error(:archive_store_unavailable),
     do:
@@ -147,6 +153,10 @@ defmodule Tuist.Sandboxes.Query do
   def error(:not_connected), do: {:service_unavailable, "The sandbox's node is not connected."}
   def error(:node_disconnected), do: {:service_unavailable, "The sandbox's node disconnected during the operation."}
   def error(:timeout), do: {:gateway_timeout, "The sandbox's node did not answer in time."}
+
+  def error(:snapshot_not_saved),
+    do: {:service_unavailable, "The Orb paused, but its project snapshot could not be saved."}
+
   def error(%Ecto.Changeset{} = changeset), do: {:bad_request, changeset_message(changeset)}
   def error(reason) when is_binary(reason), do: {:bad_gateway, "The sandbox node rejected the operation: #{reason}"}
   def error(reason), do: {:internal_server_error, "Sandbox operation failed: #{inspect(reason)}"}

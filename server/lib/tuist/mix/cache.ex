@@ -6,7 +6,6 @@ defmodule Tuist.Mix.Cache do
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
   alias Tuist.Mix.CacheEvent
-  alias Tuist.Repo
 
   @outcomes ~w(local_hit remote_hit miss bypass)
   @reasons ~w(not_enabled local_dependency custom_compiler unmodeled_input inputs_changed store_failed up_to_date)
@@ -273,7 +272,7 @@ defmodule Tuist.Mix.Cache do
     builds =
       from(b in subquery(builds_query), distinct: b.id, order_by: [desc: b.inserted_at, desc: b.id], limit: ^limit)
       |> ClickHouseRepo.all()
-      |> Repo.preload(:ran_by_account)
+      |> Tuist.ReportActor.preload()
 
     recent_build_rows(builds, project_id, opts)
   end

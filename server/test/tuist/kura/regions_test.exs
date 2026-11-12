@@ -64,6 +64,27 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.thin_volumes?(Regions.get("hetzner-staging-runners"))
     end
 
+    test "an enrolled region selects every account without reading the flag, and only that region" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_enrolled_region_ids, fn -> ["us-central"] end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+      account = %Tuist.Accounts.Account{id: 42}
+
+      enrolled = Regions.get("us-central")
+      assert Regions.thin_volumes?(enrolled)
+      assert Regions.thin_volumes?(enrolled, account)
+
+      capable = Regions.get("eu-west")
+      assert Regions.thin_volumes?(capable)
+      refute Regions.thin_volumes?(capable, account)
+      refute Map.has_key?(capable.provisioner_config, :thin_enrolled)
+
+      refute Regions.thin_volumes?(Regions.get("us-east"), account)
+
+      reject(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, 1)
+      assert Regions.thin_volumes?(enrolled, account)
+    end
+
     test "combines with LVM enrollment" do
       stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["eu-west"] end)
       stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)

@@ -1,0 +1,79 @@
+[data-part="labels"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    h1 {
+      font: var(--noora-font-heading-large);
+      margin: 0 0 8px;
+    }
+    p {
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+
+  [data-part="connection-grid"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--noora-spacing-6);
+  }
+
+  [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  p {
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+  dl {
+    display: grid;
+    gap: 8px;
+  }
+  dl > div {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 12px;
+  }
+  dt {
+    color: var(--noora-surface-label-secondary);
+  }
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  img {
+    max-width: 100%;
+    image-rendering: auto;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  img[data-part="label-preview"] {
+    height: 40px;
+    width: auto;
+    padding: 4px;
+  }
+  [data-part="label-sizing"] {
+    width: min(28rem, 40vw);
+    white-space: normal;
+  }
+  [data-part="label-note"] {
+    display: block;
+    color: var(--noora-surface-label-secondary);
+  }
+  [data-part="label-state"][data-state="uncertain"] {
+    color: var(--noora-surface-label-destructive);
+  }
+
+  @media (max-width: 768px) {
+    [data-part="connection-grid"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

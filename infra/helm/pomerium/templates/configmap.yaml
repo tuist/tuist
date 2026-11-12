@@ -137,6 +137,14 @@ data:
         to: "{{ .Values.opsRoute.to }}"
         preserve_host_header: true
         allow_public_unauthenticated_access: true
+      # Atlas (another cluster, no Google session) grants Atlas-approved orb
+      # elevations here. Public at Pomerium like the Slack webhook; tuist-ops
+      # requires Atlas' projected ServiceAccount token on every call.
+      - from: "https://{{ .Values.opsRoute.host }}"
+        prefix: "/api/v1/atlas/"
+        to: "{{ .Values.opsRoute.to }}"
+        preserve_host_header: true
+        allow_public_unauthenticated_access: true
       # Catch-all so the bare domain (tuist-ops redirects `/` → `/audit`) and
       # the static assets resolve. Pomerium matches longest-prefix-first, so
       # the routes above still take priority; this is OIDC-gated like them.

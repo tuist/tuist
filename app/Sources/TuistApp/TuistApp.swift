@@ -75,8 +75,10 @@ import TuistServer
     }
 #else
     import ArgumentParser
+    import SafariServices
     import TuistErrorHandling
     import TuistFeatureFlags
+    import TuistNavigation
     import TuistNoora
     import TuistNotifications
     import TuistOnboarding
@@ -84,84 +86,142 @@ import TuistServer
     import TuistProfile
     import TuistSDK
 
-    enum TabIdentifier: Hashable {
-        case previews, profile
-    }
-
     @main
     struct TuistApp: App {
         @UIApplicationDelegateAdaptor(PushNotificationsAppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
+        @State private var navigation = AppNavigation()
 
         var body: some Scene {
             WindowGroup {
-                if bootstrapper.isReady {
-                    RootView()
-                } else {
-                    ProgressView()
+                Group {
+                    if bootstrapper.isReady {
+                        #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("--layout-preview") ||
+                                Bundle.main.object(forInfoDictionaryKey: "TuistThreadsPreview") as? Bool == true
+                            {
+                                AccountHomeView(
+                                    account: Account(email: "preview@example.com", handle: "pedro"),
+                                    isLayoutPreview: true
+                                )
+                                .environment(FeatureFlags(enabled: ProcessInfo.processInfo.arguments
+                                        .contains("--without-ai") ? [] : [.ai]))
+                            } else {
+                                RootView()
+                            }
+                        #else
+                            RootView()
+                        #endif
+                    } else {
+                        ProgressView()
+                    }
                 }
+                .environment(navigation)
+                .onOpenURL { navigation.receive($0) }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL { navigation.receive(url) }
+                }
+                .environment(\.openURL, OpenURLAction { url in
+                    let isNativeLink = url.scheme?.lowercased() == "tuist" && url.host?.lowercased() == "app"
+                    guard isNativeLink || (try? AppRoute(url: url, serverURL: AppServerEnvironmentService().url())) != nil else {
+                        return .systemAction
+                    }
+                    navigation.receive(url)
+                    return .handled
+                })
             }
         }
     }
 
     private struct RootView: View {
-        @StateObject private var authenticationService = AuthenticationService()
+        @StateObject private var authenticationService = AuthenticationService(profilesEnabled: true)
         @State private var featureFlags = FeatureFlags()
-        @State private var activeTab = TabIdentifier.previews
+        @State private var hasLoadedProfiles = false
+        @Environment(AppNavigation.self) private var navigation
         @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
-            content
-                .environmentObject(authenticationService)
-                .environment(featureFlags)
-                .withErrorHandling()
-                .task(id: authenticationService.authenticationState) {
-                    await PushNotifications.shared.refresh()
+            Group {
+                if authenticationService.isChangingProfile {
+                    ProgressView()
+                } else {
+                    content
                 }
-                .task(id: authenticationService.authenticationState) {
-                    await featureFlags.refresh(for: authenticationService.authenticationState)
+            }
+            .id(ServerAuthenticationSession.current.id)
+            .environmentObject(authenticationService)
+            .environment(featureFlags)
+            .withErrorHandling()
+            .onChange(of: navigation.pendingURL) { _, _ in
+                openPendingURL()
+            }
+            .onChange(of: authenticationService.authenticationState, initial: true) { _, state in
+                navigation.reset()
+                if case .loggedIn = state { openPendingURL() }
+            }
+            .onChange(of: authenticationService.isChangingProfile) { _, changing in
+                if changing {
+                    navigation.reset(clearPending: hasLoadedProfiles && authenticationService.activeProfileID != nil)
+                } else {
+                    openPendingURL()
                 }
-                .onChange(of: scenePhase) { _, scenePhase in
-                    guard scenePhase == .active else { return }
-                    Task { await PushNotifications.shared.refresh() }
-                    Task { await featureFlags.refresh(for: authenticationService.authenticationState) }
+            }
+            .onChange(of: authenticationService.isSigningIn) { _, signingIn in
+                if !signingIn { openPendingURL() }
+            }
+            .sheet(isPresented: Binding(
+                get: { navigation.webURL != nil },
+                set: { if !$0 { navigation.webURL = nil } }
+            )) {
+                if let url = navigation.webURL { AppWebView(url: url).id(url) }
+            }
+            .alert("Unable to open link", isPresented: Binding(
+                get: { navigation.error != nil },
+                set: { if !$0 { navigation.error = nil } }
+            )) {
+                Button("OK", role: .cancel) { navigation.error = nil }
+            } message: {
+                if navigation.error == .differentServer {
+                    Text("This link belongs to a different Tuist server. Sign in to that server and open the link again.")
+                } else if navigation.error == .differentOrganization {
+                    Text("This link belongs to a different organization. Switch organizations and open the link again.")
+                } else {
+                    Text("This navigation link is invalid or unsupported.")
                 }
-                .task {
-                    TuistSDK(
-                        fullHandle: "tuist/tuist",
-                        apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
-                    )
-                    .monitorPreviewUpdates()
-                }
+            }
+            .task {
+                authenticationService.beforeProfileChange = { await PushNotifications.shared.prepareForProfileChange() }
+                guard !authenticationService.isChangingProfile else { return }
+                try? await authenticationService.loadProfiles()
+                hasLoadedProfiles = true
+                openPendingURL()
+            }
+            .task(id: authenticationService.authenticationState) {
+                await PushNotifications.shared.refresh()
+            }
+            .task(id: authenticationService.authenticationState) {
+                await featureFlags.refresh(for: authenticationService.authenticationState)
+            }
+            .onChange(of: scenePhase) { _, scenePhase in
+                guard scenePhase == .active else { return }
+                Task { await PushNotifications.shared.refresh() }
+                Task { await featureFlags.refresh(for: authenticationService.authenticationState) }
+            }
+            .task {
+                TuistSDK(
+                    fullHandle: "tuist/tuist",
+                    apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
+                )
+                .monitorPreviewUpdates()
+            }
         }
 
         @ViewBuilder
         private var content: some View {
             switch authenticationService.authenticationState {
             case let .loggedIn(account, _):
-                TabView(selection: $activeTab) {
-                    PreviewsView()
-                        .tabItem {
-                            NooraIcon(.deviceMobile)
-                            Text("Previews")
-                        }
-                        .tag(TabIdentifier.previews)
-
-                    ProfileView(account: account)
-                        .tabItem {
-                            NooraIcon(.user)
-                                .frame(width: 24, height: 24)
-                            Text("Profile")
-                        }
-                        .tag(TabIdentifier.profile)
-                }
-                .onOpenURL { _ in
-                    activeTab = .previews
-                }
-                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
-                    activeTab = .previews
-                }
-                .accentColor(Noora.Colors.accent)
+                AccountHomeView(account: account)
+                    .id(authenticationService.activeProfileID)
             case .loggedOut:
                 LogInView()
                 #if DEBUG
@@ -170,6 +230,13 @@ import TuistServer
                     }
                 #endif
             }
+        }
+
+        private func openPendingURL() {
+            guard case .loggedIn = authenticationService.authenticationState,
+                  hasLoadedProfiles, !authenticationService.isChangingProfile, !authenticationService.isSigningIn
+            else { return }
+            navigation.openPendingURL(serverURL: AppServerEnvironmentService().url())
         }
 
         /// When launch arguments with credentials are passed, such as when running QA tests, we can skip the log in and
@@ -194,5 +261,15 @@ import TuistServer
                 // Skipping automatic log in, such as when the credentials are not passed
             }
         }
+    }
+
+    private struct AppWebView: UIViewControllerRepresentable {
+        let url: URL
+
+        func makeUIViewController(context _: Context) -> SFSafariViewController {
+            SFSafariViewController(url: url)
+        }
+
+        func updateUIViewController(_: SFSafariViewController, context _: Context) {}
     }
 #endif

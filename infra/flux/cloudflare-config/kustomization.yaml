@@ -6,4 +6,5 @@ resources:
   - custom-firewall-rules.yaml
   - public-pages-rate-limit.yaml
   - skip-sbfm-api-paths.yaml
+  - skip-sbfm-marketing-pages.yaml
   - verified-crawlers-rate-limit.yaml

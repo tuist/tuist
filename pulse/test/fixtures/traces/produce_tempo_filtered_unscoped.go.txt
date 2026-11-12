@@ -1,0 +1,225 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+// This deliberately records the actual unscoped fast path (which ignores q)
+// separately from a complete typed union over actual engine-selected parent IDs.
+// It does not claim upstream filtered-unscoped behavior is faithful.
+func TestPulseFilteredUnscoped(t *testing.T) {
+	root := os.Getenv("PULSE_FIXTURE_ROOT")
+	if root == "" {
+		t.Fatal("PULSE_FIXTURE_ROOT required")
+	}
+	dir := "/tmp/pulse-filtered-unscoped"
+	if e := os.MkdirAll(dir, 0755); e != nil {
+		t.Fatal(e)
+	}
+	wire, e := os.ReadFile(filepath.Join(root, "test/fixtures/traces/tempo-more-discovery-input.protobuf"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	all := &tempopb.Trace{}
+	if e = proto.Unmarshal(wire, all); e != nil {
+		t.Fatal(e)
+	}
+	var rows []*Trace
+	for i, r := range all.ResourceSpans {
+		ss := r.ScopeSpans[0]
+		sp := ss.Spans[0]
+		r.Resource.Attributes = append(r.Resource.Attributes, value("mixed", "1.0"))
+		sp.Attributes = append(sp.Attributes, &cv.KeyValue{Key: "mixed", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: (1 << 60) + int64(i)}}})
+		if ss.Scope != nil {
+			mixed := &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: i%2 == 0}}
+			if i%3 == 0 {
+				mixed = &cv.AnyValue{Value: &cv.AnyValue_DoubleValue{DoubleValue: 1}}
+			}
+			ss.Scope.Attributes = append(ss.Scope.Attributes, &cv.KeyValue{Key: "mixed", Value: mixed}, value("scope_only", "scope"))
+		}
+		for _, event := range sp.Events {
+			event.Attributes = append(event.Attributes, value("mixed", "excluded-event"))
+		}
+		for _, link := range sp.Links {
+			link.Attributes = append(link.Attributes, value("mixed", "excluded-link"))
+		}
+		if i%2 == 1 {
+			nested := &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue: "nested"}}
+			array := &cv.ArrayValue{Values: []*cv.AnyValue{nested}}
+			attr := &cv.AnyValue{Value: &cv.AnyValue_ArrayValue{ArrayValue: array}}
+			sp.Attributes = append(sp.Attributes, &cv.KeyValue{Key: "unsupported", Value: attr})
+		}
+		row, _ := traceToParquet(&backend.BlockMeta{}, sp.TraceId, &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}, nil)
+		rows = append(rows, row)
+	}
+	wire, e = proto.Marshal(all)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(dir+"/input.protobuf", wire, 0644); e != nil {
+		t.Fatal(e)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	opts := common.DefaultSearchOptions()
+	engine := traceql.NewEngine()
+	cases := []map[string]any{}
+	consumed := 0
+	for _, key := range []string{"value", "mixed", "shared", "scope_only", "absent", "unsupported"} {
+		for _, q := range []string{`{resource.service.name="worker"}`, `{resource.service.name="frontend"}`, `{resource.service.name="absent"}`, `{resource.service.name=~"work.*"}`, `{span.shared=~"spa.*"}`, `{resource.service.name="worker" && span.shared=~"spa.*"}`} {
+			tag, e := traceql.ParseIdentifier("." + key)
+			if e != nil {
+				t.Fatal(e)
+			}
+			rawSet := map[tempopb.TagValue]bool{}
+			collect := traceql.MakeCollectTagValueFunc(func(v tempopb.TagValue) bool { rawSet[v] = true; return false })
+			fetch := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, r traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+				return block.FetchTagValues(ctx, r, cb, func(uint64) {}, opts)
+			})
+			rawErr := engine.ExecuteTagValues(context.Background(), tag, q, collect, fetch)
+			found, e := engine.ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: q + " with (most_recent=true)", Limit: 1000, SpansPerSpanSet: 1000}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, r traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, r, opts)
+			}))
+			if e != nil {
+				t.Fatal(e)
+			}
+			ids := map[string]bool{}
+			for _, tr := range found.Traces {
+				if tr.SpanSet.Matched != uint32(len(tr.SpanSet.Spans)) {
+					t.Fatal("clipped fixture")
+				}
+				for _, sp := range tr.SpanSet.Spans {
+					ids[tr.TraceID+"/"+sp.SpanID] = true
+				}
+			}
+			completeSet := map[tempopb.TagValue]bool{}
+			unsupported := false
+			for _, r := range all.ResourceSpans {
+				for _, ss := range r.ScopeSpans {
+					for _, sp := range ss.Spans {
+						if !ids[util.TraceIDToHexString(sp.TraceId)+"/"+util.SpanIDToHexString(sp.SpanId)] {
+							continue
+						}
+						owners := [][]*cv.KeyValue{r.Resource.Attributes, sp.Attributes}
+						if ss.Scope != nil {
+							owners = append(owners, ss.Scope.Attributes)
+						}
+						for _, attrs := range owners {
+							for _, attr := range attrs {
+								if attr.Key != key {
+									continue
+								}
+								v, ok := pulseOriginalTag(attr.Value)
+								if !ok {
+									unsupported = true
+								} else {
+									completeSet[v] = true
+								}
+							}
+						}
+					}
+				}
+			}
+			raw := pulseSortedTags(rawSet)
+			complete := pulseSortedTags(completeSet)
+			c := map[string]any{"key": key, "query": q, "selected_parents": len(ids), "raw": map[string]any{"tagValues": raw}, "complete": map[string]any{"tagValues": complete}}
+			if rawErr != nil {
+				c["raw_error"] = rawErr.Error()
+			}
+			if unsupported {
+				c["expected_error"] = "unsupported_trace_tag_type"
+			}
+			cases = append(cases, c)
+			if !unsupported {
+				for _, version := range []int{1, 2} {
+					file := fmt.Sprintf("%s/result-v%d-%02d.protobuf", dir, version, len(cases)-1)
+					data, e := os.ReadFile(file)
+					if os.IsNotExist(e) && os.Getenv("PULSE_REQUIRE_CONSUMER") == "" {
+						continue
+					}
+					if e != nil {
+						t.Fatal(e)
+					}
+					if version == 2 {
+						got := &tempopb.SearchTagValuesV2Response{}
+						if e = proto.Unmarshal(data, got); e != nil {
+							t.Fatal(e)
+						}
+						if !proto.Equal(got, &tempopb.SearchTagValuesV2Response{TagValues: complete}) {
+							t.Fatalf("v2 mismatch case %d", len(cases)-1)
+						}
+					} else {
+						set := map[string]bool{}
+						for _, v := range complete {
+							set[v.Value] = true
+						}
+						values := []string{}
+						for v := range set {
+							values = append(values, v)
+						}
+						sort.Strings(values)
+						got := &tempopb.SearchTagValuesResponse{}
+						if e = proto.Unmarshal(data, got); e != nil {
+							t.Fatal(e)
+						}
+						if strings.Join(got.TagValues, "\x00") != strings.Join(values, "\x00") {
+							t.Fatalf("v1 mismatch case %d", len(cases)-1)
+						}
+					}
+					consumed++
+				}
+			}
+		}
+	}
+	data, e := json.MarshalIndent(cases, "", "  ")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(dir+"/oracle.json", append(data, '\n'), 0644); e != nil {
+		t.Fatal(e)
+	}
+	t.Logf("%d actual engine-selected-parent cases, %d public decoder messages", len(cases), consumed)
+}
+func pulseOriginalTag(v *cv.AnyValue) (tempopb.TagValue, bool) {
+	switch x := v.Value.(type) {
+	case *cv.AnyValue_StringValue:
+		return tempopb.TagValue{Type: "string", Value: x.StringValue}, true
+	case *cv.AnyValue_IntValue:
+		return tempopb.TagValue{Type: "int", Value: strconv.FormatInt(x.IntValue, 10)}, true
+	case *cv.AnyValue_BoolValue:
+		return tempopb.TagValue{Type: "bool", Value: strconv.FormatBool(x.BoolValue)}, true
+	case *cv.AnyValue_DoubleValue:
+		return tempopb.TagValue{Type: "float", Value: traceql.NewStaticFloat(x.DoubleValue).EncodeToString(false)}, true
+	default:
+		return tempopb.TagValue{}, false
+	}
+}
+func pulseSortedTags(set map[tempopb.TagValue]bool) []*tempopb.TagValue {
+	result := []*tempopb.TagValue{}
+	for v := range set {
+		v := v
+		result = append(result, &v)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Type == result[j].Type {
+			return result[i].Value < result[j].Value
+		}
+		return result[i].Type < result[j].Type
+	})
+	return result
+}

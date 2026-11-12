@@ -1,0 +1,297 @@
+# Parallel client workspace. Cargo owns the GPUI graph; native frontends share
+# the Rust core without pulling GPUI or a second HTTP stack into native builds.
+[workspace]
+include = ["once.toml", "native-dependencies/once.toml"]
+exclude = ["**/Cargo.toml"]
+
+[modules]
+paths = ["modules/*.star"]
+
+[infrastructure.cache]
+provider = "tuist"
+
+[infrastructure.artifacts]
+name = "tuist"
+
+[infrastructures.tuist]
+kind = "tuist"
+account = "tuist"
+project = "app"
+
+[[target]]
+name = "TuistDesktop"
+kind = "cargo_workspace"
+srcs = ["Cargo.toml", "Cargo.lock", "*/Cargo.toml", "crates/*/Cargo.toml", "gpui/src/**/*.rs", "gpui/resources/**/*", "crates/*/src/**/*.rs", "crates/*/src/**/*.txt"]
+
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "gpui/Cargo.toml", "crates/*/Cargo.toml"]
+
+[target.attrs.build_script_sources."gpui_apple@0.1.0"]
+"../gpui/src/scene.rs" = "gpui@0.2.2/src/scene.rs"
+"../gpui/src/geometry.rs" = "gpui@0.2.2/src/geometry.rs"
+"../gpui/src/color.rs" = "gpui@0.2.2/src/color.rs"
+"../gpui/src/window.rs" = "gpui@0.2.2/src/window.rs"
+"../gpui/src/platform.rs" = "gpui@0.2.2/src/platform.rs"
+
+[[target]]
+name = "TuistAppCoreIOS"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/IOS", "./TuistAppOAuthIOS", "./TuistAppJWTIOS"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+crate_type = "staticlib"
+
+[[target]]
+name = "TuistAppCoreIOSDevice"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice", "./TuistAppOAuthIOSDevice", "./TuistAppJWTIOSDevice"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-ios"
+crate_type = "staticlib"
+
+[[target]]
+name = "TuistAppCoreMacOS"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Host", "./TuistAppOAuthMacOS", "./TuistAppJWTMacOS"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-apple-darwin"
+crate_type = "staticlib"
+
+[[target]]
+name = "TuistAppCoreAndroid"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Android", "./TuistAppOAuthAndroid", "./TuistAppJWTAndroid"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "aarch64-linux-android"
+crate_type = "cdylib"
+android_abi = "arm64-v8a"
+android_api = 26
+
+[[target]]
+name = "TuistAppCoreTests"
+kind = "rust_test"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Host", "./TuistAppOAuth", "./TuistAppJWT"]
+[target.attrs]
+crate_name = "tuist_app_core_tests"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+
+[[target]]
+name = "TuistAppCoreFFI"
+kind = "apple_system_module"
+[target.attrs]
+modulemap = "crates/core/include/module.modulemap"
+headers = ["crates/core/include/tuist_app.h"]
+header_dirs = ["crates/core/include"]
+
+[[target]]
+name = "TuistAppIOS"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift", "ios/Sources/**/*.swift"]
+deps = ["./TuistAppCoreIOS", "./TuistAppCoreFFI"]
+[target.attrs]
+platform = "ios"
+bundle_id = "dev.tuist.app.preview"
+product_name = "TuistPreview"
+minimum_os = "17.0"
+sdk_variant = "simulator"
+families = ["iphone", "ipad"]
+info_plist = "ios/Info.plist"
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator" }
+entitlements = "ios/Simulator.entitlements"
+resources = ["apple/Resources/en.lproj/Localizable.strings"]
+
+[[target]]
+name = "TuistAppIOSDevice"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift", "ios/Sources/**/*.swift"]
+deps = ["./TuistAppCoreIOSDevice", "./TuistAppCoreFFI"]
+[target.attrs]
+platform = "ios"
+bundle_id = "dev.tuist.app.preview"
+product_name = "TuistPreview"
+minimum_os = "17.0"
+sdk_variant = "device"
+families = ["iphone", "ipad"]
+info_plist = "ios/Info.plist"
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos" }
+resources = ["apple/Resources/en.lproj/Localizable.strings"]
+
+[[target]]
+name = "TuistAppMacOS"
+kind = "apple_application"
+srcs = ["apple/Sources/**/*.swift", "macos/Sources/**/*.swift"]
+deps = ["./TuistAppCoreMacOS", "./TuistAppCoreFFI"]
+[target.attrs]
+platform = "macos"
+bundle_id = "dev.tuist.app.preview"
+product_name = "TuistPreview"
+minimum_os = "14.0"
+info_plist = "macos/Info.plist"
+resources = ["apple/Resources/en.lproj/Localizable.strings"]
+
+[[target]]
+name = "TuistAppAndroid"
+kind = "android_binary"
+srcs = ["android/src/**/*.kt"]
+deps = ["./TuistAppCoreAndroid", "./TuistAppBrowser"]
+[target.attrs]
+application_id = "dev.tuist.app.preview"
+manifest = "android/AndroidManifest.xml"
+resource_files = ["android/res/**"]
+resource_dirs = ["android/res"]
+compile_sdk = 36
+target_sdk_version = 35
+min_sdk_version = 26
+build_tools_version = "35.0.0"
+version_code = 1
+version_name = "0.1.0"
+launch_activity = ".MainActivity"
+signing = "debug"
+
+[[target]]
+name = "TuistAppOAuth"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+
+[[target]]
+name = "TuistAppJWT"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+
+[[target]]
+name = "TuistAppOAuthIOS"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/IOS"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+
+[[target]]
+name = "TuistAppJWTIOS"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/IOS"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-ios-sim"
+
+[[target]]
+name = "TuistAppOAuthIOSDevice"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-ios"
+
+[[target]]
+name = "TuistAppJWTIOSDevice"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/IOSDevice"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-ios"
+
+[[target]]
+name = "TuistAppOAuthMacOS"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "TuistAppJWTMacOS"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "TuistAppOAuthAndroid"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Android"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "aarch64-linux-android"
+
+[[target]]
+name = "TuistAppJWTAndroid"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Android"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "aarch64-linux-android"
+
+[[target]]
+name = "TuistAppBrowser"
+kind = "tuist_browser"
+srcs = ["android/dependencies.py", "android/dependencies.lock.json"]

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# The orchestrator's spawn-runner hook: hands one work order to Tuist, which
+# boots (or resumes) the session's sandbox and starts the runner in it. Tuist
+# answers after admission, before the VM boots, so the hook stays well inside
+# --hook-timeout. Exit codes follow the orchestrator's contract: 0 submitted,
+# 1 retryable, 2 or higher blocks the session.
+set -uo pipefail
+: "${TUIST_URL:?Set the Tuist URL}"
+: "${TUIST_WORKLOAD_TOKEN_FILE:?Mount the projected provider identity}"
+: "${CLAUDE_RUNNER_ORDER_ID:?The orchestrator must supply CLAUDE_RUNNER_ORDER_ID}"
+: "${CLAUDE_RUNNER_WORK_ORDER_FILE:?The orchestrator must supply CLAUDE_RUNNER_WORK_ORDER_FILE}"
+# Standby (pre-warming) requests carry no session; this environment keeps no
+# standby runners, so there is nothing to start.
+[[ -n "${CLAUDE_RUNNER_SESSION_ID:-}" ]] || exit 0
+[[ "$CLAUDE_RUNNER_SESSION_ID" =~ ^[A-Za-z0-9_-]{1,255}$ && "$CLAUDE_RUNNER_ORDER_ID" =~ ^[A-Za-z0-9._-]{1,255}$ ]] || {
+  echo 'Invalid session or order ID.' >&2; exit 2;
+}
+
+# Keep credentials out of curl's argv and the log: the body (with the work
+# order) lives briefly in a mode-0600 file, the bearer goes in through stdin.
+umask 077
+request=$(mktemp)
+trap 'rm -f "$request"' EXIT
+jq -n --rawfile work_order "$CLAUDE_RUNNER_WORK_ORDER_FILE" \
+  '{order_id: env.CLAUDE_RUNNER_ORDER_ID, session_id: env.CLAUDE_RUNNER_SESSION_ID, work_order: ($work_order | rtrimstr("\n"))}' \
+  > "$request" || { echo 'Could not read the work order.' >&2; exit 1; }
+token=$(cat "$TUIST_WORKLOAD_TOKEN_FILE") && [[ -n "$token" ]] || { echo 'Provider identity is unavailable.' >&2; exit 1; }
+
+status=$(TOKEN="$token" jq -nr '"header = " + ("Authorization: Bearer " + env.TOKEN | @json)' |
+  curl --config - --silent --show-error --max-time 40 --connect-timeout 10 \
+    --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' --data-binary "@$request" \
+    "${TUIST_URL%/}/api/internal/claude-code-runners/spawn") || { echo 'Tuist is unreachable.' >&2; exit 1; }
+
+case "$status" in
+  202|204) exit 0 ;;
+  409|429|503) echo 'Waiting for sandbox capacity.' >&2; exit 1 ;;
+  403) echo 'Sandboxes are disabled for this Tuist account or environment.' >&2; exit 2 ;;
+  400|404|422) echo "Tuist refused the session (HTTP $status)." >&2; exit 2 ;;
+  *) echo "Tuist spawn failed (HTTP $status)." >&2; exit 1 ;;
+esac

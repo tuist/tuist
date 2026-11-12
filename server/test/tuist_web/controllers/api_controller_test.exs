@@ -37,7 +37,7 @@ defmodule TuistWeb.APIControllerTest do
       :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
 
       organization
-      |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+      |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "api-example.com")
       |> Tuist.Repo.update!()
 
       token = fn auth ->
@@ -54,7 +54,7 @@ defmodule TuistWeb.APIControllerTest do
       end
 
       assert token.(%{auth_method: :password}) == ""
-      assert token.(%{auth_method: :google, provider_organization_id: "example.com"}) != ""
+      assert token.(%{auth_method: :google, provider_organization_id: "api-example.com"}) != ""
     end
 
     test "includes the designed Open Graph card when hosted", %{conn: conn} do

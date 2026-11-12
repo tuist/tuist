@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import TestCoverageAttribution
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
@@ -8,6 +9,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct PluginAcceptanceTests {
     @Test(.withFixture("generated_tuist_plugin"))
     func tuist_plugin() async throws {

@@ -162,8 +162,8 @@ flag. Pool configuration still limits caching to the acceptance pool, and profil
 opt-outs, execution binding and repository authorization still apply. Production
 retains its `runner_docker_cache` flag and currently has pool caching disabled.
 
-The five sequential Docker phases cover both `docker` and `docker-container`
-drivers: cold, warm layers, changed source, same-size write and final verification.
+The three sequential Docker phases cover both `docker` and `docker-container`
+drivers: cold (with an in-job changed-source build), same-size write and final verification.
 The next job's layer and mutable-cache assertions establish persistence; a sleep
 or successful teardown handoff alone does not. An authorization denial or missing
 mount fails the gate before building. Do not retry assertions or accept fallback

@@ -2,12 +2,12 @@
 {
   "title": "构建洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 构建洞察跟踪 Xcode、Gradle、Bazel、Elixir 和 Rust 项目的构建性能。"
+  "description": "使用 Tuist 构建洞察跟踪 Xcode、Gradle、Bazel、Elixir、Rust 和 Once 项目的构建性能。"
 }
 ---
 # 构建洞察 {#build-insights}
 
-使用构建洞察跟踪本地和 CI 构建性能。目前支持 Xcode、Gradle、Bazel、Elixir 和 Rust。
+使用构建洞察跟踪本地和 CI 构建性能。目前支持 Xcode、Gradle、Bazel、Elixir、Rust 和 Once。
 
 <.home_cards>
   <.home_card
@@ -39,5 +39,10 @@
     title="Rust"
     details="通过 Tuist CLI 跟踪 Cargo 命令持续时间、观察到的 rustc 调用以及编译器诊断信息。"
     link="/guides/features/build-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="实时跟踪运行并检查图操作、持续时间、失败情况和缓存决策。"
+    link="/guides/features/build-insights/once"
 />
 </.home_cards>

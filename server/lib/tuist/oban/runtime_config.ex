@@ -31,6 +31,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @shared_crons [
     {"* * * * *", Tuist.RemoteExecution.MaintenanceWorker},
+    {"* * * * *", Tuist.Threads.RecoveryWorker},
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
@@ -40,9 +41,10 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"* * * * *", Tuist.Sandboxes.AmpReconciler},
+    {"* * * * *", Tuist.Sandboxes.ClaudeCodeReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
-    {"20 * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},

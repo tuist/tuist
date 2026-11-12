@@ -36,7 +36,18 @@
 
   & [data-part="flaky-tests-section"] [data-part="filters"] {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--noora-spacing-6);
+
+    & form {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    & .noora-text-input {
+      max-width: 100%;
+    }
   }
 
   & [data-part="active-filters"] {

@@ -1,0 +1,168 @@
+// File-only independent ProtoJSON duplicate-field oracle. No Pulse dependency.
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	logs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	metrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	traces "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"os"
+	"path/filepath"
+)
+
+type target struct{ name, signal, wrapper, field, value string }
+
+func main() {
+	directory := os.Args[1]
+	list := []target{
+		{"logs-root", "logs", `%s`, "resourceLogs", `[]`},
+		{"metrics-root", "metrics", `%s`, "resourceMetrics", `[]`},
+		{"traces-root", "traces", `%s`, "resourceSpans", `[]`},
+		{"resource-logs", "logs", `{"resourceLogs":[%s]}`, "scopeLogs", `[]`},
+		{"resource-metrics", "metrics", `{"resourceMetrics":[%s]}`, "schemaUrl", `"url"`},
+		{"resource-spans", "traces", `{"resourceSpans":[%s]}`, "scopeSpans", `[]`},
+		{"resource", "logs", `{"resourceLogs":[{"resource":%s}]}`, "droppedAttributesCount", `0`},
+		{"scope-logs", "logs", `{"resourceLogs":[{"scopeLogs":[%s]}]}`, "scope", `{}`},
+		{"scope-metrics", "metrics", `{"resourceMetrics":[{"scopeMetrics":[%s]}]}`, "schemaUrl", `"url"`},
+		{"scope-spans", "traces", `{"resourceSpans":[{"scopeSpans":[%s]}]}`, "spans", `[]`},
+		{"scope", "logs", `{"resourceLogs":[{"scopeLogs":[{"scope":%s}]}]}`, "name", `"scope"`},
+		{"log-record", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[%s]}]}]}`, "timeUnixNano", `"1700000000123456789"`},
+		{"log-event-name", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[%s]}]}]}`, "eventName", `"event"`},
+		{"pair", "logs", `{"resourceLogs":[{"resource":{"attributes":[%s]}}]}`, "key", `"key"`},
+		{"any-int", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":%s}]}]}]}`, "intValue", `"9007199254740993"`},
+		{"any-double", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":%s}]}]}]}`, "doubleValue", `-0`},
+		{"array", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"arrayValue":%s}}]}]}]}`, "values", `[]`},
+		{"kvlist", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"kvlistValue":%s}}]}]}]}`, "values", `[]`},
+		{"metric", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[%s]}]}]}`, "gauge", `{}`},
+		{"gauge", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"gauge":%s}]}]}]}`, "dataPoints", `[]`},
+		{"sum", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"sum":%s}]}]}]}`, "isMonotonic", `true`},
+		{"histogram", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"histogram":%s}]}]}]}`, "aggregationTemporality", `2`},
+		{"exponential-container", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"exponentialHistogram":%s}]}]}]}`, "aggregationTemporality", `2`},
+		{"summary", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"summary":%s}]}]}]}`, "dataPoints", `[]`},
+		{"number", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"gauge":{"dataPoints":[%s]}}]}]}]}`, "asInt", `"7"`},
+		{"histogram-point", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"histogram":{"dataPoints":[%s]}}]}]}]}`, "bucketCounts", `["2"]`},
+		{"histogram-optional", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"histogram":{"dataPoints":[%s]}}]}]}]}`, "sum", `-0`},
+		{"summary-point", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"summary":{"dataPoints":[%s]}}]}]}]}`, "count", `"2"`},
+		{"quantile", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"summary":{"dataPoints":[{"quantileValues":[%s]}]}}]}]}]}`, "quantile", `0.5`},
+		{"exemplar", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"gauge":{"dataPoints":[{"exemplars":[%s]}]}}]}]}]}`, "asInt", `"7"`},
+		{"span", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[%s]}]}]}`, "name", `"span"`},
+		{"span-flags16", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[%s]}]}]}`, "flags", `257`},
+		{"status", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[{"status":%s}]}]}]}`, "message", `"status"`},
+		{"event", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[{"events":[%s]}]}]}]}`, "name", `"event"`},
+		{"link", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[{"links":[%s]}]}]}]}`, "flags", `256`},
+	}
+	rows := []map[string]any{}
+	add := func(name, signal, body string) {
+		var message proto.Message
+		switch signal {
+		case "logs":
+			message = &logs.ExportLogsServiceRequest{}
+		case "metrics":
+			message = &metrics.ExportMetricsServiceRequest{}
+		case "traces":
+			message = &traces.ExportTraceServiceRequest{}
+		}
+		err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(body), message)
+		row := map[string]any{"name": name, "signal": signal, "input": body, "accepted": err == nil}
+		if err == nil {
+			canonical, e := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(message)
+			must(e)
+			row["canonical"] = string(canonical)
+		}
+		rows = append(rows, row)
+	}
+	for _, t := range list {
+		// Independent public descriptors enumerate ALL fields of these owners,
+		// not just the representative field chosen for escaped/null controls.
+		descriptor := owner(t)
+		for i := 0; i < descriptor.Fields().Len(); i++ {
+			field := descriptor.Fields().Get(i)
+			key := fmt.Sprintf(`"%s"`, field.JSONName())
+			value := defaultLiteral(field)
+			add(t.name+"/field/"+field.JSONName()+"/single", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s}`, key, value)))
+			add(t.name+"/field/"+field.JSONName()+"/duplicate", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s,%s:%s}`, key, value, key, value)))
+		}
+		key := fmt.Sprintf(`"%s"`, t.field)
+		escaped := fmt.Sprintf(`"\u%04x%s"`, t.field[0], t.field[1:])
+		object := func(first, second, k string) string { return fmt.Sprintf(`{%s:%s,%s:%s}`, key, first, k, second) }
+		add(t.name+"/single", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s}`, key, t.value)))
+		for _, c := range []struct{ name, a, b, k string }{{"same", t.value, t.value, key}, {"escaped", t.value, t.value, escaped}, {"first-null", "null", t.value, key}, {"last-null", t.value, "null", key}, {"both-null", "null", "null", key}} {
+			add(t.name+"/"+c.name, t.signal, fmt.Sprintf(t.wrapper, object(c.a, c.b, c.k)))
+		}
+		add(t.name+"/unknown", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s,"future":0,"future":1}`, key, t.value)))
+		add(t.name+"/opaque-unknown", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s,"future":{"intValue":1,"intValue":2,"resourceLogs":[],"resourceLogs":[]}}`, key, t.value)))
+		add(t.name+"/unknown-overflow", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s,"future":{"number":1e1000000}}`, key, t.value)))
+		add(t.name+"/unknown-underflow", t.signal, fmt.Sprintf(t.wrapper, fmt.Sprintf(`{%s:%s,"future":[-1e-1000000]}`, key, t.value)))
+	}
+	add("logs/foreign-root", "logs", `{"resourceLogs":[],"resourceMetrics":[],"resourceMetrics":[]}`)
+	add("metrics/foreign-root", "metrics", `{"resourceMetrics":[],"resourceSpans":[],"resourceSpans":[]}`)
+	add("traces/foreign-root", "traces", `{"resourceSpans":[],"resourceLogs":[],"resourceLogs":[]}`)
+	add("logs/sibling-mask", "logs", `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"intValue":"7"}},{"body":{"intValue":"8"}}]}]},{"scopeLogs":[]}]}`)
+	add("metrics/sibling-mask", "metrics", `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"gauge":{"dataPoints":[{"asInt":"7"},{"asInt":"8"}]}}]}]}]}`)
+	add("traces/sibling-mask", "traces", `{"resourceSpans":[{"scopeSpans":[{"spans":[{"name":"one","flags":257},{"name":"two","flags":257}]}]}]}`)
+	encoded, e := json.Marshal(rows)
+	must(e)
+	must(os.WriteFile(filepath.Join(directory, "cases.json"), encoded, 0600))
+	fmt.Printf("%d cases from %d message/field contexts\n", len(rows), len(list))
+}
+func owner(t target) protoreflect.MessageDescriptor {
+	var message proto.Message
+	switch t.signal {
+	case "logs":
+		message = &logs.ExportLogsServiceRequest{}
+	case "metrics":
+		message = &metrics.ExportMetricsServiceRequest{}
+	case "traces":
+		message = &traces.ExportTraceServiceRequest{}
+	}
+	descriptor := message.ProtoReflect().Descriptor()
+	var tree any
+	must(json.Unmarshal([]byte(fmt.Sprintf(t.wrapper, `{}`)), &tree))
+	for {
+		object := tree.(map[string]any)
+		if len(object) == 0 {
+			return descriptor
+		}
+		if len(object) != 1 {
+			panic("ambiguous authored wrapper")
+		}
+		for key, value := range object {
+			field := descriptor.Fields().ByJSONName(key)
+			if field == nil || field.Message() == nil {
+				panic("invalid authored message wrapper")
+			}
+			descriptor = field.Message()
+			tree = value
+			if array, ok := value.([]any); ok {
+				if len(array) != 1 {
+					panic("invalid authored array wrapper")
+				}
+				tree = array[0]
+			}
+		}
+	}
+}
+func defaultLiteral(field protoreflect.FieldDescriptor) string {
+	if field.IsList() {
+		return `[]`
+	}
+	switch field.Kind() {
+	case protoreflect.MessageKind:
+		return `{}`
+	case protoreflect.StringKind, protoreflect.BytesKind:
+		return `""`
+	case protoreflect.BoolKind:
+		return `false`
+	default:
+		return `0`
+	}
+}
+func must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}

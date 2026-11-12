@@ -1,7 +1,11 @@
 defmodule Tuist.TestImpactAnalysis.BaselinesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
+
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.CommitListing
+  alias Tuist.Repo
   alias Tuist.TestImpactAnalysis.Baselines
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -192,22 +196,23 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       assert {:ok, %{sha: "c4"}} = Baselines.resolve(project, scope("c5", %{scheme: nil}))
     end
 
-    test "answers no_baseline_evidence when the run in reach uploaded no test-scoped evidence", %{
+    test "takes a full run whose tests recorded no evidence as the baseline", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      [run_id] = CoverageFixtures.commit_coverage(project, repository_id, "c1", runs: [[evidence: false]])
+
+      assert {:ok, %{sha: "c1", run_ids: [^run_id], distance: 1}} = Baselines.resolve(project, scope("c2"))
+    end
+
+    test "picks the nearest full run, with or without evidence, and all its full runs", %{
       account: account,
       project: project
     } do
-      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
-      CoverageFixtures.commit_coverage(project, repository_id, "c1", runs: [[evidence: false]])
-
-      assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline_evidence}
-    end
-
-    test "passes over a nearer run without evidence to one with it", %{account: account, project: project} do
       repository_id = CoverageFixtures.seed_history(account, chain("c", 3, nil))
-      CoverageFixtures.commit_coverage(project, repository_id, "c2", runs: [[evidence: false]])
+      run_ids = CoverageFixtures.commit_coverage(project, repository_id, "c2", runs: [[evidence: false], []])
       CoverageFixtures.commit_coverage(project, repository_id, "c1")
 
-      assert {:ok, %{sha: "c1", distance: 2}} = Baselines.resolve(project, scope("c3"))
+      assert {:ok, %{sha: "c2", run_ids: resolved, distance: 1}} = Baselines.resolve(project, scope("c3"))
+      assert Enum.sort(resolved) == Enum.sort(run_ids)
     end
 
     test "answers no_baseline without any full run", %{account: account, project: project} do
@@ -215,6 +220,83 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       measured(project, repository_id, "c1")
 
       assert Baselines.resolve(project, scope("c3")) == {:error, :no_baseline}
+    end
+
+    test "passes over a full run whose commit has a truncated listing for the next ancestor with a complete one", %{
+      account: account,
+      project: project
+    } do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 4, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c3", listing: :truncated)
+      CoverageFixtures.commit_coverage(project, repository_id, "c2", listing: :none)
+      [run_id] = CoverageFixtures.commit_coverage(project, repository_id, "c1")
+
+      assert {:ok, %{sha: "c1", run_ids: [^run_id], distance: 3, window_shas: window}} =
+               Baselines.resolve(project, scope("c4"))
+
+      assert Enum.sort(window) == ["c1", "c2", "c3", "c4"]
+    end
+
+    test "answers no_baseline when the full run's commit has a truncated listing", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1", listing: :truncated)
+
+      assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline}
+      assert Baselines.resolve(project, scope("c2"), baseline_sha: "c1") == {:error, :no_baseline}
+    end
+
+    test "answers no_baseline when the full run's commit has no listing", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1", listing: :none)
+
+      assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline}
+    end
+
+    test "answers no_baseline once the listing's files expired", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      assert {:ok, %{sha: "c1"}} = Baselines.resolve(project, scope("c2"))
+
+      expired = DateTime.add(DateTime.utc_now(), -Tuist.Environment.coverage_retention_days().files * 86_400, :second)
+
+      Repo.update_all(
+        from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == "c1"),
+        set: [inserted_at: DateTime.truncate(expired, :second)]
+      )
+
+      assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline}
+    end
+
+    test "keeps a baseline whose listing's files expired once its file changes are written", %{
+      account: account,
+      project: project
+    } do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil), branch_heads: [{"main", "c2"}])
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      assert Tuist.GitHistory.FileChanges.write(repository_id, "c1") == :written
+
+      expired = DateTime.add(DateTime.utc_now(), -Tuist.Environment.coverage_retention_days().files * 86_400, :second)
+
+      Repo.update_all(
+        from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == "c1"),
+        set: [inserted_at: DateTime.truncate(expired, :second)]
+      )
+
+      assert {:ok, %{sha: "c1"}} = Baselines.resolve(project, scope("c2"))
+    end
+
+    test "answers baseline_too_old only for a full run whose commit has a complete listing", %{
+      account: account,
+      project: project
+    } do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 23, nil))
+      CoverageFixtures.commit_coverage(project, repository_id, "c2", listing: :truncated)
+      for i <- 3..22, do: measured(project, repository_id, "c#{i}")
+
+      assert Baselines.resolve(project, scope("c23")) == {:error, :no_baseline}
+
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      assert Baselines.resolve(project, scope("c23")) == {:error, :baseline_too_old}
     end
 
     test "with baseline_sha, resolves only that commit", %{account: account, project: project} do

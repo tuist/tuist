@@ -114,6 +114,8 @@ defmodule Tuist.URL do
   defp private_ip?({169, 254, _, _}), do: true
   defp private_ip?({100, second, _, _}) when second >= 64 and second <= 127, do: true
   defp private_ip?({198, second, _, _}) when second >= 18 and second <= 19, do: true
+  # IETF protocol assignments (RFC 6890), including NAT64/DS-Lite special-use addresses.
+  defp private_ip?({192, 0, 0, _}), do: true
 
   # IPv6 private/reserved ranges
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
@@ -127,6 +129,10 @@ defmodule Tuist.URL do
   defp private_ip?({0, 0, 0, 0, 0, 0, high, low}), do: private_embedded_ipv4?(high, low)
   defp private_ip?({0x64, 0xFF9B, 0, 0, 0, 0, high, low}), do: private_embedded_ipv4?(high, low)
   defp private_ip?({0x64, 0xFF9B, 1, _, _, _, _, _}), do: true
+  # 6to4 (RFC 3056) carries the IPv4 address in its second and third groups.
+  defp private_ip?({0x2002, high, low, _, _, _, _, _}), do: private_embedded_ipv4?(high, low)
+  # Teredo (RFC 4380) obfuscates the client's IPv4 address; reject the prefix.
+  defp private_ip?({0x2001, 0, _, _, _, _, _, _}), do: true
 
   defp private_ip?(_), do: false
 

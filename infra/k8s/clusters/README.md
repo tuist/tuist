@@ -72,7 +72,7 @@ the tenant-repo copies are then retired to a pointer.
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 8× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 
 Canary's general-purpose pool runs its three CNPG instances and reserves
 capacity for deployment hooks and rolling-update surge pods. Without that
@@ -80,6 +80,14 @@ headroom the 512Mi ClickHouse schema-clone hook stays unschedulable until Helm
 times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
+
+Production's general pool includes capacity to qualify Greptime's distributed
+backend while Pulse continues serving live traffic. The increase from five to
+eight ccx23 Hetzner Cloud VMs is preliminary qualification capacity, not a
+load-qualified minimum; it does not add bare-metal workers. Scale it down only after
+cutover and retirement of the old workload, with the remaining placement checked
+for server rollout surge, host anti-affinity and a single worker failure. Removing
+Pulse alone does not establish that the HA backend fits on the smaller pool.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
 Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
@@ -153,6 +161,143 @@ The safe prerequisite is a third pre-ordered production runner host and
 a matching replica increase. That gives the MachineDeployment spare
 capacity to create and verify a current-revision node before an old node
 is drained.
+
+## Upgrading the ClickHouse pool in place
+
+The `stateful-worker` class (`md-clickhouse`) is `OnDelete`. A new
+`topology.version` moves the MachineDeployment's template and replaces no
+Machine. Replacing a box would reinstall it, wiping `/data` and with it that
+ClickHouse replica, and would change its node name, which
+`clickhouse.managed.persistence.localVolume.nodeNames` pins the replica to.
+Each Kubernetes minor is therefore applied to the boxes in place, one box at
+a time.
+
+CAPI's Cluster webhook refuses the next `topology.version` bump until every
+Machine's `spec.version` matches its MachineDeployment
+(`validateTopologyMachineDeploymentVersions`). It reads `spec.version` and
+never the kubelet, and `spec.version` is mutable. So the procedure ends by
+recording the new version on each Machine. The Machines stay owned by their
+old MachineSet and show as not up to date, which `OnDelete` leaves alone. A
+box that is reprovisioned later joins at the template's version anyway.
+
+Everything below the PR is a human operation:
+- On canary and production it needs an elevation covering cordon, drain
+  and `kubectl debug node`, or root SSH to the box.
+- The Machine patch needs write access to the management cluster.
+
+1. Merge the Cluster CR change: drop `topology.cluster.x-k8s.io/defer-upgrade`
+   from `md-clickhouse`, or bump `topology.version` with the pool following
+   it. Wait for Flux to apply it. The MachineDeployment's
+   `spec.template.spec.version` then reads the new version, and no Machine
+   is replaced.
+2. Check both replicas are healthy first. All `tuist-tuist-clickhouse-*` pods
+   must be Ready: Ready means `/replicas_status` reports the replica caught
+   up. The PodDisruptionBudget refuses the drain otherwise, and that refusal
+   is the point. Check that the last backup CronJob runs succeeded.
+
+   Then check that no backup is running. Don't drain either box while one
+   is, including the box whose replica isn't running it. Backups run at
+   01:00 UTC: the weekly full on Mondays takes about 11 hours on production,
+   and the daily incremental takes much less. On production on 2026-11-09,
+   draining `clickhouse-1`'s box failed the full that `clickhouse-0` had
+   been writing for 7 hours. It failed with an S3 `RequestCanceled` 21
+   seconds after the eviction, and the Job's one retry then started again
+   from scratch. Before draining, both of these must be empty:
+
+   ```bash
+   kubectl -n <namespace> get jobs | grep clickhouse-backup | grep Running
+   kubectl -n <namespace> exec tuist-tuist-clickhouse-0 -c clickhouse -- \
+     sh -c 'clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD" \
+       -q "SELECT name, start_time FROM system.backups WHERE status = '\''CREATING_BACKUP'\''"'
+   ```
+
+   Repeat the `system.backups` query on `tuist-tuist-clickhouse-1`. The
+   server can keep writing a backup after its Job has failed or hit its
+   deadline. That's why `system.backups` is the check, not the Job's status.
+3. For **one** box (`NODE=bm-...-md-clickhouse-...`):
+
+   ```bash
+   kubectl cordon "$NODE"
+   kubectl drain "$NODE" --ignore-daemonsets --delete-emptydir-data --timeout=15m
+   # ClickHouse stops; its local PV stays on disk.
+   kubectl debug node/"$NODE" -it --profile=sysadmin --image=ubuntu:24.04 \
+     -- nsenter --target 1 --mount --uts --ipc --net --pid -- bash
+   ```
+
+   On the host, first run `dpkg --audit`. A half-configured unrelated package
+   makes every `apt-get install` exit 100 even when the requested packages
+   install. We saw this with `openssh-server` after unattended-upgrades,
+   because its postinst can't start `ssh.socket` while the boot-time sshd
+   holds :22. Leave that package alone, and check the result with
+   `dpkg -l kubeadm kubelet kubectl` (`ii` or `hi`) instead of apt's exit code.
+
+   Then, with `V` the control plane's patch version (for example `1.35.10`):
+
+   ```bash
+   V=1.35.10; MINOR=${V%.*}
+   cp -a /var/lib/kubelet/config.yaml /var/lib/kubelet/kubeadm-flags.env /root/
+   curl -fsSL "https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/Release.key" \
+     | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+   echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/ /" \
+     > /etc/apt/sources.list.d/kubernetes.list
+   apt-get update
+   apt-mark unhold kubelet kubeadm kubectl
+   apt-get install -y kubeadm="$V-*"
+   kubeadm upgrade node
+   apt-get install -y kubelet="$V-*" kubectl="$V-*"
+   apt-mark hold kubelet kubeadm kubectl
+   # The reservations and eviction thresholds are flags in kubeadm-flags.env;
+   # both files should come back unchanged apart from version-specific defaults.
+   # On 1.35, kubeadm drops --pod-infra-container-image (kubelet 1.35 rejects it).
+   diff /root/kubeadm-flags.env /var/lib/kubelet/kubeadm-flags.env
+   diff /root/config.yaml /var/lib/kubelet/config.yaml
+   dpkg -l kubeadm kubelet kubectl
+   systemctl daemon-reload
+   # The debug shell's exec stream runs through this kubelet, so a direct
+   # restart cuts it mid-command. Restart a few seconds after returning.
+   systemd-run --on-active=3 --unit=tuist-kubelet-restart systemctl restart kubelet
+   ```
+
+   Expected noise: `kubeadm upgrade node` warns that it can't read the
+   `kube-proxy` ConfigMap, because the node identity has no access to it.
+   The node keeps the `node.cluster.x-k8s.io/outdated-revision:PreferNoSchedule`
+   taint, because its Machine stays on the old MachineSet. The kubelet log's
+   "Nameserver limits exceeded" errors predate the upgrade.
+
+   Exit the debug shell, delete the debug pod (`kubectl get pods | grep node-debugger`),
+   and then:
+
+   ```bash
+   kubectl get node "$NODE" -o jsonpath='{.status.nodeInfo.kubeletVersion}'  # v1.35.10
+   kubectl uncordon "$NODE"
+   ```
+
+   Wait for that ClickHouse pod to be Ready again. It restarts on its own
+   data and only catches up on the writes it missed. Before the next box,
+   check in both pods (`clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD"`):
+   - In `system.replicas`, no table is `is_readonly`, `absolute_delay` is 0
+     and `active_replicas` equals `total_replicas`.
+   - `system.replication_queue` has no entries with `last_exception`.
+   - Per-table `sum(rows)` over active `system.parts` agrees between the two
+     pods. Small gaps from live inserts close within a minute.
+     `last_queue_update_exception` keeps the last Keeper error after
+     recovery, so a stale value there is not a failure.
+4. Repeat step 3 for the other box. Never start it before the first replica
+   is Ready.
+5. On the management cluster, record the version on both Machines. Without
+   `KUBECONFIG`, kubectl falls back to `localhost:8080`:
+
+   ```bash
+   export KUBECONFIG=$(mktemp)
+   op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt > "$KUBECONFIG"
+   for m in $(kubectl -n org-tuist get machines \
+       -l cluster.x-k8s.io/cluster-name=<cluster>,topology.cluster.x-k8s.io/deployment-name=md-clickhouse -o name); do
+     kubectl -n org-tuist patch "$m" --type merge -p '{"spec":{"version":"v1.35.10"}}'
+   done
+   rm -f "$KUBECONFIG"; unset KUBECONFIG
+   ```
+
+   The next `topology.version` bump is then accepted.
 
 ## Resizing the control plane
 

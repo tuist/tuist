@@ -297,6 +297,19 @@ defmodule Tuist.Authorization do
     end
   end
 
+  # Who can subscribe to a notification event for a project (`Tuist.Notifications`).
+  # Each event type names its action here. Checked when a rule is saved and again
+  # for each recipient when the event fires, so leaving an organization stops its
+  # notifications. Members only: public-project readers and ops grants can't subscribe.
+  object :notification do
+    action :preview_published do
+      desc("Allows members of a project's account to be notified when one of its previews is published.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, user_role: :viewer])
+    end
+  end
+
   object :project do
     action :cache_create do
       desc("Allows users of a project's account to create entries in the project cache.")
@@ -537,13 +550,19 @@ defmodule Tuist.Authorization do
     end
 
     action :update do
-      desc("Allows the admin of an account to manage its runner profiles and clear its runner volumes.")
+      desc(
+        "Allows the admin of an account to manage its runner profiles, run and cancel API jobs, and clear its runner volumes."
+      )
+
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows users with ops write access to manage any account's runner profiles and runner volumes.")
       allow([:authenticated_as_user, :ops_write_access])
 
-      desc("Allows an account token with account:runners:write scope to manage runner profiles and clear runner volumes.")
+      desc(
+        "Allows an account token with account:runners:write scope to manage runner profiles, run and cancel API jobs, and clear runner volumes."
+      )
+
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:write"])
     end
 
@@ -581,6 +600,23 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
       allow([:authenticated_as_user, :ops_write_access])
+    end
+
+    action :write do
+      desc(
+        "Allows users of an account to create sandboxes through the API and run commands in them. Sandboxes that serve an agent environment, an Amp integration or remote execution stay admin-only."
+      )
+
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to create sandboxes through the API and run commands in them.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows an account token with account:sandboxes:write scope to do what a user of the account can: create sandboxes through the API and run commands in them, except in sandboxes that serve an agent environment, an Amp integration or remote execution."
+      )
+
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:sandboxes:write"])
     end
   end
 

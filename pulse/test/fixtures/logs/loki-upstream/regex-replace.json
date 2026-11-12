@@ -1,0 +1,1221 @@
+{
+  "source": "https://github.com/golang/go/blob/go1.27.3/src/regexp/all_test.go",
+  "sha256": "caffaf144a8db14a7fd0476f8cc4ba51dba750f3b3f32e26cfee6629ee33057c",
+  "rows": [
+    {
+      "table": "replaceTests",
+      "line": 148,
+      "pattern": "",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 148,
+      "pattern": "",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 149,
+      "pattern": "",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 149,
+      "pattern": "",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 150,
+      "pattern": "",
+      "replacement": "",
+      "input": "abc",
+      "output": "abc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 150,
+      "pattern": "",
+      "replacement": "",
+      "input": "abc",
+      "output": "abc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 151,
+      "pattern": "",
+      "replacement": "x",
+      "input": "abc",
+      "output": "xaxbxcx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 151,
+      "pattern": "",
+      "replacement": "x",
+      "input": "abc",
+      "output": "xaxbxcx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 154,
+      "pattern": "b",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 154,
+      "pattern": "b",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 155,
+      "pattern": "b",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 155,
+      "pattern": "b",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 156,
+      "pattern": "b",
+      "replacement": "",
+      "input": "abc",
+      "output": "ac",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 156,
+      "pattern": "b",
+      "replacement": "",
+      "input": "abc",
+      "output": "ac",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 157,
+      "pattern": "b",
+      "replacement": "x",
+      "input": "abc",
+      "output": "axc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 157,
+      "pattern": "b",
+      "replacement": "x",
+      "input": "abc",
+      "output": "axc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 158,
+      "pattern": "y",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 158,
+      "pattern": "y",
+      "replacement": "",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 159,
+      "pattern": "y",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 159,
+      "pattern": "y",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 160,
+      "pattern": "y",
+      "replacement": "",
+      "input": "abc",
+      "output": "abc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 160,
+      "pattern": "y",
+      "replacement": "",
+      "input": "abc",
+      "output": "abc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 161,
+      "pattern": "y",
+      "replacement": "x",
+      "input": "abc",
+      "output": "abc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 161,
+      "pattern": "y",
+      "replacement": "x",
+      "input": "abc",
+      "output": "abc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 165,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "日",
+      "output": "x日x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 165,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "日",
+      "output": "x日x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 166,
+      "pattern": "[^日]",
+      "replacement": "x",
+      "input": "abc日def",
+      "output": "xxx日xxx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 166,
+      "pattern": "[^日]",
+      "replacement": "x",
+      "input": "abc日def",
+      "output": "xxx日xxx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 169,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "xdabc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 169,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "xdabc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 170,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 170,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 171,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdabc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 171,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdabc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 172,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 172,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 173,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 173,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 174,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 174,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 175,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "xdabce",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 175,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "xdabce",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 176,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabcex",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 176,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabcex",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 177,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 177,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 178,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 178,
+      "pattern": "^[a-c]*",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 179,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 179,
+      "pattern": "[a-c]*$",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 180,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 180,
+      "pattern": "^[a-c]*$",
+      "replacement": "x",
+      "input": "",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 182,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "xdabc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 182,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "xdabc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 183,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 183,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 184,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdabc",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 184,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "abcdabc",
+      "output": "abcdabc",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 185,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 185,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 186,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 186,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 187,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 187,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 188,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 188,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 189,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 189,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 190,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 190,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "dabce",
+      "output": "dabce",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 191,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 191,
+      "pattern": "^[a-c]+",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 192,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 192,
+      "pattern": "[a-c]+$",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 193,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 193,
+      "pattern": "^[a-c]+$",
+      "replacement": "x",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 196,
+      "pattern": "abc",
+      "replacement": "def",
+      "input": "abcdefg",
+      "output": "defdefg",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 196,
+      "pattern": "abc",
+      "replacement": "def",
+      "input": "abcdefg",
+      "output": "defdefg",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 197,
+      "pattern": "bc",
+      "replacement": "BC",
+      "input": "abcbcdcdedef",
+      "output": "aBCBCdcdedef",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 197,
+      "pattern": "bc",
+      "replacement": "BC",
+      "input": "abcbcdcdedef",
+      "output": "aBCBCdcdedef",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 198,
+      "pattern": "abc",
+      "replacement": "",
+      "input": "abcdabc",
+      "output": "d",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 198,
+      "pattern": "abc",
+      "replacement": "",
+      "input": "abcdabc",
+      "output": "d",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 199,
+      "pattern": "x",
+      "replacement": "xXx",
+      "input": "xxxXxxx",
+      "output": "xXxxXxxXxXxXxxXxxXx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 199,
+      "pattern": "x",
+      "replacement": "xXx",
+      "input": "xxxXxxx",
+      "output": "xXxxXxxXxXxXxxXxxXx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 200,
+      "pattern": "abc",
+      "replacement": "d",
+      "input": "",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 200,
+      "pattern": "abc",
+      "replacement": "d",
+      "input": "",
+      "output": "",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 201,
+      "pattern": "abc",
+      "replacement": "d",
+      "input": "abc",
+      "output": "d",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 201,
+      "pattern": "abc",
+      "replacement": "d",
+      "input": "abc",
+      "output": "d",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 202,
+      "pattern": ".+",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 202,
+      "pattern": ".+",
+      "replacement": "x",
+      "input": "abc",
+      "output": "x",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 203,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "def",
+      "output": "xdxexfx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 203,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "def",
+      "output": "xdxexfx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 204,
+      "pattern": "[a-c]+",
+      "replacement": "x",
+      "input": "abcbcdcdedef",
+      "output": "xdxdedef",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 204,
+      "pattern": "[a-c]+",
+      "replacement": "x",
+      "input": "abcbcdcdedef",
+      "output": "xdxdedef",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 205,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "abcbcdcdedef",
+      "output": "xdxdxexdxexfx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 205,
+      "pattern": "[a-c]*",
+      "replacement": "x",
+      "input": "abcbcdcdedef",
+      "output": "xdxdxexdxexfx",
+      "literal": true
+    },
+    {
+      "table": "replaceTests",
+      "line": 208,
+      "pattern": "a+",
+      "replacement": "($0)",
+      "input": "banana",
+      "output": "b(a)n(a)n(a)",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 209,
+      "pattern": "a+",
+      "replacement": "(${0})",
+      "input": "banana",
+      "output": "b(a)n(a)n(a)",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 210,
+      "pattern": "a+",
+      "replacement": "(${0})$0",
+      "input": "banana",
+      "output": "b(a)an(a)an(a)a",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 211,
+      "pattern": "a+",
+      "replacement": "(${0})$0",
+      "input": "banana",
+      "output": "b(a)an(a)an(a)a",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 212,
+      "pattern": "hello, (.+)",
+      "replacement": "goodbye, ${1}",
+      "input": "hello, world",
+      "output": "goodbye, world",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 213,
+      "pattern": "hello, (.+)",
+      "replacement": "goodbye, $1x",
+      "input": "hello, world",
+      "output": "goodbye, ",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 214,
+      "pattern": "hello, (.+)",
+      "replacement": "goodbye, ${1}x",
+      "input": "hello, world",
+      "output": "goodbye, worldx",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 215,
+      "pattern": "hello, (.+)",
+      "replacement": "<$0><$1><$2><$3>",
+      "input": "hello, world",
+      "output": "<hello, world><world><><>",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 216,
+      "pattern": "hello, (?P<noun>.+)",
+      "replacement": "goodbye, $noun!",
+      "input": "hello, world",
+      "output": "goodbye, world!",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 217,
+      "pattern": "hello, (?P<noun>.+)",
+      "replacement": "goodbye, ${noun}",
+      "input": "hello, world",
+      "output": "goodbye, world",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 218,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$x$x$x",
+      "input": "hi",
+      "output": "hihihi",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 219,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$x$x$x",
+      "input": "bye",
+      "output": "byebyebye",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 220,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$xyz",
+      "input": "hi",
+      "output": "",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 221,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "${x}yz",
+      "input": "hi",
+      "output": "hiyz",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 222,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "hello $$x",
+      "input": "hi",
+      "output": "hello $x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 223,
+      "pattern": "a+",
+      "replacement": "${oops",
+      "input": "aaa",
+      "output": "${oops",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 224,
+      "pattern": "a+",
+      "replacement": "$$",
+      "input": "aaa",
+      "output": "$",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 225,
+      "pattern": "a+",
+      "replacement": "$",
+      "input": "aaa",
+      "output": "$",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 228,
+      "pattern": "(x)?",
+      "replacement": "$1",
+      "input": "123",
+      "output": "123",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 229,
+      "pattern": "abc",
+      "replacement": "$1",
+      "input": "123",
+      "output": "123",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 232,
+      "pattern": "(a)(b){0}(c)",
+      "replacement": ".$1|$3.",
+      "input": "xacxacx",
+      "output": "x.a|c.x.a|c.x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 233,
+      "pattern": "(a)(((b))){0}c",
+      "replacement": ".$1.",
+      "input": "xacxacx",
+      "output": "x.a.x.a.x",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 234,
+      "pattern": "((a(b){0}){3}){5}(h)",
+      "replacement": "y caramb$2",
+      "input": "say aaaaaaaaaaaaaaaah",
+      "output": "say ay caramba",
+      "literal": false
+    },
+    {
+      "table": "replaceTests",
+      "line": 235,
+      "pattern": "((a(b){0}){3}){5}h",
+      "replacement": "y caramb$2",
+      "input": "say aaaaaaaaaaaaaaaah",
+      "output": "say ay caramba",
+      "literal": false
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 240,
+      "pattern": "a+",
+      "replacement": "($0)",
+      "input": "banana",
+      "output": "b($0)n($0)n($0)",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 241,
+      "pattern": "a+",
+      "replacement": "(${0})",
+      "input": "banana",
+      "output": "b(${0})n(${0})n(${0})",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 242,
+      "pattern": "a+",
+      "replacement": "(${0})$0",
+      "input": "banana",
+      "output": "b(${0})$0n(${0})$0n(${0})$0",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 243,
+      "pattern": "a+",
+      "replacement": "(${0})$0",
+      "input": "banana",
+      "output": "b(${0})$0n(${0})$0n(${0})$0",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 244,
+      "pattern": "hello, (.+)",
+      "replacement": "goodbye, ${1}",
+      "input": "hello, world",
+      "output": "goodbye, ${1}",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 245,
+      "pattern": "hello, (?P<noun>.+)",
+      "replacement": "goodbye, $noun!",
+      "input": "hello, world",
+      "output": "goodbye, $noun!",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 246,
+      "pattern": "hello, (?P<noun>.+)",
+      "replacement": "goodbye, ${noun}",
+      "input": "hello, world",
+      "output": "goodbye, ${noun}",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 247,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$x$x$x",
+      "input": "hi",
+      "output": "$x$x$x",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 248,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$x$x$x",
+      "input": "bye",
+      "output": "$x$x$x",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 249,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "$xyz",
+      "input": "hi",
+      "output": "$xyz",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 250,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "${x}yz",
+      "input": "hi",
+      "output": "${x}yz",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 251,
+      "pattern": "(?P<x>hi)|(?P<x>bye)",
+      "replacement": "hello $$x",
+      "input": "hi",
+      "output": "hello $$x",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 252,
+      "pattern": "a+",
+      "replacement": "${oops",
+      "input": "aaa",
+      "output": "${oops",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 253,
+      "pattern": "a+",
+      "replacement": "$$",
+      "input": "aaa",
+      "output": "$$",
+      "literal": true
+    },
+    {
+      "table": "replaceLiteralTests",
+      "line": 254,
+      "pattern": "a+",
+      "replacement": "$",
+      "input": "aaa",
+      "output": "$",
+      "literal": true
+    }
+  ]
+}

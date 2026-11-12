@@ -8,19 +8,22 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
   alias Tuist.Repo
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
   @charged [:creating, :resuming, :running]
+  @on_disk [:creating, :resuming, :running, :paused]
   @mib 1024 * 1024
+  @free_disk_reserve_bytes 20 * 1024 * @mib
 
-  def place(sandbox) do
+  def place(sandbox, node_filter \\ fn _node -> true end) do
     # A host with a booted warm VM of this shape claims it instead of
     # cold-booting, so it is tried first.
     nodes =
       Nodes.connected_nodes()
-      |> Enum.filter(&ready?(&1, sandbox.template))
+      |> Enum.filter(&(ready?(&1, sandbox.template) and node_filter.(&1)))
       |> Enum.sort_by(&(not warm?(&1, sandbox)))
 
     Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _acc ->
@@ -49,25 +52,70 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     end
   end
 
-  def admissible?(environment, session_id) do
+  @doc """
+  `:ok` when a work item for the session could start now, otherwise
+  `{:error, reason}` saying why, for the logs: the account's quota, or
+  `{node, reason}` for the host of the session's sandbox, or for a new
+  sandbox `{:no_node, %{node => reason}}` with each connected macOS host's
+  first failing check (`:no_template`, `:template_not_ready`, `:no_grant`,
+  `:grant_mismatch`, `:grant_stale`, `:grant_denied`, `:no_room`).
+  """
+  def admission(environment, session_id) do
     case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
       %Sandbox{} = sandbox ->
-        with true <- sandbox.state in @charged or Concurrency.check(sandbox.account_id, sandbox) == :ok,
-             {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name) do
-          info[:generation] == sandbox.node_uid and allowed?(info)
-        else
-          _ -> false
-        end
+        with :ok <- quota(sandbox), do: host_admission(sandbox)
 
       nil ->
-        Concurrency.check(environment.account_id, environment) == :ok and
-          Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
+        with :ok <- Capacity.quota(environment.account_id, environment), do: placement(environment)
+    end
+  end
+
+  def admissible?(environment, session_id), do: admission(environment, session_id) == :ok
+
+  defp quota(%Sandbox{state: state}) when state in @charged, do: :ok
+  defp quota(sandbox), do: Capacity.quota(sandbox.account_id, sandbox)
+
+  defp host_admission(%Sandbox{node_name: node_name, node_uid: node_uid}) do
+    status =
+      case Nodes.lookup(node_name) do
+        {:ok, _pid, %{generation: ^node_uid} = info} -> grant_status(info)
+        {:ok, _pid, _info} -> :node_replaced
+        {:error, reason} -> reason
+      end
+
+    if status == :ok, do: :ok, else: {:error, {node_name, status}}
+  end
+
+  defp placement(environment) do
+    statuses =
+      for node <- Nodes.connected_nodes(), node[:platform] == "darwin", into: %{} do
+        {node.name, host_status(node, environment)}
+      end
+
+    cond do
+      statuses == %{} -> {:error, :no_macos_node_connected}
+      Enum.any?(statuses, fn {_name, status} -> status == :ok end) -> :ok
+      true -> {:error, {:no_node, statuses}}
+    end
+  end
+
+  defp host_status(node, environment) do
+    with :ok <- template_status(node, environment.template),
+         :ok <- grant_status(node) do
+      if room?(node, environment), do: :ok, else: :no_room
+    end
+  end
+
+  defp template_status(node, template) do
+    case Enum.find(Map.get(node, :templates, []), &(&1.name == template)) do
+      nil -> :no_template
+      %{ready: true} -> :ok
+      _building -> :template_not_ready
     end
   end
 
   defp ready?(node, template) do
-    node[:platform] == "darwin" and allowed?(node) and
-      Enum.any?(Map.get(node, :templates, []), &(&1.name == template and &1.ready))
+    node[:platform] == "darwin" and allowed?(node) and template_status(node, template) == :ok
   end
 
   defp warm?(node, sandbox) do
@@ -75,17 +123,27 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     Enum.any?(Map.get(node, :templates, []), &(&1.name == sandbox.template and shape in Map.get(&1, :warm, [])))
   end
 
-  def allowed?(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do
-    with %{"allow" => true, "node_uid" => ^generation, "control_uid" => ^control, "observed_at" => at} <- grant,
+  def allowed?(node), do: grant_status(node) == :ok
+
+  # `:ok` for a fresh grant that allows native work on this host and its
+  # current control Pod; otherwise why not.
+  defp grant_status(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do
+    with %{"node_uid" => ^generation, "control_uid" => ^control, "observed_at" => at} <- grant,
          {:ok, observed, _offset} <- DateTime.from_iso8601(at) do
       age = DateTime.diff(DateTime.utc_now(), observed, :millisecond)
-      age >= -1000 and age < 15_000
+
+      cond do
+        age < -1000 or age >= 15_000 -> :grant_stale
+        grant["allow"] != true -> :grant_denied
+        true -> :ok
+      end
     else
-      _ -> false
+      %{"node_uid" => _} -> :grant_mismatch
+      _ -> :no_grant
     end
   end
 
-  def allowed?(_node), do: false
+  defp grant_status(_node), do: :no_grant
 
   defp reserve(sandbox, node, state) do
     Repo.transaction(fn ->
@@ -135,6 +193,54 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
     Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) and
       memory <= min(node_memory, granted_memory) and cpus * 1000 <= min(node_cpus * 1000, granted_cpu) and
-      length(others) < min(2, granted_slots)
+      length(others) < min(2, granted_slots) and (resident_pause?(sandbox) or disk_room?(node, sandbox))
+  end
+
+  # A VM paused in memory resumes without touching the disk, which the
+  # host does not check for it either.
+  defp resident_pause?(%Sandbox{state: :paused, resident: true}), do: true
+  defp resident_pause?(_sandbox), do: false
+
+  # The host's final check (`diskRoom` in tart-kubelet), from its report:
+  # every VM it holds, evicted ones included, reserves its whole root disk
+  # and two memory images against half the filesystem, and a launch leaves
+  # two memory images and 20 GiB free. Rows rather than the report decide
+  # which VMs it holds, as in `Capacity.reserved_disk_bytes/1`: a create in
+  # flight is not in the report yet. Errored rows count while the host
+  # still reports them. A host that reports no budget (an older
+  # tart-kubelet) is not budgeted here; its own check still applies.
+  defp disk_room?(%{disk: %{budget_bytes: budget, available_bytes: available}} = node, sandbox)
+       when is_integer(budget) and budget > 0 and is_integer(available) do
+    id = Map.get(sandbox, :id)
+
+    reported =
+      for %{id: reported_id} <- Map.get(node, :sandboxes, []), {:ok, uuid} <- [Ecto.UUID.cast(reported_id)], do: uuid
+
+    rootfs = rootfs_bytes(node, sandbox.template)
+
+    reserved =
+      from(s in Sandbox,
+        where: s.node_name == ^node.name and s.state in ^@on_disk,
+        or_where: s.node_name == ^node.name and s.state == :error and s.id in ^reported,
+        select: %{id: s.id, memory_mb: s.memory_mb}
+      )
+      |> Repo.all()
+      |> Enum.reject(&(&1.id == id))
+      |> Enum.map(&disk_ceiling_bytes(rootfs, &1.memory_mb))
+      |> Enum.sum()
+
+    reserved + disk_ceiling_bytes(rootfs, sandbox.memory_mb) <= budget and
+      available >= sandbox.memory_mb * 2 * @mib + @free_disk_reserve_bytes
+  end
+
+  defp disk_room?(_node, _sandbox), do: true
+
+  defp disk_ceiling_bytes(rootfs, memory_mb), do: rootfs + memory_mb * 2 * @mib + 128 * @mib
+
+  defp rootfs_bytes(node, template) do
+    case Enum.find(Map.get(node, :templates, []), &(&1.name == template)) do
+      %{rootfs_bytes: bytes} when is_integer(bytes) -> bytes
+      _template -> 0
+    end
   end
 end

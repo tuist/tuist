@@ -1,0 +1,103 @@
+#marketing-comparison {
+  margin: 0 var(--noora-spacing-1);
+
+  & > [data-part="article"] {
+    box-sizing: border-box;
+    margin-inline: auto;
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-8) var(--noora-spacing-6);
+    width: 100%;
+    min-width: 0;
+    max-width: 1200px;
+  }
+
+  & [data-part="breadcrumbs"] {
+    margin-bottom: var(--noora-spacing-10);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+
+    & ol {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-3);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    & li + li::before {
+      margin-inline-end: var(--noora-spacing-3);
+      content: "/";
+    }
+
+    & a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  & [data-part="header"] {
+    max-width: 850px;
+
+    & h1 {
+      margin-block: var(--noora-spacing-5);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-wrap: balance;
+    }
+  }
+
+  & [data-part="eyebrow"],
+  & [data-part="last-updated"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="content"] {
+    margin-top: var(--noora-spacing-10);
+    max-width: 100%;
+
+    & > p,
+    & > ul,
+    & > h2 {
+      max-width: 780px;
+    }
+
+    & .noora-table {
+      max-width: 100%;
+      overflow-x: auto;
+
+      & table {
+        width: 100%;
+        min-width: 100%;
+        table-layout: fixed;
+      }
+
+      & th,
+      & td {
+        vertical-align: top;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      & th:first-child,
+      & td:first-child {
+        width: 20%;
+      }
+    }
+  }
+
+  @media (min-width: 1024px) {
+    & > [data-part="article"] {
+      padding: var(--noora-spacing-10) var(--noora-spacing-13) var(--noora-spacing-13);
+    }
+  }
+
+  @media (max-width: 600px) {
+    & [data-part="content"] .noora-table table {
+      min-width: 680px;
+    }
+  }
+}

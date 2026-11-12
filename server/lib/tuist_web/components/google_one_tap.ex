@@ -11,6 +11,7 @@ defmodule TuistWeb.GoogleOneTap do
   attr :current_user, :any, default: nil
 
   attr :live, :boolean, default: false
+  attr :return_to, :string, default: nil
 
   def prompt(assigns) do
     assigns = assign(assigns, :enabled?, enabled?(assigns.current_user))
@@ -25,7 +26,10 @@ defmodule TuistWeb.GoogleOneTap do
       data-start-url={~p"/auth/google/one-tap/start"}
       hidden
     >
-      <.form for={%{}} action={~p"/auth/google/one-tap"}>
+      <.form
+        for={%{}}
+        action={TuistWeb.Authentication.login_path(~p"/auth/google/one-tap", @return_to)}
+      >
         <input type="hidden" name="credential" />
         <input type="hidden" name="nonce" />
       </.form>

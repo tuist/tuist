@@ -10,12 +10,10 @@ defmodule Tuist.Accounts.UserMFA do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.User
-  alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.SecurityNotificationWorker
   alias Tuist.Repo
   alias Tuist.Time
-
-  require Logger
 
   schema "user_mfa" do
     belongs_to :user, User
@@ -31,6 +29,14 @@ defmodule Tuist.Accounts.UserMFA do
 
   def enabled?(user) do
     Repo.exists?(from factor in __MODULE__, where: factor.user_id == ^user.id and not is_nil(factor.confirmed_at))
+  end
+
+  def recovery_code_count(user) do
+    Repo.one(
+      from factor in __MODULE__,
+        where: factor.user_id == ^user.id and not is_nil(factor.confirmed_at),
+        select: fragment("cardinality(?)", factor.recovery_code_hashes)
+    ) || 0
   end
 
   @doc false
@@ -90,8 +96,7 @@ defmodule Tuist.Accounts.UserMFA do
   end
 
   def confirm_enrollment(user, session, code) do
-    user
-    |> with_factor(fn factor ->
+    with_factor(user, fn factor ->
       with true <- fresh_session?(session, user),
            true <- is_nil(factor.confirmed_at),
            true <- factor.enrollment_session_hash == hash(session.token),
@@ -101,13 +106,13 @@ defmodule Tuist.Accounts.UserMFA do
         factor |> change(confirmed_at: now(), recovery_code_hashes: Enum.map(codes, &hash/1)) |> Repo.update!()
         revoked_sessions = revoke_sessions(user)
         session = issue_session(user, auth_params(session))
+        SecurityNotificationWorker.enqueue(user, :mfa_enabled)
         {:ok, %{recovery_codes: codes, revoked_sessions: revoked_sessions, session: session}}
       else
         false -> {:error, :enrollment_expired}
         error -> error
       end
     end)
-    |> notify_factor_change(user, true)
   end
 
   defp verify(user, code) do
@@ -131,33 +136,39 @@ defmodule Tuist.Accounts.UserMFA do
   end
 
   def disable(user, session, code) do
-    user
-    |> with_factor(fn factor ->
+    with_factor(user, fn factor ->
       with true <- fresh_session?(session, user),
            true <- not is_nil(factor.confirmed_at),
            {:ok, _} <- verify_locked(factor, code, true) do
         Repo.delete!(factor)
         revoked_sessions = revoke_sessions(user)
         session = issue_session(user, auth_params(session))
+        SecurityNotificationWorker.enqueue(user, :mfa_disabled)
         {:ok, %{revoked_sessions: revoked_sessions, session: session}}
       else
         false -> {:error, :reauthentication_required}
         error -> error
       end
     end)
-    |> notify_factor_change(user, false)
   end
 
-  defp notify_factor_change({:ok, _} = result, user, enabled?) do
-    case UserNotifier.deliver_mfa_change_notification(user, enabled?) do
-      {:ok, _} -> :ok
-      {:error, _} -> Logger.error("MFA factor-change notification failed", auth_user_id: user.id)
-    end
-
-    result
+  def regenerate_recovery_codes(user, session, code) do
+    with_factor(user, fn factor ->
+      with true <- fresh_session?(session, user),
+           true <- not is_nil(factor.confirmed_at),
+           {:ok, factor} <- verify_locked(factor, code, true) do
+        codes = recovery_codes()
+        factor |> change(recovery_code_hashes: Enum.map(codes, &hash/1)) |> Repo.update!()
+        revoked_sessions = revoke_sessions(user)
+        session = issue_session(user, auth_params(session))
+        SecurityNotificationWorker.enqueue(user, :recovery_regenerated)
+        {:ok, %{recovery_codes: codes, revoked_sessions: revoked_sessions, session: session}}
+      else
+        false -> {:error, :reauthentication_required}
+        error -> error
+      end
+    end)
   end
-
-  defp notify_factor_change(error, _user, _enabled?), do: error
 
   def create_challenge(user, auth) do
     {:ok, token} =
@@ -255,9 +266,12 @@ defmodule Tuist.Accounts.UserMFA do
         changes = %{failed_attempts: 0, attempt_window_started_at: nil}
 
         changes =
-          if accepted_time,
-            do: Map.put(changes, :last_used_at, accepted_time),
-            else: Map.put(changes, :recovery_code_hashes, List.delete(factor.recovery_code_hashes, recovery_hash))
+          if accepted_time do
+            Map.put(changes, :last_used_at, accepted_time)
+          else
+            SecurityNotificationWorker.enqueue(%User{id: factor.user_id}, :recovery_used)
+            Map.put(changes, :recovery_code_hashes, List.delete(factor.recovery_code_hashes, recovery_hash))
+          end
 
         {:ok, factor |> change(changes) |> Repo.update!()}
 

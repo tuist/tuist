@@ -1,0 +1,29 @@
+defmodule SDKProducer.MixProject do
+  use Mix.Project
+
+  def project, do: [app: :sdk_producer, version: "0.1.0", elixir: ">= 1.19.0", deps: deps()]
+  def application, do: []
+
+  defp deps do
+    [
+      {:phoenix, "== 1.7.21"},
+      {:bandit, "== 1.11.1"},
+      {:req, "== 0.5.17"},
+      {:finch, "== 0.21.0", override: true},
+      {:plug, "== 1.19.1", override: true},
+      {:telemetry, "== 1.4.2", override: true},
+      {:opentelemetry_api, "== 1.5.0"},
+      {:opentelemetry, "== 1.7.0"},
+      {:opentelemetry_exporter, "== 1.10.0"},
+      {:grpcbox, "== 0.17.1"},
+      {:opentelemetry_process_propagator, "== 0.3.0"},
+      {:opentelemetry_phoenix, "== 2.0.1"},
+      {:opentelemetry_bandit, "== 0.3.0"},
+      {:opentelemetry_ecto,
+       github: "open-telemetry/opentelemetry-erlang-contrib",
+       ref: "c37d1226ec83d81458a372d5f9bc6188db564d74",
+       sparse: "instrumentation/opentelemetry_ecto"},
+      {:opentelemetry_finch, "== 0.2.0"}
+    ]
+  end
+end

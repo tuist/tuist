@@ -74,9 +74,10 @@ spec:
     - name: s3
       port: 3900
       targetPort: s3
-    {{- if .Values.actionsCache.bucket }}
-    # Only the lifecycle job may reach it (NetworkPolicy below).
-    - name: admin
+    {{- if or .Values.archiveBucket .Values.actionsCache.bucket }}
+    # Archive capacity metrics for the server, the admin API for the lifecycle
+    # job (NetworkPolicy below).
+    - name: metrics
       port: 3903
       targetPort: health
     {{- end }}
@@ -309,7 +310,19 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- if .Values.archiveBucket }}
+    # Only the control plane needs filesystem capacity. Garage permits metrics
+    # without a token; administrative operations still require an admin token.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.serverNamespace }}
+      ports:
+        - protocol: TCP
+          port: 3903
+    {{- end }}
     {{- if .Values.actionsCache.bucket }}
+    # The lifecycle job sets the Actions cache bucket's quota.
     - from:
         - podSelector:
             matchLabels:

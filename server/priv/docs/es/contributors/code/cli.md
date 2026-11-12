@@ -25,14 +25,14 @@ La CLI es el corazón de Tuist. Se encarga de la generación de proyectos, los f
 - Clona el repositorio: `git clone git@github.com:tuist/tuist.git`
 - Instala Mise usando [su script oficial de instalación](https://mise.jdx.dev/getting-started.html) (no Homebrew) y ejecuta `mise install`
 - Instala las dependencias de Tuist: `tuist install`
-- Genera el workspace: `tuist generate`
+- Genera el espacio de trabajo: `tuist generate`
 
 El proyecto generado se abre automáticamente. Si necesitas volver a abrirlo más tarde, ejecuta `open Tuist.xcworkspace`.
 
 > [!NOTE]
-> **Xed .**
+> **`xed .`**
 >
-> Si intentas abrir el proyecto con `xed .`, se abrirá el paquete, no el workspace generado por Tuist. Usa `Tuist.xcworkspace`.
+> Si intentas abrir el proyecto con `xed .`, se abrirá el paquete, no el espacio de trabajo generado por Tuist. Usa `Tuist.xcworkspace`.
 
 
 ### Ejecutar Tuist {#run-tuist}
@@ -49,7 +49,7 @@ Edita el esquema `tuist` y establece argumentos como `generate --no-open`. Confi
 
 #### Desde el terminal {#from-the-terminal}
 
-Primero genera el workspace:
+Primero genera el espacio de trabajo:
 
 ```bash
 tuist generate --no-open

@@ -1,8 +1,8 @@
 defmodule Tuist.Push.Workers.NewPreviewWorker do
   @moduledoc """
-  Fans a new preview out to the devices of the project account's members who
-  want `new_preview` notifications for the project, one `DeliveryWorker` job per
-  device. Devices on a platform whose provider isn't configured are skipped. Enqueued when a preview's build finishes uploading; unique per preview
+  Fans a new preview out to the devices of the users whose notification rules
+  (`Tuist.Notifications`) push them `preview_published` events for it, one
+  `DeliveryWorker` job per device, even when several of a user's rules match. Devices on a platform whose provider isn't configured are skipped. Enqueued when a preview's build finishes uploading; unique per preview
   for a day, so a preview with several builds notifies once.
   """
 
@@ -11,13 +11,9 @@ defmodule Tuist.Push.Workers.NewPreviewWorker do
     max_attempts: 3,
     unique: [keys: [:preview_id], period: 24 * 60 * 60, states: :successful]
 
-  import Ecto.Query
-
-  alias Tuist.Accounts.Account
-  alias Tuist.Accounts.Role
-  alias Tuist.Accounts.UserRole
   alias Tuist.AppBuilds.Preview
   alias Tuist.Notifications
+  alias Tuist.Notifications.Events.PreviewPublished
   alias Tuist.Push
   alias Tuist.Push.APNs
   alias Tuist.Push.FCM
@@ -33,9 +29,10 @@ defmodule Tuist.Push.Workers.NewPreviewWorker do
          true <- DateTime.diff(DateTime.utc_now(), preview.inserted_at) < @max_age_seconds do
       payloads = payloads(preview)
 
-      preview.project.account
-      |> member_ids()
-      |> Enum.filter(&Notifications.notify?(&1, "new_preview", preview.project_id))
+      PreviewPublished
+      |> Notifications.recipients(preview.project, preview)
+      |> Enum.filter(fn {_user_id, action_types} -> "push" in action_types end)
+      |> Enum.map(fn {user_id, _action_types} -> user_id end)
       |> Enum.flat_map(&Push.live_installations/1)
       |> Enum.filter(&Map.has_key?(payloads, &1.platform))
       |> Enum.map(&DeliveryWorker.new(%{"registration_id" => &1.id, "payload" => Map.fetch!(payloads, &1.platform)}))
@@ -43,17 +40,6 @@ defmodule Tuist.Push.Workers.NewPreviewWorker do
     end
 
     :ok
-  end
-
-  defp member_ids(%Account{user_id: user_id}) when is_integer(user_id), do: [user_id]
-
-  defp member_ids(%Account{organization_id: organization_id}) do
-    UserRole
-    |> join(:inner, [ur], r in Role, on: ur.role_id == r.id)
-    |> where([_ur, r], r.resource_type == "Organization" and r.resource_id == ^organization_id)
-    |> distinct(true)
-    |> select([ur], ur.user_id)
-    |> Repo.all()
   end
 
   # The payload for each platform whose provider is configured on this server.

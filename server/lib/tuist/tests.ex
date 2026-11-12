@@ -2047,6 +2047,9 @@ defmodule Tuist.Tests do
   # `Tuist.ClickHouse.ArrayInParams`), which must stay below ClickHouse's
   # `http_max_field_value_size` (128 KiB). `query_fun` receives each chunk.
   @uuid_lookup_batch_size 2_000
+  # Commit SHAs bound as one `Array(String)` parameter, kept under ClickHouse's
+  # 128 KiB per-parameter cap even for SHA-256 object names.
+  @landed_sha_batch_size 1_000
 
   defp all_by_uuid_chunks(ids, query_fun) do
     ids
@@ -2656,6 +2659,12 @@ defmodule Tuist.Tests do
     end
   end
 
+  # Two narrow reads instead of every `(test case, commit)` pair: a large suite
+  # that CI runs on many pull-request commits has tens of millions of pairs in
+  # the window (37k test cases × ~2,000 commits), and loading them into the
+  # BEAM made xcresult ingestion take 10–30 minutes. The commits the test cases
+  # ran on are few, and the ones the default branch reached fewer still (often
+  # none), so the second read is skipped or bounded by them.
   defp landed_test_case_ids(project, default_branch, test_case_ids) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
@@ -2667,27 +2676,33 @@ defmodule Tuist.Tests do
         select: t.id
       )
 
-    runs =
-      all_by_uuid_chunks(test_case_ids, fn ids ->
-        from(r in TestCaseRun,
-          where: r.project_id == ^project.id,
-          where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
-          where: r.is_ci == true,
-          where: r.ran_at >= ^ninety_days_ago,
-          where: r.git_commit_sha != "",
-          where: r.submission_auth != "network_trusted",
-          where: r.test_run_id not in subquery(network_test_run_ids),
-          distinct: true,
-          select: {r.test_case_id, r.git_commit_sha}
-        )
-      end)
+    runs = fn ids ->
+      from(r in TestCaseRun,
+        where: r.project_id == ^project.id,
+        where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
+        where: r.is_ci == true,
+        where: r.ran_at >= ^ninety_days_ago,
+        where: r.git_commit_sha != "",
+        where: r.submission_auth != "network_trusted",
+        where: r.test_run_id not in subquery(network_test_run_ids)
+      )
+    end
 
-    landed =
-      project.account_id
-      |> GitHistory.default_branch_shas(default_branch, runs |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
-      |> MapSet.new()
+    shas =
+      test_case_ids
+      |> all_by_uuid_chunks(&from(r in runs.(&1), distinct: true, select: r.git_commit_sha))
+      |> Enum.uniq()
 
-    for {test_case_id, sha} <- runs, MapSet.member?(landed, sha), into: MapSet.new(), do: test_case_id
+    project.account_id
+    |> GitHistory.default_branch_shas(default_branch, shas)
+    |> Enum.chunk_every(@landed_sha_batch_size)
+    |> Enum.flat_map(fn landed ->
+      all_by_uuid_chunks(
+        test_case_ids,
+        &from(r in runs.(&1), where: r.git_commit_sha in ^landed, distinct: true, select: r.test_case_id)
+      )
+    end)
+    |> MapSet.new()
   end
 
   @doc """
@@ -4403,8 +4418,8 @@ defmodule Tuist.Tests do
       corrections
       |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
       |> Enum.flat_map(fn {{project_id, git_commit_sha}, grouped_corrections} ->
-        latest_flaky_states =
-          latest_test_case_run_flaky_states(
+        latest_states =
+          latest_test_case_run_states(
             project_id,
             git_commit_sha,
             grouped_corrections
@@ -4412,12 +4427,12 @@ defmodule Tuist.Tests do
 
         {already_applied, corrections_to_insert} =
           Enum.split_with(grouped_corrections, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == true
+            match?({true, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         corrections_to_insert =
           Enum.filter(corrections_to_insert, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == false
+            match?({false, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         insert_test_case_run_flaky_corrections(
@@ -4425,6 +4440,13 @@ defmodule Tuist.Tests do
           git_commit_sha,
           corrections_to_insert
         )
+
+        (already_applied ++ corrections_to_insert)
+        |> Enum.map(fn correction ->
+          {_is_flaky, test_run_id} = Map.fetch!(latest_states, correction.test_case_run_id)
+          test_run_id
+        end)
+        |> mark_legacy_test_runs_as_flaky()
 
         if corrections_to_insert != [] do
           report_test_case_run_multiplicity(project_id, git_commit_sha, corrections_to_insert)
@@ -4444,6 +4466,31 @@ defmodule Tuist.Tests do
     end
 
     :ok
+  end
+
+  # Version-0 runs derive their flaky flag from child test-case rows. A later
+  # successful retry can correct a previously persisted failed child, so amend
+  # the original authenticated parent through its buffer too. Reusing its exact
+  # timestamp preserves the parent metadata and keeps the correction ordered
+  # after a buffered create with the same version.
+  defp mark_legacy_test_runs_as_flaky([]), do: :ok
+
+  defp mark_legacy_test_runs_as_flaky(test_run_ids) do
+    test_run_ids = Enum.uniq(test_run_ids)
+
+    parents =
+      ClickHouseRepo.all(
+        from(test in Test.query(),
+          where: test.id in ^test_run_ids,
+          where: test.reporting_version == 0,
+          where: test.submission_auth != "network_trusted",
+          where: test.is_flaky == false
+        )
+      )
+
+    Enum.each(parents, fn parent ->
+      insert_test_run(%{parent | is_flaky: true}, nil)
+    end)
   end
 
   @doc false
@@ -4495,7 +4542,10 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp latest_test_case_run_flaky_states(project_id, git_commit_sha, corrections) do
+  # Returns `%{test_case_run_id => {is_flaky, test_run_id}}`. The parent ID is
+  # read here, inside the `(project_id, test_case_id)` sort-key range, because
+  # looking case runs up by `id` alone scans the whole table.
+  defp latest_test_case_run_states(project_id, git_commit_sha, corrections) do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
 
@@ -4504,14 +4554,15 @@ defmodule Tuist.Tests do
       where: tcr.test_case_id in ^test_case_ids,
       where: tcr.git_commit_sha == ^git_commit_sha,
       where: tcr.id in ^test_case_run_ids,
-      group_by: tcr.id,
+      group_by: [tcr.id, tcr.test_run_id],
       select: {
         tcr.id,
-        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
+        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at),
+        tcr.test_run_id
       }
     )
     |> ClickHouseRepo.all(settings: @flaky_correction_lookup_settings)
-    |> Map.new()
+    |> Map.new(fn {id, is_flaky, test_run_id} -> {id, {is_flaky, test_run_id}} end)
   end
 
   defp insert_test_case_run_flaky_corrections(_project_id, _git_commit_sha, []), do: :ok

@@ -24,7 +24,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.34.6
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -133,6 +133,11 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.
         # General-purpose pool: Phoenix server, redis, system DaemonSets,
         # plus the 3-instance CloudNativePG cluster — its hard pod
         # anti-affinity (`topologyKey: kubernetes.io/hostname,
@@ -145,9 +150,13 @@ spec:
         # helm rolls the release back on "Progress deadline exceeded". The
         # fifth node is that headroom. Add a node when new workloads pinned
         # here take it, rather than lowering the server's request.
+        # Greptime's distributed backend, replicated WAL and metadata store
+        # need additional capacity while Pulse remains online. Keep server
+        # surge and single-node-failure headroom when sizing this pool; retire
+        # migration capacity only after checking the final workload placement.
         - class: hcloud-worker
           name: md-0
-          replicas: 5
+          replicas: 8
           failureDomain: fsn1
           rollout:
             strategy:

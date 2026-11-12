@@ -46,6 +46,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise.Build, as: BitriseBuild
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
@@ -1472,7 +1473,12 @@ defmodule Tuist.Runners.Jobs do
       )
     end
 
-    {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
+    completed = %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}
+
+    # Only the first completion notifies; the terminal guard makes the rest no-ops.
+    if row.status not in ["completed", "cancelled"], do: APIJobs.dispatch_event(completed, "runner_job.completed")
+
+    {:ok, completed}
   end
 
   defp record_completed_locked(attrs, conclusion) do

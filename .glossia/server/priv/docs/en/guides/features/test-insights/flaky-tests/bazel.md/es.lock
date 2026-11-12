@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9291d39a4a62f465a5ee1025b412aac8f82c4e6a86e51d1d9590e5928b7520cf",
+  "hash": "ed25c5f602978844c656d8661d24a615795b9bfa4fbb65c9b456ca58f629e672",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,38 +11,44 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Bazel flaky tests {#bazel-flaky-tests}": {
-                  "content_hash": "b75eaa70a59ef604af7d3a0669d39129ce3f286acf1629e6a615d5cdcabbba8a"
+                  "content_hash": "12d5257e523bbe094cb23fb8240b1dc482ee7dfebd09f8061ab44cd5f1ad3416"
                 },
-                "## Applying quarantine {#applying-quarantine}": {
-                  "content_hash": "a3a5b482bc763b3cf42e4fc2c3a6b3c4def92edee3d71d7dd55cd8a2beda6303"
+                "## How flaky detection works {#how-it-works}": {
+                  "content_hash": "d5de122d09bf37aef190163aa266d80ccd0b5822885a0f9705579b5ee04e39cd"
                 },
-                "## Detecting flakiness {#detecting-flakiness}": {
-                  "content_hash": "c4ef83729a177c0328e6b0072c30514e6d0c362083e2c5fa6733bac8b615c9c5"
+                "## Quarantining flaky tests {#quarantining}": {
+                  "content_hash": "f4521b05b52fd3f6d4072f8a25394464cb51cf5dd9fa209765835b80f3a80a55"
                 },
-                "## Optional configuration and retries {#optional-configuration-and-retries}": {
-                  "content_hash": "0503de460ebbbe6135a4030f9a4f512571c4a9536e1704c0487853262e8aaa0a"
+                "### Cross-run detection {#cross-run-detection}": {
+                  "content_hash": "8b1451f8168ac22530750c34c8d6285de05cf651a3422496dd7cd9ee23741fd7"
+                },
+                "### Limitations {#limitations}": {
+                  "content_hash": "c344f917d5d5710b05df4ce3fef14f8719570bfe5ad46f97dbebc45a2b1603f4"
                 },
                 "### Mute {#mute}": {
-                  "content_hash": "fa36a75fec9b527f6a1b0f79007deb2fda5e5c6fd4e1256f8166b53ab6aad884"
+                  "content_hash": "51f2844eb6cda60efee956ffd29e4bfe9dc4f3d6aa9f5cc26eb350e951037835"
                 },
                 "### Running quarantined tests again {#running-quarantined-tests-again}": {
-                  "content_hash": "e92feaf531ab1752af96a8d188ed9e20a0cbf46ed02cafa81a6dc27841e0aa2a"
+                  "content_hash": "7505f587b63ef06584365fab0e133778f187135dddafd3f5277d17084f91805a"
                 },
                 "### Skip {#skip}": {
-                  "content_hash": "a9cafb6523dd833e8094044281f8387e618bcb8549df3b91ab18fe323119665e"
+                  "content_hash": "108d5a141703a88f60705838fb81688de8f4759eb462a1b66f7a4cf00d9ad382"
+                },
+                "### Test retries {#test-retries}": {
+                  "content_hash": "136dee0d27a698a4d92a037af185ef207c79348725b8c109a781e2944cff82f6"
                 },
                 "Preamble": {
-                  "content_hash": "e3c2d6ae1359024758b709271de18ba2cbdf0a29ded01ed25c81ab9cc05c7a4c"
+                  "content_hash": "b7b1331c3ce14494aa63ba0b8786443a811c2a966e2cb3ace2be2d007a29b9d7"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "950d3c4ee75830cfa947ddb94d2e304a681f275409bf13f136585c735dc7b9a2",
+          "hash": "23516d13ebc48aa852adf4dabc03bf582af8d7f47a05ded0487d7232825a0fb7",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/bazel.md",
           "metadata": {
-            "content_hash": "c3dda8cdc3573385cc9ea5bce72a03654e8d47f277ec122e7fa91bb4a1095dfa"
+            "content_hash": "d1c96305bc8c2f330cd27b060c3bc2b033a76d960f4e571b41b70635a9784328"
           }
         },
         {
@@ -103,7 +109,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,7 +128,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +157,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -253,21 +259,21 @@
             }
           ],
           "details": {},
-          "hash": "bcca634f0da7a145517ec507ceca010d80d31ba6d298cb8bf2fe081b219448ac",
+          "hash": "f905ee85f1c11c41dd3ddc0b3e58658bb7dedb549ccc1e79bee85fcca43d3e87",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "9291d39a4a62f465a5ee1025b412aac8f82c4e6a86e51d1d9590e5928b7520cf",
+      "hash": "ed25c5f602978844c656d8661d24a615795b9bfa4fbb65c9b456ca58f629e672",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/bazel.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b5a15e3176c8404a3a5321e07ccbc28b60ac740bd09f280267d25d9695a9498a",
+  "output_hash": "2a99e4e687af38e86a3e894daad4d3e61124bb9aea7cc228764dbea23d9e3ab4",
   "output_path": "server/priv/docs/es/guides/features/test-insights/flaky-tests/bazel.md",
   "protection_state": "recorded",
   "provider": "",
@@ -290,8 +296,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4ab73b41c999a401d392145890b4278eb7f6550d",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/bazel.md",
-  "translated_at": "2026-11-02T14:43:51.945716Z",
-  "translation_session_id": "01a19cb4-523e-7840-ba53-3aeffc96e9f9"
+  "translated_at": "2026-11-06T21:25:54.662443Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

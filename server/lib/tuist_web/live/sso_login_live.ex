@@ -7,12 +7,16 @@ defmodule TuistWeb.SSOLoginLive do
 
   alias Phoenix.Flash
   alias Tuist.Accounts
+  alias TuistWeb.Authentication
 
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
-    socket = assign(socket, :form, form)
+    socket =
+      socket
+      |> assign(:form, form)
+      |> assign(:return_to, Authentication.session_return_to(Map.get(params, "return_to", session["user_return_to"])))
 
     {
       :ok,
@@ -36,7 +40,7 @@ defmodule TuistWeb.SSOLoginLive do
 
         redirect_url = "/users/auth/#{provider_path}?organization_id=#{organization.id}&login_hint=#{encoded_email}"
 
-        {:noreply, redirect(socket, to: redirect_url)}
+        {:noreply, redirect(socket, to: Authentication.login_path(redirect_url, socket.assigns.return_to))}
 
       {:error, :login_domain_ambiguous} ->
         {:noreply,

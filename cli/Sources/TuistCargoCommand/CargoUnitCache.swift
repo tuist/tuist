@@ -103,6 +103,9 @@ struct CargoUnitCache {
         let options = Array(arguments.prefix(while: { $0 != "--" }))
         var metadataArguments = ["metadata", "--format-version", "1", "--no-deps", "--offline"]
         if let manifest = value("--manifest-path", in: options) { metadataArguments += ["--manifest-path", manifest] }
+        if let targetDirectory = value("--target-dir", in: options) {
+            metadataArguments += ["--target-dir", targetDirectory]
+        }
         async let metadataOutput = try? process.capture(
             executable, arguments: metadataArguments, environment: environment, directory: directory
         )

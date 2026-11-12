@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,6 +63,9 @@ func BuildRuntime(ctx context.Context, root string) (string, error) {
 type TartRuntime struct {
 	Client                 *tart.Client
 	Image, Template, Tools string
+	// rootfs is the root disk ceiling diskRoom reserves per sandbox, as
+	// last seen on this host's sandbox VMs (see rootDisk). 0 until known.
+	rootfs atomic.Int64
 }
 
 func (t *TartRuntime) client(r *Record) *tart.Client {

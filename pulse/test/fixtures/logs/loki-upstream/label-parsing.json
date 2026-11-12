@@ -1,0 +1,761 @@
+{
+  "accepted_count": 8,
+  "control_count": 1,
+  "controls": [
+    {
+      "assertion": {
+        "original_go": "require.Error(t, err)",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125278,
+          "end_column": 23,
+          "end_line": 3738,
+          "start_byte": 125257,
+          "start_column": 2,
+          "start_line": 3738
+        }
+      },
+      "assertion_calls": [
+        {
+          "original_go": "require.Error(t, err)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 125278,
+            "end_column": 23,
+            "end_line": 3738,
+            "start_byte": 125257,
+            "start_column": 2,
+            "start_line": 3738
+          }
+        }
+      ],
+      "construction": {
+        "original_go": "input := strings.Repeat(\"a\", 1\u003c\u003c24)",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125225,
+          "end_column": 37,
+          "end_line": 3736,
+          "start_byte": 125190,
+          "start_column": 2,
+          "start_line": 3736
+        }
+      },
+      "control_index": 0,
+      "error_oracle": "presence_only",
+      "executor": {
+        "original_go": "_, err := ParseLabels(input)",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125255,
+          "end_column": 30,
+          "end_line": 3737,
+          "start_byte": 125227,
+          "start_column": 2,
+          "start_line": 3737
+        }
+      },
+      "expected_error": null,
+      "materialized": false,
+      "name": "TestParseLabels.trailing_oversized_input",
+      "parser_calls": [
+        {
+          "original_go": "ParseLabels(input)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 125255,
+            "end_column": 30,
+            "end_line": 3737,
+            "start_byte": 125237,
+            "start_column": 12,
+            "start_line": 3737
+          }
+        }
+      ],
+      "query_byte_count": 16777216,
+      "query_expression": "strings.Repeat(\"a\", 1\u003c\u003c24)",
+      "reject": true,
+      "repeat_byte": 97,
+      "repeat_bytes_base64": "YQ==",
+      "repeat_count": 16777216,
+      "repeat_count_expression": "1\u003c\u003c24",
+      "repeat_expression": "\"a\"",
+      "table": "TestParseLabels"
+    }
+  ],
+  "exact_error_count": 0,
+  "label_pair_count": 6,
+  "rejected_control_count": 1,
+  "rejected_count": 0,
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "row_count": 8,
+  "schema_version": 1,
+  "sources": [
+    {
+      "path": "pkg/logql/syntax/parser_test.go",
+      "sha256": "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99"
+    },
+    {
+      "path": "pkg/logql/syntax/parser.go",
+      "sha256": "a38e8d4760af3969d5316e456db8abed93655a66fd81f8cfdd2fa50226142667"
+    }
+  ],
+  "supporting_declarations": [
+    {
+      "documentation": {
+        "original_go": "// ParseLabels parses stream labels from a string using the logql parser.\n//\n// It drops labels with an empty value. An empty value and an absent label mean\n// the same thing in Prometheus, but they hash differently, so Loki normalizes\n// them away to keep a stream's hash stable.",
+        "source": "pkg/logql/syntax/parser.go",
+        "source_range": {
+          "end_byte_exclusive": 7901,
+          "end_column": 45,
+          "end_line": 295,
+          "start_byte": 7621,
+          "start_column": 1,
+          "start_line": 291
+        }
+      },
+      "name": "ParseLabels",
+      "original_go": "func ParseLabels(lbs string) (labels.Labels, error) {\n\tls, err := ParseMetric(lbs)\n\tif err != nil {\n\t\treturn labels.EmptyLabels(), err\n\t}\n\treturn ls.WithoutEmpty(), nil\n}\n",
+      "sha256": "e6ca047ff65c97fd86ff7147b7bb902d5ba87c98d4faf620217b9b627bdf16be",
+      "source": "pkg/logql/syntax/parser.go",
+      "source_range": {
+        "end_byte_exclusive": 8072,
+        "end_column": 2,
+        "end_line": 302,
+        "start_byte": 7902,
+        "start_column": 1,
+        "start_line": 296
+      }
+    },
+    {
+      "documentation": {
+        "original_go": "// ParseMetric parses a label set from a string using the logql parser,\n// keeping empty-value labels.\n//\n// Use this for labels that come from query processing, such as range-vector\n// aggregation output or extracted fields, where an empty value is distinct\n// from an absent label. Use ParseLabels instead for stream labels read from\n// storage, which Loki normalizes to drop empty values at write time.",
+        "source": "pkg/logql/syntax/parser.go",
+        "source_range": {
+          "end_byte_exclusive": 8479,
+          "end_column": 70,
+          "end_line": 310,
+          "start_byte": 8074,
+          "start_column": 1,
+          "start_line": 304
+        }
+      },
+      "name": "ParseMetric",
+      "original_go": "func ParseMetric(lbs string) (labels.Labels, error) {\n\tif len(lbs) \u003e maxStreamLabelsSize {\n\t\treturn labels.EmptyLabels(), fmt.Errorf(\"labels size %d MiB exceeds limit of %d\", len(lbs)\u003e\u003e20, maxStreamLabelsSize\u003e\u003e20)\n\t}\n\t//nolint:forbidigo // this is the wrapper other packages must call instead\n\treturn promql_parser.NewParser(promql_parser.Options{}).ParseMetric(lbs)\n}\n",
+      "sha256": "ad2132476a90e64caf1d2d32e7170e153a8887169b37934be7856a2247926a58",
+      "source": "pkg/logql/syntax/parser.go",
+      "source_range": {
+        "end_byte_exclusive": 8848,
+        "end_column": 2,
+        "end_line": 317,
+        "start_byte": 8480,
+        "start_column": 1,
+        "start_line": 311
+      }
+    },
+    {
+      "name": "maxStreamLabelsSize",
+      "original_go": "const (\n\tEmptyMatchers = \"{}\"\n\n\terrAtleastOneEqualityMatcherRequired = \"queries require at least one regexp or equality matcher that does not have an empty-compatible value. For instance, app=~\\\".*\\\" does not meet this requirement, but app=~\\\".+\\\" will\"\n\n\t// Prometheus internal data structure panics if given more than this.\n\tmaxStreamLabelsSize = 1\u003c\u003c24 - 1 // 16MB\n)\n",
+      "sha256": "705dec29c2dce742221749cb0407abd97cff094c67ce06ebed23a2ef2181a981",
+      "source": "pkg/logql/syntax/parser.go",
+      "source_range": {
+        "end_byte_exclusive": 631,
+        "end_column": 2,
+        "end_line": 23,
+        "start_byte": 263,
+        "start_column": 1,
+        "start_line": 16
+      },
+      "value": 16777215,
+      "value_expression": "1\u003c\u003c24 - 1",
+      "value_spec": {
+        "original_go": "maxStreamLabelsSize = 1\u003c\u003c24 - 1",
+        "source": "pkg/logql/syntax/parser.go",
+        "source_range": {
+          "end_byte_exclusive": 621,
+          "end_column": 33,
+          "end_line": 22,
+          "start_byte": 590,
+          "start_column": 2,
+          "start_line": 22
+        }
+      }
+    }
+  ],
+  "tables": [
+    {
+      "accepted_count": 4,
+      "assertion_calls": [
+        {
+          "original_go": "require.Equal(t, tc.output, got)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 125180,
+            "end_column": 36,
+            "end_line": 3733,
+            "start_byte": 125148,
+            "start_column": 4,
+            "start_line": 3733
+          }
+        }
+      ],
+      "executor": {
+        "original_go": "for _, tc := range []struct {\n\t\tdesc   string\n\t\tinput  string\n\t\toutput labels.Labels\n\t}{\n\t\t{\n\t\t\tdesc:   \"basic\",\n\t\t\tinput:  `{job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, already sorted\",\n\t\t\tinput: `{env=\"a\", job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, not sorted\",\n\t\t\tinput: `{job=\"foo\", env=\"a\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:   \"strip empty label value\",\n\t\t\tinput:  `{job=\"foo\", bar=\"\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t} {\n\t\tt.Run(tc.desc, func(t *testing.T) {\n\t\t\tgot, _ := ParseLabels(tc.input)\n\t\t\trequire.Equal(t, tc.output, got)\n\t\t})\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125188,
+          "end_column": 3,
+          "end_line": 3735,
+          "start_byte": 124438,
+          "start_column": 2,
+          "start_line": 3699
+        }
+      },
+      "label_pair_count": 6,
+      "name": "TestParseLabels",
+      "parser_calls": [
+        {
+          "original_go": "ParseLabels(tc.input)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 125144,
+            "end_column": 35,
+            "end_line": 3732,
+            "start_byte": 125123,
+            "start_column": 14,
+            "start_line": 3732
+          }
+        }
+      ],
+      "rejected_count": 0,
+      "row_count": 4,
+      "rows": [
+        {
+          "expected_error": null,
+          "expected_labels": [
+            {
+              "name": "job",
+              "value": "foo"
+            }
+          ],
+          "expected_labels_expression": "labels.FromStrings(\"job\", \"foo\")",
+          "expected_labels_present": true,
+          "expected_labels_source": {
+            "arguments": [
+              {
+                "original_go": "\"job\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124612,
+                  "end_column": 36,
+                  "end_line": 3707,
+                  "start_byte": 124607,
+                  "start_column": 31,
+                  "start_line": 3707
+                }
+              },
+              {
+                "original_go": "\"foo\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124619,
+                  "end_column": 43,
+                  "end_line": 3707,
+                  "start_byte": 124614,
+                  "start_column": 38,
+                  "start_line": 3707
+                }
+              }
+            ],
+            "constructor_expression": "labels.FromStrings",
+            "original_go": "labels.FromStrings(\"job\", \"foo\")",
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 124620,
+              "end_column": 44,
+              "end_line": 3707,
+              "start_byte": 124588,
+              "start_column": 12,
+              "start_line": 3707
+            }
+          },
+          "name": "basic",
+          "original_go": "{\n\t\t\tdesc:   \"basic\",\n\t\t\tinput:  `{job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t}",
+          "query": "{job=\"foo\"}",
+          "query_bytes_base64": "e2pvYj0iZm9vIn0=",
+          "query_expression": "`{job=\"foo\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 0,
+          "source_range": {
+            "end_byte_exclusive": 124625,
+            "end_column": 4,
+            "end_line": 3708,
+            "start_byte": 124529,
+            "start_column": 3,
+            "start_line": 3704
+          },
+          "table": "TestParseLabels"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": [
+            {
+              "name": "env",
+              "value": "a"
+            },
+            {
+              "name": "job",
+              "value": "foo"
+            }
+          ],
+          "expected_labels_expression": "labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t)",
+          "expected_labels_present": true,
+          "expected_labels_source": {
+            "arguments": [
+              {
+                "original_go": "\"env\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124750,
+                  "end_column": 10,
+                  "end_line": 3713,
+                  "start_byte": 124745,
+                  "start_column": 5,
+                  "start_line": 3713
+                }
+              },
+              {
+                "original_go": "\"a\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124755,
+                  "end_column": 15,
+                  "end_line": 3713,
+                  "start_byte": 124752,
+                  "start_column": 12,
+                  "start_line": 3713
+                }
+              },
+              {
+                "original_go": "\"job\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124766,
+                  "end_column": 10,
+                  "end_line": 3714,
+                  "start_byte": 124761,
+                  "start_column": 5,
+                  "start_line": 3714
+                }
+              },
+              {
+                "original_go": "\"foo\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124773,
+                  "end_column": 17,
+                  "end_line": 3714,
+                  "start_byte": 124768,
+                  "start_column": 12,
+                  "start_line": 3714
+                }
+              }
+            ],
+            "constructor_expression": "labels.FromStrings",
+            "original_go": "labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t)",
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 124779,
+              "end_column": 5,
+              "end_line": 3715,
+              "start_byte": 124721,
+              "start_column": 12,
+              "start_line": 3712
+            }
+          },
+          "name": "multiple labels, already sorted",
+          "original_go": "{\n\t\t\tdesc:  \"multiple labels, already sorted\",\n\t\t\tinput: `{env=\"a\", job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t}",
+          "query": "{env=\"a\", job=\"foo\"}",
+          "query_bytes_base64": "e2Vudj0iYSIsIGpvYj0iZm9vIn0=",
+          "query_expression": "`{env=\"a\", job=\"foo\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 1,
+          "source_range": {
+            "end_byte_exclusive": 124784,
+            "end_column": 4,
+            "end_line": 3716,
+            "start_byte": 124629,
+            "start_column": 3,
+            "start_line": 3709
+          },
+          "table": "TestParseLabels"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": [
+            {
+              "name": "env",
+              "value": "a"
+            },
+            {
+              "name": "job",
+              "value": "foo"
+            }
+          ],
+          "expected_labels_expression": "labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t)",
+          "expected_labels_present": true,
+          "expected_labels_source": {
+            "arguments": [
+              {
+                "original_go": "\"env\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124905,
+                  "end_column": 10,
+                  "end_line": 3721,
+                  "start_byte": 124900,
+                  "start_column": 5,
+                  "start_line": 3721
+                }
+              },
+              {
+                "original_go": "\"a\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124910,
+                  "end_column": 15,
+                  "end_line": 3721,
+                  "start_byte": 124907,
+                  "start_column": 12,
+                  "start_line": 3721
+                }
+              },
+              {
+                "original_go": "\"job\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124921,
+                  "end_column": 10,
+                  "end_line": 3722,
+                  "start_byte": 124916,
+                  "start_column": 5,
+                  "start_line": 3722
+                }
+              },
+              {
+                "original_go": "\"foo\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 124928,
+                  "end_column": 17,
+                  "end_line": 3722,
+                  "start_byte": 124923,
+                  "start_column": 12,
+                  "start_line": 3722
+                }
+              }
+            ],
+            "constructor_expression": "labels.FromStrings",
+            "original_go": "labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t)",
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 124934,
+              "end_column": 5,
+              "end_line": 3723,
+              "start_byte": 124876,
+              "start_column": 12,
+              "start_line": 3720
+            }
+          },
+          "name": "multiple labels, not sorted",
+          "original_go": "{\n\t\t\tdesc:  \"multiple labels, not sorted\",\n\t\t\tinput: `{job=\"foo\", env=\"a\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t}",
+          "query": "{job=\"foo\", env=\"a\"}",
+          "query_bytes_base64": "e2pvYj0iZm9vIiwgZW52PSJhIn0=",
+          "query_expression": "`{job=\"foo\", env=\"a\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 2,
+          "source_range": {
+            "end_byte_exclusive": 124939,
+            "end_column": 4,
+            "end_line": 3724,
+            "start_byte": 124788,
+            "start_column": 3,
+            "start_line": 3717
+          },
+          "table": "TestParseLabels"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": [
+            {
+              "name": "job",
+              "value": "foo"
+            }
+          ],
+          "expected_labels_expression": "labels.FromStrings(\"job\", \"foo\")",
+          "expected_labels_present": true,
+          "expected_labels_source": {
+            "arguments": [
+              {
+                "original_go": "\"job\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 125052,
+                  "end_column": 36,
+                  "end_line": 3728,
+                  "start_byte": 125047,
+                  "start_column": 31,
+                  "start_line": 3728
+                }
+              },
+              {
+                "original_go": "\"foo\"",
+                "source": "pkg/logql/syntax/parser_test.go",
+                "source_range": {
+                  "end_byte_exclusive": 125059,
+                  "end_column": 43,
+                  "end_line": 3728,
+                  "start_byte": 125054,
+                  "start_column": 38,
+                  "start_line": 3728
+                }
+              }
+            ],
+            "constructor_expression": "labels.FromStrings",
+            "original_go": "labels.FromStrings(\"job\", \"foo\")",
+            "source": "pkg/logql/syntax/parser_test.go",
+            "source_range": {
+              "end_byte_exclusive": 125060,
+              "end_column": 44,
+              "end_line": 3728,
+              "start_byte": 125028,
+              "start_column": 12,
+              "start_line": 3728
+            }
+          },
+          "name": "strip empty label value",
+          "original_go": "{\n\t\t\tdesc:   \"strip empty label value\",\n\t\t\tinput:  `{job=\"foo\", bar=\"\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t}",
+          "query": "{job=\"foo\", bar=\"\"}",
+          "query_bytes_base64": "e2pvYj0iZm9vIiwgYmFyPSIifQ==",
+          "query_expression": "`{job=\"foo\", bar=\"\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 3,
+          "source_range": {
+            "end_byte_exclusive": 125065,
+            "end_column": 4,
+            "end_line": 3729,
+            "start_byte": 124943,
+            "start_column": 3,
+            "start_line": 3725
+          },
+          "table": "TestParseLabels"
+        }
+      ],
+      "selection": {
+        "name": "TestParseLabels",
+        "original_go": "func TestParseLabels(t *testing.T) {\n\tfor _, tc := range []struct {\n\t\tdesc   string\n\t\tinput  string\n\t\toutput labels.Labels\n\t}{\n\t\t{\n\t\t\tdesc:   \"basic\",\n\t\t\tinput:  `{job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, already sorted\",\n\t\t\tinput: `{env=\"a\", job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, not sorted\",\n\t\t\tinput: `{job=\"foo\", env=\"a\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:   \"strip empty label value\",\n\t\t\tinput:  `{job=\"foo\", bar=\"\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t} {\n\t\tt.Run(tc.desc, func(t *testing.T) {\n\t\t\tgot, _ := ParseLabels(tc.input)\n\t\t\trequire.Equal(t, tc.output, got)\n\t\t})\n\t}\n\tinput := strings.Repeat(\"a\", 1\u003c\u003c24)\n\t_, err := ParseLabels(input)\n\trequire.Error(t, err)\n}\n",
+        "sha256": "2e7f98beb5947cb225d4cc38eac6feb62b416669e135529e02e64f3e5ee4a988",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125280,
+          "end_column": 2,
+          "end_line": 3739,
+          "start_byte": 124400,
+          "start_column": 1,
+          "start_line": 3698
+        }
+      },
+      "table": {
+        "original_go": "[]struct {\n\t\tdesc   string\n\t\tinput  string\n\t\toutput labels.Labels\n\t}{\n\t\t{\n\t\t\tdesc:   \"basic\",\n\t\t\tinput:  `{job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, already sorted\",\n\t\t\tinput: `{env=\"a\", job=\"foo\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:  \"multiple labels, not sorted\",\n\t\t\tinput: `{job=\"foo\", env=\"a\"}`,\n\t\t\toutput: labels.FromStrings(\n\t\t\t\t\"env\", \"a\",\n\t\t\t\t\"job\", \"foo\",\n\t\t\t),\n\t\t},\n\t\t{\n\t\t\tdesc:   \"strip empty label value\",\n\t\t\tinput:  `{job=\"foo\", bar=\"\"}`,\n\t\t\toutput: labels.FromStrings(\"job\", \"foo\"),\n\t\t},\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 125069,
+          "end_column": 3,
+          "end_line": 3730,
+          "start_byte": 124457,
+          "start_column": 21,
+          "start_line": 3699
+        }
+      }
+    },
+    {
+      "accepted_count": 4,
+      "assertion_calls": [
+        {
+          "original_go": "require.NoError(t, err)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 127346,
+            "end_column": 27,
+            "end_line": 3791,
+            "start_byte": 127323,
+            "start_column": 4,
+            "start_line": 3791
+          }
+        }
+      ],
+      "executor": {
+        "original_go": "for _, query := range []string{\n\t\t`{variants=\"a\"}`,\n\t\t`{of=\"a\"}`,\n\t\t`sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))`,\n\t\t`{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"`,\n\t} {\n\t\tt.Run(query, func(t *testing.T) {\n\t\t\t_, err := ParseExpr(query)\n\t\t\trequire.NoError(t, err)\n\t\t})\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 127354,
+          "end_column": 3,
+          "end_line": 3793,
+          "start_byte": 127067,
+          "start_column": 2,
+          "start_line": 3783
+        }
+      },
+      "label_pair_count": 0,
+      "name": "TestParseUnreservedWordsAsLabelNames",
+      "parser_calls": [
+        {
+          "original_go": "ParseExpr(query)",
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_range": {
+            "end_byte_exclusive": 127319,
+            "end_column": 30,
+            "end_line": 3790,
+            "start_byte": 127303,
+            "start_column": 14,
+            "start_line": 3790
+          }
+        }
+      ],
+      "rejected_count": 0,
+      "row_count": 4,
+      "rows": [
+        {
+          "expected_error": null,
+          "expected_labels": null,
+          "expected_labels_expression": null,
+          "expected_labels_present": false,
+          "name": "{variants=\"a\"}",
+          "original_go": "`{variants=\"a\"}`",
+          "query": "{variants=\"a\"}",
+          "query_bytes_base64": "e3ZhcmlhbnRzPSJhIn0=",
+          "query_expression": "`{variants=\"a\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 0,
+          "source_range": {
+            "end_byte_exclusive": 127117,
+            "end_column": 19,
+            "end_line": 3784,
+            "start_byte": 127101,
+            "start_column": 3,
+            "start_line": 3784
+          },
+          "table": "TestParseUnreservedWordsAsLabelNames"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": null,
+          "expected_labels_expression": null,
+          "expected_labels_present": false,
+          "name": "{of=\"a\"}",
+          "original_go": "`{of=\"a\"}`",
+          "query": "{of=\"a\"}",
+          "query_bytes_base64": "e29mPSJhIn0=",
+          "query_expression": "`{of=\"a\"}`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 1,
+          "source_range": {
+            "end_byte_exclusive": 127131,
+            "end_column": 13,
+            "end_line": 3785,
+            "start_byte": 127121,
+            "start_column": 3,
+            "start_line": 3785
+          },
+          "table": "TestParseUnreservedWordsAsLabelNames"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": null,
+          "expected_labels_expression": null,
+          "expected_labels_present": false,
+          "name": "sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))",
+          "original_go": "`sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))`",
+          "query": "sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))",
+          "query_bytes_base64": "c3VtIGJ5ICh2YXJpYW50cywgb2YpIChjb3VudF9vdmVyX3RpbWUoe2Zvbz0iYmFyIn1bNW1dKSk=",
+          "query_expression": "`sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 2,
+          "source_range": {
+            "end_byte_exclusive": 127193,
+            "end_column": 61,
+            "end_line": 3786,
+            "start_byte": 127135,
+            "start_column": 3,
+            "start_line": 3786
+          },
+          "table": "TestParseUnreservedWordsAsLabelNames"
+        },
+        {
+          "expected_error": null,
+          "expected_labels": null,
+          "expected_labels_expression": null,
+          "expected_labels_present": false,
+          "name": "{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"",
+          "original_go": "`{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"`",
+          "query": "{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"",
+          "query_bytes_base64": "e2Zvbz0iYmFyIn0gfCBsb2dmbXQgfCBvZiA9ICJhIiB8IHZhcmlhbnRzID0gImIi",
+          "query_expression": "`{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"`",
+          "query_utf8_valid": true,
+          "reject": false,
+          "source": "pkg/logql/syntax/parser_test.go",
+          "source_index": 3,
+          "source_range": {
+            "end_byte_exclusive": 127247,
+            "end_column": 53,
+            "end_line": 3787,
+            "start_byte": 127197,
+            "start_column": 3,
+            "start_line": 3787
+          },
+          "table": "TestParseUnreservedWordsAsLabelNames"
+        }
+      ],
+      "selection": {
+        "name": "TestParseUnreservedWordsAsLabelNames",
+        "original_go": "func TestParseUnreservedWordsAsLabelNames(t *testing.T) {\n\tfor _, query := range []string{\n\t\t`{variants=\"a\"}`,\n\t\t`{of=\"a\"}`,\n\t\t`sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))`,\n\t\t`{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"`,\n\t} {\n\t\tt.Run(query, func(t *testing.T) {\n\t\t\t_, err := ParseExpr(query)\n\t\t\trequire.NoError(t, err)\n\t\t})\n\t}\n}\n",
+        "sha256": "c2c1d663ff88a6f3d91b64009633ecf206517e4467403841432667567dc031f9",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 127356,
+          "end_column": 2,
+          "end_line": 3794,
+          "start_byte": 127008,
+          "start_column": 1,
+          "start_line": 3782
+        }
+      },
+      "table": {
+        "original_go": "[]string{\n\t\t`{variants=\"a\"}`,\n\t\t`{of=\"a\"}`,\n\t\t`sum by (variants, of) (count_over_time({foo=\"bar\"}[5m]))`,\n\t\t`{foo=\"bar\"} | logfmt | of = \"a\" | variants = \"b\"`,\n\t}",
+        "source": "pkg/logql/syntax/parser_test.go",
+        "source_range": {
+          "end_byte_exclusive": 127251,
+          "end_column": 3,
+          "end_line": 3788,
+          "start_byte": 127089,
+          "start_column": 24,
+          "start_line": 3783
+        }
+      }
+    }
+  ]
+}

@@ -524,6 +524,22 @@ curl -v https://<env>.tuist.dev/ready
 gh workflow run server-deployment.yml -f environment=<env>
 ```
 
+### Pulse instance
+
+Pulse deploys independently into each cluster's `observability` namespace, not
+as part of the server or monitoring chart. Before its first release/deployment,
+verify the existing buckets and environment-vault fields described in the
+[Pulse bootstrap prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
+The release pipeline publishes matching image/chart artifacts before cascading
+staging → canary → production; manual redeployments select a published version
+through `pulse-deployment.yml` on main. Keep each instance single-replica and
+queries private. Workload ingress permits only exact authenticated `/mcp`,
+`/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` over TLS for external
+senders; in-cluster collectors still use the private Service. Coordinate the initial
+collector and Atlas rename with retirement of the old writer and resource
+ownership checks. Customer reconciliation is not implemented. Production
+mutations still require the approval described in the infrastructure access policy.
+
 ## 7. Observability
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
@@ -535,6 +551,13 @@ load-balancer telemetry under `cluster="tuist-management"`, so it remains
 available when a workload cluster is unreachable. Alert queries and setup
 instructions live in
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
+Its independent management-local Pulse backend is a separate Flux child,
+not a dependency on production. Bootstrap its private bucket and management-vault
+items using the [Pulse prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
+The apply workflow retains Cloud-only collection until backend/ESO readiness;
+after bootstrap, reconcile monitoring and verify fresh `cluster="tuist-management"`
+samples in both destinations. This does not switch management alerts or remove
+their external heartbeat/no-data protection.
 
 ## 8. Production air-gapped license
 

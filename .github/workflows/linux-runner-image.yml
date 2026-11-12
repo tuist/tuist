@@ -131,14 +131,21 @@ jobs:
           bash -n infra/linux-runner-image/dispatch-poll.sh
           bash -n infra/linux-runner-image/run-job.sh
           bash -n infra/linux-runner-image/vitals.sh
+          bash -n infra/linux-runner-image/memory-report.sh
           bash -n infra/linux-runner-image/metrics-sampler.sh
           bash -n infra/linux-runner-image/gradle-cache-smoke.sh
 
       - name: Test GitLab assignment staging
         run: bash infra/linux-runner-image/gitlab-dispatch_test.sh
 
+      - name: Test API job staging
+        run: bash infra/linux-runner-image/api-dispatch_test.sh
+
       - name: Test job-start hook
         run: bash infra/linux-runner-image/run-job_test.sh
+
+      - name: Test memory report hook
+        run: bash infra/linux-runner-image/memory-report_test.sh
 
       - name: Test Bitrise build start hook
         run: bash infra/linux-runner-image/bitrise-build-start_test.sh
@@ -162,6 +169,12 @@ jobs:
 
       - name: Test GitLab job executor
         working-directory: infra/linux-runner-image/gitlab-runner
+        env:
+          GOWORK: "off"
+        run: go test -race ./...
+
+      - name: Test API job executor
+        working-directory: infra/linux-runner-image/job-runner
         env:
           GOWORK: "off"
         run: go test -race ./...

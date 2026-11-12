@@ -10,6 +10,7 @@
     "generateCredentials": {"type": "boolean"},
     "privateNetwork": {"type": "string", "pattern": "^(pn-[0-9]+)?$"},
     "archiveBucket": {"type": "string", "pattern": "^([a-z0-9][a-z0-9-]{1,61}[a-z0-9])?$"},
+    "archiveBudgetGiB": {"type": "integer", "minimum": 1},
     "sandboxNamespace": {"type": "string"},
     "actionsCache": {
       "type": "object",

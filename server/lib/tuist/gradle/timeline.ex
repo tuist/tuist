@@ -18,14 +18,29 @@ defmodule Tuist.Gradle.Timeline do
     :network_bytes_in,
     :network_bytes_out,
     :disk_bytes_read,
-    :disk_bytes_written
+    :disk_bytes_written,
+    :disk_total_bytes,
+    :disk_available_bytes
   ]
 
   def load(build, opts \\ []) do
     tasks = rows(Task, build, [:id, :task_path, :build_path, :task_type, :outcome, :started_at, :duration_ms])
 
     configuration =
-      rows(ConfigurationOperation, build, [:id, :phase, :build_path, :project_path, :started_at, :duration_ms])
+      ClickHouseRepo.all(
+        from(row in ConfigurationOperation,
+          where: row.gradle_build_id == ^build.id and row.project_id == ^build.project_id,
+          select: %{
+            id: row.id,
+            phase: row.phase,
+            build_path: row.build_path,
+            project_path: row.project_path,
+            started_at: row.started_at,
+            duration_ms: row.duration_ms,
+            failed: fragment("notEmpty(?)", row.failure_message)
+          }
+        )
+      )
 
     transforms =
       rows(ArtifactTransform, build, [
@@ -116,7 +131,8 @@ defmodule Tuist.Gradle.Timeline do
           category: "configuration",
           start_ms: fragment("(toUnixTimestamp64Micro(?) - ?) / 1000", row.started_at, ^origin_microseconds),
           duration_ms: row.duration_ms,
-          status: "unknown"
+          # Configuration has no success outcome to report; only a recorded failure is known.
+          status: fragment("if(empty(?), 'unknown', 'failure')", row.failure_message)
         }
       )
 
@@ -209,7 +225,15 @@ defmodule Tuist.Gradle.Timeline do
       Enum.map(tasks, &operation(&1, "task", &1.task_path, &1.build_path, &1.task_path, &1.task_type, &1.outcome)) ++
         Enum.map(
           configuration,
-          &operation(&1, "configuration", &1.phase, &1.build_path, &1.project_path, "configuration", "unknown")
+          &operation(
+            &1,
+            "configuration",
+            &1.phase,
+            &1.build_path,
+            &1.project_path,
+            "configuration",
+            if(Map.get(&1, :failed) in [true, 1], do: "failed", else: "unknown")
+          )
         ) ++
         Enum.map(
           transforms,

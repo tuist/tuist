@@ -1,23 +1,38 @@
 import Foundation
 import Path
 import TuistREAPI
+import TuistServer
 
 struct BazelExecutionConfiguration {
     let endpoint: GRPCEndpoint
     let image: String
+    /// Bazel's `--jobs`, which also caps remote actions in flight and otherwise
+    /// defaults to the client's CPU count: a 2 vCPU runner would execute 2 actions
+    /// at a time however much capacity the account has.
+    let jobs: Int?
 
-    static func parse(endpoint: String?, image: String?) throws -> Self? {
-        if endpoint == nil, image == nil { return nil }
-        guard let endpoint, let image,
-              image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
+    /// Accepts only a gRPC endpoint without credentials and an immutable image tag, the two values written
+    /// verbatim into `.bazelrc.tuist`.
+    static func parse(_ capabilities: RemoteExecutionCapabilities) -> Self? {
+        let endpoint = capabilities.endpoint
+        let image = capabilities.image
+        guard image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
               endpoint.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
               let url = URL(string: endpoint), let host = url.host, !host.isEmpty,
               ["grpc", "grpcs"].contains(url.scheme ?? ""),
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/"
-        else { throw BazelSetupCommandServiceError.invalidExecutionConfiguration }
-        return Self(endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"), image: image)
+        else { return nil }
+        return Self(
+            endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"),
+            image: image,
+            jobs: capabilities.maxConcurrency.flatMap { $0 > 0 ? $0 * jobsPerSlot : nil }
+        )
     }
+
+    /// Actions kept in flight per execution slot, so each slot has its next action queued while
+    /// the previous one's result travels back. The server queues up to four per slot.
+    static let jobsPerSlot = 2
 }
 
 /// The `.bazelrc.tuist` that `tuist bazel setup` generates, and the one thing
@@ -97,7 +112,7 @@ enum BazelrcFile {
             build --remote_default_exec_properties=Arch=amd64
             build --remote_default_exec_properties=tuist-image=\(execution.image)
             build --noremote_local_fallback
-            \(helper)
+            \(execution.jobs.map { "build --jobs=\($0)\n" } ?? "")\(helper)
             """
         } else {
             executionConfiguration = ""

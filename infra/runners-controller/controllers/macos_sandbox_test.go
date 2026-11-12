@@ -14,22 +14,27 @@ import (
 	"time"
 )
 
-func TestMacosGrantsRevokeForQueuedUnknownAndUnhealthyCI(t *testing.T) {
+func TestMacosGrantsAllowQueuedCIButRevokeForReservedUnknownAndUnhealthyHosts(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		fleet    *fleetAllocation
 		pressure bool
+		reserved bool
 		allow    bool
 	}{
-		{"idle", &fleetAllocation{}, false, true},
-		{"queued", &fleetAllocation{members: map[string]fleetMember{"ci": {queued: 1}}}, false, false},
-		{"unknown", nil, false, false},
-		{"disk pressure", &fleetAllocation{}, true, false},
+		{"idle", &fleetAllocation{}, false, false, true},
+		{"queued elsewhere", &fleetAllocation{members: map[string]fleetMember{"ci": {queued: 1}}}, false, false, true},
+		{"reserved for queued CI", &fleetAllocation{members: map[string]fleetMember{"ci": {queued: 1}}}, false, true, false},
+		{"unknown", nil, false, false, false},
+		{"disk pressure", &fleetAllocation{}, true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node := linuxNodeWithResources("mac-1", "mac-fleet", 16, 48*1024)
 			node.Labels[corev1.LabelOSStable] = "darwin"
 			node.UID = "node-uid"
+			if tc.reserved {
+				node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{Key: podtemplate.ReservationTaintKey, Value: "ci", Effect: corev1.TaintEffectNoSchedule})
+			}
 			if tc.pressure {
 				node.Status.Conditions = append(node.Status.Conditions, corev1.NodeCondition{Type: corev1.NodeDiskPressure, Status: corev1.ConditionUnknown})
 			}

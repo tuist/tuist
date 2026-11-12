@@ -4,7 +4,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
 
-  import Phoenix.LiveViewTest
+  import Phoenix.LiveViewTest,
+    except: [has_element?: 2, has_element?: 3, form: 2, form: 3, render_change: 1, render_submit: 1]
 
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
@@ -28,12 +29,38 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
 
   defp path(account), do: ~p"/#{account.name}/settings/authentication"
 
+  # Noora portals render inside templates, outside LiveViewTest's element queries.
+  defp has_element?(lv, selector, text \\ nil) do
+    elements = lv |> render() |> LazyHTML.from_document() |> LazyHTML.to_tree() |> Floki.find(selector)
+    Enum.any?(elements, &(is_nil(text) or String.contains?(Floki.text(&1), text)))
+  end
+
+  defp form(lv, "#oidc-trust-policy-form", overrides \\ %{}) do
+    params =
+      lv
+      |> render()
+      |> LazyHTML.from_document()
+      |> LazyHTML.to_tree()
+      |> Floki.find("#oidc-trust-policy-form input[name], #oidc-trust-policy-form textarea[name]")
+      |> Map.new(fn {tag, attrs, _} = input ->
+        {attrs |> List.keyfind("name", 0) |> elem(1),
+         if(tag == "textarea",
+           do: Floki.text(input),
+           else: attrs |> List.keyfind("value", 0, {"value", ""}) |> elem(1)
+         )}
+      end)
+      |> URI.encode_query()
+      |> Plug.Conn.Query.decode()
+      |> Map.merge(overrides, fn _key, current, changed -> Map.merge(current, changed) end)
+
+    {lv, params}
+  end
+
+  defp render_change({lv, params}), do: render_change(lv, "change_oidc_trust_policy", params)
+  defp render_submit({lv, params}), do: render_submit(lv, "create_oidc_trust_policy", params)
+
   defp open(%{conn: conn, account: account}) do
     {:ok, lv, _} = live(conn, path(account))
-
-    if has_element?(lv, "#oidc-trust-policy-form[hidden]"),
-      do: lv |> element("#oidc-configuration-toggle") |> render_click()
-
     lv
   end
 
@@ -47,38 +74,37 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     lv |> form("#oidc-trust-policy-form", %{"fly_template" => values}) |> render_change()
   end
 
-  test "starts compact with a presentation-only configuration switch", context do
+  test "offers creation in a Noora modal instead of an inline configuration switch", context do
     {:ok, lv, _} = live(context.conn, path(context.account))
 
-    assert has_element?(
-             lv,
-             "button#oidc-configuration-toggle[role=switch][aria-checked=false][aria-expanded=false]",
-             "Show configuration"
-           )
+    assert has_element?(lv, "#oidc-trust-policy-modal[phx-hook=NooraModal]")
+    assert has_element?(lv, "#oidc-add-trust-policy[data-part=trigger]", "Add trust policy")
+    refute has_element?(lv, "#oidc-configuration-toggle")
+    refute has_element?(lv, "#oidc-trust-policies > [data-part=content]")
 
-    assert has_element?(lv, "#oidc-configuration-toggle[aria-controls=oidc-trust-policy-form]")
-    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    assert has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
+    html = lv |> render() |> Floki.parse_document!()
 
-    lv |> element("#oidc-configuration-toggle") |> render_click()
-    assert has_element?(lv, "#oidc-configuration-toggle[aria-checked=true][aria-expanded=true]")
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    refute has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
+    assert [_] =
+             Floki.find(
+               html,
+               "#oidc-trust-policy-modal-portal form#oidc-trust-policy-form[phx-change=change_oidc_trust_policy][phx-submit=create_oidc_trust_policy]"
+             )
+
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
-  test "places the workload section below SCIM with the switch immediately before its title", context do
+  test "places the workload section below SCIM", context do
     lv = open(context)
     assert has_element?(lv, "#sso-form + [data-part=scim-card] + #account-workload-identities")
 
     assert has_element?(
              lv,
-             "[data-part=heading] > #oidc-configuration-toggle + #oidc-workload-title",
+             "[data-part=heading] > #oidc-workload-title",
              "Workload identities"
            )
   end
 
-  test "hiding configuration retains malformed drafts and helper overrides", context do
+  test "SSO changes retain malformed policy drafts and helper overrides", context do
     lv = open(context)
     select_template(lv, "fly")
     fill_fly(lv)
@@ -87,30 +113,30 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     render_hook(lv, "toggle_sso", %{})
     render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
-    for checked <- [false, true] do
-      lv |> element("#oidc-configuration-toggle") |> render_click()
-      assert has_element?(lv, "#oidc-configuration-toggle[aria-checked=#{checked}][aria-expanded=#{checked}]")
-      assert has_element?(lv, "#oidc-trust-policy-claims", params["claims"])
-      assert has_element?(lv, "#oidc-fly-organization-slug[value='example-org']")
-      assert has_element?(lv, "#oidc-template-overrides")
-      assert has_element?(lv, "[data-part=advanced][open]")
-      assert has_element?(lv, "#sso-provider-select", "Okta")
-    end
+    assert has_element?(lv, "#oidc-trust-policy-claims", params["claims"])
+    assert has_element?(lv, "#oidc-fly-organization-slug[value='example-org']")
+    assert has_element?(lv, "#oidc-template-overrides")
+    assert has_element?(lv, "[data-part=advanced][open]")
+    assert has_element?(lv, "#sso-provider-select", "Okta")
 
     submit(lv, params)
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    refute_push_event(lv, "close-modal", %{id: "oidc-trust-policy-modal"})
+    assert has_element?(lv, "#oidc-trust-policy-form", "Claims must be valid JSON.")
+
+    render_hook(lv, "dismiss_oidc_trust_policy", %{})
+    assert_push_event(lv, "close-modal", %{id: "oidc-trust-policy-modal"})
+    assert has_element?(lv, "#oidc-trust-policy-claims", params["claims"])
     assert has_element?(lv, "#oidc-trust-policy-form", "Claims must be valid JSON.")
   end
 
-  test "hiding the form leaves saved identities, grants, setup and removal available", context do
+  test "saving closes creation while saved identities, grants, setup and removal remain available", context do
     lv = open(context)
     submit(lv, context.params)
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
-    assert has_element?(lv, "#oidc-configuration-toggle[aria-checked=true][aria-expanded=true]")
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    lv |> element("#oidc-configuration-toggle") |> render_click()
-    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    assert has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
+    assert_push_event(lv, "close-modal", %{id: "oidc-trust-policy-modal"})
+    assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
+    assert has_element?(lv, "#oidc-template-select-custom", "Custom provider")
+    {_, %{"oidc_trust_policy" => %{"name" => "", "claims" => ""}}} = form(lv, "#oidc-trust-policy-form")
     assert has_element?(lv, "#oidc-trust-policy-cards #oidc-trust-policy-#{policy.id}", policy.name)
 
     assert has_element?(
@@ -124,18 +150,16 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [^policy] = Accounts.list_oidc_trust_policies(context.account)
 
     {:ok, reloaded, _} = live(context.conn, path(context.account))
-    assert has_element?(reloaded, "#oidc-configuration-toggle[aria-checked=true][aria-expanded=true]")
-    refute has_element?(reloaded, "#oidc-trust-policy-form[hidden]")
+    refute_push_event(reloaded, "open-modal", %{id: "oidc-trust-policy-modal"})
     assert has_element?(reloaded, "#oidc-trust-policy-#{policy.id}")
     assert has_element?(reloaded, "#oidc-workload-guide")
     reloaded |> element("#oidc-trust-policy-#{policy.id} [phx-click=delete_oidc_trust_policy]") |> render_click()
     assert [] = Accounts.list_oidc_trust_policies(context.account)
-    assert has_element?(reloaded, "#oidc-configuration-toggle[aria-checked=true][aria-expanded=true]")
-    refute has_element?(reloaded, "#oidc-trust-policies > [data-part=content][hidden]")
+    assert has_element?(reloaded, "#oidc-add-trust-policy")
 
     {:ok, empty, _} = live(context.conn, path(context.account))
-    assert has_element?(empty, "#oidc-configuration-toggle[aria-checked=false][aria-expanded=false]")
-    assert has_element?(empty, "#oidc-trust-policy-form[hidden]")
+    assert has_element?(empty, "#oidc-add-trust-policy")
+    refute_push_event(empty, "open-modal", %{id: "oidc-trust-policy-modal"})
   end
 
   test "lives under account Authentication and defaults to manual account-wide configuration", context do
@@ -207,9 +231,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
   } do
     conn = assign(conn, :selected_account, user.account)
     {:ok, lv, _} = live(conn, path(user.account))
-    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    lv |> element("#oidc-configuration-toggle") |> render_click()
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
     refute has_element?(lv, "#oidc-projects")
     refute has_element?(lv, "#sso-form")
     submit(lv, @params)
