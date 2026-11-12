@@ -228,10 +228,13 @@ public struct GitHistoryService: GitHistoryServicing {
 
         let history: GitHistory
         do {
-            history = try await gitController.gitHistory(
+            history = try await checkoutHistory(
+                gitController: gitController,
+                missingCommitsService: missingCommitsService,
+                gitInfo: gitInfo,
                 workingDirectory: workingDirectory,
-                headSHA: gitInfo.sha,
-                baseBranch: gitInfo.baseBranch,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
                 limits: GitHistoryLimits(
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
@@ -457,6 +460,45 @@ public struct GitHistoryService: GitHistoryServicing {
             )
         }
     }
+}
+
+/// The checkout's history, with the commits between it and what the server has fetched when a
+/// shallow clone stops short of them: the server places a commit on its branch from the parents it
+/// has, so a commit that arrives before its parent leaves the parent off the branch for good. A
+/// server that cannot be asked counts as having them, and nothing is fetched. Only on CI, where
+/// runs race each other and the clone is thrown away: the fetch makes it a partial clone.
+private func checkoutHistory(
+    gitController: GitControlling,
+    missingCommitsService: FindMissingCommitsServicing,
+    gitInfo: GitInfo,
+    workingDirectory: AbsolutePath,
+    fullHandle: String,
+    serverURL: URL,
+    limits: GitHistoryLimits
+) async throws -> GitHistory {
+    let history = try await gitController.gitHistory(
+        workingDirectory: workingDirectory,
+        headSHA: gitInfo.sha,
+        baseBranch: gitInfo.baseBranch,
+        limits: limits
+    )
+    guard Environment.current.isCI, let repositoryURL = gitInfo.remoteURLOrigin, !repositoryURL.isEmpty
+    else { return history }
+    return await gitController.connectedGitHistory(
+        history,
+        workingDirectory: workingDirectory,
+        // The full ref, so a branch name is never read as a tag or as an option of `git fetch`.
+        refs: [gitInfo.baseBranch ?? gitInfo.branch].compactMap { $0 }.map { "refs/heads/\($0)" },
+        limits: limits,
+        unknown: { shas in
+            (try? await missingCommitsService.findMissingCommits(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                repositoryURL: repositoryURL,
+                shas: shas
+            )) ?? []
+        }
+    )
 }
 
 /// The history a process collected per checkout and commit, and whether its commits are up, so the

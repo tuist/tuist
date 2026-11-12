@@ -90,6 +90,27 @@ public protocol GitControlling {
         limits: GitHistoryLimits
     ) async throws -> GitHistory
 
+    /// `history` with what a shallow clone lacked between its heads and the commits the server
+    /// has. A run's checkout often holds its commit without the parent, and a commit uploaded
+    /// before its parent is placed on its branch without it, which the parent's later upload does
+    /// not undo. While `unknown` returns any of the first parents the checkout stops at, the clone
+    /// is deepened through `refs`, without blobs, in growing steps within the limits' window and
+    /// budget, so the parents are uploaded with the commit. Returns `history` as it is when the
+    /// checkout is whole, the limits allow no fetch of history, or `refs` is empty.
+    /// - Parameters:
+    ///   - history: What `gitHistory` collected.
+    ///   - workingDirectory: The repository's top level.
+    ///   - refs: The remote branches to fetch through.
+    ///   - limits: How much to collect.
+    ///   - unknown: Of the given commits, the ones the server lacks.
+    func connectedGitHistory(
+        _ history: GitHistory,
+        workingDirectory: AbsolutePath,
+        refs: [String],
+        limits: GitHistoryLimits,
+        unknown: @escaping ([String]) async -> [String]
+    ) async -> GitHistory
+
     /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
     /// which is what the server keys the listing by.
     func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles
@@ -99,6 +120,37 @@ public protocol GitControlling {
     /// working tree has changed, and untracked files Git does not ignore, are hashed from the
     /// working tree, so each id describes the contents a build would compile.
     func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
+
+    /// The checked-out commit with its parents.
+    func checkedOutCommit(workingDirectory: AbsolutePath) async throws -> GitCheckedOutCommit
+
+    /// Fetches `GitController.testImpactDeepenCommits` more commits into a shallow clone through
+    /// `refs`, without blobs, within the limits' budget. Returns false when the checkout isn't a
+    /// shallow clone, the limits allow no fetch, or the fetch failed.
+    func deepenShallowClone(workingDirectory: AbsolutePath, refs: [String], limits: GitHistoryLimits) async -> Bool
+
+    /// Up to `limit` ancestors of the checked-out commit that the checkout has, nearest first, the
+    /// commit itself left out. Empty when they can't be read.
+    func ancestorSHAs(workingDirectory: AbsolutePath, limit: Int) async -> [String]
+
+    /// The files that differ between `baselineSHA` and the working tree: what the checked-out commit
+    /// changed since the baseline, plus dirty and untracked files. A shallow clone that lacks the
+    /// baseline is deepened once by `GitController.testImpactDeepenCommits` through `refs` within the
+    /// limits' budget, and comes back as `.historyUnavailable` when that doesn't reach it. Only trees are read, never blobs,
+    /// except the
+    /// working tree's files, which are hashed.
+    /// - Parameters:
+    ///   - workingDirectory: The repository's top level.
+    ///   - baselineSHA: The commit to compare against.
+    ///   - refs: The remote refs whose history leads to the baseline, such as the checked-out pull
+    ///     request ref and the base branch. Empty never reaches the remote.
+    ///   - limits: The deepening budget.
+    func changedFiles(
+        workingDirectory: AbsolutePath,
+        since baselineSHA: String,
+        deepening refs: [String],
+        limits: GitHistoryLimits
+    ) async throws -> GitChangedFilesResult
 }
 
 /// An implementation of `GitControlling`.
@@ -454,8 +506,11 @@ public struct GitController: GitControlling {
         try await capture(arguments: command)
     }
 
-    func capture(arguments: [String]) async throws -> String {
-        try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
+    func capture(arguments: [String], environment overrides: [String: String] = [:]) async throws -> String {
+        try await commandRunner.capture(
+            arguments: arguments,
+            environment: hardenedEnvironment().merging(overrides) { _, override in override }
+        )
     }
 
     func runInOwnProcessGroup(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {

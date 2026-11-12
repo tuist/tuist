@@ -237,6 +237,22 @@ func schemes() -> [Scheme] {
                 )
             )
         ))
+        // Not part of TuistAcceptanceTests or the deploy scheme yet: canary doesn't serve coverage-based
+        // test selection until the server side deploys.
+        schemes.append(.scheme(
+            name: "TuistCoverageSelectionAcceptanceTests",
+            buildAction: .buildAction(targets: [.target("TuistCoverageSelectionAcceptanceTests")]),
+            testAction: .targets(
+                [.testableTarget(target: .target("TuistCoverageSelectionAcceptanceTests"))],
+                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on.
+                options: .options(language: "en", coverage: false)
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
+                )
+            )
+        ))
         schemes.append(.scheme(
             name: "TuistCacheEEUnitTests",
             buildAction: .buildAction(

@@ -307,6 +307,33 @@ public enum Module: String, CaseIterable {
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
+            .target(
+                name: "TuistCoverageSelectionAcceptanceTests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCoverageSelectionAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistCoverageSelectionAcceptanceTests"],
+                dependencies: [
+                    .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testSupport.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                ],
+                metadata: .metadata(tags: ["domain:testing", "layer:testing", "ee:true"])
+            ),
         ]
     }
 
@@ -1989,6 +2016,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeGraphMapper.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeMetadata.targetName),
