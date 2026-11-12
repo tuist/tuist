@@ -478,6 +478,7 @@ defmodule Tuist.Sandboxes.Archives do
                 node_name: nil,
                 residency_work_id: nil,
                 archive_upload_id: nil,
+                archive_attempted_at: nil,
                 archive_bytes: bytes,
                 archive_sha256: sha256,
                 archived_at: now()
@@ -503,7 +504,7 @@ defmodule Tuist.Sandboxes.Archives do
             {:error, reason}
         end
       else
-        discard(Sandbox, upload)
+        discard(Sandbox, upload, cancelled: true)
         {:ok, :skipped}
       end
     end)
@@ -512,6 +513,13 @@ defmodule Tuist.Sandboxes.Archives do
   defp finish({:ok, _data}, upload) do
     discard(Sandbox, upload)
     {:error, :invalid_archive_result}
+  end
+
+  # sandboxd distinguishes a resume/delete cancellation from upload failures.
+  # The next pause is eligible immediately, not after the failure backoff.
+  defp finish({:error, "archive interrupted by a resume or delete"}, upload) do
+    discard(Sandbox, upload, cancelled: true)
+    {:ok, :skipped}
   end
 
   defp finish({:error, reason}, %{sandbox: sandbox} = upload) do
@@ -562,12 +570,15 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   # Aborts the upload and clears it from the row of `schema` (a sandbox or
-  # a disk snapshot) that still records it.
-  defp discard(schema, %{upload_id: upload_id} = upload) do
+  # a disk snapshot) that still records it. Only failures retain backoff.
+  defp discard(schema, %{upload_id: upload_id} = upload, opts \\ []) do
     abort(upload)
 
+    attrs = [archive_key: nil, archive_store: nil, archive_upload_id: nil, updated_at: now()]
+    attrs = if opts[:cancelled], do: Keyword.put(attrs, :archive_attempted_at, nil), else: attrs
+
     Repo.update_all(from(s in schema, where: s.archive_upload_id == ^upload_id and is_nil(s.archived_at)),
-      set: [archive_key: nil, archive_store: nil, archive_upload_id: nil, updated_at: now()]
+      set: attrs
     )
 
     :ok
@@ -830,7 +841,14 @@ defmodule Tuist.Sandboxes.Archives do
           from(s in Sandbox,
             where: s.id == ^sandbox.id and s.archive_key == ^sandbox.archive_key and s.state != :archived
           ),
-          set: [archive_key: nil, archive_store: nil, archive_bytes: nil, archive_sha256: nil, archived_at: nil]
+          set: [
+            archive_key: nil,
+            archive_store: nil,
+            archive_bytes: nil,
+            archive_sha256: nil,
+            archived_at: nil,
+            archive_attempted_at: nil
+          ]
         )
 
         :ok

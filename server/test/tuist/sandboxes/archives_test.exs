@@ -406,6 +406,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                node_name: nil,
                archive_key: ^key,
                archive_upload_id: nil,
+               archive_attempted_at: nil,
                archive_sha256: "deadbeef",
                archived_at: %DateTime{}
              } = archived = Repo.reload!(sandbox)
@@ -453,27 +454,42 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert failed.archive_attempted_at
       reject(&Nodes.call/4)
       Archives.run()
+      refute Archives.make_node_room(["node-a"])
+      assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"])
     end
 
-    test "an Orb resumed during the upload stays hot and the upload is discarded", %{account: account} do
-      sandbox = paused_orb(account)
-      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
-
-      expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
-        # A resume and a new pause land while the node uploads.
-        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
-          set: [paused_at: DateTime.truncate(DateTime.utc_now(), :second)]
-        )
-
-        archive_result()
-      end)
-
+    test "an Orb resumed during the upload can be archived again after its next pause", %{account: account} do
       reject(&Storage.multipart_complete_upload/4)
-      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
 
-      Archives.run()
+      for result <- [archive_result(), {:error, "archive interrupted by a resume or delete"}] do
+        sandbox = paused_orb(account)
+        expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
 
-      assert %Sandbox{state: :paused, node_name: "node-a", archive_key: nil, archived_at: nil} = Repo.reload!(sandbox)
+        expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
+          # A resume and a new pause land while the node uploads. The
+          # result may arrive before or after the node notices cancellation.
+          Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+            set: [paused_at: DateTime.truncate(DateTime.utc_now(), :second)]
+          )
+
+          result
+        end)
+
+        expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+        assert {:ok, :skipped} = Archives.archive(sandbox)
+
+        assert %Sandbox{
+                 state: :paused,
+                 node_name: "node-a",
+                 archive_key: nil,
+                 archived_at: nil,
+                 archive_attempted_at: nil
+               } =
+                 Repo.reload!(sandbox)
+
+        assert Archives.make_node_room(["node-a"])
+        Repo.delete!(sandbox)
+      end
     end
 
     test "an upload that never becomes readable leaves the Orb on its node", %{account: account} do
@@ -530,7 +546,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   describe "restoring through Amp" do
     test "a spawn places an archived Orb on any node, cold boots it with fresh credentials and deletes the archive",
          %{account: account} do
-      sandbox = archived_orb(account)
+      # Archives made before cooldown cleanup was fixed retain their attempt.
+      sandbox = archived_orb(account, archive_attempted_at: hours_ago(1))
 
       expect(Storage, :generate_download_url, fn key, _account, _opts when key == sandbox.archive_key ->
         "https://s3/get"
@@ -560,8 +577,28 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert id == sandbox.id
 
-      assert %Sandbox{archive_key: nil, archived_at: nil, residency_work_id: "amp:amp-thread"} =
-               Repo.reload!(sandbox)
+      assert %Sandbox{archive_key: nil, archived_at: nil, archive_attempted_at: nil, residency_work_id: "amp:amp-thread"} =
+               restored = Repo.reload!(sandbox)
+
+      assert {:ok, idle} = Sandboxes.end_residency(restored)
+      expect(Nodes, :call, fn "node-b", "pause", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %{state: :paused}} = Sandboxes.pause(idle)
+
+      stub(Nodes, :connected_nodes, fn ->
+        [Map.merge(@node, %{name: "node-b", disk: %{budget_bytes: 20 * @gib}})]
+      end)
+
+      Archives.run()
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert job.args == %{"disk_pressure" => true, "node_names" => ["node-b"]}
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-b", "archive", _args, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-b", "delete", _args, _opts -> {:ok, %{}} end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      assert Repo.reload!(sandbox).state == :archived
     end
 
     test "a failed restore keeps the Orb archived for the next spawn", %{account: account} do
