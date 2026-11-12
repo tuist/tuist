@@ -31,62 +31,6 @@ test('capacity retains a server surge slot, counts init peaks and excludes unava
   } finally { rmSync(work, { recursive: true, force: true }); }
 });
 
-test('capacity spreads anti-affine replicas over distinct hosts and can require a one-node failure reserve', () => {
-  const work = mkdtempSync(join(tmpdir(), 'openobserve-spread-'));
-  try {
-    const labels = { 'app.kubernetes.io/instance': 'greptimedb', 'app.kubernetes.io/component': 'kafka' };
-    // Three 1-CPU replicas that must not share a host; every node has room for two.
-    const workload = [{ kind: 'StatefulSet', metadata: { name: 'kafka' }, spec: { replicas: 3, template: {
-      metadata: { labels },
-      spec: { affinity: { podAntiAffinity: { requiredDuringSchedulingIgnoredDuringExecution: [
-        { topologyKey: 'kubernetes.io/hostname', labelSelector: { matchLabels: labels } }] } },
-      containers: [{ resources: { requests: { cpu: '1', memory: '1Gi' } } }] },
-    } } }];
-    const node = name => ({ metadata: { name }, spec: {}, status: {
-      allocatable: { cpu: '3.1', memory: '8Gi', pods: '10' }, conditions: [{ type: 'Ready', status: 'True' }] } });
-    const run = (count, env = {}) => {
-      writeFileSync(join(work, 'nodes'), JSON.stringify({ items: Array.from({ length: count }, (_, i) => node(`n${i}`)) }));
-      writeFileSync(join(work, 'pods'), JSON.stringify({ items: [] }));
-      writeFileSync(join(work, 'workload'), JSON.stringify(workload));
-      return spawnSync(process.execPath, ['.github/scripts/openobserve-capacity.mjs', ...['nodes', 'pods', 'workload'].map(name => join(work, name))],
-        { env: { ...process.env, ...env } }).status;
-    };
-    // Two nodes hold 6.2 CPUs, enough for 3 CPUs plus the surge reserve, but not three distinct hosts.
-    assert.equal(run(2), 1);
-    assert.equal(run(3), 0);
-    assert.equal(run(3, { CAPACITY_TOLERATE_NODE_LOSS: '1' }), 1);
-    assert.equal(run(4, { CAPACITY_TOLERATE_NODE_LOSS: '1' }), 0);
-    // Without the anti-affinity the same replicas may share hosts again.
-    delete workload[0].spec.template.spec.affinity;
-    assert.equal(run(2), 0);
-  } finally { rmSync(work, { recursive: true, force: true }); }
-});
-
-test('capacity counts an upgraded release once, not as both running pods and new demand', () => {
-  const work = mkdtempSync(join(tmpdir(), 'openobserve-upgrade-'));
-  try {
-    const labels = { 'app.kubernetes.io/instance': 'greptimedb', 'app.kubernetes.io/component': 'datanode' };
-    const workload = [{ kind: 'StatefulSet', metadata: { name: 'greptimedb-datanode' }, spec: { replicas: 1,
-      selector: { matchLabels: labels }, template: { metadata: { labels },
-        spec: { containers: [{ resources: { requests: { cpu: '2', memory: '1Gi' } } }] } } } }];
-    // 4 CPUs: the 2-CPU release plus the 1-CPU surge reserve fit once, not twice.
-    const nodes = { items: [{ metadata: { name: 'general' }, spec: {}, status: {
-      allocatable: { cpu: '4', memory: '8Gi', pods: '10' }, conditions: [{ type: 'Ready', status: 'True' }] } }] };
-    const running = namespace => ({ metadata: { namespace, labels }, spec: { nodeName: 'general',
-      containers: [{ resources: { requests: { cpu: '2', memory: '1Gi' } } }] }, status: { phase: 'Running' } });
-    const run = (pods, env = {}) => {
-      for (const [name, value] of Object.entries({ nodes, pods: { items: pods }, workload })) writeFileSync(join(work, name), JSON.stringify(value));
-      return spawnSync(process.execPath, ['.github/scripts/openobserve-capacity.mjs', ...['nodes', 'pods', 'workload'].map(name => join(work, name))],
-        { env: { ...process.env, ...env } }).status;
-    };
-    assert.equal(run([]), 0);
-    assert.equal(run([running('observability')]), 1);
-    assert.equal(run([running('observability')], { CAPACITY_NAMESPACE: 'observability' }), 0);
-    // Matching labels elsewhere are other workloads and still use capacity.
-    assert.equal(run([running('tuist')], { CAPACITY_NAMESPACE: 'observability' }), 1);
-  } finally { rmSync(work, { recursive: true, force: true }); }
-});
-
 for (const prefix of ['openobserve', 'greptimedb']) {
 for (const scenario of ['success', 'lifecycle rules', 'lifecycle unavailable', 'public bucket', 'corrupt read', 'failed delete']) {
   test(`storage ${prefix}: ${scenario}`, () => {

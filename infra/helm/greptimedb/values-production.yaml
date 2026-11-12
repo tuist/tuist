@@ -1,8 +1,11 @@
-# Production runs the distributed topology only: two frontends, three metasrv
-# on a dedicated etcd quorum, three datanodes on a replicated Kafka WAL. It is
-# sized for one general-node failure, not for datacenter loss (all general
-# workers share fsn1-dc14). Sustained-load qualification remains mandatory.
+# Preserve at least the legacy production CPU/memory envelope. Sizing and
+# sustained-load qualification remain mandatory; this is not an HA guarantee.
 environment: production
-topology: cluster
 storage:
   bucket: tuist-pulso-production
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+  limits:
+    memory: 4Gi

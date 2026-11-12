@@ -9,73 +9,18 @@ into this repository and publishing it as Pulse is a future change, not a
 prerequisite for this replacement.
 
 Qualify the private backend separately before replacing the existing Pulse
-ingestion runtime. Backend qualification supports staging, canary and
-production; origin replacement is **staging-only**. A canary or production
-deploy installs the private backend and never switches ingestion; that cutover
-is a separate, explicitly approved change. Pushes and pull requests only validate; they never
+ingestion runtime. Backend qualification supports staging, canary and production;
+origin replacement remains **staging-only**. Promotion needs a separate reviewed
+change after staging evidence. Pushes and pull requests only validate; they never
 deploy this replacement. Existing private `greptimedb` resources and their PVC
 retain their names and ownership so a branding change cannot recreate storage.
 
-## Topologies
-
-`topology: standalone` (staging and canary) is not HA: S3 contains flushed
-data/indexes; the retained 10 GiB `hcloud-volumes` PVC holds raft-engine WAL and
-standalone state. Restart qualification does not prove diskless restore or
-disaster recovery.
-
-`topology: cluster` is the only topology the chart renders for production
-(`values-production.yaml`). Every component runs one replica per general node
-with a `maxUnavailable: 1` disruption budget:
-
-| Component | Replicas | Role |
-| --- | --- | --- |
-| `greptimedb-etcd` | 3 | Dedicated metadata quorum, never the Kubernetes etcd |
-| `greptimedb-kafka` | 3 | KRaft brokers/controllers holding the remote WAL |
-| `greptimedb-metasrv` | 3 | Leader-elected through etcd; region failover enabled |
-| `greptimedb-datanode` | 3 | Regions; local disk is a rebuildable cache |
-| `greptimedb-frontend` | 2 | Authenticated HTTP API behind Service `greptimedb:4000` |
-
-WAL topics use replication factor 3, `min.insync.replicas=2`, no unclean leader
-election and no time-based retention; Greptime prunes them after flushing to
-object storage. Greptime v1.3.0 produces WAL records with `acks=all` (its pinned
-rskafka client sends `acks=-1`), so an acknowledged write is on at least two
-brokers. Local-WAL failover (`allow_region_failover_on_local_wal`) stays off and
-missing WAL entries are an error (`overwrite_entry_start_id = false`). Cluster
-data lives under `greptimedb/distributed/` so it never mixes with a standalone
-backend's objects in the same bucket. The target is surviving one general-node
-failure without losing acknowledged writes; every general node is in
-`fsn1-dc14`, so this is not datacenter resilience.
-
-Initial requests total 8.6 CPUs and 17 GiB. The install's capacity gate places
-every replica on a distinct host, keeps the server's 1-CPU surge slot, and with
-the cluster topology must still fit after losing any one general node
-(`CAPACITY_TOLERATE_NODE_LOSS=1`). The workflow refuses to switch an existing
-environment between topologies in place, because Helm would delete the other
-topology's workloads. Moving staging or canary to the cluster topology needs
-more capacity there and a separate data migration.
-
-The cluster topology was rehearsed outside Kubernetes with the rendered configs
-(only addresses rewritten), the real v1.3.0, etcd 3.6.16 and Kafka 4.3.2
-binaries and MinIO for object storage. The rehearsal ran
-`greptimedb-smoke.mjs` and read its data back through the other frontend. Under
-continuous acknowledged writes across three partitions, it SIGKILLed and then
-restarted a datanode (automatic region failover), a Kafka broker, the metasrv
-leader, an etcd member, a frontend, and finally all three datanodes at once.
-All 9,287 acknowledged writes read back. The longest client-visible write
-outage was 15.8 s, and the ISR returned to three brokers. This is not a
-Kubernetes rehearsal: scheduling, volumes, probes and network policies are only
-exercised by the first real install.
-
-Production standalone sizing (CPU 1 / memory 2 GiB) no longer applies. Capacity
-gates include the backend before installation and the replacement gateway
-before cutover. The gate counts this release's running pods once (as the
-planned replacement), so upgrading an installed cluster is not refused for
-needing its own capacity twice. `pulse-readiness.sh` follows the installed
-topology: behind the replacement gateway it requires every cluster workload
-(etcd, Kafka, metasrv, datanodes, frontends) to be Helm-owned, fully rolled out
-and Ready at its minimum replica count, or the single standalone StatefulSet.
-Each cluster workload restarts when its own rendered configuration changes, not
-on unrelated value changes.
+This is not HA: S3 contains flushed data/indexes; the retained 10 GiB
+`hcloud-volumes` PVC holds raft-engine WAL and standalone state. Restart
+qualification does not prove diskless restore or disaster recovery. Production
+requests CPU 1 / memory 2 GiB with a 4 GiB memory limit, preserving the old
+Pulse resource envelope; staging/canary retain trial sizing. Capacity gates
+include the backend before installation and replacement gateway before cutover.
 
 ## Deployment order and gates
 
@@ -84,22 +29,16 @@ on unrelated value changes.
 protected CI environment, kubeconfig vault, shared observability concurrency
 lane and isolated `tuist-pulso-<env>/greptimedb/` bucket/prefix. Namespace is
 always `observability`. Never read credentials into agent context.
-Canary/production reject `replace_pulse`, `deploy_collectors` and
-`inspect_readers` before loading credentials. Every staging replacement checks
-serving reader compatibility. Before a later canary/production cutover, Atlas's
-legacy `/mcp` upstreams (`../atlas/values-managed-production.yaml`) must move:
-the gateway does not implement those APIs.
-Reader configuration belongs
+Canary/production reject `replace_pulse`, `deploy_collectors` and the staging-only
+`inspect_readers` option before loading credentials. Reader configuration belongs
 in declarative deployment configuration, not an independent script that patches
 the live server Deployment and is later overwritten by its owner.
 
 1. Dispatch with `dashboard=true`, `replace_pulse=false`,
    `deploy_collectors=false`. Ownership, storage class, capacity, ESO, S3 privacy,
    lifecycle and isolated-prefix gates must pass before the backend install.
-   The `PULSE_S3_CREDENTIALS` key must have `s3:GetLifecycleConfiguration` on
-   its own bucket (`arn:aws:s3:::tuist-pulso-<env>`); unknown lifecycle access
-   fails closed. A denied lifecycle read cannot establish the absence of expiry
-   rules. Do not grant lifecycle-write or cross-bucket permissions, broaden IAM or
+   Canary may still need the narrowly scoped `s3:GetLifecycleConfiguration`
+   permission; unknown lifecycle access fails closed. Do not broaden IAM or
    bypass the probe. The older staging pilot b553e47 was qualified by CI run
    42847871702 attempt 2; that is not qualification of this replacement.
 2. CI applies `ALTER DATABASE public SET 'ttl' = '7d'` in staging/canary,
@@ -123,19 +62,16 @@ the live server Deployment and is later overwritten by its owner.
    exercises the old routes with real Prometheus Snappy remote write, Loki JSON
    and Snappy protobuf (including structured metadata), and OTLP traces; it
    queries all three signals directly through dashboard readonly auth.
-5. Every origin replacement requires recent real Kubernetes metrics, non-CI
-   logs and non-CI traces, even when collectors are left unchanged.
-   `deploy_collectors=true` additionally upgrades the existing `k8s-monitoring`
-   release through Helm before that check. Prefer `false` when replacing only
-   Pulse: existing destinations already use the preserved ingestion origin.
-   Idle real workloads fail closed: generate traffic and
+5. `deploy_collectors=true` additionally upgrades the existing `k8s-monitoring`
+   release through Helm, then requires recent real Kubernetes metrics, non-CI
+   logs and non-CI traces. Idle real workloads fail closed: generate traffic and
    investigate, rather than accepting synthetic smoke as rollout proof. Stable
    `pulse-*` destinations/auth/routes and Grafana Cloud destinations are retained;
    no parallel Greptime fan-out is introduced. Controller metrics token
    forwarding remains unchanged.
 6. Staging replacement additionally installs `greptime-grafana-staging` from
    the standalone `greptimedb-grafana` chart after backend/gateway qualification
-   and live-data verification.
+   (and after live-data verification when collector rollout was selected).
    No Grafana deployment is requested here for canary/production or Grafana Cloud.
    Validate the live tailnet/browser/data boundary separately; Helm readiness is
    not evidence of those boundaries.
@@ -152,13 +88,7 @@ the live server Deployment and is later overwritten by its owner.
    owner and validate its three signal pages before cutover. Server endpoint:
    `http://greptimedb.observability.svc.cluster.local:4000`, database `public`,
    username `dashboard`, existing `TUIST_PULSE_TOKEN` password.
-   Canary has no enrolled product reader by default. Production is configured
-   for account `3` on legacy Pulse: qualify the private production backend
-   first, then change its declarative reader settings through the normal server
-   deployment owner and verify all serving replicas before replacing the origin.
-   Never land that reader switch before the backend is qualified. Do not remove
-   enrollment or disable an enabled account flag to bypass compatibility checks.
-   Logs/traces support literal
+   Keep canary/production server values unchanged. Logs/traces support literal
    text search rather than LogQL/TraceQL, and Errors are unavailable in this mode;
    this is not yet Grafana feature parity or approval to retire Cloud.
 
@@ -198,7 +128,7 @@ these steps authorizes removing Grafana Cloud destinations, rules or dashboards.
 
 The server's collector readiness gate follows the actual live `pulse` Deployment.
 A healthy versioned Pulse image passes without querying any Greptime resource.
-Only a replacement gateway selects the separate Greptime readiness checks; unhealthy,
+Only a staging gateway selects the separate Greptime readiness checks; unhealthy,
 foreign-owned, unexpected-image and overlapping legacy writers still fail closed.
 The migration executes this same gate before and after replacing the gateway.
 The observability concurrency lane serializes migration and routine collector
@@ -282,19 +212,17 @@ as a rollback shortcut. The independent Pulse deployment preflight intentionally
 refuses this gateway; do not rerun a Pulse release to force recovery.
 
 The cutover records the deployed Pulse chart/revision in its run summary.
-Dispatch `Pulse GreptimeDB Replacement` on trusted main with the selected
-`environment` and `rollback_pulse_revision=<recorded revision>`. This selects
+Dispatch `Pulse GreptimeDB Replacement` on trusted main with
+`environment=staging,rollback_pulse_revision=<recorded revision>`. This selects
 the separate rollback job, not the backend deployment or collector rollout.
-The selected environment controls the protected CI environment, kubeconfig vault
-and observability concurrency lane for rollback too. It refuses unknown
-environments, nonnumeric/unknown revisions, revisions
+It refuses non-staging environments, nonnumeric/unknown revisions, revisions
 that are not a deployed/superseded `pulse-*` chart, and deployments that are not
 the Helm-owned replacement gateway. It rolls back only release `pulse`, waits
 for readiness, and executes the same legacy-writer/readiness gate as routine
 deploys. It never upgrades/uninstalls Greptime or touches its PVC/S3 objects.
 
 This restores the ingestion origin only. Explicitly restore the reader backend
-using the previously recorded chart/image and that environment's normal server deployment;
+using the previously recorded chart/image and normal staging server deployment;
 until then readers continue querying Greptime and will not see new Pulse writes.
 Backend data preservation and both reader/ingest recovery must be demonstrated
 with live reads; a successful Helm rollback is not that evidence.

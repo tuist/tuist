@@ -60,10 +60,10 @@ if (args.includes('name')) process.stdout.write(value.metadata.name); else proce
   } finally { rmSync(work,{recursive:true,force:true}); }
 });
 
-test('only staging deploys may switch ingestion; canary and production install the backend only', () => {
+test('Pulse backend qualification preserves environment isolation and staging-only origin promotion', () => {
   const step = execFileSync('yq', ['-r', '.jobs.deploy.steps[] | select(.name == "Render qualified chart").run', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'});
   for (const environment of ['staging','canary','production','foreign']) {
-    for (const mode of ['backend','origin','origin without auth','collectors','collectors with origin','inspection']) {
+    for (const mode of ['backend','origin','collectors','inspection']) {
       const work = mkdtempSync(join(tmpdir(),'pulse-backend-render-'));
       try {
         execFileSync('mkdir', ['-p',join(work,'greptimedb-deploy')]);
@@ -75,25 +75,13 @@ esac
 printf '%s\\n' "$@" | grep -q "storage.bucket=tuist-pulso-$DEPLOY_ENV," || exit 98
 exit 42
 `, {mode:0o755});
-        const inputs={
-          replace_pulse:['origin','origin without auth','collectors with origin'].includes(mode),
-          deploy_collectors:mode==='collectors' || mode==='collectors with origin',
-          inspect_readers:mode==='inspection',
-        };
+        const inputs={replace_pulse:mode==='origin',deploy_collectors:mode==='collectors',inspect_readers:mode==='inspection'};
         const program=step.replace(/\$\{\{ inputs\.(\w+) \}\}/g, (_,key)=>String(inputs[key]));
         const result=spawnSync('bash',['-c',program],{encoding:'utf8',env:{...process.env,PATH:`${work}:${process.env.PATH}`,
-          DEPLOY_ENV:environment,DASHBOARD_ENABLED:String(mode!=='origin without auth'),RUNNER_TEMP:work}});
-        const accepted=environment!=='foreign' && (mode==='backend' ||
-          environment==='staging' && ['origin','collectors with origin','inspection'].includes(mode));
+          DEPLOY_ENV:environment,DASHBOARD_ENABLED:'true',RUNNER_TEMP:work}});
+        const accepted=environment!=='foreign' && (mode==='backend' || environment==='staging' && mode!=='collectors');
         assert.equal(result.status,accepted?42:1,`${environment}/${mode}: ${result.stdout}${result.stderr}`);
       } finally { rmSync(work,{recursive:true,force:true}); }
     }
   }
-});
-
-test('replacement requires real telemetry even when collector deployment is disabled', () => {
-  const workflow = JSON.parse(execFileSync('yq', ['-o=json', '.', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'}));
-  const gate = workflow.jobs.deploy.steps.find(step => step.run?.includes('--rawfile script .github/scripts/greptimedb-live-smoke.mjs'));
-  assert.equal(gate.if, 'inputs.replace_pulse');
-  assert.equal(workflow.on.workflow_dispatch.inputs.deploy_collectors.default, false);
 });

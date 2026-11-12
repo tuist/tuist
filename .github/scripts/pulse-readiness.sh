@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Read-only gate shared by routine deploys and managed migration qualification.
+# Read-only gate shared by routine deploys and staging migration qualification.
 set -euo pipefail
 trap 'echo "::error::Pulse readiness failed at line $LINENO; collectors were not changed."' ERR
 : "${DEPLOY_ENV:?managed environment required}"
@@ -15,30 +15,19 @@ jq -e '
   (.spec.template.spec.containers | length == 1)
 ' <<< "$deployment" >/dev/null
 if jq -e '.metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest"' <<< "$deployment" >/dev/null; then
-  # Select by the live runtime, not an environment-wide migration flag. Legacy
-  # Pulse deployments still do not depend on a Greptime StatefulSet existing.
+  # Only staging may use the replacement. Existing Pulse deployments in other
+  # environments must not depend on a Greptime StatefulSet even existing.
+  [[ "$DEPLOY_ENV" == staging ]]
   jq -e '.spec.template.spec.containers[0].image == "nginxinc/nginx-unprivileged:1.28.0-alpine"' <<< "$deployment" >/dev/null
-  # The chart's topology decides which backend workloads must be ready.
-  if [[ -n "$(kubectl -n "$namespace" get statefulset greptimedb-datanode --ignore-not-found -o name)" ]]; then
-    workloads='statefulset/greptimedb-etcd:3 statefulset/greptimedb-kafka:3 deployment/greptimedb-metasrv:3 statefulset/greptimedb-datanode:3 deployment/greptimedb-frontend:2'
-    topology=cluster
-  else
-    workloads='statefulset/greptimedb:1'
-    topology=standalone
-  fi
-  for entry in $workloads; do
-    workload=${entry%:*}
-    kubectl -n "$namespace" get "${workload%/*}" "${workload#*/}" -o json | jq -e --argjson minimum "${entry##*:}" --arg topology "$topology" '
-      .metadata.annotations["meta.helm.sh/release-name"] == "greptimedb" and
-      .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
-      .spec.replicas >= $minimum and ($topology == "cluster" or .spec.replicas == 1) and .status.observedGeneration >= .metadata.generation and
-      (.kind != "StatefulSet" or .status.currentRevision == .status.updateRevision) and
-      .status.updatedReplicas == .spec.replicas and .status.readyReplicas == .spec.replicas and
-      ((.metadata.name | test("-(etcd|kafka)$")) or
-        [.spec.template.spec.containers[].image] == ["docker.io/greptime/greptimedb:v1.3.0"])
-    ' >/dev/null
-  done
-  backend="Greptime gateway and $topology backend"
+  kubectl -n "$namespace" get statefulset greptimedb -o json | jq -e '
+    .metadata.annotations["meta.helm.sh/release-name"] == "greptimedb" and
+    .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
+    .spec.replicas == 1 and .status.observedGeneration >= .metadata.generation and
+    .status.currentRevision == .status.updateRevision and
+    .status.updatedReplicas == 1 and .status.readyReplicas == 1 and
+    ([.spec.template.spec.containers[].image] == ["docker.io/greptime/greptimedb:v1.3.0"])
+  ' >/dev/null
+  backend='staging Greptime gateway and backend'
 else
   jq -e '.spec.template.spec.containers[0].image |
     test("^ghcr.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[0-9a-f]{64}$")' <<< "$deployment" >/dev/null
