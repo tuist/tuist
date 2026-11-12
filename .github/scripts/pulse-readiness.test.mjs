@@ -5,6 +5,38 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 
+test('managed product configuration scopes Greptime to the staging Tuist account', () => {
+  for (const environment of ['staging', 'canary', 'production']) {
+    const yaml = execFileSync('helm', ['template', 'tuist', 'infra/helm/tuist',
+      '-f', 'infra/helm/tuist/values-managed-common.yaml',
+      '-f', `infra/helm/tuist/values-managed-${environment}.yaml`,
+      '-f', 'infra/helm/tuist/values-ci.yaml']);
+    const objects = JSON.parse(execFileSync('yq', ['ea', '-o=json', '-I=0', '[.]', '-'], {input: yaml}));
+    const server = objects.find(object => object.kind === 'Deployment' &&
+      object.metadata.labels?.['app.kubernetes.io/component'] === 'server');
+    const container = server.spec.template.spec.containers.find(container => container.name === 'server');
+    const connection = Object.fromEntries(container.env.filter(variable => variable.name.startsWith('TUIST_PULSE_'))
+      .map(variable => [variable.name, variable.value]));
+    assert.deepEqual(connection, environment === 'staging' ? {
+      TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: '2',
+      TUIST_PULSE_URL: 'http://greptimedb.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
+    } : environment === 'production' ? {
+      TUIST_PULSE_ACCOUNT_ID: '3', TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000',
+      TUIST_PULSE_TENANT: 'tuist',
+    } : {}, environment);
+    const secret = objects.find(object => object.kind === 'ExternalSecret' &&
+      object.spec.data?.some(source => source.secretKey === 'TUIST_PULSE_TOKEN'));
+    if (environment === 'canary') {
+      assert.equal(secret, undefined);
+    } else {
+      assert.ok(container.envFrom.some(source => source.secretRef?.name === secret.spec.target.name));
+      assert.equal(secret.spec.data.find(source => source.secretKey === 'TUIST_PULSE_TOKEN').remoteRef.key,
+        'PULSE_TOKEN/password');
+      assert.equal(secret.spec.target.template.data.TUIST_PULSE_TOKEN, '{{ .TUIST_PULSE_TOKEN | trim }}');
+    }
+  }
+});
+
 test('routine deployment accepts existing Pulse without Greptime and staging replacement only when ready', () => {
   const work = mkdtempSync(join(tmpdir(), 'pulse-readiness-'));
   try {
