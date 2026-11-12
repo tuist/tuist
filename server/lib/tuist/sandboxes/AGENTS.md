@@ -434,9 +434,8 @@ socket, the poller and the caller share a replica:
   including `PATCH agent-environments/:id` for the API key, the federation
   ids, model and system prompt; agent environments are serialized with
   `federation_issuer_url` and `federation_subject`; sandboxes, exec,
-  commands, pause/resume/delete). Members and account tokens with
-  `account:sandboxes:write` (`:sandboxes_write`) reach sandboxes, exec and
-  commands, but only on
+  commands, pause/resume/delete). Members
+  (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
   sandboxes without an agent environment, Amp integration, provider
   environment or remote-execution purpose (`Sandboxes.member_sandbox?/1`);
   everything else is admin-only. The MCP sandbox tools apply the same rule.

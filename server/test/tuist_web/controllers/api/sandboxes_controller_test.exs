@@ -26,12 +26,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     %{conn: conn, user: user, account: user.account}
   end
 
-  defp token_conn(account, scopes) do
-    build_conn()
-    |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: scopes})
-    |> put_req_header("content-type", "application/json")
-  end
-
   describe "account flag" do
     test "answers 404 in production for an account without the sandboxes flag", %{conn: conn, account: account} do
       stub(Environment, :env, fn -> :prod end)
@@ -383,30 +377,11 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert response["message"] =~ "not authorized"
     end
 
-    test "forbids an account token without the sandboxes write scope", %{account: account} do
-      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
-      reject(&Nodes.call/4)
-
-      for scopes <- [["account:runners:write"], ["ci"], ["mcp"]] do
-        conn = token_conn(account, scopes)
-
-        conn |> get(~p"/api/accounts/#{account.name}/sandboxes") |> json_response(:forbidden)
-        conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:forbidden)
-
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{command: "true"})
-        |> json_response(:forbidden)
-      end
-    end
-
-    test "forbids an account token for another account", %{account: account} do
-      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
-      reject(&Nodes.call/4)
-      conn = token_conn(other_account, ["account:sandboxes:write"])
-
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}") |> json_response(:forbidden)
-      conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:forbidden)
+    test "forbids an account token", %{account: account} do
+      build_conn()
+      |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+      |> get(~p"/api/accounts/#{account.name}/sandboxes")
+      |> json_response(:forbidden)
     end
 
     test "requires authentication", %{account: account} do
@@ -737,67 +712,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       conn
       |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "true"})
       |> json_response(:forbidden)
-    end
-
-    test "an account token with the sandboxes write scope creates, runs commands in and deletes a sandbox", %{
-      account: account
-    } do
-      conn = token_conn(account, ["account:sandboxes:write"])
-      stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
-      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"template_tag" => "sha-1"}} end)
-
-      assert %{"id" => id, "state" => "running"} =
-               conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:created)
-
-      assert %{"sandboxes" => [%{"id" => ^id}]} =
-               conn |> get(~p"/api/accounts/#{account.name}/sandboxes") |> json_response(:ok)
-
-      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
-
-      expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-lc", "echo hi"]}, opts ->
-        opts[:on_stream].({:stdout, "hi\n"})
-        {:ok, %{"exit_code" => 0}}
-      end)
-
-      assert %{"exit_code" => 0, "stdout" => "hi\n"} =
-               conn
-               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{id}/exec", %{command: "echo hi"})
-               |> json_response(:ok)
-
-      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
-
-      assert %{"id" => command_id, "status" => "running"} =
-               conn
-               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{id}/commands", %{command: "xcodebuild"})
-               |> json_response(:accepted)
-
-      assert %{"commands" => [%{"id" => ^command_id}]} =
-               conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}/commands") |> json_response(:ok)
-
-      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
-      conn |> delete(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> response(:no_content)
-      assert Repo.get(Sandbox, id) == nil
-    end
-
-    test "an account token with the sandboxes write scope cannot use an agent's sandbox or admin-only routes", %{
-      account: account
-    } do
-      conn = token_conn(account, ["account:sandboxes:write"])
-      environment = agent_environment_fixture(account: account)
-
-      sandbox =
-        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
-
-      reject(&Nodes.call/4)
-
-      conn
-      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{command: "env"})
-      |> json_response(:forbidden)
-
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}") |> json_response(:forbidden)
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
-      conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/archive") |> json_response(:forbidden)
     end
 
     test "a member creates an upload, which is deleted once its URLs expire", %{conn: conn} do

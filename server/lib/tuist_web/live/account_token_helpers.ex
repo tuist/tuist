@@ -152,7 +152,6 @@ defmodule TuistWeb.AccountTokenHelpers do
   defp scope_label("runs", "write"), do: dgettext("dashboard_account", "Runs write")
   defp scope_label("runners", "read"), do: dgettext("dashboard_account", "Runners read")
   defp scope_label("runners", "write"), do: dgettext("dashboard_account", "Runners write")
-  defp scope_label("sandboxes", "write"), do: dgettext("dashboard_account", "Sandboxes write")
   defp scope_label("tests", "read"), do: dgettext("dashboard_account", "Tests read")
   defp scope_label("tests", "write"), do: dgettext("dashboard_account", "Tests write")
   defp scope_label(subject, access), do: "#{String.capitalize(subject)} #{access}"
@@ -187,10 +186,6 @@ defmodule TuistWeb.AccountTokenHelpers do
 
   defp scope_description("account", "runners", "write") do
     dgettext("dashboard_account", "Manage runner profiles and clear runner volumes.")
-  end
-
-  defp scope_description("account", "sandboxes", "use") do
-    dgettext("dashboard_account", "Create sandboxes and run commands in them.")
   end
 
   defp scope_description("project", "admin", "read") do

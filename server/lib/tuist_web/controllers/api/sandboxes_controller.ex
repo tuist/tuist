@@ -21,10 +21,9 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Members, and account tokens with `account:sandboxes:write`, create
-  # sandboxes and run commands in them (`:sandboxes_write`). Sandboxes that
-  # serve an agent environment, an Amp integration or remote execution hold
-  # credentials or other people's work, so only admins reach
+  # Members create sandboxes and run commands in them (`:sandboxes_use`).
+  # Sandboxes that serve an agent environment, an Amp integration or remote
+  # execution hold credentials or other people's work, so only admins reach
   # those, and everything else (agent environments, Orb dispatch, analytics,
   # archive) stays admin-only.
   @member_actions [
@@ -44,7 +43,7 @@ defmodule TuistWeb.API.SandboxesController do
     :delete
   ]
 
-  plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
+  plug AuthorizationPlug, {:account, :sandboxes, :use} when action in @member_actions
   plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
   plug :require_member_sandbox when action in @member_actions
@@ -991,9 +990,7 @@ defmodule TuistWeb.API.SandboxesController do
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
   # A member reaches only the sandboxes they could have created: none that
-  # serves an agent environment, an Amp integration or remote execution. An
-  # account token is never an account administrator, so it is held to the
-  # same limit.
+  # serves an agent environment, an Amp integration or remote execution.
   defp require_member_sandbox(%{assigns: %{selected_account: account}} = conn, _opts) do
     subject = TuistWeb.Authentication.authenticated_subject(conn)
 

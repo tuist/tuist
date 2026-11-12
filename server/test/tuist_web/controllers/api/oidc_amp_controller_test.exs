@@ -29,25 +29,15 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     %{project: ProjectsFixtures.project_fixture(preload: [:account])}
   end
 
-  test "issues account-wide CI and sandbox access to Orbs of a connected workspace", %{
-    conn: conn,
-    key: key,
-    project: project
-  } do
+  test "issues account-wide CI access to Orbs of a connected workspace", %{conn: conn, key: key, project: project} do
     {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
 
     response = conn |> exchange(sign(key)) |> json_response(:ok)
 
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
     assert claims["sub"] == to_string(project.account.id)
-    assert claims["scopes"] == ["ci", "account:sandboxes:write"]
+    assert claims["scopes"] == ["ci"]
     assert claims["all_projects"] == true
-
-    assert %{"sandboxes" => []} =
-             build_conn()
-             |> put_req_header("authorization", "Bearer #{response["access_token"]}")
-             |> get(~p"/api/accounts/#{project.account.name}/sandboxes")
-             |> json_response(:ok)
   end
 
   test "rejects unconnected workspaces, personal threads, tokens not printed by amp orb id-token and other audiences", %{
@@ -165,13 +155,6 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     response = conn |> exchange(personal, project.account.name) |> json_response(:ok)
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
     assert claims["sub"] == to_string(project.account.id)
-    # Custom policies grant CI access only, like other workload policies.
-    assert claims["scopes"] == ["ci"]
-
-    build_conn()
-    |> put_req_header("authorization", "Bearer #{response["access_token"]}")
-    |> get(~p"/api/accounts/#{project.account.name}/sandboxes")
-    |> json_response(:forbidden)
   end
 
   defp exchange(conn, token, account_handle \\ nil) do

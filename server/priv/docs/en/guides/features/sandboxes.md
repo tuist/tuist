@@ -64,8 +64,6 @@ The command runs with `bash -l` in the sandbox, which resumes first if it's paus
 
 Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
 
-Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can create sandboxes, run commands in them, and pause, resume and delete them, like a member of the account. Sandboxes that serve an Amp or Claude integration, analytics and integration settings stay with account administrators.
-
 ## Build on a Mac from a coding agent {#coding-agents}
 
 A coding agent that runs on Linux, such as a cloud agent session, can build, test and run Apple-platform code on a macOS sandbox while it keeps editing files where it runs. To set it up:
