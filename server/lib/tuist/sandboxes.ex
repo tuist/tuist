@@ -1341,16 +1341,35 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
+  Makes the sandbox run and records the shared residency `work_id`
+  (`begin_shared_residency/2`) in one step under the sandbox's lock, so an
+  idle pause scheduled by the resume or create cannot slip in between.
+  """
+  def prepare_shared_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn sandbox ->
+        with {:ok, running} <- running_or_resume(sandbox), do: begin_shared_residency(running, work_id)
+      end)
+    end)
+  end
+
+  @doc """
   Tells a macOS host that detached guest work (an Amp Orb's turn) holds the
   running VM, so its idle eviction waits for the pause that ends the turn.
-  Linux nodes keep no host-side residency; the server's row is enough there.
+  With `hold_ms`, the host ends the hold that long after this call unless
+  it is held again; without it, only a release or pause ends it. Linux
+  nodes keep no host-side residency; the server's row is enough there.
   """
-  def hold_host_residency(%Sandbox{platform: :darwin} = sandbox, work_id) when is_binary(work_id) do
-    with {:ok, _data} <- node_call(sandbox, "hold_residency", %{sandbox_id: sandbox.id, work_id: work_id}, []),
+  def hold_host_residency(sandbox, work_id, hold_ms \\ nil)
+
+  def hold_host_residency(%Sandbox{platform: :darwin} = sandbox, work_id, hold_ms) when is_binary(work_id) do
+    args = maybe_put(%{sandbox_id: sandbox.id, work_id: work_id}, :hold_ms, hold_ms)
+
+    with {:ok, _data} <- node_call(sandbox, "hold_residency", args, []),
          do: :ok
   end
 
-  def hold_host_residency(%Sandbox{}, _work_id), do: :ok
+  def hold_host_residency(%Sandbox{}, _work_id, _hold_ms), do: :ok
 
   def release_host_residency(%Sandbox{platform: :darwin, node_name: node_name} = sandbox, work_id)
       when is_binary(node_name) and is_binary(work_id) do
@@ -1429,14 +1448,15 @@ defmodule Tuist.Sandboxes do
   end
 
   # Hosts shared with CI get their memory back at once, except after the
-  # last command ends: commands come in runs, such as a sync and then a
-  # build, and a command started while its sandbox pauses waits for the
-  # pause and a resume. The macOS host hold is still released at once, and
-  # CI pressure pauses an idle sandbox before its grace is up.
+  # last command ends on Linux: commands come in runs, such as a sync and
+  # then a build, and a command started while its sandbox pauses waits for
+  # the pause and a resume. CI pressure pauses an idle sandbox before its
+  # grace is up. A macOS sandbox's commands residency already outlived its
+  # last command by the session lease (`Tuist.Sandboxes.Commands`).
   defp pause_delay_seconds(%Sandbox{} = sandbox, ended_residency) do
     cond do
       not (sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name)) -> pause_grace_seconds(sandbox)
-      ended_residency == Commands.residency() -> @shared_command_pause_grace_seconds
+      ended_residency == Commands.residency() and sandbox.platform != :darwin -> @shared_command_pause_grace_seconds
       true -> 0
     end
   end

@@ -7,6 +7,7 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Schemas
@@ -35,7 +36,7 @@ defmodule Tuist.Sandboxes.Query do
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
 
-    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(created)}
+    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(kept(created))}
   end
 
   def run(:show, account, params) do
@@ -43,7 +44,7 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   def run(:pause, account, params), do: transition(account, params, &Sandboxes.pause/1)
-  def run(:resume, account, params), do: transition(account, params, &Sandboxes.resume/1)
+  def run(:resume, account, params), do: transition(account, params, &resume_and_keep/1)
 
   def run(:archive, account, params) do
     with {:ok, found} <- find(account, params),
@@ -197,6 +198,21 @@ defmodule Tuist.Sandboxes.Query do
     with {:ok, found} <- find(account, params),
          {:ok, updated} <- fun.(found) do
       {:ok, sandbox(updated)}
+    end
+  end
+
+  defp resume_and_keep(sandbox) do
+    with {:ok, resumed} <- Sandboxes.resume(sandbox), do: {:ok, kept(resumed)}
+  end
+
+  # A macOS sandbox started here is about to run the caller's commands, so
+  # it takes their session lease. It is still started when the lease is
+  # refused, such as when CI took the grant meanwhile; the next command
+  # tries again.
+  defp kept(sandbox) do
+    case Commands.keep(sandbox) do
+      {:ok, kept} -> kept
+      {:error, _reason} -> sandbox
     end
   end
 
