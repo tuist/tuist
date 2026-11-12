@@ -26,6 +26,7 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.RunSelections
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
@@ -80,21 +81,16 @@ defmodule Tuist.Tests.Selections do
     skip_rate(ran, total - ran)
   end
 
-  # The mean of the runs' skip rates, each as `skip_rate/1` computes it, as a
-  # fraction.
-  defmacrop run_skip_rate_avg(r) do
+  # The period's runs' avoided tests over their tests in scope, pooled, as a
+  # fraction (`Tuist.Tests.RunSelections`): the same measure as the
+  # dashboards'.
+  defmacrop pooled_skip_rate(s) do
     quote do
       fragment(
-        "avg(multiIf(ifNull(?, '') != '', if(? > 0, ? / ?, 0), length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
-        unquote(r).baseline_sha,
-        unquote(r).requested_count,
-        unquote(r).skipped_count,
-        unquote(r).requested_count,
-        unquote(r).requested_modules,
-        unquote(r).skipped_modules,
-        unquote(r).skipped_modules,
-        unquote(r).requested_modules,
-        unquote(r).skipped_modules
+        "if(sum(?) > 0, sum(?) / sum(?), 0)",
+        unquote(s).scope_tests,
+        unquote(s).avoided_tests,
+        unquote(s).scope_tests
       )
     end
   end
@@ -104,6 +100,10 @@ defmodule Tuist.Tests.Selections do
   reported: totals, their trend against the
   period before, and per-bucket series (hours for a period of two days or
   less, days otherwise) of runs, selected and skipped tests, and skip rate.
+  The skip rate is the dashboards' test selection effectiveness over the
+  same runs: their avoided tests over their tests in scope, pooled, as the
+  test runs' selections recorded them (`Tuist.Tests.RunSelections`), so a run
+  without its selection recorded yet adds nothing to it.
   The end is carried to the close of its second, as the date picker's
   periods are in whole seconds.
   """
@@ -114,13 +114,15 @@ defmodule Tuist.Tests.Selections do
 
     rows =
       from(r in reported_runs(project_id, start_datetime, until),
+        left_join: s in subquery(RunSelections.by_impact_run(project_id, DateTime.add(start_datetime, -1, :day))),
+        on: s.test_impact_run_id == r.id,
         group_by: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
         select: %{
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
           skipped: sum(r.skipped_count),
-          skip_rate: run_skip_rate_avg(r)
+          skip_rate: pooled_skip_rate(s)
         }
       )
       |> ClickHouseRepo.all()
@@ -160,12 +162,14 @@ defmodule Tuist.Tests.Selections do
     row =
       ClickHouseRepo.one(
         from(r in reported_runs(project_id, start_datetime, until),
+          left_join: s in subquery(RunSelections.by_impact_run(project_id, DateTime.add(start_datetime, -1, :day))),
+          on: s.test_impact_run_id == r.id,
           select: %{
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
             skipped: sum(r.skipped_count),
-            skip_rate: run_skip_rate_avg(r)
+            skip_rate: pooled_skip_rate(s)
           }
         )
       ) || %{}

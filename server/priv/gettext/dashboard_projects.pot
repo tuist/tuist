@@ -506,11 +506,6 @@ msgstr ""
 msgid "Selective test effectiveness"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:133
-#, elixir-autogen, elixir-format
-msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-msgstr ""
-
 #: lib/tuist_web/live/project_settings_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
@@ -3506,4 +3501,9 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Search tags..."
+msgstr ""
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness is the share of the tests in scope that test selection skipped, across the period's test runs."
 msgstr ""
