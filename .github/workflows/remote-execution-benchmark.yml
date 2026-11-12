@@ -48,7 +48,7 @@ defaults:
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
-  MODE: ${{ inputs.mode || 'local' }}
+  MODE: ${{ inputs.mode || 'remote' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags }}
 
