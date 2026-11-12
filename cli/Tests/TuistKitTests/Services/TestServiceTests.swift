@@ -2807,8 +2807,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any,
-                coverage: .any,
-                sdkSelection: .any
+                coverage: .any
             )
             .called(1)
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
