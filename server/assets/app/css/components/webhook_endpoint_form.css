@@ -56,11 +56,6 @@
         gap: var(--noora-spacing-3);
         cursor: pointer;
 
-        & > .noora-checkbox-control {
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
         & > [data-part="body"] {
           display: flex;
           flex-direction: column;

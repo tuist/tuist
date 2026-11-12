@@ -424,6 +424,15 @@
       }
     }
 
+    /* The children as one centered group, aligned to each other's start
+       edge, such as a list of checkboxes. Each child takes its own width. */
+    &[data-layout="list"] {
+      display: grid;
+      justify-content: center;
+      justify-items: start;
+      gap: var(--noora-spacing-8);
+    }
+
     /* One row per child, each laying out its own items. */
     &[data-layout="rows"] {
       flex-direction: column;

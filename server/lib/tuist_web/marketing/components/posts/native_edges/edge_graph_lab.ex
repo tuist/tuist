@@ -217,6 +217,10 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
       }
 
+      .edge-graph-lab__edge-toggle > .noora-checkbox-control {
+        margin-block: calc(-1 * var(--noora-spacing-1));
+      }
+
       .edge-graph-lab__graph {
         display: block;
         width: 100%;
