@@ -870,7 +870,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     docs_entries =
       Enum.map(
-        Tuist.Docs.slugs(),
+        Tuist.Docs.indexable_slugs(),
         &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
