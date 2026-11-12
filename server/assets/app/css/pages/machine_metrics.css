@@ -16,7 +16,8 @@
   }
 
   & #network-io-chart,
-  & #disk-io-chart {
+  & #disk-io-chart,
+  & #disk-space-chart {
     height: 180px;
   }
 

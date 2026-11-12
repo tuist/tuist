@@ -1,6 +1,6 @@
 defmodule TuistWeb.UserPasskeyController do
   @moduledoc """
-  Passkey registration and removal from the two-factor settings page, and
+  Passkey registration and removal from the passkey settings page, and
   passwordless sign-in. Option endpoints answer JSON for
   `navigator.credentials`; the browser then posts the result as a form so
   sign-in keeps the same redirects and session handling as other methods.
@@ -15,6 +15,7 @@ defmodule TuistWeb.UserPasskeyController do
   """
   use TuistWeb, :controller
 
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
   alias Tuist.Environment
   alias TuistWeb.Authentication
@@ -26,6 +27,19 @@ defmodule TuistWeb.UserPasskeyController do
   plug :private_response
   plug :require_passkeys_enabled
 
+  def show(conn, _params) do
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/authentication")
+  end
+
+  def new(conn, _params) do
+    conn
+    |> put_view(TuistWeb.UserPasskeyHTML)
+    |> render(:settings,
+      fresh_session?: UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user),
+      head_title: dgettext("dashboard_auth", "Add a passkey · Tuist")
+    )
+  end
+
   def registration_options(conn, _params) do
     %{current_user: user, current_user_session: session} = conn.assigns
 
@@ -34,7 +48,9 @@ defmodule TuistWeb.UserPasskeyController do
         json(conn, %{publicKey: options, token: encrypt_ceremony(conn, {:registration, user.id}, state)})
 
       {:error, reason} ->
-        conn |> put_status(:forbidden) |> json(%{error: error_message(reason)})
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: error_message(reason), reauthenticate: reason == :reauthentication_required})
     end
   end
 
@@ -51,14 +67,47 @@ defmodule TuistWeb.UserPasskeyController do
       {:ok, _passkey} ->
         conn
         |> put_flash(:info, dgettext("dashboard_auth", "Passkey added."))
-        |> redirect(to: ~p"/users/settings/mfa")
+        |> redirect(to: ~p"/#{user.account.name}/settings/authentication")
 
       {:error, reason} ->
-        conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/mfa")
+        conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/passkeys")
     end
   end
 
-  def delete(conn, %{"id" => id}) do
+  def rename(conn, %{"id" => id} = params) do
+    %{current_user: user, current_user_session: session} = conn.assigns
+
+    case UserPasskey.rename(user, session, id, params["name"]) do
+      {:ok, _passkey} ->
+        conn
+        |> put_flash(:info, dgettext("dashboard_auth", "Passkey renamed."))
+        |> redirect(to: ~p"/users/settings/passkeys")
+
+      {:error, reason} ->
+        conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/passkeys")
+    end
+  end
+
+  def confirm_delete(conn, %{"id" => id}) do
+    passkeys = UserPasskey.list(conn.assigns.current_user)
+
+    case Enum.find(passkeys, &(to_string(&1.id) == id)) do
+      nil ->
+        send_resp(conn, :not_found, "")
+
+      passkey ->
+        conn
+        |> put_view(TuistWeb.UserPasskeyHTML)
+        |> render(:confirm_delete,
+          passkey: passkey,
+          last_passkey?: length(passkeys) == 1,
+          fresh_session?: UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user),
+          head_title: dgettext("dashboard_auth", "Remove passkey · Tuist")
+        )
+    end
+  end
+
+  def delete(conn, %{"id" => id, "confirm" => "true"}) do
     %{current_user: user, current_user_session: session} = conn.assigns
 
     case UserPasskey.delete(user, session, id) do
@@ -66,11 +115,15 @@ defmodule TuistWeb.UserPasskeyController do
         conn
         |> UserMFAController.rotate_session(result)
         |> put_flash(:info, dgettext("dashboard_auth", "Passkey removed."))
-        |> redirect(to: ~p"/users/settings/mfa")
+        |> redirect(to: ~p"/users/settings/passkeys")
 
       {:error, reason} ->
-        conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/mfa")
+        conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/passkeys")
     end
+  end
+
+  def delete(conn, %{"id" => id}) do
+    redirect(conn, to: ~p"/users/settings/passkeys/#{id}/delete")
   end
 
   def authentication_options(conn, _params) do
@@ -120,7 +173,7 @@ defmodule TuistWeb.UserPasskeyController do
   def decrypt_ceremony(_conn, _purpose, _token), do: nil
 
   defp error_message(:reauthentication_required),
-    do: dgettext("dashboard_auth", "Sign out and sign in again before changing passkeys.")
+    do: dgettext("dashboard_auth", "Sign in again to continue changing passkeys.")
 
   defp error_message(:too_many_passkeys), do: dgettext("dashboard_auth", "Remove a passkey before adding another one.")
 

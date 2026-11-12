@@ -349,6 +349,8 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         request.quiet = request.quiet || !printOutput
         request.manifestEnvironment = manifestEnvironment
         request.resolutionEnvironment = resolutionEnvironment
+        request.cacheMaxBytes = environmentVariables()[Constants.EnvironmentVariables.dependenciesCacheMaxBytes]
+            .flatMap { Int($0) }
         return request
     }
 

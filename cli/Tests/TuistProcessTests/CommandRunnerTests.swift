@@ -50,10 +50,25 @@ import Testing
                 close(socket)
             }
             let output = try await CommandRunner().run(
-                arguments: ["/bin/sh", "-c", "printf ran"],
+                arguments: ["/bin/sh", "-c", "printf %s \"${CARGO_MAKEFLAGS-unset}\""],
                 environment: ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": "--jobserver-fds=\(queue),\(socket)"]
             ).concatenatedString()
-            #expect(output == "ran")
+            #expect(output == "unset")
+        }
+    #else
+        /// Subprocess closes every descriptor above standard error on Linux, so rustc must not be told about Cargo's.
+        @Test func dropsCargoJobserverThatCannotBeInherited() async throws {
+            let pipe = Pipe()
+            defer {
+                try? pipe.fileHandleForReading.close()
+                try? pipe.fileHandleForWriting.close()
+            }
+            let flags = "-j --jobserver-fds=\(pipe.fileHandleForReading.fileDescriptor),\(pipe.fileHandleForWriting.fileDescriptor)"
+            let output = try await CommandRunner().run(
+                arguments: ["/bin/sh", "-c", "printf %s \"${CARGO_MAKEFLAGS-unset}\""],
+                environment: ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": flags]
+            ).concatenatedString()
+            #expect(output == "unset")
         }
     #endif
 

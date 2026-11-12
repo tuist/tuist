@@ -7,6 +7,7 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.RateLimit.Registration
   alias TuistWeb.Turnstile
 
@@ -312,5 +313,46 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       # When email is configured and skip not explicitly set, default to false (require confirmation)
       assert user.confirmed_at == nil
     end
+  end
+
+  describe "self-hosted registration in the operator email domain" do
+    # A self-hosted instance with mail unconfigured auto-confirms sign-ups.
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      assert Tuist.Environment.skip_email_confirmation?()
+      assert Tuist.Environment.operator_email_domain() == "tuist.dev"
+      :ok
+    end
+
+    test "an auto-confirmed @tuist.dev registration cannot open the ops panel", %{conn: conn} do
+      conn = register_and_log_in(conn)
+
+      assert_raise UnauthorizedError, fn -> conn |> recycle() |> live(~p"/ops/db") end
+    end
+
+    test "an auto-confirmed registration stays out of the ops panel once the domain is configured", %{conn: conn} do
+      conn = register_and_log_in(conn)
+
+      # The administrator sets TUIST_OPERATOR_EMAIL_DOMAIN=tuist.dev afterwards.
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+
+      assert_raise UnauthorizedError, fn -> conn |> recycle() |> live(~p"/ops/db") end
+    end
+  end
+
+  defp register_and_log_in(conn) do
+    email = "probe-#{System.unique_integer([:positive])}@tuist.dev"
+    password = "StrongP@ssword!2029"
+
+    {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+    assert {:error, {:redirect, %{to: "/users/log_in"}}} =
+             lv
+             |> form("#login_form", user: %{email: email, password: password, username: "opsprobe"})
+             |> render_submit()
+
+    conn = post(conn, ~p"/users/log_in", %{"user" => %{"email" => email, "password" => password}})
+    assert get_session(conn, :user_token)
+    conn
   end
 end

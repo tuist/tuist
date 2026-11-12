@@ -8,12 +8,18 @@ defmodule TuistWeb.Plugs.TimezonePlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    timezone =
-      case Map.get(conn.req_cookies, "user_timezone") do
-        nil -> nil
-        timezone -> URI.decode(timezone)
-      end
+    put_session(conn, :user_timezone, timezone(conn))
+  end
 
-    put_session(conn, :user_timezone, timezone)
+  # The cookie is client-controlled and the session is a cookie capped at
+  # 4096 bytes, so only a known timezone name is copied into it.
+  defp timezone(conn) do
+    with timezone when is_binary(timezone) <- Map.get(conn.req_cookies, "user_timezone"),
+         timezone = URI.decode(timezone),
+         true <- Timex.is_valid_timezone?(timezone) do
+      timezone
+    else
+      _ -> nil
+    end
   end
 end

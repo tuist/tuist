@@ -118,6 +118,93 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{changed_files_count: 1}} = Storage.get_diff(project.id, "c2", "c1")
     end
 
+    test "selects every test of the modules left when the baseline's tests recorded no evidence" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("c1", [], 0),
+        CoverageFixtures.commit("c2", ["c1"], 1)
+      ])
+
+      CoverageFixtures.seed_listing(account, "c1", @sources)
+
+      baseline =
+        CoverageFixtures.run_with_coverage(project, account, Enum.map(@sources, &CoverageFixtures.file(&1, [1])), %{
+          git_commit_sha: "c1",
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [
+                %{name: "sum()", test_suite_name: "SumTests", status: "success", duration: 10},
+                %{name: "upper()", test_suite_name: "StringTests", status: "success", duration: 10}
+              ]
+            }
+          ]
+        })
+
+      assert {:ok, %{run: run, skipped_tests: []}} =
+               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}]}))
+
+      assert run.outcome == "selected"
+      assert run.baseline_sha == "c1"
+      assert run.baseline_run_ids == [baseline.id]
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {2, 2, 0}
+
+      assert selected(project, run) == [
+               {"AppTests", "StringTests", "upper()", "no_evidence"},
+               {"AppTests", "SumTests", "sum()", "no_evidence"}
+             ]
+    end
+
+    test "falls back when the baseline's listing was truncated, instead of selecting the tests past the cut" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("c1", [], 0),
+        CoverageFixtures.commit("c2", ["c1"], 1)
+      ])
+
+      # The client stopped at the file limit before Sources/Core.swift.
+      CoverageFixtures.seed_listing(account, "c1", ["Sources/Math.swift"], truncated: true)
+
+      test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
+
+      scope = fn suite, name, file ->
+        %{kind: "test", module: "AppTests", suite: suite, name: name, files: [file], lines: [[1, 1]]}
+      end
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        Enum.map(["Sources/Math.swift", "Sources/Core.swift"], &CoverageFixtures.file(&1, [1])),
+        %{
+          git_commit_sha: "c1",
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [test_case.("testAdd()", "MathTests"), test_case.("testCore()", "CoreSuite")]
+            }
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Core.swift"],
+            scopes: [scope.("MathTests", "testAdd()", 0), scope.("CoreSuite", "testCore()", 1)]
+          }
+        }
+      )
+
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}], changed_files: []}))
+
+      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "no_baseline", nil}
+      assert selected(project, run) == []
+    end
+
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
       modules = [
         %{name: "AppTests", skipped: false},
@@ -156,7 +243,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
       # Without a baseline the modules are kept, with no counts.
-      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0} = run}} =
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0, reason: "no_baseline"} = run}} =
                Runs.create(project, params(%{modules: modules, baseline_sha: nil, fallback_reason: "no_baseline"}))
 
       assert run.skipped_modules == %{"AppTests" => 0, "CoreTests" => 0}
@@ -173,8 +260,10 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: %{outcome: "selected", dirty: true}}} = Runs.create(project, params(%{dirty: true}))
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
-      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_unavailable"}}} =
+      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_unavailable"} = run}} =
                Runs.create(project, %{dirty: true} |> params() |> Map.delete(:changed_files))
+
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 5, 0}
     end
 
     test "records the client's reason when there's no baseline", %{project: project} do
@@ -189,9 +278,19 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params(%{git_branch: project.default_branch}))
     end
 
-    test "falls back when the diff is over 5,000 files", %{project: project} do
-      assert {:ok, %{run: %{outcome: "fallback", reason: "diff_too_large"}}} =
-               Runs.create(project, params(%{changed_files_count: 5_001}))
+    test "falls back when the diff is over 5,000 files, counting the baseline's tests", %{project: project} do
+      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{modules: modules, changed_files_count: 5_001}))
+
+      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "diff_too_large", "c1"}
+      assert run.skipped_modules == %{"CoreTests" => 1}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 4, 1}
+
+      # A baseline the server can't confirm isn't stored.
+      assert {:ok, %{run: %{reason: "diff_too_large", baseline_sha: nil, requested_count: 0}}} =
+               Runs.create(project, params(%{head_sha: "unknown", changed_files_count: 5_001}))
     end
 
     test "falls back when a tracked file changed, with the rule's trace", %{project: project} do
@@ -204,8 +303,13 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "falls back with history_unknown when the history doesn't have the checkout", %{project: project} do
-      assert {:ok, %{run: %{outcome: "fallback", reason: "history_unknown"}}} =
+      assert {:ok, %{run: %{outcome: "fallback", reason: "history_unknown", baseline_sha: nil}}} =
                Runs.create(project, params(%{head_sha: "unknown"}))
+
+      modules = [%{name: "AppTests", skipped: true}, %{name: "CoreTests", skipped: true}]
+
+      assert {:ok, %{run: %{outcome: "selected", reason: "history_unknown", baseline_sha: nil}}} =
+               Runs.create(project, params(%{head_sha: "unknown", modules: modules}))
     end
 
     test "resolves the baseline from the ancestors sent when the history doesn't have the checkout", %{

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4e016cf75e3c42b3dce611d374cebd5fee17aeb6fefba2bbc86af6c4a8c1c954",
+  "hash": "cf68c4cd21ceb7eb2f92465d1443387d1d9efb40c624065e2816152249751d09",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "68f319a3b7c27568f034ddfab5e80fbbcdb0c192d19a18a09f3a25112831fb33"
+                  "content_hash": "a8e932024e0a234ebbf417b068e945bf567dc9c3dbf56c31e4bad12fcd25d761"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,18 +119,18 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "293df82c434ab8c15ea40d68dcdceb96fe887f53d9e64f006aa6248fe08889a0",
+              "hash": "c58cccd6bd647392b2ace4f19dfca189bdaa5c5ad8eadaa191ad52ea2540f30b",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "ef99d79203262e719f50d8f921dc666b5d11e73fbc4a17dd73331879b156d9a1"
+                "content_hash": "8a0153f81a5743cfadb937e7cc5c722f2b8dbdd73edb7ece8b75ed68cd28243c"
               }
             },
             {
@@ -213,21 +213,21 @@
             }
           ],
           "details": {},
-          "hash": "3ffd601ee9eebb0888b399a16df18756ca91d7c2f39a0e24e4eebe802e471c93",
+          "hash": "1c7ba09f983262d093cb000559b2d25b91d8274c7d5b0df1e15c112611291787",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "4e016cf75e3c42b3dce611d374cebd5fee17aeb6fefba2bbc86af6c4a8c1c954",
+      "hash": "cf68c4cd21ceb7eb2f92465d1443387d1d9efb40c624065e2816152249751d09",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_builds.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f7f45eae42c4550a5523a360f7294b920cff1c3cb51f6deaeb358b56e5f64d06",
+  "output_hash": "9b00f3d459773317f56af0dcbb1cf187571f2fe039784c3ca798ebf993475852",
   "output_path": "server/priv/gettext/pl/LC_MESSAGES/dashboard_builds.po",
   "po_units": {
     "0021abb985784122cdc25f3c6ab1525ce21802d50a293dad7a25f192ed67ed7d": "6d3ceea13c050bbb4d95b101f8b8291d21a9b95a5f0db49a900f58b1237f4b2f",
@@ -769,8 +769,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "dc7cd7545827eeae03540e8d0b8140d315ffb78e",
+  "source_commit_sha": "14f76aad4328165c570066fba81bb1dbd0ec7292",
   "source_path": "server/priv/gettext/dashboard_builds.pot",
-  "translated_at": "2026-11-03T10:52:26.542526Z",
-  "translation_session_id": "01a1a108-32e4-77b3-8369-be769bc986bf"
+  "translated_at": "2026-11-07T00:30:12.338297Z",
+  "translation_session_id": "01a1b362-2585-7d10-9c8f-ab1290485006"
 }

@@ -23,11 +23,11 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the <.localized_link href="/cli/release-channels">Tuist CLI's release schedule</.localized_link>.
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the <.localized_link href="/cli/release/channels">Tuist CLI's release schedule</.localized_link>.
 
 We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
 
-See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
+See the <.localized_link href="/guides/server/self-host/release/channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
 ## Browser session upgrade {#browser-session-upgrade}
 
@@ -90,7 +90,7 @@ Allow EPMD (TCP 4369) and the configured distribution port only between trusted 
 
 ## Continuous deployment {#continuous-deployment}
 
-We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
+We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release/channels">Release channels</.localized_link> for the recommended pinning strategy.
 
 If you would rather absorb new features as they become stable without touching your manifests, pin `:latest`. The tag moves once a week on Monday morning, so schedule your deploy window accordingly. Here's an example GitHub Actions workflow that checks for and deploys the latest stable image on that cadence:
 
@@ -319,7 +319,7 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
-| `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
+| `TUIST_OPERATOR_EMAIL_DOMAIN` | Users whose email address ends in `@<this-domain>`, and who proved they control it, can access the operations URLs (`/ops/*`). When unset, nobody can access them. See [Operations](#operations) | No | | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | A label displayed as a badge in the dashboard navbar to identify the server instance (e.g. a version number or branch name) | No | Git branch in dev | `v1.2.3` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
 | `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS` | Allow submitting build and test insights without sign-in. See [Network-trusted access](#network-trusted-access) for setup and security requirements. | No | `false` | `true` |
@@ -619,7 +619,7 @@ Once the server restarts, organization admins install the App and connect reposi
 
 ##### OIDC authentication depends on this {#platform-github-oidc}
 
-<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows run `tuist auth login` without a token.
+<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows authenticate with OIDC.
 
 Your Tuist server also needs outbound access to your CI provider's OIDC issuer to fetch its signing keys:
 
@@ -1111,7 +1111,15 @@ Tuist provides a set of utilities under `/ops/` that you can use to manage your 
 > [!WARNING]
 > **Authorization**
 >
-> Only confirmed users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` (default `tuist.dev`) can access the `/ops/` endpoints.
+> Only users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` can access the `/ops/` endpoints. If the variable is unset, nobody can access them. Set it to a domain whose mailboxes you control.
+>
+> A user also has to have proved control of their address: by following a confirmation or password-reset email, by signing in with Google, GitHub, or Apple, or by entering the one-time code or presenting the verified email of an agent sign-in. Accounts that were confirmed automatically, which is the default without a mail provider, don't qualify until they do. After the account is created, a proof is recorded only while the address is in `TUIST_OPERATOR_EMAIL_DOMAIN`, so after you set or change the variable, operators who haven't proved their address under it do so again. Accounts created by signing in with one of those providers, or through an agent sign-in, carry the proof from creation. Without a mail provider, an account registered with a password can't link one of those providers, so create operator accounts by signing in with Google, GitHub, or Apple, or configure a mail provider.
+>
+> Accounts created before this check existed haven't recorded that proof yet, so an existing operator regains access after resetting their password or signing in with one of those providers once.
+>
+> The first time an account in the operator domain without that proof proves its address that way, Tuist removes its password, passkeys and links to organization single sign-on providers, and signs it out of the browser and the CLI, because whoever registered the address may not own it. A password reset on such an account does the same, apart from setting the new password. An authenticator app set up on the account stays; if it isn't the owner's, remove it for them. Confirmed accounts outside the operator domain keep their credentials. The owner keeps signing in with the provider, or sets a new password through a reset.
+>
+> Accounts that SCIM provisioning creates or renames have no proof until their owner provides it.
 
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that occurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.

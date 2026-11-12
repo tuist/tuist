@@ -2179,18 +2179,21 @@ max by (cluster, namespace, pod) (kura_migration_bridge_armed)
   [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
   `kura-migration-bridge-unready`); it must be created in Grafana separately.
 
-During a planned thin-storage move the source pod arms a write bridge after
-its preparation walk (`infra/kura-controller/thin-migration.md`). From then
-on every write it acknowledges was verified on the named destination process.
-A healthy bridge is armed and ready within seconds of arming. It goes armed
-but unready when the controller rebinds it to a restarted destination process
-and the re-proof cannot finish: the restarted process lost retained records or
-cannot be reached. The controller will not retire the donor until it is ready
-again, so the move is stuck with routing possibly already on the destination.
+During a planned thin-storage move the source pod pins its sync feed at the
+head, proves every write from that pin through the head on the named
+destination process, confirms the destination identity and then arms a write
+bridge (`infra/kura-controller/thin-migration.md`). Records retained from
+before the pin are not part of the proof. From then on every write it
+acknowledges was verified on the destination. A healthy bridge is armed and
+ready within seconds of arming. It goes armed but unready when the controller
+rebinds it to a restarted destination process and the re-proof of the feed from
+the pin cannot finish: the restarted process lost a post-pin write, the feed
+history below the pin was trimmed, or the destination cannot be reached. The
+controller will not retire the donor until it is ready again, so the move is
+stuck with routing possibly already on the destination.
 
 **When it fires.** Look at `kura_migration_reproof_failures_total_total` and
-the source's `kura.migration.reproof_failed` warning for the cause, and at
-`kura_migration_preparation_walk_records` for how far the re-proof got. Keep
+the source's `kura.migration.reproof_failed` warning for the cause. Keep
 both volumes. Follow the destination process restart section of the handoff
 protocol; never clear a bridge whose source was already demoted.
 
@@ -2217,6 +2220,91 @@ the source refuses writes it cannot prove. Keep both volumes, read the source's
 `kura.migration.bridge_failed` warning and the destination pod's state, and
 follow the handoff protocol. Never clear a bridge whose source was already
 demoted.
+
+### Kura thin pool rules
+
+Six rules in folder `Alerts`, group **Kura thin pools**, recorded in
+[`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
+the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
+`:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
+`alloy-metrics` scrapes rented plugins through their `prometheus.io/*`
+annotations, and `alloy-rack` scrapes the rack plugin on its node. Every series
+carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
+non-production keep list in `values.yaml`, because thin pools are rehearsed on
+staging, so every rule covers all environments. **No Data: Normal**,
+**Error: Error**. None sets `notification_settings`: the three critical rules
+page only in production through the sibling routes in
+[`kura-thin-pool-notification-policy.json`](kura-thin-pool-notification-policy.json)
+(the same shape as the Kura availability policy), and staging and canary land
+in `#notifications-non-prod`. `test-kura-thin-pool-alerts.sh` tests the
+expressions with promtool and the routing with amtool. The rules are proposed:
+create them and the policy routes in Grafana separately.
+
+| Rule | UID | Threshold | Pending | Severity | Routing |
+| --- | --- | --- | --- | --- | --- |
+| Kura thin pool data usage high | `kura-thin-pool-data-high` | data used > 80% | 15m | warning | policy tree |
+| Kura thin pool data almost full | `kura-thin-pool-data-full` | data used > 90% | 5m | critical | `Incidents` in production |
+| Kura thin pool metadata usage high | `kura-thin-pool-metadata-high` | metadata used > 70% | 15m | warning | policy tree |
+| Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
+| Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
+| Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
+
+#### Kura thin pool data usage
+
+```promql
+max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes)
+/ max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)
+```
+
+Pools are created with `error_if_no_space`, so a full pool fails tenant writes
+with I/O errors rather than queueing them. In `ceiling-backed-v1` every volume
+is fully backed and the driver keeps a data reserve, so crossing 80% means
+committed ceilings are near the pool size or mappings are unattributed; once
+tenants share overcommitted disk this becomes the main capacity signal. Read
+`GET /v1/node` on the node's allocator socket and compare `committed_bytes`,
+`unattributed_mapped_bytes` and per-volume `mapped_bytes`. Reclaim or move
+volumes through the planned migration path. Never extend, convert or change the
+geometry of a populated pool as the fix.
+
+#### Kura thin pool metadata usage
+
+The same ratio over `kura_volumes_thin_pool_metadata_{used,size}_bytes`, with
+lower thresholds, because exhausting metadata makes the pool read-only or fail
+and recovery needs an offline `thin_check`. The conservative profile reserves
+128 bytes per chunk and 1 MiB per device slot, so growth here means more
+devices than planned or snapshots. Stop new placements on the node and
+inspect `lvs -a`. Never run `thin_check` against the live metadata device.
+
+#### Kura thin pool read-only or out of data space
+
+```promql
+max by (cluster, node, vg, pool) ({__name__=~"kura_volumes_thin_pool_(read_only|out_of_data_space)"})
+```
+
+device-mapper reports the pool as `out_of_data_space`, `ro`, `needs_check` or
+`Fail`. The plugin reports this mode even when its full observation fails.
+Writes to every thin volume on the node fail now. Check `dmsetup status` and
+the kernel log on the node, keep every volume, and move instances off the node.
+Do not run `thin_check` or `lvconvert --repair` against an active pool.
+
+#### Kura thin pool metrics missing
+
+```promql
+max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"})
+unless on (cluster, node) (
+  max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes)
+  and on (cluster, node)
+  (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600)
+)
+```
+
+Fires for a node labelled `tuist.dev/kura-thin-ready=true` (kube-state-metrics
+exports that label through `metricLabelsAllowlist`) that has no fresh pool
+observation: the plugin is down or unscraped, or its observations fail, which
+also withdraws the node's `tuist.dev/kura-disk` capacity. The usage rules are
+blind for the node meanwhile. Read the `driver` container's logs for the
+observation error, then the pod's scrape target. An unlabelled node whose pool
+disappears is not covered: label a node only once it is qualified.
 
 ### Kura receiving no REAPI requests
 
@@ -2333,6 +2421,71 @@ the reasoning. The same query serves both, with the region rows and the node
 rows in one result: a region is the sum of its boxes, and a single box past
 the line is a problem for the tenants on it whether or not the region total
 says so, which matters once a region has boxes with different budgets.
+
+### Runner host disk buffer
+
+Rule `efss9ss24579ce`, **Runner Host Disk Buffer**, folder `Alerts`, group
+`Runners`: evaluate every minute, threshold **A < 10**, pending **15m**.
+Keep **No Data: NoData**, **Error: Error**, and the existing notification
+policy routing. The separately provisioned payload is
+[`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json); Helm
+does not install it. Before updating the live rule, GET it again and merge
+only the intended query/annotation changes into its current configuration.
+Do not replace notification policies or add a zero/healthy fallback.
+
+```promql
+min by (cluster, env, instance) (
+  100 * node_filesystem_avail_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+  / node_filesystem_size_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+)
+```
+
+The percentage must remain an unfiltered value in A, with the threshold in
+C: filtering A with `< 10` would turn a healthy fleet into NoData. Group by
+both cluster and env so a host's environment survives into notifications.
+Scope includes rented runner hosts and rack runner hosts, including the rack
+hosts lent to staging and canary; it excludes processor (`-macos-fleet-`) and
+builder (`-builders-fleet-`) hosts. The egress Service name is `instance`.
+
+On 2026-11-05 the old `tuist-tuist-runners-fleet-.*` selector returned no
+series while all 15 rack runners had `up=1` and root filesystem metrics.
+Production's 13 rack Nodes (b03–b15) independently appeared in
+`kube_node_info`; canary b02 and staging b01 also had exporter metrics.
+The rented fleet's two production `hostCount` values had deliberately been
+zero since October 26, matching the start of the rule's NoData instance
+(`2026-10-26T11:53:50Z`). This was stale alert scope, not evidence of a rack
+ingestion outage. The corrected query returned 15 percentages, production
+approximately 39–47%, canary 87%, staging 62%.
+
+Validation and triage:
+
+- Run `bash infra/helm/k8s-monitoring/test-runner-host-disk-alert.sh` with jq
+  and promtool on PATH. It exercises rented/rack coverage across envs,
+  exclusions, the strict 10% boundary, 15m pending and missing metric sides.
+- Compare the percentage host set with
+  `up{job="tuist-macos-node-exporter",instance=~".*-(runners|rack)-fleet-.*"}`
+  and the runner Node inventory, not merely a nonempty aggregate. Check both
+  `node_filesystem_avail_bytes` and `node_filesystem_size_bytes` at `/`.
+- Total absence stays NoData, and execution failure stays Error. Those are
+  telemetry failures, not proof of healthy disks. Partial host disappearance
+  is not detected by this capacity rule: compare inventory and exporter
+  health explicitly rather than relying on the other hosts' normal state.
+  The annotation guards missing A so NoData does not print a nil percentage.
+- For low space, use approved host access to inspect `df -h /` and Tart
+  golden/cache disk use. Goldens and custom cache volumes share physical
+  APFS space. Correlate tart-kubelet DiskPressure and its 15% golden-reclaim
+  floor; determine what live clones pin before reclaiming anything. Never
+  infer free physical capacity from a custom cache volume's quota alone.
+- After publishing, confirm health `ok`, 15 host instances with labels and
+  numeric percentages (or the current inventory), and no stale NoData
+  instance. Monitor several one-minute evaluations. No exporter interruption
+  or deliberate disk fill is needed to test the query's failure cases.
 
 ### Runner host PN VLAN missing
 
@@ -8925,6 +9078,101 @@ a second `up` series and `sum by (cluster, pod)` counts both.
 ```promql
 count_over_time(up[6h]) - sum_over_time(up[6h])
 ```
+
+## Linux runner kubelet health
+
+**Prepared, not provisioned.** `runner-kubelet-alert-rules.json` contains four
+paused Grafana rules. Helm does not install this payload. Create the
+`Runner kubelet health` evaluation group with a **60-second interval** only
+after separately approving rollout; keep the rules paused until the telemetry
+and maintenance checks below pass. No new notification route is included:
+policy routing preserves the staging exception and the existing canary/production
+notification destination. `severity: critical` does not itself enable IRM paging.
+These are infrastructure alerts, not declarations of customer-visible outages.
+
+On 2026-11-10, the canary Linux runner host's kubelet repeatedly failed CPU
+checkpoint validation while its Node still reported `Ready=True`. A historical
+five-minute `max_over_time(up)` was zero by 03:55 UTC, and the host journal
+recorded 110 kubelet starts in ten minutes ending 15:25 UTC. The inventory-backed
+scrape query identified that host at 15:25 UTC and cleared at 16:35 UTC after
+recovery. Pod readiness and container restart counters do not establish the
+health of the host's kubelet process.
+
+| Rule | Condition | Pending period | Scope |
+| --- | --- | --- | --- |
+| Linux runner kubelet unavailable | Inventoried host has no successful kubelet scrape in five minutes, including a disappeared target | 5 minutes | `runners-linux` nodes in staging, canary, production |
+| Linux runner node Lease stale or missing | No node Lease renewed within two minutes, or the renewal metric is absent | 3 minutes | Same inventory as above |
+| Linux host kubelet restart loop | More than three `"Kubelet version"` startup records in ten minutes | 5 minutes | Linux hosts shipping `integrations/kubernetes/journal` in those environments |
+| Kubelet monitoring node inventory missing | No `kube_node_labels` samples for ten minutes in an expected cluster | None beyond the ten-minute window | Each of the three workload clusters, explicitly named |
+
+The payload is the query source of truth. The first two queries select expected
+hosts from `kube_node_labels`, then subtract healthy hosts using `unless on
+(cluster, node)`. The Lease name equals the Node name; `label_replace` maps
+`lease` to `node`. Use the latest renewal if duplicate kube-state-metrics targets
+overlap during replacement. A healthy peer in another cluster must not hide a
+failed same-named node. Node deletion removes that node's expectation; cordoning
+does not, because a cordoned node should still have a working kubelet.
+
+Lease freshness and endpoint reachability are distinct: a process can keep
+serving metrics while its heartbeat loop is stuck. A controller leader-election
+Lease must never satisfy the check: only `namespace="kube-node-lease"` counts.
+No Data is Normal for these comparison/absence expressions; missing individual
+heartbeats return an explicit unhealthy host. The separately evaluated inventory
+rule detects collector/cluster loss, when both sides of the comparison vanish.
+It does not detect a mistakenly removed pool label on one Node. The journal rule
+counts startup records, not systemd's restart counter; duplicate log delivery can
+inflate the count, and absent logs are not proof of health.
+
+### Lease telemetry and rollout gates
+
+The pinned kube-state-metrics v2.18.0 already includes the Lease collector and
+list/watch RBAC for `coordination.k8s.io/leases`. Its built-in
+`kube_lease_renew_time{namespace,lease}` exports `spec.renewTime` as Unix seconds.
+No new exporter, privileged host access or RBAC expansion is required.
+`values.yaml` adds the metric to the KSM scrape allowlist, drops non-node Lease
+timestamps before forwarding, and retains it in nonproduction remote write.
+The same policy feeds Grafana Cloud and Pulse. Preserve `cluster`, `namespace`
+and `lease`; the node inventory's pool label must also survive aggregation.
+
+After approval, deploy collection to staging first, then canary and production.
+Do not enable the Lease alert against the old collector configuration: every
+inventoried runner would correctly report its telemetry missing. Before unpausing:
+
+1. Confirm one fresh renewal metric for every inventoried Linux runner, with
+   the Lease name matching the Node name. Compare against the API's
+   `spec.renewTime`, not Node Ready. Confirm the pool selector matches the intended
+   nodes in each environment. Tart macOS nodes intentionally do not expose the
+   real kubelet endpoint and are excluded from the runner inventory selector.
+2. Confirm no non-node Lease timestamps are stored and that cluster/node labels
+   remain usable in Grafana after downstream aggregation. Budget one renewal
+   series per Node, rather than keeping every `kube_lease_*` family.
+3. Replay the shipped queries over at least 24 hours, including planned host
+   restarts, node joins and collector rollouts. Thresholds are initial candidates,
+   not a qualified fleet-wide noise baseline. For journal restarts, verify the
+   startup marker is present on each relevant kubelet version.
+4. In an approved staging drill, verify scrape failure, stopped Lease renewal
+   while the endpoint answers, missing target/Lease, repeated starts and
+   monitoring loss. Confirm firing, clearing and environment notification routing.
+   Never interrupt a host or its collectors solely to validate an alert without
+   separate approval.
+5. Unpause only the qualified rules. To roll back alerting, pause them again;
+   pause the Lease rule before withdrawing its telemetry. No host repair is part
+   of this rollout.
+
+Local checks (no cloud writes): `python3 test-runner-kubelet-alerts.py` uses
+promtool for pending periods, age boundaries, missing data, duplicate scrapes,
+cross-cluster isolation, recovery and Tart exclusion.
+`python3 test-kubelet-telemetry.py` renders all three overlays and passes fixture
+metrics through the shipped Alloy relabel and remote-write rules into a local
+Prometheus receiver, testing both Cloud and Pulse configurations. It requires
+Helm, yq, Prometheus and Docker; `ALLOY_BINARY` can select a local Alloy v1.15.0
+binary instead of Docker. Neither check provisions Grafana rules. LogQL must
+also be replayed with Loki; promtool cannot execute it.
+
+When an alert fires, compare the API Lease, scrape target and kubelet journal
+before diagnosing a dead host. Inspect the live runtime through the approved
+host-access procedure before authorizing a repair; these alerts do not authorize
+checkpoint resets, sandbox interruption, restarts or automated remediation.
 
 ## Retired rules
 

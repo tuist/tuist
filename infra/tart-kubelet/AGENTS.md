@@ -361,6 +361,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
+## macOS sandboxes
+
+For flag-controlled native sandbox placement, capacity, recovery and rollout,
+read [macOS sandbox operation](macos-sandboxes.md). Pods and RunnerPools
+labelled `tuist.dev/macos-sandbox-warm=true` belong to the sandbox service:
+podagent, the prewarmer and image GC must never launch or stage them as CI.
+Keep sandbox save/restore work outside the single Pod reconcile worker, and never
+treat a suspend CLI exit or snapshot file alone as released capacity.
+
 ## Tart versions
 
 The operator installs Tart in place (see
@@ -385,6 +394,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   content store (`~/.tart/cache/content`). Deleting a local VM leaves the
   store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
   before it re-measures free space under disk pressure.
+- The macOS sandbox store is seeded from the CI store's files (`macosandbox/seed.go`):
+  a cached image is `cache/OCIs/<host, ':' as %3A>/<repository>/sha256:<hex>/`
+  (`config.json`, `nvram.bin`, `manifest.json`; `disk.img` when standalone),
+  its manifest names each stacked disk file by the
+  `org.cirruslabs.tart.disk-file-content-digest` layer annotation, the file is
+  `cache/content/sha256/<hex>`, and `prune --gc` deletes content under an
+  exclusive `flock` on `cache/content/.gc.lock`. `tart get` opens only local
+  VMs; a cached image is found in `tart list`. A Tart release that changes
+  any of this makes seeding fall back to a pull.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

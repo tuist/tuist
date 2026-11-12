@@ -259,6 +259,30 @@ fn tags_path(record_path: &str) -> std::path::PathBuf {
 /// remembered and a later acceptance decides again.
 const SPOOL_LEDGER_MAX: usize = 100_000;
 
+/// A record still spooled this long after the build wrote it is dropped by the
+/// periodic sweep. An hour-old record is a publication that failed every
+/// retry of every sweep since, and holding it keeps its store
+/// handle open (`reclaim_idle` spares a store that owes publications) and every
+/// sweep reading it. Drains do not drop records: a promote gate reads an empty
+/// spool as "everything landed", which a dropped record would fake.
+const SPOOL_RECORD_MAX_AGE: Duration = Duration::from_secs(60 * 60);
+
+/// Which records a sweep of the spool enqueues.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Sweep {
+    /// The maintenance tick: drops records past `SPOOL_RECORD_MAX_AGE` and
+    /// enqueues the rest.
+    Periodic,
+    /// The maintenance tick once the window of a credential refusal ran out:
+    /// drops expired records like `Periodic`, then enqueues only the newest,
+    /// whose publication probes the refusal. The newest is the record most
+    /// likely to still have its value graph in the store, which it needs to
+    /// reach the upload that probes.
+    Probe,
+    /// A drain: every record, now. Its caller has a deadline of its own.
+    Everything,
+}
+
 /// What the first acceptance of a record decided.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SpoolDecision {
@@ -561,6 +585,15 @@ fn prune_limit(payload: &[u8]) -> u64 {
 fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(record_path);
     let _ = std::fs::remove_file(tags_path(record_path));
+}
+
+/// Whether a spooled record is older than `SPOOL_RECORD_MAX_AGE`, by the file's
+/// modification time, which the claim rename keeps. A record whose time cannot
+/// be read is not expired: dropping is the exception, not the default.
+fn record_expired(modified: Option<std::time::SystemTime>, now: std::time::SystemTime) -> bool {
+    modified
+        .and_then(|modified| now.duration_since(modified).ok())
+        .is_some_and(|age| age > SPOOL_RECORD_MAX_AGE)
 }
 
 /// The store directory a spool record belongs to: `<cas_path>/tuist-spool/<record>`.
@@ -4817,6 +4850,41 @@ impl Proxy {
         }
     }
 
+    /// Prunes every registered store that has grown past its size limit, for a
+    /// proxy that is starting and holds no handle yet. `bound_stores` waits for an
+    /// idle machine, which one that starts the proxy for each job and stops it
+    /// after (`tuist setup cache` ... `tuist teardown cache` on CI) never is, so
+    /// its stores grew until llcas's fixed-size mappings filled and every build
+    /// crashed the build system with "LLVM ERROR: Cannot allocate memory".
+    pub fn bound_registered_stores(&self) {
+        let paths: Vec<String> = self.path_instances.lock().unwrap().keys().cloned().collect();
+        for cas_path in paths {
+            let Some(limit) = self.store_size_limit(&cas_path) else { continue };
+            // See `bound_store`.
+            if spool_records(&cas_path) > 0 {
+                continue;
+            }
+            let size = directory_size(&cas_path);
+            if size <= limit {
+                continue;
+            }
+            let sizes = indexed_generation_sizes(&generation_sizes(&cas_path));
+            if plan_generations(&sizes, generation_limit(limit), true) == GenerationPlan::default() {
+                continue;
+            }
+            match prune_store(&cas_path, generation_limit(limit)) {
+                Ok(pruned) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: pruning at startup reclaimed {} bytes{}",
+                    pruned.reclaimed,
+                    if pruned.held_open { " (held open elsewhere, so not rotated)" } else { "" }
+                )),
+                Err(message) => crate::log_line(&format!(
+                    "store {cas_path} occupied {size} bytes, past its {limit}-byte limit: prune at startup failed: {message}"
+                )),
+            }
+        }
+    }
+
     /// The size limit of the store at `cas_path`: the smallest limit set by any
     /// project that has used it. Stores are shared (Xcode's default store by
     /// every project on the machine), so the limit of whichever project built
@@ -4951,45 +5019,103 @@ impl Proxy {
             .map(|(cas_path, instance)| (cas_path.clone(), instance.clone()))
             .collect();
         for (cas_path, instance) in paths {
-            self.sweep_path(&cas_path, &instance);
+            // A refused credential stops the requests (`CredentialBreaker`), not
+            // the work in front of them: each record would still be read, and
+            // its tags with it, before the publication saw the refusal. So the
+            // spool is not read while the refusal holds, and one record probes
+            // it once its window runs out. The breaker closes on any other
+            // answer, and the next tick enqueues the rest. No client yet means
+            // nothing was refused, and building one here could resolve the
+            // endpoint on this thread.
+            let gate = self
+                .current_remote(&instance)
+                .map_or(reapi::PublicationGate::Open, |remote| remote.publication_gate());
+            let sweep = match gate {
+                reapi::PublicationGate::Open => Sweep::Periodic,
+                reapi::PublicationGate::ProbeDue => Sweep::Probe,
+                reapi::PublicationGate::Refusing => continue,
+            };
+            self.sweep_path(&cas_path, &instance, sweep);
         }
     }
 
-    /// Re-enqueues every publication record still spooled under one CAS path.
-    fn sweep_path(&self, cas_path: &str, instance: &str) {
+    /// Re-enqueues the publication records still spooled under one CAS path.
+    fn sweep_path(&self, cas_path: &str, instance: &str, sweep: Sweep) {
         self.stalls.watch(cas_path, "sweeping the publication spool", || {
-            self.sweep_spool(cas_path, instance)
+            self.sweep_spool(cas_path, instance, sweep)
         });
     }
 
-    fn sweep_spool(&self, cas_path: &str, instance: &str) {
+    fn sweep_spool(&self, cas_path: &str, instance: &str, sweep: Sweep) {
         let spool = spool_dir(cas_path);
         let Ok(entries) = std::fs::read_dir(&spool) else {
             return;
         };
+        let now = std::time::SystemTime::now();
+        let mut expired = 0usize;
+        let mut newest: Option<(std::time::SystemTime, String, PathBuf)> = None;
         for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                // A sidecar is not a record. Publishing one would fail to
-                // decode and delete it, throwing away the tags it exists to
-                // carry, and the record beside it would then resolve live.
-                if name.ends_with(TAGS_SUFFIX) {
-                    continue;
-                }
-                // Claims are ours alone now; reclaim anything.
-                let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
-                let path = match base {
-                    Some(base) => {
-                        let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
-                        if std::fs::rename(entry.path(), &claimed).is_err() {
-                            continue;
-                        }
-                        claimed
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            // A sidecar is not a record. Publishing one would fail to decode
+            // and delete it, throwing away the tags it exists to carry, and the
+            // record beside it would then resolve live.
+            if name.ends_with(TAGS_SUFFIX) {
+                continue;
+            }
+            if sweep == Sweep::Everything {
+                self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path());
+                continue;
+            }
+            let modified = entry.metadata().and_then(|metadata| metadata.modified()).ok();
+            if record_expired(modified, now) {
+                self.remove_spooled(&entry.path().to_string_lossy());
+                expired += 1;
+                continue;
+            }
+            match sweep {
+                Sweep::Probe => {
+                    let modified = modified.unwrap_or(std::time::UNIX_EPOCH);
+                    if newest.as_ref().is_none_or(|(newest, _, _)| modified > *newest) {
+                        newest = Some((modified, name, entry.path()));
                     }
-                    None => entry.path(),
-                };
-                self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
+                }
+                _ => self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path()),
             }
         }
+        if let Some((_, name, path)) = newest {
+            self.enqueue_spooled(cas_path, instance, &spool, &name, path);
+        }
+        if expired > 0 {
+            crate::log_line(&format!(
+                "proxy dropped {expired} publication record(s) under {cas_path} spooled for more than {}h",
+                SPOOL_RECORD_MAX_AGE.as_secs() / 3600
+            ));
+        }
+    }
+
+    /// Enqueues one spooled record, reclaiming it first if a process that is
+    /// gone had claimed it: claims are ours alone now.
+    fn enqueue_spooled(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        spool: &Path,
+        name: &str,
+        path: PathBuf,
+    ) {
+        let path = match name.split_once(".claim-") {
+            Some((base, _)) => {
+                let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
+                if std::fs::rename(&path, &claimed).is_err() {
+                    return;
+                }
+                claimed
+            }
+            None => path,
+        };
+        self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
     }
 
     /// Waits for everything this machine recorded under `cas_path` to reach the
@@ -5040,7 +5166,7 @@ impl Proxy {
             return owed;
         };
         loop {
-            self.sweep_path(cas_path, instance);
+            self.sweep_path(cas_path, instance, Sweep::Everything);
             self.publisher
                 .wait_idle(deadline.saturating_duration_since(Instant::now()));
             let owed = spool_records(cas_path);
@@ -10149,6 +10275,39 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A CI machine that starts the proxy for each job and stops it after is
+    /// never idle while the proxy runs, so only a pass at startup bounds it.
+    #[test]
+    fn a_registered_store_past_its_limit_is_pruned_as_the_proxy_starts() {
+        const LIMIT: usize = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-at-start");
+        let registry = dir.0.join("registry");
+        let bounded = store_in(&dir, "bounded");
+        let unbounded = store_in(&dir, "unbounded");
+        let spooled = store_in(&dir, "spooled");
+        for store in [&bounded, &unbounded, &spooled] {
+            write_generation(Path::new(store), 1, "v8.data", LIMIT + 1024 * 1024);
+        }
+        std::fs::create_dir_all(spool_dir(&spooled)).unwrap();
+        std::fs::write(spool_dir(&spooled).join("1234-0"), b"record").unwrap();
+        std::fs::write(
+            &registry,
+            format!("{bounded}\ttuist/bounded\n{unbounded}\ttuist/unbounded\n{spooled}\ttuist/bounded\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            sources_path_for(&registry),
+            format!(r#"{{"tuist/bounded":{{"storeSizeLimit":{LIMIT}}},"tuist/unbounded":{{}}}}"#),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).bound_registered_stores();
+
+        assert_eq!(generations_at(Path::new(&bounded)), vec!["v1.2"]);
+        assert_eq!(generations_at(Path::new(&unbounded)), vec!["v1.1"], "no project bounded it");
+        assert_eq!(generations_at(Path::new(&spooled)), vec!["v1.1"], "it still owes publications");
+    }
+
     fn registry_proxy(registry: &Path) -> &'static Proxy {
         Proxy::new(
             "http://127.0.0.1:1".into(),
@@ -13169,6 +13328,158 @@ mod tests {
             !proxy.paths.lock().unwrap().contains_key(&older),
             "without opening a store it did not need"
         );
+    }
+
+    /// A registry proxy over one uploading store holding `records`, each spooled
+    /// `age` ago, whose publisher hands each record path to `publish` in place
+    /// of a publication.
+    fn spool_fixture<F>(
+        name: &str,
+        records: &[(&str, Duration)],
+        publish: F,
+    ) -> (TempCasDir, String, &'static Proxy)
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let dir = TempCasDir::new(name);
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/app":{"trunk":"main","upload":true}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        for (record, age) in records {
+            let path = spool_dir(&store).join(record);
+            std::fs::write(&path, b"record").unwrap();
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(std::time::SystemTime::now() - *age)
+                .unwrap();
+        }
+        let proxy = upstream_registry_proxy(&registry);
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        (dir, store, proxy)
+    }
+
+    fn published_records() -> (Arc<Mutex<Vec<String>>>, impl Fn(&str) + Send + Sync + 'static) {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let recorded = published.clone();
+        (published, move |record_path: &str| {
+            let name = Path::new(record_path).file_name().unwrap().to_string_lossy();
+            recorded.lock().unwrap().push(name.into_owned());
+        })
+    }
+
+    // The breaker stops a refused credential's requests, not the reads in front
+    // of them: every record and its tags were read on every tick before the
+    // publication saw the refusal, ~2 cores on a machine with ~293k records.
+    #[test]
+    fn the_sweep_reads_no_record_while_the_remote_refuses_publications() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) =
+            spool_fixture("sweep-refused", &[("1234-0", Duration::ZERO)], publish);
+        proxy.remote_for("tuist/app").refuse_publications_at(reapi::now_ms());
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert!(published.lock().unwrap().is_empty());
+        assert!(spool_dir(&store).join("1234-0").exists(), "and the record is kept");
+    }
+
+    // Once the refusal's window runs out, one publication probes it. The
+    // breaker closes on any answer but another refusal, and the next tick
+    // enqueues the rest.
+    #[test]
+    fn a_refusal_whose_window_ran_out_is_probed_by_the_newest_record_alone() {
+        let (published, publish) = published_records();
+        let (_dir, _store, proxy) = spool_fixture(
+            "sweep-probe",
+            &[
+                ("1234-0", Duration::from_secs(30 * 60)),
+                ("1234-1", Duration::from_secs(10 * 60)),
+                ("1234-2", Duration::from_secs(20 * 60)),
+            ],
+            publish,
+        );
+        let remote = proxy.remote_for("tuist/app");
+        remote.refuse_publications_at(reapi::now_ms() - 10 * 60 * 1000);
+        assert_eq!(remote.publication_gate(), reapi::PublicationGate::ProbeDue);
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert_eq!(*published.lock().unwrap(), vec!["1234-1".to_string()]);
+    }
+
+    // An hour-old record is a publication that failed every retry. The
+    // periodic sweep drops it instead of reading it on every tick forever.
+    #[test]
+    fn the_sweep_drops_a_record_older_than_the_age_cap() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) = spool_fixture(
+            "sweep-age-cap",
+            &[
+                ("1234-0", SPOOL_RECORD_MAX_AGE + Duration::from_secs(60)),
+                ("1234-1", Duration::ZERO),
+            ],
+            publish,
+        );
+        let tags = spool_dir(&store).join(format!("1234-0{TAGS_SUFFIX}"));
+        std::fs::write(&tags, b"main\nmain").unwrap();
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert!(!spool_dir(&store).join("1234-0").exists(), "the record is dropped");
+        assert!(!tags.exists(), "with its tags");
+        assert_eq!(
+            *published.lock().unwrap(),
+            vec!["1234-1".to_string()],
+            "and never published, unlike a recent one"
+        );
+    }
+
+    // A drain is a runner's teardown, and its promote gate reads an empty spool
+    // as "everything landed": it publishes even a record past the age cap.
+    #[test]
+    fn a_drain_never_drops_a_record_for_its_age() {
+        let (dir, registry) = drain_fixture("age-cap");
+        let record = dir.join("cas").join("tuist-spool").join("1234-0");
+        std::fs::write(&record, b"old").expect("record");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&record)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - SPOOL_RECORD_MAX_AGE * 2)
+            .unwrap();
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let proxy = proxy_with_publisher(registry, move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+        });
+
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            Duration::from_millis(500),
+        );
+
+        assert_eq!(remaining, 1, "the record is still owed");
+        assert!(attempts.load(Ordering::SeqCst) >= 1, "and was published, not dropped");
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     // A warm stamps no use, so a store that went idle before its warm started

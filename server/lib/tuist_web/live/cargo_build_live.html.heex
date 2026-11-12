@@ -1,4 +1,9 @@
-<div id="build-run" data-build-system="cargo">
+<div
+  id="build-run"
+  data-build-system="cargo"
+  phx-hook="PageFavicon"
+  data-favicon-status={@build.status}
+>
   <.button
     label={dgettext("dashboard_builds", "Builds")}
     data-part="back-button"

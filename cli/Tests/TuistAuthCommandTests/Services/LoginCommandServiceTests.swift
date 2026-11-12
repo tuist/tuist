@@ -63,6 +63,7 @@ struct LoginCommandServiceTests {
             .authenticate(
                 serverURL: .any,
                 deviceCodeType: .any,
+                onUserCode: .any,
                 onOpeningBrowser: .any,
                 onAuthWaitBegin: .any
             )
@@ -80,6 +81,7 @@ struct LoginCommandServiceTests {
             .authenticate(
                 serverURL: .any,
                 deviceCodeType: .any,
+                onUserCode: .any,
                 onOpeningBrowser: .any,
                 onAuthWaitBegin: .any
             )
@@ -248,6 +250,7 @@ struct LoginCommandServiceTests {
             .authenticate(
                 serverURL: .any,
                 deviceCodeType: .any,
+                onUserCode: .any,
                 onOpeningBrowser: .any,
                 onAuthWaitBegin: .any
             )
@@ -273,6 +276,7 @@ struct LoginCommandServiceTests {
             .authenticate(
                 serverURL: .any,
                 deviceCodeType: .any,
+                onUserCode: .any,
                 onOpeningBrowser: .any,
                 onAuthWaitBegin: .any
             )
@@ -343,7 +347,13 @@ struct LoginCommandServiceTests {
                 .called(1)
 
             verify(serverSessionController)
-                .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
+                .authenticate(
+                    serverURL: .any,
+                    deviceCodeType: .any,
+                    onUserCode: .any,
+                    onOpeningBrowser: .any,
+                    onAuthWaitBegin: .any
+                )
                 .called(0)
         }
 

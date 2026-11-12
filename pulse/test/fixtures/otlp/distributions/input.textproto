@@ -1,0 +1,89 @@
+resource_metrics {
+  resource {
+    attributes { key: "service.name" value { string_value: "protocol-fixture" } }
+    attributes { key: "service.instance.id" value { string_value: "instance-1" } }
+    attributes { key: "resource.enabled" value { bool_value: true } }
+  }
+  schema_url: "https://example.test/resource"
+  scope_metrics {
+    scope { name: "protocol.metrics" version: "1.0" attributes { key: "scope.enabled" value { bool_value: true } } }
+    schema_url: "https://example.test/scope"
+    metrics {
+      name: "request.duration"
+      description: "Explicit histogram with typed context"
+      unit: "s"
+      metadata { key: "instrument.kind" value { string_value: "histogram" } }
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points {
+          start_time_unix_nano: 1700000000000000000
+          time_unix_nano: 1700000000123456789
+          count: 4
+          sum: 6
+          bucket_counts: [1, 2, 1]
+          explicit_bounds: [1, 2]
+          min: 0.25
+          max: 3.5
+          flags: 2
+          attributes { key: "http.response.status_code" value { int_value: 503 } }
+          exemplars {
+            time_unix_nano: 1700000000123456788
+            as_double: -0.0
+            trace_id: "0123456789abcdef"
+            span_id: "abcdefgh"
+            filtered_attributes { key: "request.id" value { string_value: "synthetic" } }
+          }
+        }
+      }
+    }
+    metrics {
+      name: "payload.size"
+      summary {
+        data_points {
+          start_time_unix_nano: 1700000000000000000
+          time_unix_nano: 1700000000123456789
+          count: 4
+          sum: 10
+          quantile_values { quantile: 0 value: 1 }
+          quantile_values { quantile: 0.5 value: 2 }
+          quantile_values { quantile: 0.99 value: 4 }
+        }
+      }
+    }
+    metrics {
+      name: "large.count"
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points { time_unix_nano: 1700000000123456789 count: 18446744073709551615 bucket_counts: [18446744073709551615] }
+      }
+    }
+    metrics {
+      name: "empty.histogram"
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points { time_unix_nano: 1700000000123456789 flags: 1 }
+      }
+    }
+    metrics {
+      name: "stale.values"
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points { time_unix_nano: 1700000000123456789 flags: 1 count: 0 sum: nan bucket_counts: [4, 7] explicit_bounds: [1] }
+      }
+    }
+    metrics {
+      name: "optional.zero"
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points { time_unix_nano: 1700000000123456789 sum: -0.0 min: 0.0 max: nan }
+      }
+    }
+    metrics {
+      name: "negative.zero"
+      histogram {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        data_points { time_unix_nano: 1700000000123456789 count: 1 bucket_counts: [1, 0] explicit_bounds: [-0.0] min: -0.0 max: -0.0 }
+      }
+    }
+  }
+}

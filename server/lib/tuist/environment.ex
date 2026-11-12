@@ -548,6 +548,14 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_thin_enrolled_region_ids do
+    "TUIST_KURA_THIN_ENROLLED_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_available_region_ids do
     "TUIST_KURA_AVAILABLE_REGIONS"
     |> System.get_env("")
@@ -953,7 +961,15 @@ defmodule Tuist.Environment do
   verification. Defaults to `tuist.dev`.
   """
   def operator_email_domain(secrets \\ secrets()) do
-    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+    [:operator_email_domain] |> get(secrets, default_value: "tuist.dev") |> String.trim() |> String.downcase()
+  end
+
+  @doc "Whether the operator email domain is set explicitly instead of using the `tuist.dev` default."
+  def operator_email_domain_configured?(secrets \\ secrets()) do
+    case get([:operator_email_domain], secrets) do
+      domain when is_binary(domain) -> String.trim(domain) != ""
+      _ -> false
+    end
   end
 
   @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
@@ -2090,6 +2106,8 @@ defmodule Tuist.Environment do
     get([:atlas, :url], secrets, default_value: "https://atlas.tuist.dev")
   end
 
+  def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)
   the server presents to Atlas' support ingest, where agent feedback reported
@@ -2159,6 +2177,18 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Percentage of a node's reserved sandbox disk budget above which the
+  archive sweep also archives recently paused Orbs. Defaults to 85; `0`
+  disables pressure archiving. Requires the archive tier to be enabled.
+  """
+  def sandbox_archive_disk_high_water_percent do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT", "85")) do
+      {percent, ""} when percent in 1..100 -> percent
+      _ -> nil
+    end
+  end
+
   def amp_provider_config do
     %{
       image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),
@@ -2166,6 +2196,14 @@ defmodule Tuist.Environment do
       url: System.get_env("TUIST_AMP_PROVIDER_URL"),
       node_selector: "TUIST_AMP_PROVIDER_NODE_SELECTOR" |> System.get_env("{}") |> JSON.decode!()
     }
+  end
+
+  @doc """
+  Where Claude Code orchestrator workloads run: the Amp provider namespace,
+  URL and node selector, with their own image.
+  """
+  def claude_code_provider_config do
+    Map.put(amp_provider_config(), :image, System.get_env("TUIST_CLAUDE_CODE_PROVIDER_IMAGE"))
   end
 
   @doc """

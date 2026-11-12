@@ -114,6 +114,20 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlugTest do
                "/example-account/example-project/tests/test-runs?page=3"
     end
 
+    test "redirects without storing a return_to too long for the session cookie", %{conn: conn} do
+      conn =
+        fetch_query_params(%{
+          conn
+          | request_path: "/example-account/example-project/tests/test-runs",
+            query_string: String.duplicate("a", 5000)
+        })
+
+      out = PublicPageChallengePlug.call(conn, [])
+
+      assert redirected_to(out) == PublicPageChallengePlug.challenge_path()
+      refute get_session(out, PublicPageChallengePlug.return_to_key())
+    end
+
     test "redirects when the stored timestamp is beyond the freshness window", %{conn: conn} do
       # 12h old — well outside the 4h default freshness.
       stale = System.system_time(:second) - 12 * 60 * 60

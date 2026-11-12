@@ -20,6 +20,17 @@ import Config
 alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
 
+# Initial Pulse enrollment is one stable organization account ID, never a handle
+# supplied by the browser. Leave unset outside the Tuist deployment.
+config :tuist, :pulse,
+  backend: Map.fetch!(%{"pulse" => :pulse, "greptime" => :greptime}, System.get_env("TUIST_PULSE_BACKEND", "pulse")),
+  account_id:
+    if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
+  base_url: System.get_env("TUIST_PULSE_URL"),
+  tenant: System.get_env("TUIST_PULSE_TENANT"),
+  token: System.get_env("TUIST_PULSE_TOKEN"),
+  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
@@ -72,6 +83,13 @@ if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
   end
 end
 
+config :tuist, Tuist.Entire.Client,
+  slug: System.get_env("TUIST_ENTIRE_PLUGIN_SLUG"),
+  private_key: System.get_env("TUIST_ENTIRE_PLUGIN_PRIVATE_KEY"),
+  key_id: System.get_env("TUIST_ENTIRE_PLUGIN_KEY_ID"),
+  core_url: System.get_env("TUIST_ENTIRE_CORE_URL", "https://eu.auth.entire.io"),
+  delivery_jwks_url: System.get_env("TUIST_ENTIRE_DELIVERY_JWKS_URL")
+
 config :tuist, :network_trusted_cache_access, System.get_env("TUIST_NETWORK_TRUSTED_CACHE_ACCESS") == "true"
 
 config :tuist,
@@ -94,6 +112,24 @@ case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
 
       shapes ->
         config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_LINUX_OS_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_os_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_LINUX_OS_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleetLinux.osVersions via toJson). Got: #{inspect(json)}"
+
+      os_versions ->
+        config :tuist, :runner_linux_os_versions, os_versions
     end
 end
 
@@ -690,6 +726,24 @@ if Tuist.Environment.env() in [:prod, :can, :stag] do
     provider ->
       raise "unsupported mailing provider: #{inspect(provider)}"
   end
+
+  # Tuist.Mailer sends through SES from this instant on, without a restart.
+  if ses_starts_at = Tuist.Environment.get([:mailing, :ses_starts_at], secrets) do
+    {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+    ex_aws =
+      for key <- [:region, :access_key_id, :secret_access_key] do
+        case Tuist.Environment.get([:ses, key], secrets) do
+          value when value in [nil, ""] ->
+            raise "TUIST_MAILING_SES_STARTS_AT requires TUIST_SES_#{String.upcase(to_string(key))}"
+
+          value ->
+            {key, value}
+        end
+      end
+
+    config :tuist, Tuist.Mailer, ses_cutover: {ses_starts_at, %{adapter: Bamboo.SesAdapter, ex_aws: ex_aws}}
+  end
 end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
@@ -730,7 +784,10 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # cannot delay either.
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
+# Disk snapshot archive uploads each hold a slot for up to half an hour, so
+# they take turns on their own queue instead of filling :default.
 base_queues = [
+  threads: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -743,7 +800,8 @@ base_queues = [
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,
-  coverage_deltas: 2
+  coverage_deltas: 2,
+  sandbox_archives: 2
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

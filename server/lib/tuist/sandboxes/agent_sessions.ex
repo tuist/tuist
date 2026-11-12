@@ -1,18 +1,21 @@
 defmodule Tuist.Sandboxes.AgentSessions do
   @moduledoc """
   Starts and follows Managed Agents sessions on an account's connected
-  environment using the organization API key stored on that environment,
-  so callers never hold the key themselves. Anthropic owns the session;
-  the `sandbox_agent_sessions` row keeps the ids, the request and the
-  last status the server saw.
+  environment, authenticated as the environment: with a federated token
+  (`Tuist.Sandboxes.Anthropic.Federation`) when its federation ids are set,
+  else with its stored organization API key, so callers never hold either.
+  Anthropic owns the session; the `sandbox_agent_sessions` row keeps the
+  ids, the request and the last status the server saw.
   """
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Sandbox
 
   @default_system_prompt "You are a coding agent working inside a Tuist sandbox. " <>
@@ -31,8 +34,9 @@ defmodule Tuist.Sandboxes.AgentSessions do
   Creates the Anthropic session for `attrs.prompt` and records it.
 
   `attrs` may also carry `agent_environment_id` (defaults to the account's
-  single enabled environment), `title`, `repository_url`, `repository_ref`,
-  `model` (defaults to the environment's), `budget_cents` and `agent_id`
+  single enabled Managed Agents environment), `title`, `repository_url`, `repository_ref`,
+  `model` (defaults to the environment's), `budget_cents`, `platform`
+  (`:linux` or `:darwin`, defaults to the environment's) and `agent_id`
   (skips the cached agent). `opts` takes `:created_by_user_id`.
 
   The row id is generated before the Anthropic call so it can travel in
@@ -44,10 +48,10 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
     with {:ok, params} <- validate_params(attrs),
          {:ok, agent_environment} <- resolve_agent_environment(account, attrs[:agent_environment_id]),
-         {:ok, api_key} <- api_key(agent_environment),
+         {:ok, credential} <- credential(agent_environment),
          model = params.model || agent_environment.agent_model,
-         {:ok, agent_id} <- ensure_agent(account, agent_environment, api_key, model, attrs[:agent_id]),
-         {:ok, remote} <- create_session(api_key, agent_id, agent_environment, account, id, params) do
+         {:ok, agent_id} <- ensure_agent(account, agent_environment, credential, model, attrs[:agent_id]),
+         {:ok, remote} <- create_session(credential, agent_id, agent_environment, account, id, params) do
       %AgentSession{id: id}
       |> AgentSession.create_changeset(%{
         account_id: account.id,
@@ -60,6 +64,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
         repository_ref: params.repository_ref,
         model: model,
         budget_cents: params.budget_cents,
+        platform: params.platform,
         last_status: remote["status"],
         created_by_user_id: Keyword.get(opts, :created_by_user_id)
       })
@@ -105,15 +110,15 @@ defmodule Tuist.Sandboxes.AgentSessions do
   updated row with `status`, `usage` and the bound sandbox's state.
   """
   def refresh_agent_session(%AgentSession{} = agent_session) do
-    with {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, remote} <- ControlPlane.get_session(api_key, agent_session.anthropic_session_id) do
+    with {:ok, credential} <- credential_for(agent_session),
+         {:ok, remote} <- ControlPlane.get_session(credential, agent_session.anthropic_session_id) do
       status = remote["status"]
 
       attrs =
         maybe_put(
           %{last_status: status},
           :last_stop_reason,
-          if(status == "idle", do: latest_stop_reason(api_key, agent_session))
+          if(status == "idle", do: latest_stop_reason(credential, agent_session))
         )
 
       with {:ok, agent_session} <- update_agent_session(agent_session, attrs) do
@@ -129,8 +134,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
   end
 
   def send_agent_session_message(%AgentSession{} = agent_session, text) when is_binary(text) do
-    with {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, _sent} <- ControlPlane.send_message(api_key, agent_session.anthropic_session_id, text) do
+    with {:ok, credential} <- credential_for(agent_session),
+         {:ok, _sent} <- ControlPlane.send_message(credential, agent_session.anthropic_session_id, text) do
       :ok
     end
   end
@@ -157,8 +162,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
     after_cursor = Keyword.get(opts, :after)
 
     with {:ok, cursor} <- decode_cursor(after_cursor),
-         {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, events, next_page} <- fetch_events(api_key, agent_session.anthropic_session_id, cursor) do
+         {:ok, credential} <- credential_for(agent_session),
+         {:ok, events, next_page} <- fetch_events(credential, agent_session.anthropic_session_id, cursor) do
       simplified = events |> Enum.map(&simplify_event/1) |> drop_through(cursor)
       remember_stop_reason(agent_session, simplified)
 
@@ -175,8 +180,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
   end
 
   def archive_agent_session(%AgentSession{} = agent_session) do
-    with {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, _archived} <- ControlPlane.archive_session(api_key, agent_session.anthropic_session_id) do
+    with {:ok, credential} <- credential_for(agent_session),
+         {:ok, _archived} <- ControlPlane.archive_session(credential, agent_session.anthropic_session_id) do
       update_agent_session(agent_session, %{last_status: "archived"})
     end
   end
@@ -190,32 +195,50 @@ defmodule Tuist.Sandboxes.AgentSessions do
   end
 
   defp resolve_agent_environment(%Account{id: account_id}, nil) do
-    case Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id and e.enabled == true) do
+    case Repo.all(
+           from e in AgentEnvironment,
+             where: e.account_id == ^account_id and e.enabled == true and e.kind == :managed_agents
+         ) do
       [agent_environment] -> {:ok, agent_environment}
       _ -> {:error, :no_agent_environment}
     end
   end
 
   defp resolve_agent_environment(%Account{id: account_id}, id) do
-    case Repo.get_by(AgentEnvironment, id: id, account_id: account_id) do
+    case Repo.get_by(AgentEnvironment, id: id, account_id: account_id, kind: :managed_agents) do
       %AgentEnvironment{} = agent_environment -> {:ok, agent_environment}
       nil -> {:error, :no_agent_environment}
     end
   end
 
-  defp api_key(%AgentEnvironment{anthropic_api_key: api_key}) when is_binary(api_key) and api_key != "",
-    do: {:ok, api_key}
+  @doc """
+  The control-plane credential for the environment. Federation wins over a
+  stored API key, so connecting the four federation ids moves an
+  environment off its key without having to clear it first.
+  """
+  def credential(%AgentEnvironment{} = agent_environment) do
+    cond do
+      Federation.federated?(agent_environment) ->
+        with {:ok, token} <- Federation.credential(agent_environment), do: {:ok, {:bearer, token}}
 
-  defp api_key(%AgentEnvironment{}), do: {:error, :missing_api_key}
+      is_binary(agent_environment.anthropic_api_key) and agent_environment.anthropic_api_key != "" ->
+        {:ok, {:api_key, agent_environment.anthropic_api_key}}
 
-  defp api_key_for(%AgentSession{agent_environment_id: agent_environment_id}) do
-    case Repo.get(AgentEnvironment, agent_environment_id) do
-      %AgentEnvironment{} = agent_environment -> api_key(agent_environment)
+      true ->
+        {:error, :missing_credentials}
+    end
+  end
+
+  # Sessions are only ever read back through their own account's
+  # environment, so the federated token is signed for that account.
+  defp credential_for(%AgentSession{agent_environment_id: agent_environment_id, account_id: account_id}) do
+    case Repo.get_by(AgentEnvironment, id: agent_environment_id, account_id: account_id) do
+      %AgentEnvironment{} = agent_environment -> credential(agent_environment)
       nil -> {:error, :no_agent_environment}
     end
   end
 
-  defp ensure_agent(_account, _agent_environment, _api_key, _model, agent_id)
+  defp ensure_agent(_account, _agent_environment, _credential, _model, agent_id)
        when is_binary(agent_id) and agent_id != "" do
     {:ok, agent_id}
   end
@@ -223,7 +246,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
   defp ensure_agent(
          _account,
          %AgentEnvironment{anthropic_agent_id: agent_id, agent_model: model},
-         _api_key,
+         _credential,
          model,
          _agent_id
        )
@@ -233,14 +256,16 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   # The cached agent only ever matches the environment's own model, so an
   # agent created for a per-session model override is not cached.
-  defp ensure_agent(%Account{} = account, %AgentEnvironment{} = agent_environment, api_key, model, _agent_id) do
+  defp ensure_agent(%Account{} = account, %AgentEnvironment{} = agent_environment, credential, model, _agent_id) do
     attrs = %{
       name: "tuist-" <> account.name,
       model: model,
-      system: agent_environment.agent_system_prompt || @default_system_prompt
+      system:
+        agent_environment.agent_system_prompt ||
+          String.replace(@default_system_prompt, "/workspace", Sandboxes.workspace(agent_environment))
     }
 
-    case ControlPlane.create_agent(api_key, attrs) do
+    case ControlPlane.create_agent(credential, attrs) do
       {:ok, %{"id" => agent_id}} when is_binary(agent_id) ->
         if model == agent_environment.agent_model do
           {:ok, _} = agent_environment |> AgentEnvironment.cache_agent_changeset(agent_id) |> Repo.update()
@@ -256,7 +281,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
     end
   end
 
-  defp create_session(api_key, agent_id, agent_environment, account, id, params) do
+  defp create_session(credential, agent_id, agent_environment, account, id, params) do
     attrs = %{
       agent: agent_id,
       environment_id: agent_environment.anthropic_environment_id,
@@ -266,12 +291,13 @@ defmodule Tuist.Sandboxes.AgentSessions do
         "tuist_account" => account.name,
         "tuist_agent_session_id" => id,
         "repository_url" => params.repository_url || "",
-        "repository_ref" => params.repository_ref || ""
+        "repository_ref" => params.repository_ref || "",
+        "tuist_platform" => if(params.platform, do: to_string(params.platform), else: "")
       },
-      initial_events: [first_message(params)]
+      initial_events: [first_message(params, params.platform || agent_environment.platform)]
     }
 
-    case ControlPlane.create_session(api_key, attrs) do
+    case ControlPlane.create_session(credential, attrs) do
       {:ok, %{"id" => session_id} = remote} when is_binary(session_id) -> {:ok, remote}
       {:ok, body} -> {:error, {:malformed_response, body}}
       {:error, reason} -> {:error, reason}
@@ -280,8 +306,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   # ----- Following -----
 
-  defp latest_stop_reason(api_key, %AgentSession{anthropic_session_id: session_id}) do
-    case ControlPlane.list_events(api_key, session_id, order: "desc", limit: @recent_events_limit) do
+  defp latest_stop_reason(credential, %AgentSession{anthropic_session_id: session_id}) do
+    case ControlPlane.list_events(credential, session_id, order: "desc", limit: @recent_events_limit) do
       {:ok, %{data: events}} ->
         Enum.find_value(events, fn
           %{"type" => @idle_event_type} = event -> get_in(event, ["stop_reason", "type"])
@@ -303,22 +329,22 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   # Returns the events and, when the page cap stopped the listing with
   # pages left, Anthropic's token for the next one.
-  defp fetch_events(api_key, session_id, cursor) do
+  defp fetch_events(credential, session_id, cursor) do
     params =
       case cursor do
         %{at: at} when is_binary(at) -> [limit: @events_page_limit, created_at_gte: at]
         _none -> [limit: @events_page_limit]
       end
 
-    fetch_pages(api_key, session_id, params, cursor && cursor.page, [], @events_page_cap)
+    fetch_pages(credential, session_id, params, cursor && cursor.page, [], @events_page_cap)
   end
 
-  defp fetch_pages(api_key, session_id, params, page, acc, pages_left) do
+  defp fetch_pages(credential, session_id, params, page, acc, pages_left) do
     opts = if page, do: Keyword.put(params, :page, page), else: params
 
-    case ControlPlane.list_events(api_key, session_id, opts) do
+    case ControlPlane.list_events(credential, session_id, opts) do
       {:ok, %{data: events, next_page: next_page}} when is_binary(next_page) and pages_left > 1 ->
-        fetch_pages(api_key, session_id, params, next_page, [events | acc], pages_left - 1)
+        fetch_pages(credential, session_id, params, next_page, [events | acc], pages_left - 1)
 
       {:ok, %{data: events, next_page: next_page}} ->
         {:ok, [events | acc] |> Enum.reverse() |> Enum.concat(), next_page}
@@ -451,18 +477,20 @@ defmodule Tuist.Sandboxes.AgentSessions do
   # The agent only knows the working directory from its system prompt, so
   # the first message names the exact clone path when a repository was
   # requested.
-  defp first_message(params) do
+  defp first_message(params, platform) do
     prompt = params.prompt
     url = Map.get(params, :repository_url)
 
     if is_binary(url) and url != "" do
-      ControlPlane.user_message("The repository #{url} is cloned at #{repository_directory(url)}.\n\n" <> prompt)
+      ControlPlane.user_message(
+        "The repository #{url} is cloned at #{repository_directory(url, platform)}.\n\n" <> prompt
+      )
     else
       ControlPlane.user_message(prompt)
     end
   end
 
-  defp repository_directory(url) do
+  defp repository_directory(url, platform) do
     name =
       url
       |> URI.parse()
@@ -471,6 +499,6 @@ defmodule Tuist.Sandboxes.AgentSessions do
       |> Path.basename()
       |> String.replace_suffix(".git", "")
 
-    "/workspace/" <> name
+    Sandboxes.workspace(%{platform: platform}) <> "/" <> name
   end
 end

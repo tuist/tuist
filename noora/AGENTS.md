@@ -1,7 +1,6 @@
 # Noora
 
-Phoenix LiveView and Lit web component library published to Hex and npm
-(`@tuist/noora`). The server uses a local path
+Phoenix LiveView component library published to Hex. The server uses a local path
 dependency, so changes here affect `server/` directly. Component code lives in
 `lib/`, hooks in `js/`, styles in `css/`, and built assets in `priv/static/`.
 
@@ -10,14 +9,9 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - Formatting: `mise run noora:lint` or `mise run noora:lint --fix`.
 - Preview components in `storybook/`. Its independent deployment is defined by
   `infra/helm/noora-storybook/` and `.github/workflows/noora-storybook-deployment.yml`.
-- Shared versions live in `mix.exs` and `package.json`; `.github/workflows/noora-release.yml`
-  validates on `tuist-linux` and publishes on a GitHub-hosted runner for npm provenance.
-  Releases use `cliff.toml` for changelogs. Never bootstrap npm publication locally;
-  initial scoped-token publication and the transition to trusted publishing belong
-  to that workflow. Verify trusted publication before revoking/removing its token.
-- `components/*.json` owns shared contracts; `aube run generate:web-components`
-  updates metadata, docs, declarations, and `js/web-components/icons.json`.
-  Run `aube run check:generated` after contract changes and regenerate after icon changes.
+- `.github/workflows/noora-release.yml` stamps the version into `mix.exs` and publishes
+  to Hex; releases use `cliff.toml` for changelogs. `package.json` is private and is
+  never published to npm.
 
 ## Component contracts
 

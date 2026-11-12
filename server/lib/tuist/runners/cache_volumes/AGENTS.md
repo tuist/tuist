@@ -18,8 +18,9 @@ these schemas persist volume identities and per-job uses.
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
   host gets only the repositories `VolumePlacement` places on it: every volume of
-  an account's repository goes to the same hosts, one more than the repository's
-  jobs ran on at once over the week and at least two, picked by rendezvous
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per
@@ -54,6 +55,11 @@ these schemas persist volume identities and per-job uses.
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
+- A cold report's `cold_reason` records why the host had no copy of a warm use's
+  volume (runner-cache's `Cold*` reasons: `downloading`, `not_on_host`,
+  `evicted_<eviction reason>`). Only a known reason on a `warm: false` report of
+  a use with a base is kept, and the first one stays. `cold_reason_description/1`
+  adds it to the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -264,12 +270,12 @@ these schemas persist volume identities and per-job uses.
   inventory is validated and stored on the use as `docker_images`, describes the
   volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
   decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
-  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
-  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+  runner-cache's `DockerGrowthBytes`. Docker and checkout storage is not billed:
+  `Tuist.Runners.CacheVolumeBilling` leaves out `unbilled_keys/0`, every reserved key.
 - `image/3` with the `rebase` operation (Docker volumes only) moves a successful
   job's use that may still publish onto the lineage's current HEAD, named by
   `generation` and its `content_digest`, once its host reports the guest merged
   the job's images with that HEAD; publication then fast-forwards it. Anything
   but the current HEAD is a conflict.
 
-- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion.
+- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion. They are what storage is billed on: `Tuist.Runners.CacheVolumeBilling` weights each volume's saved head by how long it was held (unmeasured heads count as nothing), so a volume counts once however many copies hosts retain. Changing what is recorded here changes invoices.

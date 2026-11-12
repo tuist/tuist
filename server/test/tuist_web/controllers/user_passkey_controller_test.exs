@@ -2,7 +2,6 @@ defmodule TuistWeb.UserPasskeyControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  import Bamboo.Test
   import Bitwise
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -10,6 +9,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
+  alias Tuist.Accounts.Workers.SecurityNotificationWorker
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -31,17 +31,60 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     registered = register(login(user), authenticator, "MacBook")
 
-    assert redirected_to(registered) == ~p"/users/settings/mfa"
-    assert_email_delivered_with(subject: "Passkey added", to: [nil: user.email])
+    assert redirected_to(registered) == ~p"/#{user.account.name}/settings/authentication"
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_added"})
 
     assert [%UserPasskey{name: "MacBook", backup_eligible: true, transports: ["hybrid", "internal"]}] =
              UserPasskey.list(user)
 
     assert Phoenix.Flash.get(registered.assigns.flash, :info) == "Passkey added."
 
-    settings = registered |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200)
+    authentication =
+      registered |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
+
+    assert authentication =~ "Passkey added."
+
+    assert registered |> recycle() |> get(~p"/users/settings/passkeys") |> redirected_to() ==
+             ~p"/#{user.account.name}/settings/authentication"
+
+    document = Floki.parse_document!(authentication)
+
+    assert document |> Floki.find("#passkey-list th") |> Enum.map(&Floki.text/1) ==
+             ["Name", "Created", "Last used", ""]
+
+    assert Floki.text(Floki.find(document, "#passkey-list")) =~ "MacBook"
+    assert Floki.find(document, "#passkey-actions-#{hd(UserPasskey.list(user)).id}[aria-label='Actions']") != []
+
+    assert Floki.find(
+             document,
+             "[phx-click='open-security-modal'][phx-value-id='rename-passkey-#{hd(UserPasskey.list(user)).id}']"
+           ) != []
+
+    assert Floki.find(
+             document,
+             "[phx-click='open-security-modal'][phx-value-id='remove-passkey-#{hd(UserPasskey.list(user)).id}']"
+           ) != []
+
+    assert Floki.find(
+             document,
+             "form[action='/users/settings/passkeys/#{hd(UserPasskey.list(user)).id}/delete'] input[name='confirm'][value='true']"
+           ) != []
+
+    refute authentication =~ "Manage passkeys"
+
+    settings = registered |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys") |> html_response(200)
     assert settings =~ "Passkey added."
     assert settings =~ "MacBook"
+    assert settings =~ "Sign in without a password."
+    assert settings =~ "Never used"
+    refute settings =~ "mfa-enrollment"
+    refute UserMFA.enabled?(user)
+
+    settings =
+      registered |> recycle() |> get(~p"/#{user.account.name}/settings/two-factor-authentication") |> html_response(200)
+
+    refute settings =~ "passkey-list"
+    refute settings =~ "MacBook"
 
     # Enabling the authenticator app afterwards must not make passkey sign-in
     # ask for a code: a user-verified passkey is already multi-factor.
@@ -51,8 +94,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert options["publicKey"]["allowCredentials"] == []
     assert options["publicKey"]["userVerification"] == "required"
 
-    # The sign-in page requests options for autofill and for the button at
-    # once; a later options response must not invalidate an earlier challenge.
+    # Repeated requests must not invalidate an earlier challenge.
     {options_conn, _later} = authentication_options(options_conn, ~p"/users/log_in/passkey/options")
 
     assertion = sign_assertion(authenticator, options, user_handle(user))
@@ -63,6 +105,10 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert session.user_id == user.id
     assert session.auth_provider == "passkey"
     assert session.mfa_verified_at
+
+    settings = signed_in |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys") |> html_response(200)
+    assert settings =~ Calendar.strftime(now, "%Y-%m-%d %H:%M UTC")
+    refute settings =~ "Never used"
 
     # Presenting the same ceremony token and assertion again must not create
     # another session.
@@ -154,30 +200,148 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     current = login(user)
     register(current, authenticator, "MacBook")
-    assert_email_delivered_with(subject: "Passkey added", to: [nil: user.email])
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_added"})
     other_browser = login(user)
     [passkey] = UserPasskey.list(user)
 
     stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
 
+    settings = current |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
+    document = Floki.parse_document!(settings)
+    assert Floki.text(Floki.find(document, "#passkey-list")) =~ "MacBook"
+    assert Floki.find(document, "#passkey-list button") == []
+
     # The refusal comes before the browser ceremony, so no unusable
     # credential is saved in the user's password manager.
     stale_options = current |> recycle() |> post(~p"/users/settings/passkeys/options")
-    assert json_response(stale_options, 403)["error"] =~ "Sign out"
+    assert json_response(stale_options, 403)["error"] =~ "Sign in again"
+    assert json_response(stale_options, 403)["reauthenticate"]
 
-    stale = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
-    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign out"
+    stale = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
+    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign in again"
     assert [_] = UserPasskey.list(user)
 
     stub(Time, :utc_now, fn -> now end)
-    fresh = login(user)
-    removed = fresh |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    mfa = enable_mfa(user, now)
 
-    assert redirected_to(removed) == ~p"/users/settings/mfa"
+    fresh =
+      user
+      |> login()
+      |> recycle()
+      |> post(~p"/users/mfa", %{"mfa_code" => NimbleTOTP.verification_code(mfa.secret, time: DateTime.to_unix(now))})
+
+    removed = fresh |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
+
+    assert redirected_to(removed) == ~p"/users/settings/passkeys"
     assert UserPasskey.list(user) == []
-    assert_email_delivered_with(subject: "Passkey removed", to: [nil: user.email])
+    assert UserMFA.enabled?(user)
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
     refute Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
     assert Accounts.get_user_by_session_token(get_session(removed, :user_token)).id == user.id
+  end
+
+  test "renaming is scoped to the signed-in user and requires a recent session", %{user: user, now: now} do
+    current = register(login(user), authenticator(), "Original")
+    other_user = user_fixture()
+    other_browser = register(login(other_user), authenticator(), "Other")
+    [passkey] = UserPasskey.list(user)
+    [other_passkey] = UserPasskey.list(other_user)
+    token = get_session(current, :user_token)
+
+    renamed =
+      current
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => "  My vault  "})
+
+    assert redirected_to(renamed) == ~p"/users/settings/passkeys"
+    assert Phoenix.Flash.get(renamed.assigns.flash, :info) == "Passkey renamed."
+    assert Repo.get!(UserPasskey, passkey.id).name == "My vault"
+    assert get_session(renamed, :user_token) == token
+    assert Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
+    refute_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
+
+    for {name, expected} <- [{"   ", "Passkey"}, {String.duplicate("é", 65), String.duplicate("é", 64)}] do
+      renamed |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => name})
+      assert Repo.get!(UserPasskey, passkey.id).name == expected
+    end
+
+    rejected =
+      renamed
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{other_passkey.id}/rename", %{"name" => "Not mine"})
+
+    assert redirected_to(rejected) == ~p"/users/settings/passkeys"
+    assert Phoenix.Flash.get(rejected.assigns.flash, :error)
+    assert Repo.get!(UserPasskey, other_passkey.id).name == "Other"
+
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    stale =
+      renamed
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => "Stale"})
+
+    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign in again"
+    assert Repo.get!(UserPasskey, passkey.id).name == String.duplicate("é", 64)
+  end
+
+  test "stale passkey pages offer reauthentication without exposing mutation forms", %{user: user, now: now} do
+    current = register(login(user), authenticator(), "My vault")
+    [passkey] = UserPasskey.list(user)
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    for path <- [
+          ~p"/#{user.account.name}/settings/passkeys",
+          ~p"/users/settings/passkeys/new",
+          ~p"/users/settings/passkeys/#{passkey.id}/delete"
+        ] do
+      document = current |> recycle() |> get(path) |> html_response(200) |> Floki.parse_document!()
+      assert Floki.text(document) =~ "Sign in again"
+      assert Floki.find(document, "[data-part='terms-notice']") == []
+      assert Floki.find(document, "#passkey-add, #confirm-passkey-removal, form[action$='/rename']") == []
+      assert Floki.attribute(document, "form", "action") == ["/users/log_out?" <> URI.encode_query(%{return_to: path})]
+      assert UserPasskey.list(user) == [passkey]
+    end
+  end
+
+  test "removal confirmation and cancel are read-only and scoped to the signed-in user", %{user: user} do
+    current = register(login(user), authenticator(), "My vault")
+    other_browser = login(user)
+    [passkey] = UserPasskey.list(user)
+    token = get_session(current, :user_token)
+
+    confirmation = current |> recycle() |> get(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    html = html_response(confirmation, 200)
+    assert html =~ "My vault"
+    assert html =~ "Your other sessions will be signed out"
+    assert html =~ "This is your last passkey"
+    assert html =~ "password reset"
+    assert html =~ "saved credential will remain"
+    document = Floki.parse_document!(html)
+    assert Floki.find(document, "#sso-link #user-security-settings #confirm-passkey-removal") != []
+    assert Floki.find(document, ".layout__content") == []
+    assert Floki.attribute(document, "#cancel-passkey-removal", "href") == [~p"/users/settings/passkeys"]
+    assert Floki.attribute(document, "form input[name=confirm]", "value") == ["true"]
+    assert Floki.attribute(document, "form", "action") == [~p"/users/settings/passkeys/#{passkey.id}/delete"]
+
+    canceled = confirmation |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys")
+    assert html_response(canceled, 200) =~ "My vault"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
+    assert get_session(canceled, :user_token) == token
+    assert Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
+    refute_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
+
+    unconfirmed = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    assert redirected_to(unconfirmed) == ~p"/users/settings/passkeys/#{passkey.id}/delete"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
+
+    other_user = user_fixture()
+    stranger = login(other_user)
+    assert stranger |> recycle() |> get(~p"/users/settings/passkeys/#{passkey.id}/delete") |> response(404)
+
+    denied = stranger |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
+    assert redirected_to(denied) == ~p"/users/settings/passkeys"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
   end
 
   test "passkeys are unavailable when email authentication is disabled", %{user: user, now: now} do
@@ -185,12 +349,23 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     signed_in = login(user)
     register(signed_in, authenticator, "MacBook")
     assert build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
-    assert signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
+
+    document =
+      signed_in |> recycle() |> get(~p"/users/settings/passkeys/new") |> html_response(200) |> Floki.parse_document!()
+
+    assert Floki.find(document, "#sso-link #user-security-settings #passkey-registration") != []
+    assert Floki.find(document, ".layout__content") == []
     stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
 
     refute build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
-    refute signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
+
+    refute signed_in
+           |> recycle()
+           |> get(~p"/#{user.account.name}/settings/two-factor-authentication")
+           |> html_response(200) =~ "Add a passkey"
+
     assert build_conn() |> post(~p"/users/log_in/passkey/options") |> response(404)
+    assert signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> response(404)
     assert signed_in |> recycle() |> post(~p"/users/settings/passkeys/options") |> response(404)
 
     stub(Tuist.Environment, :email_auth_enabled?, fn -> true end)
@@ -232,20 +407,43 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     })
   end
 
+  test "passkeys created without a name get distinct labels and can be renamed", %{user: user} do
+    conn = login(user)
+    settings = conn |> recycle() |> get(~p"/users/settings/passkeys/new") |> html_response(200)
+    assert settings =~ "Create a passkey"
+    refute settings =~ ~s(id="passkey-name")
+
+    conn = register(conn, authenticator(), nil)
+    assert redirected_to(conn) == ~p"/#{user.account.name}/settings/authentication"
+    assert [%UserPasskey{name: "Passkey"} = first] = UserPasskey.list(user)
+
+    conn = register(conn, authenticator(), nil)
+    assert Enum.sort(Enum.map(UserPasskey.list(user), & &1.name)) == ["Passkey", "Passkey 2"]
+
+    conn |> recycle() |> post(~p"/users/settings/passkeys/#{first.id}/rename", %{"name" => "My vault"})
+    assert Repo.get!(UserPasskey, first.id).name == "My vault"
+
+    register(conn, authenticator(), nil)
+    assert Enum.sort(Enum.map(UserPasskey.list(user), & &1.name)) == ["My vault", "Passkey", "Passkey 2"]
+  end
+
   defp register(conn, authenticator, name) do
     options_conn = conn |> recycle() |> post(~p"/users/settings/passkeys/options")
     %{"publicKey" => options, "token" => token} = json_response(options_conn, 200)
     assert options["authenticatorSelection"]["userVerification"] == "required"
 
-    options_conn
-    |> recycle()
-    |> post(~p"/users/settings/passkeys", %{
+    params = %{
       "challenge_token" => token,
-      "name" => name,
       "transports" => "hybrid,internal,unknown",
       "attestation_object" => encode(attestation_object(authenticator)),
       "client_data_json" => encode(client_data("webauthn.create", options["challenge"]))
-    })
+    }
+
+    params = if name, do: Map.put(params, "name", name), else: params
+
+    options_conn
+    |> recycle()
+    |> post(~p"/users/settings/passkeys", params)
   end
 
   defp authentication_options(conn, path) do

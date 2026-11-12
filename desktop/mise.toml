@@ -1,0 +1,25 @@
+[tools]
+"github:tuist/once" = "0.77.5"
+rust = "1.98.1"
+jq = "1.8.1"
+yq = "4.52.5"
+
+# Desktop tool installation must not run the monorepo's CLI bootstrap hook.
+[hooks]
+postinstall = "true"
+
+[tasks.build]
+description = "Build the desktop app for the host"
+run = "once build TuistDesktop"
+
+[tasks.run]
+description = "Build and launch the desktop app"
+run = "once run cargo_tuist_desktop_bin_Tuist"
+
+[tasks.test]
+description = "Test the desktop crates and shared mobile route contract"
+run = ["git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json", "once test --all"]
+
+[tasks.check]
+description = "Validate the graph and check formatting and Clippy warnings"
+run = ["once query validate-workspace", "cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]

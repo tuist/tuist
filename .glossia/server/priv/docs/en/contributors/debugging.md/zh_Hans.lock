@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "16af578b7dd076c7bdfc6fc0cf86730c36672d244be62db4fc37d6a7d32161fe",
+  "hash": "79dcea09d5515cfcd43e0a4cb344fdee142119c6402d617262e528ccbf77f2dd",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Debugging {#debugging}": {
-                  "content_hash": "08e1b639d85da772ee6c20384e8386c95571e04977451c064ef06c5b8d348076"
+                  "content_hash": "7767a53110a6e4fef578ef43efe26fbfd1ab8751ca35d4e758ffc35c7e74616e"
                 },
                 "## Capture thread dumps on CI {#thread-dump-ci}": {
                   "content_hash": "e539a06d6c0ae666bd30684c6e6288776191d6a588a7d794f31fb5bb4123c2a9"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "29d049b443449cec6dd9375bcbc4ce506080fd5b5710081025eeb9639a88585f",
+          "hash": "1871f1da4c4e6f81f54cbb60b764873598c39d07ae4d7314920b9af275fe2a78",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/debugging.md",
           "metadata": {
-            "content_hash": "6f812c8c4c10ce1c3af5c939709d2a59dffa2ebd29b0eaf87aa8432463e40d5f"
+            "content_hash": "c546ecf6f81f58b33d805935aad0c4b1d830eacf9a4f9420cb097d762c0f7d99"
           }
         },
         {
@@ -229,14 +229,14 @@
         }
       ],
       "details": {},
-      "hash": "16af578b7dd076c7bdfc6fc0cf86730c36672d244be62db4fc37d6a7d32161fe",
+      "hash": "79dcea09d5515cfcd43e0a4cb344fdee142119c6402d617262e528ccbf77f2dd",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/debugging.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e013cde7e74155b7c4be779b0acfdfdc3b685e86cfd22ddf90b31d61a3b76ad0",
+  "output_hash": "b9a48661f4c8065ebbb4cd55573729132640bd62a373ff45c4751a4db98d898b",
   "output_path": "server/priv/docs/zh_Hans/contributors/debugging.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/contributors/debugging.md",
-  "translated_at": "2026-11-04T17:46:21.082898Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:45:37.339494Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

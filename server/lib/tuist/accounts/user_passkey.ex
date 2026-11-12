@@ -14,7 +14,7 @@ defmodule Tuist.Accounts.UserPasskey do
 
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserMFA
-  alias Tuist.Accounts.UserNotifier
+  alias Tuist.Accounts.Workers.SecurityNotificationWorker
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Time
@@ -95,44 +95,60 @@ defmodule Tuist.Accounts.UserPasskey do
   authenticator app, it requires a sign-in within the last five minutes.
   """
   def register(user, session, %{challenge: challenge, user_handle: user_handle}, params) do
-    result =
-      transaction(fn ->
-        UserMFA.lock_user(user.id)
+    transaction(fn ->
+      UserMFA.lock_user(user.id)
 
-        with true <- UserMFA.fresh_session?(session, user) || {:error, :reauthentication_required},
-             true <- count(user) < @max_passkeys || {:error, :too_many_passkeys},
-             {:ok, attestation_object} <- decode(params["attestation_object"]),
-             {:ok, client_data_json} <- decode(params["client_data_json"]),
-             :ok <- same_origin_frame(client_data_json),
-             {:ok, {%{attested_credential_data: %{} = credential} = auth_data, _attestation}} <-
-               wax(fn -> Wax.register(attestation_object, client_data_json, challenge) end),
-             # WebAuthn §7.1 step 23; Wax accepts IDs up to 65535 bytes.
-             true <- byte_size(credential.credential_id) <= 1023 || {:error, :invalid_passkey},
-             :ok <- valid_backup_flags(auth_data) do
-          %__MODULE__{user_id: user.id, user_handle: user_handle}
-          |> change(%{
-            name: name(params["name"]),
-            credential_id: credential.credential_id,
-            public_key: :erlang.term_to_binary(credential.credential_public_key),
-            sign_count: auth_data.sign_count,
-            aaguid: Wax.AuthenticatorData.get_aaguid(auth_data),
-            transports: transports(params["transports"]),
-            backup_eligible: auth_data.flag_backup_eligible,
-            backed_up: auth_data.flag_credential_backed_up
-          })
-          |> unique_constraint(:credential_id)
-          |> Repo.insert()
-          |> case do
-            {:ok, passkey} -> {:ok, passkey}
-            {:error, _changeset} -> {:error, :already_registered}
-          end
-        else
-          {:ok, _unattested} -> {:error, :invalid_passkey}
-          error -> error
+      with true <- UserMFA.fresh_session?(session, user) || {:error, :reauthentication_required},
+           true <- count(user) < @max_passkeys || {:error, :too_many_passkeys},
+           {:ok, attestation_object} <- decode(params["attestation_object"]),
+           {:ok, client_data_json} <- decode(params["client_data_json"]),
+           :ok <- same_origin_frame(client_data_json),
+           {:ok, {%{attested_credential_data: %{} = credential} = auth_data, _attestation}} <-
+             wax(fn -> Wax.register(attestation_object, client_data_json, challenge) end),
+           # WebAuthn §7.1 step 23; Wax accepts IDs up to 65535 bytes.
+           true <- byte_size(credential.credential_id) <= 1023 || {:error, :invalid_passkey},
+           :ok <- valid_backup_flags(auth_data) do
+        %__MODULE__{user_id: user.id, user_handle: user_handle}
+        |> change(%{
+          name: registration_name(user, params["name"]),
+          credential_id: credential.credential_id,
+          public_key: :erlang.term_to_binary(credential.credential_public_key),
+          sign_count: auth_data.sign_count,
+          aaguid: Wax.AuthenticatorData.get_aaguid(auth_data),
+          transports: transports(params["transports"]),
+          backup_eligible: auth_data.flag_backup_eligible,
+          backed_up: auth_data.flag_credential_backed_up
+        })
+        |> unique_constraint(:credential_id)
+        |> Repo.insert()
+        |> case do
+          {:ok, passkey} ->
+            SecurityNotificationWorker.enqueue(user, :passkey_added)
+            {:ok, passkey}
+
+          {:error, _changeset} ->
+            {:error, :already_registered}
         end
-      end)
+      else
+        {:ok, _unattested} -> {:error, :invalid_passkey}
+        error -> error
+      end
+    end)
+  end
 
-    notify_change(result, user, true)
+  @doc """
+  Renames a user's passkey after a recent sign-in. This only changes its
+  label in Tuist, not the credential saved in the password manager.
+  """
+  def rename(user, session, id, new_name) do
+    transaction(fn ->
+      UserMFA.lock_user(user.id)
+
+      with true <- UserMFA.fresh_session?(session, user) || {:error, :reauthentication_required},
+           %__MODULE__{} = passkey <- Repo.get_by(__MODULE__, id: id, user_id: user.id) || {:error, :not_found} do
+        passkey |> change(name: name(new_name)) |> Repo.update()
+      end
+    end)
   end
 
   @doc """
@@ -140,20 +156,18 @@ defmodule Tuist.Accounts.UserPasskey do
   changing the authenticator app does, and moves this browser into a new one.
   """
   def delete(user, session, id) do
-    result =
-      transaction(fn ->
-        UserMFA.lock_user(user.id)
+    transaction(fn ->
+      UserMFA.lock_user(user.id)
 
-        with true <- UserMFA.fresh_session?(session, user) || {:error, :reauthentication_required},
-             %__MODULE__{} = passkey <- Repo.get_by(__MODULE__, id: id, user_id: user.id) || {:error, :not_found} do
-          Repo.delete!(passkey)
-          revoked_sessions = UserMFA.revoke_sessions(user)
-          session = UserMFA.issue_session(user, UserMFA.auth_params(session))
-          {:ok, %{revoked_sessions: revoked_sessions, session: session}}
-        end
-      end)
-
-    notify_change(result, user, false)
+      with true <- UserMFA.fresh_session?(session, user) || {:error, :reauthentication_required},
+           %__MODULE__{} = passkey <- Repo.get_by(__MODULE__, id: id, user_id: user.id) || {:error, :not_found} do
+        Repo.delete!(passkey)
+        revoked_sessions = UserMFA.revoke_sessions(user)
+        session = UserMFA.issue_session(user, UserMFA.auth_params(session))
+        SecurityNotificationWorker.enqueue(user, :passkey_removed)
+        {:ok, %{revoked_sessions: revoked_sessions, session: session}}
+      end
+    end)
   end
 
   @doc """
@@ -320,16 +334,18 @@ defmodule Tuist.Accounts.UserPasskey do
     _ -> {:error, :invalid_passkey}
   end
 
-  defp notify_change({:ok, _} = result, user, added?) do
-    case UserNotifier.deliver_passkey_change_notification(user, added?) do
-      {:ok, _} -> :ok
-      {:error, _} -> Logger.error("Passkey change notification failed", auth_user_id: user.id)
-    end
+  defp registration_name(user, nil) do
+    names = user |> list() |> MapSet.new(& &1.name)
 
-    result
+    # Registration holds the user lock, so concurrent creations cannot pick
+    # the same label. Do not guess the provider from the browser or device.
+    Enum.find_value(1..(@max_passkeys + 1), fn index ->
+      label = if index == 1, do: "Passkey", else: "Passkey #{index}"
+      if !MapSet.member?(names, label), do: label
+    end)
   end
 
-  defp notify_change(error, _user, _added?), do: error
+  defp registration_name(_user, value), do: name(value)
 
   # Bounded by code points: the column limit counts code points, and one
   # emoji grapheme can hold many.

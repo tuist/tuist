@@ -10,7 +10,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > :is([data-part="github-card-section"], [data-part="origin-card-section"]) {
+  & > :is([data-part="github-card-section"], [data-part="origin-card-section"], [data-part="entire-card-section"]) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
@@ -161,7 +161,8 @@
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form, [id^="amp-settings-form-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form),
+    & > [data-part="amp-part"] > [id^="amp-settings-form-"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -394,7 +395,7 @@
     }
   }
 
-  & :is(#add-connection-modal, #add-origin-connection-modal) {
+  & :is(#add-connection-modal, #add-origin-connection-modal, #entire-connection-modal) {
     & [data-part="content"] {
       & [data-part="create-connection"] {
         display: flex;
@@ -462,7 +463,9 @@
             #repository-dropdown,
             #origin-project-dropdown,
             #origin-repository-dropdown,
-            #origin-installation-dropdown
+            #origin-installation-dropdown,
+            #entire-project-dropdown,
+            #entire-repository-dropdown
           ) {
           width: min(244px, 100%);
 
@@ -490,8 +493,50 @@
   }
 }
 
-#integrations > [data-part="amp-card-section"][hidden] {
-  display: none;
+/* One Amp card: workspace sign-in, then the Orb provider when sandboxes are available. */
+#integrations > [data-part="amp-card-section"] {
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="amp-part"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+
+    &[hidden] {
+      display: none;
+    }
+
+    /* Dialogs render no box of their own; don't let them add a gap. */
+    & > .noora-modal {
+      margin-top: calc(-1 * var(--noora-spacing-6));
+    }
+
+    & [data-part="header-row"] > [data-part="header"] > [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="header-row"] > [data-part="header"] > [data-part="subtitle"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
 }
 
 :is(#connect-amp-modal, #disconnect-amp-modal) > [data-part="positioner"] > [data-part="content"] {
@@ -520,5 +565,287 @@
     display: flex;
     justify-content: flex-end;
     gap: var(--noora-spacing-4);
+  }
+}
+
+#amp-workspaces {
+  & > [data-part="workspace"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+
+    & > [data-part="details"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-1);
+      min-width: 0;
+
+      & > [data-part="name"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        overflow-wrap: anywhere;
+      }
+
+      & > [data-part="meta"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
+    }
+  }
+}
+
+#connect-amp-workspace-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(560px, 90vw);
+}
+
+#connect-amp-workspace-modal [data-part="amp-workspace-form"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  & > .noora-alert {
+    align-self: flex-start;
+  }
+
+  ol {
+    margin: 0;
+    padding-inline-start: var(--noora-spacing-7);
+  }
+
+  li + li {
+    margin-top: var(--noora-spacing-3);
+  }
+
+  [data-part="command"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-3);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-2) var(--noora-spacing-2) var(--noora-spacing-2) var(--noora-spacing-4);
+    direction: ltr;
+
+    & > code {
+      flex-grow: 1;
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+      overflow-wrap: anywhere;
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
+    }
+  }
+
+  [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
+  }
+}
+
+#integrations > [data-part="claude-card-section"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  &[hidden] {
+    display: none;
+  }
+
+  & > [data-part="header-row"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="claude-environments"] {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding: 0;
+    list-style: none;
+
+    & > [data-part="claude-environment"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      padding-block: var(--noora-spacing-5);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+      & > [data-part="name"] {
+        color: var(--noora-surface-label-primary);
+        font-weight: var(--noora-font-weight-medium);
+      }
+
+      & > code {
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+      }
+
+      & > [data-part="meta"] {
+        flex-grow: 1;
+      }
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+    }
+  }
+}
+
+#connect-claude-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(640px, 92vw);
+  /* The federated form is tall; scroll it on short windows. */
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+#connect-claude-modal [data-part="claude-connect"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  /* Equal-width halves, like the github.com / Enterprise server toggle. */
+  & > .noora-button-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    & > .noora-button-group-item {
+      justify-content: center;
+      white-space: nowrap;
+    }
+  }
+
+  & > form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > .noora-alert {
+      align-self: flex-start;
+    }
+  }
+
+  & .noora-link-button {
+    align-self: flex-start;
+  }
+
+  & [data-part="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="group-title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & p {
+      margin: 0;
+    }
+  }
+
+  & [data-part="grid"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--noora-spacing-5);
+
+    & > * {
+      min-width: 0;
+    }
+  }
+
+  & [data-part="field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="copy-row"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="copy-label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="read-only-value"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding-inline: var(--noora-spacing-5) var(--noora-spacing-3);
+    padding-block: var(--noora-spacing-3);
+    min-width: 0;
+
+    & > code {
+      flex-grow: 1;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }

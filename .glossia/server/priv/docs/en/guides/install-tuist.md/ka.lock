@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5b17faf4a6d2dc48f4976217313b400f3b37d5745bc8e0de488786ee99c991b6",
+  "hash": "d9bde881ad55f73077c8213a7dc142fe5af1f54b8600d36a8f1e1d7ed1c18c1f",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,16 +11,16 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Install Tuist {#install-tuist}": {
-                  "content_hash": "f951cef67502b7f10faba5ab417daafb607e3a6968aab5ea18a1675233acfd65"
+                  "content_hash": "aac16bc814e5a4da641c11cada307278bff261cd2635c49e209b3daf9eb23b02"
                 },
                 "## HTTP proxy {#http-proxy}": {
                   "content_hash": "67c49bf83213233221b66b0ba48e2b7425a711209c63c04ac64fb68b5a150244"
                 },
-                "### <a href=\"https://brew.sh\">Homebrew</a> (macOS only) {#recommended-homebrew}": {
-                  "content_hash": "71fb5b506b20e2659e4b8668dab903c8f9e44db78f8aab5e3ee54c8fe0a26c60"
+                "## Homebrew (macOS only) {#recommended-homebrew}": {
+                  "content_hash": "913ee63ad3f226b5f6ce7d7f3fe52a49bbb85c12437fd72046b21cba064e35c4"
                 },
-                "### <a href=\"https://github.com/jdx/mise\">Mise</a> {#recommended-mise}": {
-                  "content_hash": "11c82553b76c04f9c5b2dc3c688aef9b9a73b554923ab2561d16547636787dea"
+                "## Mise {#recommended-mise}": {
+                  "content_hash": "a2341a1e1b364773356140ea770b474fe4cb23566f10c9564679dc483239b0ea"
                 },
                 "Preamble": {
                   "content_hash": "cbeb4f338e3e03c8b81a620c2dd6785c4ec90061c5766a93358b21f2818539c4"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "314cc759bb4302352555ca0b86174fb736ab1770d472356bfba5e42252637ca1",
+          "hash": "0cc9fc3642751ec1f9c4c64c5a0eaf80edb8cf6746fbd033e605c75adac66274",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-tuist.md",
           "metadata": {
-            "content_hash": "d8fb7fabb1366ab2c2f1bc70cbb47e79eb2c3f5b4ff37d5036244377964913b2"
+            "content_hash": "f67044f506a0d6188d732e8b586b3c80064686acc05d9a790fdaf3a00c3a4582"
           }
         },
         {
@@ -94,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -142,11 +142,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -216,21 +216,21 @@
             }
           ],
           "details": {},
-          "hash": "b7da45142a2661ee440ab5de0502f930f4bc7912f46f9065f9ea1762f93d1c15",
+          "hash": "2c5445c9ff7df97c0e1ce9fa714647aac720883351f3243f4234b0f8a3d821e6",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "5b17faf4a6d2dc48f4976217313b400f3b37d5745bc8e0de488786ee99c991b6",
+      "hash": "d9bde881ad55f73077c8213a7dc142fe5af1f54b8600d36a8f1e1d7ed1c18c1f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-tuist.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "58b99442db1dc384c1cb5f327f7fc6240d61c8b1fafc3c1869a4e0781fc955a7",
+  "output_hash": "9b0cd9d2f6feb8439fe9575638a42d8c3ffa0820ffb08dd20a868da8b8afde57",
   "output_path": "server/priv/docs/ka/guides/install-tuist.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/install-tuist.md",
-  "translated_at": "2026-11-02T15:40:57.949460Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-06T21:39:24.471668Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

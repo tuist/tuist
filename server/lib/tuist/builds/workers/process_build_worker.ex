@@ -51,6 +51,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     network_bytes_out
     disk_bytes_read
     disk_bytes_written
+    disk_total_bytes
+    disk_available_bytes
   )a
 
   # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker

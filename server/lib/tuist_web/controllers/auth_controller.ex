@@ -24,6 +24,16 @@ defmodule TuistWeb.AuthController do
 
   @google_one_tap_max_age 3600
   @google_one_tap_max_challenges 10
+  # Pending challenges live in their own cookie rather than the session.
+  # Plugs rewrite the session cookie on every browser request, so a request
+  # running alongside the start fetch (such as the login page's passkey
+  # options) can respond last and drop the challenge from the session.
+  @google_one_tap_cookie "_tuist_google_one_tap"
+  @google_one_tap_cookie_options [
+    path: "/auth/google/one-tap",
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
+  ]
 
   defp log(level, message) do
     if not Tuist.Environment.test?() do
@@ -44,7 +54,7 @@ defmodule TuistWeb.AuthController do
 
       conn
       |> put_resp_header("cache-control", "private, no-store")
-      |> put_session(:google_one_tap, challenges)
+      |> put_google_one_tap_challenges(challenges)
       |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce, csrf_token: get_csrf_token()})
     else
       send_resp(conn, :no_content, "")
@@ -73,7 +83,9 @@ defmodule TuistWeb.AuthController do
         redirect(conn, to: ~p"/users/auth/google")
       end
     else
-      _ ->
+      failure ->
+        log(:warning, "Google One Tap sign-in failed: #{inspect(failure)}")
+
         conn
         |> put_flash(
           :error,
@@ -87,7 +99,9 @@ defmodule TuistWeb.AuthController do
     now = DateTime.to_unix(DateTime.utc_now())
 
     conn
-    |> get_session(:google_one_tap)
+    |> fetch_cookies(signed: [@google_one_tap_cookie])
+    |> Map.fetch!(:cookies)
+    |> Map.get(@google_one_tap_cookie)
     |> List.wrap()
     |> Enum.filter(fn
       %{nonce: nonce, issued_at: issued_at} when is_binary(nonce) and is_integer(issued_at) ->
@@ -99,8 +113,17 @@ defmodule TuistWeb.AuthController do
     end)
   end
 
-  defp put_google_one_tap_challenges(conn, []), do: delete_session(conn, :google_one_tap)
-  defp put_google_one_tap_challenges(conn, challenges), do: put_session(conn, :google_one_tap, challenges)
+  defp put_google_one_tap_challenges(conn, []),
+    do: delete_resp_cookie(conn, @google_one_tap_cookie, @google_one_tap_cookie_options)
+
+  defp put_google_one_tap_challenges(conn, challenges) do
+    put_resp_cookie(
+      conn,
+      @google_one_tap_cookie,
+      challenges,
+      [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
+    )
+  end
 
   def okta_request(conn, params), do: sso_request(conn, params, :okta)
   def oauth2_request(conn, params), do: sso_request(conn, params, :oauth2)
@@ -209,12 +232,42 @@ defmodule TuistWeb.AuthController do
     end
   end
 
+  # A new identity is linked to, or creates, the account with the provider's
+  # email, so that email has to be one the provider verified. Google reports
+  # verification per account; the other providers only return verified
+  # addresses.
+  defp provider_email_verified?(%Auth{provider: :google, extra: %{raw_info: %{user: user}}}),
+    do: user["email_verified"] == true
+
+  defp provider_email_verified?(%Auth{provider: :google}), do: false
+  defp provider_email_verified?(_auth), do: true
+
+  defp ensure_provider_email_verified!(auth) do
+    if not provider_email_verified?(auth) do
+      raise UnauthorizedError,
+            dgettext("dashboard", "Verify your email address with your sign-in provider, then try again.")
+    end
+  end
+
+  # A returning sign-in through an instance-configured provider that still
+  # reports the account's address, verified, proves control of it again.
+  defp record_returning_mailbox_proof(user, auth) do
+    if Accounts.instance_email_provider?(auth.provider) and provider_email_verified?(auth) and
+         is_binary(auth.info.email) and String.downcase(auth.info.email) == user.email do
+      {:ok, user} = Accounts.record_mailbox_proof(user)
+      user
+    else
+      user
+    end
+  end
+
   defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
   defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
   defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
   defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
+    conn = adopt_legacy_return_to(conn)
     sso_organization = Keyword.get(opts, :sso_organization)
     provider_organization_id = Accounts.extract_provider_organization_id(auth)
 
@@ -226,20 +279,12 @@ defmodule TuistWeb.AuthController do
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
-        user = oauth2_identity.user
-        oauth_return_url = get_session(conn, :oauth_return_to)
-
-        if oauth_return_url do
-          conn
-          |> put_session(:user_return_to, oauth_return_url)
-          |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(user, auth_params)
-        else
-          Authentication.log_in_user(conn, user, auth_params)
-        end
+        user = record_returning_mailbox_proof(oauth2_identity.user, auth)
+        Authentication.log_in_user(conn, user, auth_params)
 
       {:error, :not_found} ->
-        oauth_return_url = get_session(conn, :oauth_return_to)
+        ensure_provider_email_verified!(auth)
+        return_to = get_session(conn, :user_return_to)
 
         case Accounts.get_user_by_email(auth.info.email) do
           {:error, :not_found} ->
@@ -259,7 +304,7 @@ defmodule TuistWeb.AuthController do
                   auth,
                   sso_organization,
                   provider_organization_id,
-                  oauth_return_url
+                  return_to
                 )
 
               new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) ->
@@ -269,12 +314,11 @@ defmodule TuistWeb.AuthController do
                   "email" => auth.info.email,
                   "provider_organization_id" => provider_organization_id,
                   "sso_organization_id" => get_in(sso_organization, [Access.key(:id)]),
-                  "oauth_return_url" => oauth_return_url,
+                  "oauth_return_url" => return_to,
                   "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
                 }
 
                 conn
-                |> delete_session(:oauth_return_to)
                 |> put_session(:pending_oauth_signup, oauth_data)
                 |> redirect(to: ~p"/users/choose-username")
                 |> halt()
@@ -291,7 +335,7 @@ defmodule TuistWeb.AuthController do
               auth_params,
               sso_organization,
               provider_organization_id,
-              oauth_return_url
+              return_to
             )
         end
     end
@@ -304,7 +348,7 @@ defmodule TuistWeb.AuthController do
          auth_params,
          sso_organization,
          provider_organization_id,
-         oauth_return_url
+         return_to
        ) do
     invitation =
       pending_invitation_for(
@@ -314,49 +358,24 @@ defmodule TuistWeb.AuthController do
 
     cond do
       can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
-        case Accounts.link_oauth_identity_by_email(existing_user, %{
-               provider: auth.provider,
-               id_in_provider: to_string(auth.uid),
-               provider_organization_id: provider_organization_id
-             }) do
-          {:ok, _oauth_identity} ->
-            log_in_linked_sso_user(
-              conn,
-              existing_user,
-              invitation,
-              auth_params,
-              sso_organization,
-              oauth_return_url
-            )
-
-          {:error, :email_not_proven} ->
-            log(
-              :warning,
-              "Refused to link existing user #{existing_user.id} via #{auth.provider}: email confirmation is skipped and no provider has proven the account's email."
-            )
-
-            conn
-            |> put_flash(
-              :error,
-              dgettext(
-                "dashboard_auth",
-                "An account with this email already exists. Log in with its email and password instead."
-              )
-            )
-            |> redirect(to: ~p"/users/log_in")
-            |> halt()
-        end
+        link_by_email_and_log_in(
+          conn,
+          existing_user,
+          auth,
+          auth_params,
+          invitation,
+          sso_organization,
+          provider_organization_id,
+          return_to
+        )
 
       signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
-        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
+        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, return_to)
 
       invitation ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
         conn
         |> maybe_put_post_invitation_context(
-          prior_return_to,
+          return_to,
           existing_user.id,
           invitation.token
         )
@@ -376,32 +395,74 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do
-    cond do
-      invitation &&
-          not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
-        conn
-        |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(
-          existing_user,
-          Map.merge(auth_params, %{
-            post_invitation_return_to: prior_return_to,
-            post_invitation_token: invitation.token
-          })
+  defp link_by_email_and_log_in(
+         conn,
+         existing_user,
+         auth,
+         auth_params,
+         invitation,
+         sso_organization,
+         provider_organization_id,
+         return_to
+       ) do
+    case Accounts.link_oauth_identity_by_email(existing_user, %{
+           provider: auth.provider,
+           id_in_provider: to_string(auth.uid),
+           provider_organization_id: provider_organization_id
+         }) do
+      {:ok, _oauth_identity} ->
+        # The link may have proven the address and ended the account's
+        # earlier credentials, so sign in with the account as it is now.
+        log_in_linked_sso_user(
+          conn,
+          Accounts.get_user_by_id(existing_user.id),
+          invitation,
+          auth_params,
+          sso_organization,
+          return_to
         )
 
-      oauth_return_url ->
-        conn
-        |> put_session(:user_return_to, oauth_return_url)
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(existing_user, auth_params)
+      {:error, :email_changed} ->
+        raise UnauthorizedError,
+              dgettext("dashboard", "Your account changed while you were signing in. Please try again.")
 
-      true ->
-        Authentication.log_in_user(conn, existing_user, auth_params)
+      {:error, :email_not_proven} ->
+        refuse_unproven_link(conn, existing_user, auth)
+    end
+  end
+
+  defp refuse_unproven_link(conn, existing_user, auth) do
+    log(
+      :warning,
+      "Refused to link existing user #{existing_user.id} via #{auth.provider}: email confirmation is skipped and no provider has proven the account's email."
+    )
+
+    conn
+    |> put_flash(
+      :error,
+      dgettext(
+        "dashboard_auth",
+        "An account with this email already exists. Log in with its email and password instead."
+      )
+    )
+    |> redirect(to: ~p"/users/log_in")
+    |> halt()
+  end
+
+  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, return_to) do
+    if invitation &&
+         not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) do
+      conn
+      |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
+      |> Authentication.log_in_user(
+        existing_user,
+        Map.merge(auth_params, %{
+          post_invitation_return_to: return_to,
+          post_invitation_token: invitation.token
+        })
+      )
+    else
+      Authentication.log_in_user(conn, existing_user, auth_params)
     end
   end
 
@@ -433,9 +494,9 @@ defmodule TuistWeb.AuthController do
 
   defp signed_in_sso_link_user(_conn, _provider, _organization), do: nil
 
-  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, oauth_return_url) do
+  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, return_to) do
     conn
-    |> delete_session(:oauth_return_to)
+    |> delete_session(:user_return_to)
     |> put_session(:pending_sso_link, %{
       "user_id" => user.id,
       "organization_id" => organization.id,
@@ -443,11 +504,30 @@ defmodule TuistWeb.AuthController do
       "uid" => to_string(auth.uid),
       "provider_organization_id" => provider_organization_id,
       "email" => auth.info.email,
-      "return_to" => oauth_return_url,
+      "return_to" => return_to,
       "issued_at" => System.system_time(:second)
     })
     |> redirect(to: ~p"/auth/sso/link")
     |> halt()
+  end
+
+  # Every flow records the return path in `:user_return_to`, so the latest
+  # page that asked for a sign-in wins. Sessions written before that, or by
+  # a pod from the previous release during the rollout, may still carry the
+  # provider-only `:oauth_return_to`. Only provider sign-ins ever honored it,
+  # so it is adopted here, and only when nothing newer was recorded. Cookie
+  # sessions have no server-side expiry, so removing this later costs such
+  # sessions their pending return path and nothing else.
+  defp adopt_legacy_return_to(conn) do
+    case get_session(conn, :oauth_return_to) do
+      nil ->
+        conn
+
+      legacy ->
+        conn
+        |> delete_session(:oauth_return_to)
+        |> put_session(:user_return_to, get_session(conn, :user_return_to) || legacy)
+    end
   end
 
   defp log_in_to_link_sso(conn, provider, organization) do
@@ -525,21 +605,72 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  def authenticate_device_code(conn, params) do
-    device_code = params["device_code"]
-    create_device_code_if_absent(device_code)
+  # Opening the link only shows the code; approval needs the CSRF-protected
+  # POST below, so a link sent to a signed-in user cannot approve a code that
+  # someone else chose.
+  def authenticate_device_code(conn, %{"device_code" => code} = params) do
+    device_code = Accounts.get_device_code(code) || Accounts.create_device_code(code)
 
-    type = params["type"] || "cli"
-
-    conn
-    |> redirect(to: ~p"/auth/device_codes/#{device_code}/success?type=#{type}")
-    |> halt()
+    # Codes from the standard device flow are approved by typing their user
+    # code at /auth/device, never through this link.
+    if device_code.authenticated or not is_nil(device_code.user_code) or Accounts.device_code_expired?(device_code) do
+      render_device_code_unavailable(conn)
+    else
+      conn
+      |> put_view(TuistWeb.DeviceCodeHTML)
+      |> render(:confirm,
+        device_code: code,
+        type: device_code_type(params),
+        email: conn.assigns.current_user.email,
+        head_title: dgettext("dashboard_auth", "Sign in to Tuist")
+      )
+    end
   end
 
-  defp create_device_code_if_absent(device_code) do
-    if is_nil(Accounts.get_device_code(device_code)) do
-      Accounts.create_device_code(device_code)
+  def confirm_device_code(conn, %{"device_code" => code} = params) do
+    case Accounts.authenticate_device_code(code, conn.assigns.current_user, conn.assigns[:current_user_session]) do
+      {:ok, _device_code} ->
+        conn
+        |> redirect(to: ~p"/auth/device_codes/#{code}/success?type=#{device_code_type(params)}")
+        |> halt()
+
+      {:error, :not_pending} ->
+        render_device_code_unavailable(conn)
     end
+  end
+
+  def confirm_user_code(conn, params) do
+    user = conn.assigns.current_user
+
+    case Accounts.approve_device_code_by_user_code(params["user_code"], user, conn.assigns[:current_user_session]) do
+      {:ok, _device_code} ->
+        conn
+        |> redirect(to: ~p"/auth/device/success?type=cli")
+        |> halt()
+
+      {:error, :not_pending} ->
+        conn
+        |> put_flash(
+          :error,
+          dgettext("dashboard_auth", "That code is incorrect or has expired. Check it and try again.")
+        )
+        |> redirect(to: ~p"/auth/device")
+
+      {:error, :rate_limited} ->
+        conn
+        |> put_flash(:error, dgettext("dashboard_auth", "Too many attempts. Wait a few minutes and try again."))
+        |> redirect(to: ~p"/auth/device")
+    end
+  end
+
+  defp device_code_type(%{"type" => type}) when type in ["cli", "app"], do: type
+  defp device_code_type(_params), do: "cli"
+
+  defp render_device_code_unavailable(conn) do
+    conn
+    |> put_status(:gone)
+    |> put_view(TuistWeb.DeviceCodeHTML)
+    |> render(:unavailable, head_title: dgettext("dashboard_auth", "Sign-in link expired"))
   end
 
   def complete_signup(conn, %{"token" => token}) do

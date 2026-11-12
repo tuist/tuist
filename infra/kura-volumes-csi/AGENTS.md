@@ -137,7 +137,8 @@ client test seals with an independent server-side implementation against an
 `kura-lvm-nvme` selects `encryption: none`, which requires the VG and refuses
 LUKS headers; the encrypted class retains its existing immutable parameters.
 The driver advertises `tuist.dev/kura-disk` as VG size minus non-Kura LVs,
-including the 128 GiB `data` LV. It advertises total reservable capacity, not
+including the `data` LV (80 GiB on rented hosts converted from 2026-11-09,
+128 GiB on earlier ones and rack hosts). It advertises total reservable capacity, not
 free extents: kube-scheduler subtracts pod reservations. The server additionally
 accounts for retained volumes. The driver removes capacity on nodes without the
 VG and does not silently use files for plain volumes. Prepare replacement LVM
@@ -196,7 +197,15 @@ retain the physical allocation and safety gates in `thin/validation.md`.
 
 The runtime image must include `thin-provisioning-tools`; LVM otherwise warns
 and skips `thin_check` on activation. The Docker build verifies the installed
-checker and pool preparation refuses to mutate a VG without it. Do not treat VM
+checker and pool preparation refuses to mutate a VG without it.
+
+On thin nodes the plugin serves `kura_volumes_thin_pool_*` gauges (data and
+metadata used/size bytes, `read_only`, `out_of_data_space`, `healthy`,
+`last_observation_timestamp_seconds`) on `METRICS_ADDRESS` (`:9809` in the
+chart). They are recorded from the advertiser's pool observations, never by a
+scrape running LVM, and carry only `node`, `vg` and `pool`. A failed
+observation removes the usage series. Alerts are in
+`infra/helm/k8s-monitoring/kura-thin-pool-alert-rules.json`. Do not treat VM
 qualification with host-installed tooling as proof that the packaged image has
 those tools. Never run offline metadata checks against a live metadata device.
 

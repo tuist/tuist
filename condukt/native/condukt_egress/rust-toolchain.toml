@@ -1,0 +1,5 @@
+[toolchain]
+# Pinned to match the rest of the repo (mise.toml, condukt_bashkit). Bump
+# deliberately when the Condukt-wide Rust pin moves.
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]

@@ -1,0 +1,22 @@
+[package]
+name = "pulse_grpc"
+version = "0.1.0"
+authors = []
+edition = "2021"
+
+[lib]
+name = "pulse_grpc"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+rustler = { version = "0.38", features = ["nif_version_2_16"] }
+tonic = { version = "0.14", default-features = false, features = ["transport", "router", "server", "gzip", "zstd"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+bytes = "1"
+http = "1"
+tower-service = "0.3"
+
+[profile.release]
+lto = true

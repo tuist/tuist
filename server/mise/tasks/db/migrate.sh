@@ -22,7 +22,12 @@ trap 'rm -f "${output}"' EXIT
 
 # Shards pass --no-compile --no-deps-check after downloading the exact build.
 # Ordinary development and seed jobs keep Mix's compilation and checks enabled.
-mix run "$@" --no-start -e "${calls}" | tee "${output}" | awk '/^Repo: /{listing=1} !listing {print; fflush()}'
+#
+# Do not filter the stream through awk. The orb's setup previously reached a
+# successful ClickHouse migration but exited from that filter with a blank
+# `awk:` error, leaving the setup incomplete. Keeping the migration listing in
+# the output is harmless and makes the status check below more transparent.
+mix run "$@" --no-start -e "${calls}" | tee "${output}"
 
 if ! grep -E '^\s+Status\s+Migration ID' "${output}" > /dev/null; then
   echo "The migration status was not listed after migrating." >&2

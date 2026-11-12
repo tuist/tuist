@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test inputs/oracles: Copyright Grafana Labs contributors; adjacent LICENSE applies.
+// Standard-library-only extraction, never execution of Loki/Pulse or AST constructors.
+// Usage: producer /path/to/pinned/loki > syntax-admission.json
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
+	"unicode/utf8"
+)
+
+const revision = "5aa4b9212d64d723f63b2770452054aa23df114d"
+
+type object map[string]any
+type source struct {
+	path string
+	data []byte
+	fs   *token.FileSet
+	file *ast.File
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func hash(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
+func load(root, path, want string) *source {
+	data, err := os.ReadFile(filepath.Join(root, path))
+	must(err)
+	if hash(data) != want {
+		panic("source differs from pinned revision: " + path)
+	}
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, path, data, parser.ParseComments)
+	must(err)
+	return &source{path, data, fs, f}
+}
+func (s *source) code(n ast.Node) string {
+	return string(s.data[s.fs.Position(n.Pos()).Offset:s.fs.Position(n.End()).Offset])
+}
+func (s *source) span(n ast.Node) object {
+	a, b := s.fs.Position(n.Pos()), s.fs.Position(n.End())
+	return object{"start_line": a.Line, "start_column": a.Column, "end_line": b.Line,
+		"end_column": b.Column, "start_byte": a.Offset, "end_byte_exclusive": b.Offset}
+}
+func (s *source) record(n ast.Node) object {
+	return object{"source": s.path, "source_range": s.span(n), "original_go": s.code(n)}
+}
+func (s *source) selection(name string, n ast.Node) object {
+	r := s.record(n)
+	text := s.code(n) + "\n"
+	r["name"], r["original_go"], r["sha256"] = name, text, hash([]byte(text))
+	return r
+}
+func (s *source) namedValue(name string) (*ast.GenDecl, *ast.ValueSpec) {
+	for _, d := range s.file.Decls {
+		if g, ok := d.(*ast.GenDecl); ok {
+			for _, spec := range g.Specs {
+				if v, ok := spec.(*ast.ValueSpec); ok && len(v.Names) == 1 && v.Names[0].Name == name {
+					return g, v
+				}
+			}
+		}
+	}
+	panic("missing declaration: " + name)
+}
+func (s *source) function(name string) *ast.FuncDecl {
+	for _, d := range s.file.Decls {
+		if f, ok := d.(*ast.FuncDecl); ok && f.Name.Name == name {
+			return f
+		}
+	}
+	panic("missing function: " + name)
+}
+func literalString(e ast.Expr) (string, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	v, err := strconv.Unquote(lit.Value)
+	must(err)
+	return v, true
+}
+func literalInt(e ast.Expr) (int64, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		return 0, false
+	}
+	v, err := strconv.ParseInt(lit.Value, 0, 64)
+	return v, err == nil
+}
+func nilExpr(e ast.Expr) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == "nil"
+}
+
+// Preserve all expressions verbatim. Resolve only the actual original
+// NewParseError(string-literal-or-pinned-constant, integer-literal, integer-literal)
+// grammar. Unknown forms retain their raw expression, never a guessed diagnostic.
+func errorWant(s *source, e ast.Expr, constants map[string]string) object {
+	r := s.record(e)
+	r["resolved"] = false
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return r
+	}
+	r["constructor_expression"] = s.code(call.Fun)
+	args := []object{}
+	for _, arg := range call.Args {
+		args = append(args, s.record(arg))
+	}
+	r["arguments"] = args
+	if s.code(call.Fun) != "logqlmodel.NewParseError" || len(call.Args) != 3 {
+		return r
+	}
+	msg, msgOK := literalString(call.Args[0])
+	if id, ok := call.Args[0].(*ast.Ident); ok {
+		msg, msgOK = constants[id.Name]
+	}
+	line, lineOK := literalInt(call.Args[1])
+	col, colOK := literalInt(call.Args[2])
+	if msgOK && lineOK && colOK {
+		r["resolved"] = true
+		r["diagnostic"] = object{"message": msg, "line": line, "column": col}
+	}
+	return r
+}
+
+func main() {
+	if len(os.Args) != 2 {
+		panic("usage: producer /path/to/pinned/loki")
+	}
+	s := load(os.Args[1], "pkg/logql/syntax/parser_test.go", "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99")
+	p := load(os.Args[1], "pkg/logql/syntax/parser.go", "a38e8d4760af3969d5316e456db8abed93655a66fd81f8cfdd2fa50226142667")
+	e := load(os.Args[1], "pkg/logqlmodel/error.go", "21816c4294243f16157f6408d92fb0907612a3258333288ab39b3f84bf7a4db5")
+	g, v := s.namedValue("ParseTestCases")
+	if len(v.Values) != 1 {
+		panic("unexpected table values")
+	}
+	table := v.Values[0].(*ast.CompositeLit)
+	fn := s.function("TestParse")
+	_, constant := p.namedValue("errAtleastOneEqualityMatcherRequired")
+	msg, ok := literalString(constant.Values[0])
+	if !ok {
+		panic("constant is not an original string literal")
+	}
+	resolvedConstant := p.record(constant)
+	resolvedConstant["name"], resolvedConstant["value"] = constant.Names[0].Name, msg
+	constants := map[string]string{constant.Names[0].Name: msg}
+	assertions := []object{}
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok {
+			switch s.code(c.Fun) {
+			case "require.Equal", "AssertExpressions":
+				assertions = append(assertions, s.record(c))
+			}
+		}
+		return true
+	})
+	if len(assertions) != 2 || assertions[0]["original_go"] != "require.Equal(t, tc.err, err)" || assertions[1]["original_go"] != "AssertExpressions(t, tc.exp, ast)" {
+		panic("unexpected original assertion calls")
+	}
+	rows := []object{}
+	accepted, rejected, invalidUTF8 := 0, 0, 0
+	queries := map[string]int{}
+	for i, elt := range table.Elts {
+		entry := elt.(*ast.CompositeLit)
+		fields := map[string]ast.Expr{}
+		for _, item := range entry.Elts {
+			kv := item.(*ast.KeyValueExpr)
+			name := kv.Key.(*ast.Ident).Name
+			if name != "in" && name != "exp" && name != "err" {
+				panic("unexpected row field: " + name)
+			}
+			if fields[name] != nil {
+				panic("duplicate field")
+			}
+			fields[name] = kv.Value
+		}
+		query, ok := literalString(fields["in"])
+		if !ok {
+			panic("query is not an original string literal")
+		}
+		r := s.record(entry)
+		r["source_index"] = i // zero-based, never deduplicate source rows
+		r["query_expression"] = s.code(fields["in"])
+		r["query_bytes_base64"] = base64.StdEncoding.EncodeToString([]byte(query))
+		r["query_utf8_valid"] = utf8.ValidString(query)
+		if utf8.ValidString(query) {
+			r["query"] = query
+		} else {
+			// JSON strings cannot carry invalid UTF-8; never replace original bytes.
+			r["query"] = nil
+			invalidUTF8++
+		}
+		queries[query]++
+		r["expected_ast_expression"], r["expected_error_expression"] = nil, nil
+		r["expected_ast_present"] = fields["exp"] != nil
+		r["expected_error_present"] = fields["err"] != nil
+		if exp := fields["exp"]; exp != nil {
+			r["expected_ast_expression"] = s.code(exp)
+		}
+		reject := fields["err"] != nil && !nilExpr(fields["err"])
+		r["reject"] = reject
+		if err := fields["err"]; err != nil {
+			r["expected_error_expression"] = s.code(err)
+			r["expected_error"] = errorWant(s, err, constants)
+		}
+		if reject {
+			rejected++
+		} else {
+			accepted++
+		}
+		rows = append(rows, r)
+	}
+	// Independent fixed source-count controls, in addition to complete-file hashes.
+	if len(table.Elts) != 206 || len(rows) != 206 || accepted != 159 || rejected != 47 || len(queries) != 205 || invalidUTF8 != 1 {
+		panic("pinned source counts differ")
+	}
+	if hash([]byte(s.code(g)+"\n")) != "476eab68004f9a52beaf52e0820ec099d497bd781ca230e5cd06d114b39f2757" ||
+		hash([]byte(s.code(fn)+"\n")) != "91dd9d3f5f254bb2b9f7491227084b615413739413081ba3a59c69162ac63dfb" {
+		panic("pinned complete declaration/executor selection differs")
+	}
+	support := []object{e.selection("NewParseError", e.function("NewParseError")), e.selection("ParseError.Error", e.function("Error"))}
+	for _, d := range e.file.Decls {
+		if g, ok := d.(*ast.GenDecl); ok {
+			for _, spec := range g.Specs {
+				if t, ok := spec.(*ast.TypeSpec); ok && t.Name.Name == "ParseError" {
+					support = append(support, e.selection("ParseError", g))
+				}
+			}
+		}
+	}
+	sources := []object{}
+	for _, src := range []*source{s, p, e} {
+		sources = append(sources, object{"path": src.path, "sha256": hash(src.data)})
+	}
+	out := object{"schema_version": 1, "revision": revision, "sources": sources,
+		"selections":      []object{s.selection("ParseTestCases", g), s.selection("TestParse", fn)},
+		"assertion_calls": assertions, "resolved_constants": []object{resolvedConstant},
+		"supporting_declarations": support, "row_count": len(rows), "accepted_count": accepted,
+		"rejected_count": rejected, "unique_query_count": len(queries),
+		"duplicate_query_row_count": len(rows) - len(queries), "invalid_utf8_query_count": invalidUTF8, "rows": rows}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	must(encoder.Encode(out))
+}

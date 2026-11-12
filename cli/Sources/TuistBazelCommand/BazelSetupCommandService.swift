@@ -144,6 +144,8 @@ private struct BazelSetupConfiguration {
     let accountHandle: String
     let projectHandle: String
     let fullHandle: String
+    /// Set only for the authenticated cache, the one setup remote execution runs on.
+    var cacheAuthentication: (serverURL: URL, token: String)?
     var networkTrustedReporting = false
     var networkTrustedCache = false
 }
@@ -154,6 +156,7 @@ public struct BazelSetupCommandService {
     private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let remoteCacheProbeService: RemoteCacheProbing
+    private let remoteExecutionCapabilitiesService: GetRemoteExecutionCapabilitiesServicing
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -164,6 +167,7 @@ public struct BazelSetupCommandService {
         cacheURLStore: CacheURLStoring = CacheURLStore(),
         getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
+        remoteExecutionCapabilitiesService: GetRemoteExecutionCapabilitiesServicing = GetRemoteExecutionCapabilitiesService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -173,6 +177,7 @@ public struct BazelSetupCommandService {
         self.cacheURLStore = cacheURLStore
         self.getCacheTokenService = getCacheTokenService
         self.remoteCacheProbeService = remoteCacheProbeService
+        self.remoteExecutionCapabilitiesService = remoteExecutionCapabilitiesService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
@@ -182,22 +187,15 @@ public struct BazelSetupCommandService {
         directory: String?,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
-        remoteExecutor: String? = nil,
-        executionImage: String? = nil,
+        remoteExecution: Bool = false,
         addBazelrcImport shouldAddBazelrcImport: Bool = true
     ) async throws {
-        let execution = try BazelExecutionConfiguration.parse(endpoint: remoteExecutor, image: executionImage)
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let canonicalDirectoryPath = try canonicalPath(directoryPath)
         let setupConfiguration = try await setupConfiguration(directoryPath: directoryPath)
         let buildInsights = buildInsights &&
             (!setupConfiguration.networkTrustedCache || setupConfiguration.networkTrustedReporting)
-        let executionAllowed = setupConfiguration.endpoint != nil &&
-            !setupConfiguration.networkTrustedCache &&
-            !setupConfiguration.networkTrustedReporting
-        if execution != nil, !executionAllowed {
-            throw BazelSetupCommandServiceError.invalidExecutionConfiguration
-        }
+        let execution = remoteExecution ? try await executionConfiguration(setupConfiguration) : nil
 
         let bazelWorkspacePath = try await bazelWorkspacePath(startingAt: canonicalDirectoryPath)
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
@@ -335,8 +333,39 @@ public struct BazelSetupCommandService {
             endpoint: endpoint,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
-            fullHandle: fullHandle
+            fullHandle: fullHandle,
+            cacheAuthentication: (serverURL, probeToken)
         )
+    }
+
+    /// Asks the server for the executor and image remote execution should use now. Remote execution
+    /// needs the authenticated cache it shares a credential with; anything the server declines leaves
+    /// a cache-only setup, so builds still run locally while the account has no execution capacity.
+    private func executionConfiguration(
+        _ configuration: BazelSetupConfiguration
+    ) async throws -> BazelExecutionConfiguration? {
+        guard let authentication = configuration.cacheAuthentication else {
+            throw BazelSetupCommandServiceError.invalidExecutionConfiguration
+        }
+        let capabilities: RemoteExecutionCapabilities
+        do {
+            capabilities = try await remoteExecutionCapabilitiesService.getCapabilities(
+                serverURL: authentication.serverURL,
+                accountHandle: configuration.accountHandle,
+                projectHandle: configuration.projectHandle,
+                token: authentication.token
+            )
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            warnExecutionUnavailable(error.localizedDescription)
+            return nil
+        }
+        guard let execution = BazelExecutionConfiguration.parse(capabilities) else {
+            warnExecutionUnavailable(GetRemoteExecutionCapabilitiesServiceError.invalidResponse.localizedDescription)
+            return nil
+        }
+        return execution
     }
 
     /// Resolve cache configuration, leaving remote caching disabled when no endpoint is available.
@@ -497,6 +526,13 @@ public struct BazelSetupCommandService {
     }
 }
 
+private func warnExecutionUnavailable(_ reason: String) {
+    AlertController.current.warning(.alert(
+        "Remote execution is unavailable: \(reason)",
+        takeaway: "Bazel will build locally against the remote cache. Run tuist bazel setup --remote-execution again to retry."
+    ))
+}
+
 public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case missingFullHandle
@@ -506,7 +542,7 @@ public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .invalidExecutionConfiguration:
-            return "Remote execution requires an authenticated cache, --remote-executor with a grpc:// or grpcs:// URL, and --execution-image with an immutable sha-<commit> tag."
+            return "Remote execution requires an authenticated Tuist remote cache. Sign in with tuist auth login, or omit --remote-execution."
         case .notAuthenticated:
             return
                 "You are not authenticated. Refer to the documentation for authentication options: https://tuist.dev/en/docs/guides/server/authentication"

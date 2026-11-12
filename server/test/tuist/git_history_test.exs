@@ -530,6 +530,55 @@ defmodule Tuist.GitHistoryTest do
       assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
       assert owned(repository, "pull/1") == [{"p1", 5}]
     end
+
+    test "detach a commit no ref owns, unowned to commit coverage, until a ref takes it over", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      main = GitHistory.ref(repository, "main").id
+      measure(project, repository, ["e"])
+      detach = fn sha -> GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, sha) end) end
+
+      assert detach.("e")
+      refute detach.("e")
+      refute detach.("d")
+
+      assert %{detached: true, parent_ref_id: ^main, fork_position: 2, head_sha: "e"} =
+               GitHistory.ref(repository, "detached:e")
+
+      GitHistory.sync_coverage_places(repository, ["e"])
+      assert coverage_places(project) == [{"e", nil, nil}]
+      assert GitHistory.position(repository, "e") == nil
+
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert owned(repository, "feature") == [{"e", 3}]
+      assert GitHistory.ref(repository, "detached:e") == nil
+      assert coverage_places(project) == [{"e", feature, 3}]
+    end
+
+    test "ignore a branch head named as a detached ref is", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("x", ["e"], 10)])
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "x") end)
+
+      GitHistory.advance_ref(repository, "detached:x", "main", "d")
+      assert %{parent_ref_id: ^feature, fork_position: 3, head_sha: "x"} = GitHistory.ref(repository, "detached:x")
+
+      GitHistory.advance_ref(repository, "detached:d", "main", "d")
+      assert GitHistory.ref(repository, "detached:d") == nil
+    end
+
+    test "leave a commit whose first parents reach no ref undetached", %{repository: repository} do
+      seed(repository)
+      refute GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "e") end)
+      assert GitHistory.ref(repository, "detached:e") == nil
+    end
   end
 
   describe "shallow clones" do
@@ -675,7 +724,7 @@ defmodule Tuist.GitHistoryTest do
                window_commits: 5_000,
                upload_batch_size: 500,
                tracked_file_globs: ["**/Package.resolved" | _],
-               commit_file_limit: 50_000
+               commit_file_limit: 200_000
              } = GitHistory.settings(project)
 
       {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})

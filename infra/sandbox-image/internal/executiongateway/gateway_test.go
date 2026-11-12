@@ -24,6 +24,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -36,9 +38,29 @@ func response(code int, body string) *http.Response {
 
 const id = "11111111-2222-3333-4444-555555555555"
 
+// gateway serves a control plane that advertises no cache, so actions run at the
+// default size without being read.
 func gateway(t *testing.T, roundtrip transport) (re.ExecutionClient, re.CapabilitiesClient) {
 	t.Helper()
-	return gatewayWith(t, New("https://control.example"), roundtrip)
+	return gatewayWith(t, New("https://control.example"), func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			return response(200, `{}`), nil
+		}
+		return roundtrip(r)
+	})
+}
+
+// serveCache serves store as the gateway's cache.
+func serveCache(t *testing.T, g *Gateway, store *blobStore) {
+	t.Helper()
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
 }
 
 func gatewayWith(t *testing.T, g *Gateway, roundtrip transport) (re.ExecutionClient, re.CapabilitiesClient) {
@@ -170,11 +192,11 @@ func TestGatewayRejectsMissingDuplicateAndForeignCredentials(t *testing.T) {
 }
 
 func TestDisabledCapabilityAndBoundedResponse(t *testing.T) {
-	_, caps := gateway(t, func(*http.Request) (*http.Response, error) { return response(403, `{}`), nil })
+	_, caps := gatewayWith(t, New("https://control.example"), func(*http.Request) (*http.Response, error) { return response(403, `{}`), nil })
 	if _, err := caps.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("disabled: %v", err)
 	}
-	_, caps = gateway(t, func(*http.Request) (*http.Response, error) { return response(200, strings.Repeat("x", 300000)), nil })
+	_, caps = gatewayWith(t, New("https://control.example"), func(*http.Request) (*http.Response, error) { return response(200, strings.Repeat("x", 300000)), nil })
 	if _, err := caps.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("oversized: %v", err)
 	}
@@ -307,6 +329,7 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			l := bufconn.Listen(1 << 20)
 			s := grpc.NewServer()
 			re.RegisterActionCacheServer(s, cache)
+			re.RegisterContentAddressableStorageServer(s, &blobStore{blobs: map[string][]byte{}})
 			go s.Serve(l)
 			t.Cleanup(s.Stop)
 			g := New("https://control.example")
@@ -316,7 +339,15 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 				return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
 			}
 			hash := strings.Repeat("a", 64)
-			b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{ExitCode: test.exit}})
+			reads, _ := structpb.NewStruct(map[string]any{"kind": "tuist.cas_reads"})
+			other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
+			readsAny, _ := anypb.New(reads)
+			otherAny, _ := anypb.New(other)
+			b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{ExitCode: test.exit, ExecutionMetadata: &re.ExecutedActionMetadata{AuxiliaryMetadata: []*anypb.Any{readsAny, otherAny}}}})
+			// The executor's CAS read summary is logged, never returned or stored.
+			onlyOther := func(md *re.ExecutedActionMetadata) bool {
+				return len(md.GetAuxiliaryMetadata()) == 1 && proto.Equal(md.AuxiliaryMetadata[0], otherAny)
+			}
 			op, _ := json.Marshal(map[string]any{"id": id, "state": "completed", "done": true, "response": base64.StdEncoding.EncodeToString(b),
 				"cacheable": test.cacheable, "action_hash": hash, "action_size": 5, "cas_endpoint": "grpcs://cache.example"})
 			client, _ := gatewayWith(t, g, func(*http.Request) (*http.Response, error) { return response(202, string(op)), nil })
@@ -324,7 +355,9 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result, err := stream.Recv(); err != nil || !result.Done {
+			result, err := stream.Recv()
+			var got re.ExecuteResponse
+			if err != nil || !result.Done || result.GetResponse().UnmarshalTo(&got) != nil || !onlyOther(got.Result.GetExecutionMetadata()) {
 				t.Fatalf("result: %v %v", result, err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -342,7 +375,7 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("result was not published")
 			}
-			if update.InstanceName != "app" || update.ActionDigest.Hash != hash || update.ActionDigest.SizeBytes != 5 || update.ActionResult.ExitCode != 0 {
+			if update.InstanceName != "app" || update.ActionDigest.Hash != hash || update.ActionDigest.SizeBytes != 5 || update.ActionResult.ExitCode != 0 || !onlyOther(update.ActionResult.GetExecutionMetadata()) {
 				t.Fatalf("update: %v", update)
 			}
 			if auth := <-cache.auth; len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
@@ -368,8 +401,10 @@ type blobStore struct {
 	// inputs answers a read of one action that asks for its inputs with them
 	// too, as Kura does; tamper corrupts the last input it returns.
 	inputs, tamper bool
-	reads          atomic.Int32
-	treeCalls      atomic.Int32
+	// fail answers every read with an error.
+	fail      bool
+	reads     atomic.Int32
+	treeCalls atomic.Int32
 }
 
 func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
@@ -410,6 +445,9 @@ func (b *blobStore) message(m proto.Message) *re.Digest {
 
 func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
 	b.reads.Add(1)
+	if b.fail {
+		return nil, status.Error(codes.Internal, "cache failure")
+	}
 	md, _ := metadata.FromIncomingContext(ctx)
 	b.auth.Store(append(md.Get("authorization"), md.Get("x-tuist-account-handle")...))
 	response := &re.BatchReadBlobsResponse{}
@@ -483,8 +521,10 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
 	}
 	bodies := make(chan map[string]any, 2)
-	client, capabilities := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+	var capabilityChecks atomic.Int32
+	client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			capabilityChecks.Add(1)
 			return response(200, `{"image":"sha-x","cas_endpoint":"grpcs://cache.example"}`), nil
 		}
 		var body map[string]any
@@ -502,13 +542,16 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 		}
 		return <-bodies
 	}
-	if _, ok := execute()["inputs"]; ok {
-		t.Fatal("prefetched before the project's cache endpoint was known")
-	}
-	if _, err := capabilities.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); err != nil {
-		t.Fatal(err)
+	// The client's capability check is not needed: a build can outlive the
+	// gateway's memory of it, so Execute asks the control plane itself.
+	execute()
+	if capabilityChecks.Load() != 1 {
+		t.Fatalf("capability checks %d; want one to learn the cache endpoint", capabilityChecks.Load())
 	}
 	encoded, _ := execute()["inputs"].(string)
+	if capabilityChecks.Load() != 1 {
+		t.Fatal("asked for the cache endpoint again while it was remembered")
+	}
 	b, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		t.Fatal(err)
@@ -552,7 +595,7 @@ func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsReq
 	}
 	g.remember("tuist", "app", "grpcs://cache.example", false)
 	prefetch := func() *re.BatchUpdateBlobsRequest {
-		encoded := g.prefetch(authenticated(), "tuist", "app", "Bearer secret", action)
+		encoded, _ := g.prefetch(authenticated(), "tuist", "app", "Bearer secret", action)
 		b, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
 			t.Fatal(err)

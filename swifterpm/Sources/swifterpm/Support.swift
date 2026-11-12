@@ -575,18 +575,23 @@ enum ConcurrentTasks {
 final class PathLock: @unchecked Sendable {
     private let fd: Int32
 
-    init(path: URL) throws {
+    /// Throws `PathLock.Busy` when `blocking` is false and another holder conflicts.
+    init(path: URL, shared: Bool = false, blocking: Bool = true) throws {
         fd = open(
             path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
         )
         if fd < 0 {
             throw ToolError.message("failed to open lock \(path.path)")
         }
-        if flock(fd, LOCK_EX) != 0 {
+        if flock(fd, (shared ? LOCK_SH : LOCK_EX) | (blocking ? 0 : LOCK_NB)) != 0 {
+            let busy = errno == EWOULDBLOCK
             close(fd)
+            if busy { throw Busy() }
             throw ToolError.message("failed to lock \(path.path)")
         }
     }
+
+    struct Busy: Error {}
 
     deinit {
         flock(fd, LOCK_UN)
@@ -595,14 +600,27 @@ final class PathLock: @unchecked Sendable {
 }
 
 extension PathLock {
-    static func acquire(at path: URL) async throws -> PathLock {
+    static func acquire(at path: URL, shared: Bool = false) async throws -> PathLock {
         try await fileSystem.makeDirectory(
             at: path.deletingLastPathComponent().absolutePath,
             options: [.createTargetParentDirectories]
         )
         return try await Task.detached {
-            try PathLock(path: path)
+            try PathLock(path: path, shared: shared)
         }.value
+    }
+
+    /// An exclusive lock, or nil when another process or task holds the path.
+    static func tryAcquire(at path: URL) async throws -> PathLock? {
+        try await fileSystem.makeDirectory(
+            at: path.deletingLastPathComponent().absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        do {
+            return try PathLock(path: path, blocking: false)
+        } catch is Busy {
+            return nil
+        }
     }
 }
 

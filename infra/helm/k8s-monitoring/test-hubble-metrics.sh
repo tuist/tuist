@@ -70,7 +70,13 @@ done | awk '
     print "  api_server = \"http://fixture:8080\""
     discovery = 0
   }
-  { gsub(/"60s"|"10s"/, "\"1s\""); print }
+  {
+    gsub(/"60s"|"10s"/, "\"1s\"")
+    # Overlays with Pulse also fan out to it; this test checks only the Cloud
+    # path, whose remote_write is the one extracted above.
+    gsub(/, prometheus\.remote_write\.pulse_metrics\.receiver/, "")
+    print
+  }
 ' >> "${temporary}/pipeline.alloy"
 cat >> "${temporary}/pipeline.alloy" <<'ALLOY'
 prometheus.scrape "service_control" {

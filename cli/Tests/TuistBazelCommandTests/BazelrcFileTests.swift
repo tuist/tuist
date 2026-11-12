@@ -1,12 +1,14 @@
 import Path
 import Testing
 import TuistREAPI
+import TuistServer
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
     @Test func remote_execution_is_opt_in_and_survives_cache_migration() throws {
         let image = "sha-" + String(repeating: "a", count: 40)
-        let execution = try #require(try BazelExecutionConfiguration.parse(endpoint: "grpcs://execution.example", image: image))
+        let capabilities = RemoteExecutionCapabilities(endpoint: "grpcs://execution.example", image: image)
+        let execution = try #require(BazelExecutionConfiguration.parse(capabilities))
         let contents = BazelrcFile.render(
             endpoint: GRPCEndpoint(host: "cache.example", explicitPort: nil, isTLS: true),
             accountHandle: "tuist", projectHandle: "app",
@@ -30,16 +32,13 @@ struct BazelrcFileTests {
         #expect(BazelrcFile.replacingRemoteCache(in: refreshed, with: moved) == nil)
     }
 
-    @Test func rejects_partial_or_mutable_execution_configuration() throws {
-        #expect(try BazelExecutionConfiguration.parse(endpoint: nil, image: nil) == nil)
+    @Test func rejects_mutable_or_credentialed_execution_configuration() {
         for (endpoint, image) in [
             ("https://execution.example", "latest"),
             ("grpcs://execution.example", "latest"),
             ("grpcs://user:password@execution.example", "sha-" + String(repeating: "a", count: 40)),
         ] {
-            #expect(throws: BazelSetupCommandServiceError.invalidExecutionConfiguration) {
-                try BazelExecutionConfiguration.parse(endpoint: endpoint, image: image)
-            }
+            #expect(BazelExecutionConfiguration.parse(.init(endpoint: endpoint, image: image)) == nil)
         }
     }
 

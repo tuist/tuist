@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for ts_of_last_over_time. Using odd load interval to test for rounding bugs.
+clear
+load 10s53ms
+	metric 1 2 3 _ _
+	metric_histogram{type="only_histogram"} {{schema:1 sum:2 count:3}}x4
+	metric_histogram{type="mix"} 1 1 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 1
+
+eval instant at 90s ts_of_last_over_time(metric[90s])
+	{} 20.106
+
+eval instant at 95s ts_of_last_over_time(metric[90s])
+	{} 20.106
+
+eval instant at 95s ts_of_last_over_time(metric_histogram{type="only_histogram"}[90s])
+	{type="only_histogram"} 40.212
+
+eval instant at 95s ts_of_last_over_time(metric_histogram{type="mix"}[90s])
+	{type="mix"} 50.265
+
+# Tests for ts_of_first_over_time
+clear
+load 10s53ms
+	metric _ _ 1 2 3 _ _
+	metric_histogram{type="only_histogram"} {{schema:1 sum:2 count:3}}x4
+	metric_histogram{type="mix"} _ 1 1 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 1
+
+eval instant at 90s ts_of_first_over_time(metric[90s])
+	{} 20.106
+
+eval instant at 95s ts_of_first_over_time(metric[90s])
+	{} 20.106
+
+eval instant at 15s ts_of_first_over_time(metric[90s])
+	#empty
+
+eval instant at 95s ts_of_first_over_time(metric_histogram{type="only_histogram"}[90s])
+	{type="only_histogram"} 10.053
+
+eval instant at 95s ts_of_first_over_time(metric_histogram{type="mix"}[90s])
+	{type="mix"} 10.053
+

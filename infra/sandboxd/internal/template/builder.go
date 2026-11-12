@@ -13,7 +13,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
@@ -308,8 +308,15 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		if err := vm.Rename(mv.src, mv.dst); err != nil {
 			return fmt.Errorf("moving %s: %w", mv.src, err)
 		}
-		// Sandboxes of any jail uid read these (hard links and reflink
-		// sources), so they must stay world-readable.
+		// The template Firecracker wrote these as its slot uid, and memfile
+		// and snapshot are hard-linked into later jails: left with that
+		// owner, the next sandbox in the slot could rewrite the template
+		// for every sandbox restored from it. Sandboxes of any jail uid
+		// read them (hard links and reflink sources), so they stay
+		// world-readable.
+		if err := vm.Chown(mv.dst, 0, 0); err != nil {
+			return err
+		}
 		if err := os.Chmod(mv.dst, 0o644); err != nil {
 			return err
 		}

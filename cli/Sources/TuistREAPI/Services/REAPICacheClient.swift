@@ -125,6 +125,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
+        result.addString(REAPI.userAgent, forKey: "user-agent")
         if let token = try await token() {
             result.addString("Bearer \(token)", forKey: "authorization")
         }
@@ -398,10 +399,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     try await REAPIDrainRetryLadder.timing.sleep(delay)
                     continue
                 }
-                if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                // An upload can wait out a dropped connection as it waits out admission: gRPC fails calls on a channel
+                // that is reconnecting at once, so the short retries below end long before a reconnect does.
+                if let uploadBudget, let rpcError = error as? RPCError,
+                   [.resourceExhausted, .unavailable].contains(rpcError.code)
+                {
                     guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
                     let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
                     guard uploadBudget.consume(delay) else {
+                        guard rpcError.code == .resourceExhausted else { throw error }
                         throw RPCError(
                             code: .resourceExhausted,
                             message: "\(rpcError.message) (upload admission retry wait budget exhausted)",

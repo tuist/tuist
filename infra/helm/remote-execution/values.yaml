@@ -30,7 +30,14 @@ workers:
   # Opt into native link/address/route setup after qualifying the daemon image.
   # Both backends retain fresh namespaces and the same firewall/teardown path.
   networkBackend: iproute2
-  diskGiB: 160
+  # Each 4 GB VM reserves 46 GiB: its 30 GiB workspace, 12 GiB rootfs clone
+  # and memory image. Four of them plus the blob cache below.
+  diskGiB: 210
+  # Node cache of large action inputs: each blob is read from the CAS once per
+  # node instead of once per action. It comes out of diskGiB (the daemon
+  # reports the rest as the sandboxes' budget) and also leaves 20% of the data
+  # filesystem free. 0 disables it.
+  blobCacheGiB: 20
   # These hosts must be excluded from every CI RunnerPool. The dedicated
   # NoSchedule taint and this label are provisioned with the host pool.
   nodeSelector:

@@ -1,42 +1,40 @@
-# Tuist and Namespace: compare project evidence, remote caches, and execution
+# Tuist vs Namespace: shared build infrastructure and execution environments
 
-Choose Tuist to understand and reduce build and test work across local developers, CI, and agents. Optimize the project first, then its execution environment. Its [build-output cache](/marketing-markdown/cache) follows compatible inputs across those environments without requiring Tuist Runners or a compute migration.
+Compare Tuist and Namespace for execution environments, cache reuse, build investigation, and coding-agent access. Namespace combines managed execution with several cache mechanisms; Tuist brings build infrastructure to engineering teams and their agents.
 
-## What overlaps
+## What is Namespace?
 
-Both offer ways to avoid repeated work. Namespace's [GitHub Actions caching guide](https://namespace.so/docs/solutions/github-actions/caching) describes runner-attached NVMe Cache Volumes, an Actions-cache option, and an artifacts option. Its volume integrations cover container images, checkouts, toolchain downloads, actions, and build systems including Gradle and Bazel. It is not accurate to describe Namespace as only faster hardware.
+Namespace provides cloud execution environments and build infrastructure, including managed CI execution, Devboxes, and caching. Its [caching documentation](https://namespace.so/docs/solutions/github-actions/caching) describes persistent Cache Volumes and artifact storage. It also offers a [standalone remote cache and execution service](https://namespace.so/docs/bazel). Its strengths include managed environments, persistent working state, and agent-accessible infrastructure investigation.
 
-Namespace also documents a separate [Bazel remote cache and remote execution service](https://namespace.so/docs/bazel). Its cache shares action results across local, CI, and Devbox builds, including GitHub-hosted runners; caching can be configured without remote execution. Runner independence and local Bazel reuse are therefore not unique to Tuist. Its remote execution runs actions on Namespace workers; Tuist's Bazel cache does not provide that execution service.
+## What is Tuist?
 
-Tuist's [Cache](/marketing-markdown/cache) reuses toolchain-keyed build outputs, while optional [runner cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) persist selected directories. Build-output caching and directory persistence solve different problems; Tuist offers both too.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support people and agents around a code change. Tuist is not a CI replacement. You can adopt supported caching and reporting in existing workflows and evaluate compute as a separate choice.
 
-## Compare the mechanism you need
+## Compare the responsibilities
 
-| Decision | Tuist | Namespace evidence to evaluate |
+| Criterion | Namespace | Tuist |
 | --- | --- | --- |
-| Build-output reuse outside the runner fleet | Tuist Cache serves compatible developer, CI, and agent builds through regional endpoints independently of Tuist Runners. | Cache Volumes attach storage to Namespace runners, but its separate Bazel remote cache supports local builds and external CI. Compare the specific integration; not all Namespace caches are runner-bound. |
-| Execute Bazel actions remotely | Tuist's Bazel cache reuses outputs; it does not execute actions remotely. | Namespace offers remote execution as well as caching, with separate worker and platform configuration. |
-| Avoid expensive downloads during CI setup | Tuist Runners have separate cache volumes and a colocated build cache, subject to invitation. | Namespace documents local NVMe volumes and caching for checkouts, toolchains, actions, and container images. |
-| Share state between jobs | Use the build system's artifact keys or runner volume configuration as appropriate. | Namespace documents custom volume tags for sharing across profiles and repositories, with branch and job write controls. |
-| Explain a slow build or flaky test | Tuist exposes toolchain-specific [build insights](/en/docs-markdown/guides/features/build-insights), [test history](/marketing-markdown/tests), and [MCP tools](/en/docs-markdown/guides/features/agentic-coding/mcp). | Inspect the evidence available for your specific toolchain, not just job duration; the caching guide is not an audit of Namespace's observability or agent features. |
-| Inspect implementation and follow fixes | Tuist publishes [source](https://github.com/tuist/tuist), [issues](https://github.com/tuist/tuist/issues), and [changes](https://github.com/tuist/tuist/pulls). | Ask which components are public and what can be inspected or contributed to. A public integration action alone does not establish the licensing of the hosted service. |
+| Setup | Configure execution profiles and the relevant cache integration. Cache Volumes require workflow configuration; its standalone remote cache has its own setup. See the [cache guide](https://namespace.so/docs/solutions/github-actions/caching). | Follow a supported [integration guide](/en/docs-markdown/guides/get-started) and adopt one capability first. Moving execution is not a prerequisite for every capability. |
+| What runs where | Namespace runs managed jobs and Devboxes. Its standalone remote cache also serves local builds and external CI; not all Namespace caching requires its runner fleet. See [remote caching and execution](https://namespace.so/docs/bazel). | Local, CI, and agent workflows can use supported shared services. [Compute](/marketing-markdown/compute) is a separate part of the offering with its own availability requirements. |
+| Caching | Cache Volumes persist directories near execution; artifact storage and the standalone remote cache address other reuse needs. Its [cache documentation](https://namespace.so/docs/bazel/cache) describes a nearby hot tier and warns that external-runner traffic crosses the public internet, adding latency compared with its own runners. | [Cache](/marketing-markdown/cache) reuses compatible build outputs. Compare the inputs, access policy, cache location, and measured lookup and transfer latency for your workflow, not just cache availability or hit rate. |
+| Test visibility | [Namespace MCP](https://namespace.so/docs/reference/mcp) documents job/build investigation and compute usage. Those sources do not establish every test-history capability; evaluate the test records you need directly. | [Tests](/marketing-markdown/tests) focuses on reported outcomes, history, and unreliable tests, subject to integration support. |
+| Agents and CI together | MCP provides infrastructure investigation and Devbox management, with a read-only endpoint for investigations. | [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) connects agents to authorized build and test records alongside the team's existing CI. |
+| Audience | Teams seeking managed execution environments, persistent caches, or Namespace's remote cache and execution services. | Engineering teams seeking shared build infrastructure and test evidence for developers and coding agents. |
+
+## Choose Namespace when
+
+Choose Namespace when the execution environment is central to your decision: managed jobs, Devboxes, or its cache locality and remote execution model meet your needs. Its standalone cache also supports local and external-CI reuse, so runner independence alone is not a reason to prefer Tuist.
 
 ## Choose Tuist when
 
-You want to adopt a supported Tuist integration and investigate project work across Gradle, Bazel, Elixir, or Xcode without changing CI. Compatible output reuse beyond CI matters, but Namespace's Bazel cache supports that too; compare the exact toolchain and diagnostic records rather than treating runner independence as an exclusive advantage. You want to investigate Xcode build steps and cache tasks, Gradle tasks and transforms, Bazel execution evidence, or test attempts through authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp). You value public implementation and the ability to participate in fixes.
-
-Start with the [slow-build guide](/marketing-markdown/solutions/slow-builds), then test one supported integration on your existing machines. Generated projects are not required for Xcode compilation caching or most server capabilities; they are required for module caching and selective testing.
+Choose Tuist when your priority is shared build infrastructure around build reuse and test evidence for engineers and agents. Start on the machines and CI you already use, verify the supported integration, and evaluate compute only if you need it. Compare [pricing](/marketing-markdown/pricing) with the complete workflow, not just execution time.
 
 ## First experiment
 
-Keep the current runner configuration and enable a supported [Tuist Cache integration](/marketing-markdown/cache) for one representative workflow. Compare job setup, compilation, transfers, retries, and total machine-minutes before and after adoption. Build compatible inputs on a developer or agent machine to test cross-environment reuse, and use [Build Insights](/en/docs-markdown/guides/features/build-insights) to inspect the change. Configure trusted cache producers and readers before widening access.
+Keep the execution environment unchanged and enable a supported Tuist cache or test integration. Check compatible reuse from both a developer workflow and CI, then investigate one failure with an authorized agent. Include many small artifacts as well as large ones: network round trips can outweigh transfer time for small artifacts, so measure lookup latency and total build time rather than bandwidth or hit rate alone. If you also evaluate Namespace execution, measure that change separately so cache locality and machine effects do not get conflated. Support for an external cache does not by itself establish low-latency access from your existing machines.
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [Namespace Cache Volumes](https://namespace.so/docs/solutions/github-actions/caching), [Bazel caching and remote execution](https://namespace.so/docs/bazel), [pricing and billing units](https://namespace.so/pricing), [Tuist Cache](/marketing-markdown/cache), [Tuist Runners](/marketing-markdown/compute), [runner cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes), and [Tuist MCP documentation](/en/docs-markdown/guides/features/agentic-coding/mcp). This comparison is written by Tuist and evaluates the documented mechanisms, not every Namespace product.
+Sources checked on **2026-11-08**. Written by Tuist, not an independent benchmark. Primary sources: [Namespace caching](https://namespace.so/docs/solutions/github-actions/caching), [standalone remote caching and execution](https://namespace.so/docs/bazel), [cache locality and external-runner latency](https://namespace.so/docs/bazel/cache), and [MCP](https://namespace.so/docs/reference/mcp). The cited pages establish these mechanisms, not a comprehensive test-feature inventory or a performance ranking. Confirm current support and terms before adoption.
 
-## Limitations
-
-No performance benchmark or price comparison is established here. A volume cache and a remote build-artifact cache cannot be compared by hit rate alone. Input compatibility, trust policy, locality, and workload determine reuse. Toolchain support varies. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Source visibility does not imply every component has the same license or self-hosting terms. Recheck vendor capabilities before buying.
-
-Related: [comparison overview](/marketing-markdown/compare), [Tuist and Bitrise](/marketing-markdown/compare/bitrise), and [rising CI costs](/marketing-markdown/solutions/ci-costs).
+Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Compute](/marketing-markdown/compute), [documentation](/en/docs-markdown/guides/get-started), [pricing](/marketing-markdown/pricing), and [all comparisons](/marketing-markdown/compare).

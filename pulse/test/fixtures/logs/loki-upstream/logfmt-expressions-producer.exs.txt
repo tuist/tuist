@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Test data: Copyright Grafana Labs contributors.
+# Adapted for Pulse on 2026-10-28; see adjacent LICENSE and README.md.
+# Reads only pinned test tables, never Loki/Pulse evaluation results.
+# Run: mise exec -- elixir logfmt-expressions-producer.exs.txt parser_test.go logfmtexpr_test.go
+
+[parser_path, grammar_path] = System.argv()
+parser = File.read!(parser_path)
+grammar = File.read!(grammar_path)
+hash = fn bytes -> :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower) end
+"346b91ced2d38e51d8cf7fd8acb3335ea5796e9286fd901b45dd625c0b3634ff" = hash.(parser)
+"4e99db1e4d50399fb7935313efeff81514d655d0003d2544c8f0198c6f180177" = hash.(grammar)
+
+literal = fn
+  "`" <> raw -> String.trim_trailing(raw, "`")
+  quoted -> JSON.decode!(quoted)
+end
+
+strings = fn text ->
+  Regex.scan(~r/"(?:[^"\\]|\\.)*"|`[^`]*`/u, text) |> Enum.map(fn [token] -> literal.(token) end)
+end
+
+selection = fn data, first, last ->
+  raw = data |> String.split("\n") |> Enum.slice((first - 1)..(last - 1)) |> Enum.join("\n")
+  raw <> "\n"
+end
+
+rows = fn data, first, last ->
+  raw = selection.(data, first, last)
+
+  for [{offset, size}, _indent, {body_offset, body_size}] <- Regex.scan(~r/^(\t+)\{\n(.*?)^\1\},/ms, raw, return: :index) do
+    body = binary_part(raw, body_offset, body_size)
+    start = first + length(:binary.matches(binary_part(raw, 0, offset), "\n"))
+    text = binary_part(raw, offset, size)
+
+    {body,
+     %{
+       "source_start" => start,
+       "source_end" => start + length(:binary.matches(text, "\n")),
+       "raw" => text,
+       "sha256" => hash.(text)
+     }}
+  end
+end
+
+[_, line_literal] = Regex.run(~r/testLine := \[\]byte\((`[^`]*`)\)/, selection.(parser, 1611, 1613))
+line = literal.(line_literal)
+
+expression_cases =
+  for {body, source} <- rows.(parser, 1622, 1739),
+      not String.contains?(body, ~s/"structured metadata conflict"/) do
+    fields =
+      for [_, destination, expression] <- Regex.scan(~r/NewLabelExtractionExpr\(("[^"]*"), ("[^"]*")\)/u, body),
+          do: [literal.(destination), literal.(expression)]
+
+    labels =
+      for [_, arguments] <- Regex.scan(~r/labels\.(?:FromStrings|EmptyLabels)\((.*?)\)/s, body) do
+        arguments |> strings.() |> Enum.chunk_every(2) |> Map.new(fn [key, value] -> {key, value} end)
+      end
+
+    [base, want] = labels
+    [name | _] = strings.(body)
+    Map.merge(source, %{"name" => name, "line" => line, "fields" => fields, "base_labels" => base, "want" => want})
+  end
+
+grammar_cases =
+  for {body, source} <- rows.(grammar, 19, 48) do
+    [name, expression | _] = strings.(body)
+    # The empty row asserts a nil path, but does not assert a nil error.
+    # The pinned generated parser rejects it. Preserve the original row and
+    # distinguish that source-derived rejection from the two asserted errors.
+    outcome = if String.contains?(body, "[]interface{}"), do: "accept", else: "reject"
+    Map.merge(source, %{"name" => name, "expression" => expression, "outcome" => outcome})
+  end
+
+[{failure, source}] = rows.(parser, 1765, 1769)
+[name, destination, expression, error] = strings.(failure)
+failure_case = Map.merge(source, %{"name" => name, "destination" => destination, "expression" => expression, "error" => error})
+9 = length(expression_cases)
+5 = length(grammar_cases)
+
+sources =
+  for {path, data, ranges} <- [
+        {"pkg/logql/log/parser_test.go", parser, [{1611, 1757}, {1765, 1769}]},
+        {"pkg/logql/log/logfmt/logfmtexpr_test.go", grammar, [{19, 48}]}
+      ] do
+    %{
+      "path" => path,
+      "sha256" => hash.(data),
+      "selections" =>
+        for {first, last} <- ranges do
+          raw = selection.(data, first, last)
+          %{"source_start" => first, "source_end" => last, "raw" => raw, "sha256" => hash.(raw)}
+        end
+    }
+  end
+
+IO.binwrite(JSON.encode!(%{
+  "revision" => "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "license" => "AGPL-3.0-only",
+  "attribution" => "Grafana Labs contributors; adapted for Pulse. See adjacent LICENSE.",
+  "sources" => sources,
+  "expression_cases" => expression_cases,
+  "grammar_cases" => grammar_cases,
+  "constructor_failure" => failure_case,
+  "omissions" => [
+    "The structured metadata conflict row (parser_test.go:1728-1739) is preserved in the raw selection but not replayed: shared collision ownership remains open.",
+    "The empty grammar row checks nil path without asserting nil error; HTTP rejection follows the pinned generated parser, not an asserted upstream error string.",
+    "Hints, alias ambiguity, destination-key capture, duplicate/collision/previous-parser ownership and replacement-rune expression values are not established by these tables."
+  ]
+}) <> "\n")

@@ -72,6 +72,12 @@ spec:
               value: |-
                 {{- .Values.pomerium.publicKey | nindent 16 }}
             {{- end }}
+            {{- if .Values.atlas.tokenJwks }}
+            # Atlas' cluster JWKS (public). Verifies the token on
+            # POST /api/v1/atlas/elevations; unset rejects every call.
+            - name: ATLAS_TOKEN_JWKS
+              value: {{ .Values.atlas.tokenJwks | quote }}
+            {{- end }}
             {{- with .Values.projectAccess.returnToAllowlist }}
             - name: PROJECT_ACCESS_RETURN_TO_ALLOWLIST
               value: {{ join "," . | quote }}

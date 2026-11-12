@@ -57,8 +57,10 @@ defmodule Tuist.Sandboxes.Capacity do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxNode
@@ -269,6 +271,8 @@ defmodule Tuist.Sandboxes.Capacity do
   defp allocation_outcome(_row, _node, _needed), do: :missing_grant
 
   @doc "Checks a new turn on an already-running VM under the node admission lock."
+  def admit_turn(%Sandbox{platform: :darwin} = sandbox, apply), do: MacosCapacity.admit_turn(sandbox, apply)
+
   def admit_turn(%Sandbox{node_name: name}, apply) when is_binary(name) do
     case Nodes.lookup(name) do
       {:ok, _pid, info} ->
@@ -407,6 +411,13 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  @doc """
+  The template reports of every connected node as one node, to size a
+  sandbox's disk ceiling without knowing its node, as the account disk
+  limit does (`Tuist.Sandboxes.Concurrency`).
+  """
+  def fleet_node, do: %{templates: Enum.flat_map(Nodes.connected_nodes(), &Map.get(&1, :templates, []))}
+
   def disk_budget_bytes(%{disk: %{budget_bytes: budget}}) when is_integer(budget) and budget > 0, do: budget
   def disk_budget_bytes(_node), do: :unbounded
 
@@ -443,6 +454,8 @@ defmodule Tuist.Sandboxes.Capacity do
     (workspace_gb || 0) * @gib + rootfs_bytes(node, template) + @sandbox_disk_overhead_bytes
   end
 
+  # An archived snapshot whose node copy is gone has no `node_name` and
+  # reserves nothing.
   defp reserved_disk_snapshot_bytes(%{name: node_name} = node) do
     from(s in DiskSnapshot,
       where: s.node_name == ^node_name,
@@ -508,7 +521,11 @@ defmodule Tuist.Sandboxes.Capacity do
   def disk_space?(_node, _sandbox), do: true
 
   def ready_nodes(template) when is_binary(template) do
-    Enum.filter(Nodes.connected_nodes(), &(Map.get(&1, :execution_slots, 0) == 0 and template_ready?(&1, template)))
+    Enum.filter(
+      Nodes.connected_nodes(),
+      &(Map.get(&1, :platform, "linux") != "darwin" and Map.get(&1, :execution_slots, 0) == 0 and
+          template_ready?(&1, template))
+    )
   end
 
   @doc """
@@ -557,19 +574,29 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   The execution image of the deployment: the `bazel` template tag the most
-  connected execution daemons report ready, the greater tag on a tie, or nil
-  when none does. Workers roll out on delete, so while an operator replaces
-  them the old and new tags are both ready somewhere; the majority wins.
+  connected execution daemons vote for, the greater tag on a tie, or nil
+  when none votes. A daemon votes for the tag it was configured with once
+  that tag is ready. It keeps older tags ready so it can take work during a
+  rollout, so before its tag is ready, or when it does not report one, it
+  votes for every tag it has ready. Workers roll out on delete, so while an
+  operator replaces them the majority wins.
   """
   def execution_image_tag do
     Nodes.connected_nodes()
     |> Enum.filter(&(execution_daemon?(&1) and Map.get(&1, :execution_deadlines, false)))
-    |> Enum.flat_map(fn node ->
-      for %{name: "bazel", ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), uniq: true, do: tag
-    end)
+    |> Enum.flat_map(&execution_image_votes/1)
     |> Enum.frequencies()
     |> Enum.max_by(fn {tag, count} -> {count, tag} end, fn -> {nil, 0} end)
     |> elem(0)
+  end
+
+  defp execution_image_votes(node) do
+    ready =
+      for %{name: "bazel", ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), uniq: true, do: tag
+
+    configured = Map.get(node, :default_template_tag)
+
+    if Map.get(node, :default_template) == "bazel" and configured in ready, do: [configured], else: ready
   end
 
   defp execution_fits?(node, sandbox) do
@@ -608,9 +635,13 @@ defmodule Tuist.Sandboxes.Capacity do
   Picks and reserves the node a new sandbox boots on: the connected node
   with the template ready, disk for the sandbox and the most free memory.
   When no node has room, idle sandboxes are paused on the node that can
-  free the most. Returns `{:error, :no_node}` when no connected node has
-  the template and `{:error, :no_capacity}` when none has room.
+  free the most. When no node has disk, the oldest paused Orb on them is
+  archived (`Tuist.Sandboxes.Archives.make_node_room/1`), so a retry finds
+  room once the upload completes. Returns `{:error, :no_node}` when no
+  connected node has the template and `{:error, :no_capacity}` when none
+  has room.
   """
+  def place(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.place(sandbox)
   def place(%Sandbox{} = sandbox), do: place(sandbox, fn _node -> true end)
 
   @doc """
@@ -631,9 +662,15 @@ defmodule Tuist.Sandboxes.Capacity do
     candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
 
     cond do
-      ready == [] -> {:error, :no_node}
-      candidates == [] -> {:error, :no_capacity}
-      true -> place_on(candidates, sandbox)
+      ready == [] ->
+        {:error, :no_node}
+
+      candidates == [] ->
+        ready |> Enum.map(& &1.name) |> Archives.make_node_room()
+        {:error, :no_capacity}
+
+      true ->
+        place_on(candidates, sandbox)
     end
   end
 
@@ -701,6 +738,8 @@ defmodule Tuist.Sandboxes.Capacity do
   paused one does not fit as is, and grows an elastic node's carve-out
   when that is not enough.
   """
+  def admit(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.admit(sandbox)
+
   def admit(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     with :ok <- Concurrency.check(sandbox.account_id, sandbox) do
       do_admit(sandbox)
@@ -743,23 +782,61 @@ defmodule Tuist.Sandboxes.Capacity do
   asked for, and the item, left queued, fits once that node has room. Sessions whose sandbox already holds memory and
   environments with no connected node at all are admissible; the latter
   fail on dispatch as before.
+
+  Returns `:ok`, or `{:error, reason}` saying why not for the logs: the
+  account's quota, `{node, reason}` for the node of the session's sandbox,
+  or `:no_room` for a new one. macOS gives per-host reasons
+  (`Tuist.Sandboxes.MacosCapacity.admission/2`).
   """
-  def admissible?(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
+  def admission(%AgentEnvironment{platform: :darwin} = environment, session_id),
+    do: MacosCapacity.admission(environment, session_id)
+
+  def admission(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state, node_name: name} when state in @charged_states ->
-        case Nodes.lookup(name) do
-          {:ok, _pid, info} ->
-            allocation_allows?(Map.put(info, :name, name), reserved_bytes(name) + @daemon_reserve_bytes)
-
-          _ ->
-            not shared_node?(name)
-        end
+        charged_admission(name)
 
       %Sandbox{state: :paused, node_name: node_name} = sandbox when is_binary(node_name) ->
-        Concurrency.check(sandbox.account_id, sandbox) == :ok and resumable?(sandbox)
+        with :ok <- quota(sandbox.account_id, sandbox) do
+          if resumable?(sandbox), do: :ok, else: {:error, {node_name, :no_room}}
+        end
 
       _new ->
-        Concurrency.check(agent_environment.account_id, agent_environment) == :ok and placeable?(agent_environment)
+        with :ok <- quota(agent_environment.account_id, agent_environment) do
+          if placeable?(agent_environment), do: :ok, else: {:error, :no_room}
+        end
+    end
+  end
+
+  @doc "Whether `admission/2` lets the session's work item through."
+  def admissible?(agent_environment, session_id), do: admission(agent_environment, session_id) == :ok
+
+  @doc """
+  The account's quota check for a work item's sandbox. Past its disk limit,
+  archiving its oldest paused Orb makes room, as for a create
+  (`Tuist.Sandboxes.Archives.make_room/1`): `:sandbox_disk_limit` while one
+  is on its way, so waiting helps, and `:sandbox_limit` when nothing can be
+  archived, so it does not.
+  """
+  def quota(account_id, requested) do
+    case Concurrency.check(account_id, requested) do
+      {:error, :sandbox_disk_limit} ->
+        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
+
+      result ->
+        result
+    end
+  end
+
+  defp charged_admission(name) do
+    case Nodes.lookup(name) do
+      {:ok, _pid, info} ->
+        if allocation_allows?(Map.put(info, :name, name), reserved_bytes(name) + @daemon_reserve_bytes),
+          do: :ok,
+          else: {:error, {name, :not_allocated}}
+
+      _ ->
+        if shared_node?(name), do: {:error, {name, :not_connected}}, else: :ok
     end
   end
 
@@ -781,6 +858,7 @@ defmodule Tuist.Sandboxes.Capacity do
 
       nodes ->
         with_disk = Enum.filter(nodes, &disk_room?(&1, agent_environment))
+        if with_disk == [], do: nodes |> Enum.map(& &1.name) |> Archives.make_node_room()
         Enum.any?(with_disk, &memory_room?(&1, agent_environment)) or grown_in_time?(with_disk, agent_environment)
     end
   end

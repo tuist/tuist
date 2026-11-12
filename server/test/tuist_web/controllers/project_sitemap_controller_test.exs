@@ -32,13 +32,16 @@ defmodule TuistWeb.ProjectSitemapControllerTest do
     refute xml =~ "<lastmod>"
     assert get_resp_header(conn, "cache-control") == ["no-store"]
     assert get_resp_header(conn, "content-type") == ["application/xml; charset=utf-8"]
+    # Counted by Cloudflare's public-pages rate limit, which bounds the
+    # SBFM-exempt project sitemaps.
+    assert get_resp_header(conn, "x-tuist-public") == ["1"]
   end
 
   test "excludes SSO redirects but includes public accounts with anonymous access", %{conn: conn} do
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :okta,
-        sso_organization_id: "example.okta.com",
+        sso_organization_id: "sitemap-example.okta.com",
         oauth2_client_id: "client-id",
         oauth2_client_secret: "client-secret"
       )

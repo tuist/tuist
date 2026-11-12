@@ -9,7 +9,8 @@ metadata:
 spec:
   zoneId: 4421110085237b867a891bd0a40da106
   description: "Verified crawlers - public pages"
-  expression: "(http.request.method eq \"GET\" and cf.client.bot)"
+  expression: |-
+    http.request.method in {"GET" "HEAD"} and cf.client.bot
   action: block
   enabled: true
   mode: active
@@ -22,4 +23,13 @@ spec:
     requestsPerPeriod: 60
     period: 10
     mitigationTimeoutSeconds: 10
-    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"
+    # Mirror the unverified-client counter, including header-free docs,
+    # HEAD requests and marketing route misses.
+    countingExpression: |-
+      http.request.method in {"GET" "HEAD"} and cf.client.bot and (
+      http.response.headers["x-tuist-public"][0] eq "1" or
+      (http.host eq "tuist.dev" and (
+        http.request.uri.path matches r"^/(?:(?:(?:ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant)/)?(?:about|brand|cache|compute|download|previews|pricing|tests|community|cookies|data-act-addendum|data-processing-addendum|imprint|longevity|openness|privacy|security|service-level-addendum|terms|trademark-guidelines|blog(?:/[0-9]{4}/[0-9]{2}/[0-9]{2}/[^/%]+(?:/iframe[.]html)?)?|changelog(?:/[^/%]+)?|customers(?:/[^/%]+)?|newsletter(?:/issues/[0-9]+)?)|ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant|compare|build-systems|case-studies(?:/[^/%]+)?|flaky-tests|test-insights|blog/bazel/timeline[.]json|rss[.]xml|(?:blog|changelog)/(?:rss|atom)[.]xml)?$" or
+        http.request.uri.path matches r"^/(?:docs(?:/.*)?|(?:ar|en|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant)/(?:docs|docs-markdown)(?:/.*)?|marketing-markdown(?:/.*)?|robots[.]txt|llms(?:-full)?[.]txt|sitemap[.]xml|geofeed[.]csv)$"
+      ))
+      )

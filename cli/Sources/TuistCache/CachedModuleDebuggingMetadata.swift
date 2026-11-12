@@ -53,10 +53,19 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         let included = target.project.targets.values.filter { $0.name != target.target.name }
             .flatMap(\.buildableFolders).flatMap(\.exceptions)
             .filter { $0.target == target.target.name }.flatMap(\.included).filter(filter.callAsFunction)
+        let compiledExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions +
+            Target.validHeaderExtensions).subtracting(["docc"])
+        let folderSources = (folders + included).filter { path in
+            !path.components.contains(where: { $0.lowercased().hasSuffix(".docc") }) ||
+                compiledExtensions.contains(path.extension?.lowercased() ?? "")
+        }
+        // Catalogs enter the sources build phase for DocC, not for the module's debug information.
+        // Explicit compiled sources and headers remain validated even beneath a catalog.
+        let sources = target.target.sources.filter { $0.path.extension?.lowercased() != "docc" }
         let headers = (target.target.headers?.public ?? []) + (target.target.headers?.private ?? []) +
             (target.target.headers?.project ?? [])
         var declared: [String: SourceFile] = [:]
-        for source in target.target.sources + (folders + included + headers).map({ SourceFile(path: $0) }) {
+        for source in sources + (folderSources + headers).map({ SourceFile(path: $0) }) {
             let relative = source.path.relative(to: target.project.sourceRootPath).pathString
             if let previous = declared[relative]?.contentHash {
                 guard source.contentHash == nil || source.contentHash == previous else {
@@ -107,7 +116,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     ) throws -> Self {
         try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: [:], symlinkedSources: []
+            compileUnits: compileUnits, metadataOnlyStaticBinary: false, resolvedDebugSources: [:], symlinkedSources: []
         )
     }
 
@@ -116,6 +125,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]] = [],
         linkedDebugSymbols: Bool = false,
         compileUnits: Set<String> = [],
+        staticBinary: AbsolutePath? = nil,
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
@@ -138,10 +148,25 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                 }
             }
         }
-        return try recording(
-            debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
-        )
+        do {
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: false,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        } catch DebuggingMetadataError.missingSources {
+            // Only inspect the archive when ordinary source/compile-unit matching failed. Generated version
+            // constants can have DWARF sources even when none of the target's declared sources emitted code.
+            guard let staticBinary, !linkedDebugSymbols,
+                  try await MetadataOnlyStaticArchive.verify(fileSystem.readFile(at: staticBinary), moduleName: moduleName)
+            else { throw DebuggingMetadataError.missingSources }
+            try Task.checkCancellation()
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: true,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        }
     }
 
     private func recording(
@@ -149,6 +174,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]],
         linkedDebugSymbols: Bool,
         compileUnits: Set<String>,
+        metadataOnlyStaticBinary: Bool,
         resolvedDebugSources: [String: Set<String>],
         symlinkedSources: Set<String>
     ) throws -> Self {
@@ -192,14 +218,21 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         if !sources.isEmpty, paths.isEmpty {
             let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
-            let withoutCode = linkedDebugSymbols || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
+            let withoutCode = linkedDebugSymbols || metadataOnlyStaticBinary
+                || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
             guard withoutCode, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
                 throw DebuggingMetadataError.missingSources
             }
         }
+        // Admission revalidates only the observed sources, so only they are published. Without observed sources,
+        // admission compares the declared compiled sources instead, so those are published. Package targets declare
+        // every header under their root, thousands of them for a vendored boost, which would exceed the size limit.
+        let published: (String) -> Bool = paths.isEmpty ? { !Self.isHeader($0) } : { paths[$0] != nil }
         let metadata = Self(
             version: version, moduleName: moduleName, sourceRoot: sourceRoot,
-            sources: sources, sourcePaths: sourcePaths, debugPaths: paths
+            sources: sources.filter { published($0.key) },
+            sourcePaths: sourcePaths.filter { published($0.key) },
+            debugPaths: paths
         )
         guard try JSONEncoder().encode(metadata).count <= Self.maximumSize else { throw DebuggingMetadataError.excessiveSize }
         return metadata
@@ -236,7 +269,9 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                   Set(original.debugPaths.keys).isSubset(of: Set(original.sources.keys)),
                   Set(original.debugPaths.keys).isSubset(of: Set(declared.keys)),
                   original.debugPaths.values.allSatisfy({ !$0.isEmpty }),
-                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys)
+                  // Earlier versions recorded headers too, and warming never replaces an artifact whose hash is stored.
+                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys.filter { !isHeader($0) })
+                  || Set(original.sources.keys) == Set(declared.keys)
             else { return nil }
             slices.append(original)
         }
@@ -265,6 +300,11 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     private static func spellingsOfSharedFiles(_ sourcePaths: [String: String]) -> [[String]] {
         Dictionary(grouping: sourcePaths, by: \.value).values
             .filter { $0.count > 1 }.map { $0.map(\.key).sorted() }.sorted { $0[0] < $1[0] }
+    }
+
+    /// Headers are compiled only through the sources that include them, and they are binary-cache hash inputs.
+    private static func isHeader(_ path: String) -> Bool {
+        ["h", "hh", "hpp", "h++", "hp", "hxx", "ipp", "inl", "tpp"].contains((path as NSString).pathExtension.lowercased())
     }
 
     private static func lowercasedFileName(_ path: String) -> String {

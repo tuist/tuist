@@ -45,6 +45,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.GitHistory
   alias Tuist.GitHistory.Ref
   alias Tuist.IngestRepo
   alias Tuist.Projects
@@ -435,26 +436,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
     if(next, do: [next.sha], else: []) ++ firsts
   end
 
-  # The commit's chain as ranges of positions per ref, nearest first:
-  # `:at` includes the commit's own position, `:below` stops under it.
-  defp chain({ref_id, position}, which) do
-    hi = if which == :at, do: position, else: position - 1
-    chain(ref_id, hi, MapSet.new([ref_id]))
-  end
-
-  defp chain(ref_id, hi, seen) do
-    segment = %{ref_id: ref_id, hi: hi}
-
-    case Repo.get(Ref, ref_id) do
-      %Ref{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-        if MapSet.member?(seen, parent_id),
-          do: [segment],
-          else: [segment | chain(parent_id, fork, MapSet.put(seen, parent_id))]
-
-      _ ->
-        [segment]
-    end
-  end
+  defp chain(place, which), do: GitHistory.chain(place, which)
 
   # What the chain holds per path, from its nearest checkpoint up, and how
   # many delta rows that took.

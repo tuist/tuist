@@ -74,4 +74,13 @@ defmodule AtlasWeb.AccountMenuTest do
     stub(Demo, :enabled?, fn -> true end)
     refute render_component(&AccountMenu.headerbar/1, current_user: user, current_path: "/tasks") =~ "open-in-atlas"
   end
+
+  test "renders a mobile navigation trigger when requested" do
+    user = %User{id: Uniq.UUID.uuid7(), name: "Test User", email: "test@tuist.dev"}
+
+    assert render_component(&AccountMenu.headerbar/1,
+             current_user: user,
+             mobile_navigation?: true
+           ) =~ "mobile-navigation-trigger"
+  end
 end

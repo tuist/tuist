@@ -16,8 +16,11 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
@@ -28,6 +31,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   setup do
     account = account_fixture()
     stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+    stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 85 end)
     stub(Nodes, :connected_nodes, fn -> [@node] end)
     stub(Storage, :supports_signed_upload_headers?, fn _account -> true end)
 
@@ -86,6 +90,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   describe "making room under the disk limit" do
     test "a create past it queues the archive of the least recently paused idle Orb", %{account: account} do
       {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
       paused_orb(account, paused_at: hours_ago(1))
       oldest = paused_orb(account, paused_at: hours_ago(3))
       reject(&Capacity.place/1)
@@ -125,6 +130,192 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
+
+    test "a held Managed Agents work item past it makes room the same way", %{account: account} do
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      paused_orb(account)
+
+      linux = agent_environment_fixture(account: account)
+      macos = agent_environment_fixture(account: account, platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+
+      for environment <- [linux, macos] do
+        assert {:error, :sandbox_disk_limit} = Capacity.admission(environment, "new-session")
+      end
+
+      assert [%{args: %{"account_id" => account_id}} | _] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert account_id == account.id
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+
+      for environment <- [linux, macos] do
+        assert {:error, :sandbox_limit} = Capacity.admission(environment, "new-session")
+      end
+    end
+  end
+
+  describe "making room on nodes without disk" do
+    setup do
+      # Room for two default Orbs (18 GiB and 64 MiB each on @node), not three.
+      stub(Nodes, :connected_nodes, fn -> [Map.put(@node, :disk, %{budget_bytes: 40 * @gib})] end)
+      :ok
+    end
+
+    test "a create queues the archive of the least recently paused idle Orb there, any account's",
+         %{account: account} do
+      paused_orb(account, paused_at: hours_ago(1))
+      paused_orb(account_fixture(), paused_at: hours_ago(3))
+      other_account = account_fixture()
+      archived_orb(other_account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
+      oldest = paused_orb(other_account, paused_at: hours_ago(5))
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
+      assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == oldest.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"])
+    end
+
+    test "a held Managed Agents work item makes room too, unless an archive already uploads there",
+         %{account: account} do
+      uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
+      paused_orb(account_fixture())
+      environment = agent_environment_fixture(account: account)
+
+      assert {:error, :no_room} = Capacity.admission(environment, "new-session")
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      Repo.update!(Ecto.Changeset.change(uploading, archive_upload_id: nil))
+      assert {:error, :no_room} = Capacity.admission(environment, "new-session")
+      assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
+  describe "proactive node disk pressure" do
+    setup do
+      stub(Nodes, :connected_nodes, fn ->
+        for name <- ["node-a", "node-b"], do: Map.merge(@node, %{name: name, disk: %{budget_bytes: 40 * @gib}})
+      end)
+
+      :ok
+    end
+
+    test "archives the longest-paused idle Orb on each pressured node before demand", %{account: account} do
+      oldest = paused_orb(account, paused_at: hours_ago(3))
+      recent = paused_orb(account_fixture(), paused_at: hours_ago(1))
+      other_node = paused_orb(account, node_name: "node-b", paused_at: hours_ago(4))
+      paused_orb(account, node_name: "node-b", state: :running, paused_at: nil)
+
+      Archives.run()
+      Archives.run()
+      jobs = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      assert Enum.sort(Enum.map(jobs, & &1.args)) == [
+               %{"disk_pressure" => true, "node_names" => ["node-a"]},
+               %{"disk_pressure" => true, "node_names" => ["node-b"]}
+             ]
+
+      for sandbox <- [oldest, other_node] do
+        expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+        expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+        expect(Storage, :object_exists?, fn _key, _account -> true end)
+
+        expect(Nodes, :call, fn node, "archive", %{sandbox_id: id}, _opts ->
+          assert node == sandbox.node_name
+          assert id == sandbox.id
+          archive_result()
+        end)
+
+        expect(Nodes, :call, fn node, "delete", %{sandbox_id: id}, _opts ->
+          assert node == sandbox.node_name
+          assert id == sandbox.id
+          {:ok, %{}}
+        end)
+
+        job = Enum.find(jobs, &(&1.args["node_names"] == [sandbox.node_name]))
+        assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+        assert Repo.reload!(sandbox).state == :archived
+        # Replaying a stale queued job must not archive the next Orb.
+        assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      end
+
+      assert Repo.reload!(recent).state == :paused
+      Archives.run()
+      # No further uploads: both nodes are now below the mark.
+      reject(&Storage.multipart_start/2)
+      for job <- jobs, do: assert(:ok = perform_job(ArchiveSandboxesWorker, job.args))
+    end
+
+    test "counts node snapshot copies and skips busy, uploading and backed-off Orbs", %{account: account} do
+      paused_orb(account, paused_at: hours_ago(1), residency_work_id: "amp:busy", workspace_gb: 1, memory_mb: 2048)
+      paused_orb(account, paused_at: hours_ago(2), archive_attempted_at: hours_ago(1), workspace_gb: 1, memory_mb: 2048)
+      disk_snapshot_fixture(account: account, node_name: "node-a", workspace_gb: 20, archived_at: hours_ago(1))
+      eligible = paused_orb(account, paused_at: hours_ago(0), workspace_gb: 1, memory_mb: 2048)
+      paused_orb(account, node_name: "node-b", paused_at: hours_ago(1), archive_upload_id: "in-flight")
+      paused_orb(account, node_name: "node-b", paused_at: hours_ago(2))
+
+      Archives.run()
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert job.args == %{"disk_pressure" => true, "node_names" => ["node-a"]}
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == eligible.id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+    end
+
+    test "uses the configured mark, strictly above the boundary, and ignores unbudgeted nodes", %{account: account} do
+      sandbox = paused_orb(account, paused_at: hours_ago(1))
+      # Default Orb: 4 GiB rootfs + 10 GiB workspace + 4 GiB memory + 64 MiB.
+      ceiling = 18 * @gib + 64 * 1024 * 1024
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 80 end)
+
+      stub(Nodes, :connected_nodes, fn ->
+        [Map.put(@node, :disk, %{budget_bytes: div(ceiling * 100, 80)})]
+      end)
+
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      stub(Nodes, :connected_nodes, fn -> [Map.put(@node, :disk, %{budget_bytes: div(ceiling * 100, 80) - 1})] end)
+      Archives.run()
+      assert [job] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      # An upload can start after enqueueing, including on another replica.
+      uploading = paused_orb(account, paused_at: hours_ago(0), archive_upload_id: "started-after-sweep")
+      reject(&Storage.multipart_start/2)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      Repo.delete!(uploading)
+
+      stub(Nodes, :connected_nodes, fn -> [@node] end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
+      assert Repo.reload!(sandbox).state == :paused
+    end
+
+    test "disabling pressure or the archive tier leaves recent Orbs alone", %{account: account} do
+      for _ <- 1..3, do: paused_orb(account, paused_at: hours_ago(1))
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> nil end)
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      reject(&Storage.multipart_start/2)
+      assert :ok = perform_job(ArchiveSandboxesWorker, %{"node_names" => ["node-a"], "disk_pressure" => true})
+
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 85 end)
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert :ok = perform_job(ArchiveSandboxesWorker, %{"node_names" => ["node-a"], "disk_pressure" => true})
+    end
   end
 
   describe "request/1" do
@@ -157,17 +348,19 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
 
-    test "refuses accounts at their archive storage cap", %{account: account} do
+    test "queues archives even when the in-rack budget is exhausted", %{account: account} do
       sandbox = paused_orb(account)
-      archived_orb(account, archive_bytes: Archives.max_archived_bytes_per_account())
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
 
-      assert {:error, :archive_storage_full} = Archives.request(sandbox)
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert :ok = Archives.request(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
     end
   end
 
   describe "run/0" do
     test "archives Orbs paused past the threshold and removes them from their node", %{account: account} do
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
       sandbox = paused_orb(account)
       recent = paused_orb(account, paused_at: hours_ago(2))
       parent = self()
@@ -217,7 +410,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert archived.archive_bytes == 2 * @gib
       assert Repo.reload!(recent).state == :paused
-      assert Archives.archived_bytes(account.id) == 2 * @gib
+      assert Archives.archived_bytes(account.id) == 502 * @gib
     end
 
     test "does nothing but clean up while no threshold is configured", %{account: account} do
@@ -236,12 +429,9 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Archives.run()
     end
 
-    test "leaves non-Amp sandboxes, busy Orbs and accounts at their archive cap alone", %{account: account} do
+    test "leaves non-Amp sandboxes and busy Orbs alone", %{account: account} do
       sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: hours_ago(48))
       paused_orb(account, residency_work_id: "amp:busy")
-      capped = account_fixture()
-      paused_orb(capped)
-      archived_orb(capped, archive_bytes: Archives.max_archived_bytes_per_account())
       reject(&Storage.multipart_start/2)
       reject(&Nodes.call/4)
       Archives.run()
@@ -392,7 +582,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
 
     test "archived Orbs do not charge the disk limit, a restore does", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
+      # A default sandbox reserves 18 GiB and 64 MiB on @node.
+      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 19})
       for n <- 1..3, do: archived_orb(account, amp_orb_id: "archived-#{n}")
       expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
@@ -444,6 +635,130 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
   end
 
+  describe "disk snapshots" do
+    test "a ready snapshot is uploaded from its node and kept there", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account, node_name: "node-a")
+      assert Archives.queue_disk_snapshot(snapshot)
+      assert [job] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      parent = self()
+
+      expect(Storage, :multipart_start, fn key, %Account{} ->
+        assert String.starts_with?(key, Archives.object_prefix(account.id) <> "disk-snapshots/#{snapshot.id}/")
+        {:ok, "upload-1"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", args, opts ->
+        assert args.snapshot_id == snapshot.id
+        assert opts[:timeout] > to_timeout(minute: 30)
+        assert length(args.part_urls) * args.part_size > 10 * @gib
+        assert Repo.reload!(snapshot).archive_upload_id == "upload-1"
+        archive_result()
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn key, "upload-1", [{1, _}, {2, _}], _account ->
+        send(parent, {:completed, key})
+        :ok
+      end)
+
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+
+      assert :ok = perform_job(ArchiveDiskSnapshotWorker, job.args)
+      assert_receive {:completed, key}
+
+      assert %DiskSnapshot{
+               node_name: "node-a",
+               archive_key: ^key,
+               archive_upload_id: nil,
+               archive_sha256: "deadbeef",
+               archived_at: %DateTime{},
+               archive_attempted_at: %DateTime{}
+             } = Repo.reload!(snapshot)
+
+      assert Archives.archived_bytes(account.id) == 2 * @gib
+      refute Archives.queue_disk_snapshot(Repo.reload!(snapshot))
+    end
+
+    test "queueing requires archiving on and a ready snapshot, not room in the in-rack budget", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      refute Archives.queue_disk_snapshot(snapshot)
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
+      assert Archives.queue_disk_snapshot(snapshot)
+      refute Archives.queue_disk_snapshot(disk_snapshot_fixture(account: account_fixture(), state: :saving))
+      assert [%{args: %{"disk_snapshot_id" => id}}] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert id == snapshot.id
+    end
+
+    test "a failed upload is aborted, keeps the node copy and is retried by the run after six hours",
+         %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", _args, _opts ->
+        {:error, ~s(unknown op "archive_disks")}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+
+      assert {:error, _reason} = Archives.archive_disk_snapshot(snapshot)
+
+      assert %DiskSnapshot{node_name: "node-a", archive_key: nil, archive_upload_id: nil, archived_at: nil} =
+               failed = Repo.reload!(snapshot)
+
+      assert failed.archive_attempted_at
+
+      Archives.run()
+      assert [] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+
+      Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id),
+        set: [archive_attempted_at: 7 |> hours_ago() |> DateTime.truncate(:second)]
+      )
+
+      Archives.run()
+      assert [%{args: %{"disk_snapshot_id" => id}}] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
+      assert id == snapshot.id
+    end
+
+    test "a snapshot deleted while uploading is not recorded and its upload is aborted", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive_disks", _args, _opts ->
+        # A newer save supersedes it while the node uploads.
+        expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
+        expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+        expect(Storage, :delete_object, fn _key, _account -> :ok end)
+        assert :ok = DiskSnapshots.delete(Repo.reload!(snapshot))
+        archive_result()
+      end)
+
+      reject(&Storage.multipart_complete_upload/4)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+
+      assert {:ok, :skipped} = Archives.archive_disk_snapshot(snapshot)
+      refute Repo.reload(snapshot)
+    end
+
+    test "aborts abandoned snapshot uploads", %{account: account} do
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          archive_key: "k",
+          archive_upload_id: "upload-old",
+          archive_attempted_at: hours_ago(2)
+        )
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      expect(Storage, :multipart_abort, fn "k", "upload-old", _account -> :ok end)
+
+      Archives.run()
+
+      assert %DiskSnapshot{archive_key: nil, archive_upload_id: nil} = Repo.reload!(snapshot)
+    end
+  end
+
   describe "in-rack stores" do
     @store %{
       "site" => "gra",
@@ -462,6 +777,100 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       stub(Storage, :available?, fn %S3Target{bucket: "sandbox-archives"} -> true end)
       stub(Sites, :shard_storage_site, fn node -> if node in ["node-a", "node-b"], do: "gra" end)
       :ok
+    end
+
+    for budget_gib <- [nil, 100, 500], offset <- [-1, 0, 1] do
+      @budget_gib budget_gib
+      @offset offset
+      test "routes new Orb and snapshot archives with budget #{inspect(budget_gib)} GiB at offset #{offset}",
+           %{account: account} do
+        budget = (@budget_gib || 100) * @gib
+        store = if @budget_gib, do: Map.put(@store, "archive_budget_bytes", budget), else: @store
+        stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
+
+        # Account storage and other rack stores must not consume this budget.
+        archived_orb(account, archive_bytes: 600 * @gib)
+        archived_orb(account, amp_orb_id: "other-store", archive_store: "retired-store", archive_bytes: 600 * @gib)
+
+        # Share one store's budget across accounts and count restored Orbs
+        # awaiting deletion as well as snapshots whose node copy is gone.
+        retained =
+          archived_orb(account_fixture(),
+            amp_orb_id: "restored",
+            state: :running,
+            archive_store: "gra-v1",
+            archive_bytes: budget - 20 * @gib
+          )
+
+        disk_snapshot_fixture(
+          account: account,
+          node_name: nil,
+          archived_at: hours_ago(1),
+          archive_store: "gra-v1",
+          archive_bytes: 20 * @gib + @offset,
+          archive_key: "snapshot.sbxa"
+        )
+
+        sandbox = paused_orb(account)
+        snapshot = disk_snapshot_fixture(account: account)
+
+        expected_store = if @offset < 0, do: "gra-v1"
+
+        stub(Storage, :multipart_start, fn _key, actor ->
+          case expected_store do
+            nil ->
+              assert %Account{id: id} = actor
+              assert id == account.id
+
+            "gra-v1" ->
+              assert %S3Target{id: "gra-v1"} = actor
+          end
+
+          {:ok, "upload-1"}
+        end)
+
+        stub(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _actor -> :ok end)
+        stub(Storage, :object_exists?, fn _key, _actor -> true end)
+
+        stub(Nodes, :call, fn "node-a", op, _args, _opts ->
+          if op == "delete", do: {:ok, %{}}, else: archive_result()
+        end)
+
+        assert {:ok, archived} = Archives.archive(sandbox)
+        assert archived.archive_store == expected_store
+
+        # Remove only the newly written object from the accounting to test
+        # both kinds against the exact same boundary.
+        Repo.update!(Ecto.Changeset.change(archived, archived_at: nil))
+        assert {:ok, archived_snapshot} = Archives.archive_disk_snapshot(snapshot)
+        assert archived_snapshot.archive_store == expected_store
+
+        if expected_store == nil do
+          # Even if rack usage later falls, reads/deletes must keep using
+          # the recorded account-storage route, not select a new store.
+          Repo.delete!(retained)
+          assert Archives.restore_site(archived) == nil
+
+          expect(Storage, :generate_download_url, fn key, %Account{id: id}, _opts ->
+            assert key == archived.archive_key
+            assert id == account.id
+            "https://account-storage/archive"
+          end)
+
+          assert {:ok, %{url: "https://account-storage/archive", bytes: bytes, sha256: "deadbeef"}} =
+                   Archives.restore_source(archived)
+
+          assert bytes == 2 * @gib
+
+          expect(Storage, :delete_object, fn key, %Account{id: id} ->
+            assert key == archived_snapshot.archive_key
+            assert id == account.id
+            :ok
+          end)
+
+          assert :ok = Archives.delete_disk_snapshot_archive(archived_snapshot)
+        end
+      end
     end
 
     test "archive an Orb to the store at its node's site and restore it on a node at that site", %{account: account} do

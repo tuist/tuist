@@ -5,6 +5,7 @@ defmodule TuistWeb.UserSessionControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts
   alias Tuist.Environment
   alias TuistWeb.RateLimit.Auth
 
@@ -375,10 +376,12 @@ defmodule TuistWeb.UserSessionControllerTest do
       refute get_session(conn, :user_return_to)
     end
 
-    test "ignores protocol-relative return_to paths", %{conn: conn} do
-      conn = get(conn, ~p"/docs/login?#{%{return_to: "//evil.example"}}")
-      assert redirected_to(conn) == ~p"/users/log_in"
-      refute get_session(conn, :user_return_to)
+    test "ignores unsafe local-looking return_to paths", %{conn: conn} do
+      for path <- ["//evil.example", "/\\evil.example", "/\t/evil.example", "/%09/evil.example", "/page\r\nlocation:evil"] do
+        redirected = get(conn, ~p"/docs/login?#{%{return_to: path}}")
+        assert redirected_to(redirected) == ~p"/users/log_in"
+        refute get_session(redirected, :user_return_to)
+      end
     end
   end
 
@@ -405,14 +408,21 @@ defmodule TuistWeb.UserSessionControllerTest do
       refute get_session(conn, :user_token)
     end
 
-    test "ignores protocol-relative return_to paths", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> log_in_user(user)
-        |> delete(~p"/users/log_out?#{%{return_to: "//evil.example/foo"}}")
-
-      assert redirected_to(conn) == ~p"/"
-      refute get_session(conn, :user_token)
+    test "ignores unsafe local-looking return_to paths and still revokes the session", %{conn: conn, user: user} do
+      for path <- [
+            "//evil.example/foo",
+            "/\\evil.example",
+            "/\t/evil.example",
+            "/%09/evil.example",
+            "/page\r\nlocation:evil"
+          ] do
+        logged_in = log_in_user(conn, user)
+        token = get_session(logged_in, :user_token)
+        logged_out = delete(logged_in, ~p"/users/log_out?#{%{return_to: path}}")
+        assert redirected_to(logged_out) == ~p"/"
+        refute get_session(logged_out, :user_token)
+        refute Accounts.get_user_by_session_token(token)
+      end
     end
 
     test "ignores non-local return_to paths", %{conn: conn, user: user} do

@@ -156,6 +156,22 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
              Query.run(:jobs, account.id, %{"volume_id" => use.volume_id, "page_size" => 1, "page" => 2})
   end
 
+  test "says why a job started empty", %{account: account, uses: [use | _]} do
+    use
+    |> Ecto.Changeset.change(
+      status: "discarded",
+      warm: false,
+      base_generation: 3,
+      cold_reason: "downloading",
+      attached_at: DateTime.utc_now()
+    )
+    |> Repo.update!()
+
+    assert {:ok, %{jobs: [job]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    refute job.cache_hit
+    assert job.cache_status_description =~ "still downloading the saved copy"
+  end
+
   test "says when a job started from an older saved copy", %{account: account, uses: [use | _]} do
     use
     |> Ecto.Changeset.change(

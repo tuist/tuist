@@ -4,10 +4,10 @@ defmodule TuistWeb.SSOLinkControllerTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  @provider_organization_id "https://login.vendor.example"
+  @provider_organization_id "https://login.ssolink-vendor.example"
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "personal@mail.example")
+    user = AccountsFixtures.user_fixture(email: "personal@ssolink-mail.example")
     organization_name = "customer-#{TuistTestSupport.Utilities.unique_integer()}"
 
     organization =
@@ -18,9 +18,9 @@ defmodule TuistWeb.SSOLinkControllerTest do
         sso_organization_id: @provider_organization_id,
         oauth2_client_id: UUIDv7.generate(),
         oauth2_client_secret: UUIDv7.generate(),
-        oauth2_authorize_url: "https://login.vendor.example/authorize",
-        oauth2_token_url: "https://login.vendor.example/token",
-        oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        oauth2_authorize_url: "https://login.ssolink-vendor.example/authorize",
+        oauth2_token_url: "https://login.ssolink-vendor.example/token",
+        oauth2_user_info_url: "https://login.ssolink-vendor.example/userinfo"
       )
 
     %{user: user, organization: organization, organization_name: organization_name}
@@ -40,7 +40,7 @@ defmodule TuistWeb.SSOLinkControllerTest do
 
       html = html_response(conn, 200)
       assert html =~ "Link single sign-on?"
-      assert html =~ "person@customer.example"
+      assert html =~ "person@ssolink-customer.example"
       assert html =~ user.email
       assert html =~ organization_name
     end
@@ -100,7 +100,7 @@ defmodule TuistWeb.SSOLinkControllerTest do
       user: admin,
       organization: organization
     } do
-      invitee = AccountsFixtures.user_fixture(email: "invitee@mail.example")
+      invitee = AccountsFixtures.user_fixture(email: "invitee@ssolink-mail.example")
 
       {:ok, _invitation} =
         Accounts.invite_user_to_organization(
@@ -125,7 +125,7 @@ defmodule TuistWeb.SSOLinkControllerTest do
       organization: organization
     } do
       organization
-      |> Ecto.Changeset.change(sso_organization_id: "https://other-login.vendor.example")
+      |> Ecto.Changeset.change(sso_organization_id: "https://other-login.ssolink-vendor.example")
       |> Tuist.Repo.update!()
 
       conn =
@@ -195,7 +195,7 @@ defmodule TuistWeb.SSOLinkControllerTest do
       "provider" => "oauth2",
       "uid" => "work-identity",
       "provider_organization_id" => @provider_organization_id,
-      "email" => "person@customer.example",
+      "email" => "person@ssolink-customer.example",
       "return_to" => nil,
       "issued_at" => System.system_time(:second)
     }

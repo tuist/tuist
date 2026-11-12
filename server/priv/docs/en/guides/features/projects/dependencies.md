@@ -550,3 +550,7 @@ internal import StaticModule
 ```swift
 @_implementationOnly import StaticModule
 ```
+
+## Related {#related}
+
+Read [how monday.com adopted a modular project graph with Tuist](https://tuist.dev/customers/monday), starting with the targets with the fewest dependencies.

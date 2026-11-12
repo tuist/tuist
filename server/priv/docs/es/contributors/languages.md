@@ -37,7 +37,7 @@ El flujo de trabajo es:
 1. Actualiza el contenido original en inglés.
 2. Actualiza el contexto relevante de `L10N.md` si los traductores necesitan más orientación.
 3. Abre una pull request con esos cambios en el origen.
-4. Una vez que los cambios se integran en `main`, Glossia traduce lo que ha cambiado y mantiene abierta una pull request de traducción con los archivos localizados actualizados.
+4. Una vez que los cambios se integren en `main`, Glossia traduce lo que ha cambiado y mantiene abierta una pull request de traducción con los archivos localizados actualizados.
 
 > [!WARNING]
 > **No modifiques el contenido localizado generado**
@@ -47,7 +47,7 @@ El flujo de trabajo es:
 
 ## Estructura de L10N.md {#l10n-md-structure}
 
-Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con alcance específico que pueden residir en diferentes niveles de directorio.
+Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es como instrucciones de idioma con alcance específico que pueden ubicarse en diferentes niveles de directorio.
 
 Por ejemplo:
 
@@ -66,7 +66,7 @@ Por ejemplo:
 
 ## Contexto de directorio {#directory-context}
 
-Glossia recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina cada archivo `L10N.md` que encuentra en esa ruta.
+Glossia recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina todos los archivos `L10N.md` que encuentra en esa ruta.
 
 En el ejemplo anterior:
 
@@ -76,6 +76,6 @@ En el ejemplo anterior:
 
 Esto significa que puedes colocar el contexto donde corresponde:
 
-- instrucciones para todo el repositorio en la raíz
-- instrucciones específicas de área en un subdirectorio
-- instrucciones específicas de idioma en `L10N/<locale>.md`
+- orientación para todo el repositorio en la raíz
+- orientación específica de área en un subdirectorio
+- orientación específica de idioma en `L10N/<locale>.md`

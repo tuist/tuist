@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "129c9799f4ba703f8003ddfff975ff6a47ef8d4c2c323f4d67631cf64d84b7e0",
+  "hash": "2b12f5bf775efd1e6b5b132f0bfadc66e0791a4cd774bd46f61c09c17a82aa45",
   "hash_tree": {
     "root": {
       "children": [
@@ -13,35 +13,11 @@
                 "# -C ensures that Mise loads the configuration from the Mise configuration": {
                   "content_hash": "0906b702d5dd0fa12bb35a3efbca1491464ea528269de686cec9065af832a32f"
                 },
-                "# To publish local test results:": {
-                  "content_hash": "1f23c1165b77e2eedc707ab96ba636f2b82e5f4f1fc33522a0ba1e58e09fe53e"
-                },
                 "# Xcode build insights {#xcode-build-insights}": {
-                  "content_hash": "42f0467f3acf738a765ad5d768345941e6d0476d8472570628b6eed36d943ee9"
+                  "content_hash": "4853f06abcbbd95f00345d16cda3909aecc7e589ea89543944f62ffa8356e08d"
                 },
                 "# file in the project's root directory.": {
-                  "content_hash": "7455548753444c3dcc828a44d35d2e0a0f45ef331aeb0c1cf64b9bb4f65c0d20"
-                },
-                "## Build Insights in CI {#continuous-integration}": {
-                  "content_hash": "3c4c3e9abdb0522f4df9f319342b1f03cfddadf3af1b52fb69cab63b9b68f684"
-                },
-                "## Credential-free reporting on a private network {#network-trusted-publishing}": {
-                  "content_hash": "66d394d7b687c2f10b100933187ef791a5a46ba86e07b75454a233467c180259"
-                },
-                "## Custom metadata {#custom-metadata}": {
-                  "content_hash": "e97790b3ad0313d66a99839324e13b8c8f33b5f2ccad46656b42b5ef71cc110f"
-                },
-                "## Machine metrics {#machine-metrics}": {
-                  "content_hash": "7feed3ab65d3169de7be23598eb80a87c3cc4fcc86b4785c5c4b46b0f06fbe91"
-                },
-                "## Report actor claim {#report-actor-claim}": {
-                  "content_hash": "925c2ef9dec9e9bd843cf61adcb367cfeb7a1b51b798c851560a66e16f31aae8"
-                },
-                "### Environment variables": {
-                  "content_hash": "66bba5c62a6f40e756e5a3c6fe8cb240163bd1c42c1619990ea0e09b5cfe5868"
-                },
-                "### Examples": {
-                  "content_hash": "035d48ca8b3cf402003ca9f8e6d50fe0fdc374598a6303601b4b21047df26895"
+                  "content_hash": "60f7e612d8f1849459a515f693316805c288c52e83373cd33dad2c523f4d6b52"
                 },
                 "Preamble": {
                   "content_hash": "4fcb60da27cc274949eb51ea805920d2f0d10edbc21c3bc11d5c2574451de97e"
@@ -50,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "82edd124040237314cb30d5ea58df4a7bc976f8435172561742c7f313af41300",
+          "hash": "fd2e0ea1388e452f2708a2eb8a91db80f97ba160c7d9f1274e8e53228ac7cbdc",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/build-insights/xcode.md",
           "metadata": {
-            "content_hash": "2e4358a08324be2f95eec2b7eff06b873f0e755eb51c0aa5e8f39d2a69c1ed74"
+            "content_hash": "93611088cae855f0e62fa48d2f1266fd451b165f2fc2bcc6c45dbe755e28747e"
           }
         },
         {
@@ -251,14 +227,14 @@
         }
       ],
       "details": {},
-      "hash": "129c9799f4ba703f8003ddfff975ff6a47ef8d4c2c323f4d67631cf64d84b7e0",
+      "hash": "2b12f5bf775efd1e6b5b132f0bfadc66e0791a4cd774bd46f61c09c17a82aa45",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights/xcode.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8347d644a0c94602d8b175c780a415b1da87d033bd1d6cd5e74d618eb8ac79d3",
+  "output_hash": "3ecaa06fd911811fe98fccb53ca879774b023408cd75ea44c536bcf80a889383",
   "output_path": "server/priv/docs/yue_Hant/guides/features/build-insights/xcode.md",
   "protection_state": "recorded",
   "provider": "",
@@ -278,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/build-insights/xcode.md",
-  "translated_at": "2026-11-04T18:43:39.898856Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:43:22.517748Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

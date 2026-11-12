@@ -123,6 +123,9 @@ server:
       enabled: true
     fcm:
       enabled: true
+    # Reuse the existing environment-scoped readonly dashboard credential.
+    pulse:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -181,6 +184,16 @@ server:
       value: "50"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Staging's tuist account ID is 2 (production uses 3). Membership and
+    # the account-scoped pulse feature flag remain independently required.
+    - name: TUIST_PULSE_BACKEND
+      value: greptime
+    - name: TUIST_PULSE_ACCOUNT_ID
+      value: "2"
+    - name: TUIST_PULSE_URL
+      value: http://greptimedb.observability.svc.cluster.local:4000
+    - name: TUIST_PULSE_TENANT
+      value: public
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Linux runners reuse ordinary regional instances. Before deploying,
       # complete the staging migration in linux-runner-private-cache.md:
@@ -272,7 +285,7 @@ server:
     prices:
       # macOS is billable here so runner billing can be exercised end to
       # end before production sees it. The Price is graduated: the first
-      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # 120000 compute-unit milliseconds (2 minutes on the 8 vCPU / 24 GB
       # baseline) are free, and beyond that each millisecond costs
       # 0.000083333333 cents, which is $0.05 per baseline machine-minute
       # (cut at the 12 decimals Stripe accepts, see production).
@@ -308,6 +321,12 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
         runner_macos_compute_unit_milliseconds: "price_1UY5MBLlKoN51eczRkfPBFEa"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: "price_1UZpgYLlKoN51ecz4XXUYIn7"
       retired_runners:
         runner_macos_compute_unit_milliseconds:
           - "price_1UXNkKLlKoN51eczld0hbV1t"
@@ -923,7 +942,7 @@ buildersFleet:
 sandboxes:
   enabled: true
   image:
-    tag: "sha-1949e6dfc6f9"
+    tag: "sha-bea84a441ea2"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -933,7 +952,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 40
+  maxMemoryGiB: 48
   prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
   archiveAfterHours: 24
@@ -1084,10 +1103,8 @@ rackFleet:
     enabled: true
     # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two 8 vCPU /
+    # 24 GB guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true

@@ -10,6 +10,11 @@ import TuistLogging
     import TuistProcess
 #endif
 
+#if canImport(TuistOIDC)
+    import TuistEnvironment
+    import TuistOIDC
+#endif
+
 #if canImport(TuistSupport)
     import TuistAlert
     import TuistConstants
@@ -223,8 +228,11 @@ private actor CredentialRefreshLock {
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
+    private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
+    private let authenticationSession = ServerAuthenticationSession.current
+    private let sessionID = ServerAuthenticationSession.current.id
     private static let credentialRefreshLock = CredentialRefreshLock()
     #if canImport(TuistSupport)
         /// Shared actor instance across all ServerAuthenticationController instances
@@ -241,12 +249,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -255,11 +265,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -275,11 +287,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         serverURL: URL,
         refreshIfNeeded: Bool
     ) async throws -> AuthenticationToken? {
+        try authenticationSession.validate(sessionID)
+        let token = try await ServerAuthenticationSession.$expectedID.withValue(sessionID) {
+            try await sessionAuthenticationToken(serverURL: serverURL, refreshIfNeeded: refreshIfNeeded)
+        }
+        try authenticationSession.validate(sessionID)
+        return token
+    }
+
+    private func sessionAuthenticationToken(serverURL: URL, refreshIfNeeded: Bool) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let environmentToken = try await environmentToken() {
                 return environmentToken
             }
         #endif
+
+        try await signInWithWorkloadIdentityIfSignedOut(serverURL: serverURL)
 
         if !refreshIfNeeded {
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
@@ -298,7 +321,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         // shortly before the token expires. Keyed distinctly from the refresh
         // lock so the two do not collide.
         return try await cachedValueStore.getValue(
-            key: "authentication-token-\(serverURL.absoluteString)"
+            key: "authentication-token-\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
         ) { () -> (value: AuthenticationToken, expiresAt: Date?)? in
             guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
@@ -342,6 +365,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         do {
             return try await action()
         } catch let error as RefreshAuthTokenServiceError {
+            try authenticationSession.validate(sessionID)
             if case .unauthorized = error {
                 let refreshTokenAfterAction = try? await ServerCredentialsStore.current
                     .read(serverURL: serverURL)?.refreshToken
@@ -376,21 +400,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     public func refreshToken(
         serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool
     ) async throws {
-        try await authenticationTokenRefreshingIfNeeded(
-            serverURL: serverURL,
-            forceRefresh: true,
-            inBackground: inBackground,
-            locking: locking,
-            forceInProcessLock: forceInProcessLock
-        )
+        try authenticationSession.validate(sessionID)
+        _ = try await ServerAuthenticationSession.$expectedID.withValue(sessionID) {
+            try await authenticationTokenRefreshingIfNeeded(
+                serverURL: serverURL,
+                forceRefresh: true,
+                inBackground: inBackground,
+                locking: locking,
+                forceInProcessLock: forceInProcessLock
+            )
+        }
+        try authenticationSession.validate(sessionID)
     }
 
     public func refreshToken(serverURL: URL) async throws {
-        try await authenticationTokenRefreshingIfNeeded(
+        try await refreshToken(
             serverURL: serverURL,
-            forceRefresh: true,
             inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-            locking: true
+            locking: true,
+            forceInProcessLock: false
         )
     }
 
@@ -669,8 +697,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .project:
                 upToDateToken = token
             case let .account(accessToken):
-                upToDateToken = token
-                expiresAt = cacheExpirationDate(for: accessToken)
+                let renewedAccessToken = await renewedWorkloadAccessToken(
+                    serverURL: serverURL,
+                    accessToken: accessToken,
+                    forceRefresh: forceRefresh
+                )
+                upToDateToken = .account(renewedAccessToken ?? accessToken)
+                expiresAt = cacheExpirationDate(for: renewedAccessToken ?? accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -720,6 +753,69 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
+    /// Account tokens exchanged from an OIDC token have no refresh token. Where the environment can mint a
+    /// new workload identity, an expiring session is renewed by exchanging one, the way Amp's trust recipes
+    /// re-mint before a cloud credential expires. A failed renewal keeps the session it had.
+    private func renewedWorkloadAccessToken(
+        serverURL: URL,
+        accessToken: JWT,
+        forceRefresh: Bool
+    ) async -> JWT? {
+        #if canImport(TuistOIDC)
+            guard CIOIDCAuthenticator().hasWorkloadIdentity,
+                  forceRefresh || accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
+            else { return nil }
+            Logger.current.debug("Renewing the workload identity session for \(serverURL)")
+            do {
+                return try JWT.parse(try await exchangeWorkloadIdentityToken(serverURL: serverURL))
+            } catch {
+                Logger.current.debug("Renewing the workload identity session for \(serverURL) failed: \(error)")
+                return nil
+            }
+        #else
+            return nil
+        #endif
+    }
+
+    /// Where the environment offers a workload identity (CI providers, Amp orbs, a supplied
+    /// `TUIST_OIDC_TOKEN`), a signed-out CLI signs in on its own by exchanging it, so CI needs no
+    /// `tuist auth login` step. A refused exchange, such as from a repository or workspace no account
+    /// connected, leaves the CLI signed out and is not retried in this process.
+    private func signInWithWorkloadIdentityIfSignedOut(serverURL: URL) async throws {
+        #if canImport(TuistOIDC)
+            guard CIOIDCAuthenticator().hasWorkloadIdentity else { return }
+            _ = try await cachedValueStore.getValue(
+                key: "workload-identity-sign-in-\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
+            ) { () -> (value: Bool, expiresAt: Date?)? in
+                guard try await ServerCredentialsStore.current.read(serverURL: serverURL) == nil else {
+                    return (value: true, expiresAt: nil)
+                }
+                do {
+                    _ = try await exchangeWorkloadIdentityToken(serverURL: serverURL)
+                    Logger.current.debug("Signed in to \(serverURL) with the workload identity")
+                    return (value: true, expiresAt: nil)
+                } catch {
+                    Logger.current.debug("Signing in to \(serverURL) with the workload identity failed: \(error)")
+                    return (value: false, expiresAt: nil)
+                }
+            }
+        #endif
+    }
+
+    #if canImport(TuistOIDC)
+        private func exchangeWorkloadIdentityToken(serverURL: URL) async throws -> String {
+            let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
+                serverURL: serverURL
+            )
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: accessToken),
+                serverURL: serverURL
+            )
+            return accessToken
+        }
+    #endif
+
     #if canImport(TuistSupport)
         private func lockFilePath(serverURL: URL) -> AbsolutePath {
             let key = lockKey(serverURL: serverURL)
@@ -735,7 +831,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #endif
 
     private func lockKey(serverURL: URL) -> String {
-        "token_\(serverURL.absoluteString)"
+        "token_\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
     }
 
     private func forceRefreshLockKey(serverURL: URL) async throws -> String {
@@ -747,9 +843,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
+        try authenticationSession.validate(sessionID)
         let credentials: ServerCredentials? = try await ServerCredentialsStore.current.read(
             serverURL: serverURL
         )
+        try authenticationSession.validate(sessionID)
         return try credentials.map {
             guard $0.rejected != true else { throw ServerReportPublishingError.invalidCredentials }
             let accessToken = try JWT.parse($0.accessToken)
@@ -826,6 +924,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         serverURL: URL,
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
+        try await authenticationSession.withRefresh(id: sessionID) {
+            try await ServerAuthenticationSession.$expectedID.withValue(sessionID) {
+                try await refreshSessionTokens(serverURL: serverURL, refreshToken: refreshToken)
+            }
+        }
+    }
+
+    private func refreshSessionTokens(serverURL: URL, refreshToken: JWT) async throws -> ServerAuthenticationTokens {
+        try authenticationSession.validate(sessionID)
         do {
             let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
             let newTokens = if refreshToken.type == "account" {
@@ -839,6 +946,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     refreshToken: refreshToken.token
                 )
             }
+            try authenticationSession.validate(sessionID)
             // The server answers a refresh token spent within the last minute with the pair that first
             // exchange minted, which a peer process may have rotated since. Storing it would replace the
             // peer's live pair with a revoked one, so the stored pair wins once it no longer holds the

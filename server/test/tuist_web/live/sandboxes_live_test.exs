@@ -10,7 +10,6 @@ defmodule TuistWeb.SandboxesLiveTest do
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Repo
-  alias Tuist.Sandboxes.AmpIntegration
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -57,30 +56,15 @@ defmodule TuistWeb.SandboxesLiveTest do
   end
 
   describe "overview" do
-    test "offers to connect an agent when the account has no sandboxes", %{conn: conn, account: account} do
-      {:ok, lv, html} = live(conn, ~p"/#{account.name}/sandboxes")
-
-      assert html =~ "Run agents in sandboxes"
-      assert has_element?(lv, ~s([data-provider="amp"] a[href="/#{account.name}/settings/integrations"]), "Connect")
-      assert has_element?(lv, ~s([data-provider="cli"]), "Coming soon")
-    end
-
-    test "shows a connected Amp integration", %{conn: conn, account: account} do
-      Repo.insert!(%AmpIntegration{account_id: account.id, enabled: true, status: :running})
-
+    test "shows how to start a sandbox from the CLI when the account has no sandboxes", %{
+      conn: conn,
+      account: account
+    } do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
 
-      assert has_element?(lv, ~s([data-provider="amp"]), "Connected")
-      refute has_element?(lv, ~s([data-provider="amp"] a))
-    end
-
-    test "members who cannot manage integrations are told an admin can connect one", %{conn: conn, account: account} do
-      conn = log_in_with_role(conn, account, :user)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
-
-      assert has_element?(lv, ~s([data-provider="amp"]), "An admin can connect it")
-      refute has_element?(lv, ~s([data-provider="amp"] a))
+      assert has_element?(lv, "#sandboxes-empty-state", "Run agents in sandboxes")
+      assert has_element?(lv, "#sandboxes-empty-state", "tuist sandbox create")
+      refute has_element?(lv, "#sandboxes")
     end
 
     test "shows the most recent sandboxes and current usage", %{conn: conn, account: account} do
@@ -96,9 +80,10 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "#sandbox-#{oldest.id}")
       assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
-      refute has_element?(lv, "#sandboxes-providers")
+      refute has_element?(lv, "#sandboxes-empty-state")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
-      assert has_element?(lv, "#sandboxes-concurrency-disk", "84 GB of 420 GB on nodes now")
+      # Six sandboxes of a 10 GB workspace, a 4 GB memory image and 64 MiB of snapshot state.
+      assert has_element?(lv, "#sandboxes-concurrency-disk", "84.4 GB of 420 GB on nodes now")
     end
 
     test "charts the account's sandbox history", %{conn: conn, account: account} do
@@ -313,7 +298,19 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute Repo.get(Sandbox, sandbox.id)
     end
 
-    test "archives a paused sandbox and resumes it from the archive", %{conn: conn, account: account} do
+    test "queues a paused sandbox with a full in-rack budget and shows its archive progress", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(
+        account: AccountsFixtures.account_fixture(),
+        state: :archived,
+        node_name: nil,
+        archive_store: "gra-v1",
+        archive_bytes: 500 * 1024 * 1024 * 1024,
+        archived_at: DateTime.utc_now()
+      )
+
       sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")

@@ -30,7 +30,12 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  guest-wide memory (`/proc/meminfo`), cgroup memory
+  guest-wide memory (`/proc/meminfo`: total and available, then anon,
+  page cache, shmem, dirty/writeback and slab), the dind sidecar's
+  cgroup (`dind.*`, job containers included; `tuist-cache-volume`'s
+  `dind` and `mount-server` modes write it to the shared
+  `/var/run/tuist-dind-memory` every 3s, so pools without cache volumes
+  omit it, and `dind.age.s` exposes a stale sample), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest
@@ -72,13 +77,18 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
-- `ImageOS=ubuntu24`, as GitHub-hosted runners set it. Setup actions
-  such as `erlef/setup-beam` read it to pick a prebuilt binary and
-  fail without it. Change it together with the `ubuntu:24.04` base.
-  The base matches the Amp orb template's Ubuntu release, so native
-  builds share Mix dependency cache keys with orbs. `runner` keeps UID
-  1000 (the base image's `ubuntu` user is removed): cached checkouts and
-  Docker data roots from earlier jobs are owned by it.
+- One image per Ubuntu release a Runner Profile can pick:
+  `OS_VERSION` (`ubuntu-24.04` default, `ubuntu-22.04`) selects the
+  Dockerfile's base stage, published as `<semver>` and
+  `<semver>-ubuntu-22-04`. See `image-rollout.md` "Ubuntu releases".
+- `ImageOS=ubuntu24` / `ubuntu22`, as GitHub-hosted runners set it, from
+  each base stage. Setup actions such as `erlef/setup-beam` read it to
+  pick a prebuilt binary and fail without it.
+  The default base matches the Amp orb template's Ubuntu release, so
+  native builds share Mix dependency cache keys with orbs; Tuist's own CI
+  stays on it. `runner` is UID 1000 on every base (24.04's `ubuntu` user
+  is removed): cached checkouts and Docker data roots from earlier jobs,
+  possibly on another release, are owned by it.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -468,3 +478,14 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   publication eligibility and removal of ordinary service volumes for both
   drivers. CI keeps its timing log; these are controlled integration measurements,
   not production or end-to-end job benchmarks.
+
+## API jobs
+
+Jobs created through the Tuist runners API are staged as `<jit>.api-job.json`
+(macOS: `/tmp/tuist-api-job.json`) and run by `tuist-job-runner`
+(`job-runner/`, stdlib only, built for both images). It fetches only the job's
+commit, scopes the clone token to the repository origin through git's
+URL-matched config (never the remote URL, argv or the script's environment),
+masks secret values, streams logs with Buildkite-style timestamp markers and
+stops the process group on cancel or timeout. Job outcomes exit 0. Validate with
+`GOWORK=off go test -race ./...` from `job-runner/` and `api-dispatch_test.sh`.

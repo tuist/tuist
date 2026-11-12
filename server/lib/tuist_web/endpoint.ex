@@ -35,6 +35,18 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  # `auth_token` must be a socket option: Phoenix overwrites a transport-level
+  # value with it, which left every native connection without its bearer.
+  socket "/threads/socket", TuistWeb.ThreadsSocket,
+    auth_token: true,
+    websocket: true,
+    longpoll: false
+
+  socket "/jams/socket", TuistWeb.ThreadsSocket,
+    auth_token: true,
+    websocket: true,
+    longpoll: false
+
   plug TuistWeb.Plugs.DrainingPlug
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -53,7 +65,8 @@ defmodule TuistWeb.Endpoint do
     from: :tuist,
     gzip: true,
     cache_control_for_etags: "public, max-age=0, must-revalidate",
-    only: TuistWeb.static_paths()
+    only: TuistWeb.static_paths(),
+    only_matching: TuistWeb.static_path_prefixes()
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
@@ -80,6 +93,8 @@ defmodule TuistWeb.Endpoint do
     body_scrubber: {__MODULE__, :scrub_sentry_body}
 
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
+
+  plug TuistWeb.Plugs.EntireWebhookPlug
 
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
@@ -171,9 +186,13 @@ defmodule TuistWeb.Endpoint do
 
   # Sentry only scrubs password, passwd and secret parameters by default.
   # Authenticator and single-use recovery codes are second-factor credentials,
-  # `token` carries credentials such as Claude subscription tokens, and MCP tool
-  # `arguments` can carry them at any depth of a JSON-RPC body.
-  @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
+  # `token` and `api_key` carry subscription and organization credentials, and
+  # MCP tool `arguments` can carry them at any depth of a JSON-RPC body.
+  @sentry_scrubbed_body_keys ["mfa_code", "token", "api_key", "arguments"]
+
+  # Private conversations and Ship approvals must not become error-report data.
+  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, collection | _]})
+      when collection in ["threads", "jams"], do: %{}
 
   def scrub_sentry_body(conn) do
     conn
@@ -192,6 +211,7 @@ defmodule TuistWeb.Endpoint do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
     |> Map.drop([
+      "sec-websocket-protocol",
       "x-csrf-token",
       "x-tuist-actor-id",
       "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()

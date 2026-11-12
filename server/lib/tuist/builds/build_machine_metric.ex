@@ -23,5 +23,7 @@ defmodule Tuist.Builds.BuildMachineMetric do
     field :disk_bytes_read, Ch, type: "Int64"
     field :disk_bytes_written, Ch, type: "Int64"
     field :inserted_at, :naive_datetime
+    field :disk_total_bytes, Ch, type: "Nullable(Int64)"
+    field :disk_available_bytes, Ch, type: "Nullable(Int64)"
   end
 end

@@ -26,18 +26,19 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       body = conn |> get("/llms.txt") |> response(200)
 
       assert String.starts_with?(body, "# Tuist\n")
-      assert body =~ "\n> Tuist is build infrastructure for productive teams."
-      assert body =~ "embraces build-system diversity with native depth"
-      assert body =~ "one productivity platform rather than a separate product per build system"
-      assert body =~ "avoiding unnecessary project work before buying more compute"
+
+      assert body =~
+               "\n> Tuist is build infrastructure for engineering teams and coding agents."
+
+      assert body =~ "capabilities and prerequisites that vary by feature"
     end
 
-    test "qualifies selective testing and optional runner availability", %{conn: conn} do
+    test "keeps the public definition aligned with the Markdown overview", %{conn: conn} do
       body = conn |> get("/llms.txt") |> response(200)
+      [_, summary] = Regex.run(~r/^> (.+)$/m, body)
+      markdown = conn |> recycle() |> get("/marketing-markdown") |> response(200)
 
-      assert body =~ "Selective testing skips unchanged test targets in Tuist-generated Xcode projects"
-      assert body =~ "Managed runners are optional and currently invite-only"
-      refute body =~ "run only the tests a change can affect"
+      assert markdown =~ summary
     end
 
     test "indexes problem and comparison guides with their explicit Markdown URLs", %{conn: conn} do
@@ -117,7 +118,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(
                body,
-               "# Tuist\n\n> Tuist is build infrastructure for productive teams."
+               "# Tuist\n\n> Tuist is build infrastructure for engineering teams and coding agents."
              )
     end
 

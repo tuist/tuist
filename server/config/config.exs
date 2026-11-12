@@ -301,6 +301,8 @@ config :logger, :console,
     :tag,
     :boot_ms,
     :restore_ms,
+    :admit_ms,
+    :node_call_ms,
     :snapshot_ms,
     :mem_bytes,
     :disks_synced,
@@ -309,6 +311,7 @@ config :logger, :console,
     :archive_bytes,
     :stored_bytes,
     :disk_snapshot_id,
+    :amp_snapshot_id,
     :last_used_at,
     :freed_bytes,
     :memory_bytes,
@@ -352,6 +355,7 @@ config :phoenix, :filter_parameters, [
   "password",
   "secret",
   "token",
+  "api_key",
   "credential",
   "mfa_code",
   "installation_receipt",
@@ -430,6 +434,9 @@ config :tuist, :blocked_handles, [
   "blog",
   "news",
   "newsletter",
+  "compare",
+  "solutions",
+  "build-systems",
   "announcements",
   "features",
   "pricing",
@@ -523,6 +530,16 @@ config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1
 config :tuist, :runner_free_monthly_minutes, 100
 config :tuist, :runner_linux_free_monthly_minutes, 2_500
 
+# Linux OS catalog: the Ubuntu releases a Linux profile can run on. Same
+# role as `:runner_macos_xcode_versions`. Managed deploys override it at
+# boot from `TUIST_RUNNER_LINUX_OS_VERSIONS`, which Helm injects from the
+# `runnersFleetLinux.osVersions` entries it renders pools for. Exactly one
+# entry should carry `default: true`; its pools keep the shape-only names.
+config :tuist, :runner_linux_os_versions, [
+  %{os_version: "ubuntu-24.04", default: true},
+  %{os_version: "ubuntu-22.04"}
+]
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
@@ -554,11 +571,11 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
-# environments whose fleet is M2-L only.
+# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true},
-  %{vcpus: 12, memory_gb: 28}
+  %{vcpus: 8, memory_gb: 24, default: true},
+  %{vcpus: 16, memory_gb: 48}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
@@ -598,8 +615,7 @@ config :tuist, :urls,
   feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
   feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
-  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
-  shop: "https://shop.tuist.dev"
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights"
 
 config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 

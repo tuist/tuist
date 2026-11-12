@@ -396,6 +396,12 @@ kuraVolumesCSI:
   # Opt in only after at least one of its nodes is labelled
   # tuist.dev/kura-thin-ready=true.
   thinRegions: []
+  # Regions where every account's instance uses kura-thin-encrypted-nvme,
+  # without the :kura_thin_volumes flag; implies thinRegions for them. Existing
+  # instances still move only through the controller's source-node gate, and new
+  # ones are placed only on thin-ready nodes. Enroll a region only once it has
+  # enough thin-ready capacity, or is being converted host by host.
+  thinEnrolledRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
@@ -822,6 +828,12 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Organization Pulse queries. Enable only after this item exists in the
+    # environment's vault; non-secret connection settings use server.extraEnv.
+    pulse:
+      enabled: false
+      item: PULSE_TOKEN
+      field: password
     # Public OAuth client ID for linking ChatGPT subscriptions
     # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
     # Enable only after the item exists in the environment's vault: a missing
@@ -848,6 +860,13 @@ server:
     # the item exists in the environment's vault.
     fcm:
       enabled: false
+    # Entire plugin signing key. Enable only after the Ed25519 private PEM
+    # exists in the environment's vault. Slug and delivery JWKS URL are
+    # configured separately after partner registration with Entire.
+    entirePluginKey:
+      enabled: false
+      item: ENTIRE_PLUGIN
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -900,6 +919,8 @@ server:
   # managed SES reads SES/{access_key_id,secret_access_key} from each env's vault.
   mailing:
     provider: mailgun
+    # RFC 3339 instant from which a mailgun install sends through SES instead.
+    sesStartsAt: ""
     sesRegion: ""
     domain: ""
     fromAddress: ""
@@ -1767,6 +1788,12 @@ ovhFleet:
 # `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
 # runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
 # on that label); leave it off for cache fleets so they skip the download.
+#
+# `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
+# that kubelet minor. Kata fleets on v1.36 or later also run the pod-level
+# resource managers. The MachineDeployment is OnDelete, so a change only reaches
+# boxes as they are reprovisioned; see
+# infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
 ovhFleets: {}
 
 # Shared Vultr config holder. There is no singular Vultr MachineDeployment: the
@@ -2034,14 +2061,13 @@ rackFleet:
     # this fleet's guests so memory binds guest count where CPU does. A guest
     # smaller than its shape fails the render.
     guestShapes: {}
-    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
-    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    #   8vcpu-24gb: { vcpus: 10, memoryGb: 30 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
     # one, as on the rented fleet.
     shapes: {}
-    #   12vcpu-28gb:
+    #   16vcpu-48gb:
     #     autoscaling:
     #       enabled: true
     #       minWarmPoolFloor: 0
@@ -2670,6 +2696,20 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  macos:
+    enabled: false
+    templateName: macos
+    xcodeVersion: "26.6"
+    # Empty follows the same released, digest-pinned image as the CI pool.
+    image: ""
+    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
+    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
+    # macOS runner fleet) and share its warm-pool budget with CI. The pool
+    # keeps no always-on floor yet: the template renders `minWarmPoolFloor: 0`.
+    warm:
+      enabled: false
+      fleetSelector: ""
+      maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
   # server deploys publish and select both; environment values pin only the
@@ -2728,13 +2768,18 @@ sandboxes:
   # The next spawn restores it on any node and cold boots it. 0 keeps paused
   # Orbs on their nodes. See infra/amp-orbs/README.md.
   archiveAfterHours: 0
+  # While the archive tier is on, each minute archive the oldest idle Orb
+  # on each node above this percentage of its reserved disk budget (including
+  # node copies of disk snapshots), even if paused less than archiveAfterHours.
+  # Rechecks before uploading; 0 disables only this proactive trigger.
+  archiveDiskHighWaterPercent: 85
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "2x4096"
+  prebuildShapes: "4x8192,2x4096"
   # The only shapes a node accepts. Each shape costs a template build and a
   # memory image on disk, so the list is short and matches the shapes the
   # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "2x4096,4x8192,8x16384"
+  allowedShapes: "1x2048,2x4096,4x8192,8x16384,16x32768,16x45056"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
@@ -2759,8 +2804,15 @@ sandboxes:
     # Let the daemon reach the in-rack archive store (the shard-storage
     # release in the kura namespace) on :3900 to upload and restore Amp Orb
     # archives. The daemon drops the guests' traffic to that port
-    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    # (DAEMON_ONLY_TCP_PORTS), so only the daemon uses this rule.
     archiveStoreEgress: false
+    # Let guests reach the in-cluster server directly. The NetworkPolicy
+    # admits the daemon Pod, and so its guests, to the server for the node
+    # connection; without this the daemon drops guest traffic to the
+    # server's Service address and its Pods' port, so guests use the
+    # public Tuist URL like any client. Set it only for a deployment whose
+    # public URL resolves to the in-cluster Service.
+    guestServerAccess: false
 
 runnersFleet:
   customCacheVolumes:
@@ -2929,8 +2981,8 @@ runnersFleet:
   # `TUIST_RUNNER_MACOS_SHAPES` (JSON).
   #
   # A shape is what a CUSTOMER gets, and is deliberately independent of
-  # which SKU the fleet buys: a 6 vCPU / 14 GB guest is the same guest
-  # on an M2-L that fits one and an M4-XL that fits two. Adding a SKU
+  # which SKU the fleet buys: an 8 vCPU / 24 GB guest is the same guest
+  # on every host that fits it, however many it fits. Adding a SKU
   # to `machineGroups` therefore changes capacity, not the catalog —
   # and `memoryGb` here is the divisor the autoscaler uses to turn a
   # host's advertised memory into guest slots.
@@ -2955,9 +3007,9 @@ runnersFleet:
   #      advertises forces `hostMemoryMB` up, at which point CPU binds
   #      instead and the budget over-counts every SMALLER shape's slots,
   #      producing Pods the allocator keeps asking for and the scheduler
-  #      never places. At the M2-L's 6 vCPU / 14 GB that ratio is
-  #      2389 MB per vCPU, which is what makes 12 vCPU / 28 GB the
-  #      consistent way to sell an M4-XL's cores.
+  #      never places. At 8 vCPU / 24 GB that ratio is 3072 MB per
+  #      vCPU, the BER1 rack hosts' 16 CPU / 48 GB, which is what makes
+  #      16 vCPU / 48 GB the consistent larger shape.
   #   2. A shape larger than the smallest host in the fleet is
   #      over-promised by that same fleet-wide sum, since it counts
   #      memory on hosts too small to place it. The runners-controller
@@ -2972,8 +3024,8 @@ runnersFleet:
   # catalog can offer, so managed envs override this list per env rather
   # than sharing one. See `values-managed-common.yaml`.
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
     # A non-default entry may carry its own `autoscaling` block, which
     # scales every Xcode's pool of the shape. An Xcode's
@@ -2981,8 +3033,8 @@ runnersFleet:
     # replaces it for that Xcode's pool. Without either the pool renders
     # static at replicas 0.
     #
-    # - vcpus: 12
-    #   memoryGb: 28
+    # - vcpus: 16
+    #   memoryGb: 48
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 0
@@ -3187,6 +3239,22 @@ runnersFleetLinux:
     # Internal rollout/rollback switch. Requires enabled above. Applies to
     # every Linux pool; pools may explicitly override nestedVirtualization.
     defaultEnabled: false
+  # Whole physical cores per runner Pod, shared by the runner and its
+  # sidecars, so a job does not share cores with another job or an Orb.
+  # A pool with `exclusiveCPUs: true` gives its Pods one Guaranteed
+  # Pod-level budget and lands only on the hosts the CAPI provider labels
+  # `tuist.dev/pod-level-resource-managers=true` (Kata hosts on kubelet
+  # v1.36 or newer); with no such host in the fleet its Pods stay Pending.
+  # Cannot be combined with nestedVirtualization: current kubelets skip device
+  # allocation during pod-level admission and can panic on concurrent starts
+  # (kubernetes/kubernetes#143490).
+  # Needs kata-qemu and an even vCPU count. See
+  # infra/runners-controller/AGENTS.md "Exclusive CPUs".
+  exclusiveCPUs:
+    # Rollout switch for every Linux pool and shape with an even vCPU
+    # count; odd shapes keep shared cores. A pool or shape may set
+    # `exclusiveCPUs` itself to override it.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -3228,6 +3296,9 @@ runnersFleetLinux:
     #   # such as Android emulators. Needs kata-qemu and
     #   # `runnersFleetLinux.nestedVirtualization.enabled`.
     #   nestedVirtualization: false
+    #   # Optional. Whole cores for each Pod; needs an even pod.cpuMilli.
+    #   # Defaults to `runnersFleetLinux.exclusiveCPUs.defaultEnabled`.
+    #   exclusiveCPUs: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300
@@ -3252,6 +3323,22 @@ runnersFleetLinux:
   # desired image prepares in the background. Recomputed on every deploy;
   # empty in source values so holds do not become permanent image pins.
   imageHolds: {}
+  # Ubuntu releases a Linux Runner Profile can pick (`os_version` on the
+  # profile). Every shape renders one pool per entry that has an image;
+  # the server is told the same list (TUIST_RUNNER_LINUX_OS_VERSIONS), so
+  # it offers only an OS with pools. Exactly one entry is `default: true`:
+  # it runs `shapeRunnerImage` under the shape-only pool names, and new
+  # profiles get it. Other entries take `runnerImage`, or the
+  # deploy-resolved `osRunnerImages.<tag>` (tag = osVersion with dots as
+  # dashes), and their pools start at a warm floor of 0 unless their
+  # `autoscaling` block says otherwise. See
+  # infra/linux-runner-image/image-rollout.md for retiring an entry.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+  # Deployment-resolved digest per non-default OS tag, e.g.
+  # `ubuntu-22-04: ghcr.io/tuist/tuist-linux-runner@sha256:...`.
+  osRunnerImages: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true

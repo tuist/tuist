@@ -716,6 +716,13 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 	pool.Spec.NestedVirtualization = true
 	pod := build(t, pool)
 
+	if pod.Spec.Resources != nil {
+		t.Fatal("nested KVM must use container-level resources to avoid kubelet's pod-level device allocation race")
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Fatalf("nested KVM runner CPU limit = %dm, want 4000m", got)
+	}
 	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
 		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
 	}
@@ -726,7 +733,6 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 		t.Errorf("nodeSelector %s = %q, want \"true\"", KVMNodeLabel, got)
 	}
 
-	runner := containerByName(t, pod, "runner")
 	for name, list := range map[string]corev1.ResourceList{"requests": runner.Resources.Requests, "limits": runner.Resources.Limits} {
 		quantity, ok := list[KVMResourceName]
 		if !ok || quantity.Value() != 1 {
@@ -827,6 +833,80 @@ func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
 	macos.Spec.NestedVirtualization = true
 	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
 		t.Error("Build accepted nested virtualization on a macOS pool; want refusal")
+	}
+}
+
+func TestBuild_ExclusiveCPUsMovesTheBudgetToThePod(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pod := build(t, pool)
+
+	if pod.Spec.Resources == nil {
+		t.Fatal("pod.Spec.Resources = nil, want the Pod-level budget")
+	}
+	for name, list := range map[string]corev1.ResourceList{"requests": pod.Spec.Resources.Requests, "limits": pod.Spec.Resources.Limits} {
+		// Guaranteed QoS needs requests equal to limits; the static CPU
+		// manager pins only Guaranteed Pods.
+		if got := list.Cpu().MilliValue(); got != 4000 {
+			t.Errorf("pod %s cpu = %dm, want 4000m", name, got)
+		}
+		if got := list.Memory().Value(); got != 16<<30 {
+			t.Errorf("pod %s memory = %d, want 16Gi", name, got)
+		}
+		if len(list) != 2 {
+			t.Errorf("pod %s = %v, want only cpu and memory", name, list)
+		}
+	}
+	// A container keeping its own CPU would take an exclusive slice of
+	// the budget and leave the sidecars an empty shared pool.
+	for _, c := range append(append([]corev1.Container{}, pod.Spec.Containers...), pod.Spec.InitContainers...) {
+		for _, list := range []corev1.ResourceList{c.Resources.Requests, c.Resources.Limits} {
+			if _, ok := list[corev1.ResourceCPU]; ok {
+				t.Errorf("container %q sets cpu %v alongside the Pod-level budget", c.Name, list)
+			}
+			if _, ok := list[corev1.ResourceMemory]; ok {
+				t.Errorf("container %q sets memory %v alongside the Pod-level budget", c.Name, list)
+			}
+		}
+	}
+	if got := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("nodeSelector %s = %q, want \"true\"", PodLevelResourceManagersNodeLabel, got)
+	}
+}
+
+func TestBuild_WithoutExclusiveCPUsKeepsTheBudgetOnTheRunner(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if pod.Spec.Resources != nil {
+		t.Errorf("pod.Spec.Resources = %v on a pool that did not opt in", pod.Spec.Resources)
+	}
+	if _, ok := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; ok {
+		t.Errorf("nodeSelector carries %s on a pool that did not opt in", PodLevelResourceManagersNodeLabel)
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Errorf("runner cpu limit = %dm, want 4000m", got)
+	}
+}
+
+func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
+	for name, mutate := range map[string]func(*tuistv1.RunnerPool){
+		// Odd counts cannot fill whole two-thread cores, and full-pcpus-only
+		// would reject the Pod at admission on the node.
+		"odd cpus":        func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 1000 },
+		"fractional cpus": func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 2500 },
+		"runc":            func(p *tuistv1.RunnerPool) { p.Spec.RuntimeClass = "" },
+		"macos":           func(p *tuistv1.RunnerPool) { p.Spec.OS = "darwin"; p.Spec.RuntimeClass = "" },
+		"nested KVM":      func(p *tuistv1.RunnerPool) { p.Spec.NestedVirtualization = true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			pool := basePool("linux")
+			pool.Spec.ExclusiveCPUs = true
+			mutate(pool)
+			if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+				t.Error("Build accepted exclusive CPUs; want refusal")
+			}
+		})
 	}
 }
 
@@ -1332,5 +1412,26 @@ func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
 	pool.Spec.DockerCache = true
 	if _, err := Build(pool, "pod", "sa", "http://dispatch", "http://dispatch-internal", "docker:dind", "", "10.0.0.10", "cluster.local"); err == nil {
 		t.Fatal("built a Docker cache pool without cache volumes")
+	}
+}
+
+func TestBuild_MacOSSandboxWarmPoolHoldsNoCredentialAndNeedsAWarmHost(t *testing.T) {
+	pool := basePool("darwin")
+	pool.Labels = map[string]string{MacosSandboxWarmLabel: "true"}
+	pod := build(t, pool)
+
+	if pod.Labels[MacosSandboxWarmLabel] != "true" || pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "v1" {
+		t.Fatalf("warm Pod not labelled or not pinned to warm hosts: labels=%v selector=%v", pod.Labels, pod.Spec.NodeSelector)
+	}
+	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
+		t.Fatal("warm Pod mounts a ServiceAccount token")
+	}
+	if len(pod.Spec.Containers[0].Env) != 0 || len(pod.Spec.Volumes) != 0 {
+		t.Fatalf("warm Pod carries dispatch env or volumes: %v %v", pod.Spec.Containers[0].Env, pod.Spec.Volumes)
+	}
+
+	ci := build(t, basePool("darwin"))
+	if _, ok := ci.Labels[MacosSandboxWarmLabel]; ok || ci.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "" || len(ci.Spec.Containers[0].Env) == 0 {
+		t.Fatal("an unlabelled darwin pool changed shape")
 	}
 }

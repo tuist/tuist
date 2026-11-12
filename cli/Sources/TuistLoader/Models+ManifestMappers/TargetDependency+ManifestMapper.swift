@@ -147,6 +147,46 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+        case let .externalWithStatus(name, status, condition):
+            guard let dependencies = externalDependencies[name] ?? normalizedExternalDependencies[name.lowercased()] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
+            }
+
+            return dependencies.map {
+                $0.withCondition(condition?.asGraphCondition).withStatus(.from(manifest: status))
+            }
+        }
+    }
+}
+
+extension ProjectDescription.TargetDependency {
+    /// Whether the dependency is on an external dependency imported through `Package.swift`.
+    var isExternal: Bool {
+        switch self {
+        case .external, .externalWithStatus:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+extension XcodeGraph.TargetDependency {
+    /// The dependency with the given linking status. Dependencies that have no linking status are returned unchanged.
+    fileprivate func withStatus(_ status: XcodeGraph.LinkingStatus) -> Self {
+        switch self {
+        case let .target(name, _, condition):
+            return .target(name: name, status: status, condition: condition)
+        case let .project(target, path, _, condition):
+            return .project(target: target, path: path, status: status, condition: condition)
+        case let .framework(path, _, condition):
+            return .framework(path: path, status: status, condition: condition)
+        case let .xcframework(path, expectedSignature, _, condition):
+            return .xcframework(path: path, expectedSignature: expectedSignature, status: status, condition: condition)
+        case let .sdk(name, _, condition):
+            return .sdk(name: name, status: status, condition: condition)
+        case .library, .package, .xctest:
+            return self
         }
     }
 }

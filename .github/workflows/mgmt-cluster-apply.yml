@@ -443,9 +443,27 @@ jobs:
 
           helm repo add grafana https://grafana.github.io/helm-charts --force-update
           helm dependency build infra/helm/k8s-monitoring
+          # Keep Pillar 2 working during first bootstrap or backend recovery.
+          # Status-only checks: never read Pulse credential contents here.
+          pulse_args=(
+            --set k8s-monitoring.destinations.pulse-metrics.type=custom
+            --set-json 'k8s-monitoring.collectors.alloy-metrics.includeDestinations=["grafana-cloud-metrics"]'
+            --set-json 'k8s-monitoring.collectors.alloy-control-plane.includeDestinations=["grafana-cloud-metrics"]'
+          )
+          if kubectl -n observability get deployment pulse -o json | \
+              jq -e '(.status.observedGeneration >= .metadata.generation) and
+                (.status.availableReplicas >= (.spec.replicas // 1)) and
+                any(.status.conditions[]?; .type == "Available" and .status == "True")' >/dev/null &&
+            kubectl -n observability get externalsecret pulse-credentials -o json | \
+              jq -e 'any(.status.conditions[]?; .type == "Ready" and .status == "True")' >/dev/null; then
+            pulse_args=()
+          else
+            echo "::warning::Management Pulse is not ready; keeping Cloud-only monitoring until bootstrap completes"
+          fi
           helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
             --namespace observability \
             -f infra/helm/k8s-monitoring/values-management.yaml \
+            "${pulse_args[@]}" \
             --atomic --cleanup-on-fail --wait --timeout 10m
       - name: Verify converged management state
         env:

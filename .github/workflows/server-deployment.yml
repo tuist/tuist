@@ -36,6 +36,10 @@ name: Server Deployment
 on:
   workflow_dispatch:
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       environment:
         description: Target environment
         required: true
@@ -123,6 +127,10 @@ on:
         description: JSON array of the macOS catalog runner images this deploy targets
         value: ${{ jobs.deploy.outputs.macos_runner_images }}
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       sandbox_template_image_tag:
         description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
         required: false
@@ -331,7 +339,7 @@ jobs:
   build-sandbox-template:
     name: Publish sandbox template
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
     uses: ./.github/workflows/sandbox-image.yml
     with:
       commit_sha: ${{ inputs.commit_sha || github.sha }}
@@ -339,7 +347,7 @@ jobs:
   build-sandboxd:
     name: Publish sandboxd
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandboxd_image_tag == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandboxd_image_tag == ''
     uses: ./.github/workflows/sandboxd-image.yml
     with:
       commit_sha: ${{ inputs.commit_sha || github.sha }}
@@ -471,7 +479,7 @@ jobs:
   build-images:
     name: Build + push ${{ matrix.name }}
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == ''
     runs-on: tuist-linux-large
     timeout-minutes: 45
     strategy:
@@ -524,7 +532,7 @@ jobs:
   build-xcresult-processor-release:
     name: Build xcresult processor release
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
     runs-on: tuist-macos-27-0
     timeout-minutes: 30
     outputs:
@@ -569,7 +577,7 @@ jobs:
     #     tag, the deploy uses that instead, so building the sha image is waste.
     # Keep these conditions in lockstep with the deploy precedence below.
     name: Build + push Kura runtime (amd64)
-    if: inputs.environment == 'staging' && inputs.image_tag == '' && inputs.kura_runtime_image_tag == ''
+    if: inputs.build_only != true && inputs.environment == 'staging' && inputs.image_tag == '' && inputs.kura_runtime_image_tag == ''
     # tuist-linux is amd64; the staging node pool is amd64 (Hetzner ccx), so the
     # runner-native amd64-only build suffices (the release pipeline is multi-arch).
     runs-on: tuist-linux
@@ -647,7 +655,7 @@ jobs:
     name: Observability chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -663,7 +671,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl jq yq"
           cache: "false"
       - uses: 1password/install-cli-action@v4
         with:
@@ -687,6 +695,19 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Gate collectors on the currently deployed backend
+        env:
+          DEPLOY_ENV: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          # Intentional legacy identifier: reject historical monitoring charts
+          # that could resurrect the old writer after new storage rollups exist.
+          legacy_name=pulso
+          yq -o=json '.' "$OBSERVABILITY_CHART_PATH/Chart.yaml" \
+            | jq -e --arg legacy "$legacy_name" 'all(.dependencies[]?; .name != $legacy)' >/dev/null
+          # Backend selection follows the live workload, not a future rollout.
+          # Canary/production continue to require only their existing Pulse.
+          bash .github/scripts/pulse-readiness.sh
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
@@ -715,7 +736,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -829,7 +850,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -928,7 +949,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -1555,6 +1576,18 @@ jobs:
             echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
               "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
+            # Each other Ubuntu release a profile can pick ships as
+            # `<version>-<os-tag>` from the same release. A version that
+            # predates it has no such tag: the chart then renders no pools
+            # for that release and the server stops offering it.
+            for os_tag in ubuntu-22-04; do
+              if os_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "${linux_runner_image_version}-${os_tag}" 2>/dev/null)"; then
+                add_set "runnersFleetLinux.osRunnerImages.${os_tag}" \
+                  "ghcr.io/tuist/tuist-linux-runner@${os_digest}"
+              else
+                echo "::warning::No ${linux_runner_image_version}-${os_tag} Linux runner image; its profiles have no pool this deploy."
+              fi
+            done
           fi
 
           helm_values_args=(

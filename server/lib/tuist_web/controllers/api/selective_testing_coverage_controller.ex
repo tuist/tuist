@@ -133,7 +133,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   operation(:create_run,
     summary: "Create an impact run for coverage-based test selection.",
     description:
-      "Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.",
+      "Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback`, an error, or when the request times out, the client runs default selective testing.",
     operation_id: "createTestImpactRun",
     parameters: @path_parameters,
     request_body:

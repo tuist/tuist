@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Xcode-ის პრევიუები",
+  "title": "Xcode პრევიუები",
   "titleTemplate": ":title · Previews · Tuist",
   "description": "გაუზიარეთ აპლიკაციის პრევიუები არსებული Xcode პროექტებიდან და Tuist-ით გენერირებული პროექტებიდან."
 }
 ---
 # Xcode-ის პრევიუები
 
-ააწყვეთ თქვენი აპლიკაცია, შემდეგ გამოიყენეთ `tuist share`, რათა გამოაქვეყნოთ ის თქვენს Tuist-ის პროექტში. ჯერ დააკავშირეთ თქვენი პროექტი <.localized_link href="/guides/get-started/existing-xcode-project">არსებული Xcode-ის პროექტის</.localized_link> ან <.localized_link href="/guides/get-started/generated-xcode-project">გენერირებული პროექტის</.localized_link> სახელმძღვანელოს მიხედვით.
+ააწყვეთ თქვენი აპლიკაცია, შემდეგ კი გამოიყენეთ `tuist share`, რათა ის თქვენს Tuist-ის პროექტში გამოაქვეყნოთ. ჯერ დააკავშირეთ თქვენი პროექტი <.localized_link href="/guides/get-started/existing-xcode-project">არსებული Xcode-ის პროექტის</.localized_link> ან <.localized_link href="/guides/get-started/generated-xcode-project">გენერირებული პროექტის</.localized_link> სახელმძღვანელოს მიხედვით.
 
 ## აწყობა და გაზიარება
 
@@ -32,7 +32,7 @@ tuist share App --configuration Debug --platforms iOS
 
 ## ფიზიკური მოწყობილობები
 
-თქვენ პასუხისმგებელი ხართ მოწყობილობის აწყობების ხელმოწერაზე ისეთი პროვიზიონირების პროფილით, რომელიც იძლევა მიმღების მოწყობილობაზე ინსტალაციის საშუალებას. ააწყვეთ მოწყობილობის დანიშნულებით სიმულატორის SDK-ის ნაცვლად:
+თქვენ ხართ პასუხისმგებელი მოწყობილობის აწყობების ხელმოწერაზე ისეთი პროვიზიონინგის პროფილით, რომელიც იძლევა ინსტალაციის შესაძლებლობას მიმღების მოწყობილობაზე. ააწყვეთ მოწყობილობის დანიშნულებისამებრ სიმულატორის SDK-ის ნაცვლად:
 
 ```bash
 tuist xcodebuild build -scheme App -project App.xcodeproj \
@@ -46,18 +46,18 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa
 ```
 
-მიმღებებს შეუძლიათ გახსნან IPA პრევიუს ბმული მობილურ მოწყობილობაზე აპლიკაციის ინსტალაციისთვის. კვლავ მოქმედებს აუთენტიფიკაცია და პროექტის პრევიუს ხილვადობა.
+მიმღებებს შეუძლიათ გახსნან IPA პრევიუს ბმული მათ მობილურ მოწყობილობაზე აპლიკაციის ინსტალაციისთვის. ავტორიზაცია და პროექტის პრევიუს ხილვადობა კვლავ ძალაშია.
 
 ## CI და აწყობის ნომრები
 
-გამოიყენეთ თქვენი არსებული <.localized_link href="/guides/integrations/continuous-integration">CI აუთენტიფიკაცია</.localized_link> და გახადეთ `CFBundleVersion` უნიკალური ყოველი ახალი აწყობისთვის. მაგალითად, გამოიყენეთ GitHub Actions-ის <code v-pre>${{ github.run_number }}</code>. იგივე ბინარული ფაილისა და აწყობის ნომრის ხელახლა ატვირთვა `tuist share`-ის მეშვეობით ვერ მოხდება დუბლიკატის შექმნის ნაცვლად.
+გამოიყენეთ თქვენი არსებული <.localized_link href="/guides/integrations/continuous-integration">CI ავტორიზაცია</.localized_link> და გახადეთ `CFBundleVersion` უნიკალური ყოველი ახალი აწყობისთვის. მაგალითად, გამოიყენეთ GitHub Actions-ის <code v-pre>${{ github.run_number }}</code>. იგივე ბინარული ფაილისა და აწყობის ნომრის ხელახლა ატვირთვა `tuist share`-ით ვერ მოხდება და დუბლიკატი არ შეიქმნება.
 
 ```bash
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-იხილეთ <.localized_link href="/guides/features/previews#run-a-preview">პრევიუს გაშვება</.localized_link> გამოქვეყნებული აწყობების გასაშვებად, წვდომის, ტრეკებისა და README ბეჯებისთვის.
+იხილეთ <.localized_link href="/guides/features/previews#run-a-preview">პრევიუს გაშვება</.localized_link> გამოქვეყნებული აწყობების გასაშვებად, წვდომის, ტრეკების და README ბეჯებისთვის.
 
 <!-- @snippet: ./_tuist-share -->
 
-მიმღებებს შეუძლიათ გამოიყენონ <.localized_link href="/guides/features/previews/run/macos">Tuist macOS აპლიკაცია</.localized_link> ან <.localized_link href="/guides/features/previews/run/ios">iPhone აპლიკაცია</.localized_link> აწყობის სისტემის ინტეგრაციისგან დამოუკიდებლად. iPhone-ის სახელმძღვანელო ასევე მოიცავს <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">აპლიკაციაში განახლების შეტყობინებებს</.localized_link> Tuist SDK-თან ერთად.
+მიმღებებს შეუძლიათ გამოიყენონ <.localized_link href="/guides/features/previews/run/macos">Tuist macOS აპლიკაცია</.localized_link> ან <.localized_link href="/guides/features/previews/run/ios">iPhone აპლიკაცია</.localized_link> აწყობის სისტემასთან ინტეგრაციისგან დამოუკიდებლად. iPhone-ის სახელმძღვანელო ასევე მოიცავს <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">აპლიკაციაში განახლების შეტყობინებებს</.localized_link> Tuist SDK-ით.

@@ -6047,6 +6047,7 @@ defmodule Tuist.TestsTest do
       assert :ok = perform_job(CorrectTestCaseRunFlakyStateWorker, correction_job.args)
 
       RunsFixtures.optimize_test_case_runs()
+      Tuist.Tests.Test.Buffer.flush()
 
       {[corrected_run], _meta} =
         Tests.list_test_case_runs(%{
@@ -6054,6 +6055,8 @@ defmodule Tuist.TestsTest do
         })
 
       assert corrected_run.is_flaky
+      assert {:ok, corrected_test} = Tests.get_test(failed_test.id)
+      assert corrected_test.is_flaky
 
       Repo.delete!(correction_job)
 

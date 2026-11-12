@@ -1,0 +1,17 @@
+[package]
+name = "tuist-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tuist-credentials.workspace = true
+tuist-jwt.workspace = true
+tuist-oauth.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+base64.workspace = true

@@ -57,7 +57,8 @@ The priority order is:
    CI shape, but CI queued elsewhere does not veto every sandbox grant.
 3. CI warm floors and recent-demand headroom. Idle, unclaimed warm runners can
    be retired for a deferred sandbox growth even while CI is queued. There is
-   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes.
+   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes,
+   except 20 seconds after a sandbox's last command (see below).
 
 Admission is opportunistic, not a global FIFO queue or a guaranteed resource
 split. Kubernetes arbitrates competing Pod requests. Keep sandbox demand
@@ -107,7 +108,10 @@ must conflict if a newer resize or Pod replacement already landed.
 
 Every accepted observation transactionally queues an idempotent Oban reclaim job.
 Busy sandbox locks are skipped rather than waited on; the next observation retries
-them. Shared-node pauses have zero extra grace and enqueue a shrink immediately.
+them. Shared-node pauses have zero extra grace and enqueue a shrink immediately,
+except the pause after a sandbox's last command ends, which waits 20 seconds so
+the next command of a run (a sync, then a build) finds it running. The sandbox
+holds no residency meanwhile, so pressure from an observation pauses it at once.
 There is no three-minute warm hold. Only an in-flight growth can retain its request
 for up to 15 seconds while admission waits for it; a pause or CI reclaim bypasses
 that interval. The minute cron remains a recovery sweep. A failed shrink is

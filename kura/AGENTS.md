@@ -314,20 +314,23 @@ write completion and serving coordination; do not claim asynchronous replication
 is synchronized by closing the donor's connections.
 
 The pending migration acknowledgment path in `src/migration.rs` binds a legacy
-storage move to one destination process. Preparation hashes retained records and
-verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
-feed records against actual destination content. Feed cursors alone never prove
-retention. A fixed deadline per preparation attempt, bounded verification
-batches and a single verification worker prevent unbounded work. The retained
-walk resumes: after each verified page the source saves the index key it
-reached (a position, never a set of verified keys), and the feed position its
-pin started from covers writes the newest-first walk passed. A prepare for the
-same source process and destination process after a failed, unarmed attempt
-that advanced continues from there under a new deadline; one that advanced
-nothing keeps returning its failure. Feed history below the saved position
-restarts the walk from the top, and reset, rebind and another destination never
-inherit progress. Only a complete walk plus the pinned-feed proof reports ready.
-Resumption is unit-tested, not rehearsed on staging. Acknowledgments group-commit:
+storage move to one destination process. Preparation pins the source feed at its
+head and proves, on that peer, every write committed after the pin; armed
+HTTP/gRPC mutation completion checks committed feed records against actual
+destination content. Feed cursors alone never prove retention. Records retained
+from before the pin are not checked: ordinary replication copied them and each
+replica evicts on its own LRU schedule, so a miss on one is an acceptable cache
+miss and must never fail or stall preparation (a full-corpus walk could not pass
+on two full replicas). Do not reintroduce a retained walk as a readiness gate.
+A fixed deadline per preparation attempt, bounded verification batches and a
+single verification worker prevent unbounded work. A prepare for the same source
+process and destination process after a failed, unarmed attempt that advanced
+continues the feed proof under a new deadline; one that advanced nothing keeps
+returning its failure. Feed history trimmed below the pin of an unarmed attempt
+pins again at the head (those writes were ordinary asynchronous writes), and
+reset, rebind and another destination never inherit proof. Only the proof
+through the feed head plus the destination identity reports ready. Resumption is
+unit-tested, not rehearsed on staging. Acknowledgments group-commit:
 only a run whose feed head was taken after a write committed may prove it, and
 the bridge loop forces a run to probe an idle destination. Polling or resetting
 a preparation must tolerate the other clearing or restarting it, never panic.
@@ -338,8 +341,9 @@ live staging rehearsal.
 A ready migration bridge must survive the preparation deadline and controller
 pauses. Its bounded weak-reference task retains the feed pin until draining;
 release that pin on draining and on a failed preparation that made no progress.
-A failed attempt that advanced keeps it as a snapshot consumer, which the feed
-cap and stale window still bound and the drain gate never waits for. The internal reset API may
+The pin is a snapshot consumer at the pin position (so a rebind can re-prove
+from it), which the feed cap and stale window still bound and the drain gate
+never waits for. The internal reset API may
 clear only a completed failed unarmed attempt and must serialize with write
 acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
 The internal abort API clears the attempt for its exact target in any state:
@@ -351,9 +355,10 @@ demoted, so routing never moved; the controller enforces that, the runtime
 cannot. Abort is unit-tested and not rehearsed on staging.
 A destination process restart is recovered with the internal rebind API: only an
 armed bridge may move to a new incarnation at the same URL, it stays armed, and
-it reports ready only after re-proving every retained record and the pinned feed
-on the new process. Never carry proof from one destination process to another.
+it reports ready only after re-proving the feed from the pin on the new process;
+feed history trimmed below the pin keeps it unready. Never carry proof from one
+destination process to another.
 Bridge state is exported as `kura_migration_*` (armed, ready, last-proof age,
-walk progress, verified records, re-proof failures) and drives the proposed
+re-proof failures) and drives the proposed
 armed-but-not-ready rule in `../infra/helm/k8s-monitoring/alerts.md`; a ready
 bridge whose destination dies shows only as a growing last-proof age.

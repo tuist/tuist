@@ -306,8 +306,36 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
+            ),
+            .target(
+                name: "TuistCoverageSelectionAcceptanceTests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCoverageSelectionAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistCoverageSelectionAcceptanceTests"],
+                dependencies: [
+                    .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testSupport.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                ],
+                metadata: .metadata(tags: ["domain:testing", "layer:testing", "ee:true"])
             ),
         ]
     }
@@ -520,7 +548,9 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies
+        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies + [
+            .external(name: "TestCoverageAttribution"),
+        ]
     }
 
     public var strictConcurrencySetting: String? {
@@ -1045,6 +1075,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.oidc.targetName, condition: .when([.macos])),
                     .target(name: Module.git.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
@@ -1190,6 +1221,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "libzstd"),
+                    .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "NIOCore"),
@@ -1257,7 +1289,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.http.targetName),
-                    .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.loader.targetName, condition: .when([.macos])),
@@ -1802,7 +1833,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
-                    .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),

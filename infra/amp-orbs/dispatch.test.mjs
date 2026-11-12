@@ -121,6 +121,16 @@ test('explains the account on-node Orb limit without retrying', async () => {
   assert.doesNotMatch(output, /private-response-body/);
 });
 
+test('fails a pause whose project snapshot was not saved, without retrying', async () => {
+  const { code, output, requests } = await dispatch(
+    { ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_SNAPSHOT_ID: 'proj-1' },
+    () => ({ status: 503, headers: { 'X-Tuist-Orb-Refusal': 'snapshot-not-saved' } }),
+  );
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert.match(output, /could not save its project snapshot/);
+});
+
 test('supports an explicitly installed template and allowed shape', async () => {
   const { code, requests } = await dispatch({ ORB_IMAGE: 'amp', TUIST_ORB_TEMPLATE: 'amp', TUIST_ORB_VCPUS: '4', TUIST_ORB_MEMORY_MB: '8192', TUIST_ORB_WORKSPACE_GB: '30' });
   assert.equal(code, 0);
@@ -155,6 +165,31 @@ test('managed dispatch rereads the rotated workload token and ignores a requeste
       assert(!output.includes(token));
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('managed spawns forward the orb type and explain an unknown one; standalone spawns keep their shape', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-type-'));
+  const identity = join(directory, 'token');
+  try {
+    await writeFile(identity, 'identity');
+    const managed = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos' });
+    assert.equal(managed.code, 0, managed.output);
+    assert.equal(managed.requests[0].body.orb_type, 'macos');
+
+    const unknown = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'gpu' },
+      () => ({ status: 400, headers: { 'X-Tuist-Orb-Refusal': 'unknown-orb-type' } }));
+    assert.notEqual(unknown.code, 0);
+    assert.equal(unknown.requests.length, 1);
+    assert.match(unknown.output, /does not offer the orb type 'gpu'/);
+
+    const pause = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos', ORB_OPERATION: 'pause', ORB_TOKEN: '' });
+    assert.equal(pause.requests[0].body.orb_type, undefined);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+
+  const standalone = await dispatch({ ORB_TYPE: 'macos' });
+  assert.equal(standalone.code, 0, standalone.output);
+  assert.equal(standalone.requests[0].body.orb_type, undefined);
+  assert.equal(standalone.requests[0].body.template, 'default');
 });
 
 const admission = status => ({ status, headers: { 'X-Tuist-Orb-Retry': 'admission' } });

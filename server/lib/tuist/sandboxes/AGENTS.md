@@ -25,7 +25,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `reconcile_node_report/2` absorb what the node reports back. The
   agent-session functions are delegated to `Tuist.Sandboxes.AgentSessions`.
 - `Tuist.Sandboxes.AgentSessions`: starts Managed Agents sessions on an
-  account's environment with the environment's `anthropic_api_key`
+  account's environment with the environment's credential
   (`start_agent_session/3`), and follows them (`refresh_agent_session/1`,
   `list_agent_session_events/2`, `send_agent_session_message/2`,
   `archive_agent_session/1`). Event listing follows Anthropic's pages
@@ -59,8 +59,26 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Rows decide rather than the report, which lags: a delete frees its
   reservation at once. A paused sandbox's disk is already
   reserved, so a resume only needs room for its next pause on the
-  filesystem. `admissible?/2` is the check the poller runs before
-  acknowledging a work item. A node that reports no capacity or no disk
+  filesystem. `admission/2` is the check the poller runs on a work
+  item: it dispatches an admissible item at once and otherwise
+  acknowledges it and enqueues
+  `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
+  in the args), which rechecks every 5 s and dispatches once it passes,
+  force-stopping the item after 9 minutes (Anthropic stops an acknowledged
+  item without a worker after roughly 10 to 13 minutes). The rejection
+  reason (quota, or per node, with each macOS host's first failing check)
+  is logged when the item is held, once a minute while it waits and at
+  the deadline. When no node has disk for a new sandbox, `place/2` and the
+  admission check ask `Archives.make_node_room/1` to archive the oldest
+  paused Orb on those nodes, any account's, and the refusal stays
+  `:no_capacity`, which callers retry. The quota check (`Capacity.quota/2`) asks
+  `Archives.make_room/1` to archive a paused Orb past the disk limit, as a
+  create does, and an item that nothing can make room for
+  (`:sandbox_limit`) is released at once. Never leave an item
+  unacknowledged to wait for room: Anthropic offers it three times, 5 s
+  apart, then stops; it stays `queued`, can no longer be acknowledged, and
+  a new message does not requeue it (a stopped one is requeued by the
+  session's next message). A node that reports no capacity or no disk
   budget is not budgeted on that resource.
 - Elastic carve-outs (`Capacity.grow/3`, `Capacity.shrink/1`): a node whose
   daemon reports `elastic` with a ceiling above its floor is grown in place
@@ -95,24 +113,72 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   key. `TUIST_ANTHROPIC_API_URL` overrides the base URL.
 - `Tuist.Sandboxes.Anthropic.ControlPlane`: Req client for `/v1/agents`
   and `/v1/sessions` (`create_agent`, `create_session`, `get_session`,
-  `list_events`, `send_message`, `archive_session`), authenticated with
-  `x-api-key`. `list_events` fetches one page (`limit`, `order`, `page`,
+  `list_events`, `send_message`, `archive_session`, `get_environment`).
+  `list_events` fetches one page (`limit`, `order`, `page`,
   `created_at_gte` / `created_at_gt`) and returns `%{data, next_page}`.
-  Non-2xx answers become `{:error, %{status, message}}`.
+  Non-2xx answers become `{:error, %{status, message}}`. Every call takes a
+  credential, `{:api_key, key}` (sent as `x-api-key`) or
+  `{:bearer, token}` (sent as `Authorization: Bearer`). `AgentSessions`
+  resolves it from the environment row, read scoped to the caller's
+  account: the federated token when all four federation ids
+  (`anthropic_organization_id`, `anthropic_workspace_id`,
+  `anthropic_service_account_id`, `anthropic_federation_rule_id`) are set,
+  else `anthropic_api_key`, else `:missing_credentials`. The changeset
+  accepts the four ids all or none.
+- `Tuist.Sandboxes.Anthropic.Federation`: Tuist as an OIDC issuer for
+  Anthropic Workload Identity Federation. One issuer per account,
+  `<app url>/oidc/accounts/<account id>` (discovery and `jwks.json` served
+  by `TuistWeb.OIDCIssuerController`), so a customer rule that trusts their
+  issuer never accepts another account's tokens even without a `sub`
+  check. `iss` and `sub` (`account:<id>:agent-environment:<id>`) always
+  come from the environment row, never from the request. Each exchange
+  signs a new ES256 JWT (5 minutes, fresh `jti`: Anthropic rejects reuse)
+  and posts it to `/v1/oauth/token`; the access token is cached per node in
+  `KeyValueStore` (never Redis) under the environment and its ids, and
+  re-exchanged 2 minutes before expiry. The signing key is derived from the
+  token-signing secret with its own purpose label
+  (`AgentAuthSigningKey.derived_jwk/1`); rotation is in the moduledoc. The
+  work queue (`Anthropic.Client`) still uses the environment key: whether
+  federated tokens work on the environments work endpoints is untested.
+- Connecting from the dashboard (`TuistWeb.Components.ClaudeIntegration`,
+  Settings → Integrations) is one form: the customer creates the
+  self-hosted environment and its key in the Console (only the Console
+  generates environment keys) and pastes them with an API key (the
+  default) or the four federation ids. The `connect_claude_environment` MCP
+  tool takes the same inputs, and both go through
+  `Sandboxes.connect_managed_agents_environment/3`, which fetches the
+  environment with that credential (`fetch_anthropic_environment/3`) before
+  the row is written,
+  so a federated check signs with the setup subject `account:<id>:setup`
+  (admitted by the recommended `account:<id>:*` prefix). The secrets go
+  from the submitted form straight into the row and never into socket
+  assigns.
 - `Tuist.Sandboxes.Anthropic.Supervisor`: task supervisor + dynamic
   supervisor of the `Poller`s this replica started (one per enabled
   agent environment across the cluster, registered as
   `{:global, {Poller, agent_environment_id}}`), kept in sync with the
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
+- `Router.session_environment/2` decides the OS a session runs on, for
+  the poller's admission and the router alike: an existing sandbox keeps
+  its platform; a new one takes the `AgentSession` row's `platform`, else
+  the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
+  else the environment's. Work items carry only the session id, so that
+  key is read with `ControlPlane.get_session/2` and the environment's
+  `anthropic_api_key`; a failed read falls back to the environment's. A
+  platform other than the environment's runs that platform's default
+  template and shape (`Sandboxes.platform_defaults/1`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
-  Anthropic re-queues it. The residency that creates the sandbox also
-  binds it to the `AgentSession` row (looked up by
-  `anthropic_session_id`) and clones the requested repository into
-  `/workspace/<name>` with `git clone --filter=blob:none` (branch via
+  Anthropic re-queues it. Like an Amp Orb's spawn, a turn that just
+  created a macOS sandbox records its residency without a fresh CI grant
+  (`created: true`): the VM already holds its slot. Inside the residency
+  that created the sandbox, the router binds it to the `AgentSession` row
+  (looked up by `anthropic_session_id`) and clones the requested
+  repository into `<workspace>/<name>` (`/workspace` on Linux,
+  `/Users/runner/work` on macOS) with `git clone --filter=blob:none` (branch via
   `--branch`, a commit sha via a follow-up `checkout`; 90s budget). A
   github.com repository named on the `AgentSession` row is cloned with a
   token minted for that one repository with `contents: read`
@@ -122,6 +188,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   session metadata (which anyone with access to the Anthropic workspace
   can set) is cloned anonymously. A failed clone is logged and the
   worker still starts.
+- Claude Code cloud environments (`kind: :claude_code`, `ccpool_...`) are
+  agent environments the Managed Agents `Manager` skips. Users pick the OS
+  by picking the environment in Claude Code, so each runs its own platform.
+  `ClaudeCodeReconciler` (Oban cron, every minute, and on create/delete)
+  keeps one orchestrator Deployment per enabled environment
+  (`ClaudeCodeRuntime`, `infra/claude-code-runners`) in the Amp provider
+  namespace. Its spawn hook calls `ClaudeCodeRunnersController` with a
+  projected token (audience `tuist-claude-code-runners`) that names the
+  environment. `ClaudeCodeRunners.spawn/2` answers before the VM boots:
+  `:running` when the session's sandbox holds a residency, `:accepted` after
+  `Capacity.admissible?/2`, else `:no_capacity`. A supervised task then, under
+  the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
+  the sandbox, records the residency with `created:` like the router, and
+  starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
+  the runner's credential: keep it out of rows and logs.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -130,26 +211,39 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
   with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
   spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
-  and is created with `from_disk_snapshot`; when that node cannot take it or
-  the clone fails, it boots the template instead. Each snapshot reserves its
+  and is created with `from_disk_snapshot`. While the archive tier is on, a
+  ready snapshot is also uploaded (`archive_disks`, `ArchiveDiskSnapshotWorker`
+  on the `sandbox_archives` queue, retried by `Archives.run/0` every six
+  hours, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
+  node copy; when the node cannot take the Orb, lost the copy or the clone
+  fails, an archived snapshot is created `from_archive` on any node with room
+  (boot source `disk_snapshot_archive`), else the template boots. A copy the
+  node loses keeps an archived row with `node_name` nil; a delete removes the
+  object too. Each snapshot with a node reserves its
   rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
   save itself is admitted under the node's lock
   (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
-  of the same id. Node reports reconcile them like sandboxes: copies no row
-  knows are deleted from the node, rows whose copy the node no longer lists
-  are dropped after a two-minute grace. A daemon that reports no
+  of the same id, and of the id the saving Orb was spawned from
+  (`sandboxes.amp_base_snapshot_id`), since Amp refreshes a project snapshot
+  under a new id. Node reports reconcile them like sandboxes: copies no row
+  places on the node are deleted from it, rows whose copy the node no longer
+  lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
-  unset), or the least recently paused one of an account whose disk quota
-  refused a create or restore (`make_room/1`), is uploaded by its node (`archive` command with presigned multipart
+  unset), the least recently paused one of an account whose disk quota
+  refused a create or restore (`make_room/1`), or the least recently paused
+  one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most
+  one upload from them at a time), is uploaded by its node (`archive` command with presigned multipart
   part URLs; the daemon holds no storage credentials) as kernel, rootfs and
   workspace without the memory image, to `sandbox-archives/<account_id>/`
   in the archive bucket of the in-rack store at the node's site (a shard
   storage target with an `archive_bucket`, recorded in `archive_store`), or
-  in the account's storage when there is none or the account has its own
+  in the account's storage when there is none available, the store's shared
+  `archive_budget_bytes` is reached (100 GiB by default, production 500 GiB,
+  canary 100 GiB), or the account has its own
   S3 storage. The sandboxd NetworkPolicy lets the daemon reach the store
   and the daemon drops guest traffic to its port. The row
   becomes `archived` with `node_name` nil only after the upload is
@@ -165,16 +259,26 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
-  node reservation and both limits; accounts stop archiving at 100 GiB of
-  archives. There is no count of paused Orbs per account.
-  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
-  `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
+  node reservation and both limits. Each store's archive budget counts Orb
+  and disk snapshot archives across all accounts, including restored objects
+  awaiting deletion, leaving room for shard artifacts; uploads can cross it.
+  There is no per-account archive limit. Account-storage archives have no cap.
+  Existing archives do not move or expire. There is no count of paused Orbs per account.
+  `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (every minute) runs
+  `Archives.run/0`, which also queues the oldest idle Orb on each node above
+  `Environment.sandbox_archive_disk_high_water_percent/0` (default 85% of
+  the reserved disk budget, snapshot copies included), rechecking pressure
+  before uploading. It also aborts uploads abandoned for 45 minutes and
   reverts restores stuck for 15.
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
   retryable), and every sandbox on a node, paused included, charges the disk
-  quota (`sandbox_disk_gb_limit`) with its workspace and memory image,
+  quota (`sandbox_disk_gb_limit`) with the ceiling its node reserves
+  (`Capacity.disk_ceiling_bytes/2`: rootfs sized from the connected nodes'
+  template reports, workspace, memory image and overhead; a macOS one its
+  workspace and memory image), as does each of the account's disk snapshots
+  on a node, so the quota binds before the nodes fill up. It is
   checked on create and restore only, so lowering it never strands a paused
   sandbox. Past the disk quota, `Archives.make_room/1` queues the archive of
   the account's least recently paused idle Orb and the refusal is retryable
@@ -203,7 +307,10 @@ Shared-fleet admission requires a fresh controller allocation on `sandbox_nodes`
 CI reservation revocation, zero extra warm memory, timestamp ordering and resize
 serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/fleet-sharing.md).
 `ReclaimCapacityWorker` applies pressure after the allocation is committed.
-Shared-node idle pauses have zero grace and enqueue shrink work; active
+Shared-node idle pauses (all macOS hosts too) have zero grace and enqueue
+shrink work, except 20 s after the last command ends (`Commands` residency),
+so a command run such as a sync then a build does not wait out a pause and a
+resume; CI pressure still pauses that idle sandbox at once. Active
 residencies and daemon worker/exec guards remain authoritative.
 
 Account compute admission is independent of CI: `Tuist.Sandboxes.Concurrency`
@@ -282,11 +389,27 @@ socket, the poller and the caller share a replica:
   serialized by the API. It travels only inside `start_worker` args.
 - `anthropic_api_key` is `Tuist.Vault.Binary` encrypted, never
   serialized by the API (`has_api_key` is), and only ever used
-  server-side by `ControlPlane`. Installation tokens used for private
+  server-side by `ControlPlane`. Federated access tokens live only in the
+  node's in-memory cache and are never persisted or serialized. Installation tokens used for private
   clones live only in the clone command's environment; git output is
   redacted before it is logged.
 - Exec output is capped at 1 MiB per stream as frames arrive (the node
   stops streaming past 2 MiB) and returned with invalid UTF-8 replaced.
+- `Tuist.Sandboxes.Commands` (`/:sandbox_id/commands`) runs commands that
+  outlive a request: one exec launches the command detached under
+  `setsid`, outside the node's exec process-group fence, with its output,
+  stdin, pid and exit code in `$HOME/.cache/tuist/commands/<id>` in the
+  guest. A `sandbox_commands` row records each command (never its env).
+  All commands share the residency `commands` (`begin_shared_residency/2`,
+  plus a macOS host hold of the same name), so a sandbox runs several at
+  once but an agent turn refuses them with `:busy`. `release_if_idle/1`
+  ends it under the sandbox row lock once no row is `running`; `start/2`
+  inserts its row before holding, which closes the race with a release.
+  `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
+  kills each command at its deadline and records commands no client reads.
+  The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
+  under proxy idle timeouts. Never end the residency with
+  `end_residency/1`; use `end_residency/2`, which leaves a newer one alone.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when
   the model or the system prompt changes.
@@ -306,10 +429,15 @@ socket, the poller and the caller share a replica:
   canary and production), and the poller manager only runs pollers for
   flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
   workspaces up to 100 GB.
-- `TuistWeb.API.SandboxesController`: account-admin API under
+- `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
-  including `PATCH agent-environments/:id` for the API key, model and
-  system prompt; sandboxes, exec/pause/resume/delete).
+  including `PATCH agent-environments/:id` for the API key, the federation
+  ids, model and system prompt; agent environments are serialized with
+  `federation_issuer_url` and `federation_subject`; sandboxes, exec,
+  commands, pause/resume/delete). Members
+  (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
+  sandboxes without an agent environment, Amp integration, provider
+  environment or remote-execution purpose; everything else is admin-only.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
@@ -319,7 +447,7 @@ socket, the poller and the caller share a replica:
   Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
   and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
   Archive (`Sandboxes.archive/1`) only queues `ArchiveSandboxesWorker` for
-  one paused sandbox of any source, under the account's archive storage cap,
+  one paused sandbox of any source,
   because the upload outlives a page. The app layout renders no flashes, so
   these pages render theirs with `SandboxesLive.flash_alerts/1`.
   The overview charts come from `Analytics` over ClickHouse
@@ -327,8 +455,8 @@ socket, the poller and the caller share a replica:
   `update_sandbox/3`, and explicitly where a state is written another way
   (create, delete, `mark_error`, `Archives`). A new state write must record
   its event too, or sessions and concurrency drift. Peak disk follows
-  `Concurrency`'s disk charge: a sandbox holds its workspace and memory image
-  from `created` (or a restore's `started`) until `archived`, `failed` or
+  `Concurrency.disk_bytes/2`, with the platform and template read from the
+  sandbox rows: a sandbox holds its disk ceiling from `created` (or a restore's `started`) until `archived`, `failed` or
   `deleted`, paused or not. `boot/2` times each
   boot (create or restore) and tags its `started` event with what it booted
   from. Before every Amp pause, `AmpOrbs` reads the birth and modification

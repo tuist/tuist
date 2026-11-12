@@ -150,6 +150,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -554,6 +566,39 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/members"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
       />
+      <.sidebar_group
+        :if={Tuist.Pulse.authorized?(@current_user, @selected_account)}
+        id="sidebar-pulse"
+        label="Pulse"
+        icon="chart_arcs"
+        default_open={String.starts_with?(@current_path, "/#{@selected_account.name}/~/pulse/")}
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Metrics")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/~/pulse/metrics"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/metrics"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Logs")}
+          icon="file_text"
+          navigate={~p"/#{@selected_account.name}/~/pulse/logs"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/logs"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Traces")}
+          icon="list_tree"
+          navigate={~p"/#{@selected_account.name}/~/pulse/traces"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
+        />
+        <.sidebar_item
+          :if={Tuist.Pulse.errors_available?()}
+          label={dgettext("dashboard", "Errors")}
+          icon="alert_circle"
+          navigate={~p"/#{@selected_account.name}/~/pulse/errors"}
+          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/~/pulse/errors")}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Webhooks")}
@@ -604,6 +649,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
       <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
+      <% organization_ai? = not is_nil(@selected_account.organization_id) %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -629,12 +675,19 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.tab_menu_horizontal_item
         :if={
-          @selected_account.user_id == @current_user.id and
-            FeatureFlags.ai_enabled?(@current_user)
+          if organization_ai?,
+            do:
+              Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
+                FeatureFlags.organization_ai_enabled?(@selected_account),
+            else:
+              @selected_account.user_id == @current_user.id and
+                FeatureFlags.ai_enabled?(@current_user)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}
-        navigate={ai_path}
+        navigate={
+          if organization_ai?, do: ~p"/#{@selected_account.name}/settings/ai/routing", else: ai_path
+        }
       />
     </.tab_menu_horizontal>
     """

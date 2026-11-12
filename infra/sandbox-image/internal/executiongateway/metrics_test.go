@@ -1,11 +1,23 @@
 package executiongateway
 
 import (
+	"bytes"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestExecutionsAreCountedByPathAndStatus(t *testing.T) {
@@ -44,5 +56,67 @@ func TestPrefetchesAreCountedByHowTheInputsWereRead(t *testing.T) {
 				t.Fatalf("%v prefetches counted as %s", n, test.name)
 			}
 		})
+	}
+}
+
+func TestExecutedActionPhasesAreAttributed(t *testing.T) {
+	m := newMetrics(prometheus.NewRegistry())
+	at := func(s float64) *timestamppb.Timestamp {
+		return timestamppb.New(time.Unix(1_000, 0).Add(time.Duration(s * float64(time.Second))))
+	}
+	m.observePhases(&re.ExecutedActionMetadata{
+		QueuedTimestamp:                at(0),
+		WorkerStartTimestamp:           at(2),
+		InputFetchStartTimestamp:       at(2),
+		InputFetchCompletedTimestamp:   at(172),
+		ExecutionStartTimestamp:        at(172.5),
+		ExecutionCompletedTimestamp:    at(176),
+		OutputUploadStartTimestamp:     at(177),
+		OutputUploadCompletedTimestamp: at(176), // reversed: skipped
+	})
+	m.observePhases(nil)
+
+	for phase, want := range map[string]float64{"queued": 2, "input_fetch": 170, "execution": 3.5} {
+		var metric dto.Metric
+		if err := m.phases.WithLabelValues(phase).(prometheus.Histogram).Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+		if got := metric.GetHistogram().GetSampleSum(); got != want || metric.GetHistogram().GetSampleCount() != 1 {
+			t.Fatalf("%s: %d samples summing to %vs; want one of %vs", phase, metric.GetHistogram().GetSampleCount(), got, want)
+		}
+	}
+	if n := testutil.CollectAndCount(m.phases); n != 3 {
+		t.Fatalf("%d phase series; the reversed output upload must not be recorded", n)
+	}
+}
+
+func TestPhaseLogIncludesCASReadsOnlyForSlowInputFetches(t *testing.T) {
+	var out bytes.Buffer
+	log.SetOutput(&out)
+	defer log.SetOutput(os.Stderr)
+	reads, _ := structpb.NewStruct(map[string]any{"kind": "tuist.cas_reads", "slowest": []any{map[string]any{"rpc": "stream", "ms": 160000}}})
+	other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
+	readsAny, _ := anypb.New(reads)
+	otherAny, _ := anypb.New(other)
+	delete(reads.Fields, "kind")
+	start := time.Unix(1_000, 0)
+	for _, fetch := range []time.Duration{slowInputFetch - time.Millisecond, slowInputFetch} {
+		out.Reset()
+		newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
+			InputFetchStartTimestamp: timestamppb.New(start), InputFetchCompletedTimestamp: timestamppb.New(start.Add(fetch)),
+			AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
+		})
+		line := strings.TrimSpace(out.String())
+		_, suffix, logged := strings.Cut(line, " cas_reads=")
+		if slow := fetch >= slowInputFetch; logged != slow {
+			t.Fatalf("input fetch %v logged %q; want CAS reads only from %v", fetch, line, slowInputFetch)
+		}
+		if !logged {
+			continue
+		}
+		var got structpb.Struct
+		if protojson.Unmarshal([]byte(suffix), &got) != nil || !proto.Equal(&got, reads) {
+			t.Fatalf("logged CAS reads %q; want %v", suffix, reads)
+		}
 	}
 }

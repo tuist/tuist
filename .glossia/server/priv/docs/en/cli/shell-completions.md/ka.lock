@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "322dc40f6f8e51d173433f39116e7cc40e77eed4210534ec1ca04656e69f947d",
+  "hash": "01af4fe41b57577e22df44bedd391674599c0e6519d481125c28fcff6a30d196",
   "hash_tree": {
     "root": {
       "children": [
@@ -10,17 +10,17 @@
             "content_hash": {
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
-                "# Shell completions": {
-                  "content_hash": "4a8b072fe5a04244c1b849f222c52ea5b169ed4b32ab694fa7310d9eeb4e8ed0"
+                "# Shell completions {#shell-completions}": {
+                  "content_hash": "aa8ee15a39e47228097a91c07711f715a7bcd9d347fcf04045d138083b5cd26f"
                 },
-                "#### Bash {#bash}": {
-                  "content_hash": "61d5fdf36df071cc4bc787cc8b842dcea5844cab226e94e38b9e7c907f108059"
+                "## Bash {#bash}": {
+                  "content_hash": "43c89cef5167ae6ae5c69ba44870fca5d82bcdc8cbfeb3c44370221051cd1813"
                 },
-                "#### Fish {#fish}": {
-                  "content_hash": "4ac826b00c032c6f1f965ebed46563bf956b7e1d66c64290190678473e999fb9"
+                "## Fish {#fish}": {
+                  "content_hash": "f6b481e61de657ffbca55bead892764ac4e6716ca6d031250587c9083db9b897"
                 },
-                "#### Zsh {#zsh}": {
-                  "content_hash": "b51586f037babcc1cd9196ffaf6560a407cc25ee3535ff153d98d6f99cb0e0ae"
+                "## Zsh {#zsh}": {
+                  "content_hash": "37c9a3697e9efd102d1a8ba77a0dc155f13a2f26bbf9fe45e2462ca76713838d"
                 },
                 "Preamble": {
                   "content_hash": "75c0fe3309b713332d5ba3ff2e0b32214744b386b5769150c1da6d31526d8e16"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8c3aa69b537e60b24a68cd264bc6f0e8b263e54e43744b82746286496452ee50",
+          "hash": "cd89b276fb250054bf0580f5ad33b8005a50aca9bbbe4a2b80bf5805bd4d5e04",
           "kind": "source",
           "label": "server/priv/docs/en/cli/shell-completions.md",
           "metadata": {
-            "content_hash": "68c4885f555cde939ffe1a20de167de2c5d8ba3913d8124daecbb11a32005ab1"
+            "content_hash": "117ebd9e055032095cc358de2cbc86bbe9b83957f2397e502c727f39a09f3f66"
           }
         },
         {
@@ -223,14 +223,14 @@
         }
       ],
       "details": {},
-      "hash": "322dc40f6f8e51d173433f39116e7cc40e77eed4210534ec1ca04656e69f947d",
+      "hash": "01af4fe41b57577e22df44bedd391674599c0e6519d481125c28fcff6a30d196",
       "kind": "translation_input",
       "label": "server/priv/docs/en/cli/shell-completions.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5102a3151972d1afd5a3c2885e856af3286b28f90e969929b9fafe6e0263a222",
+  "output_hash": "d14d6e445801376525c736d5f976ec17e6b7ce778a79b072625b3dc7fffbc4ef",
   "output_path": "server/priv/docs/ka/cli/shell-completions.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "92cdb470cfe891bd71471ea92bd1b14409c523db",
   "source_path": "server/priv/docs/en/cli/shell-completions.md",
-  "translated_at": "2026-11-04T17:45:58.087718Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:36:35.342220Z",
+  "translation_session_id": "01a1b17e-ce4a-773d-acc9-dd237d9e7e04"
 }

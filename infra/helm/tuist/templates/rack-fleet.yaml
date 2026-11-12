@@ -169,7 +169,7 @@ spec:
 {{- end }}
 {{- end }}
 ---
-{{- /*
+{{/*
 Remediation for a host that dies AFTER it has joined.
 
 The reconciler's own failure handling is bootstrap-only: it power-cycles, then

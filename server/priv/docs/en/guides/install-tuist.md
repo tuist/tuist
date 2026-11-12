@@ -27,7 +27,7 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 If you clone a project that already has a Tuist version pinned in `mise.toml`, run `mise install` to install it.
 
 > [!TIP]
-> `tuist@latest` resolves to the latest **stable** release. Tuist also publishes prerelease canary and release candidate builds; those are opt-in only and are never resolved by `latest`. See <.localized_link href="/cli/release-channels">Release channels</.localized_link> for how to pin a stable line you can trust and how to opt into prereleases.
+> `tuist@latest` resolves to the latest **stable** release. Tuist also publishes prerelease canary and release candidate builds; those are opt-in only and are never resolved by `latest`. See <.localized_link href="/cli/release/channels">Release channels</.localized_link> for how to pin a stable line you can trust and how to opt into prereleases.
 
 <details>
 <summary>Linux support</summary>
@@ -59,3 +59,8 @@ brew install --formula tuist@x.y.z
 ## HTTP proxy {#http-proxy}
 
 If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+
+## Next steps {#next-steps}
+
+- Follow the <.localized_link href="/guides/get-started">Get started guide</.localized_link> to connect your project to Tuist.
+- Explore [Tuist's build infrastructure for engineering teams and coding agents](https://tuist.dev) for the broader product context.

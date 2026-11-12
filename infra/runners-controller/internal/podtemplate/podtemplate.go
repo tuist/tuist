@@ -80,6 +80,15 @@ const (
 	// separate modules, so they are coupled by this convention.
 	KVMNodeLabel = "tuist.dev/kata-kvm"
 
+	// PodLevelResourceManagersNodeLabel marks a Kata host whose kubelet runs
+	// the pod-level resource managers and whose Kata sizes VMs from the
+	// Pod-level budget. Only there may a runner Pod carry one: elsewhere
+	// Kata would boot a VM from every container's copy of the budget.
+	//
+	// CONTRACT: the provider (`PodLevelResourceManagersLabel` in
+	// infra/cluster-api-provider-tuist/controllers/linux) writes it.
+	PodLevelResourceManagersNodeLabel = "tuist.dev/pod-level-resource-managers"
+
 	// KVMResourceName is the extended resource kvm-device-plugin
 	// advertises. Allocating it is what puts /dev/kvm into the runner
 	// container's OCI spec; the Kata agent then creates the node inside
@@ -183,6 +192,23 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 	}
 
+	if pool.Spec.ExclusiveCPUs {
+		// Pod-level admission skips device allocation in current kubelets.
+		// Concurrent KVM allocations at container start can panic the host:
+		// https://github.com/kubernetes/kubernetes/issues/143490.
+		if pool.Spec.NestedVirtualization {
+			return nil, fmt.Errorf("refusing to build runner Pod: pool %q exclusiveCPUs cannot be combined with nestedVirtualization until kubelet supports device allocation during pod-level admission", pool.Name)
+		}
+		if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu" {
+			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
+		}
+		// The static CPU manager pins only whole CPUs, and full-pcpus-only
+		// rejects a count that does not fill whole two-thread cores.
+		if pool.Spec.PodCPUMilli <= 0 || pool.Spec.PodCPUMilli%2000 != 0 {
+			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q asks for %dm CPU, want a whole, even number of CPUs", pool.Name, pool.Spec.PodCPUMilli)
+		}
+	}
+
 	nodeSelector, tolerations := schedulingFor(pool)
 
 	effectiveDispatchURL := dispatchURL
@@ -246,6 +272,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.ResourceCPU:    *cpu,
 			corev1.ResourceMemory: *mem,
 		},
+	}
+	// With exclusive CPUs the budget moves to the Pod, so every container
+	// shares the one exclusive CPU set and dind's Docker containers count
+	// against the job's budget. A container keeping its own CPU and memory
+	// would get an exclusive slice of its own and leave the sidecars none.
+	var podResources *corev1.ResourceRequirements
+	if pool.Spec.ExclusiveCPUs {
+		podResources = &corev1.ResourceRequirements{Requests: resources.Requests, Limits: resources.Limits}
+		resources = corev1.ResourceRequirements{Requests: corev1.ResourceList{}, Limits: corev1.ResourceList{}}
 	}
 	if pool.Spec.NestedVirtualization {
 		resources.Requests[KVMResourceName] = resource.MustParse("1")
@@ -701,7 +736,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		})
 	}
 
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,
 			Namespace:   pool.Namespace,
@@ -717,6 +752,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		},
 		Spec: corev1.PodSpec{
 			ServiceAccountName: saName,
+			Resources:          podResources,
 			// macOS: default automount (tart-kubelet projects the
 			// audience-scoped token separately into the VM).
 			// Linux: disable automount and project the
@@ -753,7 +789,31 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 			},
 		},
-	}, nil
+	}
+	if IsMacosSandboxWarm(pool) {
+		// A warm sandbox VM is booted by tart-kubelet's sandbox service,
+		// which owns its finalizer, and later handed to a sandbox. It
+		// polls no dispatch and must hold no credential.
+		pod.Labels[MacosSandboxWarmLabel] = "true"
+		pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] = "v1"
+		pod.Spec.AutomountServiceAccountToken = ptr(false)
+		pod.Spec.Containers[0].Env = nil
+	}
+	return pod, nil
+}
+
+const (
+	// MacosSandboxWarmLabel marks a darwin RunnerPool, and its Pods, as
+	// pre-booted macOS sandbox VMs instead of CI runners.
+	MacosSandboxWarmLabel = "tuist.dev/macos-sandbox-warm"
+	// MacosSandboxWarmHostLabel is advertised by tart-kubelets that boot
+	// warm Pods, so an older kubelet never runs one as a CI VM.
+	MacosSandboxWarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
+)
+
+// IsMacosSandboxWarm reports whether the pool keeps warm sandbox VMs.
+func IsMacosSandboxWarm(pool *tuistv1.RunnerPool) bool {
+	return pool.Spec.OS == "darwin" && pool.Labels[MacosSandboxWarmLabel] == "true"
 }
 
 // BuildServiceAccount returns the per-Pod ServiceAccount manifest.
@@ -911,6 +971,9 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 		}
 		if pool.Spec.NestedVirtualization {
 			selector[KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			selector[PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return selector, []corev1.Toleration{
 			{

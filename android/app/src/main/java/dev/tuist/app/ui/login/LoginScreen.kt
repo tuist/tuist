@@ -45,7 +45,8 @@ import dev.tuist.app.ui.noora.NooraTheme
 fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
-    val activity = LocalContext.current as Activity
+    val activity = generateSequence(LocalContext.current) { (it as? android.content.ContextWrapper)?.baseContext }
+        .filterIsInstance<Activity>().first()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {

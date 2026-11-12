@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b459c779b415eaa5de2d36050a8e8c7f092c7b6adb88bbd9e06473e3a8dfd84a",
+  "hash": "4a9cd73c61e300090a4761caa8e44815d4a1f524e2bd0d3a9febab152ffbcf98",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,58 +11,25 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Gradle flaky tests {#gradle-flaky-tests}": {
-                  "content_hash": "67f7b3af5ebe850d58133d5d8e49a9f27e192dee07fedfb094a83fc4049ec3e7"
+                  "content_hash": "a7bf8555cc3c97d159f86afddad809d6c48633a9d21f7fa636407626612e1e99"
                 },
                 "## How flaky detection works {#how-it-works}": {
                   "content_hash": "5f98312f9bc586bd32cb842f08bc11c8d30e8f2e24b09353c1bb0aa8819ec2f9"
                 },
-                "## Managing flaky tests {#managing-flaky-tests}": {
-                  "content_hash": "11d25e392de7f616097c41bd981e80c7ca6dc4bea26bcb5cbc19e63323498f7b"
-                },
                 "## Quarantining flaky tests {#quarantining}": {
-                  "content_hash": "df5b6d6f7c4ec2f91eff3c542dbc13391f5999b4985fe76c27fb54dbca6a90ef"
-                },
-                "## Querying flaky and quarantined state {#querying}": {
-                  "content_hash": "72798b50903aa02c966d084590175f6141864a03d5083b0e1815f5e37b7e97d2"
-                },
-                "## Slack notifications {#slack-notifications}": {
-                  "content_hash": "935080092bbd6787aaab4211dcff24737f0684a20badd29e06505fcfa3223c4c"
+                  "content_hash": "f3513787d706f32183b2e4a8e90b0053330f7fdce06810fb8669c862c971d3af"
                 },
                 "## Stress-testing new tests {#stress-testing-new-tests}": {
-                  "content_hash": "279d63147cf803da7b70d8d8925bb54dbe34b26b1a51ae95c2d35735f698fc4c"
-                },
-                "### Automatic clearing": {
-                  "content_hash": "4c1cb6d485552e05e578c9d98ad86331426c472b54fb1e957219eac49bb35e83"
-                },
-                "### CLI": {
-                  "content_hash": "09b942346ea389b37942f7641b8d0ac043be11809f2ab6017721a14ca2adbebf"
+                  "content_hash": "6bd26a0cd592e204bdb567b01b5c273f55b4956c51e3758bf7ec46cbaa012208"
                 },
                 "### Cross-run detection {#cross-run-detection}": {
-                  "content_hash": "56ff537967d4b474c8ca1063586bc510ef6c007bf900734714766d4ce1a7a117"
-                },
-                "### Enabling it": {
-                  "content_hash": "ea6e655a0ef669619ea076762b1b930e90e8516c9a1390d9399ed52e09cadb0d"
+                  "content_hash": "2cd140d8b684da46cc00e9fa2c03a95791d7d9336864d6a36f82631f913c3fca"
                 },
                 "### Enabling quarantine {#enabling-quarantine}": {
                   "content_hash": "d673e4245c252ace92453523c4d2e5950e343c51057e446d8f9ddde461911d3a"
                 },
-                "### How many times each test reruns": {
-                  "content_hash": "b2b39651dcdc697e07fdd1b6f56da7ae1674e6c6f9ffc9784d645066b02b5a3f"
-                },
-                "### Manual management": {
-                  "content_hash": "b0a03976838d963ea081edccd9d0467fe309e5834a7830378bbfb072dc1379e4"
-                },
-                "### REST API": {
-                  "content_hash": "5c4eba85d5336f143c63e7d9bbcef5b9b9114c684892d90c3a81b47c739a09da"
-                },
                 "### Test retries {#test-retries}": {
                   "content_hash": "534f4cce733746d206096bd04b758c5b1bfbe7637ddef4af3a757941e217783f"
-                },
-                "### When the gate doesn't run": {
-                  "content_hash": "b5f027ae13394b68b2a98814bef87631751c37dc778b6aa70354d961d23a6370"
-                },
-                "### Why quarantined tests can appear as passing {#quarantined-passing}": {
-                  "content_hash": "e405f964fc43a05d6249ac3f5ed5cdcaa3a8b027b104193061425274b3ea1599"
                 },
                 "Preamble": {
                   "content_hash": "95a9e8fc0be4b062c7ef746d378782be2f07f51e807e46220384d65995e0d288"
@@ -71,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "f0d21e8c0e93d0ad09d673d3c720b6a48a319788580c0d5a0e8e9356042ad12f",
+          "hash": "10dd264264d8fb30c10a84ae7e5a14db11879a96dc80135a6b0c4d713e7d7f36",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
           "metadata": {
-            "content_hash": "a692196e05977c47ec6ab95b9bc61f1b609ecabea39af0597d27f5c9d68a2d4d"
+            "content_hash": "5764557b36f922861b6fd9024a659c3054e032cd7a32130a0a7139d5500f576e"
           }
         },
         {
@@ -136,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,7 +122,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -184,11 +151,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -256,12 +223,6 @@
                         "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
                         "translation_hash": "5333d1ef6ad53f55a278ad34659373b59457597f7c78719bc78853bedaae8b6e"
                       },
-                      "entry:f62132c6f65234d7723d00af7da7844ea4be17735ae97c8c81542d1a3c7124cb": {
-                        "case_sensitive": false,
-                        "definition_hash": "b34d6f2265704075c9f2d7555824d65602d7ab02302a028b9c7e2a4f850faffc",
-                        "term_hash": "b792c1896e8d0a8070db2b6fb633a4e82d21621dffc66dc8354ff941bac35e5f",
-                        "translation_hash": "670b97d4aad767647b5f40f2edf17267f0193768925532f63cab91875ad4f8cb"
-                      },
                       "entry:fdcdde56d01f2c4dab158a2c7113ac79adb7e903a93f74f13bb8d43b8cc484d8": {
                         "case_sensitive": false,
                         "definition_hash": "98331c521e97b455755792e924a8205eb9e5e1f87f3db30a09d717cecf8afea5",
@@ -270,16 +231,16 @@
                       }
                     }
                   },
-                  "hash": "dd136f70da3fe06031e7728e19f37462ac9156335e2a111f5d64881bad7b41d9",
+                  "hash": "ab0eb16bfdfb8d738a9a399939c41b086171359b4f8064c8280282cea3acbff8",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "94f025bad9cc68f8c6ae611ac99f8cb7cd80043b71b93e4515bcf8624e3764ba"
+                    "content_hash": "c1b035a4cb51f873835c4938980db09d713993b7bc73a8d4673196f84bcdb48e"
                   }
                 }
               ],
               "details": {},
-              "hash": "c88763416dc443d006f6a2a9e20c1182e4649adbf3c543a2b21c53b51c632e8f",
+              "hash": "8f62e9675e9ba28f942505b3710cf62335b6a33caa0645f40b590096bb68adc4",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -289,21 +250,21 @@
             }
           ],
           "details": {},
-          "hash": "306afa57c4f0ebb5f2e77daaad0ad5a34cdee301d9ad404ea1120d8e323f0457",
+          "hash": "0585476e666b5077ec7ddc044fcfb5d4a0a5d540316f6e43d347bebfdfbf6aaf",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "b459c779b415eaa5de2d36050a8e8c7f092c7b6adb88bbd9e06473e3a8dfd84a",
+      "hash": "4a9cd73c61e300090a4761caa8e44815d4a1f524e2bd0d3a9febab152ffbcf98",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9784f838c2ea8795e1472a9b7e0355ec895ad38695faabc49211eb1b1f9ad3be",
+  "output_hash": "7444778bbe0982946af77dded104a5fbd10ca22293eb04763d1d282b92b0bd84",
   "output_path": "server/priv/docs/ru/guides/features/test-insights/flaky-tests/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -314,10 +275,9 @@
         "repo:features",
         "repo:flaky-tests",
         "repo:test-case",
-        "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "94f025bad9cc68f8c6ae611ac99f8cb7cd80043b71b93e4515bcf8624e3764ba",
+      "content_hash": "c1b035a4cb51f873835c4938980db09d713993b7bc73a8d4673196f84bcdb48e",
       "shadowed": [],
       "version": null
     },
@@ -327,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "21cf57c569615e9d1d76f46ceac79e7c4de9db58",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests/gradle.md",
-  "translated_at": "2026-11-04T08:27:14.462680Z",
-  "translation_session_id": "01a1a5a5-d507-78b9-9005-ef2fb7caec9e"
+  "translated_at": "2026-11-06T21:25:55.253547Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

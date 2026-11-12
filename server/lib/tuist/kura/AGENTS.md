@@ -80,6 +80,10 @@
   `tuist.dev/kura-disk`, placing it only on `tuist.dev/kura-thin-ready=true`
   nodes; that formula mirrors the controller's `diskReservation` and must move
   with it. See `infra/kura-controller/thin-migration.md`.
+  `TUIST_KURA_THIN_ENROLLED_REGIONS` enrolls a whole region instead: every
+  account there is selected without reading the flag, and the region counts as
+  thin-capable. Use it once a region is being converted host by host, so new
+  instances also land on thin-ready nodes.
 
 - [Volume-key providers](volume_keys/AGENTS.md) wrap shares with `tuist_root` roots.
   `VolumeKeys.Rotation` rewraps the SAME plaintext shares with a

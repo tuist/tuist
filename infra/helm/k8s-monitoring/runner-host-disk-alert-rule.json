@@ -1,0 +1,56 @@
+{
+  "uid": "efss9ss24579ce",
+  "orgID": 1,
+  "folderUID": "df5dn1g4rckxsf",
+  "ruleGroup": "Runners",
+  "title": "Runner Host Disk Buffer",
+  "condition": "C",
+  "data": [
+    {
+      "refId": "A",
+      "datasourceUid": "grafanacloud-prom",
+      "relativeTimeRange": {"from": 600, "to": 0},
+      "model": {
+        "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+        "editorMode": "code",
+        "expr": "min by (cluster, env, instance) (100 * node_filesystem_avail_bytes{job=\"tuist-macos-node-exporter\", instance=~\".*-(runners|rack)-fleet-.*\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"tuist-macos-node-exporter\", instance=~\".*-(runners|rack)-fleet-.*\", mountpoint=\"/\"})",
+        "instant": true,
+        "intervalMs": 1000,
+        "legendFormat": "__auto",
+        "maxDataPoints": 43200,
+        "range": false,
+        "refId": "A"
+      }
+    },
+    {
+      "refId": "C",
+      "datasourceUid": "__expr__",
+      "relativeTimeRange": {"from": 0, "to": 0},
+      "model": {
+        "conditions": [{
+          "evaluator": {"params": [10], "type": "lt"},
+          "operator": {"type": "and"},
+          "query": {"params": ["C"]},
+          "reducer": {"type": "last"}
+        }],
+        "datasource": {"type": "__expr__", "uid": "__expr__"},
+        "expression": "A",
+        "intervalMs": 1000,
+        "maxDataPoints": 43200,
+        "refId": "C",
+        "type": "threshold"
+      }
+    }
+  ],
+  "noDataState": "NoData",
+  "execErrState": "Error",
+  "for": "15m",
+  "keepFiringFor": "0s",
+  "isPaused": false,
+  "labels": {},
+  "annotations": {
+    "summary": "{{ if $values.A }}Runner host {{ $labels.instance }} ({{ $labels.env }}) root disk {{ $values.A.Value | printf \"%.1f\" }}% free (< 10% buffer){{ else }}Runner host disk buffer telemetry unavailable{{ end }}",
+    "description": "{{ if $values.A }}The root APFS volume on macOS runner host {{ $labels.instance }} ({{ $labels.env }}) has under 10% free for 15m (currently {{ $values.A.Value | printf \"%.1f\" }}%).{{ else }}No root-filesystem percentage is available. Check the query, exporter targets and ingestion before treating this as healthy capacity.{{ end }}\n\nTart golden images and runner cache volumes share the host disk. tart-kubelet reclaims goldens at 15% free and reports DiskPressure below 10%; this alert is the backstop if reclaim cannot keep up, for example when every golden backs a live clone.\n\nCompare root filesystem metrics with exporter up and the runner Node inventory. For low space, follow the runbook to inspect host disk use and golden/cache retention. For missing data, verify both rented and rack host coverage; never map missing telemetry to healthy free space.",
+    "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-host-disk-buffer"
+  }
+}

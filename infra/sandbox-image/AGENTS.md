@@ -11,7 +11,8 @@ node only covers what is inside the VM and how the template reaches a node.
 |---|---|
 | `cmd/sbx-init` | PID 1. Mounts proc, sysfs, devtmpfs, devpts, /dev/shm, /run, /tmp and cgroup2; names the guest from the kernel command line; configures `lo` and `eth0` (`10.0.0.2/30`, default route `10.0.0.1`, MAC left to the VMM) with netlink; writes `/etc/resolv.conf`, `/etc/hostname` and `/etc/hosts`; creates `/workspace` and `/mnt/memory`; supervises `sbx-agent` with 1s to 30s backoff; reaps orphans; powers off on SIGTERM (and on SIGINT, which is what Firecracker's ctrl-alt-del becomes). Logs to the console and `/dev/kmsg`. Linux-only; the non-Linux build is a stub. |
 | `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. |
-| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`. |
+| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`, or, with `SBX_CLAUDE_CODE_WORK_ORDER`, one Claude Code session's `claude self-hosted-runner` (see `infra/claude-code-runners/README.md`). |
+| `cmd/sbx-macos` | Darwin-only stdin bridge for Tart guest execution and managed workers. Process-group fencing tests must run on macOS; the provider image workflow gates publication on that suite. |
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
 | `internal/agent` | Op dispatch behind a `System` interface, tested over `net.Pipe`. |
@@ -23,7 +24,10 @@ The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
 Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
 `/etc/profile.d/mise.sh`, shims in non-interactive shells) and the Anthropic
 `ant` CLI 1.30.0 as a fallback worker; its .deb installs a single `/usr/ant`
-binary, symlinked to `/usr/local/bin/ant`. `agent-browser` (pinned by
+binary, symlinked to `/usr/local/bin/ant`. Claude Code is installed at
+`/usr/local/bin/claude`, pinned by `CLAUDE_CODE_VERSION`/`CLAUDE_CODE_SHA256`
+to the version `sbx-worker` expects; keep the two and
+`infra/claude-code-runners/Dockerfile` in step. `agent-browser` (pinned by
 `AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
 globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
 browser's system libraries from apt.

@@ -5,6 +5,7 @@ import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.data.auth.TokenStorage
 import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,9 +57,12 @@ class PreviewsRepository @Inject constructor(
     private val previewsApi: PreviewsApi,
     private val projectsApi: ProjectsApi,
     private val moshi: Moshi,
+    private val tokens: TokenStorage,
 ) {
     suspend fun listProjects(): List<Project> {
+        val session = tokens.snapshot()
         val response = projectsApi.listProjects()
+        check(tokens.isCurrent(session)) { "Authentication profile changed" }
         val body = response.body()
         if (response.isSuccessful && body != null) {
             return body.projects
@@ -143,6 +147,8 @@ class PreviewsRepository @Inject constructor(
             else -> ListPreviewsError.Unknown(response.code())
         }
     }
+
+    val serverUrl: String get() = tokens.selectedServer()
 
     private fun <T> Response<T>.serverErrorMessage(): String {
         val errorJson = errorBody()?.string() ?: return ""

@@ -1,0 +1,169 @@
+[
+  {
+    "uid": "runner-kubelet-unreachable",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Runner kubelet health",
+    "title": "Linux runner kubelet unavailable",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-prom",
+        "relativeTimeRange": {"from": 600, "to": 0},
+        "model": {
+          "expr": "max by (cluster, node) (kube_node_labels{cluster=~\"tuist-(staging|canary|production)\",label_node_cluster_x_k8s_io_pool=\"runners-linux\"}) unless on (cluster, node) (max by (cluster, node) (max_over_time(up{cluster=~\"tuist-(staging|canary|production)\",job=\"integrations/kubernetes/kubelet\"}[5m])) == 1)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {"from": 0, "to": 0},
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [{"evaluator": {"params": [0], "type": "gt"}, "operator": {"type": "and"}, "query": {"params": ["C"]}, "reducer": {"type": "last"}, "type": "query"}]
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "5m",
+    "isPaused": true,
+    "labels": {"severity": "critical"},
+    "annotations": {
+      "summary": "Linux runner {{ $labels.node }} has no successful kubelet scrape in {{ $labels.cluster }}",
+      "description": "An inventoried Linux runner host has had no successful kubelet scrape in five minutes, sustained for another five minutes. This includes a missing target and does not trust Node Ready or Pod readiness. Check Lease freshness, the Alloy scrape target, host reachability and the kubelet journal. A scrape failure can also be a collector, network or authorization problem; do not reset checkpoints or restart services without runtime inspection and scoped approval. Intentionally excluded Tart endpoints are outside this rule's runners-linux pool selector.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#linux-runner-kubelet-health"
+    }
+  },
+  {
+    "uid": "runner-kubelet-lease-stale",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Runner kubelet health",
+    "title": "Linux runner node Lease stale or missing",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-prom",
+        "relativeTimeRange": {"from": 600, "to": 0},
+        "model": {
+          "expr": "max by (cluster, node) (kube_node_labels{cluster=~\"tuist-(staging|canary|production)\",label_node_cluster_x_k8s_io_pool=\"runners-linux\"}) unless on (cluster, node) (time() - max by (cluster, node) (label_replace(kube_lease_renew_time{cluster=~\"tuist-(staging|canary|production)\",namespace=\"kube-node-lease\"}, \"node\", \"$1\", \"lease\", \"(.+)\")) <= 120)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {"from": 0, "to": 0},
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [{"evaluator": {"params": [0], "type": "gt"}, "operator": {"type": "and"}, "query": {"params": ["C"]}, "reducer": {"type": "last"}, "type": "query"}]
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "3m",
+    "isPaused": true,
+    "labels": {"severity": "critical"},
+    "annotations": {
+      "summary": "Linux runner {{ $labels.node }} has a stale or missing node Lease in {{ $labels.cluster }}",
+      "description": "For three minutes, this inventoried Linux runner host has had no node Lease renewed within the last two minutes. This detects a stopped heartbeat even if Node Ready stays True or kubelet still serves metrics. Missing renewal telemetry also triggers: compare the API Lease spec.renewTime with kube-state-metrics and Alloy before concluding the host is dead. A newly registered node gets the three-minute pending grace. Verify clocks and scope maintenance silences; never repair host state based solely on this alert.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#linux-runner-kubelet-health"
+    }
+  },
+  {
+    "uid": "linux-kubelet-restart-loop",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Runner kubelet health",
+    "title": "Linux host kubelet restart loop",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-logs",
+        "relativeTimeRange": {"from": 600, "to": 0},
+        "model": {
+          "expr": "sum by (cluster, instance) (count_over_time({cluster=~\"tuist-(staging|canary|production)\",job=\"integrations/kubernetes/journal\"} |= `\"Kubelet version\"` [10m]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {"from": 0, "to": 0},
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [{"evaluator": {"params": [3], "type": "gt"}, "operator": {"type": "and"}, "query": {"params": ["C"]}, "reducer": {"type": "last"}, "type": "query"}]
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "5m",
+    "isPaused": true,
+    "labels": {"severity": "warning"},
+    "annotations": {
+      "summary": "Kubelet on {{ $labels.instance }} started {{ $values.A.Value }} times in ten minutes ({{ $labels.cluster }})",
+      "description": "More than three kubelet startup records in ten minutes, sustained for five minutes. The existing journal collector observes the host process independently of Pod restart counts. This covers all Linux hosts shipping the kubelet journal, not just runners. On 2026-11-10 the failed canary host emitted 110 starts in ten minutes while Node Ready remained True. Inspect startup errors and the live runtime before choosing a repair. A single maintenance restart does not meet the threshold. Log duplication can inflate counts, and missing logs do not mean the service is healthy.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#linux-runner-kubelet-health"
+    }
+  },
+  {
+    "uid": "runner-kubelet-inventory-missing",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Runner kubelet health",
+    "title": "Kubelet monitoring node inventory missing",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-prom",
+        "relativeTimeRange": {"from": 1200, "to": 0},
+        "model": {
+          "expr": "absent_over_time(kube_node_labels{cluster=\"tuist-staging\"}[10m]) or absent_over_time(kube_node_labels{cluster=\"tuist-canary\"}[10m]) or absent_over_time(kube_node_labels{cluster=\"tuist-production\"}[10m])",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {"from": 0, "to": 0},
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [{"evaluator": {"params": [0], "type": "gt"}, "operator": {"type": "and"}, "query": {"params": ["C"]}, "reducer": {"type": "last"}, "type": "query"}]
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "0s",
+    "isPaused": true,
+    "labels": {"severity": "critical"},
+    "annotations": {
+      "summary": "Node inventory missing for ten minutes in {{ $labels.cluster }}",
+      "description": "The independently evaluated runner kubelet alerts have lost their node inventory. Their empty results no longer establish host health. Check kube-state-metrics, Alloy discovery, remote write and datasource availability. This rule intentionally names each expected workload cluster so a complete collector or cluster outage cannot silently remove the expected label set. It does not establish journal-pipeline health or detect an incorrectly removed pool label on an individual node.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#linux-runner-kubelet-health"
+    }
+  }
+]

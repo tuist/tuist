@@ -329,10 +329,13 @@ spec:
               value: {{ .Values.ampOrbProvider.url | quote }}
             - name: TUIST_AMP_PROVIDER_IMAGE
               value: {{ printf "%s:%s-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
+            # Claude Code orchestrators share the provider namespace and identity review.
+            - name: TUIST_CLAUDE_CODE_PROVIDER_IMAGE
+              value: {{ printf "%s:%s-claude-code-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
             - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
               value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
             {{- end }}
-            {{- if .Values.sandboxes.enabled }}
+            {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE
@@ -343,6 +346,8 @@ spec:
             - name: TUIST_SANDBOX_ARCHIVE_AFTER_HOURS
               value: {{ . | quote }}
             {{- end }}
+            - name: TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT
+              value: {{ .Values.sandboxes.archiveDiskHighWaterPercent | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
@@ -381,6 +386,16 @@ spec:
             {{- end }}
             - name: TUIST_RUNNER_LINUX_SHAPES
               value: {{ $serverShapes | toJson | quote }}
+            # The Ubuntu releases the shape pools above run on, limited to
+            # those with an image, so profiles only offer an OS with pools.
+            {{- $serverOSVersions := list }}
+            {{- range include "tuist.runnersLinuxOSVersions" $ | fromJsonArray }}
+            {{- $entry := dict "osVersion" .osVersion }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverOSVersions = append $serverOSVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_OS_VERSIONS
+              value: {{ $serverOSVersions | toJson | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
@@ -527,6 +542,13 @@ spec:
             {{- fail "kuraVolumesCSI.thinRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
             {{- end }}
             - name: TUIST_KURA_THIN_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.kuraVolumesCSI.thinEnrolledRegions }}
+            {{- if not $.Values.kuraVolumesCSI.enabled }}
+            {{- fail "kuraVolumesCSI.thinEnrolledRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
+            {{- end }}
+            - name: TUIST_KURA_THIN_ENROLLED_REGIONS
               value: {{ join "," . | quote }}
             {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}

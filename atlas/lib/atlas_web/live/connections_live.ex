@@ -88,6 +88,24 @@ defmodule AtlasWeb.ConnectionsLive do
                 }
               />
             </div>
+            <div
+              :if={entry.provider == "google" && entry.status != "not_connected"}
+              id="connection-gmail-drafts"
+              data-part="connection-row"
+            >
+              <span data-part="account">{gettext("Gmail drafts")}</span>
+              <.status_badge
+                id="connection-gmail-drafts-status"
+                type="dot"
+                status={if(gmail_drafts?(entry), do: "success", else: "disabled")}
+                label={
+                  if(gmail_drafts?(entry),
+                    do: gettext("Drafts access granted"),
+                    else: gettext("Not granted")
+                  )
+                }
+              />
+            </div>
             <.alert
               :if={!entry.configured}
               id={"connection-unconfigured-#{entry.provider}"}
@@ -110,8 +128,19 @@ defmodule AtlasWeb.ConnectionsLive do
               <.button
                 :if={entry.provider == "google" && entry.status != "not_connected" && !gmail?(entry)}
                 id="connection-gmail-consent"
-                href={~p"/connections/google/authorize?gmail=read"}
+                href={google_authorize_path(entry, "read")}
                 label={gettext("Allow Gmail access")}
+                variant="secondary"
+                size="medium"
+              />
+              <.button
+                :if={
+                  entry.provider == "google" && entry.status != "not_connected" &&
+                    !gmail_drafts?(entry)
+                }
+                id="connection-gmail-drafts-consent"
+                href={google_authorize_path(entry, "compose")}
+                label={gettext("Allow Gmail drafts")}
                 variant="secondary"
                 size="medium"
               />
@@ -152,20 +181,27 @@ defmodule AtlasWeb.ConnectionsLive do
   defp description("google"),
     do:
       gettext(
-        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message)."
+        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare drafts (create_my_gmail_draft, update_my_gmail_draft); a draft is only sent after you approve it in My approvals."
       )
 
   defp description(_provider), do: nil
 
   # Google returns only the scopes requested by the latest consent, so a plain
-  # reconnect would silently drop a previously granted Gmail scope.
-  defp authorize_path(%{provider: "google"} = entry) do
-    if gmail?(entry), do: ~p"/connections/google/authorize?gmail=read", else: ~p"/connections/google/authorize"
-  end
-
+  # reconnect or a new Gmail consent would silently drop a granted Gmail scope.
+  defp authorize_path(%{provider: "google"} = entry), do: google_authorize_path(entry, nil)
   defp authorize_path(entry), do: ~p"/connections/#{entry.provider}/authorize"
 
+  defp google_authorize_path(entry, consent) do
+    requested = [consent, gmail?(entry) && "read", gmail_drafts?(entry) && "compose"]
+    consents = Enum.filter(["read", "compose"], &(&1 in requested))
+
+    if consents == [],
+      do: ~p"/connections/google/authorize",
+      else: "/connections/google/authorize?gmail=" <> Enum.join(consents, ",")
+  end
+
   defp gmail?(entry), do: Gmail.scope() in entry.scopes
+  defp gmail_drafts?(entry), do: Gmail.compose_scope() in entry.scopes
 
   defp status_color("connected"), do: "success"
   defp status_color("needs_authorization"), do: "warning"

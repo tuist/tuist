@@ -170,8 +170,13 @@ defmodule Atlas.Orbit.ToolPolicy do
     # messages to every reader of a shared thread.
     "search_my_gmail",
     "get_my_gmail_message",
+    "save_my_gmail_attachment",
+    "get_my_gmail_draft",
+    "create_my_gmail_draft",
+    "update_my_gmail_draft",
     "search_my_slack",
     # External side effects.
+    "send_my_gmail_draft",
     "send_account_email",
     "send_email_broadcast",
     "send_nudge",

@@ -55,7 +55,10 @@ enum ResolvedFileValidation {
     }
 
     static func isRecorded(key: String, cacheDir: URL) async -> Bool {
-        (try? await fileSystem.exists(recordPath(key: key, cacheDir: cacheDir).absolutePath)) ?? false
+        let record = recordPath(key: key, cacheDir: cacheDir)
+        guard (try? await fileSystem.exists(record.absolutePath)) == true else { return false }
+        await Cache.markUsed(record)
+        return true
     }
 
     static func record(key: String, cacheDir: URL) async {
