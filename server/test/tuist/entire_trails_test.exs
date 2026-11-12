@@ -76,6 +76,11 @@ defmodule Tuist.EntireTrailsTest do
     assert summary["body"] =~ "`aaaaaaaaa`"
     refute summary["body"] =~ "/commit/"
     assert summary["body"] =~ "/#{context.account.name}/#{context.project.name}/builds/build-runs/"
+    handle = "#{context.account.name}/#{context.project.name}"
+    [%{check_suite: suite, check_runs: [run]}] = Agent.get(context.remote, &Map.values(&1.checks))
+    assert suite.key == handle
+    assert suite.details_url == Environment.app_url(path: "/" <> handle)
+    assert run.details_url == suite.details_url
 
     build(context.project, @sha, "Later", 3)
     assert :ok = EntireTrails.sync(context.connection.id)
@@ -477,7 +482,6 @@ defmodule Tuist.EntireTrailsTest do
         assert opts[:json][:branch] == "feature/insights"
         assert suite.status == "completed"
         assert suite.conclusion == "neutral"
-        assert String.starts_with?(suite.key, "tuist-insights-")
         assert run.key == "report"
         assert run.output.title == "Tuist insights"
         assert byte_size(run.output.summary) <= 65_535

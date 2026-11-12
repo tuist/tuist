@@ -16,14 +16,17 @@ defmodule Tuist.EntireTrails.Client do
     request(:get, installation, repository, trail_path(repository, number))
   end
 
-  def publish(installation, repository, number, branch, summary) do
+  # Entire shows a suite's key as its label on the Trail, and customers enter it
+  # to require the check, so it is the project's handle. A project has at most
+  # one connection, which keeps it unique among Tuist's suites on a commit.
+  def publish(installation, repository, number, %{branch: branch, key: key, details_url: details_url}, summary) do
     attempt = "tuist-#{summary.id}-#{DateTime.to_unix(summary.reported_at, :microsecond)}"
-    key = "tuist-insights-#{summary.connection_id}"
     reviews = trail_path(repository, number) <> "/reviews"
 
     state = %{
       key: key,
       name: "Tuist insights",
+      details_url: details_url,
       external_id: attempt,
       status: "completed",
       conclusion: "neutral",

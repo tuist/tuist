@@ -213,7 +213,8 @@ defmodule Tuist.EntireTrails do
     with true <- current.reported_at == summary.reported_at and current.published_at != current.reported_at,
          {:ok, trail} <- Client.trail(connection.installation, repository, number),
          true <- trail["status"] in ["open", "draft"],
-         {:ok, ids} <- Client.publish(connection.installation, repository, number, trail["branch"], current) do
+         check = %{branch: trail["branch"], key: handle(connection.project), details_url: project_url(connection.project)},
+         {:ok, ids} <- Client.publish(connection.installation, repository, number, check, current) do
       current
       |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
       |> Repo.update!()
@@ -321,7 +322,7 @@ defmodule Tuist.EntireTrails do
   end
 
   defp report(project, sha) do
-    base_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}")
+    base_url = project_url(project)
 
     report =
       VCS.get_run_report_sections(%{
@@ -354,4 +355,7 @@ defmodule Tuist.EntireTrails do
       %{body: if(byte_size(report.summary) <= 65_535, do: report.summary, else: fallback), findings: findings}
     end
   end
+
+  defp handle(project), do: "#{project.account.name}/#{project.name}"
+  defp project_url(project), do: Environment.app_url(path: "/" <> handle(project))
 end
