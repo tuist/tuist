@@ -30,6 +30,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
 
   require Logger
 
@@ -302,6 +303,12 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     # residency protects it after this short command exits.
     case Sandboxes.exec(sandbox, bootstrap_command(sandbox), env: env, timeout_ms: bootstrap_timeout(sandbox)) do
       {:ok, %{exit_code: 0}} ->
+        if is_nil(sandbox.amp_creator_user_id) do
+          %{"sandbox_id" => sandbox.id}
+          |> CaptureAmpCreatorWorker.new(schedule_in: 5)
+          |> Oban.insert()
+        end
+
         {:ok, sandbox}
 
       _failure ->

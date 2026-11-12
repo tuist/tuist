@@ -14,6 +14,7 @@ defmodule Tuist.Sandboxes do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.User
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
@@ -260,7 +261,45 @@ defmodule Tuist.Sandboxes do
         limit -> query |> limit(^limit) |> offset(^Keyword.get(opts, :offset, 0))
       end
 
-    Repo.all(query)
+    query |> Repo.all() |> preload_creators()
+  end
+
+  def preload_creators(sandboxes) do
+    usernames = sandboxes |> Enum.map(& &1.amp_creator_username) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    # Username equality is a display heuristic, not a verified identity link.
+    # Only match the username claim, never an email, display name or stable ID.
+    names =
+      if usernames == [] do
+        %{}
+      else
+        from(a in Account,
+          join: u in User,
+          on: u.id == a.user_id and u.active == true and is_nil(u.disabled_at),
+          where: a.name in ^usernames,
+          select: a.name
+        )
+        |> Repo.all()
+        |> Map.new(&{String.downcase(&1), &1})
+      end
+
+    Enum.map(sandboxes, fn sandbox ->
+      matched_name = Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
+      name = matched_name || sandbox.amp_creator_name || sandbox.amp_creator_user_id
+
+      %{
+        sandbox
+        | creator_actor: %{
+            name: name,
+            source:
+              cond do
+                matched_name -> :matched
+                name -> :reported
+                true -> :unknown
+              end
+          }
+      }
+    end)
   end
 
   @doc """

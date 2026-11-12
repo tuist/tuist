@@ -36,6 +36,10 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
     field :amp_base_snapshot_id, :string
+    field :amp_creator_user_id, :string
+    field :amp_creator_username, :string
+    field :amp_creator_name, :string
+    field :creator_actor, :map, virtual: true
     field :template, :string
     field :template_tag, :string
     field :vcpus, :integer

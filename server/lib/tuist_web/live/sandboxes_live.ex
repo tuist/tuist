@@ -798,6 +798,26 @@ defmodule TuistWeb.SandboxesLive do
         do: {kind, status, message}
   end
 
+  attr :creator, :map, required: true
+
+  def creator_badge_cell(assigns) do
+    ~H"""
+    <.badge_cell
+      label={@creator.name || dgettext("dashboard", "Unknown")}
+      icon={
+        case @creator.source do
+          :matched -> "user"
+          :reported -> "device_laptop"
+          _ -> nil
+        end
+      }
+      color={if @creator.source == :matched, do: "primary", else: "neutral"}
+      style="light-fill"
+      data-actor-source={@creator.source}
+    />
+    """
+  end
+
   attr :id, :string, required: true
   attr :sandboxes, :list, required: true
   attr :account, :map, required: true
@@ -815,15 +835,18 @@ defmodule TuistWeb.SandboxesLive do
     >
       <:col
         :let={sandbox}
-        label={dgettext("dashboard_sandboxes", "Name")}
+        label={dgettext("dashboard_sandboxes", "Instance")}
         patch={@sort_patch && @sort_patch.("name")}
         sort_order={@sort_by == "name" && @sort_order}
       >
-        <.text_cell label={display_name(sandbox)} sublabel={short_id(sandbox.id)} />
+        <.text_cell label={compact_id(display_name(sandbox))} title={display_name(sandbox)} />
       </:col>
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Status")}>
         <% status = status(sandbox) %>
         <.badge_cell label={status.label} color={status.color} style="light-fill" />
+      </:col>
+      <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "Created by")}>
+        <.creator_badge_cell creator={sandbox.creator_actor} />
       </:col>
       <:col :let={sandbox} label={dgettext("dashboard_sandboxes", "vCPUs")}>
         <.text_cell label={to_string(sandbox.vcpus)} />
@@ -866,9 +889,11 @@ defmodule TuistWeb.SandboxesLive do
 
   def display_name(%Sandbox{amp_orb_id: orb_id}) when is_binary(orb_id), do: orb_id
   def display_name(%Sandbox{anthropic_session_id: session_id}) when is_binary(session_id), do: session_id
-  def display_name(%Sandbox{id: id}), do: short_id(id)
+  def display_name(%Sandbox{id: id}), do: id
 
-  def short_id(id), do: String.slice(id, 0, 8)
+  defp compact_id(id) do
+    if String.length(id) > 24, do: String.slice(id, 0, 8) <> "…" <> String.slice(id, -8, 8), else: id
+  end
 
   def status(%Sandbox{state: :running, residency_work_id: work_id}) when is_binary(work_id),
     do: %{label: dgettext("dashboard_sandboxes", "Active"), color: "success"}

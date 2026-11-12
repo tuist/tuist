@@ -421,6 +421,7 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_helpers.ex:24
 #: lib/tuist_web/live/ops_account_live.ex:1117
 #: lib/tuist_web/live/ops_account_live.ex:1153
+#: lib/tuist_web/live/sandboxes_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""

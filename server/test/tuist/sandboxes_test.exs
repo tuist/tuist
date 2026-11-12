@@ -21,6 +21,30 @@ defmodule Tuist.SandboxesTest do
     ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
   end
 
+  test "creator matching excludes organizations, disabled users and fallback labels" do
+    user = user_fixture()
+    disabled = user_fixture()
+    disabled |> Ecto.Changeset.change(disabled_at: DateTime.utc_now(:second)) |> Repo.update!()
+    %{account: organization} = organization_fixture(preload: [:account])
+
+    sandboxes =
+      for {username, name} <- [
+            {organization.name, organization.name},
+            {disabled.account.name, disabled.account.name},
+            {nil, user.account.name}
+          ] do
+        sandbox_fixture()
+        |> Ecto.Changeset.change(amp_creator_user_id: "user_amp", amp_creator_username: username, amp_creator_name: name)
+        |> Repo.update!()
+      end
+
+    assert Enum.map(Sandboxes.preload_creators(sandboxes), & &1.creator_actor) == [
+             %{name: organization.name, source: :reported},
+             %{name: disabled.account.name, source: :reported},
+             %{name: user.account.name, source: :reported}
+           ]
+  end
+
   describe "agent environments" do
     test "create_agent_environment/2 stores the key encrypted and lists it back without it" do
       account = account_fixture()
