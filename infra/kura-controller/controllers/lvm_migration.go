@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	kurav1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,28 +13,25 @@ import (
 const lvmMigrationNodeAnnotation = "tuist.dev/kura-lvm-migrate"
 
 // A StatefulSet has one replacement template for every ordinal. Preserve the
-// legacy template until one of the remaining legacy claims belongs to the
-// selected source; otherwise an unrelated restart could request LVM capacity
-// on an unconverted host. An instance whose replicas span unconverted hosts
-// moves the selected source's replica and keeps the others on their legacy
-// claims: their pods keep running under the resize's OnDelete hold until their
-// own host is selected, and one whose pod the new template can no longer place
-// is rebuilt on its own (lvmLegacyReplicaStranded).
+// legacy template until every remaining legacy claim belongs to the selected
+// source; otherwise an unrelated restart could request LVM capacity on an
+// unconverted host. Instances spanning unconverted hosts require a separate
+// placement plan before entering this node-at-a-time migration.
 func (r *KuraInstanceReconciler) lvmMigrationTemplateHeld(ctx context.Context, instance *kurav1.KuraInstance) (bool, error) {
 	if diskResource(instance) != kuraDiskResource || fencedServing(instance) {
 		return false, nil
 	}
 	replacements, _, err := r.dataVolumesToReplace(ctx, instance, storageQuantity(instance))
-	if err != nil || len(replacements) == 0 {
+	if err != nil {
 		return false, err
 	}
 	for _, volume := range replacements {
 		allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
-		if err != nil || allowed {
-			return false, err
+		if err != nil || !allowed {
+			return true, err
 		}
 	}
-	return true, nil
+	return false, nil
 }
 
 // Regional enrollment changes the desired layout, not permission to discard
@@ -71,25 +67,20 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 		}
 		selected = node
 	}
+	if selected == nil || selected.Name != hosts[0] || !selected.Spec.Unschedulable || selected.DeletionTimestamp != nil {
+		return false, nil
+	}
 	sts := &appsv1.StatefulSet{}
 	selector := nodeSelector(instance)
 	switch err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); {
 	case apierrors.IsNotFound(err):
 		// The immutable claim-template replacement briefly orphans its pods.
-		sts = nil
 	case err != nil:
 		return false, err
 	default:
 		selector = sts.Spec.Template.Spec.NodeSelector
 		if instance.Spec.StorageClassName == thinLocalStorageClass {
 			selector = nodeSelector(instance)
-		}
-	}
-	source := hosts[0]
-	if selected == nil || selected.Name != source || !selected.Spec.Unschedulable || selected.DeletionTimestamp != nil {
-		stranded, err := r.lvmLegacyReplicaStranded(ctx, instance, sts, volume)
-		if err != nil || !stranded {
-			return false, err
 		}
 	}
 	// This is a minimum landing check, not a capacity reservation. Kubernetes
@@ -102,45 +93,7 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 			prepared = append(prepared, node)
 		}
 	}
-	return hasLandingNode(prepared, map[string]bool{source: true}, selector), nil
-}
-
-// lvmLegacyReplicaStranded reports a legacy claim on an unselected host whose
-// replica the StatefulSet can no longer run: the template already moved to the
-// declared storage (a sibling's host was selected), and the scheduler cannot
-// place the replica's recreated pod beside its claim. It serves nothing,
-// so rebuilding it on prepared capacity loses only its own copy, which it
-// refills from its sibling; leaving it would hold the instance on one replica
-// until its host is selected.
-func (r *KuraInstanceReconciler) lvmLegacyReplicaStranded(ctx context.Context, instance *kurav1.KuraInstance, sts *appsv1.StatefulSet, volume dataVolumeReplacement) (bool, error) {
-	if sts == nil {
-		return false, nil
-	}
-	if class, ok := templateStorageClass(sts); !ok || class != instance.Spec.StorageClassName {
-		return false, nil
-	}
-	pod := &corev1.Pod{}
-	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: fmt.Sprintf("%s-%d", instance.Name, volume.ordinal)}, pod); {
-	case apierrors.IsNotFound(err):
-		// The StatefulSet recreates a deleted pod at once; wait for the
-		// scheduler's verdict on it rather than acting in that gap.
-		return false, nil
-	case err != nil:
-		return false, err
-	}
-	return pod.DeletionTimestamp == nil && podUnschedulable(pod), nil
-}
-
-func podUnschedulable(pod *corev1.Pod) bool {
-	if pod.Status.Phase != corev1.PodPending || pod.Spec.NodeName != "" {
-		return false
-	}
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse && condition.Reason == corev1.PodReasonUnschedulable {
-			return true
-		}
-	}
-	return false
+	return hasLandingNode(prepared, map[string]bool{selected.Name: true}, selector), nil
 }
 
 // lvmHeldTemplate keeps the storage half of a held template: the claim's class
