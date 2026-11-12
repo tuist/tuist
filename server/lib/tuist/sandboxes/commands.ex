@@ -39,6 +39,7 @@ defmodule Tuist.Sandboxes.Commands do
   @stdin_env_part_bytes 64 * 1024
   @missing_exit_code 44
   @stdin_closed_exit_code 45
+  @stdin_offset_exit_code 47
   @invalid_cwd_exit_code 46
   @list_limit 100
   @finished_retention_days 7
@@ -131,14 +132,29 @@ defmodule Tuist.Sandboxes.Commands do
                  exit 0
                  """
 
+  # With TUIST_STDIN_OFFSET, the bytes stdin had before this write, a write
+  # sent again lands once: one whose bytes are already there succeeds without
+  # appending them, and one that does not continue stdin fails. The lock
+  # covers a second attempt arriving while the first still runs.
   @stdin_script @dir <>
                   """
 
                   [ -d "$d" ] || exit #{@missing_exit_code}
-                  [ -e "$d/stdin_closed" ] && exit #{@stdin_closed_exit_code}
+                  closed_code=#{@stdin_closed_exit_code}
+                  offset_code=#{@stdin_offset_exit_code}
                   """ <>
                   ~S"""
-                  perl -MMIME::Base64 -e 'open(my $f, ">>", $ARGV[0]) or die "$!\n"; binmode $f; print $f decode_base64(join "", map { $ENV{"TUIST_STDIN_DATA_$_"} } 0 .. $ENV{TUIST_STDIN_PARTS} - 1); close $f or die "$!\n"' "$d/stdin"
+                  perl -MMIME::Base64 -MFcntl=:flock -e '
+                    my ($stdin, $closed, $exited, $closed_code, $offset_code) = @ARGV;
+                    open(my $f, ">>", $stdin) or die "$!\n"; binmode $f; flock($f, LOCK_EX) or die "$!\n";
+                    my $data = decode_base64(join "", map { $ENV{"TUIST_STDIN_DATA_$_"} } 0 .. $ENV{TUIST_STDIN_PARTS} - 1);
+                    my $offset = $ENV{TUIST_STDIN_OFFSET} // "";
+                    my $size = (stat $f)[7];
+                    exit 0 if $offset ne "" && $size == $offset + length $data;
+                    exit $closed_code if -e $closed || ($offset ne "" && -e $exited);
+                    exit $offset_code if $offset ne "" && $size != $offset;
+                    print $f $data; close $f or die "$!\n"' \
+                    "$d/stdin" "$d/stdin_closed" "$d/exit_code" "$closed_code" "$offset_code" || exit $?
                   [ "$TUIST_STDIN_CLOSE" = 1 ] && : > "$d/stdin_closed"
                   exit 0
                   """
@@ -171,23 +187,45 @@ defmodule Tuist.Sandboxes.Commands do
   Params: `:command` (a shell command, or the program when `:args` is given),
   `:args` (run `command` with these arguments and no shell interpretation),
   `:env`, `:cwd` (default the workspace), `:timeout_ms` (default one hour, at
-  most six) and `:stdin` (`true` to keep stdin open for `write_stdin/4`;
-  otherwise the command reads an empty stdin).
+  most six), `:stdin` (`true` to keep stdin open for `write_stdin/5`;
+  otherwise the command reads an empty stdin) and `:id` (a UUID the client
+  chose, so that sending the request again answers the command it started
+  instead of starting another).
   """
   def start(%Sandbox{} = sandbox, params) do
     with {:ok, script} <- script(params),
          {:ok, env} <- validate_env(Map.get(params, :env) || %{}),
-         {:ok, running} <- Sandboxes.ensure_running(sandbox) do
+         {:ok, id} <- command_id(Map.get(params, :id)) do
+      # A request sent again with the same `id`, such as after a gateway
+      # error hid the answer, gets the command the first one started.
+      case id && get(sandbox, id) do
+        {:ok, command} -> {:ok, serialize(command)}
+        _ -> start_new(sandbox, id || Ecto.UUID.generate(), params, script, env)
+      end
+    end
+  end
+
+  defp command_id(nil), do: {:ok, nil}
+
+  defp command_id(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> {:ok, uuid}
+      :error -> {:error, :invalid_command}
+    end
+  end
+
+  defp start_new(sandbox, id, params, script, env) do
+    with {:ok, running} <- Sandboxes.ensure_running(sandbox) do
       timeout_ms = params |> Map.get(:timeout_ms, @default_timeout_ms) |> max(1) |> min(@max_timeout_ms)
       prune_finished(running)
 
-      case start_on(running, params, script, env, timeout_ms) do
+      case start_on(running, id, params, script, env, timeout_ms) do
         # An idle sandbox's pause can reach the node before the row says
         # paused. Like `Sandboxes.exec/3`, wait for it and start on the
         # resumed sandbox.
         {:error, "sandbox is being paused" <> _} ->
           with {:ok, resumed} <- Sandboxes.await_pause(running),
-               do: start_on(resumed, params, script, env, timeout_ms)
+               do: start_on(resumed, id, params, script, env, timeout_ms)
 
         result ->
           result
@@ -195,12 +233,12 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
-  defp start_on(sandbox, params, script, env, timeout_ms) do
+  defp start_on(sandbox, id, params, script, env, timeout_ms) do
     # The row exists before the sandbox is held, so a command finishing
     # concurrently sees it and keeps the residency.
     command =
       Repo.insert!(%SandboxCommand{
-        id: Ecto.UUID.generate(),
+        id: id,
         sandbox_id: sandbox.id,
         account_id: sandbox.account_id,
         command: script,
@@ -356,42 +394,51 @@ defmodule Tuist.Sandboxes.Commands do
     do: %{stdout: "", stderr: "", stdout_offset: stdout_offset, stderr_offset: stderr_offset, complete: true}
 
   @doc """
-  Appends `data` to the command's stdin and, with `close`, ends it.
+  Appends `data` to the command's stdin and, with `close`, ends it. With
+  `offset`, the number of bytes written to stdin before this write, sending
+  the same write again appends it only once.
   """
-  def write_stdin(%Sandbox{} = sandbox, id, data, close?) when is_binary(data) do
+  def write_stdin(%Sandbox{} = sandbox, id, data, close?, offset \\ nil) when is_binary(data) do
     with {:ok, command} <- get(sandbox, id),
-         :ok <- writable(command, data) do
-      encoded = Base.encode64(data)
-
-      parts =
-        for offset <- 0..(byte_size(encoded) - 1)//@stdin_env_part_bytes do
-          binary_part(encoded, offset, min(@stdin_env_part_bytes, byte_size(encoded) - offset))
-        end
-
-      env =
-        parts
-        |> Enum.with_index(fn part, index -> {"TUIST_STDIN_DATA_#{index}", part} end)
-        |> Map.new()
-        |> Map.merge(%{
-          "TUIST_COMMAND_ID" => command.id,
-          "TUIST_STDIN_PARTS" => Integer.to_string(length(parts)),
-          "TUIST_STDIN_CLOSE" => if(close?, do: "1", else: "0")
-        })
+         :ok <- writable(command, data, offset) do
+      env = stdin_env(command, data, close?, offset)
 
       case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @stdin_script], env: env, timeout_ms: 30_000) do
         {:ok, %{exit_code: 0}} -> {:ok, serialize(command)}
         {:ok, %{exit_code: @missing_exit_code}} -> {:error, :not_found}
         {:ok, %{exit_code: @stdin_closed_exit_code}} -> {:error, :stdin_closed}
+        {:ok, %{exit_code: @stdin_offset_exit_code}} -> {:error, :stdin_offset_mismatch}
         {:ok, %{stderr: stderr}} -> {:error, "could not write to stdin: " <> String.trim(stderr)}
         {:error, reason} -> {:error, reason}
       end
     end
   end
 
-  defp writable(%SandboxCommand{stdin: false}, _data), do: {:error, :stdin_not_attached}
-  defp writable(%SandboxCommand{status: status}, _data) when status != :running, do: {:error, :stdin_closed}
-  defp writable(_command, data) when byte_size(data) > @max_stdin_bytes, do: {:error, :invalid_command}
-  defp writable(_command, _data), do: :ok
+  defp stdin_env(command, data, close?, offset) do
+    encoded = Base.encode64(data)
+
+    parts =
+      for at <- 0..(byte_size(encoded) - 1)//@stdin_env_part_bytes do
+        binary_part(encoded, at, min(@stdin_env_part_bytes, byte_size(encoded) - at))
+      end
+
+    parts
+    |> Enum.with_index(fn part, index -> {"TUIST_STDIN_DATA_#{index}", part} end)
+    |> Map.new()
+    |> Map.merge(%{
+      "TUIST_COMMAND_ID" => command.id,
+      "TUIST_STDIN_PARTS" => Integer.to_string(length(parts)),
+      "TUIST_STDIN_CLOSE" => if(close?, do: "1", else: "0"),
+      "TUIST_STDIN_OFFSET" => if(offset, do: Integer.to_string(offset), else: "")
+    })
+  end
+
+  defp writable(%SandboxCommand{stdin: false}, _data, _offset), do: {:error, :stdin_not_attached}
+  # A write with an offset may be one that reached the command before it
+  # ended, so the guest, which knows what stdin holds, answers it.
+  defp writable(%SandboxCommand{status: status}, _data, nil) when status != :running, do: {:error, :stdin_closed}
+  defp writable(_command, data, _offset) when byte_size(data) > @max_stdin_bytes, do: {:error, :invalid_command}
+  defp writable(_command, _data, _offset), do: :ok
 
   @doc """
   Stops the command (SIGTERM to its session, SIGKILL after five seconds) and

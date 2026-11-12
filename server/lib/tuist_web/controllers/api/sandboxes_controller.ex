@@ -624,6 +624,12 @@ defmodule TuistWeb.API.SandboxesController do
              minimum: 1,
              maximum: 21_600_000,
              description: "Kill the command after this many milliseconds (default one hour)."
+           },
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another."
            }
          },
          required: [:command]
@@ -643,7 +649,7 @@ defmodule TuistWeb.API.SandboxesController do
         _params
       ) do
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms])
+      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
 
       case Commands.start(sandbox, params) do
         {:ok, command} -> conn |> put_status(:accepted) |> json(command)
@@ -816,7 +822,13 @@ defmodule TuistWeb.API.SandboxesController do
          type: :object,
          properties: %{
            data: %Schema{type: :string, format: :byte, description: "Base64-encoded bytes, at most 256 KiB decoded."},
-           close: %Schema{type: :boolean, description: "End the command's stdin after the data."}
+           close: %Schema{type: :boolean, description: "End the command's stdin after the data."},
+           offset: %Schema{
+             type: :integer,
+             minimum: 0,
+             description:
+               "The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409."
+           }
          }
        }},
     responses:
@@ -838,7 +850,13 @@ defmodule TuistWeb.API.SandboxesController do
     data = Map.get(body_params, :data) || ""
 
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Commands.write_stdin(sandbox, params.command_id, data, Map.get(body_params, :close) == true) do
+      case Commands.write_stdin(
+             sandbox,
+             params.command_id,
+             data,
+             Map.get(body_params, :close) == true,
+             Map.get(body_params, :offset)
+           ) do
         {:ok, command} -> json(conn, command)
         {:error, :not_found} -> not_found(conn, "Command not found.")
         {:error, reason} -> sandbox_error(conn, reason)
