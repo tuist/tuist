@@ -7,7 +7,6 @@ defmodule TuistWeb.PreviewLiveTest do
 
   alias Tuist.AppBuilds
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
-  alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
   setup %{project: project} do
@@ -233,7 +232,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(git_commit_sha: nil, project: project)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
@@ -252,7 +251,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
@@ -271,7 +270,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)

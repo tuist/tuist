@@ -1308,42 +1308,29 @@ defmodule TuistWeb.AuthenticationTest do
   end
 
   describe "mixed-version browser sessions" do
-    setup do
-      stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> false end)
-      :ok
-    end
-
     @tag :session_compatibility
-    test "the compatibility release leaves legacy login and logout authoritative", %{user: user} do
+    test "legacy credentials remain readable without issuing authority until an authentication action", %{user: user} do
       path = ~p"/#{user.account.name}/settings"
-      compatible_login = nil |> login_request() |> Authentication.log_in_user(user)
-      refute compatible_login.resp_cookies["_tuist_key_auth"]
-      assert compatible_login |> recycle() |> get(path) |> html_response(200)
-
-      compatible_logout = [compatible_login] |> browser_request() |> delete(~p"/users/log_out")
-      refute compatible_logout.resp_cookies["_tuist_key_auth"]
-
-      legacy_login =
-        compatible_logout
-        |> login_request()
-        |> put_session(:user_token, Accounts.generate_user_session_token(user))
-        |> send_resp(200, "")
-
-      restored = [compatible_login, compatible_logout, legacy_login] |> browser_request() |> get(path)
+      legacy_login = cookie_session(%{user_token: Accounts.generate_user_session_token(user)})
+      restored = [legacy_login] |> browser_request() |> get(path)
       assert html_response(restored, 200)
       assert restored.assigns.current_user.id == user.id
+      refute restored.resp_cookies["_tuist_key_auth"]
 
-      # An old replica's logout writes only the ordinary session cookie.
-      legacy_logout = legacy_login |> login_request() |> clear_session() |> send_resp(200, "")
-      signed_out = [compatible_login, legacy_login, legacy_logout] |> browser_request() |> get(path)
+      logged_out = [legacy_login] |> browser_request() |> delete(~p"/users/log_out")
+      assert logged_out.resp_cookies["_tuist_key_auth"]
+
+      # A late legacy response must not replace the logout's signed-out marker.
+      late_legacy = cookie_session(%{user_token: Accounts.generate_user_session_token(user)})
+      signed_out = [legacy_login, logged_out, late_legacy] |> browser_request() |> get(path)
       refute signed_out.assigns.current_user
     end
 
     @tag :session_compatibility
     test "legacy account switching and MFA token rotation survive a compatible reader", %{user: user} do
       other = user_fixture(preload: [:account])
-      compatible_login = nil |> login_request() |> Authentication.log_in_user(user)
-      old_token = get_session(compatible_login, :user_token)
+      old_token = Accounts.generate_user_session_token(user)
+      legacy_login = cookie_session(%{user_token: old_token})
       Accounts.delete_user_session_token(old_token)
 
       rotated_token =
@@ -1353,23 +1340,21 @@ defmodule TuistWeb.AuthenticationTest do
         })
 
       legacy_rotation =
-        compatible_login
+        legacy_login
         |> login_request()
         |> put_session(:user_token, rotated_token)
         |> send_resp(200, "")
 
-      restored = [compatible_login, legacy_rotation] |> browser_request() |> get(~p"/dashboard")
+      restored = [legacy_login, legacy_rotation] |> browser_request() |> get(~p"/dashboard")
       assert restored.assigns.current_user.id == other.id
       assert restored.assigns.current_user_session.token == rotated_token
     end
 
     @tag :session_compatibility
-    test "a compatible rollback continues updating authority established after activation", %{user: user} do
-      stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> true end)
+    test "account switching and logout update established authority", %{user: user} do
       isolated = nil |> login_request() |> Authentication.log_in_user(user)
       assert isolated.resp_cookies["_tuist_key_auth"]
 
-      stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> false end)
       other = user_fixture(preload: [:account])
       replacement = isolated |> login_request() |> Authentication.log_in_user(other)
       assert replacement.resp_cookies["_tuist_key_auth"]
@@ -1385,11 +1370,6 @@ defmodule TuistWeb.AuthenticationTest do
   end
 
   describe "browser credential boundary" do
-    setup do
-      stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> true end)
-      :ok
-    end
-
     @tag :credential_boundary
     test "the authentication cookie works without the ordinary session and rejects tampering", %{user: user} do
       path = ~p"/#{user.account.name}/settings"

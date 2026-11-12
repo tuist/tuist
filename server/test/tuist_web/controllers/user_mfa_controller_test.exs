@@ -20,15 +20,13 @@ defmodule TuistWeb.UserMFAControllerTest do
   end
 
   @tag :session_compatibility
-  test "a compatible rollback rotates an isolated credential when MFA enrollment completes", %{user: user, now: now} do
-    stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> true end)
+  test "MFA enrollment rotates the isolated credential", %{user: user, now: now} do
     signed_in = login(user)
     old_token = get_session(signed_in, :user_token)
     assert signed_in.resp_cookies["_tuist_key_auth"]
     enrollment = signed_in |> recycle() |> post(~p"/users/settings/mfa/enroll")
     secret = setup_secret(enrollment)
 
-    stub(Tuist.Environment, :browser_session_isolation_enabled?, fn -> false end)
     confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
     assert html_response(confirmed, 200)
     assert confirmed.resp_cookies["_tuist_key_auth"]

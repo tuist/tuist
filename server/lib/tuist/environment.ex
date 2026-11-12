@@ -299,12 +299,6 @@ defmodule Tuist.Environment do
     enabled == true
   end
 
-  # Enable only once every web replica runs the compatibility release.
-  # After activation, that release is also the oldest safe rollback target.
-  def browser_session_isolation_enabled? do
-    System.get_env("TUIST_BROWSER_SESSION_ISOLATION_ENABLED", "false") == "true"
-  end
-
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))

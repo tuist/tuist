@@ -444,7 +444,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:787
+#: lib/tuist_web/controllers/auth_controller.ex:776
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""
@@ -557,7 +557,7 @@ msgstr ""
 msgid "Verify you're human"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:115
+#: lib/tuist_web/controllers/auth_controller.ex:104
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr ""
@@ -607,7 +607,7 @@ msgstr ""
 msgid "Link single sign-on?"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:593
+#: lib/tuist_web/controllers/auth_controller.ex:582
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
@@ -956,7 +956,7 @@ msgstr ""
 msgid "Use a passkey"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:500
+#: lib/tuist_web/controllers/auth_controller.ex:489
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Log in with its email and password instead."
 msgstr ""
@@ -982,7 +982,7 @@ msgstr ""
 msgid "Sign in"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:680
+#: lib/tuist_web/controllers/auth_controller.ex:669
 #: lib/tuist_web/live/device_authorization_live.ex:19
 #, elixir-autogen, elixir-format
 msgid "Sign in to Tuist"
@@ -1003,7 +1003,7 @@ msgstr ""
 msgid "Sign in to the Tuist app?"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:728
+#: lib/tuist_web/controllers/auth_controller.ex:717
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Sign-in link expired"
@@ -1014,7 +1014,7 @@ msgstr ""
 msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:710
+#: lib/tuist_web/controllers/auth_controller.ex:699
 #, elixir-autogen, elixir-format
 msgid "That code is incorrect or has expired. Check it and try again."
 msgstr ""
@@ -1024,7 +1024,7 @@ msgstr ""
 msgid "This sign-in link has expired or was already used. Start the sign-in again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:716
+#: lib/tuist_web/controllers/auth_controller.ex:705
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Wait a few minutes and try again."
 msgstr ""

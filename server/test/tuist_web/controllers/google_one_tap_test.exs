@@ -19,7 +19,6 @@ defmodule TuistWeb.GoogleOneTapTest do
   end
 
   setup do
-    stub(Environment, :browser_session_isolation_enabled?, fn -> true end)
     stub(Environment, :google_auth_enabled?, fn -> true end)
     stub(Environment, :google_oauth_configured?, fn -> true end)
     stub(Environment, :google_oauth_client_id, fn -> "tuist-client" end)
@@ -29,46 +28,14 @@ defmodule TuistWeb.GoogleOneTapTest do
     %{claims: %{"sub" => "google-user", "email" => "one-tap@gmail.com", "email_verified" => true}}
   end
 
-  @tag :session_compatibility
-  test "compatible starts remain readable by the old aggregate-cookie reader", %{conn: conn, claims: claims} do
-    stub(Environment, :browser_session_isolation_enabled?, fn -> false end)
-    started = start(conn)
-    nonce = json_response(started, 200)["nonce"]
-    assert started.resp_cookies["_tuist_google_one_tap"]
-    refute started.resp_cookies["_tuist_google_one_tap_" <> nonce]
-
-    # This is the old reader's cookie API and signed aggregate wire format.
-    legacy_reader =
-      started
-      |> recycle()
-      |> Map.put(:secret_key_base, started.secret_key_base)
-      |> fetch_cookies(signed: ["_tuist_google_one_tap"])
-
-    assert [%{nonce: ^nonce}] = legacy_reader.cookies["_tuist_google_one_tap"]
-
-    # An aggregate start can also finish on a replica with isolation enabled.
-    stub(Environment, :browser_session_isolation_enabled?, fn -> true end)
-    expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
-    completed = started |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
-    assert redirected_to(completed) == "/users/choose-username"
-  end
-
-  @tag :session_compatibility
-  test "an isolated start can finish on a compatible rollback replica", %{conn: conn, claims: claims} do
-    started = start(conn)
-    nonce = json_response(started, 200)["nonce"]
-    stub(Environment, :browser_session_isolation_enabled?, fn -> false end)
-    expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
-    completed = started |> recycle() |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
-    assert redirected_to(completed) == "/users/choose-username"
-  end
-
   test "issues a fresh, uncacheable session challenge", %{conn: conn} do
     conn = post(conn, "/auth/google/one-tap/start")
     assert %{"client_id" => "tuist-client", "nonce" => nonce, "csrf_token" => csrf_token} = json_response(conn, 200)
     assert byte_size(nonce) >= 32
     assert is_binary(csrf_token)
     assert [%{nonce: ^nonce}] = challenges(conn)
+    assert conn.resp_cookies["_tuist_google_one_tap_" <> nonce]
+    refute conn.resp_cookies["_tuist_google_one_tap"]
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
   end
 
@@ -322,6 +289,7 @@ defmodule TuistWeb.GoogleOneTapTest do
     end
   end
 
+  @tag :session_compatibility
   test "retains outstanding legacy challenges alongside independent starts", %{conn: conn, claims: claims} do
     conn =
       conn

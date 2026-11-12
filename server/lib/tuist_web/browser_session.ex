@@ -6,8 +6,7 @@ defmodule TuistWeb.BrowserSession do
   HTTP and LiveView socket session reads overlay it onto the ordinary session,
   so a late preference, flash or redirect response cannot replace a login.
   Legacy session credentials remain readable when no dedicated cookie exists.
-  First issuance requires the staged rollout gate; existing authority is always
-  honored and updated, including by compatibility-mode rollback replicas.
+  Explicit authentication actions always establish or update that authority.
   """
 
   @behaviour Plug.Session.Store
@@ -16,7 +15,6 @@ defmodule TuistWeb.BrowserSession do
 
   alias Plug.Session.COOKIE
   alias Tuist.Accounts.UserToken
-  alias Tuist.Environment
 
   @cookie Application.compile_env(:tuist, :session_cookie_key, "_tuist_key") <> "_auth"
   @remember_cookie "_tuist_web_user_remember_me"
@@ -70,23 +68,14 @@ defmodule TuistWeb.BrowserSession do
   end
 
   defp put_authentication_cookie(conn, credentials, persistent?) do
-    conn = fetch_cookies(conn)
+    lifetime = UserToken.session_absolute_seconds()
+    # Plug's sign: true defaults to a one-day signature when max_age is absent.
+    # Session-only browser retention must not shorten the server's token lifetime.
+    signed =
+      Plug.Crypto.sign(conn.secret_key_base, @cookie <> "_cookie", credentials, keys: Plug.Keys, max_age: lifetime)
 
-    # During the first rollout, old replicas can only update the ordinary
-    # cookie. Do not establish a competing authority until all writers know it.
-    # Compatible rollback replicas must still update authority already issued.
-    if Environment.browser_session_isolation_enabled?() or Map.has_key?(conn.req_cookies, @cookie) do
-      lifetime = UserToken.session_absolute_seconds()
-      # Plug's sign: true defaults to a one-day signature when max_age is absent.
-      # Session-only browser retention must not shorten the server's token lifetime.
-      signed =
-        Plug.Crypto.sign(conn.secret_key_base, @cookie <> "_cookie", credentials, keys: Plug.Keys, max_age: lifetime)
-
-      opts = if persistent?, do: [max_age: lifetime] ++ @cookie_options, else: @cookie_options
-      put_resp_cookie(conn, @cookie, signed, opts)
-    else
-      conn
-    end
+    opts = if persistent?, do: [max_age: lifetime] ++ @cookie_options, else: @cookie_options
+    put_resp_cookie(conn, @cookie, signed, opts)
   end
 
   defp authentication(conn, session) do

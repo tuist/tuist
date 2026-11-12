@@ -25,8 +25,8 @@ defmodule TuistWeb.AuthController do
 
   @google_one_tap_max_age 3600
   @google_one_tap_max_challenges 10
-  # After activation each start owns a distinct cookie. Until every replica
-  # knows that format, starts retain the legacy aggregate wire format.
+  # Read outstanding aggregate challenges from the compatibility release;
+  # new starts always own a distinct cookie.
   @google_one_tap_cookie "_tuist_google_one_tap"
   @google_one_tap_cookie_prefix "_tuist_google_one_tap_"
   @google_one_tap_cookie_options [
@@ -57,23 +57,12 @@ defmodule TuistWeb.AuthController do
       nonce = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
       challenge = %{nonce: nonce, issued_at: DateTime.to_unix(DateTime.utc_now())}
 
-      conn =
-        if Tuist.Environment.browser_session_isolation_enabled?() do
-          put_resp_cookie(
-            conn,
-            @google_one_tap_cookie_prefix <> nonce,
-            challenge,
-            [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
-          )
-        else
-          # Do not copy independent challenges into the aggregate on rollback:
-          # they already have their own cookies and would then match twice.
-          legacy = List.wrap(conn.cookies[@google_one_tap_cookie])
-          pending = Enum.filter(google_one_tap_challenges(conn), &(&1 in legacy))
-          put_google_one_tap_challenges(conn, [challenge | pending])
-        end
-
       conn
+      |> put_resp_cookie(
+        @google_one_tap_cookie_prefix <> nonce,
+        challenge,
+        [sign: true, max_age: @google_one_tap_max_age] ++ @google_one_tap_cookie_options
+      )
       |> put_resp_header("cache-control", "private, no-store")
       |> json(%{client_id: Tuist.Environment.google_oauth_client_id(), nonce: nonce, csrf_token: get_csrf_token()})
     else
