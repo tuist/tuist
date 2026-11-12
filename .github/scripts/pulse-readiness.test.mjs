@@ -5,6 +5,38 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 
+test('managed product configuration scopes Greptime to the staging Tuist account', () => {
+  for (const environment of ['staging', 'canary', 'production']) {
+    const yaml = execFileSync('helm', ['template', 'tuist', 'infra/helm/tuist',
+      '-f', 'infra/helm/tuist/values-managed-common.yaml',
+      '-f', `infra/helm/tuist/values-managed-${environment}.yaml`,
+      '-f', 'infra/helm/tuist/values-ci.yaml']);
+    const objects = JSON.parse(execFileSync('yq', ['ea', '-o=json', '-I=0', '[.]', '-'], {input: yaml}));
+    const server = objects.find(object => object.kind === 'Deployment' &&
+      object.metadata.labels?.['app.kubernetes.io/component'] === 'server');
+    const container = server.spec.template.spec.containers.find(container => container.name === 'server');
+    const connection = Object.fromEntries(container.env.filter(variable => variable.name.startsWith('TUIST_PULSE_'))
+      .map(variable => [variable.name, variable.value]));
+    assert.deepEqual(connection, environment === 'staging' ? {
+      TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: '2',
+      TUIST_PULSE_URL: 'http://greptimedb.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
+    } : environment === 'production' ? {
+      TUIST_PULSE_ACCOUNT_ID: '3', TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000',
+      TUIST_PULSE_TENANT: 'tuist',
+    } : {}, environment);
+    const secret = objects.find(object => object.kind === 'ExternalSecret' &&
+      object.spec.data?.some(source => source.secretKey === 'TUIST_PULSE_TOKEN'));
+    if (environment === 'canary') {
+      assert.equal(secret, undefined);
+    } else {
+      assert.ok(container.envFrom.some(source => source.secretRef?.name === secret.spec.target.name));
+      assert.equal(secret.spec.data.find(source => source.secretKey === 'TUIST_PULSE_TOKEN').remoteRef.key,
+        'PULSE_TOKEN/password');
+      assert.equal(secret.spec.target.template.data.TUIST_PULSE_TOKEN, '{{ .TUIST_PULSE_TOKEN | trim }}');
+    }
+  }
+});
+
 test('routine deployment accepts existing Pulse without Greptime and staging replacement only when ready', () => {
   const work = mkdtempSync(join(tmpdir(), 'pulse-readiness-'));
   try {
@@ -55,28 +87,49 @@ console.log(JSON.stringify(value));
   } finally { rmSync(work, {recursive:true, force:true}); }
 });
 
-test('staging cutover refuses unconfigured or unconverged readers before any Helm operation', () => {
+test('staging cutover accepts unenrolled servers but refuses incompatible enrolled readers before Helm', () => {
   const work = mkdtempSync(join(tmpdir(), 'pulse-readers-'));
   try {
     writeFileSync(join(work, 'kubectl'), `#!/usr/bin/env node
 const scenario = process.env.SCENARIO;
-const env = {TUIST_PULSE_BACKEND:'greptime',TUIST_PULSE_URL:'http://greptimedb.observability.svc.cluster.local:4000',TUIST_PULSE_TENANT:'public'};
-if (scenario === 'Pulse reader') env.TUIST_PULSE_BACKEND='pulse';
-if (scenario === 'old URL') env.TUIST_PULSE_URL='http://pulse.observability:4000';
-if (scenario === 'wrong database') env.TUIST_PULSE_TENANT='other';
-const reader = {metadata:{generation:2},spec:{replicas:2,template:{spec:{containers:[{env:Object.entries(env).map(([name,value])=>({name,value}))}]}}},
-  status:{observedGeneration:2,updatedReplicas:2,readyReplicas:2}};
+const args = process.argv.slice(2);
+if (args.includes('exec')) {
+  console.log('runtime startup synthetic-secret-must-not-appear');
+  console.error('runtime diagnostic synthetic-secret-must-not-appear');
+  if (scenario === 'RPC failure') process.exit(1);
+  if (scenario === 'missing metadata') process.exit(0);
+  let state = scenario === 'unenrolled' ? 'unenrolled' : 'greptime';
+  if (scenario === 'Pulse reader' || scenario === 'mixed readers' && args.includes('server-2')) state='incompatible';
+  console.log('PULSE_READER_STATE=' + state);
+  if (scenario === 'duplicate metadata') console.log('PULSE_READER_STATE=' + state);
+  process.exit(0);
+}
+if (args.includes('pods')) {
+  const pods = [1,2].map(id => ({metadata:{name:'server-'+id},status:{conditions:[{type:'Ready',status:'True'}]}}));
+  if (scenario === 'terminating pod') pods[1].metadata.deletionTimestamp='2026-11-11T00:00:00Z';
+  if (scenario === 'unready pod') pods[1].status.conditions[0].status='False';
+  if (scenario === 'missing pod') pods.pop();
+  console.log(JSON.stringify({items:pods})); process.exit(0);
+}
+if (!args.includes('deployments')) process.exit(99);
+const reader = {metadata:{generation:2},spec:{replicas:2},
+  status:{observedGeneration:2,replicas:2,updatedReplicas:2,readyReplicas:2}};
 if (scenario === 'old replicas') reader.status.updatedReplicas=1;
+if (scenario === 'extra replica') reader.status.replicas=3;
 if (scenario === 'unready') reader.status.readyReplicas=1;
 if (scenario === 'stale') reader.status.observedGeneration=1;
 console.log(JSON.stringify({items:scenario === 'absent' ? [] : [reader]}));
 `, {mode:0o755});
     writeFileSync(join(work, 'helm'), '#!/bin/sh\nexit 42\n', {mode:0o755});
     const step = execFileSync('yq', ['-r', '.jobs.deploy.steps[] | select(.name == "Replace existing Pulse release only after independent backend qualification").run', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'});
-    for (const scenario of ['ready', 'Pulse reader', 'old URL', 'wrong database', 'old replicas', 'unready', 'stale', 'absent']) {
+    execFileSync('mkdir', ['-p', join(work, 'greptimedb-deploy')]);
+    for (const scenario of ['ready', 'unenrolled', 'Pulse reader', 'mixed readers', 'old replicas', 'extra replica',
+      'unready', 'stale', 'absent', 'terminating pod', 'unready pod', 'missing pod',
+      'RPC failure', 'missing metadata', 'duplicate metadata']) {
       const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
         PATH:`${work}:${process.env.PATH}`, RUNNER_TEMP:work, SCENARIO:scenario}});
-      assert.equal(result.status, scenario === 'ready' ? 42 : 1, `${scenario}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.status, ['ready','unenrolled'].includes(scenario) ? 42 : 1, `${scenario}: ${result.stdout}${result.stderr}`);
+      assert.ok(!`${result.stdout}${result.stderr}`.includes('synthetic-secret-must-not-appear'), scenario);
     }
   } finally { rmSync(work, {recursive:true, force:true}); }
 });

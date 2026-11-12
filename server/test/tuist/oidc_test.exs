@@ -232,6 +232,115 @@ defmodule Tuist.OIDCTest do
     end
   end
 
+  describe "amp_creator/2" do
+    test "verifies the creator, not the operator, against Amp's fixed issuer and keys" do
+      claims = amp_creator_claims()
+      {token, jwks} = generate_test_token_and_jwks(claims: claims)
+
+      stub(Req, :get, fn url, _ ->
+        assert url == "https://ampcode.com/api/workload-identity/jwks.json"
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok, %{user_id: "user_creator", thread_id: thread_id, name: "amp-creator"}} =
+               OIDC.amp_creator(token, "https://tuist.dev")
+
+      assert thread_id == claims["thread_id"]
+    end
+
+    test "uses today's email-only creator claims without requiring an Amp username" do
+      base =
+        amp_creator_claims()
+        |> Map.delete("preferred_username")
+        |> Map.merge(%{"email" => "creator@example.com", "email_verified" => true})
+
+      for {claims, label, username} <- [
+            {base, "creator@example.com", nil},
+            {Map.put(base, "preferred_username", "amp-handle"), "amp-handle", "amp-handle"},
+            {Map.put(base, "preferred_username", ""), "creator@example.com", nil}
+          ] do
+        {token, jwks} = generate_test_token_and_jwks(claims: claims)
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+
+        assert {:ok, %{user_id: "user_creator", name: ^label, username: ^username}} =
+                 OIDC.amp_creator(token, "https://tuist.dev")
+      end
+    end
+
+    test "rejects wrong issuer, audience, subject, scope, expiry, and setup tokens" do
+      base = amp_creator_claims()
+
+      for override <- [
+            %{"iss" => "https://attacker.example"},
+            %{"aud" => "another-audience"},
+            %{"sub" => "user:someone-else:thread:#{base["thread_id"]}"},
+            %{"sub" => "user:user_creator"},
+            %{"sub" => nil, "workspace_id" => "invalid"},
+            %{"workspace_id" => "invalid"},
+            %{"project_id" => "invalid"},
+            %{"thread_id" => nil},
+            %{"user_id" => nil},
+            %{"token_use" => "request"},
+            %{"exp" => System.os_time(:second) - 10},
+            %{"nbf" => System.os_time(:second) + 3600}
+          ] do
+        {token, jwks} = generate_test_token_and_jwks(claims: Map.merge(base, override))
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+        assert {:error, :invalid_token} = OIDC.amp_creator(token, "https://tuist.dev")
+      end
+
+      assert {:error, :invalid_token} = OIDC.amp_creator("malformed", "https://tuist.dev")
+    end
+
+    test "supports workspace creators and rejects mismatched workspace or project subjects" do
+      workspace = Ecto.UUID.generate()
+      project = Ecto.UUID.generate()
+      base = amp_creator_claims()
+
+      claims =
+        Map.merge(base, %{
+          "workspace_id" => workspace,
+          "project_id" => project,
+          "sub" => "workspace:#{workspace}:project:#{project}:user:user_creator:thread:#{base["thread_id"]}"
+        })
+
+      {token, jwks} = generate_test_token_and_jwks(claims: claims)
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, %{user_id: "user_creator"}} = OIDC.amp_creator(token, "https://tuist.dev")
+
+      for key <- ["workspace_id", "project_id"] do
+        {token, jwks} = generate_test_token_and_jwks(claims: Map.put(claims, key, Ecto.UUID.generate()))
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+        assert {:error, :invalid_token} = OIDC.amp_creator(token, "https://tuist.dev")
+      end
+    end
+
+    test "checks the signature and falls back to the stable ID without a display claim" do
+      claims = Map.delete(amp_creator_claims(), "preferred_username")
+      {token, jwks} = generate_test_token_and_jwks(claims: claims)
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, %{name: "user_creator", username: nil}} = OIDC.amp_creator(token, "https://tuist.dev")
+
+      {_, other_keys} = generate_test_token_and_jwks()
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: other_keys}} end)
+      assert {:error, :invalid_token} = OIDC.amp_creator(token, "https://tuist.dev")
+    end
+  end
+
+  defp amp_creator_claims do
+    thread_id = "T-" <> Ecto.UUID.generate()
+
+    %{
+      "iss" => "https://ampcode.com/api/workload-identity",
+      "aud" => "https://tuist.dev",
+      "token_use" => "exchanged",
+      "user_id" => "user_creator",
+      "thread_id" => thread_id,
+      "sub" => "user:user_creator:thread:#{thread_id}",
+      "preferred_username" => "amp-creator"
+    }
+  end
+
   defp gitlab_token do
     {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com", claims: %{"aud" => "tuist-runner-cache"})
     token

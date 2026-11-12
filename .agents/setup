@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepares an Amp orb (Debian 12) for working on this monorepo: the root and
+# Prepares an Amp orb (Debian/Ubuntu) for working on this monorepo: the root and
 # server mise toolchains, PostgreSQL 16, ClickHouse, and a bootstrapped,
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
@@ -22,6 +22,7 @@ trap 'exec >&- 2>&-; wait "$stdout_relay" "$stderr_relay"' EXIT
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+setup_started=$SECONDS
 
 step() {
   printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
@@ -59,9 +60,9 @@ retry() {
 }
 
 # --- System packages -------------------------------------------------------
-# Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
-# keep its build dependencies alongside PostgreSQL 16, which the server
-# requires and Debian 12 does not ship.
+# mise uses prebuilt Erlang on Ubuntu, but falls back to a source build on
+# Debian. Keep its build dependencies alongside PostgreSQL 16, which the
+# server requires and Debian 12 does not ship.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
   ffmpeg inotify-tools postgresql-16 postgresql-client-16
@@ -82,8 +83,8 @@ if ((${#missing_packages[@]})); then
       https://www.postgresql.org/media/keys/ACCC4CF8.asc
     echo "$pgdg_list" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
   fi
-  sudo apt-get update -q
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
+  timed "Updating system package lists" sudo apt-get update -q
+  timed "Installing system packages" sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
 fi
 
 # --- PostgreSQL 16 ---------------------------------------------------------
@@ -193,7 +194,7 @@ if [[ -z "${TUIST_OIDC_TOKEN:-}" ]]; then
 fi
 
 step "Starting ClickHouse"
-mise run --no-deps clickhouse:start
+timed "Starting ClickHouse" mise run --no-deps clickhouse:start
 
 # deps.get, aube installs, Noora build, dev compile, and database
 # create/migrate; on a stale snapshot only what changed.
@@ -297,4 +298,4 @@ EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"
 
-step "Setup finished"
+step "Setup finished in $((SECONDS - setup_started))s"

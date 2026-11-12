@@ -38,7 +38,8 @@ SITE=larch
      minis would stop it from remediating a failed ber1 mini.
    - The WAN, once Cogent assigns it: `management.edge.wan.address`,
      `gateway`, `address6` and `gateway6`, and the `bgp` block with the
-     aggregates, `site_prefixes: ["95.130.119.32/28"]` and
+     aggregates, `site_prefixes: ["95.130.119.32/28"]`,
+     `site_prefix_community: "174:990"` and
      `egress.prefix: "95.130.119.32/28"`. `render` then writes larch's
      `bird.conf` and the first edge's static WAN.
    - `contracted_power`: 3000 W from 2026-11-09, 5000 W from 2027-05-09 and
@@ -49,11 +50,18 @@ SITE=larch
 2. **The range can be served from two sites.** Do this before larch's BGP
    session first comes up, or ber1's replies start landing at larch:
    - Create RIPE route objects and ROAs for AS218377 for 95.130.119.16/28
-     and 95.130.119.32/28.
-   - Get Cogent's written confirmation that they accept /28s from us tagged
-     NO_EXPORT on both sessions.
-   - Deploy ber1's `site_prefixes`.
-   - Check Cogent's looking glass for `95.130.119.16/28` behind AS218377.
+     and 95.130.119.32/28, each ROA at max length 28. Leave the /24's ROA at
+     max length 24. Until then both /28s are RPKI `invalid_length`.
+   - Get Cogent's written acceptance (an ICB through eu-support) of both
+     /28s on both sessions, ber1's and larch's, tagged 174:990. Cogent's
+     customer filters stop at "le 24", and its guide refuses an announcement
+     carrying a community off its list, NO_EXPORT included.
+   - Deploy ber1's `site_prefixes`. The new `bird.conf` restarts each edge's
+     static pod in turn, which moves the WAN address and the BGP sessions
+     between the edges, so deploy it when the rack is quiet.
+   - Check Cogent's looking glass, from a router other than ber1's, for
+     `95.130.119.16/28` behind AS218377 with the /24 still beside it, and
+     that RIPE RIS does not see the /28 (it stays inside AS174).
 3. **Merge in this order:**
    1. Edge ZTP (#14728), and the operator's fix that keeps ARP on the
       edges' ToR management port (#14748).

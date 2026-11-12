@@ -8,7 +8,15 @@ defmodule TuistWeb.Plugs.TimezonePlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    put_session(conn, :user_timezone, timezone(conn))
+    timezone = timezone(conn)
+
+    # A late response must not rewrite an unchanged snapshot of the cookie
+    # session over a login or return destination written by another tab.
+    if get_session(conn, :user_timezone) == timezone do
+      conn
+    else
+      put_session(conn, :user_timezone, timezone)
+    end
   end
 
   # The cookie is client-controlled and the session is a cookie capped at

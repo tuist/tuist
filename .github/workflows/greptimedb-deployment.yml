@@ -1,4 +1,4 @@
-name: GreptimeDB Staging Replacement
+name: Pulse GreptimeDB Replacement
 
 on:
   pull_request:
@@ -37,10 +37,10 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Staging qualification only; promotion requires a separate change
+        description: Pulse backend qualification target; origin replacement remains staging-only
         required: true
         type: choice
-        options: [staging]
+        options: [staging, canary, production]
       dashboard:
         description: Enable readonly dashboard and write-only ingestion identities
         type: boolean
@@ -147,13 +147,21 @@ jobs:
           set -euo pipefail
           umask 077
           dir="$RUNNER_TEMP/greptimedb-deploy"
-          [[ "$DEPLOY_ENV" == staging ]]
+          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
+          if [[ "$DEPLOY_ENV" != staging ]]; then
+            # Qualify the independent Pulse backend first. Do not silently
+            # extend the existing staging-only origin/collector cutover gates.
+            [[ '${{ inputs.replace_pulse }}' != true && '${{ inputs.deploy_collectors }}' != true && '${{ inputs.inspect_readers }}' != true ]]
+          fi
           if [[ '${{ inputs.replace_pulse }}' == true && "$DASHBOARD_ENABLED" != true ]]; then
             echo '::error::Origin replacement requires scoped identities.'
             exit 1
           fi
           if [[ '${{ inputs.deploy_collectors }}' == true && '${{ inputs.replace_pulse }}' != true ]]; then exit 1; fi
+          values=()
+          if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
           helm template greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" -n observability \
+            "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" > "$dir/rendered.yaml"
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
       - uses: 1password/install-cli-action@v4
@@ -164,7 +172,7 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p "$(dirname "$KUBECONFIG")"
-          [[ "$DEPLOY_ENV" == staging ]]
+          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
           op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
       - name: Inspect staging reader identity without changing enrollment
         if: inputs.inspect_readers
@@ -288,7 +296,10 @@ jobs:
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
+          values=()
+          if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
           if ! helm upgrade --install greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" \
+            "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
             -n observability --timeout 10m --wait > "$dir/helm.log" 2>&1; then
             echo '::error::GreptimeDB rollout failed; state retained for diagnosis.'
@@ -337,19 +348,51 @@ jobs:
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
-          # The gateway intentionally has no legacy query API. Move deployed
-          # staging readers to the qualified private backend first, otherwise
-          # a successful ingest cutover would break the product dashboard.
-          kubectl -n tuist-staging get deployments -l app.kubernetes.io/component=server -o json | jq -e '
-            (.items | length > 0) and all(.items[];
+          # Grafana reads the backend directly. Do not enroll product readers
+          # or deploy unrelated server workloads just to replace ingestion.
+          # Existing enrolled readers must already use the Greptime adapter.
+          umask 077
+          kubectl -n tuist-staging get deployments -l app.kubernetes.io/component=server -o json > "$dir/readers.json"
+          replicas=$(jq -er '
+            select((.items | length > 0) and all(.items[];
               .spec.replicas > 0 and
               .status.observedGeneration >= .metadata.generation and
-              .status.updatedReplicas == .spec.replicas and .status.readyReplicas == .spec.replicas and
-              any(.spec.template.spec.containers[];
-                (.env // [] | map({key:.name,value:.value}) | from_entries) as $env |
-                $env.TUIST_PULSE_BACKEND == "greptime" and
-                $env.TUIST_PULSE_URL == "http://greptimedb.observability.svc.cluster.local:4000" and
-                $env.TUIST_PULSE_TENANT == "public"))' >/dev/null
+              .status.replicas == .spec.replicas and
+              .status.updatedReplicas == .spec.replicas and .status.readyReplicas == .spec.replicas)) |
+            [.items[].spec.replicas] | add' "$dir/readers.json") || {
+            echo '::error::Server rollout has not converged; origin replacement stopped.'
+            exit 1
+          }
+          kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o json > "$dir/reader-pods.json"
+          jq -e --argjson replicas "$replicas" '
+            (.items | length) == $replicas and all(.items[];
+              .metadata.deletionTimestamp == null and
+              any(.status.conditions[]?; .type == "Ready" and .status == "True"))' "$dir/reader-pods.json" >/dev/null
+          while read -r pod; do
+            if ! kubectl -n tuist-staging exec "$pod" -c server -- /app/bin/tuist rpc '
+              config = Application.get_env(:tuist, :pulse, [])
+              state = case Keyword.get(config, :account_id) do
+                nil -> "unenrolled"
+                id when is_integer(id) and id > 0 ->
+                  if Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4) and
+                     Code.ensure_loaded?(Tuist.Pulse.Greptime) and
+                     Keyword.get(config, :backend, :pulse) == :greptime and
+                     Keyword.get(config, :base_url) == "http://greptimedb.observability.svc.cluster.local:4000" and
+                     Keyword.get(config, :tenant) == "public",
+                    do: "greptime", else: "incompatible"
+                _ -> "incompatible"
+              end
+              IO.puts("PULSE_READER_STATE=" <> state)' > "$dir/reader.out" 2> "$dir/reader.err"; then
+              echo '::error::Reader inspection failed; raw runtime output is withheld.'
+              exit 1
+            fi
+            state=$(sed -n 's/^PULSE_READER_STATE=//p' "$dir/reader.out")
+            case "$state" in
+              unenrolled|greptime) echo "PASS: server reader $state" ;;
+              *) echo '::error::Enrolled readers must use Greptime before origin replacement.'; exit 1 ;;
+            esac
+          done < <(jq -r '.items[].metadata.name' "$dir/reader-pods.json")
+          rm -f "$dir/readers.json" "$dir/reader-pods.json" "$dir/reader.out" "$dir/reader.err"
           helm status pulse -n observability > /dev/null
           bash .github/scripts/pulse-readiness.sh
           helm template pulse "$dir/greptimedb-ingest-0.1.0.tgz" -n observability --set "environment=$DEPLOY_ENV" > "$dir/gateway.yaml"

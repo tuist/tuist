@@ -336,7 +336,7 @@ These tools manage the authenticated user's own notification rules: when an even
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_runner_jobs` | List continuous-integration runner jobs for an account. | `account_handle` |
-| `get_runner_job` | Get a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `get_runner_job` | Get a continuous-integration runner job, including whether its machine ran out of memory, what it stopped, and what to change. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_steps` | List the steps recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
@@ -366,7 +366,7 @@ and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
 
 #### Sandboxes
 
-Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandboxes run arbitrary commands, so every tool, including the read-only ones, requires account administration, and the account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
+Sandbox tools expose the same data and actions as the Sandboxes dashboard, with the same access as the [API](https://tuist.dev/api/docs): account members can list, get, create, pause, resume and delete sandboxes, but sandboxes that serve an agent environment, Amp or remote execution, and the analytics and archive tools, require account administration. Read-only viewers can't use them. The account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|

@@ -19,6 +19,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
@@ -184,7 +185,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   archive, the row stays without a node, so a later expiry or supersede
   deletes the archive again.
   """
-  def delete(%DiskSnapshot{} = snapshot) do
+  def delete(%DiskSnapshot{id: id}) do
+    # An offload can change the archive's route after the caller loaded it.
+    # Publication uses this same lock, without holding it during the copy.
+    Sandboxes.with_sandbox_lock(
+      id,
+      fn ->
+        case Repo.get(DiskSnapshot, id) do
+          nil -> :ok
+          snapshot -> do_delete(snapshot)
+        end
+      end,
+      wait: false
+    )
+  end
+
+  defp do_delete(snapshot) do
     if snapshot.node_name, do: delete_node_copy(snapshot)
 
     case Archives.delete_disk_snapshot_archive(snapshot) do

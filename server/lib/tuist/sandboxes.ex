@@ -14,6 +14,7 @@ defmodule Tuist.Sandboxes do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.User
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
@@ -260,7 +261,44 @@ defmodule Tuist.Sandboxes do
         limit -> query |> limit(^limit) |> offset(^Keyword.get(opts, :offset, 0))
       end
 
-    Repo.all(query)
+    query |> Repo.all() |> preload_creators()
+  end
+
+  def preload_creators(sandboxes) do
+    usernames = sandboxes |> Enum.map(& &1.amp_creator_username) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    # Username equality is a display heuristic, not a verified identity link.
+    # Only match the username claim, never an email, display name or stable ID.
+    names =
+      if usernames == [] do
+        %{}
+      else
+        from(a in Account,
+          join: u in User,
+          on: u.id == a.user_id and u.active == true and is_nil(u.disabled_at),
+          where: a.name in ^usernames,
+          select: a.name
+        )
+        |> Repo.all()
+        |> Map.new(&{String.downcase(&1), &1})
+      end
+
+    Enum.map(sandboxes, &%{&1 | creator_actor: sandbox_creator(&1, names)})
+  end
+
+  defp sandbox_creator(sandbox, names) do
+    matched_name = Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
+    name = matched_name || sandbox.amp_creator_name || sandbox.amp_creator_user_id
+
+    %{
+      name: name,
+      source:
+        cond do
+          matched_name -> :matched
+          name -> :reported
+          true -> :unknown
+        end
+    }
   end
 
   @doc """
@@ -363,6 +401,16 @@ defmodule Tuist.Sandboxes do
         order_by: [asc: s.updated_at]
     )
   end
+
+  @doc """
+  Whether an account member who isn't an administrator may use the sandbox:
+  one that serves no agent environment, Amp integration, provider environment
+  or remote execution, since those hold credentials or other people's work.
+  """
+  def member_sandbox?(%Sandbox{} = sandbox),
+    do:
+      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
+        is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
@@ -514,6 +562,8 @@ defmodule Tuist.Sandboxes do
   defp boot_source(_source, %{"warm" => true}), do: "warm"
   defp boot_source(_source, _data), do: "template"
 
+  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, nil), do: create_on_macos_host(sandbox, args, [])
+
   defp place_and_create(sandbox, args, nil) do
     with {:ok, node_name} <- Capacity.place(sandbox),
          sandbox = Repo.reload!(sandbox),
@@ -574,6 +624,44 @@ defmodule Tuist.Sandboxes do
   # An archived snapshot whose node copy is gone.
   defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot),
     do: create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
+
+  # A macOS host's own checks (its CI grant, its disk) are final and can
+  # refuse a create the server placed, after which the host discards the
+  # VM itself. The create moves on to the next host instead of failing.
+  defp create_on_macos_host(sandbox, args, refused) do
+    placed =
+      if refused == [],
+        do: Capacity.place(sandbox),
+        else: Capacity.place(sandbox, &(&1.name not in refused))
+
+    with {:ok, node_name} <- placed do
+      sandbox = Repo.reload!(sandbox)
+
+      case node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
+        {:ok, data} ->
+          {:ok, node_name, data}
+
+        {:error, reason} = error ->
+          if host_refused?(reason) do
+            Logger.info("sandboxes: macOS host refused the create, trying the next one",
+              sandbox_id: sandbox.id,
+              node: node_name,
+              reason: inspect(reason)
+            )
+
+            sandbox |> release_node() |> create_on_macos_host(args, [node_name | refused])
+          else
+            error
+          end
+      end
+    end
+  end
+
+  # A capacity refusal, plain or with the host's reason. One joined with
+  # another error (a line break) is not only a refusal.
+  defp host_refused?(:no_capacity), do: true
+  defp host_refused?("macOS sandbox capacity unavailable: " <> detail), do: not String.contains?(detail, "\n")
+  defp host_refused?(_reason), do: false
 
   defp create_after_failed_clone(sandbox, args, _node_name, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
     sandbox |> release_node() |> create_from_disk_snapshot_archive(args, disk_snapshot)

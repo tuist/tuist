@@ -13,6 +13,7 @@ defmodule Tuist.OIDC do
   alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
+  alias Tuist.ReportActor
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
@@ -68,6 +69,63 @@ defmodule Tuist.OIDC do
   predate Amp workspace connections and also cover personal threads.
   """
   def amp_policy_claims(token, account_handle), do: Workload.claims(token, @amp_issuer, account_handle)
+
+  @doc "The signed creator of an Amp thread, for attribution only, never authorization."
+  def amp_creator(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{"token_use" => "exchanged", "user_id" => user_id, "thread_id" => thread_id, "sub" => subject} <- claims,
+         true <- is_binary(subject),
+         true <- is_binary(user_id) and Regex.match?(~r/\Auser_[A-Za-z0-9_-]{1,120}\z/, user_id),
+         {:ok, thread_uuid} <- amp_thread_uuid(thread_id),
+         ^subject <- amp_creator_subject(claims, user_id, thread_id) do
+      name =
+        Enum.find(
+          [claims["preferred_username"], claims["name"], claims["email"], user_id],
+          &ReportActor.valid_identifier?/1
+        )
+
+      {:ok,
+       %{
+         user_id: user_id,
+         thread_id: "T-" <> thread_uuid,
+         name: name,
+         username: if(ReportActor.valid_identifier?(claims["preferred_username"]), do: claims["preferred_username"])
+       }}
+    else
+      _ -> {:error, :invalid_token}
+    end
+  rescue
+    _ -> {:error, :invalid_token}
+  end
+
+  def amp_creator(_, _), do: {:error, :invalid_token}
+
+  defp amp_thread_uuid("T-" <> uuid), do: Ecto.UUID.cast(uuid)
+  defp amp_thread_uuid(_), do: :error
+
+  defp amp_creator_subject(claims, user_id, thread_id) do
+    workspace = claims["workspace_id"]
+    project = claims["project_id"]
+
+    case {workspace, project, amp_uuid(workspace), amp_uuid(project)} do
+      {nil, nil, _, _} ->
+        "user:#{user_id}:thread:#{thread_id}"
+
+      {_, nil, workspace_uuid, _} when is_binary(workspace_uuid) ->
+        "workspace:#{workspace}:user:#{user_id}:thread:#{thread_id}"
+
+      {nil, _, _, project_uuid} when is_binary(project_uuid) ->
+        "user:#{user_id}:project:#{project}:thread:#{thread_id}"
+
+      {_, _, workspace_uuid, project_uuid} when is_binary(workspace_uuid) and is_binary(project_uuid) ->
+        "workspace:#{workspace}:project:#{project}:user:#{user_id}:thread:#{thread_id}"
+
+      _ ->
+        nil
+    end
+  end
 
   defp audience_includes(%{"aud" => audience}, audience), do: :ok
 

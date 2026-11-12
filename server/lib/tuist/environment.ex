@@ -86,6 +86,10 @@ defmodule Tuist.Environment do
   """
   def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
+  def blocked_account_handles, do: Application.fetch_env!(:tuist, :blocked_account_handles)
+
+  def blocked_project_handles, do: Application.fetch_env!(:tuist, :blocked_project_handles)
+
   def test? do
     @compile_env == :test
   end
@@ -293,6 +297,12 @@ defmodule Tuist.Environment do
         enabled \\ Application.get_env(:tuist, :sso_require_login_domain_verification, false)
       ) do
     enabled == true
+  end
+
+  # Enable only once every web replica runs the compatibility release.
+  # After activation, that release is also the oldest safe rollback target.
+  def browser_session_isolation_enabled? do
+    System.get_env("TUIST_BROWSER_SESSION_ISOLATION_ENABLED", "false") == "true"
   end
 
   def tuist_hosted? do

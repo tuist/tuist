@@ -112,6 +112,10 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
+
+	// dindReportMountPath is where the metrics sidecar reads the dind
+	// sidecar's /var/run on cache-volume pools.
+	dindReportMountPath = "/var/run/tuist-dind"
 	// workPath is the runner's work directory. It must match the
 	// `work_folder` the server mints into the JIT config (`mint_jit`
 	// in `Tuist.Runners`, `/home/runner/work` on Linux to mirror
@@ -685,9 +689,19 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_DOCKER_CACHE", Value: "1"})
 		}
 		for i := range initContainers {
-			if initContainers[i].Name == "dind" {
+			switch initContainers[i].Name {
+			case "dind":
 				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
 				initContainers[i].Env = append(initContainers[i].Env, uidEnv)
+			case "metrics":
+				// The dind sidecar names the process the kernel killed for
+				// memory in its /var/run, and the sampler sends it with the
+				// job's metrics. Read-only, at its own path: the sampler is
+				// trusted code but has no use for the Docker socket beside it.
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts,
+					corev1.VolumeMount{Name: "dind-sock", MountPath: dindReportMountPath, ReadOnly: true})
+				initContainers[i].Env = append(initContainers[i].Env,
+					corev1.EnvVar{Name: "TUIST_RUNNER_DIND_MEMORY_FILE", Value: dindReportMountPath + "/tuist-dind-memory"})
 			}
 		}
 	}

@@ -88,9 +88,23 @@ the existing `PULSE_TOKEN/password` field from the environment's 1Password
 vault through the server-config ExternalSecret. Verify that source exists and
 its Pulse ExternalSecret is Ready before enabling this mapping: a missing
 field fails the shared server-config sync. No token is stored in chart values.
-The connection is disabled by default and in staging/canary.
+The connection is disabled by default and in canary.
 
-After the normal server deployment cascade, verify the server-config
+Staging uses the Greptime reader at
+`http://greptimedb.observability.svc.cluster.local:4000`, database `public`,
+with stable account ID `2`, the staging `tuist` account. It uses the same
+environment-scoped `PULSE_TOKEN/password` source, authenticated as the readonly
+`dashboard` user. The managed staging overlay owns this configuration; do not
+patch the Deployment separately. After deploying a reader-capable server image,
+confirm the live account still resolves to ID `2` before enabling only that
+account's `pulse` actor gate in staging. Never use production's ID `3` there.
+Verify metrics, logs and traces (both tables and analytics) on every serving
+replica, and verify other accounts and non-members remain denied. Log/span
+queries are literal text searches, with `*` selecting all; Errors are not
+supported by this backend. Configuring the connection alone does not enable
+the feature flag or constitute a successful live-reader verification.
+
+For production, after the normal server deployment cascade, verify the server-config
 ExternalSecret is Ready and every web replica has the three non-secret
 `TUIST_PULSE_*` connection settings. Enable only the `pulse` actor gate for
 account `3` through the audited feature-flag operator API, then verify the four

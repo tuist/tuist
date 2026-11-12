@@ -48,14 +48,23 @@ defmodule TuistWeb.RunnerJobMetricsController do
             "network_bytes_in": 10485760,
             "network_bytes_out": 5242880,
             "disk_used_bytes": 48318382080,
-            "disk_total_bytes": 68719476736
+            "disk_total_bytes": 68719476736,
+            "oom_kill_count": 1,              // OOM kills since the job started
+            // The process killed last, once oom_kill_count > 0 (Linux
+            // cache-volume pools only):
+            "oom_victim_process": "java",
+            "oom_victim_memory_bytes": 27917287424,
+            "oom_victim_container": "gradle-build", // "docker-build" for a build step
+            "oom_victim_image": "gradle:8-jdk21"
           }
         ]
       }
 
-  Every metric field but `timestamp` is optional and defaults to 0,
-  so a Linux-only or macOS-only collector can omit what it can't
-  measure. Delivery is at-least-once; the ReplacingMergeTree
+  Every metric field but `timestamp` is optional and defaults to 0
+  (or `""` for the `oom_victim_` names), so a Linux-only or macOS-only
+  collector can omit what it can't measure. The job can write the file
+  the victim's names come from, so a name that is not at most 128 of
+  `[A-Za-z0-9._/:@-]` is dropped rather than stored. Delivery is at-least-once; the ReplacingMergeTree
   `(workflow_job_id, timestamp)` key collapses re-POSTed batches.
   """
 
@@ -73,7 +82,10 @@ defmodule TuistWeb.RunnerJobMetricsController do
     memory_used_bytes memory_total_bytes
     network_bytes_in network_bytes_out
     disk_used_bytes disk_total_bytes
+    oom_kill_count oom_victim_memory_bytes
   )a
+  @name_fields ~w(oom_victim_process oom_victim_container oom_victim_image)a
+  @safe_name ~r/\A[A-Za-z0-9._\/:@-]{1,128}\z/
 
   @doc """
   `POST /api/internal/runners/pods/:pod_name/metrics`
@@ -165,11 +177,22 @@ defmodule TuistWeb.RunnerJobMetricsController do
         {field, numeric(Map.get(sample, Atom.to_string(field), 0))}
       end)
 
-    {:ok, Map.put(metrics, :timestamp, timestamp)}
+    names =
+      Map.new(@name_fields, fn field ->
+        {field, safe_name(Map.get(sample, Atom.to_string(field)))}
+      end)
+
+    {:ok, metrics |> Map.merge(names) |> Map.put(:timestamp, timestamp)}
   end
 
   defp parse_sample(_), do: {:error, {:invalid_field, "sample timestamp"}}
 
   defp numeric(value) when is_number(value), do: value
   defp numeric(_), do: 0
+
+  defp safe_name(value) when is_binary(value) do
+    if Regex.match?(@safe_name, value), do: value, else: ""
+  end
+
+  defp safe_name(_), do: ""
 end

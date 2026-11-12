@@ -4,6 +4,29 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  test "handle policies exempt app only for projects and preserve migration reservations" do
+    account_handles = Environment.blocked_account_handles()
+
+    assert "app" in account_handles
+    assert Environment.blocked_project_handles() == account_handles -- ["app"]
+    assert Application.fetch_env!(:tuist, :blocked_handles) == account_handles
+  end
+
+  test "browser session isolation requires explicit activation" do
+    for value <- ["false", "TRUE", "1", "", "true"] do
+      stub(System, :get_env, fn
+        "TUIST_BROWSER_SESSION_ISOLATION_ENABLED", default ->
+          assert default == "false"
+          value
+
+        name, default ->
+          Mimic.call_original(System, :get_env, [name, default])
+      end)
+
+      assert Environment.browser_session_isolation_enabled?() == (value == "true")
+    end
+  end
+
   describe "mail_configured?/1" do
     setup do
       stub(System, :get_env, fn name, default ->

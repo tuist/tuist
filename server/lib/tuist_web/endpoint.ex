@@ -20,7 +20,7 @@ defmodule TuistWeb.Endpoint do
   # invalid CSRF token. Dev derives the name from the port to give each
   # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
-    store: :cookie,
+    store: TuistWeb.BrowserSession,
     key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
     same_site: "Lax",

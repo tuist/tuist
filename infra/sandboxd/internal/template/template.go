@@ -184,18 +184,14 @@ func (t Template) Artifacts(shape Shape) (Artifacts, error) {
 	}, nil
 }
 
-// shapeVersion is the Firecracker version a shape snapshot was taken with,
-// empty when its metadata is unreadable.
-func shapeVersion(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
-	if err != nil {
-		return ""
-	}
+// shapeMetadata is a shape snapshot's metadata, zero when it is unreadable.
+func shapeMetadata(dir string) Metadata {
 	var meta Metadata
-	if json.Unmarshal(data, &meta) != nil {
-		return ""
+	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
+	if err != nil || json.Unmarshal(data, &meta) != nil {
+		return Metadata{}
 	}
-	return meta.FirecrackerVersion
+	return meta
 }
 
 // ownedByDaemon reports whether every entry of a shape directory belongs
@@ -367,10 +363,11 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind, shapes snapshotted by a different Firecracker version, which
-// that version cannot load, and shapes holding a file the daemon does not
-// own; the next create rebuilds them. Sandboxes linked to a removed memfile
-// keep their own hard link.
-func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
+// that version cannot load, shapes built with a workspace of another size
+// than workspaceGB, which creates of that size could not clone, and shapes
+// holding a file the daemon does not own; the next create rebuilds them.
+// Sandboxes linked to a removed memfile keep their own hard link.
+func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -385,7 +382,9 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 				continue
 			}
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
-			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion || !ownedByDaemon(dir) {
+			meta := shapeMetadata(dir)
+			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) ||
+				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

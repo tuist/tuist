@@ -239,10 +239,11 @@ defmodule TuistWeb.PreviewLiveTest do
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 
     # When
-    got = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    path = ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}"
+    got = live(conn, path)
 
     # Then
-    assert got == {:error, {:redirect, %{to: "/users/log_in", flash: %{}}}}
+    assert got == {:error, {:redirect, %{to: ~p"/users/log_in?#{%{return_to: path}}", flash: %{}}}}
   end
 
   test "it does not require authenticated user when the preview is :public", %{

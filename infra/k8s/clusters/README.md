@@ -72,7 +72,7 @@ the tenant-repo copies are then retired to a pointer.
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 8× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 
 Canary's general-purpose pool runs its three CNPG instances and reserves
 capacity for deployment hooks and rolling-update surge pods. Without that
@@ -80,6 +80,14 @@ headroom the 512Mi ClickHouse schema-clone hook stays unschedulable until Helm
 times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
+
+Production's general pool includes capacity to qualify Greptime's distributed
+backend while Pulse continues serving live traffic. The increase from five to
+eight ccx23 Hetzner Cloud VMs is preliminary qualification capacity, not a
+load-qualified minimum; it does not add bare-metal workers. Scale it down only after
+cutover and retirement of the old workload, with the remaining placement checked
+for server rollout surge, host anti-affinity and a single worker failure. Removing
+Pulse alone does not establish that the HA backend fits on the smaller pool.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
 Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes

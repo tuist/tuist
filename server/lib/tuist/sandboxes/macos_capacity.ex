@@ -14,14 +14,16 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   alias Tuist.Sandboxes.Sandbox
 
   @charged [:creating, :resuming, :running]
+  @on_disk [:creating, :resuming, :running, :paused]
   @mib 1024 * 1024
+  @free_disk_reserve_bytes 20 * 1024 * @mib
 
-  def place(sandbox) do
+  def place(sandbox, node_filter \\ fn _node -> true end) do
     # A host with a booted warm VM of this shape claims it instead of
     # cold-booting, so it is tried first.
     nodes =
       Nodes.connected_nodes()
-      |> Enum.filter(&ready?(&1, sandbox.template))
+      |> Enum.filter(&(ready?(&1, sandbox.template) and node_filter.(&1)))
       |> Enum.sort_by(&(not warm?(&1, sandbox)))
 
     Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _acc ->
@@ -191,6 +193,54 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
     Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) and
       memory <= min(node_memory, granted_memory) and cpus * 1000 <= min(node_cpus * 1000, granted_cpu) and
-      length(others) < min(2, granted_slots)
+      length(others) < min(2, granted_slots) and (resident_pause?(sandbox) or disk_room?(node, sandbox))
+  end
+
+  # A VM paused in memory resumes without touching the disk, which the
+  # host does not check for it either.
+  defp resident_pause?(%Sandbox{state: :paused, resident: true}), do: true
+  defp resident_pause?(_sandbox), do: false
+
+  # The host's final check (`diskRoom` in tart-kubelet), from its report:
+  # every VM it holds, evicted ones included, reserves its whole root disk
+  # and two memory images against half the filesystem, and a launch leaves
+  # two memory images and 20 GiB free. Rows rather than the report decide
+  # which VMs it holds, as in `Capacity.reserved_disk_bytes/1`: a create in
+  # flight is not in the report yet. Errored rows count while the host
+  # still reports them. A host that reports no budget (an older
+  # tart-kubelet) is not budgeted here; its own check still applies.
+  defp disk_room?(%{disk: %{budget_bytes: budget, available_bytes: available}} = node, sandbox)
+       when is_integer(budget) and budget > 0 and is_integer(available) do
+    id = Map.get(sandbox, :id)
+
+    reported =
+      for %{id: reported_id} <- Map.get(node, :sandboxes, []), {:ok, uuid} <- [Ecto.UUID.cast(reported_id)], do: uuid
+
+    rootfs = rootfs_bytes(node, sandbox.template)
+
+    reserved =
+      from(s in Sandbox,
+        where: s.node_name == ^node.name and s.state in ^@on_disk,
+        or_where: s.node_name == ^node.name and s.state == :error and s.id in ^reported,
+        select: %{id: s.id, memory_mb: s.memory_mb}
+      )
+      |> Repo.all()
+      |> Enum.reject(&(&1.id == id))
+      |> Enum.map(&disk_ceiling_bytes(rootfs, &1.memory_mb))
+      |> Enum.sum()
+
+    reserved + disk_ceiling_bytes(rootfs, sandbox.memory_mb) <= budget and
+      available >= sandbox.memory_mb * 2 * @mib + @free_disk_reserve_bytes
+  end
+
+  defp disk_room?(_node, _sandbox), do: true
+
+  defp disk_ceiling_bytes(rootfs, memory_mb), do: rootfs + memory_mb * 2 * @mib + 128 * @mib
+
+  defp rootfs_bytes(node, template) do
+    case Enum.find(Map.get(node, :templates, []), &(&1.name == template)) do
+      %{rootfs_bytes: bytes} when is_integer(bytes) -> bytes
+      _template -> 0
+    end
   end
 end

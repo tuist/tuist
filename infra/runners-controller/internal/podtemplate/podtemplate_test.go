@@ -1275,6 +1275,30 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 	}
 }
 
+func TestMetricsSidecarReadsTheDindReportOnlyOnCacheVolumePools(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	metrics := initContainerByName(t, build(t, pool), "metrics")
+	want := corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run/tuist-dind", ReadOnly: true}
+	if !slices.Contains(metrics.VolumeMounts, want) {
+		t.Fatalf("metrics mounts = %+v, want %+v", metrics.VolumeMounts, want)
+	}
+	if got := envValue(metrics.Env, "TUIST_RUNNER_DIND_MEMORY_FILE"); got != "/var/run/tuist-dind/tuist-dind-memory" {
+		t.Fatalf("TUIST_RUNNER_DIND_MEMORY_FILE = %q", got)
+	}
+
+	// Pools without cache volumes run no reporter, so their Pods stay as
+	// they are instead of rolling for a mount nothing writes to.
+	pool.Spec.CacheVolumeRoot = ""
+	pool.Spec.CacheVolumeURL = ""
+	for _, mount := range initContainerByName(t, build(t, pool), "metrics").VolumeMounts {
+		if mount.Name == "dind-sock" {
+			t.Fatalf("metrics mounts dind-sock without cache volumes: %+v", mount)
+		}
+	}
+}
+
 func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"

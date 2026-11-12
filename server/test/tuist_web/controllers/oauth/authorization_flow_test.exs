@@ -96,7 +96,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
 
     password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
-    assert redirected_to(password_conn) == "/users/auth/google"
+    query = URI.encode_query(authorize_params(client_id))
+    assert redirected_to(password_conn) == ~p"/users/auth/google?#{%{return_to: "/oauth2/authorize?#{query}"}}"
     assert "/oauth2/authorize?" <> _ = get_session(password_conn, :user_return_to)
 
     google_token =
