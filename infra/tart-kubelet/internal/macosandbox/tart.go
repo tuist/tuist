@@ -99,10 +99,21 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if r.RuntimePath == "" {
 		return errors.New("runtime must be pinned before create")
 	}
+	// Timed like a restore, so a slow cold create can be attributed.
+	start, mark := time.Now(), time.Now()
+	phases := []any{"vm", r.VMName(), "memory_mb", r.MemoryMB}
+	lap := func(name string) {
+		phases = append(phases, name+"_ms", time.Since(mark).Milliseconds())
+		mark = time.Now()
+	}
+	defer func() {
+		slog.Info("macOS sandbox boot phases", append(phases, "total_ms", time.Since(start).Milliseconds())...)
+	}()
 	c := t.client(r)
 	if err := c.Clone(ctx, t.Image, r.VMName()); err != nil {
 		return err
 	}
+	lap("clone")
 	if err := c.Set(ctx, r.VMName(), r.VCPUs, r.MemoryMB); err != nil {
 		return err
 	}
@@ -119,17 +130,22 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err := os.WriteFile(filepath.Join(env, "tuist.env"), []byte("TUIST_SANDBOX=1\n"), 0600); err != nil {
 		return err
 	}
+	lap("configure")
 	h, err := c.StartWithOptions(ctx, r.VMName(), t.options(r))
 	if err != nil {
 		return err
 	}
-	_, err = t.waitGuestReady(ctx, r, h)
+	lap("start")
+	probes, err := t.waitGuestReady(ctx, r, h)
+	lap("guest_ready")
+	phases = append(phases, "probes", strings.Join(probes, ","))
 	return err
 }
 
 // Claim finishes a booted VM for its sandbox: the workspace quota is the
 // sandbox's own, and the status call pins the runtime instance and PID.
 func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
+	start := time.Now()
 	c := t.client(r)
 	// The image's sandbox boot mode disables runner dispatch before its halt
 	// trap is armed. No runner service-account credential is shared with it.
@@ -139,7 +155,9 @@ container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSCont
 /usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, r.WorkspaceGB)); err != nil {
 		return err
 	}
+	workspace := time.Since(start)
 	_, err := t.control(ctx, r, "status")
+	slog.Info("macOS sandbox claim phases", "sandbox_id", r.SandboxID, "vm", r.VMName(), "workspace_ms", workspace.Milliseconds(), "status_ms", (time.Since(start) - workspace).Milliseconds())
 	return err
 }
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
