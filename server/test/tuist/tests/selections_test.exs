@@ -416,7 +416,7 @@ defmodule Tuist.Tests.SelectionsTest do
 
   describe "analytics/2" do
     test "adds up the period's impact runs that a test run reported", %{project: project} do
-      run(project)
+      %{run: run, test_run: test_run} = run(project)
 
       fallback =
         TestSelectionFixtures.run_fixture(
@@ -428,8 +428,20 @@ defmodule Tuist.Tests.SelectionsTest do
           skipped_modules: %{"D" => 0}
         )
 
-      RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
+      {:ok, fallback_test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
       TestSelectionFixtures.run_fixture(project_id: project.id, skipped_count: 5, selected: [%{name: "test_orphan()"}])
+
+      # What the test runs' selections recorded: 6 of 8 tests avoided, and 1
+      # of 20 for the fallback.
+      for {test_run, impact_run, avoided, scope} <- [{test_run, run, 6, 8}, {fallback_test_run, fallback, 1, 20}] do
+        RunsFixtures.run_selection_fixture(
+          project_id: project.id,
+          test_run_id: test_run.id,
+          test_impact_run_id: impact_run.id,
+          avoided_tests: avoided,
+          scope_tests: scope
+        )
+      end
 
       now = DateTime.utc_now()
       analytics = Selections.analytics(project.id, {DateTime.add(now, -7, :day), DateTime.add(now, 60, :second)})
@@ -438,10 +450,10 @@ defmodule Tuist.Tests.SelectionsTest do
       assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
       assert analytics.totals.skipped == 6
-      # The mean of the runs' skip rates: 75%, and 25% for the fallback, the
-      # share of its modules hashing skipped.
-      assert analytics.totals.skip_rate == 50.0
-      assert Enum.max(analytics.skip_rates) == 50.0
+      # The avoided tests over the tests in scope, pooled: 7 of 28, not the
+      # 40% mean of the runs' rates.
+      assert analytics.totals.skip_rate == 25.0
+      assert Enum.max(analytics.skip_rates) == 25.0
       assert Enum.sum(analytics.selected) == 2
       assert length(analytics.dates) == 8
     end

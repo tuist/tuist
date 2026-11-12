@@ -2,9 +2,8 @@ defmodule Tuist.Tests.RunSelections do
   @moduledoc """
   Test selection effectiveness: how many of the tests in a test run's scope
   its selection avoided, stored per run in `test_run_selections`
-  (`Tuist.Tests.RunSelection`), for the dashboards to read as a pooled
-  ratio, avoided tests over tests in scope summed across runs. They don't
-  read it yet: the table is filled for past runs first.
+  (`Tuist.Tests.RunSelection`) and read by the dashboards as a pooled ratio,
+  avoided tests over tests in scope summed across runs.
 
   Only selection counts as avoided: the tests in the modules Tuist's
   selective testing skipped by hash (`module_hash`) and the tests
@@ -749,4 +748,156 @@ defmodule Tuist.Tests.RunSelections do
     {ran_at, id, _run_id} = List.last(page)
     {Enum.map(page, &elem(&1, 2)), %{"phase" => phase, "ran_at" => NaiveDateTime.to_iso8601(ran_at), "id" => id}}
   end
+
+  ## Reads
+
+  @doc """
+  The project's pooled effectiveness over a period: `%{scope_tests,
+  avoided_tests, estimated_tests}` summed across its runs. Options:
+  `:is_ci`, `:git_branch` and `:scheme`.
+  """
+  def totals(project_id, start_datetime, end_datetime, opts \\ []) do
+    row =
+      ClickHouseRepo.one(
+        from(s in runs_query(project_id, start_datetime, end_datetime, opts),
+          select: %{
+            scope_tests: fragment("toUInt64(sum(?))", s.scope_tests),
+            avoided_tests: fragment("toUInt64(sum(?))", s.avoided_tests),
+            estimated_tests: fragment("toUInt64(sum(?))", s.estimated_tests)
+          }
+        )
+      ) || %{}
+
+    %{
+      scope_tests: row[:scope_tests] || 0,
+      avoided_tests: row[:avoided_tests] || 0,
+      estimated_tests: row[:estimated_tests] || 0
+    }
+  end
+
+  @doc """
+  The same sums per bucket of `time_bucket` (`"1 hour"`, `"1 day"`,
+  `"1 week"` or `"1 month"`), as `[%{date, scope_tests, avoided_tests}]`
+  for the buckets with runs.
+  """
+  def series(project_id, start_datetime, end_datetime, time_bucket, opts \\ []) do
+    format = date_format(time_bucket)
+
+    ClickHouseRepo.all(
+      from(s in runs_query(project_id, start_datetime, end_datetime, opts),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", s.ran_at, ^format),
+        select: %{
+          date: fragment("formatDateTime(?, ?, 'UTC')", s.ran_at, ^format),
+          scope_tests: fragment("toUInt64(sum(?))", s.scope_tests),
+          avoided_tests: fragment("toUInt64(sum(?))", s.avoided_tests)
+        }
+      )
+    )
+  end
+
+  @doc """
+  The period's percentile of each run's effectiveness, as a percentage, or
+  nil. Effectiveness is better higher, so p90 is the rate 90% of runs reached
+  or beat.
+  """
+  def period_percentile(project_id, start_datetime, end_datetime, percentile, opts \\ []) do
+    ClickHouseRepo.one(
+      from(s in runs_query(project_id, start_datetime, end_datetime, opts),
+        where: s.scope_tests > 0,
+        select: fragment("quantile(?)(? / ? * 100.0)", ^(1 - percentile), s.avoided_tests, s.scope_tests)
+      )
+    )
+  end
+
+  @doc "`period_percentile/5` per bucket of `time_bucket`, as `[%{date, percentile_hit_rate}]`."
+  def percentiles(project_id, start_datetime, end_datetime, time_bucket, percentile, opts \\ []) do
+    format = date_format(time_bucket)
+
+    ClickHouseRepo.all(
+      from(s in runs_query(project_id, start_datetime, end_datetime, opts),
+        where: s.scope_tests > 0,
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", s.ran_at, ^format),
+        select: %{
+          date: fragment("formatDateTime(?, ?, 'UTC')", s.ran_at, ^format),
+          percentile_hit_rate: fragment("quantile(?)(? / ? * 100.0)", ^(1 - percentile), s.avoided_tests, s.scope_tests)
+        }
+      )
+    )
+  end
+
+  @doc """
+  The newest runs' effectiveness, as `[%{ran_at, is_ci, hit_rate}]` with the
+  rate a percentage, at most `limit` of them.
+  """
+  def recent_runs(project_id, start_datetime, end_datetime, limit, opts \\ []) do
+    ClickHouseRepo.all(
+      from(s in runs_query(project_id, start_datetime, end_datetime, opts),
+        where: s.scope_tests > 0,
+        order_by: [desc: s.ran_at],
+        limit: ^limit,
+        select: %{ran_at: s.ran_at, is_ci: s.is_ci, hit_rate: fragment("? / ? * 100.0", s.avoided_tests, s.scope_tests)}
+      )
+    )
+  end
+
+  @doc """
+  A query of the effectiveness of each of the project's impact runs,
+  `%{test_impact_run_id, scope_tests, avoided_tests}`, read from the rows of
+  their test runs that ran from `since` on: the impact run's avoided tests
+  once, its runs' executed tests summed.
+  """
+  def by_impact_run(project_id, since) do
+    from(s in RunSelection,
+      hints: ["FINAL"],
+      where: s.project_id == ^project_id and not is_nil(s.test_impact_run_id) and s.ran_at >= ^to_naive(since),
+      group_by: s.test_impact_run_id,
+      select: %{
+        test_impact_run_id: fragment("assumeNotNull(?)", s.test_impact_run_id),
+        scope_tests: fragment("sum(? - ?) + max(?)", s.scope_tests, s.avoided_tests, s.avoided_tests),
+        avoided_tests: max(s.avoided_tests)
+      }
+    )
+  end
+
+  # One row per selection in the period, the latest computation of each run,
+  # the test runs sharing an impact run folded into one: its avoided tests
+  # once, its runs' executed tests summed.
+  defp runs_query(project_id, start_datetime, end_datetime, opts) do
+    rows =
+      from(s in RunSelection,
+        hints: ["FINAL"],
+        where: s.project_id == ^project_id,
+        where: s.ran_at > ^to_naive(start_datetime) and s.ran_at < ^to_naive(end_datetime)
+      )
+      |> filter(:is_ci, Keyword.get(opts, :is_ci))
+      |> filter(:git_branch, Keyword.get(opts, :git_branch))
+      |> filter(:scheme, Keyword.get(opts, :scheme))
+
+    subquery(
+      from(s in subquery(rows),
+        group_by: fragment("ifNull(toString(?), toString(?))", s.test_impact_run_id, s.test_run_id),
+        select: %{
+          ran_at: min(s.ran_at),
+          is_ci: fragment("any(?)", s.is_ci),
+          scope_tests: fragment("sum(? - ?) + max(?)", s.scope_tests, s.avoided_tests, s.avoided_tests),
+          avoided_tests: max(s.avoided_tests),
+          estimated_tests: max(s.estimated_tests)
+        }
+      )
+    )
+  end
+
+  defp filter(query, _field, nil), do: query
+  defp filter(query, _field, ""), do: query
+  defp filter(query, :is_ci, is_ci), do: where(query, [s], s.is_ci == ^is_ci)
+  defp filter(query, :git_branch, branch), do: where(query, [s], s.git_branch == ^branch)
+  defp filter(query, :scheme, scheme), do: where(query, [s], s.scheme == ^scheme)
+
+  defp to_naive(%DateTime{} = datetime), do: DateTime.to_naive(datetime)
+  defp to_naive(%NaiveDateTime{} = datetime), do: datetime
+
+  defp date_format("1 hour"), do: "%Y-%m-%d %H:00:00"
+  defp date_format("1 week"), do: "%Y-%u"
+  defp date_format("1 month"), do: "%Y-%m"
+  defp date_format(_), do: "%Y-%m-%d"
 end
