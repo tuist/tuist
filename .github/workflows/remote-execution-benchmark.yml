@@ -55,6 +55,7 @@ env:
   MODE: ${{ inputs.mode || 'remote' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=20' }}
+  TARGETS: //...
 
 jobs:
   benchmark:
@@ -101,7 +102,7 @@ jobs:
           set -euo pipefail
           ulimit -n 65536
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
-          ../.github/scripts/retry-bazel-command.sh bazel build //... --nobuild \
+          ../.github/scripts/retry-bazel-command.sh bazel build $TARGETS --nobuild \
             --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
 
       - name: Cold run
@@ -110,7 +111,7 @@ jobs:
           ulimit -n 65536
           start=$(date +%s)
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
-          bazel "$COMMAND" //... --disk_cache= --noremote_accept_cached \
+          bazel "$COMMAND" $TARGETS --disk_cache= --noremote_accept_cached \
             --profile="$RUNNER_TEMP/profile.json.gz" $BAZEL_FLAGS 2>&1 | tee "$RUNNER_TEMP/bazel.log"
           wall=$(( $(date +%s) - start ))
           elapsed=$(sed -n 's/.*INFO: Elapsed time: \([0-9.]*\)s, Critical Path: \([0-9.]*\)s.*/\1 \2/p' "$RUNNER_TEMP/bazel.log" | tail -n 1)
