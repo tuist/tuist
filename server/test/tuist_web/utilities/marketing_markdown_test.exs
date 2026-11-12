@@ -23,7 +23,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   @featured_providers ~w(buildkite develocity namespace)
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
   # Developer tools rather than infrastructure providers, compared in the featured format.
-  @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}]
+  @tools [{"xcodegen", "XcodeGen"}]
   @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
     "/build-systems" | Enum.map(["xcode", "gradle", "bazel", "elixir", "once"], &"/build-systems/#{&1}")
@@ -329,10 +329,6 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "## First experiment"
       assert markdown =~ "## Frequently asked questions"
     end
-
-    nx = MarketingMarkdown.get("/compare/nx")
-    assert nx =~ "## Choose Nx when"
-    assert nx =~ "## Choose Tuist when"
 
     # XcodeGen projects can adopt Tuist's build infrastructure without migrating,
     # so the page leads with that path and presents migration as optional.

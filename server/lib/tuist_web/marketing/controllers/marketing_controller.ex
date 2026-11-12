@@ -1149,8 +1149,7 @@ defmodule TuistWeb.Marketing.MarketingController do
            "/compare/develocity",
            "/compare/namespace",
            "/compare/buildkite",
-           "/compare/xcodegen",
-           "/compare/nx"
+           "/compare/xcodegen"
          ],
          do: :comparison,
          else: :page
