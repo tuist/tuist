@@ -92,14 +92,14 @@ func (i *actionsIndex) Reserve(ctx context.Context, caller cachevolumes.ActionsC
 	return i.post(ctx, "reserve", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID, "id": id, "key": key, "version": version}, nil)
 }
 
-func (i *actionsIndex) Commit(ctx context.Context, id string, size int64, sha256 string) (cachevolumes.ActionsUpload, error) {
+func (i *actionsIndex) Upload(ctx context.Context, id string, size int64, sha256 string) (cachevolumes.ActionsUpload, error) {
 	var upload cachevolumes.ActionsUpload
-	err := i.post(ctx, "commit", map[string]any{"id": id, "size_bytes": size, "sha256": sha256}, &upload)
+	err := i.post(ctx, "upload", map[string]any{"id": id, "size_bytes": size, "sha256": sha256}, &upload)
 	return upload, err
 }
 
-func (i *actionsIndex) Stored(ctx context.Context, id string) error {
-	return i.post(ctx, "stored", map[string]any{"id": id}, nil)
+func (i *actionsIndex) Commit(ctx context.Context, id string) error {
+	return i.post(ctx, "commit", map[string]any{"id": id}, nil)
 }
 
 // post asks the server and decodes its answer into result. A job GitHub has not

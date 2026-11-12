@@ -95,10 +95,6 @@ type LocalImages struct {
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
 	Displace func(context.Context) bool
-	// Yield, when set, frees space a lesser cache holds on this filesystem (GitHub
-	// Actions cache entries) until free space reaches minimum, before admission
-	// or relief evicts a master. Reports whether it freed anything.
-	Yield func(ctx context.Context, minimum uint64) bool
 	// InUse reports whether a job holds, or is attaching, a branch of a lineage
 	// (Store.InUse). Pressure eviction takes those lineages' masters last.
 	InUse     func(scope string) bool
@@ -391,11 +387,6 @@ func (b *LocalImages) admit(ctx context.Context, minimum uint64, optional bool) 
 			return err
 		}
 	}
-	if free < minimum && b.Yield != nil && b.Yield(ctx, minimum) {
-		if free, err = b.freeBytes(ctx); err != nil {
-			return err
-		}
-	}
 	candidates, err := b.evictionOrder(free < minimum)
 	if err != nil {
 		return err
@@ -473,11 +464,6 @@ func (b *LocalImages) Relieve(ctx context.Context, minimum uint64) (int, error) 
 	free, err := b.freeBytes(ctx)
 	if err != nil || free >= minimum {
 		return 0, err
-	}
-	if b.Yield != nil && b.Yield(ctx, minimum) {
-		if free, err = b.freeBytes(ctx); err != nil || free >= minimum {
-			return 0, err
-		}
 	}
 	candidates, err := b.evictionOrder(true)
 	if err != nil {

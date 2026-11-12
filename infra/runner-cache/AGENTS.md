@@ -395,10 +395,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Blob links carry an HMAC over operation, entry, expiry and the caller Pod's
   UID, keyed per process, and the caller is resolved again by source address.
   A link never authorizes another Pod or the other operation.
-- `ActionsStore` keeps entries under `actions-cache/` on the cache filesystem.
-  It writes through the same 16 MiB writeback bound, at most four streams at a
-  time, admits only above the reserve, and evicts its own least recently used
-  entries for room. `LocalImages.Yield` (wired to `Shed`) frees them before
-  admission or relief evicts any master. Entries are a cache of the server's
-  index: idle ones go after seven days, and stored copies are fetched back into
-  free space only.
+- Entries live in a store, never on the host: the in-rack shard store's
+  quota-capped bucket at the host's site, or the account's own storage, as the
+  server places them. A restore relays ranged reads from the store's presigned
+  URL. `/actions-cache/healthz` fails while the store has not answered for 30
+  seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+- `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
+  filesystem until `Run` copies them to the store (a presigned PUT bound to the
+  SHA-256) and the server commits them; a failed copy drops the entry. It writes
+  through the same 16 MiB writeback bound, at most four streams at a time, and
+  admits only above the reserve. Staging never evicts masters; uploads idle for
+  an hour are removed.

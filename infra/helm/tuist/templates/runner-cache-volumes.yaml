@@ -174,7 +174,7 @@ spec:
             {{- end }}
             {{- if .Values.runnersFleetLinux.cacheVolumes.actionsCache.enabled }}
             - --actions-cache
-            - --actions-cache-gb={{ .Values.runnersFleetLinux.cacheVolumes.actionsCache.maxGB }}
+            - --actions-cache-store={{ .Values.runnersFleetLinux.cacheVolumes.actionsCache.store }}
             {{- end }}
           env:
             - name: NODE_NAME

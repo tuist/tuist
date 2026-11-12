@@ -12,6 +12,13 @@
     "archiveBucket": {"type": "string", "pattern": "^([a-z0-9][a-z0-9-]{1,61}[a-z0-9])?$"},
     "archiveBudgetGiB": {"type": "integer", "minimum": 1},
     "sandboxNamespace": {"type": "string"},
+    "actionsCache": {
+      "type": "object",
+      "properties": {
+        "bucket": {"type": "string", "pattern": "^([a-z0-9][a-z0-9-]{1,61}[a-z0-9])?$"},
+        "maxGB": {"type": "integer", "minimum": 0}
+      }
+    },
     "target": {
       "type": "object",
       "properties": {

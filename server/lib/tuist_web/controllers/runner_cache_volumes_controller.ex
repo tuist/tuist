@@ -179,21 +179,22 @@ defmodule TuistWeb.RunnerCacheVolumesController do
     end
   end
 
-  def actions_cache_commit(conn, params) do
+  # Where the agent uploads an entry it received (`ActionsCache.upload/1`).
+  def actions_cache_upload(conn, params) do
     with :ok <- authenticate(conn),
-         {:ok, storage} <- ActionsCache.commit(params) do
-      conn |> put_resp_header("cache-control", "no-store") |> json(storage)
+         {:ok, upload} <- ActionsCache.upload(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(upload)
     else
       error -> actions_cache_error(conn, error)
     end
   end
 
-  def actions_cache_stored(conn, params) do
+  def actions_cache_commit(conn, params) do
     with :ok <- authenticate(conn),
-         :ok <- ActionsCache.stored(params) do
+         :ok <- ActionsCache.commit(params) do
       send_resp(conn, :no_content, "")
     else
-      _ -> send_resp(conn, :forbidden, "")
+      error -> actions_cache_error(conn, error)
     end
   end
 

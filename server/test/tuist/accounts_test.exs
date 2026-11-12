@@ -2351,7 +2351,7 @@ defmodule Tuist.AccountsTest do
         :ok
       end)
 
-      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 4, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -2363,6 +2363,7 @@ defmodule Tuist.AccountsTest do
       assert_receive {:kura_teardown, account_id, {:ok, _account}}
       assert account_id == account.id
       assert_receive {:purged, "runner-volume-masters/" <> _}
+      assert_receive {:purged, "runner-actions-cache/" <> _}
       assert_receive {:purged, "runner-gitlab-cache/" <> _}
       assert_receive {:purged, "sandbox-archives/" <> _}
     end
@@ -4701,13 +4702,13 @@ defmodule Tuist.AccountsTest do
       assert {:ok, _organization} = Accounts.get_organization_by_id(organization.id)
     end
 
-    test "purges the account's runner cache-volume masters, GitLab caches and sandbox archives from object storage" do
+    test "purges the account's runner cache-volume masters, Actions and GitLab caches and sandbox archives from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, 3, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 4, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4717,6 +4718,8 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert_receive {:purged, "runner-volume-masters/" <> rest}
+      assert rest == "#{account.id}/"
+      assert_receive {:purged, "runner-actions-cache/" <> rest}
       assert rest == "#{account.id}/"
       assert_receive {:purged, gitlab_cache_prefix}
       assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"

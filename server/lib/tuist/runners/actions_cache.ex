@@ -1,31 +1,40 @@
 defmodule Tuist.Runners.ActionsCache do
   @moduledoc """
   The GitHub Actions cache Linux runner hosts serve (`actions/cache`, setup
-  actions' caches, buildx `type=gha`). Hosts keep the bytes; this index scopes
-  and orders entries the way GitHub does. A job saves under its own ref and
-  restores from its ref, its pull request's base branch and the repository's
-  default branch, in that order. Scope comes from GitHub's API for the job the
-  runner executes, never from the job.
+  actions' caches, buildx `type=gha`). Entries live in the actions cache bucket
+  of the in-cluster store at the runner's site (a shard storage target with an
+  `actions_cache_bucket`), or in the account's own S3 storage when it has one;
+  hosts only stage uploads and relay reads. An entry is restorable only once
+  its store holds the object.
+
+  This index scopes and orders entries the way GitHub does. A job saves under
+  its own ref and restores from its ref, its pull request's base branch and the
+  repository's default branch, in that order. Scope comes from GitHub's API for
+  the job the runner executes, never from the job.
 
   Only the trusted storage agent calls this module.
   """
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Repo
   alias Tuist.Runners.ActionsCache.Entry
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Identity
+  alias Tuist.Runners.Sites
+  alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
 
   @retention_seconds 7 * 24 * 60 * 60
   # An upload that has not finished by then was abandoned.
   @reservation_seconds 60 * 60
   @repository_limit_bytes 50_000_000_000
-  # Larger entries stay on the host that received them: one presigned PUT
-  # carries at most 5 GB.
-  @max_stored_bytes 5_000_000_000
+  @store_fill_percent 90
+  # One presigned PUT carries at most 5 GB.
+  @max_entry_bytes 5_000_000_000
   @touch_seconds 60 * 60
   @url_ttl_seconds 6 * 60 * 60
   @max_key_bytes 512
@@ -37,10 +46,7 @@ defmodule Tuist.Runners.ActionsCache do
 
     with true <- valid_key?(key) and valid_key?(version) and valid_restore_keys?(restore_keys),
          {:ok, scope} <- job_scope(pod, node) do
-      case find(scope, key, restore_keys, version) do
-        nil -> {:ok, nil}
-        entry -> {:ok, describe(touch(entry))}
-      end
+      {:ok, restorable(find(scope, key, restore_keys, version), node)}
     else
       {:error, :pending} -> {:error, :pending}
       _ -> {:error, :unavailable}
@@ -52,9 +58,12 @@ defmodule Tuist.Runners.ActionsCache do
   def reserve(%{"pod_name" => pod, "node_name" => node, "id" => id, "key" => key, "version" => version}) do
     with true <- valid_key?(key) and valid_key?(version),
          {:ok, id} <- Ecto.UUID.cast(id),
-         {:ok, scope} <- job_scope(pod, node) do
+         {:ok, scope} <- job_scope(pod, node),
+         {:ok, account} <- Accounts.get_account_by_id(scope.account_id),
+         {:ok, storage_target} <- place(account, node) do
       Repo.transaction(fn ->
         reserve_locked(%{
+          storage_target: storage_target,
           id: id,
           account_id: scope.account_id,
           repository_id: scope.repository_id,
@@ -117,57 +126,37 @@ defmodule Tuist.Runners.ActionsCache do
   end
 
   @doc """
-  Commits the reservation `id` the host `node` received the whole entry for.
-  Returns a presigned PUT for the account's storage when the entry is small
-  enough to copy there, so hosts that never received it can serve it.
+  Where the host `node` uploads the reservation `id` it received in full: a
+  presigned PUT, bound to the entry's SHA-256, into the entry's store. Entries
+  above one PUT's 5 GB are refused, like an upload the bucket has no room for.
   """
-  def commit(%{"node_name" => node, "id" => id, "size_bytes" => size, "sha256" => sha256}) do
+  def upload(%{"node_name" => node, "id" => id, "size_bytes" => size, "sha256" => sha256}) do
     with {:ok, id} <- Ecto.UUID.cast(id),
-         true <- is_integer(size) and size >= 0 and is_binary(sha256) and Regex.match?(~r/\A[0-9a-f]{64}\z/, sha256),
-         {:ok, entry} <- Repo.transaction(fn -> commit_locked(node, id, size) end) do
-      {:ok, storage_upload(entry, sha256)}
+         true <- is_integer(size) and size >= 0 and size <= @max_entry_bytes,
+         true <- is_binary(sha256) and Regex.match?(~r/\A[0-9a-f]{64}\z/, sha256),
+         %Entry{} = entry <- reservation(id, node),
+         {:ok, actor} <- actor(entry),
+         {checksum, opts} = upload_opts(actor, sha256),
+         url when is_binary(url) <- Storage.generate_upload_url(object_key(entry), actor, opts),
+         true <- trusted_url?(entry, url) do
+      Repo.update_all(from(e in Entry, where: e.id == ^id and is_nil(e.committed_at)), set: [size_bytes: size])
+      {:ok, %{upload_url: url, checksum: checksum}}
     else
-      {:error, reason} when reason in [:not_found, :conflict] -> {:error, reason}
+      nil -> {:error, :not_found}
       _ -> {:error, :unavailable}
     end
   end
 
-  def commit(_), do: {:error, :unavailable}
+  def upload(_), do: {:error, :unavailable}
 
-  defp commit_locked(node, id, size) do
-    case Repo.one(from(e in Entry, where: e.id == ^id and e.node_name == ^node, lock: "FOR UPDATE")) do
-      nil ->
-        Repo.rollback(:not_found)
-
-      %Entry{committed_at: nil} = entry ->
-        now = DateTime.utc_now()
-        entry |> Ecto.Changeset.change(committed_at: now, size_bytes: size, last_used_at: now) |> Repo.update!()
-
-      %Entry{size_bytes: ^size} = entry ->
-        entry
-
-      _ ->
-        Repo.rollback(:conflict)
-    end
+  defp reservation(id, node) do
+    Repo.one(from(e in Entry, where: e.id == ^id and e.node_name == ^node and is_nil(e.committed_at)))
   end
 
-  defp storage_upload(%Entry{stored_at: nil, size_bytes: size} = entry, sha256) when size <= @max_stored_bytes do
-    with {:ok, account} <- Accounts.get_account_by_id(entry.account_id),
-         {checksum, opts} = upload_opts(account, sha256),
-         url when is_binary(url) <- Storage.generate_upload_url(object_key(entry), account, opts),
-         true <- Tuist.URL.public_host_url?(url) do
-      %{upload_url: url, checksum: checksum}
-    else
-      _ -> %{upload_url: nil, checksum: nil}
-    end
-  end
-
-  defp storage_upload(_entry, _sha256), do: %{upload_url: nil, checksum: nil}
-
-  defp upload_opts(account, sha256) do
+  defp upload_opts(actor, sha256) do
     opts = [expires_in: @url_ttl_seconds]
 
-    if Storage.supports_signed_upload_headers?(account) do
+    if Storage.supports_signed_upload_headers?(actor) do
       checksum = sha256 |> Base.decode16!(case: :lower) |> Base.encode64()
       {checksum, opts ++ [signed_headers: [{"x-amz-checksum-sha256", checksum}]]}
     else
@@ -175,39 +164,64 @@ defmodule Tuist.Runners.ActionsCache do
     end
   end
 
-  @doc "Records that the committed entry `id` is in the account's storage."
-  def stored(%{"node_name" => node, "id" => id}) when is_binary(node) do
-    with {:ok, id} <- Ecto.UUID.cast(id) do
-      Repo.update_all(
-        from(e in Entry,
-          where: e.id == ^id and e.node_name == ^node and not is_nil(e.committed_at) and is_nil(e.stored_at)
-        ),
-        set: [stored_at: DateTime.utc_now()]
-      )
-
-      :ok
+  @doc """
+  Commits the reservation `id` once its store holds the object, which makes it
+  restorable. Committing a committed entry again is a no-op.
+  """
+  def commit(%{"node_name" => node, "id" => id}) when is_binary(node) do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Entry{} = entry <- Repo.one(from(e in Entry, where: e.id == ^id and e.node_name == ^node)) do
+      cond do
+        entry.committed_at -> :ok
+        stored?(entry) -> mark_committed(id)
+        true -> {:error, :unavailable}
+      end
+    else
+      nil -> {:error, :not_found}
+      _ -> {:error, :unavailable}
     end
   end
 
-  def stored(_), do: :error
+  def commit(_), do: {:error, :unavailable}
+
+  defp stored?(%Entry{size_bytes: nil}), do: false
+
+  defp stored?(entry) do
+    case actor(entry) do
+      {:ok, actor} -> Storage.object_exists?(object_key(entry), actor)
+      _ -> false
+    end
+  end
+
+  defp mark_committed(id) do
+    now = DateTime.utc_now()
+
+    Repo.update_all(from(e in Entry, where: e.id == ^id and is_nil(e.committed_at)),
+      set: [committed_at: now, last_used_at: now]
+    )
+
+    :ok
+  end
 
   @doc """
-  Deletes abandoned reservations, entries unused for seven days and, per
-  repository, the least recently used entries beyond 50 GB. An entry whose
-  object could not be deleted stays for the next sweep.
+  Deletes reservations abandoned for an hour, entries unused for seven days,
+  per repository the least recently used entries beyond 50 GB, and per store
+  the least recently used entries beyond 90% of its bucket quota, so saves
+  keep finding room under it. An entry whose object could not be deleted stays
+  for the next sweep.
   """
   def sweep(now \\ DateTime.utc_now()) do
     abandoned = DateTime.add(now, -@reservation_seconds, :second)
     expired = DateTime.add(now, -@retention_seconds, :second)
 
-    {abandoned_count, _} =
-      Repo.delete_all(from(e in Entry, where: is_nil(e.committed_at) and e.inserted_at < ^abandoned))
+    abandoned =
+      Repo.all(from(e in Entry, where: is_nil(e.committed_at) and e.inserted_at < ^abandoned, limit: @sweep_limit))
 
     stale = Repo.all(from(e in Entry, where: e.last_used_at < ^expired, limit: @sweep_limit))
-    {:ok, abandoned_count + delete_entries(stale ++ over_limit())}
+    {:ok, delete_entries(abandoned ++ stale ++ over_repository_limit() ++ over_store_limits())}
   end
 
-  defp over_limit do
+  defp over_repository_limit do
     totals =
       from(e in Entry,
         where: not is_nil(e.committed_at),
@@ -217,11 +231,34 @@ defmodule Tuist.Runners.ActionsCache do
         select: %{id: e.id, total: over(sum(coalesce(e.size_bytes, 0)), :repository)}
       )
 
+    beyond(totals, @repository_limit_bytes)
+  end
+
+  defp over_store_limits do
+    for {id, {config, _target}} <- stores(),
+        quota <- [config["actions_cache_bytes"]],
+        is_integer(quota) and quota > 0,
+        entry <- over_store_limit(id, div(quota * @store_fill_percent, 100)),
+        do: entry
+  end
+
+  defp over_store_limit(id, limit) do
+    totals =
+      from(e in Entry,
+        where: e.storage_target == ^id and not is_nil(e.committed_at),
+        windows: [store: [order_by: [desc: e.last_used_at, desc: e.id]]],
+        select: %{id: e.id, total: over(sum(coalesce(e.size_bytes, 0)), :store)}
+      )
+
+    beyond(totals, limit)
+  end
+
+  defp beyond(totals, limit) do
     Repo.all(
       from(e in Entry,
         join: t in subquery(totals),
         on: t.id == e.id,
-        where: t.total > ^@repository_limit_bytes,
+        where: t.total > ^limit,
         limit: @sweep_limit
       )
     )
@@ -230,26 +267,25 @@ defmodule Tuist.Runners.ActionsCache do
   defp delete_entries(entries) do
     entries
     |> Enum.uniq_by(& &1.id)
-    |> Enum.group_by(& &1.account_id)
-    |> Enum.map(fn {account_id, entries} ->
-      {stored, local} = Enum.split_with(entries, &(&1.stored_at != nil))
-
-      deletable =
-        case stored do
-          [] -> local
-          stored -> if delete_objects(account_id, stored) == :ok, do: entries, else: local
-        end
-
-      ids = Enum.map(deletable, & &1.id)
-      {count, _} = Repo.delete_all(from(e in Entry, where: e.id in ^ids))
-      count
+    |> Enum.group_by(&{&1.account_id, &1.storage_target})
+    |> Enum.map(fn {_place, [entry | _] = entries} ->
+      if delete_objects(entry, entries) == :ok do
+        ids = Enum.map(entries, & &1.id)
+        {count, _} = Repo.delete_all(from(e in Entry, where: e.id in ^ids))
+        count
+      else
+        0
+      end
     end)
     |> Enum.sum()
   end
 
-  defp delete_objects(account_id, entries) do
-    case Accounts.get_account_by_id(account_id) do
-      {:ok, account} -> Storage.delete_objects(Enum.map(entries, &object_key/1), account)
+  # A store no longer configured cannot be reached, so its rows go without
+  # their objects.
+  defp delete_objects(entry, entries) do
+    case actor(entry) do
+      {:ok, actor} -> Storage.delete_objects(Enum.map(entries, &object_key/1), actor)
+      {:error, :gone} -> :ok
       _ -> :error
     end
   rescue
@@ -258,11 +294,74 @@ defmodule Tuist.Runners.ActionsCache do
 
   @doc """
   The object-storage prefix holding an account's Actions cache entries, keyed by
-  account ID like the volume masters, so account deletion removes it.
+  account ID like the volume masters.
   """
   def object_prefix(account_id), do: "runner-actions-cache/#{account_id}/"
 
+  @doc "Deletes an account's entries from its own storage and every store."
+  def purge_account(%Account{} = account) do
+    prefix = object_prefix(account.id)
+    Storage.delete_all_objects(prefix, account)
+    for {_id, {_config, target}} <- stores(), do: Storage.delete_all_objects(prefix, target)
+    :ok
+  end
+
   defp object_key(entry), do: object_prefix(entry.account_id) <> "#{entry.repository_id}/#{entry.id}"
+
+  # Shard storage targets that hold Actions cache entries, in their
+  # `actions_cache_bucket`.
+  defp stores do
+    for {id, %{"actions_cache_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
+        is_binary(bucket) and bucket != "",
+        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        into: %{},
+        do: {id, {config, target}}
+  end
+
+  # Where a save from `node` goes: an account with its own S3 storage keeps its
+  # entries there, every other account in the store at the node's site.
+  defp place(account, node) do
+    if Account.custom_s3_storage_configured?(account) do
+      {:ok, nil}
+    else
+      site = node_site(node)
+
+      Enum.find_value(Enum.sort(stores()), :error, fn {id, {config, _target}} ->
+        if is_binary(site) and config["site"] == site and config["private_network_ready"] == true, do: {:ok, id}
+      end)
+    end
+  end
+
+  # Store URLs are plain HTTP inside the cluster, so only a host on the store's
+  # private network at its site may read one.
+  defp readable?(%Entry{storage_target: nil}, _node), do: true
+
+  defp readable?(%Entry{storage_target: id}, node) do
+    case stores() do
+      %{^id => {config, _target}} -> config["site"] == node_site(node)
+      _ -> false
+    end
+  end
+
+  defp node_site(node) do
+    KeyValueStore.get_or_update([__MODULE__, :site, node], [ttl: to_timeout(minute: 5)], fn ->
+      Sites.shard_storage_site(node)
+    end)
+  end
+
+  defp actor(%Entry{storage_target: nil, account_id: account_id}), do: Accounts.get_account_by_id(account_id)
+
+  defp actor(%Entry{storage_target: id}) do
+    case stores() do
+      %{^id => {_config, target}} -> {:ok, target}
+      _ -> {:error, :gone}
+    end
+  end
+
+  # An account's own storage may name any endpoint, and the host agent must not
+  # be pointed at internal addresses; a store is the cluster's own.
+  defp trusted_url?(%Entry{storage_target: nil}, url), do: Tuist.URL.public_host_url?(url)
+  defp trusted_url?(_entry, _url), do: true
 
   defp find(scope, key, restore_keys, version) do
     Enum.find_value(scope.read, fn ref ->
@@ -303,18 +402,16 @@ defmodule Tuist.Runners.ActionsCache do
     entry
   end
 
-  defp describe(entry) do
-    %{id: entry.id, key: entry.key, size_bytes: entry.size_bytes, download_url: storage_download(entry)}
-  end
+  defp restorable(nil, _node), do: nil
 
-  defp storage_download(%Entry{stored_at: nil}), do: nil
-
-  defp storage_download(entry) do
-    with {:ok, account} <- Accounts.get_account_by_id(entry.account_id),
+  defp restorable(entry, node) do
+    with true <- readable?(entry, node),
+         {:ok, actor} <- actor(entry),
          url when is_binary(url) <-
-           Storage.generate_download_url(object_key(entry), account, expires_in: @url_ttl_seconds),
-         true <- Tuist.URL.public_host_url?(url) do
-      url
+           Storage.generate_download_url(object_key(entry), actor, expires_in: @url_ttl_seconds),
+         true <- trusted_url?(entry, url) do
+      touch(entry)
+      %{id: entry.id, key: entry.key, size_bytes: entry.size_bytes, download_url: url}
     else
       _ -> nil
     end

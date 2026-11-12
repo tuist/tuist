@@ -11,8 +11,8 @@ defmodule Tuist.Runners.ActionsCache.Entry do
     field(:version, :string)
     field(:size_bytes, :integer)
     field(:node_name, :string)
+    field(:storage_target, :string)
     field(:committed_at, :utc_datetime_usec)
-    field(:stored_at, :utc_datetime_usec)
     field(:last_used_at, :utc_datetime_usec)
     timestamps(type: :utc_datetime)
   end

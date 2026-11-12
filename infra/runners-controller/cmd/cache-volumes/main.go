@@ -269,9 +269,9 @@ func main() {
 	runtimeEndpoint := flag.String("runtime-endpoint", "unix:///run/host-containerd.sock", "Host CRI endpoint for writer teardown verification")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
 	actionsCache := flag.Bool("actions-cache", false, "Serve the GitHub Actions cache to runner Pods on this host")
-	actionsCacheGB := flag.Int("actions-cache-gb", 100, "GitHub Actions cache entries this host keeps at most, in decimal GB")
+	actionsStore := flag.String("actions-cache-store", "", "Endpoint of the store that holds GitHub Actions cache entries; the cache answers its health check only while the store does")
 	flag.Parse()
-	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB || *actionsCacheGB < 1 {
+	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB || (*actionsCache && *actionsStore == "") {
 		log.Fatal("invalid configuration")
 	}
 	maxBytes := int64(*maxGB) * 1_000_000_000
@@ -328,13 +328,13 @@ func main() {
 	store.MaxVolumeBytes = maxBytes
 	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	if *actionsCache {
-		// Entries share the cache filesystem and its reserve, and give way to masters.
-		actions := &cachevolumes.ActionsStore{Root: filepath.Join(*root, "actions-cache"), Reserve: backend.MinFreeBytes, MaxBytes: uint64(*actionsCacheGB) * 1_000_000_000, Log: metrics.logger,
+		// Uploads are staged on the cache filesystem, above its reserve, until
+		// they are copied to the store.
+		actions := &cachevolumes.ActionsStore{Root: filepath.Join(*root, "actions-cache"), Reserve: backend.MinFreeBytes, Log: metrics.logger,
 			FreeBytes: func(root string) (uint64, error) { return space.free(context.Background(), root) }}
-		backend.Yield = actions.Shed
 		pods := &runnerPods{kube: kube, namespace: *namespace, node: *node}
 		index := &actionsIndex{url: strings.TrimSuffix(*url, "/authorize") + "/actions-cache", node: *node, tokenPath: *tokenPath, client: client, log: metrics.logger}
-		a.actions = &cachevolumes.ActionsCache{Index: index, Store: actions, Caller: pods.caller, Client: &http.Client{}, Record: metrics.actionsCache, Log: metrics.logger}
+		a.actions = &cachevolumes.ActionsCache{Index: index, Store: actions, StoreURL: *actionsStore, Caller: pods.caller, Client: &http.Client{}, Record: metrics.actionsCache, Log: metrics.logger}
 		go a.actions.Run(context.Background())
 		go func() {
 			for {

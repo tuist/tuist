@@ -3449,7 +3449,7 @@ defmodule Tuist.Accounts do
   # the account. Best-effort: a storage failure must never fail the deletion.
   defp purge_account_cache_masters(account) do
     Tuist.Storage.delete_all_objects(Tuist.Runners.volume_master_object_prefix(account.id), account)
-    Tuist.Storage.delete_all_objects(Tuist.Runners.ActionsCache.object_prefix(account.id), account)
+    Tuist.Runners.ActionsCache.purge_account(account)
     :ok
   rescue
     e ->

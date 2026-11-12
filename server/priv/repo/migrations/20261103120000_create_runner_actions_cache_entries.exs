@@ -12,7 +12,8 @@ defmodule Tuist.Repo.Migrations.CreateRunnerActionsCacheEntries do
       add :size_bytes, :bigint
       add :node_name, :string, null: false
       add :committed_at, :timestamptz
-      add :stored_at, :timestamptz
+      # The in-rack store holding the object; NULL is the account's own storage.
+      add :storage_target, :string
       add :last_used_at, :timestamptz, null: false
       timestamps(type: :timestamptz)
     end

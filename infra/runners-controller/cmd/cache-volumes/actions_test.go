@@ -69,8 +69,10 @@ func TestActionsIndexWaitsForTheJobThenMapsConflicts(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{"entry": map[string]any{"id": "e", "key": body["key"], "size_bytes": 3}})
 		case "/reserve":
 			w.WriteHeader(http.StatusConflict)
-		case "/commit":
+		case "/upload":
 			json.NewEncoder(w).Encode(map[string]any{"upload_url": "https://storage/object", "checksum": "c2hh"})
+		case "/commit":
+			w.WriteHeader(http.StatusNoContent)
 		}
 	}))
 	defer server.Close()
@@ -88,9 +90,12 @@ func TestActionsIndexWaitsForTheJobThenMapsConflicts(t *testing.T) {
 	if err := index.Reserve(ctx, caller, "id", "deps", "v1"); !errors.Is(err, cachevolumes.ErrConflict) {
 		t.Fatalf("reserve %v", err)
 	}
-	upload, err := index.Commit(ctx, "id", 3, "sum")
+	upload, err := index.Upload(ctx, "id", 3, "sum")
 	if err != nil || upload.URL != "https://storage/object" || upload.Checksum != "c2hh" {
-		t.Fatalf("commit %+v, %v", upload, err)
+		t.Fatalf("upload %+v, %v", upload, err)
+	}
+	if err := index.Commit(ctx, "id"); err != nil {
+		t.Fatalf("commit %v", err)
 	}
 }
 
