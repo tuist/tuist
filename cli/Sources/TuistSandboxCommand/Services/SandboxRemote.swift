@@ -170,8 +170,8 @@ struct SandboxRemote {
     }
 
     /// Writes `prefix` and then the file at `file`, if any, to the stdin of a command started with `stdin: true`, and
-    /// ends it. `prefix` must fit in one write.
-    func writeStdin(_ commandID: String, _ prefix: Data = Data(), file: URL? = nil) async throws {
+    /// ends it unless `close` is false. `prefix` must fit in one write.
+    func writeStdin(_ commandID: String, _ prefix: Data = Data(), file: URL? = nil, close: Bool = true) async throws {
         let handle = try file.map { try FileHandle(forReadingFrom: $0) }
         defer { try? handle?.close() }
         func read(_ count: Int) throws -> Data { try handle?.read(upToCount: count) ?? Data() }
@@ -186,7 +186,7 @@ struct SandboxRemote {
                     sandboxID: sandboxID,
                     commandID: commandID,
                     data: data,
-                    close: next.isEmpty
+                    close: close && next.isEmpty
                 )
             }
             chunk = next
