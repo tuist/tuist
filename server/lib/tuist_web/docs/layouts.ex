@@ -78,7 +78,7 @@ defmodule TuistWeb.Docs.Layouts do
   end
 
   defp language_alternates(current_path) do
-    available_slugs = MapSet.new(Docs.indexable_slugs())
+    available_slugs = MapSet.new(Docs.slugs())
 
     for language <- Localization.languages(),
         href = localized_docs_href(current_path, language.code),

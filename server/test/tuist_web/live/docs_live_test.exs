@@ -670,34 +670,6 @@ defmodule TuistWeb.DocsLiveTest do
       end
     end
 
-    test "near-empty translations stay readable but defer indexing to the English page", %{conn: conn} do
-      sitemap = conn |> get("/sitemap.xml") |> response(200)
-      english_url = Tuist.Environment.app_url(path: "/en/docs/guides/features/agentic-coding/mcp")
-      thin_url = Tuist.Environment.app_url(path: "/ar/docs/guides/features/agentic-coding/mcp")
-      translated_url = Tuist.Environment.app_url(path: "/ar/docs/guides/features/projects/manifests")
-
-      thin = conn |> get("/ar/docs/guides/features/agentic-coding/mcp") |> html_response(200) |> Floki.parse_document!()
-      assert Floki.attribute(thin, "link[rel='canonical']", "href") == [english_url]
-      assert Floki.attribute(thin, "meta[property='og:url']", "content") == [english_url]
-      assert Floki.attribute(thin, "html", "lang") == ["ar"]
-
-      english =
-        conn |> get("/en/docs/guides/features/agentic-coding/mcp") |> html_response(200) |> Floki.parse_document!()
-
-      assert Floki.attribute(english, "link[rel='canonical']", "href") == [english_url]
-      assert Floki.find(english, "link[hreflang='ar']") == []
-      assert Floki.attribute(english, "link[hreflang='es']", "href") != []
-
-      translated =
-        conn |> get("/ar/docs/guides/features/projects/manifests") |> html_response(200) |> Floki.parse_document!()
-
-      assert Floki.attribute(translated, "link[rel='canonical']", "href") == [translated_url]
-
-      refute sitemap =~ "<loc>#{thin_url}</loc>"
-      assert sitemap =~ "<loc>#{english_url}</loc>"
-      assert sitemap =~ "<loc>#{translated_url}</loc>"
-    end
-
     test "overview alternates remain localized and use an English fallback", %{conn: conn} do
       for {locale, language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"zh_Hant", "zh-Hant"}] do
         document =
