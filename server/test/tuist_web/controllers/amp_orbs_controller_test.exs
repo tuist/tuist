@@ -226,29 +226,46 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              Tuist.Repo.get_by!(Sandbox, account_id: user.account.id, amp_orb_id: "amp-thread")
   end
 
-  test "concurrent integration work is retried instead of crossing a rotation", %{conn: conn, integration: integration} do
+  test "a slow operation on one Orb only refuses that Orb's concurrent jobs", %{
+    integration: integration,
+    user: user
+  } do
     identity(integration)
     parent = self()
 
-    task =
-      Task.async(fn ->
-        AmpIntegrations.with_lock(integration.account_id, fn ->
-          send(parent, :integration_locked)
+    SandboxesFixtures.sandbox_fixture(
+      account: user.account,
+      amp_orb_id: "amp-slow",
+      amp_integration_id: integration.id,
+      state: :paused
+    )
 
-          receive do
-            :release -> :ok
-          after
-            5_000 -> :timeout
-          end
-        end)
-      end)
+    stub(Tuist.Sandboxes, :delete, fn sandbox ->
+      send(parent, {:deleting, self()})
+
+      receive do
+        :release -> {:ok, sandbox}
+      after
+        5_000 -> {:error, :timeout}
+      end
+    end)
+
+    slow_delete = fn ->
+      build_conn()
+      |> put_req_header("authorization", "Bearer workload")
+      |> post("/api/internal/amp-orbs/amp-slow", %{"operation" => "delete"})
+    end
+
+    task = Task.async(slow_delete)
+    assert_receive {:deleting, deleting}
 
     try do
-      assert_receive :integration_locked
-      assert response(request(conn), 409)
+      assert response(request(build_conn()), 204)
+      assert response(slow_delete.(), 409)
     after
-      send(task.pid, :release)
-      Task.await(task)
+      send(deleting, :release)
     end
+
+    assert response(Task.await(task), 204)
   end
 end
