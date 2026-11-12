@@ -108,14 +108,14 @@ export class TimelineMetrics {
     return !a || (b && b.offset_ms - time < time - a.offset_ms) ? b : a;
   }
 
-  label(track, time, maximumFractionDigits = 1) {
+  label(track, time) {
     if (time == null)
       return `0–${(track.max / track.divisor).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${track.unit}`;
     const sample = this.sampleAt(time);
     return track.fields
       .map((field, i) => {
         const value = sample?.[field];
-        return `${track.names[i] ? track.names[i] + " " : ""}${Number.isFinite(value) ? (value / track.divisor).toLocaleString(undefined, { maximumFractionDigits }) + " " + track.unit : "—"}`;
+        return `${track.names[i] ? track.names[i] + " " : ""}${Number.isFinite(value) ? (value / track.divisor).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " " + track.unit : "—"}`;
       })
       .join(" · ");
   }

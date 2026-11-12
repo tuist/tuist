@@ -191,9 +191,7 @@ export function cursorTimeLabel(ms) {
   const rounded = Math.round(ms);
   return rounded < 1000
     ? `${rounded} ms`
-    : rounded % 1000 === 0
-      ? `${rounded / 1000} s`
-      : `${Math.floor(rounded / 1000)} s ${String(rounded % 1000).padStart(3, "0")} ms`;
+    : `${Math.floor(rounded / 1000)} s ${String(rounded % 1000).padStart(3, "0")} ms`;
 }
 
 export function scrollGeometry(viewportWidth, range, duration) {

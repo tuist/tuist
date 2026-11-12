@@ -259,7 +259,6 @@ export default {
       on(surface.canvas, "pointermove", (e) => {
         if (e.pointerType === "touch" || this.focusing) return;
         this.cursorX = e.clientX;
-        this.cursorY = e.clientY;
         this.cursorSource = surface.canvas;
         this.updateCursor();
       });
@@ -359,7 +358,6 @@ export default {
 
   hideCursor() {
     this.cursorX = null;
-    this.hideTooltip();
     for (const surface of this.surfaces) surface.cursor.hidden = true;
     this.updateMetricValues(null);
   },
@@ -382,19 +380,6 @@ export default {
       label.style.left = `${Math.max(0, Math.min(width - label.offsetWidth, x - label.offsetWidth / 2))}px`;
     }
     this.updateMetricValues(time);
-    if (this.cursorSource.dataset?.metricCanvas) this.hoverMetric(time);
-  },
-
-  hoverMetric(time) {
-    const track = this.metrics.tracks.find((track) => track.key === this.cursorSource.dataset.metricCanvas);
-    const sample = this.metrics.sampleAt(time);
-    const tooltip = this.part("tooltip");
-    tooltip.hidden = !track.fields.some((field) => Number.isFinite(sample?.[field]));
-    if (tooltip.hidden) return;
-    const title = this.cursorSource.closest("[data-metric]").querySelector('[data-part="metric-heading"] > span');
-    tooltip.querySelector("strong").textContent = `${title.textContent} · ${cursorTimeLabel(time)}`;
-    tooltip.querySelector("span").textContent = this.metrics.label(track, time, 2);
-    this.positionTooltip({ clientX: this.cursorX, clientY: this.cursorY });
   },
 
   previewFocus(range) {
