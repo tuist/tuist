@@ -2047,6 +2047,9 @@ defmodule Tuist.Tests do
   # `Tuist.ClickHouse.ArrayInParams`), which must stay below ClickHouse's
   # `http_max_field_value_size` (128 KiB). `query_fun` receives each chunk.
   @uuid_lookup_batch_size 2_000
+  # Commit SHAs bound as one `Array(String)` parameter, kept under ClickHouse's
+  # 128 KiB per-parameter cap even for SHA-256 object names.
+  @landed_sha_batch_size 1_000
 
   defp all_by_uuid_chunks(ids, query_fun) do
     ids
@@ -2656,6 +2659,12 @@ defmodule Tuist.Tests do
     end
   end
 
+  # Two narrow reads instead of every `(test case, commit)` pair: a large suite
+  # that CI runs on many pull-request commits has tens of millions of pairs in
+  # the window (37k test cases × ~2,000 commits), and loading them into the
+  # BEAM made xcresult ingestion take 10–30 minutes. The commits the test cases
+  # ran on are few, and the ones the default branch reached fewer still (often
+  # none), so the second read is skipped or bounded by them.
   defp landed_test_case_ids(project, default_branch, test_case_ids) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
@@ -2667,27 +2676,33 @@ defmodule Tuist.Tests do
         select: t.id
       )
 
-    runs =
-      all_by_uuid_chunks(test_case_ids, fn ids ->
-        from(r in TestCaseRun,
-          where: r.project_id == ^project.id,
-          where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
-          where: r.is_ci == true,
-          where: r.ran_at >= ^ninety_days_ago,
-          where: r.git_commit_sha != "",
-          where: r.submission_auth != "network_trusted",
-          where: r.test_run_id not in subquery(network_test_run_ids),
-          distinct: true,
-          select: {r.test_case_id, r.git_commit_sha}
-        )
-      end)
+    runs = fn ids ->
+      from(r in TestCaseRun,
+        where: r.project_id == ^project.id,
+        where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
+        where: r.is_ci == true,
+        where: r.ran_at >= ^ninety_days_ago,
+        where: r.git_commit_sha != "",
+        where: r.submission_auth != "network_trusted",
+        where: r.test_run_id not in subquery(network_test_run_ids)
+      )
+    end
 
-    landed =
-      project.account_id
-      |> GitHistory.default_branch_shas(default_branch, runs |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
-      |> MapSet.new()
+    shas =
+      test_case_ids
+      |> all_by_uuid_chunks(&from(r in runs.(&1), distinct: true, select: r.git_commit_sha))
+      |> Enum.uniq()
 
-    for {test_case_id, sha} <- runs, MapSet.member?(landed, sha), into: MapSet.new(), do: test_case_id
+    project.account_id
+    |> GitHistory.default_branch_shas(default_branch, shas)
+    |> Enum.chunk_every(@landed_sha_batch_size)
+    |> Enum.flat_map(fn landed ->
+      all_by_uuid_chunks(
+        test_case_ids,
+        &from(r in runs.(&1), where: r.git_commit_sha in ^landed, distinct: true, select: r.test_case_id)
+      )
+    end)
+    |> MapSet.new()
   end
 
   @doc """
