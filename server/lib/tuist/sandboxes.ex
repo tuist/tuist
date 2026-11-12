@@ -1057,8 +1057,11 @@ defmodule Tuist.Sandboxes do
 
         result =
           case run_exec(sandbox, cmd, opts) do
-            {:error, "sandbox is being paused" <> _} -> exec_after_pause(sandbox, cmd, opts)
-            result -> result
+            {:error, reason} = result ->
+              if interrupted_by_pause?(reason), do: exec_after_pause(sandbox, cmd, opts), else: result
+
+            result ->
+              result
           end
 
         record_activity(sandbox)
@@ -1086,11 +1089,62 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
+  Whether the node refused work because the sandbox is pausing or paused
+  while the row still says running.
+  """
+  def interrupted_by_pause?("sandbox is being paused" <> _), do: true
+  def interrupted_by_pause?("sandbox is not running: " <> rest), do: String.ends_with?(rest, " is paused")
+  def interrupted_by_pause?(_reason), do: false
+
+  @doc """
   Waits for a pause the node has started while the row still says running
   (the pause holds the sandbox's lock), then answers the sandbox running,
   resuming it when the pause went through.
   """
-  def await_pause(%Sandbox{id: id}), do: with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end)
+  def await_pause(%Sandbox{id: id}) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn
+        %Sandbox{state: :running} = sandbox -> settle_running(sandbox)
+        sandbox -> running_or_resume(sandbox)
+      end)
+    end)
+  end
+
+  # A pause whose caller died, such as a web pod stopped by a deploy, leaves
+  # the VM paused while the row says running until reports settle it, and
+  # every command until then fails. Every pause and resume takes the lock this
+  # runs under, so the node's answer now is the sandbox's state: adopt its
+  # pause and resume.
+  defp settle_running(%Sandbox{} = sandbox) do
+    with {:error, "sandbox is not running: " <> _ = reason} <- exec_running(sandbox, ["true"], timeout_ms: 10_000),
+         true <- interrupted_by_pause?(reason),
+         {:ok, paused} <- adopt_node_pause(sandbox) do
+      running_or_resume(paused)
+    else
+      _ -> {:ok, sandbox}
+    end
+  end
+
+  defp adopt_node_pause(%Sandbox{} = sandbox) do
+    query =
+      from(s in Sandbox,
+        where: s.id == ^sandbox.id and s.state == :running and s.residency_epoch == ^sandbox.residency_epoch,
+        select: s
+      )
+
+    case Repo.update_all(query,
+           set: [state: :paused, paused_at: now(), residency_work_id: nil, guest_cpu_ms: nil, updated_at: now()],
+           inc: [residency_epoch: 1]
+         ) do
+      {1, [paused]} ->
+        Logger.info("sandboxes: adopted a pause the node made", sandbox_id: sandbox.id, node: sandbox.node_name)
+        Events.record_transition(sandbox, paused)
+        {:ok, paused}
+
+      {0, []} ->
+        :error
+    end
+  end
 
   @doc """
   Runs `cmd` in a sandbox that is already running, without resuming it,
