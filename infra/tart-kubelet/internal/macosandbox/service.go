@@ -530,6 +530,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		TimeoutMs int64             `json:"timeout_ms"`
 		NodeUID   string            `json:"node_uid"`
 		WorkID    string            `json:"work_id"`
+		HoldMs    int64             `json:"hold_ms"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -568,7 +569,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 	case protocol.OpStopWorker:
 		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
 	case protocol.OpHoldResidency:
-		err = m.Hold(ctx, args.SandboxID, args.WorkID)
+		err = m.Hold(ctx, args.SandboxID, args.WorkID, time.Duration(args.HoldMs)*time.Millisecond)
 	case protocol.OpReleaseResidency:
 		err = m.Release(args.SandboxID, args.WorkID)
 	case protocol.OpStatus:

@@ -73,8 +73,9 @@ type Record struct {
 	WorkerID    string `json:"worker_id,omitempty"`
 	// HoldID is detached guest work the host cannot observe, such as an Amp
 	// Orb's turn. It protects the running VM from idle eviction until a pause
-	// or a release with the same ID.
+	// or a release with the same ID, or until HoldUntil when that is set.
 	HoldID         string    `json:"hold_id,omitempty"`
+	HoldUntil      time.Time `json:"hold_until"`
 	FinishedWorkID string    `json:"finished_work_id,omitempty"`
 	IdleAt         time.Time `json:"idle_at"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -411,6 +412,7 @@ func (m *Manager) Pause(ctx context.Context, id string) error {
 		r.State = "paused"
 		r.Resident = true
 		r.HoldID = "" // The held work paused with the VM; its owner asked for this pause.
+		r.HoldUntil = time.Time{}
 		r.IdleAt = time.Now().UTC()
 	}
 	return m.finish(r, err)
@@ -489,8 +491,11 @@ func (m *Manager) Snapshot() []protocol.SandboxInfo {
 var holdIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,255}$`)
 
 // Hold protects a running sandbox from idle eviction for detached guest work,
-// resuming it first like a worker start. Retrying with the same ID succeeds.
-func (m *Manager) Hold(ctx context.Context, id, work string) error {
+// resuming it first like a worker start. A positive ttl ends the hold that
+// long from now unless it is renewed; zero keeps it until a release or pause.
+// Only a new hold needs the grant: renewing the current one takes no capacity
+// it does not already hold, so it succeeds while CI holds the grant.
+func (m *Manager) Hold(ctx context.Context, id, work string, ttl time.Duration) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	r, err := m.get(id)
@@ -508,13 +513,17 @@ func (m *Manager) Hold(ctx context.Context, id, work string) error {
 	if r.State != "running" || r.Operation != "" {
 		return errors.New("sandbox is not running")
 	}
-	if err = m.Capacity.Allow(ctx, r); err != nil {
-		return err
+	if r.HoldID != work {
+		if err = m.Capacity.Allow(ctx, r); err != nil {
+			return err
+		}
 	}
-	if r.HoldID == work {
-		return nil
+	until := time.Time{}
+	if ttl > 0 {
+		until = time.Now().UTC().Add(ttl)
 	}
 	r.HoldID = work
+	r.HoldUntil = until
 	return m.persist(r)
 }
 
@@ -528,6 +537,7 @@ func (m *Manager) Release(id, work string) error {
 		return err
 	}
 	r.HoldID = ""
+	r.HoldUntil = time.Time{}
 	r.IdleAt = time.Now().UTC()
 	return m.persist(r)
 }
@@ -659,6 +669,18 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 					code := status.ExitCode
 					m.Emit(protocol.Event{Event: protocol.EventWorkerExited, SandboxID: r.SandboxID, WorkID: status.ID, Generation: m.NodeUID, ExitCode: &code})
 				}
+			}
+		}
+		// The server ends a timed hold itself; this only covers a server that
+		// never does. The VM then waits out the idle grace like any other.
+		if r.HoldID != "" && !r.HoldUntil.IsZero() && !time.Now().Before(r.HoldUntil) {
+			slog.Info("a macOS sandbox hold expired", "sandbox", r.SandboxID, "hold", r.HoldID)
+			r.HoldID = ""
+			r.HoldUntil = time.Time{}
+			r.IdleAt = time.Now().UTC()
+			if err := m.persist(r); err != nil {
+				errs = append(errs, err)
+				continue
 			}
 		}
 		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && (time.Since(r.IdleAt) >= grace || m.Capacity.Allow(ctx, r) != nil) {
