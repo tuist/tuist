@@ -71,7 +71,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
         fn ->
           with {:ok, sandbox, created?} <- Router.find_or_create_sandbox(agent_environment, session_id),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
-               {:ok, _data} <- Router.start_worker(sandbox, worker_env(agent_environment, sandbox, work_order)) do
+               {:ok, _data} <- Router.start_worker(sandbox, worker_env(agent_environment, sandbox, work_id, work_order)) do
             {:ok, sandbox}
           end
         end,
@@ -98,8 +98,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
     result
   end
 
-  defp worker_env(agent_environment, sandbox, work_order) do
+  # A macOS host refuses a worker without ANTHROPIC_WORK_ID: it records the id
+  # as the sandbox's worker so a retried start cannot run a second one.
+  defp worker_env(agent_environment, sandbox, work_id, work_order) do
     env = %{
+      "ANTHROPIC_WORK_ID" => work_id,
       "SBX_CLAUDE_CODE_WORK_ORDER" => work_order,
       "SBX_CLAUDE_CODE_RELEASE_IDLE_MIN" => to_string(max(div(agent_environment.max_idle_seconds + 59, 60), 1))
     }
