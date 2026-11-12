@@ -75,7 +75,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:62
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live/changelog_entry.html.heex:6
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:4
-#: lib/tuist_web/marketing/structured_markup.ex:430
+#: lib/tuist_web/marketing/structured_markup.ex:450
 #, elixir-autogen, elixir-format
 msgid "Changelog"
 msgstr ""
@@ -325,7 +325,7 @@ msgstr ""
 msgid "Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1203
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -465,7 +465,7 @@ msgstr ""
 msgid "Something went wrong. Please try again."
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:431
+#: lib/tuist_web/marketing/structured_markup.ex:451
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist."
 msgstr ""
@@ -550,10 +550,8 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:597
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:957
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1050
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1082
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1106
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1138
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1152
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1129
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1143
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:87
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:61
 #, elixir-autogen, elixir-format
@@ -599,14 +597,14 @@ msgstr ""
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:160
+#: lib/tuist_web/marketing/structured_markup.ex:168
 #, elixir-autogen, elixir-format
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:3
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:4
-#: lib/tuist_web/marketing/structured_markup.ex:377
+#: lib/tuist_web/marketing/structured_markup.ex:396
 #, elixir-autogen, elixir-format
 msgid "Tuist's blog"
 msgstr ""
@@ -814,7 +812,7 @@ msgid "Founded"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:97
-#: lib/tuist_web/marketing/structured_markup.ex:516
+#: lib/tuist_web/marketing/structured_markup.ex:509
 #, elixir-autogen, elixir-format
 msgid "Learn how teams use Tuist to scale their iOS development."
 msgstr ""
@@ -857,14 +855,14 @@ msgstr ""
 msgid "Customers"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:515
+#: lib/tuist_web/marketing/structured_markup.ex:508
 #, elixir-autogen, elixir-format
 msgid "Tuist Customers"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:24
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1107
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1100
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -1054,7 +1052,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1083
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1081
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:172
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:570
 #, elixir-autogen, elixir-format
@@ -2875,7 +2873,7 @@ msgstr ""
 msgid "Compare your options"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1067
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Compute for build work · Tuist"
 msgstr ""
@@ -2896,7 +2894,7 @@ msgid "Detect inconsistent test outcomes and track them over time. Configure qua
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.ex:137
-#: lib/tuist_web/marketing/structured_markup.ex:379
+#: lib/tuist_web/marketing/structured_markup.ex:398
 #, elixir-autogen, elixir-format
 msgid "Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions."
 msgstr ""
@@ -2946,7 +2944,7 @@ msgstr ""
 msgid "Reuse what you've"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1075
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
 msgstr ""
@@ -2956,7 +2954,7 @@ msgstr ""
 msgid "Run jobs without maintaining your own fleet. Jobs can queue when their requested shape exceeds available account capacity."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1091
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1093
 #, elixir-autogen, elixir-format
 msgid "Test insights, sharding, and trustworthy feedback · Tuist"
 msgstr ""
@@ -2976,7 +2974,7 @@ msgstr ""
 msgid "Tuist — Build infrastructure for engineering teams and coding agents"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1099
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
 msgstr ""
@@ -3001,8 +2999,8 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:229
-#: lib/tuist_web/marketing/structured_markup.ex:270
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr ""

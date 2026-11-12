@@ -591,6 +591,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
 
       assert html =~ "/marketing/assets/bundle.css"
+
+      # Runners are billed per minute, so the feature must not claim a free offer.
+      assert %{"name" => "Tuist Compute"} = feature = software_application(html)
+      refute Map.has_key?(feature, "offers")
     end
   end
 
@@ -648,6 +652,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
       assert html =~ "/marketing/assets/bundle.css"
+
+      assert %{"name" => "Tuist Tests", "offers" => %{"price" => "0"}} = software_application(html)
     end
   end
 
@@ -1154,5 +1160,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
+  end
+
+  defp software_application(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("script[type='application/ld+json']")
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+    |> Enum.find(&(&1["@type"] == "SoftwareApplication"))
   end
 end
