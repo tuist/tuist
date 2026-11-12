@@ -24,13 +24,6 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   ]
   @wildcard_segment "*"
 
-  # Legacy URLs that permanently redirect to public pages. A crawler cannot
-  # follow a redirect it may not fetch, so blocking these would strand the old
-  # URL's signals instead of passing them on, and a short legacy path can widen
-  # into a prefix that blocks real pages (one post's redirect once produced
-  # `Disallow: /blog/2025/`).
-  @public_redirect_plugs [Redirect, TuistWeb.Plugs.LegacyRedirectsPlug, TuistWeb.DocsRedirectController]
-
   def render do
     route_infos = route_infos()
 
@@ -91,10 +84,8 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp route_info(%{path: path, verb: verb} = route) do
-    robots_txt =
-      if route.plug in @public_redirect_plugs,
-        do: :no_robots_txt,
-        else: route |> route_metadata() |> robots_txt_setting()
+    metadata = route_metadata(route)
+    robots_txt = robots_txt_setting(metadata)
 
     %{
       verb: verb,
