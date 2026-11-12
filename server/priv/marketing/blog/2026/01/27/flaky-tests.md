@@ -112,4 +112,4 @@ Flaky tests don't just waste time. They erode trust in your test suite, slow dow
 
 With automatic detection, quarantining, and notifications, Tuist turns flaky tests from an invisible drain on productivity into a visible, manageable problem. You can see exactly which tests are unreliable, stop them from blocking your PRs, and fix them on your own schedule rather than in the heat of a blocked deployment.
 
-Your test suite should give you confidence, not anxiety. [Get on top of your flaky tests](https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests) and stop wasting time on retries. Our [flaky tests guide](/solutions/flaky-tests) covers how to investigate and contain them as a team.
+Your test suite should give you confidence, not anxiety. [Get on top of your flaky tests](https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests) and stop wasting time on retries.

@@ -2,18 +2,6 @@
 
 Tuist Test Insights, selective testing, and sharding help teams understand test time, avoid unnecessary execution, and balance work across machines. Start with Tuist test reporting, then enable the acceleration feature supported by your toolchain; moving CI jobs to Tuist Runners is not required.
 
-## Why test suites get slow
-
-Test time grows with the codebase, but rarely evenly. A suite usually gets slow for a few specific reasons:
-
-- **Everything runs on every change.** Without a way to tell which tests a change can affect, CI runs the whole suite even when a commit touches one module.
-- **A few tests dominate.** Expensive fixtures, real network or database calls, UI tests, and fixed waits often account for a large share of the time.
-- **Work is spread unevenly.** Static splits across CI machines drift as tests are added, so one shard finishes long after the others and sets the pace.
-- **Retries add hidden time.** Flaky tests that pass on a second attempt double their own cost and lengthen every job they appear in.
-- **Compilation is counted as testing.** Building test targets can take longer than running them, and that is a build problem, not a test problem.
-
-Tuist addresses these in order: [Test Insights](/en/docs-markdown/guides/features/test-insights) shows which tests and jobs take the time and how that changes over time, selective testing and the build cache avoid unnecessary work, and sharding balances what remains across machines.
-
 ## Diagnose the bottleneck
 
 Measure the entire test job: test compilation, simulator or service startup, execution, retries, queueing, and result upload. Compare the same suite and configuration. Summing individual test durations is not the wall-clock duration when tests run concurrently.
@@ -49,31 +37,4 @@ Check the toolchain support matrix before relying on selective testing or shardi
 3. On generated Xcode projects, evaluate selective testing. Where sharding is supported, try a small number of shards and inspect the longest shard.
 4. Compare duration, coverage, queue time, and total machine-minutes. Keep the change only if it improves the goal you actually care about.
 
-## Further reading
-
-- [Run your test suite across balanced shards](/blog/2026/03/25/test-sharding) on timing-based sharding.
-- [Stop flaky tests from blocking your PRs](/blog/2026/01/27/flaky-tests) on retries and quarantine.
-- [Build smart before you build fast](/blog/2025/11/17/smart-before-fast) on avoiding work before adding capacity.
-- Related guides: [flaky tests](/marketing-markdown/solutions/flaky-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).
-
-## Frequently asked questions
-
-### How do I find the slowest tests?
-
-Enable [test reporting](/en/docs-markdown/guides/features/test-insights) for your build system. Tuist records each test case's duration across runs, so you can rank tests by time, see when a test became slower, and separate consistently slow tests from ones slowed by retries.
-
-### Can Tuist run only the tests affected by a change?
-
-Yes, with Tuist generated Xcode projects: selective testing runs only the test targets whose inputs changed since the last successful run. For other projects, a build cache can still avoid rebuilding unchanged code, but the tests themselves all run.
-
-### Does sharding make CI cheaper?
-
-Not necessarily. Sharding shortens wall-clock time by running tests on several machines at once, but each shard repeats setup work, so total machine-minutes can go up. Measure both before keeping a shard count.
-
-### Which build systems does Tuist support for test acceleration?
-
-Test insights support Xcode, Gradle, Bazel, and Elixir. Sharding supports Xcode, Gradle, and Elixir, but not Bazel today. Selective testing requires a Tuist generated Xcode project. Cargo and Once have their own requirements. See the [test sharding](/en/docs-markdown/guides/features/test-sharding) and [selective testing](/en/docs-markdown/guides/features/selective-testing) guides for each integration's requirements.
-
-### Do we need to change CI providers?
-
-No. Tuist works with the CI you already use, and test reporting, selective testing, and sharding run inside your existing jobs.
+Related: [flaky tests](/marketing-markdown/solutions/flaky-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).

@@ -367,7 +367,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
             visible =
               document
-              |> Floki.find("article > [data-part=content]")
+              |> Floki.find("[data-part=content]")
               |> Enum.flat_map(&Floki.children/1)
               |> Enum.filter(&is_tuple/1)
               |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
@@ -406,14 +406,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             end
         end
 
-      for path <- [
-            "/compare/xcodegen",
-            "/compare/nx",
-            "/solutions/slow-builds",
-            "/solutions/slow-tests",
-            "/solutions/flaky-tests",
-            "/solutions/ci-costs"
-          ] do
+      for path <- ["/compare/xcodegen", "/compare/nx"] do
         assert path in pages_with_faqs
       end
     end

@@ -7,7 +7,7 @@
 ---
 # Test Insights {#test-insights}
 
-Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once. Available results and timings depend on your runner. To follow which code your tests execute on supported build systems, see <.localized_link href="/guides/features/test-code-coverage">Code Coverage</.localized_link>. For guidance on [slow tests](https://tuist.dev/solutions/slow-tests) and [flaky tests](https://tuist.dev/solutions/flaky-tests), see the solution guides.
+Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once. Available results and timings depend on your runner. To follow which code your tests execute on supported build systems, see <.localized_link href="/guides/features/test-code-coverage">Code Coverage</.localized_link>.
 
 <.home_cards>
   <.home_card

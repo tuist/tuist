@@ -124,4 +124,4 @@ Before tests can run, the code must be compiled—a costly step in clean CI envi
 
 Rapid feedback on pull requests empowers developers to iterate quickly and meet business goals. While multitasking during long CI runs is an option, it often hampers focus and productivity. The closer you get to instant feedback, the better your team can perform.
 
-If your CI pipelines haven’t been revisited since their inception, it’s time to invest in optimization. Our guides on [slow tests](/solutions/slow-tests) and [flaky tests](/solutions/flaky-tests) are a good place to start. Your team, business, and customers will reap the rewards of faster, more efficient workflows.
+If your CI pipelines haven’t been revisited since their inception, it’s time to invest in optimization. Your team, business, and customers will reap the rewards of faster, more efficient workflows.

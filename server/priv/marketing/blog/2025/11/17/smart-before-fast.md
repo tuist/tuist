@@ -140,6 +140,4 @@ The difference isn't just the value, though that's dramatic. The difference is t
 
 Optimize workflows before hardware. A faster machine makes your waste happen faster. A better workflow eliminates the waste. One costs significantly more and provides modest improvements. The other costs a fraction and transforms the organization.
 
-For a practical starting point, our guides on [slow builds](/solutions/slow-builds) and [rising CI costs](/solutions/ci-costs) walk through diagnosing where the waste comes from.
-
 Ready to see what this looks like for your team? [Talk to us](https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true) about how Tuist can help you scale, or [get started](https://tuist.dev/users/register) and see the difference in days, not months.

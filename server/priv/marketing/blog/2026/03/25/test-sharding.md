@@ -81,7 +81,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Test sharding also works with [Tuist generated projects](https://tuist.dev/en/docs/guides/features/test-sharding/generated-projects) via `tuist test` and [Gradle projects](https://tuist.dev/en/docs/guides/features/test-sharding/gradle) using the Tuist Gradle plugin. For generated projects, sharding integrates seamlessly with [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing) as shard runners don't need to generate the project, install dependencies, or compile anything since the selective testing graph is persisted during the build phase. See the [test sharding documentation](https://tuist.dev/en/docs/guides/features/test-sharding) for full setup details, and the [slow tests guide](/solutions/slow-tests) for where sharding fits among other ways to cut test time.
+Test sharding also works with [Tuist generated projects](https://tuist.dev/en/docs/guides/features/test-sharding/generated-projects) via `tuist test` and [Gradle projects](https://tuist.dev/en/docs/guides/features/test-sharding/gradle) using the Tuist Gradle plugin. For generated projects, sharding integrates seamlessly with [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing) as shard runners don't need to generate the project, install dependencies, or compile anything since the selective testing graph is persisted during the build phase. See the [test sharding documentation](https://tuist.dev/en/docs/guides/features/test-sharding) for full setup details.
 
 ## Stop waiting
 

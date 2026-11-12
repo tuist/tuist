@@ -7,7 +7,7 @@
 ---
 # Build Insights {#build-insights}
 
-Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once. For a step-by-step investigation of slow builds and rising CI costs, see [Slow builds](https://tuist.dev/solutions/slow-builds) and [CI costs](https://tuist.dev/solutions/ci-costs).
+Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once.
 
 <.home_cards>
   <.home_card

@@ -7,7 +7,7 @@
 ---
 # Cache {#cache}
 
-Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built. To work out why builds are slow before choosing a cache, see [Slow builds](https://tuist.dev/solutions/slow-builds).
+Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
 
 Learn the cache workflow that matches your project or deployment model:
 
