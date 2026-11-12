@@ -343,6 +343,7 @@ defmodule Tuist.Sandboxes.Archives do
         state: :paused,
         node_name: node_name,
         paused_at: %DateTime{},
+        residency_work_id: nil,
         archived_at: nil,
         archive_upload_id: nil
       })
@@ -385,6 +386,7 @@ defmodule Tuist.Sandboxes.Archives do
            state: :paused,
            node_name: node_name,
            paused_at: %DateTime{},
+           residency_work_id: nil,
            archived_at: nil,
            archive_upload_id: nil
          } = sandbox
@@ -522,6 +524,18 @@ defmodule Tuist.Sandboxes.Archives do
     {:ok, :skipped}
   end
 
+  # Older daemon shutdowns paused without syncing. Never drop the memory
+  # image or bypass the node's sync guard: admit a resume and synced pause,
+  # then let the next sweep upload the refreshed checkpoint.
+  defp finish({:error, "disks were not synced by the last pause: " <> _id}, %{sandbox: sandbox} = upload) do
+    discard(Sandbox, upload, cancelled: true)
+
+    case Sandboxes.sync_paused_disks(sandbox) do
+      {:ok, _} -> {:ok, :skipped}
+      {:error, _} = error -> error
+    end
+  end
+
   defp finish({:error, reason}, %{sandbox: sandbox} = upload) do
     Logger.warning("sandboxes: archiving a sandbox failed",
       sandbox_id: sandbox.id,
@@ -537,6 +551,7 @@ defmodule Tuist.Sandboxes.Archives do
   # longer holds the sandbox's latest disks.
   defp unchanged?(%Sandbox{} = fresh, sandbox, upload_id) do
     fresh.state == :paused and fresh.node_name == sandbox.node_name and fresh.paused_at == sandbox.paused_at and
+      fresh.residency_work_id == nil and fresh.residency_epoch == sandbox.residency_epoch and
       fresh.archive_upload_id == upload_id
   end
 

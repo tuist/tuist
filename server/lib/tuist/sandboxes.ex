@@ -909,15 +909,37 @@ defmodule Tuist.Sandboxes do
           disks_synced: data["disks_synced"]
         )
 
-        with {:ok, paused} <-
-               update_sandbox(sandbox, %{
+        # Commit the pause and residency release together. The caller can die
+        # after this write; no follow-up request is needed to make it idle.
+        query =
+          from(s in Sandbox,
+            where:
+              s.id == ^sandbox.id and s.state in [:running, :paused] and s.residency_epoch == ^sandbox.residency_epoch,
+            select: s
+          )
+
+        case Repo.update_all(query,
+               set: [
                  state: :paused,
                  paused_at: now(),
+                 residency_work_id: nil,
                  guest_cpu_ms: nil,
-                 resident: data["resident"] == true
-               }) do
-          if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
-          {:ok, paused}
+                 resident: data["resident"] == true,
+                 updated_at: now()
+               ],
+               inc: [residency_epoch: 1]
+             ) do
+          {1, [paused]} ->
+            Events.record_transition(sandbox, paused)
+            if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
+            {:ok, paused}
+
+          {0, []} ->
+            # The socket may already have recorded this pause from a report.
+            with_fresh(sandbox.id, fn
+              %Sandbox{state: :paused, residency_work_id: nil} = paused -> {:ok, paused}
+              _ -> {:error, :not_running}
+            end)
         end
 
       {:error, reason} ->
@@ -926,6 +948,28 @@ defmodule Tuist.Sandboxes do
   end
 
   defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
+
+  @doc """
+  Refreshes an unsynced paused checkpoint before archiving, through normal
+  resume admission. A new turn or lifecycle change since the failed archive
+  wins. Keep its original pause age so the next archive pass can retry.
+  """
+  def sync_paused_disks(%Sandbox{} = expected) do
+    with_sandbox_lock(expected.id, fn ->
+      with_fresh(expected.id, fn
+        %Sandbox{state: :paused, residency_work_id: nil} = sandbox
+        when sandbox.node_name == expected.node_name and sandbox.residency_epoch == expected.residency_epoch and
+               sandbox.paused_at == expected.paused_at ->
+          with {:ok, running} <- do_resume(sandbox),
+               {:ok, paused} <- do_pause(running) do
+            update_sandbox(paused, %{paused_at: expected.paused_at})
+          end
+
+        _ ->
+          {:ok, :skipped}
+      end)
+    end)
+  end
 
   @doc """
   Tears the VM down on its node and removes the row. An archived
@@ -1457,6 +1501,11 @@ defmodule Tuist.Sandboxes do
   # that delete still lists it.
   defp reconcile_reported(%Sandbox{state: :archived, id: id}, node_name, _reported), do: delete_orphan(node_name, id)
 
+  # A paused copy left on a former node is not evidence that the current
+  # node stopped the VM. In particular it cannot release a new residency.
+  defp reconcile_reported(%Sandbox{node_name: assigned}, node_name, %{"state" => "paused"})
+       when not is_nil(assigned) and assigned != node_name, do: :ok
+
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
     if sandbox.platform == :darwin and is_boolean(reported["resident"]) do
       Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.node_uid == ^sandbox.node_uid),
@@ -1479,16 +1528,53 @@ defmodule Tuist.Sandboxes do
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
       |> keep_in_flight_state(sandbox, reported["state"])
+      |> put_reported_pause(sandbox)
       |> put_guest_activity(sandbox, reported)
 
     if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) do
-      {:ok, _sandbox} = update_sandbox(sandbox, attrs)
+      apply_report(sandbox, attrs)
     end
 
     if idle_orb?(sandbox, attrs), do: enqueue_idle_orb_pause(sandbox)
 
     :ok
   end
+
+  # Reports run on the socket, which cannot take the lifecycle lock.
+  # Never let a report read before a resume, delete or new turn overwrite
+  # it, even when both writes land within the same timestamp second.
+  defp apply_report(sandbox, attrs) do
+    query =
+      from(s in Sandbox,
+        where:
+          s.id == ^sandbox.id and s.state == ^sandbox.state and s.residency_epoch == ^sandbox.residency_epoch and
+            s.updated_at == ^sandbox.updated_at,
+        select: s
+      )
+
+    updates = [set: Map.to_list(Map.put(attrs, :updated_at, now()))]
+
+    updates =
+      if attrs[:state] == :paused and (sandbox.state != :paused or not is_nil(sandbox.residency_work_id)),
+        do: Keyword.put(updates, :inc, residency_epoch: 1),
+        else: updates
+
+    case Repo.update_all(query, updates) do
+      {1, [updated]} -> Events.record_transition(sandbox, updated)
+      {0, []} -> :ok
+    end
+  end
+
+  # A daemon shutdown (or a pause whose caller lost the result) can leave
+  # the VM paused without a server pause. Repeated reports also heal old
+  # paused rows, without continually moving their archive age forward.
+  defp put_reported_pause(%{state: :paused} = attrs, sandbox) do
+    paused_at = if sandbox.state == :paused, do: sandbox.paused_at || now(), else: now()
+    Map.merge(attrs, %{paused_at: paused_at, residency_work_id: nil, guest_cpu_ms: nil})
+  end
+
+  defp put_reported_pause(%{state: :running} = attrs, _sandbox), do: Map.put(attrs, :paused_at, nil)
+  defp put_reported_pause(attrs, _sandbox), do: attrs
 
   # A running guest is active when it used more than @active_cpu_ms_per_second
   # of CPU since the last report that found it active. A smaller reading
@@ -1548,6 +1634,15 @@ defmodule Tuist.Sandboxes do
   defp keep_in_flight_state(attrs, %Sandbox{state: :creating} = sandbox, reported_state)
        when reported_state != "running" do
     if stuck?(sandbox), do: attrs, else: Map.drop(attrs, [:state, :error_message])
+  end
+
+  # A report captured before a pause or resume finished can arrive after its
+  # result. Let a later report confirm an opposing state before adopting it.
+  defp keep_in_flight_state(attrs, %Sandbox{state: state} = sandbox, reported_state)
+       when (state == :running and reported_state == "paused") or (state == :paused and reported_state == "running") do
+    if DateTime.diff(now(), sandbox.updated_at, :second) > @report_settle_seconds,
+      do: attrs,
+      else: Map.drop(attrs, [:state, :error_message])
   end
 
   defp keep_in_flight_state(attrs, _sandbox, _reported_state), do: attrs

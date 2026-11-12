@@ -165,8 +165,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp pause_orb(sandbox, params) do
     record_setup(sandbox)
 
-    with {:ok, paused} <- Sandboxes.pause(sandbox),
-         {:ok, paused} <- Sandboxes.end_residency(paused) do
+    with {:ok, paused} <- Sandboxes.pause(sandbox) do
       save_snapshot(paused, params)
     end
   end

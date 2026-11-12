@@ -10,6 +10,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -206,14 +207,17 @@ defmodule Tuist.SandboxesTest do
 
   describe "pause/1 and resume/1" do
     test "pause/1 snapshots a running sandbox after syncing its disks" do
-      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "amp:orb", residency_epoch: 3)
       sandbox_id = sandbox.id
 
       expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id, sync_disks: true}, _opts ->
         {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
       end)
 
-      assert {:ok, %Sandbox{state: :paused, paused_at: %DateTime{}}} = Sandboxes.pause(sandbox)
+      assert {:ok, %Sandbox{state: :paused, paused_at: %DateTime{}, residency_work_id: nil, residency_epoch: 4}} =
+               Sandboxes.pause(sandbox)
+
+      assert %Sandbox{state: :paused, residency_work_id: nil, residency_epoch: 4} = Repo.reload!(sandbox)
       assert events(sandbox) == ["paused"]
     end
 
@@ -449,6 +453,101 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "reconcile_node_report/2" do
+    test "a node pause ends residency and records its observation time, including already paused legacy rows" do
+      for state <- [:running, :paused] do
+        sandbox =
+          [
+            state: state,
+            node_name: "node-a",
+            amp_orb_id: "orb-#{state}",
+            residency_work_id: "amp:orb",
+            residency_epoch: 3
+          ]
+          |> sandbox_fixture()
+          |> backdate(60)
+
+        report = %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]}
+        before_report = DateTime.utc_now(:second)
+        assert :ok = Sandboxes.reconcile_node_report("node-a", report)
+
+        assert %Sandbox{state: :paused, paused_at: %DateTime{} = at, residency_work_id: nil, residency_epoch: 4} =
+                 Repo.reload!(sandbox)
+
+        refute DateTime.before?(at, before_report)
+        assert Archives.archivable?(Repo.reload!(sandbox))
+
+        assert :ok = Sandboxes.reconcile_node_report("node-a", report)
+        assert %Sandbox{paused_at: ^at, residency_epoch: 4} = Repo.reload!(sandbox)
+      end
+    end
+
+    test "a delayed paused report cannot end a freshly started turn" do
+      sandbox =
+        sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "amp:new", residency_epoch: 7)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      assert %Sandbox{state: :running, paused_at: nil, residency_work_id: "amp:new", residency_epoch: 7} =
+               Repo.reload!(sandbox)
+    end
+
+    test "a paused copy on a former node cannot release the current node's residency" do
+      sandbox =
+        [state: :running, node_name: "node-b", residency_work_id: "amp:new", residency_epoch: 7]
+        |> sandbox_fixture()
+        |> backdate(60)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      assert %Sandbox{
+               state: :running,
+               node_name: "node-b",
+               paused_at: nil,
+               residency_work_id: "amp:new",
+               residency_epoch: 7
+             } =
+               Repo.reload!(sandbox)
+
+      assert events(sandbox) == []
+    end
+
+    test "repairs a missing pause time without residency, but preserves a known pause time" do
+      known_time = DateTime.add(DateTime.utc_now(:second), -3600, :second)
+
+      for paused_at <- [nil, known_time] do
+        sandbox = sandbox_fixture(state: :paused, node_name: "node-a", paused_at: paused_at)
+        report = %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]}
+
+        assert :ok = Sandboxes.reconcile_node_report("node-a", report)
+        assert %Sandbox{paused_at: %DateTime{} = recorded, residency_epoch: 0} = Repo.reload!(sandbox)
+        if paused_at, do: assert(recorded == known_time)
+        assert Archives.archivable?(Repo.reload!(sandbox))
+      end
+    end
+
+    test "a resume between reading and applying a paused report wins" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a", residency_work_id: "amp:old", residency_epoch: 3)
+
+      expect(Repo, :update_all, fn query, updates ->
+        Mimic.call_original(Repo, :update_all, [
+          from(s in Sandbox, where: s.id == ^sandbox.id),
+          [set: [state: :running, residency_work_id: "amp:new", paused_at: nil], inc: [residency_epoch: 1]]
+        ])
+
+        Mimic.call_original(Repo, :update_all, [query, updates])
+      end)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      assert %Sandbox{state: :running, residency_work_id: "amp:new", residency_epoch: 4, paused_at: nil} =
+               Repo.reload!(sandbox)
+
+      assert events(sandbox) == []
+    end
+
     test "records guest activity only when the guest used CPU since the last activity" do
       quiet_since = DateTime.truncate(DateTime.add(DateTime.utc_now(), -100, :second), :second)
       sandbox = sandbox_fixture(state: :running, node_name: "node-a", guest_cpu_ms: 1000, last_active_at: quiet_since)

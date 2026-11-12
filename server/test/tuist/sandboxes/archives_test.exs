@@ -342,10 +342,14 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     test "refuses sandboxes that are not paused on a node, or already uploading", %{account: account} do
       running = sandbox_fixture(account: account, node_name: "node-a")
       uploading = paused_orb(account, archive_upload_id: "upload-in-flight")
+      held = paused_orb(account, residency_work_id: "amp:held")
       archived = archived_orb(account)
 
       assert {:error, {:invalid_state, :running}} = Archives.request(running)
       assert {:error, {:invalid_state, :paused}} = Archives.request(uploading)
+      assert {:error, {:invalid_state, :paused}} = Archives.request(held)
+      reject(&Storage.multipart_start/2)
+      assert {:ok, :skipped} = Archives.archive(held)
       assert {:error, {:invalid_state, :archived}} = Archives.request(archived)
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
@@ -458,6 +462,57 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"])
     end
 
+    test "a node-confirmed legacy pause becomes archivable and an unsynced checkpoint is safely refreshed", %{
+      account: account
+    } do
+      sandbox = paused_orb(account, paused_at: nil, residency_work_id: "amp:old")
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      sandbox = Repo.reload!(sandbox)
+      paused_at = sandbox.paused_at
+      assert sandbox.residency_work_id == nil
+
+      expect(Storage, :multipart_start, 2, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
+        {:error, "disks were not synced by the last pause: #{sandbox.id}"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      expect(Capacity, :admit, fn actual -> {:ok, actual} end)
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{"disks_synced" => true}} end)
+
+      assert {:ok, :skipped} = Archives.archive(sandbox)
+
+      assert %Sandbox{state: :paused, paused_at: ^paused_at, archive_attempted_at: nil, residency_work_id: nil} =
+               Repo.reload!(sandbox)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %Sandbox{state: :archived, node_name: nil}} = Archives.archive(Repo.reload!(sandbox))
+    end
+
+    test "refreshing an unsynced pause still needs capacity and cannot interrupt a new turn", %{account: account} do
+      sandbox = paused_orb(account)
+      expect(Capacity, :admit, fn _actual -> {:error, :no_capacity} end)
+      reject(&Nodes.call/4)
+      assert {:error, :no_capacity} = Sandboxes.sync_paused_disks(sandbox)
+      assert Repo.reload!(sandbox).state == :paused
+
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+        set: [state: :running, residency_work_id: "amp:new"],
+        inc: [residency_epoch: 1]
+      )
+
+      assert {:ok, :skipped} = Sandboxes.sync_paused_disks(sandbox)
+      assert %Sandbox{state: :running, residency_work_id: "amp:new"} = Repo.reload!(sandbox)
+    end
+
     test "an Orb resumed during the upload can be archived again after its next pause", %{account: account} do
       reject(&Storage.multipart_complete_upload/4)
 
@@ -468,8 +523,10 @@ defmodule Tuist.Sandboxes.ArchivesTest do
         expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
           # A resume and a new pause land while the node uploads. The
           # result may arrive before or after the node notices cancellation.
+          # Even when their second-precision pause time is identical, the
+          # residency epoch distinguishes the newer checkpoint.
           Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
-            set: [paused_at: DateTime.truncate(DateTime.utc_now(), :second)]
+            inc: [residency_epoch: 2]
           )
 
           result
