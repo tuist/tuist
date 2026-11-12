@@ -10,8 +10,9 @@ afterEach(() => {
 });
 
 // The markup Noora.Checkbox renders, with the server's state attributes.
-const attrs = ({ checked, indeterminate, disabled, onChange }) =>
+const attrs = ({ checked, indeterminate, disabled, onChange, name }) =>
   [
+    name && `name="${name}"`,
     checked && "data-default-checked",
     indeterminate && "data-indeterminate",
     disabled && "data-disabled",
@@ -105,5 +106,66 @@ describe("Noora.Checkbox", () => {
     patch({ checked: false });
     await Promise.resolve();
     expect(control().dataset.state).toBe("checked");
+  });
+
+  it("goes back to the server's state when the server turns a change down", async () => {
+    mount({ checked: false, onChange: "toggle_all" });
+
+    input().click();
+    await vi.waitFor(() => expect(control().dataset.state).toBe("checked"));
+    expect(hook.pushEvent).toHaveBeenCalledTimes(1);
+
+    patch({ checked: false });
+    await vi.waitFor(() => expect(control().dataset.state).toBe("unchecked"));
+    expect(hook.pushEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits its name with the value true when checked", async () => {
+    mount({ name: "user[remember_me]" });
+    expect(input().name).toBe("user[remember_me]");
+    expect(input().value).toBe("true");
+    expect(input().type).toBe("checkbox");
+
+    input().click();
+    await vi.waitFor(() => expect(input().checked).toBe(true));
+  });
+
+  it("keeps the name, value and checked state of markup with its own input", () => {
+    document.body.innerHTML = `<div id="reply-all" class="noora-checkbox">
+      <label data-part="root">
+        <input type="checkbox" name="reply[all]" value="yes" checked data-part="hidden-input" />
+        <div class="noora-checkbox-control" data-part="control"><div data-part="box"></div></div>
+        <span data-part="label">Reply all</span>
+      </label>
+    </div>`;
+    hook = {
+      ...Checkbox,
+      el: document.getElementById("reply-all"),
+      pushEvent: vi.fn(),
+    };
+    hook.mounted();
+
+    expect(input().name).toBe("reply[all]");
+    expect(input().value).toBe("yes");
+    expect(control().dataset.state).toBe("checked");
+  });
+
+  it("waits for the server's answer before going back to its state", async () => {
+    mount({ checked: false, onChange: "toggle_all" });
+    let answer;
+    hook.pushEvent = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+
+    input().click();
+    await vi.waitFor(() => expect(control().dataset.state).toBe("checked"));
+
+    // A re-render from something else, before the server has answered.
+    patch({ checked: false });
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(control().dataset.state).toBe("checked");
+
+    // The server answers without having rendered the change.
+    answer();
+    await vi.waitFor(() => expect(control().dataset.state).toBe("unchecked"));
+    expect(hook.pushEvent).toHaveBeenCalledTimes(1);
   });
 });

@@ -61,6 +61,9 @@ defmodule Noora.Checkbox do
       {@rest}
     >
       <label data-part="root">
+        <%!-- Submits false while the box is unchecked, as a browser leaves
+             an unchecked checkbox out of the form. --%>
+        <input :if={@name && !@multiple} type="hidden" name={@name} value="false" />
         <input data-peer data-part="hidden-input" tabindex={@tabindex} />
         <.checkbox_control checked={@checked} indeterminate={@indeterminate} data-part="control" />
         <div>

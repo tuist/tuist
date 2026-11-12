@@ -30,10 +30,12 @@ defmodule Noora.CheckboxControl do
     >
       <div data-part="box">
         <%!-- Drawn on the box's 16px grid, each stroke (caps included)
-             centered in it. --%>
+             centered in it. pathLength lets the CSS draw them along
+             their length. --%>
         <svg data-part="check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path
             d="M3 7.75L6.5 11.25L13 4.75"
+            pathLength="1"
             stroke="currentColor"
             stroke-width="1.5"
             stroke-linecap="round"
@@ -41,7 +43,13 @@ defmodule Noora.CheckboxControl do
           />
         </svg>
         <svg data-part="minus" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <path
+            d="M3 8H13"
+            pathLength="1"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
         </svg>
       </div>
     </div>
