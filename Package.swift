@@ -434,6 +434,8 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
 ]
 var tuistSandboxCommandDependencies: [Target.Dependency] = [
     argumentParserDependency,
+    pathDependency,
+    "TuistProcess",
     "TuistServer",
     "TuistEnvironment",
     "TuistConfigLoader",

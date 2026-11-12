@@ -110,8 +110,15 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
 
   @impl EMCP.Tool
   def description,
-    do:
-      "Boot a bare Linux or macOS sandbox from a template and return it once it runs. Linux sandboxes take 2x4096, 4x8192 or 8x16384 vCPUs x memory MB (default 2x4096); macOS sandboxes take 8x8192, 8x16384 or 8x24576 (default 8x8192). It counts toward the account's sandbox limits. Requires an account member."
+    do: """
+    Boot a bare Linux or macOS sandbox from a template and return it once it runs. Linux sandboxes take 2x4096, 4x8192 or 8x16384 vCPUs x memory MB (default 2x4096); macOS sandboxes take 8x8192, 8x16384 or 8x24576 (default 8x8192). It counts toward the account's sandbox limits. Requires an account member.
+
+    To build, test or run local Apple-platform code (xcodebuild, the iOS Simulator) from a machine that is not a Mac, create one macOS sandbox per task, reuse it, and drive it with the Tuist CLI where the code is. These tools cannot reach local files. If `tuist` is missing or `tuist sandbox --help` doesn't list `sync`, install the newest CLI: download `tuist-linux-x86_64.tar.gz` (or `-aarch64`) from the newest https://github.com/tuist/tuist release whose tag is a bare version such as 4.216.3 (other tags belong to other components), and put the `tuist` it contains on PATH. The CLI needs its own authentication, `TUIST_TOKEN` or `tuist auth login`; this server's sign-in does not carry over. Pass `--account <account_handle>` to every command.
+    - Before every command, run `tuist sandbox sync <id> --json`. It mirrors the files Git does not ignore, committed or not, and returns the repository's `root` on the Mac. It is one-way: edit files locally, not on the Mac.
+    - Run commands with `tuist sandbox exec <id> --cwd <root> -- '<command>'`. It streams output, waits while the Mac's host is busy, and exits with the command's status; stopping it cancels the command. Start long builds in the background with output in a log file.
+    - Copy results such as screenshots, an .xcresult bundle or a built app back with `tuist sandbox cp <id>:<path> <local-path>`.
+    - Delete the sandbox when the task is done.
+    """
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:create, conn, args)
 end

@@ -1654,6 +1654,7 @@ public enum Module: String, CaseIterable {
             case .sandboxCommand:
                 [
                     .target(name: Module.server.targetName),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),

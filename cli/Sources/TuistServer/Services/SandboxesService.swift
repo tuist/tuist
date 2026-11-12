@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import Mockable
 import OpenAPIRuntime
 import TuistHTTP
@@ -7,14 +10,15 @@ public typealias SandboxesPage = Operations.listSandboxes.Output.Ok.Body.jsonPay
 public typealias ServerSandbox = Components.Schemas.Sandbox
 public typealias ServerSandboxPlatform = Operations.createSandbox.Input.Body.jsonPayload.platformPayload
 public typealias SandboxAnalytics = Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload
-public typealias SandboxExecResult = Components.Schemas.SandboxExecResult
+public typealias ServerSandboxCommand = Components.Schemas.SandboxCommand
+public typealias ServerSandboxCommandLogLine = Components.Schemas.SandboxCommandLogLine
 
 /// A sandbox action that answers the sandbox it changed.
 public enum SandboxTransition: String, Sendable {
     case pause, resume, archive
 }
 
-/// The sandbox API (`/api/accounts/:account_handle/sandboxes`), which requires an account administrator.
+/// The sandbox API (`/api/accounts/:account_handle/sandboxes`).
 @Mockable
 public protocol SandboxesServicing: Sendable {
     func listSandboxes(
@@ -40,13 +44,6 @@ public protocol SandboxesServicing: Sendable {
         memoryMB: Int?,
         workspaceGB: Int?
     ) async throws -> ServerSandbox
-    func execSandboxCommand(
-        accountHandle: String,
-        serverURL: URL,
-        sandboxID: String,
-        command: String,
-        timeoutMs: Int?
-    ) async throws -> SandboxExecResult
     func transitionSandbox(
         _ transition: SandboxTransition,
         accountHandle: String,
@@ -54,18 +51,60 @@ public protocol SandboxesServicing: Sendable {
         sandboxID: String
     ) async throws -> ServerSandbox
     func deleteSandbox(accountHandle: String, serverURL: URL, sandboxID: String) async throws
+    /// Starts a command detached in the sandbox (`POST .../commands`), which outlives any one request.
+    func startSandboxCommand(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        command: String,
+        cwd: String?,
+        environment: [String: String],
+        stdin: Bool,
+        timeoutMs: Int?
+    ) async throws -> ServerSandboxCommand
+    /// The command's output from the given byte offsets, line by line as the server streams it. The last line is
+    /// `exit` or `error`, unless the server ended a long stream early, which a caller resumes from the last offsets.
+    func streamSandboxCommandLogs(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String,
+        stdoutOffset: Int,
+        stderrOffset: Int
+    ) async throws -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>
+    func writeSandboxCommandStdin(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String,
+        data: Data,
+        close: Bool
+    ) async throws
+    func cancelSandboxCommand(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String
+    ) async throws -> ServerSandboxCommand
+    /// Puts the file at `file` in the account's storage and returns a URL a command in the sandbox downloads it from
+    /// within the hour, which is much faster for a large file than a command's stdin.
+    func uploadSandboxFile(accountHandle: String, serverURL: URL, sandboxID: String, file: URL) async throws -> URL
 }
 
 public enum SandboxesServiceError: LocalizedError, Equatable {
     /// The server's own message for a refused request.
     case refused(String)
+    /// The server has no node for the sandbox right now (503), such as while CI holds a shared macOS host.
+    case unavailable(String)
+    /// The sandbox or command no longer exists (404).
+    case notFound(String)
     case limited
     case invalidShape
     case unknownError(Int)
 
     public var errorDescription: String? {
         switch self {
-        case let .refused(message):
+        case let .refused(message), let .unavailable(message), let .notFound(message):
             return message
         case .limited:
             return "Tuist refused the request for now: the account may have reached its sandbox CPU, memory or disk limit, or sent too many requests. Retry later."
@@ -84,7 +123,7 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
               let data = try? await Data(collecting: body, upTo: 1_048_576),
               let message = try? JSONDecoder().decode(Body.self, from: data).message
         else { return .unknownError(statusCode) }
-        return .refused(message)
+        return statusCode == 503 ? .unavailable(message) : .refused(message)
     }
 
     /// The generated client decodes a documented error status as `{"message": …}` before answering, so an error page
@@ -212,32 +251,6 @@ public struct SandboxesService: SandboxesServicing {
         }
     }
 
-    public func execSandboxCommand(
-        accountHandle: String,
-        serverURL: URL,
-        sandboxID: String,
-        command: String,
-        timeoutMs: Int?
-    ) async throws -> SandboxExecResult {
-        let response = try await SandboxesServiceError.send {
-            try await Client.authenticated(serverURL: serverURL).execSandboxCommand(.init(
-                path: .init(account_handle: accountHandle, sandbox_id: sandboxID),
-                body: .json(.init(command: command, timeout_ms: timeoutMs))
-            ))
-        }
-        switch response {
-        case let .ok(value): return try Self.convert(value.body.json)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
-        }
-    }
-
     public func transitionSandbox(
         _ transition: SandboxTransition,
         accountHandle: String,
@@ -308,6 +321,173 @@ public struct SandboxesService: SandboxesServicing {
         case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+    }
+
+    public func startSandboxCommand(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        command: String,
+        cwd: String?,
+        environment: [String: String],
+        stdin: Bool,
+        timeoutMs: Int?
+    ) async throws -> ServerSandboxCommand {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).startSandboxCommand(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID),
+                body: .json(.init(
+                    command: command,
+                    cwd: cwd,
+                    env: environment.isEmpty ? nil : .init(additionalProperties: environment),
+                    stdin: stdin,
+                    timeout_ms: timeoutMs
+                ))
+            ))
+        }
+        switch response {
+        case let .accepted(value): return try Self.convert(value.body.json)
+        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+    }
+
+    public func streamSandboxCommandLogs(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String,
+        stdoutOffset: Int,
+        stderrOffset: Int
+    ) async throws -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error> {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL, streaming: true).streamSandboxCommandLogs(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID, command_id: commandID),
+                query: .init(stdout_offset: stdoutOffset, stderr_offset: stderrOffset)
+            ))
+        }
+        let body: HTTPBody
+        switch response {
+        case let .ok(value): body = try value.body.application_x_hyphen_ndjson
+        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
+        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+        return AsyncThrowingStream { continuation in
+            let reader = Task {
+                do {
+                    let decoder = JSONDecoder()
+                    var buffer: [UInt8] = []
+                    for try await chunk in body {
+                        buffer.append(contentsOf: chunk)
+                        while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                            let line = buffer[..<newline]
+                            if !line.allSatisfy({ $0 == UInt8(ascii: " ") || $0 == UInt8(ascii: "\r") }) {
+                                continuation.yield(try decoder.decode(ServerSandboxCommandLogLine.self, from: Data(line)))
+                            }
+                            buffer.removeSubrange(...newline)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in reader.cancel() }
+        }
+    }
+
+    public func writeSandboxCommandStdin(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String,
+        data: Data,
+        close: Bool
+    ) async throws {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).writeSandboxCommandStdin(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID, command_id: commandID),
+                body: .json(.init(close: close, data: Base64EncodedData(data)))
+            ))
+        }
+        switch response {
+        case .ok: return
+        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
+        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+    }
+
+    public func cancelSandboxCommand(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        commandID: String
+    ) async throws -> ServerSandboxCommand {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).cancelSandboxCommand(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID, command_id: commandID)
+            ))
+        }
+        switch response {
+        case let .ok(value): return try Self.convert(value.body.json)
+        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
+        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+    }
+
+    public func uploadSandboxFile(accountHandle: String, serverURL: URL, sandboxID: String, file: URL) async throws -> URL {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).createSandboxUpload(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID)
+            ))
+        }
+        switch response {
+        case let .ok(value):
+            let upload = try value.body.json
+            guard let uploadURL = URL(string: upload.upload_url), let downloadURL = URL(string: upload.download_url) else {
+                throw SandboxesServiceError.refused("Tuist answered an upload URL that is not valid.")
+            }
+            var request = URLRequest(url: uploadURL)
+            request.httpMethod = "PUT"
+            request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+            request.addAzureBlobTypeHeaderIfNeeded()
+            let (_, put) = try await RetryingURLTransfer(urlSession: .tuistLargeTransfer).upload(request, fromFile: file)
+            let statusCode = (put as? HTTPURLResponse)?.statusCode ?? -1
+            guard (200 ..< 300).contains(statusCode) else {
+                throw SandboxesServiceError.refused("Uploading to the account's storage failed with status \(statusCode).")
+            }
+            return downloadURL
+        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
