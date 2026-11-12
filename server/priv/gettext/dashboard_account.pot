@@ -109,6 +109,9 @@ msgstr ""
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:303
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:401
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:463
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -193,6 +196,7 @@ msgstr ""
 #: lib/tuist/billing.ex:92
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:247
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -503,6 +507,10 @@ msgstr ""
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
 #: lib/tuist_web/live/create_organization_live.ex:61
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:31
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:356
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -619,6 +627,8 @@ msgstr ""
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:426
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr ""
@@ -682,6 +692,9 @@ msgid "Role"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:212
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:189
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:314
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
@@ -707,6 +720,7 @@ msgstr ""
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:3
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
 #: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -1057,6 +1071,11 @@ msgid "Okta domain"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:256
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:98
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:232
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:238
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:362
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr ""
@@ -2088,22 +2107,22 @@ msgstr ""
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:212
+#: lib/tuist_web/live/account_token_helpers.ex:217
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:244
+#: lib/tuist_web/live/account_token_helpers.ex:249
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:172
+#: lib/tuist_web/live/account_token_helpers.ex:173
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:196
+#: lib/tuist_web/live/account_token_helpers.ex:201
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
 msgstr ""
@@ -2139,67 +2158,67 @@ msgstr ""
 msgid "Project"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:180
+#: lib/tuist_web/live/account_token_helpers.ex:181
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:160
+#: lib/tuist_web/live/account_token_helpers.ex:161
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:164
+#: lib/tuist_web/live/account_token_helpers.ex:165
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:204
+#: lib/tuist_web/live/account_token_helpers.ex:209
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:232
+#: lib/tuist_web/live/account_token_helpers.ex:237
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:216
+#: lib/tuist_web/live/account_token_helpers.ex:221
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:168
+#: lib/tuist_web/live/account_token_helpers.ex:169
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:176
+#: lib/tuist_web/live/account_token_helpers.ex:177
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:208
+#: lib/tuist_web/live/account_token_helpers.ex:213
 #, elixir-autogen, elixir-format
 msgid "Read previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:192
+#: lib/tuist_web/live/account_token_helpers.ex:197
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:200
+#: lib/tuist_web/live/account_token_helpers.ex:205
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:240
+#: lib/tuist_web/live/account_token_helpers.ex:245
 #, elixir-autogen, elixir-format
 msgid "Read runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:224
+#: lib/tuist_web/live/account_token_helpers.ex:229
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
 msgstr ""
@@ -2224,27 +2243,27 @@ msgstr ""
 msgid "Runs write"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:155
+#: lib/tuist_web/live/account_token_helpers.ex:156
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:156
+#: lib/tuist_web/live/account_token_helpers.ex:157
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:236
+#: lib/tuist_web/live/account_token_helpers.ex:241
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:220
+#: lib/tuist_web/live/account_token_helpers.ex:225
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:228
+#: lib/tuist_web/live/account_token_helpers.ex:233
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
 msgstr ""
@@ -2874,12 +2893,12 @@ msgstr ""
 msgid "Your account moved to the Air plan"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:188
+#: lib/tuist_web/live/account_token_helpers.ex:189
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:184
+#: lib/tuist_web/live/account_token_helpers.ex:185
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
 msgstr ""
@@ -3157,6 +3176,7 @@ msgid "The ChatGPT sign-in did not complete. Please try again."
 msgstr ""
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:24
+#: lib/tuist_web/live/organization_ai_settings_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -3432,4 +3452,188 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Cache volume storage:"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:34
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "API base URL"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "API key"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Add a model to make it available to organization workflows."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:135
+#, elixir-autogen, elixir-format
+msgid "Add a provider before adding a model."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Add a provider to get started."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:333
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:411
+#, elixir-autogen, elixir-format
+msgid "Add model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:20
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:206
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:313
+#, elixir-autogen, elixir-format
+msgid "Add provider"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Add the models your organization can use, then choose a default model below."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:66
+#, elixir-autogen, elixir-format
+msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "Choose a provider"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Choose the model for organization AI workflows. No requests are sent until a default is selected. Personal AI subscriptions are not affected."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_helpers.ex:193
+#, elixir-autogen, elixir-format
+msgid "Create sandboxes and run commands in them."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:153
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Default model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:334
+#, elixir-autogen, elixir-format
+msgid "Edit model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:43
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Edit provider"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:93
+#, elixir-autogen, elixir-format
+msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "Model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:101
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:383
+#, elixir-autogen, elixir-format
+msgid "Model ID"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Models"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "No default model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "No models yet"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "No providers yet"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Providers"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:274
+#, elixir-autogen, elixir-format
+msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:425
+#, elixir-autogen, elixir-format
+msgid "Remove %{name}?"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "Remove model"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Remove provider"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:454
+#, elixir-autogen, elixir-format
+msgid "Requests already sent may finish."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_helpers.ex:155
+#, elixir-autogen, elixir-format
+msgid "Sandboxes write"
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:117
+#, elixir-autogen, elixir-format
+msgid "That model is no longer available. Choose another model."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "The model ID from your provider, including any account or model prefix."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:443
+#, elixir-autogen, elixir-format
+msgid "This deletes the stored key and all models using this provider. If one is the default, routing stops until you select another. Revoke the key at the provider to revoke access there."
+msgstr ""
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:448
+#, elixir-autogen, elixir-format
+msgid "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
 msgstr ""
