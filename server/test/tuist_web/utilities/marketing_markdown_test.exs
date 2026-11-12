@@ -279,6 +279,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       refute markdown =~ "## Limitations"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
 
+      [_before, faq] = String.split(markdown, "## Frequently asked questions\n", parts: 2)
+      assert length(Regex.scan(~r/^### /m, faq)) in 4..6, path
+
       for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
         assert mcp_docs =~ "`#{tool}`", tool
       end
