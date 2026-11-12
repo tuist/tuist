@@ -266,6 +266,99 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_ref_id: nil} = listing(repository, "a")
   end
 
+  describe "a write that cannot be done yet" do
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}])
+      head(repository, "main", "a")
+      GitHistory.record_listing(repository, "a", [%{path: "A.swift", git_blob_id: "a1", mode: @mode}], files_count: 2)
+      %{args: %{repository_id: repository, sha: "a"}}
+    end
+
+    test "comes back less and less often, however many times it ran", %{args: args} do
+      assert {:snooze, 30} = perform_job(FileChangesWorker, args, attempt: 1)
+      assert {:snooze, 60} = perform_job(FileChangesWorker, args, attempt: 2)
+      assert {:snooze, 1_920} = perform_job(FileChangesWorker, args, attempt: 7)
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 8)
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 500)
+    end
+
+    test "is written once the listing's files are all there", %{repository: repository, args: args} do
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 40)
+
+      GitHistory.record_listing(repository, "a", [%{path: "B.swift", git_blob_id: "b1", mode: @mode}], complete: false)
+
+      assert :ok = perform_job(FileChangesWorker, args, attempt: 41)
+      assert files(repository, "a") == with_mode(%{"A.swift" => "a1", "B.swift" => "b1"})
+    end
+
+    test "ends once the listing expired", %{repository: repository, args: args} do
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "a"),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      )
+
+      assert :ok = perform_job(FileChangesWorker, args, attempt: 41)
+      assert rows(repository) == []
+    end
+  end
+
+  describe "enqueue_unwritten/0" do
+    defp queued(repository) do
+      [worker: FileChangesWorker]
+      |> all_enqueued()
+      |> Enum.filter(&(&1.args["repository_id"] == repository))
+      |> Enum.map(& &1.args["sha"])
+      |> Enum.sort()
+    end
+
+    # The jobs a listing or a move queued are gone, as after they failed
+    # every attempt.
+    defp lose_jobs, do: Repo.delete_all(Oban.Job)
+
+    test "queues a commit on a ref whose listing is stored and not written", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}, {"t", ["c"]}, {"u", []}])
+      head(repository, "main", "t")
+      list(repository, "a", %{"A.swift" => "a1"})
+
+      one = [%{path: "A.swift", git_blob_id: "a2", mode: @mode}]
+      GitHistory.record_listing(repository, "b", one, files_count: 1)
+      # Nothing to write these from, or no place to write them at.
+      GitHistory.record_listing(repository, "c", one, files_count: 1)
+      expire(repository, ["c"])
+      GitHistory.record_listing(repository, "t", one, files_count: 5, truncated: true)
+      GitHistory.record_listing(repository, "u", one, files_count: 1)
+      lose_jobs()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      assert queued(repository) == ["b"]
+
+      settle()
+      assert changes(repository, "b") == %{"A.swift" => "a2"}
+      lose_jobs()
+      assert FileChanges.enqueue_unwritten() == 0
+      assert queued(repository) == []
+    end
+
+    test "queues a moved commit whose rows are still at the place it left", %{repository: repository} do
+      commits(repository, [{"a", []}, {"f1", ["a"]}])
+      head(repository, "main", "a")
+      head(repository, "feature", "f1")
+      list(repository, "a", %{"A.swift" => "a1"})
+      list(repository, "f1", %{"A.swift" => "a2"})
+      expire(repository, ["f1"])
+
+      head(repository, "main", "f1")
+      lose_jobs()
+
+      FileChanges.enqueue_unwritten()
+      assert queued(repository) == ["f1"]
+
+      settle()
+      main = ref_id(repository, "main")
+      assert %{changes_ref_id: ^main, changes_position: 2} = listing(repository, "f1")
+      assert files(repository, "f1") == with_mode(%{"A.swift" => "a2"})
+    end
+  end
+
   test "a listing read in part records none of the files it lacks as gone", %{repository: repository} do
     commits(repository, [{"a", []}, {"b", ["a"]}])
     head(repository, "main", "b")

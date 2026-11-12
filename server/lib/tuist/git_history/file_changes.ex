@@ -105,6 +105,37 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   @doc """
+  Queues, in every repository, the listed commits whose file changes are not
+  written at the place they hold although they can be: a commit on a ref
+  whose listing is still stored, and any commit with rows kept at a place it
+  no longer holds. Their write was lost (its job failed every attempt, or
+  never ran), since one that is queued is folded into its job. Returns how
+  many were queued.
+
+  A commit no ref owns that has no rows is left out: its write found no
+  place for it, and would again.
+  """
+  def enqueue_unwritten do
+    now = DateTime.utc_now()
+
+    unwritten =
+      Repo.all(
+        from(l in CommitListing,
+          join: c in Commit,
+          on: c.repository_id == l.repository_id and c.sha == l.sha,
+          where: not l.truncated,
+          where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
+          where: (not is_nil(c.ref_id) and l.inserted_at > ^staged_since(now)) or l.changes_expires_at > ^now,
+          order_by: [l.repository_id, asc_nulls_last: c.position, desc: c.generation],
+          select: {l.repository_id, l.sha}
+        )
+      )
+
+    Enum.each(unwritten, fn {repository_id, sha} -> enqueue(repository_id, sha) end)
+    length(unwritten)
+  end
+
+  @doc """
   Writes the commit's file changes at the place it holds, retiring the rows
   it left at a place it no longer holds. Returns `:written`; `:moved` when
   the rows were copied from its old place, or `:deferred` while a commit
@@ -173,11 +204,10 @@ defmodule Tuist.GitHistory.FileChanges do
 
   defp written(_listing), do: nil
 
+  defp staged?(listing), do: DateTime.after?(listing.inserted_at, staged_since(DateTime.utc_now()))
+
   # A day early: the listing's files expire on their own, part by part.
-  defp staged?(listing) do
-    days = Environment.coverage_retention_days().files
-    DateTime.after?(listing.inserted_at, DateTime.add(DateTime.utc_now(), -(days - 1), :day))
-  end
+  defp staged_since(now), do: DateTime.add(now, -(Environment.coverage_retention_days().files - 1), :day)
 
   defp write_listing(listing, commit, written) do
     if listed_files(listing) == listing.files_count do
