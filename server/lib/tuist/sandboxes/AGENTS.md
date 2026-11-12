@@ -395,7 +395,10 @@ socket, the poller and the caller share a replica:
   `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
   kills each command at its deadline and records commands no client reads.
   The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
-  under proxy idle timeouts. Never end the residency with
+  under proxy idle timeouts. Starting a command and writing stdin are
+  idempotent only when the client sends a start `id` and stdin `offset`:
+  a proxy 502 can hide an answer whose effect already happened, so clients
+  replay these requests only with them. Never end the residency with
   `end_residency/1`; use `end_residency/2`, which leaves a newer one alone.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when

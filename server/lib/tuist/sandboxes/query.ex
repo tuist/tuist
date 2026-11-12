@@ -132,6 +132,10 @@ defmodule Tuist.Sandboxes.Query do
 
   def error(:stdin_not_attached), do: {:conflict, "The command was not started with stdin attached."}
   def error(:stdin_closed), do: {:conflict, "The command's stdin is closed."}
+
+  def error(:stdin_offset_mismatch),
+    do: {:conflict, "The write does not continue the command's stdin: its offset is not the number of bytes stdin holds."}
+
   def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 

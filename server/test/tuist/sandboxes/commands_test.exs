@@ -71,6 +71,18 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert enqueued |> Enum.map(& &1.args["command_id"]) |> Enum.sort() == Enum.sort([first, second])
     end
 
+    test "answers a request sent again with the same id with the command it started" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      id = Ecto.UUID.generate()
+      expect(Nodes, :call, started())
+
+      assert {:ok, %{id: ^id}} = Commands.start(sandbox, %{command: "make", id: id})
+      assert {:ok, %{id: ^id, status: "running"}} = Commands.start(Repo.reload!(sandbox), %{command: "make", id: id})
+
+      assert sandbox |> Commands.list() |> Enum.map(& &1.id) == [id]
+      assert {:error, :invalid_command} = Commands.start(sandbox, %{command: "make", id: "not-a-uuid"})
+    end
+
     test "never stores the environment" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       expect(Nodes, :call, started())
@@ -254,6 +266,35 @@ defmodule Tuist.Sandboxes.CommandsTest do
       end)
 
       assert {:ok, %{stdin: true}} = Commands.write_stdin(sandbox, command.id, data, false)
+    end
+
+    @tag :tmp_dir
+    test "with offsets, appends a write sent again once and refuses one that does not continue stdin", %{
+      tmp_dir: home
+    } do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      command = running_command(sandbox, stdin: true)
+      dir = Path.join(home, ".cache/tuist/commands/#{command.id}")
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "stdin"), "")
+
+      # Runs the real stdin script against the command's directory.
+      stub(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-c", script], env: env}, _opts ->
+        {_output, code} = System.cmd("/bin/bash", ["-c", script], env: Map.put(env, "HOME", home), stderr_to_stdout: true)
+        {:ok, %{"exit_code" => code}}
+      end)
+
+      write = fn data, close?, offset -> Commands.write_stdin(sandbox, command.id, data, close?, offset) end
+
+      assert {:ok, _} = write.("abc", false, 0)
+      assert {:ok, _} = write.("abc", false, 0)
+      assert {:error, :stdin_offset_mismatch} = write.("x", false, 1)
+      assert {:ok, _} = write.("de", true, 3)
+      assert {:ok, _} = write.("de", true, 3)
+      assert {:error, :stdin_closed} = write.("f", false, 5)
+
+      assert File.read!(Path.join(dir, "stdin")) == "abcde"
+      assert File.exists?(Path.join(dir, "stdin_closed"))
     end
   end
 
