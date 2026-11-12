@@ -110,10 +110,26 @@ awk '
   }
   copying && /^}/ { exit }
 ' "${temporary}/graph.alloy" > "${temporary}/pipeline.alloy"
+# Exercise the rendered staging destination transform, not a copy of its OTTL.
+jq -r '.[] | select(.kind == "ConfigMap" and (.metadata.name | endswith("alloy-receiver"))) |
+  .data["config.alloy"]' "${temporary}/staging.json" > "${temporary}/receiver.alloy"
+awk '
+  /^otelcol.processor.transform "pulse_traces"/ { copying=1 }
+  copying && /^  output \{/ {
+    print "  output { traces = [otelcol.exporter.file.verification.input] }\n}"
+    exit
+  }
+  copying { print }
+' "${temporary}/receiver.alloy" >> "${temporary}/pipeline.alloy"
 cat >> "${temporary}/pipeline.alloy" <<'ALLOY'
 otelcol.receiver.otlp "fixture" {
   http { endpoint = "0.0.0.0:4318" }
-  output { traces = [otelcol.connector.servicegraph.service_graph_metrics.input] }
+  output {
+    traces = [otelcol.connector.servicegraph.service_graph_metrics.input, otelcol.processor.transform.pulse_traces.input]
+  }
+}
+otelcol.exporter.file "verification" {
+  path = "/tmp/trace-normalization.json"
 }
 otelcol.exporter.prometheus "pulse_metrics" {
   forward_to = [prometheus.remote_write.pulse_metrics.receiver]
@@ -130,7 +146,7 @@ printf 'global:\n  scrape_interval: 1s\nscrape_configs: []\n' > "${temporary}/pr
   --web.enable-remote-write-receiver >/dev/null
 "${docker}" run -d --name "${collector}" --network "${network}" --network-alias collector \
   -v "${temporary}/pipeline.alloy:/config.alloy:ro" grafana/alloy:v1.15.0 \
-  run --disable-reporting --storage.path=/tmp/alloy --server.http.listen-addr=0.0.0.0:12345 /config.alloy >/dev/null
+  run --disable-reporting --stability.level=public-preview --storage.path=/tmp/alloy --server.http.listen-addr=0.0.0.0:12345 /config.alloy >/dev/null
 deadline=$((SECONDS + 60))
 until "${docker}" exec "${receiver}" wget -qO- http://collector:12345/-/ready >/dev/null 2>&1; do
   (( SECONDS < deadline )) || exit 1
@@ -166,4 +182,37 @@ query 'sum(traces_service_graph_request_failed_total{client="frontend",server="p
   jq -e '.data.result[0].value[1] == "1"' >/dev/null
 query 'sum(traces_service_graph_request_client_seconds_count{client="frontend"})' |
   jq -e '.data.result[0].value[1] == "2"' >/dev/null
+
+# Missing HTTP status must not lose the error span or invent a success code.
+# Numeric success/failure codes and unrelated string placeholders are controls.
+payload="$(jq -nc --arg now "${now}" '
+  {resourceSpans:[{resource:{attributes:[{key:"service.name",value:{stringValue:"tuist-server"}}]},
+    scopeSpans:[{scope:{name:"opentelemetry_bandit"},spans:(
+      [{name:"missing-status",id:"3",value:{stringValue:"nil"}},
+       {name:"success-status",id:"4",value:{intValue:"201"}},
+       {name:"error-status",id:"5",value:{intValue:"503"}},
+       {name:"absent-status",id:"6",value:null}] | map({
+        traceId:"00000000000000000000000000000003",spanId:("000000000000000"+.id),name:.name,
+        startTimeUnixNano:($now+"000000000"),endTimeUnixNano:($now+"015000000"),status:{code:2},
+        attributes:([{key:"other.attribute",value:{stringValue:"nil"}}] +
+          if .value == null then [] else [{key:"http.response.status_code",value:.value}] end)
+      }))}]}]}')"
+"${docker}" exec "${receiver}" wget -qO- --header='Content-Type: application/json' \
+  --post-data="${payload}" http://collector:4318/v1/traces >/dev/null
+deadline=$((SECONDS + 30))
+until "${docker}" cp "${collector}:/tmp/trace-normalization.json" "${temporary}/traces.json" >/dev/null 2>&1 &&
+  jq -se '
+    [.[].resourceSpans[].scopeSpans[].spans[] | select(.name | endswith("-status"))] |
+    length == 4 and all(.[];
+      .status.code == 2 and
+      any(.attributes[]; .key == "other.attribute" and .value.stringValue == "nil") and
+      ([.attributes[] | select(.key == "http.response.status_code") | .value] ==
+        if .name == "success-status" then [{intValue:"201"}]
+        elif .name == "error-status" then [{intValue:"503"}]
+        else [] end))
+  ' "${temporary}/traces.json" >/dev/null; do
+  (( SECONDS < deadline )) || exit 1
+  sleep 0.5
+done
+printf 'PASS: missing-status error spans retained; integer HTTP codes and unrelated attributes unchanged\n'
 printf 'All five environment paths, management bootstrap fallback, shared metric rules and actual service-graph remote write passed\n'
