@@ -339,6 +339,84 @@ struct SandboxSync {
         return shards
     }
 
+    /// Parses the probe's `root <path>` and `id <id>` lines.
+    static func probe(_ stdout: String) -> (root: String, id: String?)? {
+        let lines = stdout.split(separator: "\n").map(String.init)
+        guard let root = lines.first(where: { $0.hasPrefix("root ") })?.dropFirst(5),
+              let id = lines.first(where: { $0.hasPrefix("id ") || $0 == "id" })
+        else { return nil }
+        let value = id.dropFirst(3).trimmingCharacters(in: .whitespaces)
+        return (String(root), value.isEmpty ? nil : value)
+    }
+
+    private static func check(_ captured: SandboxRemote.Captured) throws {
+        guard captured.exit.exitCode == 0 else {
+            throw SandboxCommandError.stepFailed("Syncing the worktree to the sandbox", captured.stderr)
+        }
+    }
+
+    /// The paths that left the worktree since `previous`, and those that joined it.
+    static func delta(from previous: [Entry], to entries: [Entry]) -> (deleted: [String], added: [String]) {
+        let before = Set(previous.map(\.path))
+        let after = Set(entries.map(\.path))
+        return (previous.map(\.path).filter { !after.contains($0) }, entries.map(\.path).filter { !before.contains($0) })
+    }
+
+    /// The entries to send: every one when the sandbox's previous worktree is unknown, otherwise the new ones and those
+    /// whose content or mode changed.
+    static func changes(from previous: [Entry]?, to entries: [Entry]) -> [Entry] {
+        guard let previous else { return entries }
+        let known = Dictionary(previous.map { ($0.path, $0) }, uniquingKeysWith: { $1 })
+        return entries.filter { known[$0.path] != $0 }
+    }
+
+    /// Parses `git ls-files -s -z` output (`<mode> <object> <stage>\t<path>\0`), leaving out submodules.
+    static func entries(fromIndexListing listing: String) -> [Entry] {
+        listing.split(separator: "\0").compactMap { record in
+            guard let tab = record.firstIndex(of: "\t") else { return nil }
+            let fields = record[..<tab].split(separator: " ")
+            guard fields.count >= 2, fields[0] != "160000" else { return nil }
+            return Entry(mode: String(fields[0]), object: String(fields[1]), path: String(record[record.index(after: tab)...]))
+        }
+    }
+
+    /// The manifest saved between syncs: `<mode> <object>\t<path>\0` per entry.
+    static func serialize(_ entries: [Entry]) -> Data {
+        Data(entries.map { "\($0.mode) \($0.object)\t\($0.path)\0" }.joined().utf8)
+    }
+
+    static func entries(_ manifest: Data) -> [Entry] {
+        entries(fromIndexListing: String(decoding: manifest, as: UTF8.self))
+    }
+
+    private static func prune(_ manifests: AbsolutePath) throws {
+        let files = try FileManager.default.contentsOfDirectory(atPath: manifests.pathString)
+            .map { manifests.appending(component: $0) }
+        let byAge = files.sorted {
+            let first = (try? FileManager.default.attributesOfItem(atPath: $0.pathString)[.modificationDate] as? Date) ??
+                .distantPast
+            let second = (try? FileManager.default.attributesOfItem(atPath: $1.pathString)[.modificationDate] as? Date) ??
+                .distantPast
+            return first > second
+        }
+        for file in byAge.dropFirst(keptManifests) {
+            try? FileManager.default.removeItem(atPath: file.pathString)
+        }
+    }
+
+    private func git(_ arguments: [String], in repository: AbsolutePath, environment: [String: String] = [:]) async throws
+        -> String
+    {
+        try await commandRunner.run(
+            arguments: ["git", "-C", repository.pathString] + arguments,
+            environment: ProcessInfo.processInfo.environment.merging(environment) { $1 }
+        )
+        .concatenatedString(including: [.standardOutput])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+extension SandboxSync {
     /// Reports the copy's absolute path and the worktree it holds (`root`, `id`, then `probed`), or no worktree when
     /// files it was sent are missing, then reads a header
     /// line from stdin: `skip`, `inline <kind>` followed by the bundle, `url <kind> <url>` to download the bundle from,
@@ -431,80 +509,4 @@ struct SandboxSync {
     mv "$work/paths" "$state/paths"
     printf '%s' "$TUIST_ID" > "$state/id"
     """#
-
-    /// Parses the probe's `root <path>` and `id <id>` lines.
-    static func probe(_ stdout: String) -> (root: String, id: String?)? {
-        let lines = stdout.split(separator: "\n").map(String.init)
-        guard let root = lines.first(where: { $0.hasPrefix("root ") })?.dropFirst(5),
-              let id = lines.first(where: { $0.hasPrefix("id ") || $0 == "id" })
-        else { return nil }
-        let value = id.dropFirst(3).trimmingCharacters(in: .whitespaces)
-        return (String(root), value.isEmpty ? nil : value)
-    }
-
-    private static func check(_ captured: SandboxRemote.Captured) throws {
-        guard captured.exit.exitCode == 0 else {
-            throw SandboxCommandError.stepFailed("Syncing the worktree to the sandbox", captured.stderr)
-        }
-    }
-
-    /// The paths that left the worktree since `previous`, and those that joined it.
-    static func delta(from previous: [Entry], to entries: [Entry]) -> (deleted: [String], added: [String]) {
-        let before = Set(previous.map(\.path))
-        let after = Set(entries.map(\.path))
-        return (previous.map(\.path).filter { !after.contains($0) }, entries.map(\.path).filter { !before.contains($0) })
-    }
-
-    /// The entries to send: every one when the sandbox's previous worktree is unknown, otherwise the new ones and those
-    /// whose content or mode changed.
-    static func changes(from previous: [Entry]?, to entries: [Entry]) -> [Entry] {
-        guard let previous else { return entries }
-        let known = Dictionary(previous.map { ($0.path, $0) }, uniquingKeysWith: { $1 })
-        return entries.filter { known[$0.path] != $0 }
-    }
-
-    /// Parses `git ls-files -s -z` output (`<mode> <object> <stage>\t<path>\0`), leaving out submodules.
-    static func entries(fromIndexListing listing: String) -> [Entry] {
-        listing.split(separator: "\0").compactMap { record in
-            guard let tab = record.firstIndex(of: "\t") else { return nil }
-            let fields = record[..<tab].split(separator: " ")
-            guard fields.count >= 2, fields[0] != "160000" else { return nil }
-            return Entry(mode: String(fields[0]), object: String(fields[1]), path: String(record[record.index(after: tab)...]))
-        }
-    }
-
-    /// The manifest saved between syncs: `<mode> <object>\t<path>\0` per entry.
-    static func serialize(_ entries: [Entry]) -> Data {
-        Data(entries.map { "\($0.mode) \($0.object)\t\($0.path)\0" }.joined().utf8)
-    }
-
-    static func entries(_ manifest: Data) -> [Entry] {
-        entries(fromIndexListing: String(decoding: manifest, as: UTF8.self))
-    }
-
-    private static func prune(_ manifests: AbsolutePath) throws {
-        let files = try FileManager.default.contentsOfDirectory(atPath: manifests.pathString)
-            .map { manifests.appending(component: $0) }
-        let byAge = files.sorted {
-            let first = (try? FileManager.default.attributesOfItem(atPath: $0.pathString)[.modificationDate] as? Date) ??
-                .distantPast
-            let second = (try? FileManager.default.attributesOfItem(atPath: $1.pathString)[.modificationDate] as? Date) ??
-                .distantPast
-            return first > second
-        }
-        for file in byAge.dropFirst(keptManifests) {
-            try? FileManager.default.removeItem(atPath: file.pathString)
-        }
-    }
-
-    private func git(_ arguments: [String], in repository: AbsolutePath, environment: [String: String] = [:]) async throws
-        -> String
-    {
-        try await commandRunner.run(
-            arguments: ["git", "-C", repository.pathString] + arguments,
-            environment: ProcessInfo.processInfo.environment.merging(environment) { $1 }
-        )
-        .concatenatedString(including: [.standardOutput])
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
