@@ -32,6 +32,8 @@ Furthermore, you'll find native inline feedback on PRs. This includes compiler w
 
 By using this feature, you may avoid the need for additional third-party tools, such as [Danger](https://github.com/danger/swift) and related dependencies, to report a summary of xcodebuild output.
 
+If you run builds and tests through Tuist, `tuist build`, `tuist test`, and `tuist xcodebuild` already format their output with xcbeautify and switch to this renderer on GitHub Actions. See [xcodebuild output formatting](/en/docs/guides/integrations/continuous-integration#xcodebuild-output-formatting).
+
 # Introducing Renderers
 
 As of [0.21.0](https://github.com/tuist/xcbeautify/releases/tag/0.21.0), xcbeautify adds the `Renderer` concept. `Renderer` specifies the way you want xcbeautify to format its output.

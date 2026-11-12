@@ -371,6 +371,19 @@ tuist setup cache
 >
 > Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, add it as a variable named `TUIST_TOKEN` to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables), and select that group in your build configuration. Mark the variable as secret with the lock icon.
 
+## xcodebuild output formatting {#xcodebuild-output-formatting}
+
+`tuist build`, `tuist test`, `tuist xcodebuild build`, and `tuist xcodebuild test` format `xcodebuild`'s output with the formatter from [xcbeautify](https://github.com/cpisciotta/xcbeautify), so you don't need to pipe these commands through xcbeautify yourself. On GitHub Actions, detected through the `GITHUB_ACTIONS` environment variable, Tuist uses xcbeautify's GitHub Actions renderer, which surfaces compiler warnings, errors, and test failures as annotations in the run summary and on the pull request. Everywhere else it uses the terminal renderer, colored unless the output is piped or `NO_COLOR` is set.
+
+Pass `--verbose` to print `xcodebuild`'s unformatted output, for example when a build fails without a clear error.
+
+If a job calls `xcodebuild` directly rather than through Tuist, pipe it through xcbeautify yourself, and set `pipefail` so a failing build still fails the step:
+
+```bash
+set -o pipefail
+xcodebuild test -scheme App | xcbeautify --renderer github-actions
+```
+
 ## Run report {#run-report}
 
 When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
