@@ -7,8 +7,17 @@ defmodule Tuist.GitHistory.Workers.FileChangesWorker do
   One pending job per commit: a request while one waits is folded into it,
   and one while it runs gets a job of its own, since what the running one
   read may predate it. A commit that moved comes back after the commits below
-  it that are queued to move. A write fails while a ClickHouse replica is away
-  (its inserts wait for every replica), so the attempts span about an hour.
+  it that are queued to move.
+
+  A write is not given up while it can still be done. A listing whose files
+  have not all reached the replica the write reads (`:unavailable`) brings the
+  job back, half a minute later at first and then less and less often, up to
+  once an hour, until they add up or the listing expires. A write fails while
+  a ClickHouse replica is away (its inserts wait for every replica), so the
+  attempts span about an hour; one that failed them all, or whose job was
+  lost, is queued again by the daily
+  `Tuist.GitHistory.FileChanges.enqueue_unwritten/0`.
+
   A repository's writes take turns under its ref lock,
   on the coverage deltas' queue so a burst for one repository (a rebuild of
   its refs) holds none of the `:default` queue's slots.
@@ -23,10 +32,9 @@ defmodule Tuist.GitHistory.Workers.FileChangesWorker do
   alias Tuist.GitHistory.FileChanges
   alias Tuist.Repo
 
-  require Logger
-
-  @unavailable_attempts 3
   @deferred_seconds 5
+  @unavailable_seconds 30
+  @unavailable_seconds_limit 3_600
 
   def enqueue(repository_id, sha, opts \\ []) do
     %{repository_id: repository_id, sha: sha}
@@ -49,13 +57,10 @@ defmodule Tuist.GitHistory.Workers.FileChangesWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"repository_id" => repository_id, "sha" => sha}, attempt: attempt}) do
     case FileChanges.write(repository_id, sha) do
-      # The listing's files may not have reached this replica yet.
-      :unavailable when attempt < @unavailable_attempts ->
-        {:snooze, 30}
-
+      # The listing's files have not all reached this replica yet. Once the
+      # listing expired the write answers `:skipped`, which ends the job.
       :unavailable ->
-        Logger.info("File changes of #{sha} not written: its listing's files do not add up to its file count")
-        :ok
+        {:snooze, unavailable_seconds(attempt)}
 
       # A commit below it moves first; this one comes back after it.
       :deferred ->
@@ -66,4 +71,7 @@ defmodule Tuist.GitHistory.Workers.FileChangesWorker do
         :ok
     end
   end
+
+  defp unavailable_seconds(attempt),
+    do: min(@unavailable_seconds * Integer.pow(2, min(attempt - 1, 10)), @unavailable_seconds_limit)
 end
