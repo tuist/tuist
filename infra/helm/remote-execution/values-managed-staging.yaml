@@ -20,7 +20,7 @@ workers:
   sharedHosts:
     enabled: true
     nodes:
-      - tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg
+      - tuist-tuist-ovh-fleet-runners-linux-jnhft-jzt4x
     floorSlots: 1
     ceilingSlots: 10
     tolerations:
