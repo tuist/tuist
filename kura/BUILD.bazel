@@ -102,7 +102,7 @@ rust_junit_test(
     edition = "2024",
     # rustc peaks near 4 GB compiling the crate as a test binary, which the default 4 GiB
     # remote-execution VM cannot hold. Ignored outside remote execution.
-    exec_properties = {"tuist-memory-gb": "16"},
+    exec_properties = {"tuist-memory-gb": "32"},
     rustc_flags = _DENY_WARNINGS,
     size = "medium",
     version = _KURA_VERSION,
