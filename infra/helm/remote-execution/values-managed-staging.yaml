@@ -1,11 +1,26 @@
 # Deployed by .github/workflows/remote-execution-deployment.yml into the
 # cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
-# workflow. Keep it disabled until the env has hosts labelled and tainted
-# tuist.dev/workload=remote-execution, excluded from every CI RunnerPool.
-enabled: false
+# workflow, which staging runs by hand (workflow_dispatch). Set to false to
+# stop installing or upgrading it.
+enabled: true
 serverURL: http://tuist-tuist-server.tuist-staging.svc.cluster.local:80
 serverNamespace: tuist-staging
 gateway:
   ingress:
     enabled: true
     host: execution-staging.tuist.dev
+workers:
+  # Six slots' ceilings (277 GiB) plus the 20 GiB blob cache. The host's data
+  # filesystem has less free than that: staging overcommits on purpose, since
+  # the workspace and rootfs images are sparse and only fill as VMs write.
+  diskGiB: 300
+  # Staging's one runners-linux host, beside its CI runners and the agent
+  # sandbox daemon: 1 VM always, up to 6 ahead of queued actions.
+  sharedHosts:
+    enabled: true
+    nodes:
+      - tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg
+    floorSlots: 1
+    ceilingSlots: 6
+    tolerations:
+      - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
