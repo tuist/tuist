@@ -1,0 +1,129 @@
+name: Remote Execution Benchmark
+
+# Times one cold Kura Bazel build on the 2 vCPU tuist-linux runner, either
+# executing every action on the runner or on Tuist remote execution, so
+# throughput changes can be compared run against run. Cold means no disk
+# cache and no action cache reads (--noremote_accept_cached), so every action
+# runs; analysis and repository fetches happen in an untimed warm-up first.
+# Run one remote benchmark at a time per server: concurrent runs share the
+# account's execution capacity.
+
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Tuist server whose cache and executor to use
+        default: https://staging.tuist.dev
+        required: true
+      mode:
+        description: Where actions execute
+        type: choice
+        options:
+          - remote
+          - local
+        default: remote
+      command:
+        description: Bazel command run over //...
+        type: choice
+        options:
+          - test
+          - build
+        default: test
+      bazel_flags:
+        description: Extra Bazel flags for the warm-up and the timed run, such as --jobs=32
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: kura
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  TUIST_URL: ${{ inputs.server }}
+  MODE: ${{ inputs.mode }}
+  COMMAND: ${{ inputs.command }}
+  BAZEL_FLAGS: ${{ inputs.bazel_flags }}
+
+jobs:
+  benchmark:
+    name: Cold ${{ inputs.command }} (${{ inputs.mode }} ${{ inputs.bazel_flags }})
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only downloaded repositories persist between benchmarks; action
+      # outputs never do.
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-kura-remote-execution-benchmark-repository-v1
+          path: ~/.cache/tuist/bazel/repository
+
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust bazel tuist"
+          working_directory: kura
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+
+      - name: Set up Tuist
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = remote ]; then
+            ../.github/scripts/tuist-bazel-setup.sh
+            grep -q '^build --remote_executor=' .bazelrc.tuist || { echo "::error::$TUIST_URL configured no remote executor"; exit 1; }
+          else
+            tuist auth login
+            tuist bazel setup
+          fi
+
+      - name: Warm up analysis and repositories
+        run: |
+          set -euo pipefail
+          ulimit -n 65536
+          # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
+          ../.github/scripts/retry-bazel-command.sh bazel "$COMMAND" //... --nobuild \
+            --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
+
+      - name: Cold ${{ inputs.command }}
+        run: |
+          set -euo pipefail
+          ulimit -n 65536
+          start=$(date +%s)
+          # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
+          bazel "$COMMAND" //... --disk_cache= --noremote_accept_cached \
+            --profile="$RUNNER_TEMP/profile.json.gz" $BAZEL_FLAGS 2>&1 | tee "$RUNNER_TEMP/bazel.log"
+          wall=$(( $(date +%s) - start ))
+          elapsed=$(sed -n 's/.*INFO: Elapsed time: \([0-9.]*\)s, Critical Path: \([0-9.]*\)s.*/\1 \2/p' "$RUNNER_TEMP/bazel.log" | tail -n 1)
+          processes=$(grep -E 'INFO: [0-9]+ processes?:' "$RUNNER_TEMP/bazel.log" | tail -n 1 | sed 's/.*INFO: //')
+          {
+            echo "| Server | Mode | Command | Flags | Wall (s) | Bazel elapsed (s) | Critical path (s) | Processes |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+            echo "| $TUIST_URL | $MODE | $COMMAND | \`${BAZEL_FLAGS:-none}\` | $wall | ${elapsed% *} | ${elapsed#* } | $processes |"
+          } >>"$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Cold $COMMAND ($MODE)::wall ${wall}s, elapsed ${elapsed% *}s, critical path ${elapsed#* }s, $processes"
+
+      - name: Summarize the profile
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/profile.json.gz" ] || exit 0
+          bazel analyze-profile "$RUNNER_TEMP/profile.json.gz" | tee -a "$RUNNER_TEMP/analyze-profile.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-execution-benchmark-${{ inputs.mode }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/profile.json.gz
+            ${{ runner.temp }}/bazel.log
+            ${{ runner.temp }}/analyze-profile.txt
+          if-no-files-found: ignore
