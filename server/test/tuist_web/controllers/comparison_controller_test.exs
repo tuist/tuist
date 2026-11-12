@@ -68,13 +68,15 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
     end
   end
 
-  test "tool comparisons are discoverable, indexable, and link their migration guides", %{conn: conn} do
+  test "tool comparisons are discoverable, indexable, and link the docs they depend on", %{conn: conn} do
     hub_links = conn |> get("/compare") |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a", "href")
     xml = conn |> get("/sitemap.xml") |> response(200)
 
     for {slug, title, migration_link} <- [
           {"xcodegen", "XcodeGen vs Tuist: keep XcodeGen, add build infrastructure",
-           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project"}
+           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project"},
+          {"nx", "Nx vs Tuist: monorepo task runner and build infrastructure",
+           "/en/docs/guides/features/cache/gradle-cache"}
         ] do
       path = "/compare/" <> slug
       document = conn |> get(path) |> html_response(200) |> Floki.parse_document!()

@@ -406,7 +406,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             end
         end
 
-      for path <- ["/compare/xcodegen"] do
+      for path <- ["/compare/xcodegen", "/compare/nx"] do
         assert path in pages_with_faqs
       end
     end
