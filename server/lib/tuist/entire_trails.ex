@@ -213,7 +213,7 @@ defmodule Tuist.EntireTrails do
     with true <- current.reported_at == summary.reported_at and current.published_at != current.reported_at,
          {:ok, trail} <- Client.trail(connection.installation, repository, number),
          true <- trail["status"] in ["open", "draft"],
-         {:ok, ids} <- Client.publish(connection.installation, repository, number, current) do
+         {:ok, ids} <- Client.publish(connection.installation, repository, number, trail["branch"], current) do
       current
       |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
       |> Repo.update!()

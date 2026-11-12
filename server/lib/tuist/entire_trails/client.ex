@@ -16,7 +16,7 @@ defmodule Tuist.EntireTrails.Client do
     request(:get, installation, repository, trail_path(repository, number))
   end
 
-  def publish(installation, repository, number, summary) do
+  def publish(installation, repository, number, branch, summary) do
     attempt = "tuist-#{summary.id}-#{DateTime.to_unix(summary.reported_at, :microsecond)}"
     key = "tuist-insights-#{summary.connection_id}"
     reviews = trail_path(repository, number) <> "/reviews"
@@ -38,6 +38,7 @@ defmodule Tuist.EntireTrails.Client do
              repository,
              path(repository) <> "/commits/#{segment(summary.head_sha)}/check-runs",
              json: %{
+               branch: branch,
                check_suite: state,
                check_runs: [
                  Map.merge(state, %{key: "report", output: %{title: "Tuist insights", summary: summary.report_body}})

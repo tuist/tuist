@@ -474,6 +474,7 @@ defmodule Tuist.EntireTrailsTest do
       {:post, "/api/v1/repos/repo_selected/commits/" <> rest} ->
         assert rest in [@sha <> "/check-runs", @other_sha <> "/check-runs"]
         %{check_suite: suite, check_runs: [run]} = opts[:json]
+        assert opts[:json][:branch] == "feature/insights"
         assert suite.status == "completed"
         assert suite.conclusion == "neutral"
         assert String.starts_with?(suite.key, "tuist-insights-")
@@ -495,7 +496,14 @@ defmodule Tuist.EntireTrailsTest do
 
       {:get, "/7"} ->
         state = Agent.get(remote, & &1)
-        response(200, %{"id" => "trail_stable", "number" => 7, "head_sha" => state.head, "status" => state.status})
+
+        response(200, %{
+          "id" => "trail_stable",
+          "number" => 7,
+          "head_sha" => state.head,
+          "branch" => "feature/insights",
+          "status" => state.status
+        })
 
       {:post, "/7/reviews"} ->
         assert opts[:json] in [%{head_sha: @sha}, %{head_sha: @other_sha}]
