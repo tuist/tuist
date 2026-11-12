@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -156,6 +157,9 @@ func dispatch(req request) error {
 	}
 	switch req.Op {
 	case "ping":
+		if err := waitNetwork(3 * time.Second); err != nil {
+			return err
+		}
 		emit(response{Type: "pong"})
 		return nil
 	case "cpu":
@@ -301,6 +305,24 @@ func dispatch(req request) error {
 		return nil
 	default:
 		return errors.New("unknown operation")
+	}
+}
+
+// waitNetwork waits for the guest's default route. A guest restored from a
+// checkpoint answers before DHCP has given it back (about 2 s), and the
+// worker the host starts next cannot resolve or reach anything until then.
+// Connecting a UDP socket only looks up the route; it sends nothing.
+func waitNetwork(budget time.Duration) error {
+	deadline := time.Now().Add(budget)
+	for {
+		conn, err := net.Dial("udp4", "192.0.2.1:9")
+		if err == nil {
+			return conn.Close()
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("guest network not ready: %w", err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 func command(req request) (*exec.Cmd, error) {
