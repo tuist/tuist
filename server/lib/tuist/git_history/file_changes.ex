@@ -106,14 +106,14 @@ defmodule Tuist.GitHistory.FileChanges do
 
   @doc """
   Queues, in every repository, the listed commits whose file changes are not
-  written at the place they hold although they can be: a commit on a ref
-  whose listing is still stored, and any commit with rows kept at a place it
-  no longer holds. Their write was lost (its job failed every attempt, or
-  never ran), since one that is queued is folded into its job. Returns how
-  many were queued.
+  written at the place they hold although they can be: a commit whose
+  listing is still stored, and one with rows kept at a place it no longer
+  holds. Their write was lost (its job failed every attempt, or never ran),
+  since one that is queued is folded into its job. Returns how many were
+  queued.
 
-  A commit no ref owns that has no rows is left out: its write found no
-  place for it, and would again.
+  A commit no ref owns is among them: its write gives it a detached ref,
+  unless its first parents still reach no commit a ref owns.
   """
   def enqueue_unwritten do
     now = DateTime.utc_now()
@@ -124,8 +124,10 @@ defmodule Tuist.GitHistory.FileChanges do
           join: c in Commit,
           on: c.repository_id == l.repository_id and c.sha == l.sha,
           where: not l.truncated,
-          where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
-          where: (not is_nil(c.ref_id) and l.inserted_at > ^staged_since(now)) or l.changes_expires_at > ^now,
+          where:
+            is_nil(c.ref_id) or
+              fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
+          where: l.inserted_at > ^staged_since(now) or l.changes_expires_at > ^now,
           order_by: [l.repository_id, asc_nulls_last: c.position, desc: c.generation],
           select: {l.repository_id, l.sha}
         )

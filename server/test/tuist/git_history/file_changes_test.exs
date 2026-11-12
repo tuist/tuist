@@ -315,17 +315,16 @@ defmodule Tuist.GitHistory.FileChangesTest do
     defp lose_jobs, do: Repo.delete_all(Oban.Job)
 
     test "queues a commit on a ref whose listing is stored and not written", %{repository: repository} do
-      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}, {"t", ["c"]}, {"u", []}])
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}, {"t", ["c"]}])
       head(repository, "main", "t")
       list(repository, "a", %{"A.swift" => "a1"})
 
       one = [%{path: "A.swift", git_blob_id: "a2", mode: @mode}]
       GitHistory.record_listing(repository, "b", one, files_count: 1)
-      # Nothing to write these from, or no place to write them at.
+      # Nothing to write these from.
       GitHistory.record_listing(repository, "c", one, files_count: 1)
       expire(repository, ["c"])
       GitHistory.record_listing(repository, "t", one, files_count: 5, truncated: true)
-      GitHistory.record_listing(repository, "u", one, files_count: 1)
       lose_jobs()
 
       assert FileChanges.enqueue_unwritten() == 1
@@ -336,6 +335,35 @@ defmodule Tuist.GitHistory.FileChangesTest do
       lose_jobs()
       assert FileChanges.enqueue_unwritten() == 0
       assert queued(repository) == []
+    end
+
+    test "queues a commit no ref owns, which its write gives a detached ref", %{repository: repository} do
+      commits(repository, [{"a", []}, {"m", ["a"]}])
+      head(repository, "main", "a")
+      list(repository, "a", %{"A.swift" => "a1"})
+      GitHistory.record_listing(repository, "m", [%{path: "A.swift", git_blob_id: "a2", mode: @mode}], files_count: 1)
+      lose_jobs()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      assert queued(repository) == ["m"]
+
+      settle()
+      assert changes(repository, "m") == %{"A.swift" => "a2"}
+      lose_jobs()
+      assert FileChanges.enqueue_unwritten() == 0
+    end
+
+    test "queues a commit with no place again, until its listing expires", %{repository: repository} do
+      commits(repository, [{"u", []}])
+      GitHistory.record_listing(repository, "u", [%{path: "A.swift", git_blob_id: "a1", mode: @mode}], files_count: 1)
+      settle()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      settle()
+      assert rows(repository) == []
+
+      expire(repository, ["u"])
+      assert FileChanges.enqueue_unwritten() == 0
     end
 
     test "queues a moved commit whose rows are still at the place it left", %{repository: repository} do
