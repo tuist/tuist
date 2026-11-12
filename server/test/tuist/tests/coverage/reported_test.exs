@@ -1846,6 +1846,80 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:collection_off]
   end
 
+  # A Gradle run reports its modules by project path and its suites by class,
+  # and `-x :app:test` skips a whole module by identifier.
+  defp gradle_runs(project, account, evidence?) do
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Tuist.Repo.update!()
+    jacoco = &%{tool: "jacoco", tool_version: "0.8.16", partial: &1, files: &2}
+    calc = "core/src/main/java/dev/tuist/Calc.java"
+    greeter = "app/src/main/java/dev/tuist/Greeter.java"
+
+    gradle_modules = fn names ->
+      Enum.map(names, fn
+        ":core" ->
+          %{name: ":core", status: "success", duration: 1, test_cases: [test_case("adds()", "dev.tuist.CalcTest")]}
+
+        ":app" ->
+          %{name: ":app", status: "success", duration: 1, test_cases: [test_case("greets()", "dev.tuist.GreeterTest")]}
+      end)
+    end
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "base",
+      build_system: "gradle",
+      scheme: "fixture",
+      coverage: jacoco.(false, [file(calc, [1, 1]), file(greeter, [1])]),
+      test_modules: gradle_modules.([":core", ":app"]),
+      coverage_evidence:
+        if(evidence?,
+          do: %{
+            paths: [calc, greeter],
+            status: "collected",
+            scopes: [
+              %{kind: "target", module: ":core", suite: "", name: "", files: [0], lines: [[1, 1]]},
+              %{kind: "test", module: ":core", suite: "dev.tuist.CalcTest", name: "adds()", files: [0], lines: [[1, 1]]},
+              %{kind: "target", module: ":app", suite: "", name: "", files: [0, 1], lines: [[2, 2], [1, 1]]},
+              %{
+                kind: "test",
+                module: ":app",
+                suite: "dev.tuist.GreeterTest",
+                name: "greets()",
+                files: [0, 1],
+                lines: [[2, 2], [1, 1]]
+              }
+            ]
+          },
+          else: %{paths: [], scopes: [], status: "not_linked"}
+        )
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      build_system: "gradle",
+      scheme: "fixture",
+      coverage: jacoco.(true, [file(calc, [1, 0]), file(greeter, [0])]),
+      test_modules: gradle_modules.([":core"]),
+      skip_test_identifiers: [":app"]
+    })
+
+    Reported.compute(project, "head")
+  end
+
+  test "carries a Gradle module the run excluded from the evidence of its tests", %{project: project, account: account} do
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, covered_lines: 3, executable_lines: 3} =
+             gradle_runs(project, account, true)
+  end
+
+  test "a Gradle module the run excluded is a gap when no run recorded evidence of its tests", %{
+    project: project,
+    account: account
+  } do
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = gradle_runs(project, account, false)
+
+    assert reasons(reported) == [:collection_off]
+  end
+
   test "carries nothing for a skip identifier that names a test no ancestor ran", %{project: project, account: account} do
     base_run(project, account)
 

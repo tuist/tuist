@@ -404,6 +404,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp target_name_label(%{build_system: :mix}), do: dgettext("dashboard_tests", "Application name")
   defp target_name_label(%{build_system: :cargo}), do: dgettext("dashboard_tests", "Package name")
+  defp target_name_label(%{build_system: :gradle}), do: dgettext("dashboard_tests", "Module name")
   defp target_name_label(_project), do: dgettext("dashboard_tests", "Target name")
 
   defp target_matches?(target, %Filter.Filter{field: :name, operator: operator, value: value}),

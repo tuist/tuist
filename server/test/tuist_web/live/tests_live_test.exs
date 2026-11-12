@@ -185,11 +185,11 @@ defmodule TuistWeb.TestsLiveTest do
     refute has_element?(lv, "[data-part='selective-testing']")
   end
 
-  test "lists Code Coverage in the sidebar only for Xcode and Mix projects", %{
+  test "lists Code Coverage in the sidebar only for Xcode, Gradle and Mix projects", %{
     conn: conn,
     organization: organization
   } do
-    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
+    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: true, mix: true, once: false] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 
@@ -211,7 +211,7 @@ defmodule TuistWeb.TestsLiveTest do
       flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
     end)
 
-    for {build_system, visible?} <- [xcode: false, mix: true] do
+    for {build_system, visible?} <- [xcode: false, gradle: false, mix: true] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 
