@@ -857,10 +857,10 @@ defmodule Tuist.GitHistory.FileChangesTest do
       head(repository, "feature", "g")
       settle()
 
-      refs = detached(repository)
-      assert Enum.all?(refs, &(&1.parent_ref_id != feature))
-      assert Enum.any?(refs, &(&1.parent_ref_id == main and &1.fork_position == 2))
-      assert Enum.all?(rows(repository), &(&1.ref_id in [main | Enum.map(refs, fn ref -> ref.id end)]))
+      # The newest is placed first and takes the others along: one ref.
+      assert [%{id: ref, name: "detached:x", parent_ref_id: ^main, fork_position: 2}] = detached(repository)
+      assert Enum.map(~w(f f2 x), &place(repository, &1)) == [{ref, 3}, {ref, 4}, {ref, 5}]
+      assert Enum.all?(rows(repository), &(&1.ref_id in [main, ref]))
       assert files(repository, "f") == with_mode(f)
       assert files(repository, "x") == with_mode(x)
     end

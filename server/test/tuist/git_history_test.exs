@@ -552,15 +552,26 @@ defmodule Tuist.GitHistoryTest do
       assert coverage_places(project) == [{"e", nil, nil}]
       assert GitHistory.position(repository, "e") == nil
 
-      # A client cannot name the ref to move it.
-      GitHistory.advance_ref(repository, "detached:e", "main", "d")
-      assert %{head_sha: "e"} = GitHistory.ref(repository, "detached:e")
-
       GitHistory.advance_ref(repository, "feature", "main", "e")
       feature = GitHistory.ref(repository, "feature").id
       assert owned(repository, "feature") == [{"e", 3}]
       assert GitHistory.ref(repository, "detached:e") == nil
       assert coverage_places(project) == [{"e", feature, 3}]
+    end
+
+    test "ignore a branch head named as a detached ref is", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("x", ["e"], 10)])
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "x") end)
+
+      GitHistory.advance_ref(repository, "detached:x", "main", "d")
+      assert %{parent_ref_id: ^feature, fork_position: 3, head_sha: "x"} = GitHistory.ref(repository, "detached:x")
+
+      GitHistory.advance_ref(repository, "detached:d", "main", "d")
+      assert GitHistory.ref(repository, "detached:d") == nil
     end
 
     test "leave a commit whose first parents reach no ref undetached", %{repository: repository} do

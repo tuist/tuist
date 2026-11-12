@@ -82,7 +82,8 @@ defmodule Tuist.GitHistory.FileChanges do
   @doc """
   Queues the listed commits whose file changes are not written at the place
   they hold, lowest position first and those no ref owns last (they fork
-  from the others): all of the repository's, or those among `shas`.
+  from the others), the newest of them first, so it takes the ones below it
+  along on its detached ref: all of the repository's, or those among `shas`.
   """
   def enqueue_moved(repository_id, shas \\ nil)
 
@@ -95,7 +96,7 @@ defmodule Tuist.GitHistory.FileChanges do
         on: c.repository_id == l.repository_id and c.sha == l.sha,
         where: l.repository_id == ^repository_id and not l.truncated,
         where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
-        order_by: [asc_nulls_last: c.position],
+        order_by: [asc_nulls_last: c.position, desc: c.generation],
         select: l.sha
       )
 

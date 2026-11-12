@@ -88,6 +88,10 @@ defmodule Tuist.GitHistory do
 
   # The commits with the place commit coverage follows: none for a detached
   # ref's commits.
+  # What a detached ref's name starts with (`detach/3`). Git refuses a colon
+  # in a branch name, so no branch or pull request shares it.
+  @detached_prefix "detached:"
+
   @placed_commits """
   SELECT c.repository_id, c.sha, r.id AS ref_id, CASE WHEN r.id IS NULL THEN NULL ELSE c.position END AS position
   FROM git_commits c
@@ -566,7 +570,13 @@ defmodule Tuist.GitHistory do
   `:max_depth` (the default `window_commits`). A head the graph does not
   know yet is recorded without positions.
   """
-  def advance_ref(repository_id, name, parent, head_sha, opts \\ []) do
+  def advance_ref(repository_id, name, parent, head_sha, opts \\ [])
+
+  # A detached ref is the server's to place: a client naming one would move
+  # it, or make a ref `detach/3` then takes for its own.
+  def advance_ref(_repository_id, @detached_prefix <> _sha, _parent, _head_sha, _opts), do: :ok
+
+  def advance_ref(repository_id, name, parent, head_sha, opts) do
     observed_at = opts |> Keyword.get(:observed_at) |> utc_usec()
 
     {:ok, :ok} =
@@ -577,7 +587,7 @@ defmodule Tuist.GitHistory do
           ref = upsert_ref(repository_id, name, parent_ref && parent_ref.id)
 
           cond do
-            ref.detached or stale?(ref, observed_at) ->
+            stale?(ref, observed_at) ->
               :ok
 
             not known?(repository_id, head_sha) ->
@@ -948,7 +958,7 @@ defmodule Tuist.GitHistory do
 
     if unowned? do
       max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
-      name = "detached:#{sha}"
+      name = @detached_prefix <> sha
 
       # Left by a commit that was pruned and uploaded again.
       stale = Repo.all(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name, select: r.id))
