@@ -4,11 +4,13 @@ defmodule Tuist.GitHistory.FileChangesTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Commit
+  alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Workers.FileChangesWorker
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -909,6 +911,88 @@ defmodule Tuist.GitHistory.FileChangesTest do
       assert FileChanges.write(repository, "q") == :pending
       assert detached(repository) == []
       assert place(repository, "q") == {nil, nil}
+    end
+  end
+
+  describe "a pull request's superseded merge commit, read once its listing is gone" do
+    # What expiry does to a listing: its rows go, and its marker is older
+    # than the file retention.
+    defp expire_listing(repository, sha) do
+      IngestRepo.query!(
+        "ALTER TABLE git_commit_files DELETE WHERE repository_id = {repository_id:Int64} AND sha = {sha:String} " <>
+          "SETTINGS mutations_sync = 2",
+        %{repository_id: repository, sha: sha}
+      )
+
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -365, :day)]
+      )
+    end
+
+    # A 500-file tree; the pull request modifies 20 files, deletes 5 and
+    # adds 7; its next merge commit is over a base that moved.
+    setup do
+      a = Map.new(1..500, &{"Sources/Module#{rem(&1, 25)}/File#{&1}.swift", "a#{&1}"})
+      b = a |> Map.put("Sources/Module1/File1.swift", "b1") |> Map.put("Package.resolved", "pins1")
+
+      m1 =
+        b
+        |> Map.merge(Map.new(100..119, &{"Sources/Module#{rem(&1, 25)}/File#{&1}.swift", "pr#{&1}"}))
+        |> Map.drop(Enum.map(200..204, &"Sources/Module#{rem(&1, 25)}/File#{&1}.swift"))
+        |> Map.merge(Map.new(1..7, &{"Sources/Feature/New#{&1}.swift", "new#{&1}"}))
+
+      c = Map.put(b, "Sources/Module2/File2.swift", "c2")
+      m2 = m1 |> Map.put("Sources/Module2/File2.swift", "c2") |> Map.put("Sources/Feature/New1.swift", "new1b")
+      %{trees: %{a: a, b: b, m1: m1, c: c, m2: m2}}
+    end
+
+    for order <- [:superseded_then_expired, :expired_then_superseded] do
+      test "keeps the files it was listed with (#{order})", %{repository: repository, trees: trees} do
+        commits(repository, [{"a", []}, {"b", ["a"]}, {"f", ["b"]}, {"m1", ["b", "f"]}])
+        head(repository, "main", "b")
+        # A pull request's run reports the merge commit as its branch's head.
+        head(repository, "feature", "m1")
+        list(repository, "a", trees.a)
+        list(repository, "b", trees.b)
+        list(repository, "m1", trees.m1)
+
+        # The next push: the base moved, so the run checks out a new merge commit.
+        supersede = fn ->
+          commits(repository, [{"c", ["b"]}, {"m2", ["c", "f"]}])
+          head(repository, "main", "c")
+          head(repository, "feature", "m2")
+          list(repository, "c", trees.c)
+          list(repository, "m2", trees.m2)
+        end
+
+        if unquote(order) == :superseded_then_expired do
+          supersede.()
+          expire_listing(repository, "m1")
+        else
+          expire_listing(repository, "m1")
+          supersede.()
+        end
+
+        assert ClickHouseRepo.aggregate(
+                 from(f in CommitFile, where: f.repository_id == ^repository and f.sha == "m1"),
+                 :count
+               ) == 0
+
+        # Only the paths the pull request changed are stored for it.
+        assert map_size(changes(repository, "m1")) == 32
+        assert GitHistory.listing_complete?(repository, "m1")
+        assert repository |> GitHistory.commit_files("m1") |> Map.new(&{&1.path, &1.git_blob_id}) == trees.m1
+
+        # A modified path, an added one and a deleted one.
+        assert GitHistory.blobs_at(repository, "m1", [
+                 "Sources/Module0/File100.swift",
+                 "Sources/Feature/New3.swift",
+                 "Sources/Module0/File200.swift"
+               ]) == %{"Sources/Module0/File100.swift" => "pr100", "Sources/Feature/New3.swift" => "new3"}
+
+        assert repository |> GitHistory.changed_files("m1", "m2") |> Enum.map(& &1.path) ==
+                 ["Sources/Feature/New1.swift", "Sources/Module2/File2.swift"]
+      end
     end
   end
 
