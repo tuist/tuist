@@ -19,6 +19,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.MCPRateLimitPlug
+  alias TuistWeb.Plugs.OAuthReturnToPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -204,6 +205,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
   end
 
@@ -220,6 +222,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug

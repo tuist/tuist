@@ -17,6 +17,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
+  alias TuistWeb.Plugs.OAuthReturnToPlug
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -28,7 +29,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/auth/cli/#{device_code}")
 
       # Then
-      assert redirected_to(conn) == "/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/auth/cli/#{device_code}"}}"
     end
 
     test "redirects to the device code confirmation when the user is logged in", %{conn: conn} do
@@ -54,7 +55,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
 
-      assert redirected_to(conn) == "/users/auth/google"
+      assert redirected_to(conn) == ~p"/users/auth/google?#{%{return_to: "/auth/device_codes/SSO-1234?type=cli"}}"
       assert get_session(conn, :user_return_to) == "/auth/device_codes/SSO-1234?type=cli"
     end
 
@@ -101,7 +102,7 @@ defmodule TuistWeb.AuthControllerTest do
       Accounts.create_device_code("SSO-5678")
       conn = conn |> log_in_user(user) |> post("/auth/device_codes/SSO-5678", %{"type" => "cli"})
 
-      assert redirected_to(conn) == "/users/auth/google"
+      assert redirected_to(conn) == ~p"/users/auth/google?#{%{return_to: "/auth/device_codes/SSO-5678"}}"
       refute Accounts.get_device_code("SSO-5678").authenticated
     end
 
@@ -269,7 +270,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = post(conn, "/auth/device", %{"user_code" => device_code.user_code})
 
-      assert redirected_to(conn) == "/users/auth/google"
+      assert redirected_to(conn) == ~p"/users/auth/google?#{%{return_to: "/auth/device"}}"
       refute Accounts.get_device_code(device_code.code).authenticated
     end
   end
@@ -283,7 +284,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
 
       # Then
-      assert redirected_to(conn) == "/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/auth/device_codes/#{device_code}?type=cli"}}"
     end
 
     test "shows the confirmation without approving the code when the user is logged in", %{conn: conn} do
@@ -1163,6 +1164,9 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn =
         conn
+        |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+        |> OAuthReturnToPlug.put("expected-state", device_code_url)
+        |> recycle()
         |> init_test_session(%{
           sso_organization_id: organization.id,
           sso_state: "expected-state",
@@ -1182,7 +1186,7 @@ defmodule TuistWeb.AuthControllerTest do
         |> recycle()
         |> get("/auth/invitations/#{invitation.token}")
 
-      assert redirected_to(conn) == "/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/auth/invitations/#{invitation.token}"}}"
 
       conn =
         conn
@@ -1365,7 +1369,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert conn |> recycle() |> get(~p"/#{other.account.name}/projects") |> html_response(200)
 
       protected_path = ~p"/#{target.account.name}/projects"
-      expected = ~p"/users/auth/oauth2?organization_id=#{target.id}"
+      expected = "/users/auth/oauth2?organization_id=#{target.id}&" <> URI.encode_query(%{return_to: protected_path})
       assert conn |> recycle() |> get(protected_path) |> redirected_to() == expected
 
       {:ok, view, _} = live(recycle(conn), ~p"/#{other.account.name}/projects")
@@ -1739,6 +1743,9 @@ defmodule TuistWeb.AuthControllerTest do
 
   defp sso_callback(conn, organization, session \\ %{}) do
     conn
+    |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+    |> OAuthReturnToPlug.put("expected-state", session[:user_return_to])
+    |> recycle()
     |> init_test_session(
       Map.merge(
         %{sso_organization_id: organization.id, sso_state: "expected-state", sso_route_provider: :oauth2},
@@ -1749,6 +1756,108 @@ defmodule TuistWeb.AuthControllerTest do
   end
 
   describe "callback/2 with OAuth" do
+    setup %{conn: conn} do
+      %{conn: %{conn | secret_key_base: TuistWeb.Endpoint.config(:secret_key_base)}}
+    end
+
+    test "a Google callback returns to its own tab after another preview rewrites the session", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      user = AccountsFixtures.user_fixture(email: "tabs@authctl-example.com")
+      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, id_in_provider: "google-tabs")
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      [first, second] = for _ <- 1..2, do: AppBuildsFixtures.preview_fixture(project: project)
+      first_path = ~p"/#{user.account.name}/#{project.name}/previews/#{first.id}?#{%{source: "first + tab"}}"
+      second_path = ~p"/#{user.account.name}/#{project.name}/previews/#{second.id}"
+
+      conn = get(conn, first_path)
+      conn = conn |> recycle() |> get(redirected_to(conn))
+
+      [provider_url] =
+        conn |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a[href^='/users/auth/google']", "href")
+
+      conn = conn |> recycle() |> get(provider_url)
+      state = conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
+      assert String.starts_with?(state, "tuist-return-v1:")
+
+      # A second tab changes the shared cookie while the first is at Google.
+      conn = conn |> recycle() |> get(second_path)
+      assert get_session(conn, :user_return_to) == second_path
+
+      expect(OAuth2.Client, :get_token, fn client, [code: "google-code"] ->
+        {:ok, %{client | token: %OAuth2.AccessToken{access_token: "google-token"}}}
+      end)
+
+      expect(OAuth2.Client, :get, fn _client, "https://www.googleapis.com/oauth2/v3/userinfo", _, _ ->
+        {:ok, %OAuth2.Response{status_code: 200, body: %{"sub" => "google-tabs", "email" => user.email}}}
+      end)
+
+      conn =
+        conn
+        |> recycle()
+        |> get(~p"/users/auth/google/callback?#{%{code: "google-code", state: state, return_to: second_path}}")
+
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == first_path
+    end
+
+    @tag :session_compatibility
+    test "a pre-upgrade Google callback retains its signed-session destination", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, id_in_provider: "legacy-in-flight")
+      path = ~p"/#{user.account.name}/settings"
+      started = get(conn, path)
+
+      expect(OAuth2.Client, :get_token, fn client, [code: "legacy-code"] ->
+        {:ok, %{client | token: %OAuth2.AccessToken{access_token: "google-token"}}}
+      end)
+
+      expect(OAuth2.Client, :get, fn _client, "https://www.googleapis.com/oauth2/v3/userinfo", _, _ ->
+        {:ok, %OAuth2.Response{status_code: 200, body: %{"sub" => "legacy-in-flight", "email" => user.email}}}
+      end)
+
+      completed =
+        started
+        |> recycle()
+        |> put_req_cookie("ueberauth.state_param", "pre-upgrade-state")
+        |> get("/users/auth/google/callback?code=legacy-code&state=pre-upgrade-state")
+
+      assert redirected_to(completed) == path
+      assert get_session(completed, :user_token)
+    end
+
+    test "a callback with missing return binding cannot adopt another tab's destination", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, id_in_provider: "missing-binding")
+
+      conn =
+        conn
+        |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+        |> init_test_session(%{
+          user_return_to: "/another-tab",
+          oauth_return_to: "/legacy-tab"
+        })
+        |> assign(:ueberauth_auth, %Ueberauth.Auth{
+          provider: :google,
+          uid: "missing-binding",
+          info: %Info{email: user.email},
+          extra: %{raw_info: %{user: %{}}}
+        })
+        |> TuistWeb.AuthController.callback(%{"state" => OAuthReturnToPlug.version_state("expired-binding")})
+
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == TuistWeb.Authentication.signed_in_path(user)
+    end
+
+    test "a return destination does not bypass OAuth state validation", %{conn: conn} do
+      conn = get(conn, ~p"/users/auth/google?#{%{return_to: "/first-preview"}}")
+      reject(OAuth2.Client, :get_token, 2)
+
+      assert_raise UnauthorizedError, fn ->
+        conn |> recycle() |> get("/users/auth/google/callback?code=unused&state=wrong-state&return_to=/first-preview")
+      end
+    end
+
     test "returns to the page that asked for the sign-in, not one from an abandoned SSO attempt", %{conn: conn} do
       user = AccountsFixtures.user_fixture(email: "member@authctl-example.com")
 
@@ -1771,7 +1880,7 @@ defmodule TuistWeb.AuthControllerTest do
       # A session that did not sign in with Google is sent there, and the
       # user leaves without finishing.
       conn = conn |> log_in_user(user) |> get("#{previews_path}/#{first.id}")
-      assert redirected_to(conn) == "/users/auth/google"
+      assert redirected_to(conn) == ~p"/users/auth/google?#{%{return_to: "#{previews_path}/#{first.id}"}}"
 
       # The session expires before they open another preview.
       Repo.update_all(from(token in Accounts.UserToken, where: token.user_id == ^user.id),
@@ -1779,10 +1888,11 @@ defmodule TuistWeb.AuthControllerTest do
       )
 
       conn = conn |> recycle() |> get("#{previews_path}/#{second.id}")
-      assert redirected_to(conn) == "/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "#{previews_path}/#{second.id}"}}"
 
       conn =
         build_conn()
+        |> Map.replace!(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
         |> init_test_session(get_session(conn))
         |> assign(:ueberauth_auth, %Ueberauth.Auth{
           provider: :google,
@@ -1795,7 +1905,8 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "#{previews_path}/#{second.id}"
     end
 
-    test "honors the legacy return path key only for provider sign-ins, below the current key", %{conn: conn} do
+    @tag :session_compatibility
+    test "honors pre-upgrade provider destinations when callbacks carry legacy state", %{conn: conn} do
       user = AccountsFixtures.user_fixture(email: "legacy@authctl-example.com")
 
       {:ok, _} =
@@ -1812,7 +1923,7 @@ defmodule TuistWeb.AuthControllerTest do
         conn
         |> init_test_session(session)
         |> assign(:ueberauth_auth, auth)
-        |> TuistWeb.AuthController.callback(%{})
+        |> TuistWeb.AuthController.callback(%{"state" => "legacy-oauth-state"})
         |> redirected_to()
       end
 

@@ -122,7 +122,8 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
     conn = get(build_conn(), ~p"/#{account.name}/runners/runs/324010/jobs/32401/logs/download")
 
-    assert redirected_to(conn) == ~p"/users/log_in"
+    assert redirected_to(conn) ==
+             ~p"/users/log_in?#{%{return_to: "/#{account.name}/runners/runs/324010/jobs/32401/logs/download"}}"
   end
 
   test "404s when the job belongs to another account", %{conn: conn, account: account} do
