@@ -320,7 +320,7 @@ const MemoryProperty = "tuist-memory-gb"
 const DefaultMemoryGB = 4
 
 // MemorySizesGB are the VM sizes workers offer, smallest first.
-var MemorySizesGB = []int{4, 8, 16}
+var MemorySizesGB = []int{4, 8, 16, 32}
 
 // MemoryGB returns the VM memory a platform asks for.
 func MemoryGB(p *re.Platform) (int, error) {
@@ -339,7 +339,7 @@ func MemoryGB(p *re.Platform) (int, error) {
 	}
 	gb, err := strconv.Atoi(value)
 	if err != nil || strconv.Itoa(gb) != value || !slices.Contains(MemorySizesGB, gb) {
-		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 4, 8 or 16")
+		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 4, 8, 16 or 32")
 	}
 	return gb, nil
 }

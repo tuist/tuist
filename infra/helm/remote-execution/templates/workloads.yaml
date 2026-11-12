@@ -188,7 +188,7 @@ spec:
             # The VM sizes the tuist-memory-gb execution property selects
             # (Tuist.RemoteExecution.Settings). 8x16384 builds its snapshot
             # on its first action.
-            - {name: ALLOWED_SHAPES, value: "2x4096,4x8192,8x16384"}
+            - {name: ALLOWED_SHAPES, value: "2x4096,4x8192,8x16384,16x32768"}
             - {name: PREBUILD_SHAPES, value: "2x4096,4x8192"}
             # The workspace every VM gets (Settings.vm_workspace_gb), so
             # creates clone the snapshots' formatted workspace.

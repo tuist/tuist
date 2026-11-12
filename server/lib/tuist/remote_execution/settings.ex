@@ -15,7 +15,7 @@ defmodule Tuist.RemoteExecution.Settings do
   @vm_vcpus 2
   @vm_memory_mb 4096
   @vm_workspace_gb 30
-  @memory_sizes_gb [4, 8, 16]
+  @memory_sizes_gb [4, 8, 16, 32]
 
   defstruct [:vcpus, :memory_gb, :max_concurrency, :image_tag, :cas_endpoint, :executor_endpoint]
 
