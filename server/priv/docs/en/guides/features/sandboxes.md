@@ -18,7 +18,7 @@ Sandboxes run on the same fleet as <.localized_link href="/guides/features/runne
 
 You can use sandboxes from:
 
-- **<.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>**: run your Amp workspace's orbs on Tuist.
+- **<.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>**: run your Amp workspace's orbs on Tuist, or give any Amp thread a Mac for Xcode builds with the <.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac plugin</.localized_link>.
 - **<.localized_link href="/guides/features/sandboxes/claude">Claude</.localized_link>**: run Claude Managed Agents sessions and Claude Code cloud sessions (claude.ai, the desktop and mobile apps, and `claude --cloud`) on Tuist.
 - **[The Tuist CLI](#cli)**: create sandboxes and run commands in them from your terminal, or from your own tools through the API.
 
@@ -68,7 +68,7 @@ Tools that can't log in interactively, such as an agent plugin that builds in a 
 
 ## Build on a Mac from a coding agent {#coding-agents}
 
-A coding agent that runs on Linux, such as a cloud agent session, can build, test and run Apple-platform code on a macOS sandbox while it keeps editing files where it runs. To set it up:
+A coding agent that runs on Linux, such as a cloud agent session, can build, test and run Apple-platform code on a macOS sandbox while it keeps editing files where it runs. In Amp, install the <.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac plugin</.localized_link>. For other agents, such as Claude Code or Cursor:
 
 1. Connect the agent to the Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link>. Its `create_sandbox` tool tells the agent how to drive the Mac.
 2. Install a Tuist CLI that has `tuist sandbox sync` where the agent runs, for example in the environment's setup script: `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` (`tuist-linux-aarch64` on ARM).
