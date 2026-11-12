@@ -1,4 +1,14 @@
-# iOS and macOS companion app
+# Tuist clients
+
+The Once workspace in this directory is the parallel Rust-core client, reporting to `tuist/app`. Native frontend sources live in `apple/`, `ios/`, `macos/`, and `android/`; the moved GPUI frontend lives in `gpui/`. Keep shared business logic in Rust crates, platform UI in Swift/Kotlin/GPUI, and UI dependencies out of the shared core. See `README.md` for build commands and coexistence boundaries.
+
+Use the separate `dev.tuist.app.preview` identity for new Apple/Android clients. Distribution is internal-preview-only: no store uploads, public releases, production OAuth/deep-link registrations, or changes to shipping client behavior. The legacy project below remains at its existing paths, and the shipping Android client remains in `../android/`.
+
+New Apple copy belongs in `apple/Resources/en.lproj/Localizable.strings`; new Android copy belongs in `android/res/values/strings.xml`. Platform code owns localization; the Rust core exposes stable destination IDs through the C/JNI bridge. Once builds must not import legacy Swift CLI modules or the legacy Gradle app. Run new-client tasks with the root mise config excluded as documented in the README, leaving root toolchain behavior unchanged for legacy builds.
+
+## Existing iOS and macOS companion app
+
+The following sections govern the existing `Project.swift`, `Sources/`, `Resources/`, and `Tests/` client, not the parallel Once frontends.
 
 SwiftUI app with a macOS menu bar and iOS project/preview management. Shared CLI
 modules supply server access, domain models, and automation; keep those concerns

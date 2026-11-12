@@ -1,0 +1,78 @@
+[tools]
+"github:tuist/once" = "0.77.5"
+rust = "1.98.1"
+jq = "1.8.1"
+yq = "4.52.5"
+kotlin = "2.4.10"
+
+# Desktop tool installation must not run the monorepo's CLI bootstrap hook.
+[hooks]
+postinstall = "true"
+
+[tasks."prepare:native"]
+description = "Derive locked portable Rust dependencies for Once"
+run = "python3 prepare-native.py"
+
+[tasks."prepare:android"]
+description = "Materialize checksum-locked Android browser libraries"
+run = "python3 android/dependencies.py prepare"
+
+[tasks.build]
+depends = ["prepare:native"]
+description = "Build the desktop app for the host"
+run = "once build TuistDesktop"
+
+[tasks.run]
+depends = ["prepare:native"]
+description = "Build and launch the desktop app"
+run = "once run cargo_tuist_desktop_bin_Tuist"
+
+[tasks.test]
+depends = ["prepare:native"]
+description = "Test the desktop crates and shared mobile route contract"
+run = ["git diff --no-index --exit-code -- Fixtures/Navigation/routes.json crates/navigation/src/routes.json", "once test --all"]
+
+[tasks.check]
+depends = ["prepare:native"]
+description = "Validate the graph and check formatting and Clippy warnings"
+run = ["once query validate-workspace", "cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]
+
+[tasks."build:ios"]
+depends = ["prepare:native"]
+description = "Build the parallel Swift iOS simulator client"
+run = "once build TuistAppIOS"
+
+[tasks."build:ios-device"]
+depends = ["prepare:native"]
+description = "Build an ad-hoc device app; installation still requires internal provisioning"
+run = "once build TuistAppIOSDevice"
+
+[tasks."build:macos"]
+depends = ["prepare:native"]
+description = "Build the parallel native Swift macOS client"
+run = "once build TuistAppMacOS"
+
+[tasks."build:android"]
+depends = ["prepare:native", "prepare:android"]
+description = "Build the parallel Kotlin Android preview APK"
+run = ["once build TuistAppAndroid", "python3 android/dependencies.py verify \"$ANDROID_HOME/build-tools/35.0.0/aapt2\" .once/out/TuistAppBrowser/R.txt .once/out/TuistAppAndroid/TuistAppAndroid.apk"]
+
+[tasks."test:core"]
+depends = ["prepare:native"]
+description = "Test the shared native frontend contract without GPUI"
+run = "once test TuistAppCoreTests"
+
+[tasks."preview:ios"]
+depends = ["prepare:native"]
+description = "Publish an internal iOS simulator preview to tuist/app"
+run = "once artifact publish TuistAppIOS --track internal"
+
+[tasks."preview:macos"]
+depends = ["prepare:native"]
+description = "Publish an internal native macOS preview to tuist/app"
+run = "once artifact publish TuistAppMacOS --track internal"
+
+[tasks."preview:android"]
+depends = ["build:android"]
+description = "Publish an internal Android debug preview to tuist/app"
+run = "once artifact publish TuistAppAndroid --track internal"

@@ -52,6 +52,40 @@ for name in release-app release-ios release-android; do
 done
 ok 'ordinary push retains all three platform success gates'
 
+python3 - "$scratch/workflow.json" "$root/mise/tasks/release/components.json" <<'PY'
+import fnmatch
+import json
+import sys
+
+workflow = json.load(open(sys.argv[1]))
+components = json.load(open(sys.argv[2]))
+release_paths = next(c["include_paths"] for c in components["components"] if c["name"] == "app")
+
+def triggers(path):
+    selected = False
+    for pattern in workflow["on"]["push"]["paths"]:
+        if fnmatch.fnmatchcase(path, pattern.lstrip("!")):
+            selected = not pattern.startswith("!")
+    return selected
+
+for path in ["app/gpui/src/main.rs", "app/crates/core/src/lib.rs",
+             "app/apple/Sources/AppWorkspace.swift", "app/ios/Sources/App.swift",
+             "app/macos/Sources/App.swift", "app/android/src/MainActivity.kt",
+             "app/distribution/release.sh", "app/Cargo.toml", "app/Cargo.lock",
+             "app/modules/browser.star", "app/native-dependencies/once.toml", "app/prepare-native.py",
+             "app/once.toml", "app/mise.toml", "app/README.md"]:
+    assert not triggers(path), f"Parallel client triggers shipping release: {path}"
+    assert not any(fnmatch.fnmatchcase(path, p) for p in release_paths), path
+
+for path in ["app/Sources/TuistApp/App.swift", "app/Resources/TuistApp/icon.png",
+             "app/Tests/TuistAppTests/AppTests.swift", "app/Project.swift",
+             "app/appcast.xml", "app/Fixtures/Navigation/routes.json",
+             "mise/tasks/app/release/homebrew-cask.sh", "cli/Sources/TuistCore/Models/File.swift"]:
+    assert triggers(path), f"Shipping release no longer triggers: {path}"
+    assert any(fnmatch.fnmatchcase(path, p) for p in release_paths), path
+PY
+ok 'parallel clients cannot trigger or influence shipping release detection'
+
 # shellcheck disable=SC2016 # Assert literal GitHub expressions, never interpolate them.
 jq -e '
   . as $root |
