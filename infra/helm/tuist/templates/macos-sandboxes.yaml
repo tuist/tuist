@@ -131,8 +131,9 @@ spec:
   podMemoryMB: 8192
   autoscaling:
     enabled: true
-    # Rendered explicitly: the CRD defaults an absent floor to 1.
-    minWarmPoolFloor: {{ .minWarmPoolFloor | default 0 }}
+    # No always-on warm VM yet. Rendered explicitly: the CRD defaults an
+    # absent floor to 1.
+    minWarmPoolFloor: 0
     maxReplicas: {{ .maxReplicas | default 1 }}
 {{- end }}
 {{- end }}

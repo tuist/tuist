@@ -137,12 +137,9 @@ sandbox VMs. The pool shares the CI warm-pool budget: the runners-controller
 preempts it and rolls its image like a CI pool's, and its idle
 Pods give up their slot to CI and to sandbox growth. Unlike an idle CI runner,
 a warm VM counts as reclaimable room in sandbox grants immediately, without the
-CI preemption grace. The server never routes a job to the pool, so it keeps only
-`sandboxes.macos.warm.minWarmPoolFloor` VMs (rendered explicitly, default 0,
-since the CRD defaults an absent floor to 1). Production keeps one on the BER1
-rack: a cold create there took 17 to 19 s on a host with room, and a claim
-skips its clone and boot, leaving the workspace volume (`macOS sandbox boot
-phases` and `claim phases` in the kubelet log time each step).
+CI preemption grace. The server never routes a job to the pool. The pool keeps no
+always-on floor yet: the chart renders `minWarmPoolFloor: 0` explicitly, since
+the CRD defaults an absent floor to 1.
 
 tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
 only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
@@ -258,12 +255,7 @@ memory images and Apple's eager restore dominate that path.
 
 The target remains 1–2 seconds for retained environments. Extend the account API
 measurements to sustained CI demand, p95/p99, longer idle periods and checkpoint contention.
-Restoration after eviction still has no demonstrated 1–2 second path. In
-production on 2026-11-12, resumes after an eviction (30 s idle, or sooner when
-CI revoked the grant) restored a checkpoint in 4–8 s at 8 GiB and 10–16 s at 24 GiB. A create or
-restore on a host whose freed slot CI had refilled also waited 5–12 s for the
-runners-controller to retire that idle runner, which made 22–26 s resumes; the
-reservation now reconciles only the pools with runners on its host. Follow-up
+Restoration after eviction still has no demonstrated 1–2 second path. Follow-up
 work includes a supported demand-driven restore runtime, Anka evaluation when a
 Build license is available, snapshot-size reduction, and safer automatic collection
 of unreferenced runtime/template artifacts. Competitor latency claims are not

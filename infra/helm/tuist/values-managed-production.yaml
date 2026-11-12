@@ -2374,17 +2374,6 @@ sandboxes:
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true
-  macos:
-    # One booted 8 vCPU / 8 GiB sandbox VM on the BER1 rack, where macOS
-    # sandboxes run. A create of that shape (36 of 55 macOS creates from
-    # 2026-10-29 to 11-12) claims it and only adds its workspace volume,
-    # instead of the clone and boot that took 17 to 19 s on a host with room
-    # (template creates: p50 21 s, p90 27 s). It holds one of the rack's 26
-    # VM slots and gives it up to CI like an idle warm runner.
-    warm:
-      enabled: true
-      fleetSelector: tuist-tuist-rack-fleet
-      minWarmPoolFloor: 1
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
