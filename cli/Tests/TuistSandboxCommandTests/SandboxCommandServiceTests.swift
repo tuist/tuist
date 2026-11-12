@@ -175,50 +175,18 @@ struct SandboxCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func execWithJSONPrintsTheWholeOutputAndExitsWithTheCommandsStatus() async throws {
-        let commandID = "6a1c0d2e-3b4f-4a5b-9c6d-7e8f90a1b2c3"
-        given(sandboxesService).startSandboxCommand(
+    func execExitsWithTheCommandsExitStatus() async throws {
+        given(sandboxesService).execSandboxCommand(
             accountHandle: .value("resolved-account"),
             serverURL: .value(Self.serverURL),
             sandboxID: .value(Self.id),
             command: .value("make test"),
-            cwd: .value("/work"),
-            environment: .value(["CI": "1"]),
-            stdin: .value(false),
             timeoutMs: .value(30000)
-        ).willReturn(try Self.decode("""
-        {"id":"\(commandID)","command":"make test","stdin":false,"status":"running",
-         "started_at":"2026-11-08T10:00:00Z","deadline_at":"2026-11-08T11:00:00Z"}
-        """) as ServerSandboxCommand)
-        let lines = try [
-            #"{"type":"stdout","data":"ok\n","offset":3}"#,
-            #"{"type":"stderr","data":"1 failure","offset":9}"#,
-            #"{"type":"exit","status":"exited","exit_code":2}"#,
-        ].map { try JSONDecoder().decode(ServerSandboxCommandLogLine.self, from: Data($0.utf8)) }
-        given(sandboxesService).streamSandboxCommandLogs(
-            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(commandID),
-            stdoutOffset: .value(0), stderrOffset: .value(0)
-        ).willReturn(AsyncThrowingStream { continuation in
-            lines.forEach { continuation.yield($0) }
-            continuation.finish()
-        })
+        ).willReturn(try Self.decode("{\"exit_code\":2,\"stdout\":\"\",\"stderr\":\"\"}"))
 
         await #expect(throws: ExitCode(2)) {
-            try await subject().exec(
-                options: Self.values(json: true),
-                sandboxID: Self.id,
-                command: "make test",
-                cwd: "/work",
-                environment: ["CI": "1"],
-                timeoutMs: 30000
-            )
+            try await subject().exec(options: Self.values(), sandboxID: Self.id, command: "make test", timeoutMs: 30000)
         }
-        let output = ui()
-        let json = try #require(output.firstIndex(of: "{").map { output[$0...] })
-        let printed = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        #expect(printed["stdout"] as? String == "ok\n")
-        #expect(printed["stderr"] as? String == "1 failure")
-        #expect(printed["exit_code"] as? Int == 2)
     }
 
     @Test
@@ -240,27 +208,8 @@ struct SandboxCommandServiceTests {
 
     @Test
     func execJoinsTheCommandAfterTheSeparator() throws {
-        let command = try SandboxExecCommand.parse([
-            Self.id, "--timeout", "3600", "--env", "TOKEN=a=b", "--", "ls", "-la", "/workspace",
-        ])
+        let command = try SandboxExecCommand.parse([Self.id, "--timeout", "30", "--", "ls", "-la", "/workspace"])
         #expect(command.command == ["ls", "-la", "/workspace"])
         #expect(command.sandbox.sandboxID == Self.id)
-        #expect(command.environment == ["TOKEN": "a=b"])
-        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--env", "TOKEN", "--", "ls"]) }
-        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--timeout", "21601", "--", "ls"]) }
-    }
-
-    @Test
-    func cpTreatsOnlyASandboxIDBeforeTheColonAsTheSandboxSide() throws {
-        #expect(SandboxCopyCommand.Location("\(Self.id):/tmp/screen.png") == .sandbox(id: Self.id, path: "/tmp/screen.png"))
-        #expect(SandboxCopyCommand.Location("\(Self.id):a:b") == .sandbox(id: Self.id, path: "a:b"))
-        #expect(SandboxCopyCommand.Location("build:out/App.app") == .local("build:out/App.app"))
-        #expect(SandboxCopyCommand.Location("/tmp/\(Self.id):x") == .local("/tmp/\(Self.id):x"))
-
-        #expect(throws: Never.self) { try SandboxCopyCommand.parse(["\(Self.id):App.app", "."]) }
-        #expect(throws: Never.self) { try SandboxCopyCommand.parse(["fixtures", "\(Self.id):work/fixtures"]) }
-        #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["a", "b"]) }
-        #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["\(Self.id):a", "\(Self.id):b"]) }
-        #expect(throws: (any Error).self) { try SandboxCopyCommand.parse(["\(Self.id):", "."]) }
     }
 }

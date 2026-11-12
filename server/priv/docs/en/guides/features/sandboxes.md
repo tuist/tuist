@@ -48,7 +48,7 @@ Omit `--platform` for Linux. Pass `--vcpus` with `--memory-gb` for a larger [sha
 tuist sandbox exec <sandbox-id> -- xcodebuild -version
 ```
 
-The command runs with `bash -l` in the sandbox, which resumes first if it's paused. `tuist` streams its output however long it runs and exits with the command's status; Ctrl-C cancels it in the sandbox. Pass `--cwd`, `--env NAME=VALUE` and `--timeout` (up to six hours) as needed.
+The command runs with `bash -lc` in the sandbox, which resumes first if it's paused, and `tuist` exits with the command's status.
 
 ### Common tasks {#cli-tasks}
 
@@ -57,23 +57,10 @@ The command runs with `bash -l` in the sandbox, which resumes first if it's paus
 | List sandboxes | `tuist sandbox list` |
 | Show one | `tuist sandbox show <id>` |
 | Pause or resume | `tuist sandbox pause <id>`, `tuist sandbox resume <id>` |
-| Mirror the local Git worktree's files into it | `tuist sandbox sync <id>` |
-| Copy files out or in | `tuist sandbox cp <id>:<path> <local-path>`, `tuist sandbox cp <local-path> <id>:<path>` |
 | Delete | `tuist sandbox delete <id> --yes` |
 | See usage | `tuist sandbox analytics` |
 
 Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
-
-## Build on a Mac from a coding agent {#coding-agents}
-
-A coding agent that runs on Linux, such as a cloud agent session, can build, test and run Apple-platform code on a macOS sandbox while it keeps editing files where it runs. To set it up:
-
-1. Connect the agent to the Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link>. Its `create_sandbox` tool tells the agent how to drive the Mac.
-2. Install a Tuist CLI that has `tuist sandbox sync` where the agent runs, for example in the environment's setup script: `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` (`tuist-linux-aarch64` on ARM).
-3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
-4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
-
-The agent creates one Mac per task and, before each command, runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac left behind pauses when idle and is deleted after 14 days paused.
 
 ## Linux and macOS {#platforms}
 

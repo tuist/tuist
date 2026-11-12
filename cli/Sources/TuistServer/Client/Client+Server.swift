@@ -20,8 +20,6 @@ extension Client {
         "createCommandEvent",
         "createCoverageUpload",
         "createRunnerShellSession",
-        // Each call presigns a new object; one a lost answer leaves unused is deleted with the rest.
-        "createSandboxUpload",
         "createStressPlan",
         "createTest",
         "deleteRunnerVolume",
@@ -57,14 +55,13 @@ extension Client {
     }
 
     /// Tuist client for authenticated sessions
-    /// With `streaming`, response bodies arrive as the server sends them; see `TuistURLSessionTransport`.
     public static func authenticated(
         serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
-        networkTrustedPublishing: Bool = false, streaming: Bool = false
+        networkTrustedPublishing: Bool = false
     ) -> Client {
         .init(
             serverURL: serverURL,
-            transport: TuistURLSessionTransport(streaming: streaming),
+            transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 serverRetryMiddleware,
                 RequestIdMiddleware(),

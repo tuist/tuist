@@ -156,14 +156,3 @@ Developers pick the environment, and with it the platform, when they start a clo
   ```
 
 Sessions in these environments use your organization's Claude Code usage as usual, and their sandboxes count toward your Tuist account.
-
-## Use a Mac from any Claude Code session {#remote-mac}
-
-Claude Code sessions that run on Linux, such as cloud sessions in an Anthropic-hosted environment, can still build and test Apple-platform code on a Tuist macOS sandbox, as described in <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. Unlike a **Tuist macOS** environment, nothing needs connecting and the session keeps its own environment. For cloud sessions:
-
-1. Make the Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> available to sessions: add `https://tuist.dev/mcp` as a connector in claude.ai and enable it for the session, or declare it in the repository's committed `.mcp.json`.
-2. Install the Tuist CLI in the environment's [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts), for example with `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`.
-3. Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope, and add it to the environment's [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) as `TUIST_TOKEN`. Everyone who uses the environment can read it, so give it no other scope.
-4. Let the environment reach Tuist. Anthropic's default **Trusted** network access doesn't include `tuist.dev`, so pick **Custom**, keep the default domains, and add `tuist.dev` to **Allowed domains**. The CLI uploads the session's files to the Mac through `tuist.dev`, so it needs no other domain.
-
-Claude deletes the Mac when the task is done. A Mac left behind pauses when idle and is deleted after 14 days paused. Macs created this way count toward your Tuist account like any other sandbox.
