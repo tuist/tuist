@@ -53,6 +53,7 @@ defmodule Tuist do
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
       Ops.FeatureFlags,
+      Ops.RunnerConcurrencyLimits,
       Observability,
       RateLimit,
       RateLimit.InMemory,

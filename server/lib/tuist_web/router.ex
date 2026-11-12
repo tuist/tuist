@@ -1393,6 +1393,16 @@ defmodule TuistWeb.Router do
     get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
     put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
 
+    get "/atlas/accounts/lookup", AtlasAccountsController, :lookup
+
+    get "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :runner_concurrency_limits
+
+    put "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :update_runner_concurrency_limits
+
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
