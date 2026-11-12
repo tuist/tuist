@@ -283,23 +283,22 @@ defmodule Tuist.Sandboxes do
         |> Map.new(&{String.downcase(&1), &1})
       end
 
-    Enum.map(sandboxes, fn sandbox ->
-      matched_name = Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
-      name = matched_name || sandbox.amp_creator_name || sandbox.amp_creator_user_id
+    Enum.map(sandboxes, &%{&1 | creator_actor: sandbox_creator(&1, names)})
+  end
 
-      %{
-        sandbox
-        | creator_actor: %{
-            name: name,
-            source:
-              cond do
-                matched_name -> :matched
-                name -> :reported
-                true -> :unknown
-              end
-          }
-      }
-    end)
+  defp sandbox_creator(sandbox, names) do
+    matched_name = Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
+    name = matched_name || sandbox.amp_creator_name || sandbox.amp_creator_user_id
+
+    %{
+      name: name,
+      source:
+        cond do
+          matched_name -> :matched
+          name -> :reported
+          true -> :unknown
+        end
+    }
   end
 
   @doc """

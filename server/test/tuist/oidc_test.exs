@@ -276,6 +276,8 @@ defmodule Tuist.OIDCTest do
             %{"sub" => "user:someone-else:thread:#{base["thread_id"]}"},
             %{"sub" => "user:user_creator"},
             %{"sub" => nil, "workspace_id" => "invalid"},
+            %{"workspace_id" => "invalid"},
+            %{"project_id" => "invalid"},
             %{"thread_id" => nil},
             %{"user_id" => nil},
             %{"token_use" => "request"},

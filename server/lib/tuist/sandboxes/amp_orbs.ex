@@ -304,9 +304,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     case Sandboxes.exec(sandbox, bootstrap_command(sandbox), env: env, timeout_ms: bootstrap_timeout(sandbox)) do
       {:ok, %{exit_code: 0}} ->
         if is_nil(sandbox.amp_creator_user_id) do
-          %{"sandbox_id" => sandbox.id}
-          |> CaptureAmpCreatorWorker.new(schedule_in: 5)
-          |> Oban.insert()
+          _ =
+            %{"sandbox_id" => sandbox.id}
+            |> CaptureAmpCreatorWorker.new(schedule_in: 5)
+            |> Oban.insert()
         end
 
         {:ok, sandbox}

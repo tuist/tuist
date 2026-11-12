@@ -109,20 +109,20 @@ defmodule Tuist.OIDC do
     workspace = claims["workspace_id"]
     project = claims["project_id"]
 
-    cond do
-      is_binary(workspace) and not is_nil(amp_uuid(workspace)) and is_binary(project) and not is_nil(amp_uuid(project)) ->
-        "workspace:#{workspace}:project:#{project}:user:#{user_id}:thread:#{thread_id}"
-
-      is_binary(workspace) and not is_nil(amp_uuid(workspace)) and is_nil(project) ->
-        "workspace:#{workspace}:user:#{user_id}:thread:#{thread_id}"
-
-      is_nil(workspace) and is_binary(project) and not is_nil(amp_uuid(project)) ->
-        "user:#{user_id}:project:#{project}:thread:#{thread_id}"
-
-      is_nil(workspace) and is_nil(project) ->
+    case {workspace, project, amp_uuid(workspace), amp_uuid(project)} do
+      {nil, nil, _, _} ->
         "user:#{user_id}:thread:#{thread_id}"
 
-      true ->
+      {_, nil, workspace_uuid, _} when is_binary(workspace_uuid) ->
+        "workspace:#{workspace}:user:#{user_id}:thread:#{thread_id}"
+
+      {nil, _, _, project_uuid} when is_binary(project_uuid) ->
+        "user:#{user_id}:project:#{project}:thread:#{thread_id}"
+
+      {_, _, workspace_uuid, project_uuid} when is_binary(workspace_uuid) and is_binary(project_uuid) ->
+        "workspace:#{workspace}:project:#{project}:user:#{user_id}:thread:#{thread_id}"
+
+      _ ->
         nil
     end
   end
