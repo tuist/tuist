@@ -2107,22 +2107,22 @@ msgstr ""
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:212
+#: lib/tuist_web/live/account_token_helpers.ex:217
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:244
+#: lib/tuist_web/live/account_token_helpers.ex:249
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:172
+#: lib/tuist_web/live/account_token_helpers.ex:173
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:196
+#: lib/tuist_web/live/account_token_helpers.ex:201
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
 msgstr ""
@@ -2158,67 +2158,67 @@ msgstr ""
 msgid "Project"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:180
+#: lib/tuist_web/live/account_token_helpers.ex:181
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:160
+#: lib/tuist_web/live/account_token_helpers.ex:161
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:164
+#: lib/tuist_web/live/account_token_helpers.ex:165
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:204
+#: lib/tuist_web/live/account_token_helpers.ex:209
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:232
+#: lib/tuist_web/live/account_token_helpers.ex:237
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:216
+#: lib/tuist_web/live/account_token_helpers.ex:221
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:168
+#: lib/tuist_web/live/account_token_helpers.ex:169
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:176
+#: lib/tuist_web/live/account_token_helpers.ex:177
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:208
+#: lib/tuist_web/live/account_token_helpers.ex:213
 #, elixir-autogen, elixir-format
 msgid "Read previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:192
+#: lib/tuist_web/live/account_token_helpers.ex:197
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:200
+#: lib/tuist_web/live/account_token_helpers.ex:205
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:240
+#: lib/tuist_web/live/account_token_helpers.ex:245
 #, elixir-autogen, elixir-format
 msgid "Read runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:224
+#: lib/tuist_web/live/account_token_helpers.ex:229
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
 msgstr ""
@@ -2243,27 +2243,27 @@ msgstr ""
 msgid "Runs write"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:155
+#: lib/tuist_web/live/account_token_helpers.ex:156
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:156
+#: lib/tuist_web/live/account_token_helpers.ex:157
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:236
+#: lib/tuist_web/live/account_token_helpers.ex:241
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:220
+#: lib/tuist_web/live/account_token_helpers.ex:225
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:228
+#: lib/tuist_web/live/account_token_helpers.ex:233
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
 msgstr ""
@@ -2893,12 +2893,12 @@ msgstr ""
 msgid "Your account moved to the Air plan"
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:188
+#: lib/tuist_web/live/account_token_helpers.ex:189
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
 msgstr ""
 
-#: lib/tuist_web/live/account_token_helpers.ex:184
+#: lib/tuist_web/live/account_token_helpers.ex:185
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
 msgstr ""
@@ -3451,6 +3451,16 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password using a passkey saved in your password manager or on a security key."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_helpers.ex:193
+#, elixir-autogen, elixir-format
+msgid "Create sandboxes and run commands in them."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_helpers.ex:155
+#, elixir-autogen, elixir-format
+msgid "Sandboxes write"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:226

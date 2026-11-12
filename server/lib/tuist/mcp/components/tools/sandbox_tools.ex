@@ -6,7 +6,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
   alias Tuist.Sandboxes.Query
 
   # The same rule as the HTTP API (`TuistWeb.API.SandboxesController`):
-  # members (`:sandboxes_use`) list, create, pause, resume and delete
+  # members (`:sandboxes_write`) list, create, pause, resume and delete
   # sandboxes, but only those `Sandboxes.member_sandbox?/1` allows; analytics
   # and archiving stay with account administrators.
   @admin_actions [:analytics, :archive]
@@ -29,7 +29,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
     do: MCPTool.resolve_and_authorize_account(args, assigns, :update, :account)
 
   defp authorize_account(_action, args, assigns),
-    do: MCPTool.resolve_and_authorize_account(args, assigns, :use, :sandboxes)
+    do: MCPTool.resolve_and_authorize_account(args, assigns, :write, :sandboxes)
 
   defp authorize_sandbox(account, %{"sandbox_id" => sandbox_id}, assigns) do
     with {:error, _admin_only} <- MCPTool.authorize_account(assigns, account, :update, :account),

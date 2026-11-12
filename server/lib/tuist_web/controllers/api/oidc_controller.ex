@@ -82,8 +82,8 @@ defmodule TuistWeb.API.OIDCController do
     account_handle = Map.get(conn.body_params, :account_handle)
 
     with {:ok, claims} <- OIDC.claims(token, account_handle),
-         {:ok, account, project_scope} <- authorized_account(claims, token, account_handle),
-         {:ok, access_token} <- generate_token(account, project_scope) do
+         {:ok, account, grant} <- authorized_account(claims, token, account_handle),
+         {:ok, access_token} <- generate_token(account, grant) do
       conn
       |> put_status(:ok)
       |> json(%{
@@ -189,12 +189,16 @@ defmodule TuistWeb.API.OIDCController do
         else: {:error, :amp_workspace_not_connected}
 
     case result do
+      # An Orb of a connected workspace works like a member of the account, so
+      # it can also start sandboxes and run commands in them, such as a Mac to
+      # build on. Custom Amp trust policies stay CI-only, like other workload
+      # policies.
       {:ok, account} ->
-        {:ok, account, %{"all_projects" => true}}
+        {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
 
       {:error, :amp_workspace_not_connected} = error when is_binary(account_handle) ->
         with {:ok, identity} <- OIDC.amp_policy_claims(token, account_handle),
-             {:ok, _account, _project_scope} = authorized <- authorized_account(identity) do
+             {:ok, _account, _grant} = authorized <- authorized_account(identity) do
           authorized
         else
           _ -> error
@@ -241,8 +245,8 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp generate_token(account, project_scope) do
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, project_scope)
+  defp generate_token(account, grant) do
+    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, grant)
 
     case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}
