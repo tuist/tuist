@@ -357,10 +357,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = validateConfig(cfg); err != nil {
 			return err
 		}
-		tartRuntime, _ := m.Runtime.(*TartRuntime)
-		if tartRuntime != nil {
+		if runtime, ok := m.Runtime.(*TartRuntime); ok {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, cfg.Image)
+				return ensureImage(prepareCtx, runtime.Client, s.CIStore, cfg.Image)
 			}); err != nil {
 				return err
 			}
@@ -376,41 +375,20 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			runtime.Template = cfg.Template
 		}
 		m.Gate.Unlock()
-		// After Image is set: the cached image's size is looked up by name.
-		// Until a size is known the server reserves no root disk here, and
-		// checkDisk learns it on the next create, resume or save.
-		if tartRuntime != nil {
-			if err = tartRuntime.learnRootDisk(parent); err != nil {
-				slog.Warn("macOS sandbox root disk size unknown", "image", cfg.Image, "error", err)
-			}
-		}
-		// A runtime without a store reports no disk budget, which the server does not budget.
-		disk := func() protocol.DiskReport {
-			if tartRuntime == nil {
-				return protocol.DiskReport{}
-			}
-			return diskReport(tartRuntime.Client.HomeDir)
-		}
-		rootfs := func() int64 {
-			if tartRuntime == nil {
-				return 0
-			}
-			return tartRuntime.rootfs.Load()
-		}
 		clientCtx, stop := context.WithCancel(parent)
 		*cancel = stop
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
 		templates := func() []protocol.TemplateInfo {
-			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, RootfsBytes: rootfs(), Warm: m.warmShapes()}}
+			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, Warm: m.warmShapes()}}
 		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
+				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates(), Sandboxes: m.Snapshot()}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Sandboxes: m.Snapshot(), Templates: templates()}
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot(), Templates: templates()}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()

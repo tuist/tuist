@@ -414,19 +414,9 @@ defmodule Tuist.Sandboxes.Capacity do
   @doc """
   The template reports of every connected node as one node, to size a
   sandbox's disk ceiling without knowing its node, as the account disk
-  limit does (`Tuist.Sandboxes.Concurrency`). macOS hosts are left out:
-  their template's root disk is not a Linux rootfs, and a macOS sandbox's
-  ceiling does not use it.
+  limit does (`Tuist.Sandboxes.Concurrency`).
   """
-  def fleet_node do
-    templates =
-      for node <- Nodes.connected_nodes(),
-          Map.get(node, :platform) != "darwin",
-          template <- Map.get(node, :templates, []),
-          do: template
-
-    %{templates: templates}
-  end
+  def fleet_node, do: %{templates: Enum.flat_map(Nodes.connected_nodes(), &Map.get(&1, :templates, []))}
 
   def disk_budget_bytes(%{disk: %{budget_bytes: budget}}) when is_integer(budget) and budget > 0, do: budget
   def disk_budget_bytes(_node), do: :unbounded
@@ -656,11 +646,8 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   `place/1` among the nodes `node_filter` accepts, such as the nodes that
-  can reach the store holding the archive a sandbox is restored from, or
-  the macOS hosts that have not refused the create yet.
+  can reach the store holding the archive a sandbox is restored from.
   """
-  def place(%Sandbox{platform: :darwin} = sandbox, node_filter), do: MacosCapacity.place(sandbox, node_filter)
-
   def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter) do
     ready =
       fn ->

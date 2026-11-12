@@ -514,8 +514,6 @@ defmodule Tuist.Sandboxes do
   defp boot_source(_source, %{"warm" => true}), do: "warm"
   defp boot_source(_source, _data), do: "template"
 
-  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, nil), do: create_on_macos_host(sandbox, args, [])
-
   defp place_and_create(sandbox, args, nil) do
     with {:ok, node_name} <- Capacity.place(sandbox),
          sandbox = Repo.reload!(sandbox),
@@ -576,44 +574,6 @@ defmodule Tuist.Sandboxes do
   # An archived snapshot whose node copy is gone.
   defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot),
     do: create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
-
-  # A macOS host's own checks (its CI grant, its disk) are final and can
-  # refuse a create the server placed, after which the host discards the
-  # VM itself. The create moves on to the next host instead of failing.
-  defp create_on_macos_host(sandbox, args, refused) do
-    placed =
-      if refused == [],
-        do: Capacity.place(sandbox),
-        else: Capacity.place(sandbox, &(&1.name not in refused))
-
-    with {:ok, node_name} <- placed do
-      sandbox = Repo.reload!(sandbox)
-
-      case node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
-        {:ok, data} ->
-          {:ok, node_name, data}
-
-        {:error, reason} = error ->
-          if host_refused?(reason) do
-            Logger.info("sandboxes: macOS host refused the create, trying the next one",
-              sandbox_id: sandbox.id,
-              node: node_name,
-              reason: inspect(reason)
-            )
-
-            sandbox |> release_node() |> create_on_macos_host(args, [node_name | refused])
-          else
-            error
-          end
-      end
-    end
-  end
-
-  # A capacity refusal, plain or with the host's reason. One joined with
-  # another error (a line break) is not only a refusal.
-  defp host_refused?(:no_capacity), do: true
-  defp host_refused?("macOS sandbox capacity unavailable: " <> detail), do: not String.contains?(detail, "\n")
-  defp host_refused?(_reason), do: false
 
   defp create_after_failed_clone(sandbox, args, _node_name, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
     sandbox |> release_node() |> create_from_disk_snapshot_archive(args, disk_snapshot)
