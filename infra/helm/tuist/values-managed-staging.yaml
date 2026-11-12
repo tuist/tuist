@@ -200,6 +200,10 @@ server:
       # drain the retired experiment and qualify the existing GRA host as EU-West.
       # Preserve the independent macOS private cache.
       value: scw-fr-par-runners,eu-west,ca-east
+    # The remote-execution chart's gateway Ingress host, which accounts'
+    # Bazel workspaces use as --remote_executor (capabilities API).
+    - name: TUIST_REMOTE_EXECUTION_ENDPOINT
+      value: grpcs://execution-staging.tuist.dev
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
