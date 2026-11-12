@@ -280,6 +280,17 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
+  describe "sidebar" do
+    test "lists Code Coverage for a Cargo project", %{conn: conn, organization: organization} do
+      cargo_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :cargo)
+      base = ~p"/#{organization.account.name}/#{cargo_project.name}/tests/coverage"
+
+      {:ok, lv, _html} = live(conn, base)
+
+      assert has_element?(lv, "a[href='#{base}']", "Code Coverage")
+    end
+  end
+
   describe "recent commits" do
     test "lists the branch's five most recent complete commits in the period, each leading to its page", %{
       conn: conn,

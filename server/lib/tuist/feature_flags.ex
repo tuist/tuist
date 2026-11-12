@@ -34,9 +34,9 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Default-off immutable shard creation gate. Version-1 plans drop coverage, so
-  projects with coverage (`coverage_enabled?/3`: Mix projects, and every
+  projects with coverage (`coverage_enabled?/3`: Mix and Cargo projects, and every
   project of a coverage-enabled account) remain on legacy plans. Given an
-  account, it answers for the account's non-Mix projects.
+  account, it answers for the account's other projects.
   """
   def immutable_shard_reports_enabled?(subject, flags \\ nil)
 
@@ -251,13 +251,14 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether code coverage is ingested, processed and shown for a project of the
-  account. Mix projects have it in every account. Every other build system
-  (Xcode's coverage and test selection) is in early access behind
+  account. Mix and Cargo projects have it in every account. Every other build
+  system (Xcode's coverage and test selection) is in early access behind
   `xcode_coverage_enabled?/2`.
   """
   def coverage_enabled?(account, project, flags \\ nil)
 
   def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
+  def coverage_enabled?(_account, %Project{build_system: :cargo}, _flags), do: true
   def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
 
   @doc """
@@ -278,7 +279,7 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether code coverage is ingested, processed and shown for the account's
-  projects other than Mix ones (see `coverage_enabled?/3`). Canary and
+  projects other than Mix and Cargo ones (see `coverage_enabled?/3`). Canary and
   production require an explicit `:xcode_coverage` FunWithFlags toggle for the
   account while the feature is in early access, so its data model and API can
   still change. Development, test, and staging default to enabled.

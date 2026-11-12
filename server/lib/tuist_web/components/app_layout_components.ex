@@ -136,7 +136,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
         <.sidebar_item
           :if={
-            (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
+            @selected_project.build_system in [:xcode, :mix, :cargo] and
               Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
           }
           label={dgettext("dashboard", "Code Coverage")}

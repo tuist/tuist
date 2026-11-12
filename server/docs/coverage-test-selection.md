@@ -37,6 +37,8 @@ When the project isn't enabled, the baseline request answers `not_enabled`, the 
 | **Build context** | Its block in the requests, stored for display. The block's scheme also picks which baselines qualify. | [`xcode`: scheme, test plan, destination](#schemes-and-destinations) |
 | **Tracked files** | Files whose change stops coverage from narrowing the run, shared with coverage carry. | [The server's defaults](#rule-inputs-on-xcode) |
 
+**Cargo** supplies test-scoped evidence and the platform key so far. `tuist cargo nextest run` records `test` and `target` evidence, since nextest runs each test in its own process. Plain `cargo test` records only `target` evidence and reports its tests as overlapped, since a binary's tests share one process. Every coverage upload records the target triple as `platform` (see [Cargo](code-coverage.md#cargo)). Cargo has no selection configuration, module hashing, build-context block or `affected_modules` yet, so Rust projects get coverage and evidence but never select.
+
 **Not every hook is pluggable yet.** The shared code reads Xcode's names directly:
 
 - **Build context and scope.** The server reads only the `xcode` block. `Runs` stores it as `build_context`, and `Storage` keeps only its `scheme`, `test_plan` and `destination`. `Runs` and the baseline endpoint pass its `scheme` to `Baselines`. The Test Selection page searches runs by that scheme or test plan, and the run tab finds the baseline's runs by that scheme. A request without an `xcode` block has no scheme, so any commit whose measured set lists a scheme can be its baseline.

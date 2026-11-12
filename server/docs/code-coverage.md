@@ -1,6 +1,6 @@
 # Code coverage
 
-How Tuist collects, stores and shows code coverage today. Mix projects have it in every account; every other build system is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`. `Tuist.FeatureFlags.coverage_enabled?/3` decides per project.
+How Tuist collects, stores and shows code coverage today. Mix and Cargo projects have it in every account; every other build system is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`. `Tuist.FeatureFlags.coverage_enabled?/3` decides per project.
 
 ## Immutable shard plans
 
@@ -32,7 +32,7 @@ The `target`, `suite` and `test` scopes are **evidence**. They record which file
 
 ## How the data flows
 
-1. **Measure.** The client runs the tests with coverage on and reports the `run` scope, and what Tuist skipped: the selective-testing hit and hash of each target (on the run's command event, `xcode_targets`) and the run's `skip_test_identifiers` and `only_test_identifiers`. It also reports whether the run was set up to collect coverage (`coverage_enabled`), even when selective testing skipped every test. On Xcode, test targets that link TestCoverageAttribution also record the `target`, `suite` and `test` evidence when evidence collection is on.
+1. **Measure.** The client runs the tests with coverage on and reports the `run` scope, and what Tuist skipped: the selective-testing hit and hash of each target (on the run's command event, `xcode_targets`) and the run's `skip_test_identifiers` and `only_test_identifiers`. It also reports whether the run was set up to collect coverage (`coverage_enabled`), even when selective testing skipped every test. On Xcode, test targets that link TestCoverageAttribution also record the `target`, `suite` and `test` evidence when evidence collection is on. On Cargo, `tuist cargo` records `target` evidence, and under nextest `test` evidence too (see [Cargo](#cargo)).
 2. **Ingest.** An Xcode result bundle is parsed either by the macOS xcresult processor (remote processing) or by the CLI itself (local mode, which uploads the coverage, handed to `Tests.Workers.PublishCoverageWorker`, and sends the evidence with the run). `Tests.create_test/1` stores them: `Coverage.publish/4` the `run` rows and the run's totals in `coverage_runs`, and `Coverage.Evidence.record/4` the evidence rows.
 3. **Fold.** A few seconds after each report, `Coverage.Workers.CommitWorker` recomputes the commit (`Coverage.Commits.recompute/3`). It merges the `run` rows of the commit's clean runs and asks `Coverage.Reported.compute/3` for the commit's figure: `measured`, `reported` or `partial` (see [Figures](#figures)). The result is written to `coverage_commits`.
 4. **Complete.** The client's `tuist coverage complete` signals that the commit's pipeline finished. A complete commit's per-file figures are then stored as deltas (`Coverage.Deltas`, `coverage_file_deltas`).
@@ -207,3 +207,40 @@ Each executable line belongs to the function whose clause head starts closest ab
 Erlang's `cover` compiles every module again at the start of each run, so runs count natively instead: the project's modules are instrumented with the runtime's line counters (only those a compile wrote since the last run, and once for every shard when `mix tuist.test.build --cover` built them), and the run switches the runtime to those counters and counts with them, compiling only the modules Mimic copies for `cover` and swapping them for Mimic's copies before any test runs (Mimic keeps a `cover` compiled module's counts across its swaps; a reload resets native counters). Mix's summary and threshold are kept: `mix tuist.test` prints Mix's per-module table from the counts read when the suite finishes and fails the run below `test_coverage: [summary: [threshold: N]]`, except on a shard; it writes no HTML report. A runtime without the JIT, an umbrella's root, or a project that sets its own `test_coverage` tool uses `cover` through Mix's coverage tool. The figures are the same either way, except that native counting also sees code that runs while the application starts, before `cover` would have compiled it, and leaves out lines the compiler proves can never run, which `cover` reports as never covered.
 
 A run is marked partial when it leaves tests out: its own arguments (`--only`, `--exclude`, `--failed`, `--stale`, `--name-pattern`, `--max-failures`, or explicit test files or lines, `TuistEx.Analytics.Coverage.partial?/1`), or a test excluded because it shares a quarantined test's name. Tests the test helper's own configuration excludes (`ExUnit.start(exclude: ...)`) aren't part of the suite, as tests a test plan disables aren't for Xcode, so they don't make the run partial. It says what it left out the way the Xcode CLI does. A run its arguments limited to the tests they select (`--only`, `--failed`, `--stale`, `--name-pattern`, files or lines, `Coverage.narrowed?/1`) reports the tests it ran in `only_test_identifiers`, so its scheme is `caller_selected_tests` when every run of it was limited. Any other run reports the tests its own `--exclude` options left out, and those that share a quarantined test's name, in `skip_test_identifiers` (`Coverage.excluded_tags/1`, matched against ExUnit's exclusion reason). Their parts are percent-encoded, since describe names such as `create_order/2` hold a `/`. Mix records no per-test evidence, so nothing is carried: those tests are gaps (`collection_off`), unless another run at the commit executed them. A test that was never reported by any run isn't known to the server and is left out silently, as for Xcode. Tests quarantined as skipped are the exception: `mix tuist.test` excludes them, but they don't make the run partial and aren't reported, because a quarantined test is left out on purpose, as if it were removed. The lines only it covered count as uncovered. Tests skipped in code (`@tag :skip`) run as ExUnit skips, not exclusions, and don't make the run partial either, like Xcode's disabled tests.
+
+## Cargo
+
+`tuist cargo test` and `tuist cargo nextest run` measure coverage when the project's `tuist.toml` sets `upload = true` under `[test_insights.coverage]`. `TUIST_COVERAGE_UPLOAD` overrides it for one run (`1` or `0`). The client (`cli/Sources/TuistCargoCommand/CargoCoverage.swift`):
+
+- builds the tests with `-C instrument-coverage`;
+- starts every test process through a target runner that records the process's arguments and gives it a profile of its own;
+- reads the profiles with `llvm-profdata` and `llvm-cov`, from the toolchain's `llvm-tools` component;
+- sends the `coverage` block (`tool` `llvm-cov`, the target triple as `platform`) inline, or uploaded first above the server's threshold, together with `coverage_evidence`.
+
+A Cargo package is a target. Its integration tests, benchmarks and examples are test code: the files under `tests/`, `benches/` and `examples/`, and a target of one of those kinds. Each executable line belongs to the function that starts closest above it. A generic function's instantiations, and a function compiled into several test binaries, count once, under the function's demangled path without its generic arguments.
+
+| Scope | Source | Requirements |
+| --- | --- | --- |
+| `run` | `llvm-cov export` of the run's profiles over the test binaries it executed. | Coverage on, and `rustup component add llvm-tools`. |
+| `target` | A test binary's processes. The module is the one the run reports the binary's tests under: `<package>`, `<package>::<target>` or `<package>::bin/<target>`, nextest's binary IDs. | The recording runner. A Cargo configuration file that sets `target.<triple>.runner` replaces it, so such a project gets only the `run` scope. A runner set in the environment is chained. |
+| `test` | Nextest only: the process that ran the test alone (`<binary> --exact <name>`). A retried test gets the union of its attempts. | `cargo nextest run`. Plain `cargo test` runs a binary's tests in one process, so its tests are reported as overlapped (`overlapped_tests`) and get no evidence of their own. |
+| `suite` | Not collected. Libtest has no setup that runs around a suite's tests. | |
+
+Doctests aren't instrumented (rustdoc builds them without Cargo's flags), so they add nothing to any scope and are never reported as overlapped.
+
+**What makes a run partial.** Two things do:
+
+- **The caller's arguments select tests.** That includes test name filters, `--skip`, `--ignored`, packages (`-p`, `--exclude`), targets (`--lib`, `--bins`, `--test`, `--doc` and the like), nextest filtersets (`-E`), `--partition` and `--run-ignored only` (`CargoCoverage.narrowed/1`). Such a run reports the tests it ran in `only_test_identifiers`, as percent-encoded `Module/Suite/name`. A test without a suite reads `Module//name`. `--skip` narrows instead of filling `skip_test_identifiers` because Cargo doesn't name the tests a filter left out.
+- **A failure stopped the run**, under Cargo's and nextest's default fail-fast. `--no-fail-fast` and `--max-fail=all` keep the run whole.
+
+Tuist's own selections never make a run partial: a shard's share, and tests quarantined as skipped, are left unreported, as for Mix. Each shard is a full run, and together the shards measure what an unsharded run does. Only plain `cargo test` applies quarantine. A nextest shard extracts its archive into the session, so `llvm-cov` can still read the binaries after the run. The archive's coverage maps name the paths of the checkout that built it, so the client maps them to the worker's checkout through the archive's package list before resolving them. The archive's build (`tuist cargo test-build`) is instrumented when coverage is on, so turn coverage on for the build and for its shards.
+
+`tuist cargo coverage-complete [--commit <sha>]` signals that a commit's pipeline finished (step 4), as `tuist coverage complete` does. The command exists because the Linux CLI, where Rust's CI usually runs, has no `tuist coverage`. It reads the commit from the checkout, or from the CI provider on a pull request's merge checkout.
+
+Every Cargo test run reports `coverage_enabled`, which is `false` when coverage is off. A run with coverage on also publishes the commit's Git history and file listing (`GitHistoryService`, as `tuist test` does) and each file's Git blob.
+
+Cargo has no binary cache and no selective-testing hashes, so `uninstrumented_code` and hash-carried targets (`coverage_target_sources`) never apply. The compilation cache doesn't take instrumented compilations, so a coverage run compiles every crate locally. The unit cache keys coverage builds separately, by their flags. Limitations:
+
+- Target-specific `rustflags` in a Cargo configuration file replace the flag Tuist adds to `build.rustflags`. Such a project adds `-C instrument-coverage` to them itself. A run whose tests wrote no profiles says so.
+- Unit tests in a source file's `#[cfg(test)]` module are part of that file, so their lines count as the file's code, as `llvm-cov` and `cargo llvm-cov` count them.
+- Tests that start other processes, such as the tool binary through `CARGO_BIN_EXE_*`, count their children in the `run` scope only when the children are instrumented, and in no evidence scope.
