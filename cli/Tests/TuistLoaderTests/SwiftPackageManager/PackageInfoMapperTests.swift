@@ -9054,13 +9054,235 @@ struct PackageInfoMapperTests {
         #expect(sharedTarget.settings?.base["OTHER_LDFLAGS"] == nil)
     }
 
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroOnlyHelperTargetDependsOnPrebuiltProduct_usesPrebuiltSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MacroHelper"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [.target(name: "MacroHelper", condition: nil), swiftSyntaxProductDependency]
+                        ),
+                        .test(name: "MacroHelper", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies == [.target(name: "MacroHelper")])
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        let helperTarget = try #require(project?.targets.first(where: { $0.name == "MacroHelper" }))
+        #expect(helperTarget.dependencies.isEmpty)
+        #expect(helperTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        arguments: [
+            (hostOnlyProducts: Set<String>(), usesPrebuilt: false),
+            (hostOnlyProducts: Set(["MacrosSupport"]), usesPrebuilt: true),
+        ]
+    ) func map_whenMacroSupportLibraryProductDependsOnPrebuiltProduct_usesPrebuiltSettingsOnlyWhenHostOnly(
+        hostOnlyProducts: Set<String>,
+        usesPrebuilt: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MacrosSupport"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(
+                origin: .remote,
+                basePath: basePath,
+                hostOnlyProducts: hostOnlyProducts
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        .init(name: "MacrosSupport", type: .library(.automatic), targets: ["MacrosSupport"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [.target(name: "MacrosSupport", condition: nil), swiftSyntaxProductDependency]
+                        ),
+                        .test(name: "MacrosSupport", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let expectedLinkerFlags: ProjectDescription.SettingValue? = usesPrebuilt ? .array(["$(inherited)", "-lSwiftSyntax"]) : nil
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)) == !usesPrebuilt)
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == expectedLinkerFlags)
+        let supportTarget = try #require(project?.targets.first(where: { $0.name == "MacrosSupport" }))
+        #expect(supportTarget.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)) == !usesPrebuilt)
+        #expect(supportTarget.settings?.base["OTHER_LDFLAGS"] == expectedLinkerFlags)
+    }
+
+    @Test(.withMockedSwiftVersionProvider) func hostOnlyProducts_whenLibraryProductIsOnlyConsumedByMacros_returnsProduct() {
+        let got = PackageInfoMapper.hostOnlyProducts(packageInfos: [
+            "swift-case-paths": casePathsLikePackageInfo,
+            "swift-navigation": .test(
+                name: "swift-navigation",
+                products: [
+                    .init(name: "SwiftNavigation", type: .library(.automatic), targets: ["SwiftNavigation"]),
+                ],
+                targets: [
+                    .test(
+                        name: "SwiftNavigation",
+                        dependencies: [
+                            .target(name: "SwiftNavigationMacros", condition: nil),
+                            .product(name: "CasePaths", package: "swift-case-paths", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                    .test(
+                        name: "SwiftNavigationMacros",
+                        type: .macro,
+                        dependencies: [
+                            .product(
+                                name: "CasePathsMacrosSupport",
+                                package: "swift-case-paths",
+                                moduleAliases: nil,
+                                condition: nil
+                            ),
+                            swiftSyntaxProductDependency,
+                        ]
+                    ),
+                    .test(
+                        name: "SwiftNavigationMacrosTests",
+                        type: .test,
+                        dependencies: [
+                            .target(name: "SwiftNavigationMacros", condition: nil),
+                            .byName(name: "CasePathsMacrosSupport", condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios]
+            ),
+        ])
+
+        #expect(got == ["swift-case-paths": ["CasePathsMacrosSupport"]])
+    }
+
+    @Test(.withMockedSwiftVersionProvider) func hostOnlyProducts_whenLibraryProductIsAlsoConsumedByNonHostTarget_returnsNothing() {
+        let got = PackageInfoMapper.hostOnlyProducts(packageInfos: [
+            "swift-case-paths": casePathsLikePackageInfo,
+            "Consumer": .test(
+                name: "Consumer",
+                products: [
+                    .init(name: "Consumer", type: .library(.automatic), targets: ["Consumer"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Consumer",
+                        dependencies: [
+                            .target(name: "ConsumerMacros", condition: nil),
+                            .product(
+                                name: "CasePathsMacrosSupport",
+                                package: "swift-case-paths",
+                                moduleAliases: nil,
+                                condition: nil
+                            ),
+                        ]
+                    ),
+                    .test(
+                        name: "ConsumerMacros",
+                        type: .macro,
+                        dependencies: [
+                            .product(
+                                name: "CasePathsMacrosSupport",
+                                package: "swift-case-paths",
+                                moduleAliases: nil,
+                                condition: nil
+                            ),
+                        ]
+                    ),
+                ],
+                platforms: [.ios]
+            ),
+        ])
+
+        #expect(got.isEmpty)
+    }
+
+    @Test(.withMockedSwiftVersionProvider) func hostOnlyProducts_whenLibraryProductHasNoConsumersInPackageGraph_returnsNothing() {
+        let got = PackageInfoMapper.hostOnlyProducts(packageInfos: [
+            "swift-case-paths": casePathsLikePackageInfo,
+        ])
+
+        #expect(got.isEmpty)
+    }
+
+    private var casePathsLikePackageInfo: PackageInfo {
+        .test(
+            name: "swift-case-paths",
+            products: [
+                .init(name: "CasePaths", type: .library(.automatic), targets: ["CasePaths"]),
+                .init(name: "CasePathsMacrosSupport", type: .library(.automatic), targets: ["CasePathsMacrosSupport"]),
+            ],
+            targets: [
+                .test(
+                    name: "CasePaths",
+                    dependencies: [.target(name: "CasePathsMacros", condition: nil)]
+                ),
+                .test(name: "CasePathsMacrosSupport", dependencies: [swiftSyntaxProductDependency]),
+                .test(
+                    name: "CasePathsMacros",
+                    type: .macro,
+                    dependencies: [.target(name: "CasePathsMacrosSupport", condition: nil), swiftSyntaxProductDependency]
+                ),
+                .test(
+                    name: "CasePathsTests",
+                    type: .test,
+                    dependencies: [
+                        .target(name: "CasePaths", condition: nil),
+                        .target(name: "CasePathsMacrosSupport", condition: nil),
+                    ]
+                ),
+            ],
+            platforms: [.ios]
+        )
+    }
+
     private var swiftSyntaxProductDependency: PackageInfo.Target.Dependency {
         .product(name: "SwiftSyntax", package: "swift-syntax", moduleAliases: nil, condition: nil)
     }
 
     private func swiftSyntaxPrebuiltPackageType(
         origin: PackageType.ExternalOrigin,
-        basePath: AbsolutePath
+        basePath: AbsolutePath,
+        hostOnlyProducts: Set<String> = []
     ) -> PackageType {
         .external(
             origin: origin,
@@ -9078,7 +9300,8 @@ struct PackageInfoMapperTests {
                         cModules: ["_SwiftSyntaxCShims"]
                     ),
                 ],
-            ]
+            ],
+            hostOnlyProducts: hostOnlyProducts
         )
     }
 

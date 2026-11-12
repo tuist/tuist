@@ -95,6 +95,8 @@ public enum PackageType {
         origin: ExternalOrigin = .remote,
         artifactPaths: [String: AbsolutePath],
         packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] = [:],
+        // Products of this package that the resolved package graph only consumes from macro targets and their tests.
+        hostOnlyProducts: Set<String> = [],
         derivedXCFrameworksPath: AbsolutePath? = nil
     )
 
@@ -102,22 +104,34 @@ public enum PackageType {
         switch self {
         case .local:
             return true
-        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, hostOnlyProducts: _, derivedXCFrameworksPath: _):
             return includeLocalPackageTestTargets
-        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, hostOnlyProducts: _, derivedXCFrameworksPath: _):
             return false
         }
     }
 
     fileprivate var isLocalExternal: Bool {
-        if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
+        if case .external(
+            origin: .local,
+            artifactPaths: _,
+            packagePrebuilts: _,
+            hostOnlyProducts: _,
+            derivedXCFrameworksPath: _
+        ) = self {
             return true
         }
         return false
     }
 
     fileprivate var isRemoteExternal: Bool {
-        if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
+        if case .external(
+            origin: .remote,
+            artifactPaths: _,
+            packagePrebuilts: _,
+            hostOnlyProducts: _,
+            derivedXCFrameworksPath: _
+        ) = self {
             return true
         }
         return false
@@ -127,8 +141,29 @@ public enum PackageType {
         switch self {
         case .local:
             return [:]
-        case let .external(origin: _, artifactPaths: _, packagePrebuilts: packagePrebuilts, derivedXCFrameworksPath: _):
+        case let .external(
+            origin: _,
+            artifactPaths: _,
+            packagePrebuilts: packagePrebuilts,
+            hostOnlyProducts: _,
+            derivedXCFrameworksPath: _
+        ):
             return packagePrebuilts
+        }
+    }
+
+    fileprivate var hostOnlyProducts: Set<String> {
+        switch self {
+        case .local:
+            return []
+        case let .external(
+            origin: _,
+            artifactPaths: _,
+            packagePrebuilts: _,
+            hostOnlyProducts: hostOnlyProducts,
+            derivedXCFrameworksPath: _
+        ):
+            return hostOnlyProducts
         }
     }
 
@@ -698,7 +733,95 @@ public struct PackageInfoMapper: PackageInfoMapping {
             includeLocalPackageTestTargets: includeLocalPackageTestTargets
         )
         let mappedTargets = packageInfo.targets.filter { includesTestTargets || $0.type != .test }
+        let reachableTargets = Self.hostReachableTargets(
+            targets: mappedTargets,
+            products: packageInfo.products,
+            hostOnlyProducts: packageType.hostOnlyProducts
+        )
         let targetsByName = Dictionary(uniqueKeysWithValues: mappedTargets.map { ($0.name, $0) })
+
+        func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
+            targetsByName[targetName]?.dependencies.contains { dependency in
+                guard case let .product(name, package, _, _) = dependency else { return false }
+                return packageType.prebuilt(targetPackage: package, product: name) != nil
+            } ?? false
+        }
+
+        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
+        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
+        let sharedTargets = reachableTargets.host.intersection(reachableTargets.nonHost)
+        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
+            return []
+        }
+
+        return reachableTargets.host.subtracting(sharedTargets)
+    }
+
+    /// Returns the products of each package that the resolved package graph only consumes from host targets: macros, the
+    /// targets they depend on, and the tests that exercise them. Their targets can then link prebuilt macro libraries like
+    /// swift-syntax's `MacroSupport` instead of being built for every platform. A product nothing in the package graph
+    /// consumes isn't host-only, since a project target might depend on it.
+    static func hostOnlyProducts(packageInfos: [String: PackageInfo]) -> [String: Set<String>] {
+        let packageIdentitiesByLowercasedIdentity = Dictionary(
+            packageInfos.keys.map { ($0.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let packageIdentities = packageReferenceAliases(packageInfos: packageInfos.sorted(by: { $0.key < $1.key }))
+            .compactMapValues { packageIdentitiesByLowercasedIdentity[$0] }
+            .merging(packageIdentitiesByLowercasedIdentity, uniquingKeysWith: { _, identity in identity })
+        let packageIdentitiesByProduct = packageInfos.reduce(into: [String: [String]]()) { result, packageInfo in
+            for product in packageInfo.value.products {
+                result[product.name, default: []].append(packageInfo.key)
+            }
+        }
+
+        var hostOnlyProducts: [String: Set<String>] = [:]
+        while true {
+            var consumers: [String: [String: [Bool]]] = [:]
+            for (packageIdentity, packageInfo) in packageInfos {
+                let reachableTargets = hostReachableTargets(
+                    targets: packageInfo.targets,
+                    products: packageInfo.products,
+                    hostOnlyProducts: hostOnlyProducts[packageIdentity] ?? []
+                )
+                let localTargetNames = Set(packageInfo.targets.map(\.name))
+                for target in packageInfo.targets {
+                    let isNonHost = reachableTargets.nonHost.contains(target.name)
+                    guard isNonHost || reachableTargets.host.contains(target.name) else { continue }
+                    for dependency in target.dependencies {
+                        switch dependency {
+                        case let .product(name, package, _, _):
+                            guard let identity = packageIdentities[package.lowercased()] else { continue }
+                            consumers[identity, default: [:]][name, default: []].append(isNonHost)
+                        case let .byName(name, _) where !localTargetNames.contains(name):
+                            for identity in packageIdentitiesByProduct[name] ?? [] {
+                                consumers[identity, default: [:]][name, default: []].append(isNonHost)
+                            }
+                        case .target, .byName:
+                            continue
+                        }
+                    }
+                }
+            }
+
+            let updatedHostOnlyProducts = consumers.mapValues { productConsumers in
+                Set(productConsumers.filter { !$0.value.contains(true) }.keys)
+            }.filter { !$0.value.isEmpty }
+            guard updatedHostOnlyProducts != hostOnlyProducts else { return hostOnlyProducts }
+            hostOnlyProducts = updatedHostOnlyProducts
+        }
+    }
+
+    // Returns the targets of a package reached from host roots (macros, their tests, and the targets of host-only
+    // products) and from non-host roots (the targets of every other product and the remaining tests). Targets that no
+    // product exports and no test reaches are only built when a root reaches them.
+    // swiftlint:disable:next function_body_length
+    private static func hostReachableTargets(
+        targets: [PackageInfo.Target],
+        products: [PackageInfo.Product],
+        hostOnlyProducts: Set<String>
+    ) -> (host: Set<String>, nonHost: Set<String>) {
+        let targetsByName = Dictionary(targets.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         let allTargetNames = Set(targetsByName.keys)
 
         func isHostOnlyTarget(_ targetName: String) -> Bool {
@@ -748,14 +871,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return visited
         }
 
-        func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
-            targetsByName[targetName]?.dependencies.contains { dependency in
-                guard case let .product(name, package, _, _) = dependency else { return false }
-                return packageType.prebuilt(targetPackage: package, product: name) != nil
-            } ?? false
-        }
-
-        let macroTargets = Set(mappedTargets.compactMap { target in
+        let macroTargets = Set(targets.compactMap { target in
             switch target.type {
             case .macro:
                 target.name
@@ -765,27 +881,25 @@ public struct PackageInfoMapper: PackageInfoMapping {
         })
 
         let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
-        let macroTestTargets = Set<String>(mappedTargets.compactMap { target in
-            guard target.type == .test else { return nil }
-            return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
-                .isDisjoint(with: macroClosure) ? nil : target.name
-        })
-
-        let hostRoots = macroTargets.union(macroTestTargets)
-        let hostReachableTargets = dependencyClosure(from: hostRoots, includeHostOnlyTargets: true)
-        let nonHostReachableTargets = dependencyClosure(
-            from: allTargetNames.subtracting(hostRoots),
-            includeHostOnlyTargets: false
-        )
-
-        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
-        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
-        let sharedTargets = hostReachableTargets.intersection(nonHostReachableTargets)
-        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
-            return []
+        let testTargets = Set(targets.filter { $0.type == .test }.map(\.name))
+        let macroTestTargets = testTargets.filter { targetName in
+            !dependencyClosure(from: [targetName], includeHostOnlyTargets: true).isDisjoint(with: macroClosure)
         }
 
-        return hostReachableTargets.subtracting(sharedTargets)
+        let hostOnlyProductTargets = Set(
+            products.filter { hostOnlyProducts.contains($0.name) }.flatMap(\.targets)
+        ).intersection(allTargetNames)
+        let nonHostProductTargets = Set(
+            products.filter { !hostOnlyProducts.contains($0.name) }.flatMap(\.targets)
+        ).intersection(allTargetNames)
+
+        let hostRoots = macroTargets.union(macroTestTargets).union(hostOnlyProductTargets)
+        let nonHostRoots = nonHostProductTargets.union(testTargets.subtracting(macroTestTargets))
+            .subtracting(macroTargets)
+        return (
+            host: dependencyClosure(from: hostRoots, includeHostOnlyTargets: true),
+            nonHost: dependencyClosure(from: nonHostRoots, includeHostOnlyTargets: false)
+        )
     }
 
     // swiftlint:disable:next function_body_length
@@ -833,7 +947,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if target.type == .test,
-           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           case .external(
+               origin: .local,
+               artifactPaths: _,
+               packagePrebuilts: _,
+               hostOnlyProducts: _,
+               derivedXCFrameworksPath: _
+           ) = packageType,
            let executableName = target.dependencies.compactMap({ dependency -> String? in
                switch dependency {
                case let .target(name, _), let .byName(name, _):
@@ -1371,6 +1491,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                    origin: _,
                    artifactPaths: artifactPaths,
                    packagePrebuilts: _,
+                   hostOnlyProducts: _,
                    derivedXCFrameworksPath: derivedXCFrameworksPath
                ) = packageType,
                let artifactPath = artifactPaths[target.name]
