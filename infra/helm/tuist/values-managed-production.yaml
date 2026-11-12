@@ -1614,20 +1614,103 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "8"
-    # larch's ten M5 Pro minis (rack r1), five per chain: a01 to a05 on chain A
-    # (larch-tor-a and larch-pdu-a), b01 to b05 on chain B
-    # (larch-tor-b and larch-pdu-b). None is declared until their serials
-    # and MACs are read off the box labels. Each takes the larch block in
-    # `sites` below for its Node's fleet and SSH ingress. For example:
-    # - name: larch-runner-a01
-    #   site: larch
-    #   serial: <from the box label>
-    #   address: 10.20.0.101
-    #   rack: r1
-    #   shelf: <tray>
-    #   power:
-    #     pdu: larch-pdu-a
-    #     outlet: "1"
+    # larch's ten M5 Pro minis, five per chain: a01 to a05 on chain A
+    # (larch-tor-a ports 1-5, larch-pdu-a outlets 1-5), b01 to b05 on chain B
+    # (larch-tor-b and larch-pdu-b, the same ports and outlets). Serials are
+    # from the box labels (10 Nov); shelves are the mini mounts #7 to #10 at
+    # U37 to U33. Chain A takes 10.20.0.101 up and chain B 10.20.0.151 up, so
+    # each chain grows without renumbering the other. Each takes the larch
+    # block in `sites` below for its Node's fleet and SSH ingress.
+    - name: larch-runner-a01
+      site: larch
+      serial: CD6J4F6VRQ
+      address: 10.20.0.101
+      rack: r1
+      shelf: mount-7
+      power:
+        pdu: larch-pdu-a
+        outlet: "1"
+    - name: larch-runner-a02
+      site: larch
+      serial: MVCW52GV36
+      address: 10.20.0.102
+      rack: r1
+      shelf: mount-7
+      power:
+        pdu: larch-pdu-a
+        outlet: "2"
+    - name: larch-runner-a03
+      site: larch
+      serial: JR2P9JYWT3
+      address: 10.20.0.103
+      rack: r1
+      shelf: mount-7
+      power:
+        pdu: larch-pdu-a
+        outlet: "3"
+    - name: larch-runner-a04
+      site: larch
+      serial: HXFJV9V9XF
+      address: 10.20.0.104
+      rack: r1
+      shelf: mount-8
+      power:
+        pdu: larch-pdu-a
+        outlet: "4"
+    - name: larch-runner-a05
+      site: larch
+      serial: FCX246XV09
+      address: 10.20.0.105
+      rack: r1
+      shelf: mount-8
+      power:
+        pdu: larch-pdu-a
+        outlet: "5"
+    - name: larch-runner-b01
+      site: larch
+      serial: C6CVQ4FNJ3
+      address: 10.20.0.151
+      rack: r1
+      shelf: mount-9
+      power:
+        pdu: larch-pdu-b
+        outlet: "1"
+    - name: larch-runner-b02
+      site: larch
+      serial: HV6M92P673
+      address: 10.20.0.152
+      rack: r1
+      shelf: mount-9
+      power:
+        pdu: larch-pdu-b
+        outlet: "2"
+    - name: larch-runner-b03
+      site: larch
+      serial: GF2VY6YT0D
+      address: 10.20.0.153
+      rack: r1
+      shelf: mount-9
+      power:
+        pdu: larch-pdu-b
+        outlet: "3"
+    - name: larch-runner-b04
+      site: larch
+      serial: JKC2K0XY6Q
+      address: 10.20.0.154
+      rack: r1
+      shelf: mount-10
+      power:
+        pdu: larch-pdu-b
+        outlet: "4"
+    - name: larch-runner-b05
+      site: larch
+      serial: FN0H36WT1H
+      address: 10.20.0.155
+      rack: r1
+      shelf: mount-10
+      power:
+        pdu: larch-pdu-b
+        outlet: "5"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
