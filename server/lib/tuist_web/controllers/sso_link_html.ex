@@ -56,10 +56,12 @@ defmodule TuistWeb.SSOLinkHTML do
   end
 
   attr :return_to, :string, required: true
+  attr :show_explanation, :boolean, default: true
+  attr :label, :string, default: nil
 
   def reauthentication_notice(assigns) do
     ~H"""
-    <p data-part="reauthentication-explanation">
+    <p :if={@show_explanation} data-part="reauthentication-explanation">
       {dgettext(
         "dashboard_auth",
         "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
@@ -75,7 +77,7 @@ defmodule TuistWeb.SSOLinkHTML do
         type="submit"
         variant="primary"
         size="large"
-        label={dgettext("dashboard_auth", "Sign in again")}
+        label={@label || dgettext("dashboard_auth", "Sign in again")}
       />
     </.form>
     """

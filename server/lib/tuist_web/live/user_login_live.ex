@@ -56,7 +56,7 @@ defmodule TuistWeb.UserLoginLive do
               {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
             </span>
           </div>
-          <div :if={oauth_configured?(assigns)} data-part="oauth-providers">
+          <div :if={oauth_configured?(assigns) or @email_auth_enabled?} data-part="oauth-providers">
             <div
               :if={social_oauth_configured?(assigns)}
               data-part="oauth"
@@ -102,45 +102,49 @@ defmodule TuistWeb.UserLoginLive do
                 </:icon_left>
               </.button>
             </div>
-            <div :if={sso_login_available?(assigns)} data-part="sso">
-              <.button
-                href={Authentication.login_path(~p"/users/log_in/sso", @return_to)}
-                variant="secondary"
-                size="medium"
-                label={dgettext("dashboard_auth", "Log in with SSO")}
+            <div data-part="authentication-methods">
+              <div :if={sso_login_available?(assigns)} data-part="sso">
+                <.button
+                  href={Authentication.login_path(~p"/users/log_in/sso", @return_to)}
+                  variant="secondary"
+                  size="medium"
+                  label={dgettext("dashboard_auth", "Log in with SSO")}
+                >
+                  <:icon_left>
+                    <.lock />
+                  </:icon_left>
+                </.button>
+              </div>
+              <div
+                :if={@email_auth_enabled?}
+                id="passkey-login"
+                data-part="passkey"
+                phx-hook="PasskeyLogin"
+                phx-update="ignore"
+                hidden
+                data-options-url={~p"/users/log_in/passkey/options"}
+                data-action-url={Authentication.login_path(~p"/users/log_in/passkey", @return_to)}
               >
-                <:icon_left>
-                  <.lock />
-                </:icon_left>
-              </.button>
+                <.button
+                  type="button"
+                  variant="secondary"
+                  size="medium"
+                  label={dgettext("dashboard_auth", "Log in with a passkey")}
+                >
+                  <:icon_left>
+                    <.lock_password />
+                  </:icon_left>
+                </.button>
+                <span
+                  data-part="passkey-status"
+                  role="status"
+                  data-cancelled={dgettext("dashboard_auth", "Passkey sign-in was cancelled.")}
+                  data-failed={
+                    dgettext("dashboard_auth", "The passkey could not be used. Try again.")
+                  }
+                ></span>
+              </div>
             </div>
-          </div>
-          <div
-            :if={@email_auth_enabled?}
-            id="passkey-login"
-            data-part="passkey"
-            phx-hook="PasskeyLogin"
-            phx-update="ignore"
-            hidden
-            data-options-url={~p"/users/log_in/passkey/options"}
-            data-action-url={Authentication.login_path(~p"/users/log_in/passkey", @return_to)}
-          >
-            <.button
-              type="button"
-              variant="secondary"
-              size="large"
-              label={dgettext("dashboard_auth", "Log in with a passkey")}
-            >
-              <:icon_left>
-                <.lock_password />
-              </:icon_left>
-            </.button>
-            <span
-              data-part="passkey-status"
-              role="status"
-              data-cancelled={dgettext("dashboard_auth", "Passkey sign-in was cancelled.")}
-              data-failed={dgettext("dashboard_auth", "The passkey could not be used. Try again.")}
-            ></span>
           </div>
           <.line_divider :if={@email_auth_enabled?} text="OR" />
           <.alert

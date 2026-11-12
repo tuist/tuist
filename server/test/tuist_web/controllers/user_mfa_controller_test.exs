@@ -84,7 +84,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert UserMFA.enabled?(user)
     settings = confirmed |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
     document = Floki.parse_document!(settings)
-    assert Floki.text(Floki.find(document, "#mfa-recovery-count")) =~ "10 recovery codes remaining."
+    assert Floki.find(document, "#mfa-recovery-count") == []
     assert Floki.find(document, "#regenerate-recovery-modal button") != []
     assert Floki.find(document, "#disable-mfa-modal button") != []
     assert Floki.attribute(document, "#mfa-regenerate", "data-recovery-modal") == ["mfa-recovery-modal"]

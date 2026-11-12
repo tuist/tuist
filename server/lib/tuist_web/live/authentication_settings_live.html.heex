@@ -39,17 +39,13 @@
         "dashboard_account",
         "Sign in without a password using a passkey saved in your password manager or on a security key."
       )}</span>
-      <span data-part="status">{dngettext(
-        "dashboard_account",
-        "%{count} passkey added",
-        "%{count} passkeys added",
-        length(@passkeys)
-      )}</span>
     </div>
     <div data-part="content">
       <TuistWeb.SSOLinkHTML.reauthentication_notice
         :if={!@fresh_session?}
         return_to={~p"/#{@selected_account.name}/settings/authentication"}
+        show_explanation={false}
+        label={dgettext("dashboard_auth", "Add passkey")}
       />
       <.button
         :if={@fresh_session?}
@@ -57,7 +53,7 @@
         type="button"
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_auth", "Create a passkey")}
+        label={dgettext("dashboard_auth", "Add passkey")}
         data-passkey-ceremony="register"
         data-options-url={~p"/users/settings/passkeys/options"}
         data-action-url={~p"/users/settings/passkeys"}
@@ -91,26 +87,24 @@
         "dashboard_account",
         "Add an authenticator code to your password or SSO sign-in. Keep recovery codes as a backup."
       )}</span>
-      <span data-part="status">{if @mfa_enabled?,
-        do: dgettext("dashboard_account", "Enabled"),
-        else: dgettext("dashboard_account", "Not enabled")}</span>
     </div>
     <div data-part="content">
       <TuistWeb.Components.UserSecurity.mfa_controls
         :if={@mfa_enabled? and @fresh_session?}
-        recovery_code_count={@recovery_code_count}
         recovery_modal="mfa-recovery-modal"
       />
       <TuistWeb.SSOLinkHTML.reauthentication_notice
-        :if={@mfa_enabled? and !@fresh_session?}
+        :if={!@fresh_session?}
         return_to={~p"/#{@selected_account.name}/settings/authentication"}
+        show_explanation={false}
+        label={if !@mfa_enabled?, do: dgettext("dashboard_auth", "Enable 2FA")}
       />
       <.modal
-        :if={!@mfa_enabled?}
+        :if={!@mfa_enabled? and @fresh_session?}
         id="setup-authenticator-modal"
         on_dismiss="close_authenticator_modal"
         on_open_change="authenticator_modal_change"
-        title={dgettext("dashboard_auth", "Set up authenticator app")}
+        title={dgettext("dashboard_auth", "Enable 2FA")}
         description={
           dgettext("dashboard_auth", "Scan the QR code, then enter the six-digit code.")
         }
@@ -119,17 +113,13 @@
           <.button
             variant="secondary"
             size="medium"
-            label={dgettext("dashboard_auth", "Set up authenticator app")}
+            label={dgettext("dashboard_auth", "Enable 2FA")}
             phx-click="setup_authenticator"
             {attrs}
           />
         </:trigger>
         <div data-part="security-modal-body">
-          <TuistWeb.SSOLinkHTML.reauthentication_notice
-            :if={!@fresh_session?}
-            return_to={~p"/#{@selected_account.name}/settings/authentication"}
-          />
-          <div :if={@fresh_session? and @mfa_secret} data-part="authenticator-setup">
+          <div :if={@mfa_secret} data-part="authenticator-setup">
             <img
               id="mfa-setup-qr"
               src={TuistWeb.UserMFAHTML.enrollment_qr(@mfa_secret, @current_user.email)}
@@ -168,6 +158,7 @@
                 show_prefix={false}
                 autocomplete="one-time-code"
                 inputmode="numeric"
+                placeholder={dgettext("dashboard_auth", "XXXXXX")}
                 required
               />
               <span data-enrollment-status role="alert"></span>
@@ -187,7 +178,7 @@
                 type="submit"
                 form="mfa-enrollment"
                 variant="primary"
-                label={dgettext("dashboard_auth", "Enable two-factor authentication")}
+                label={dgettext("dashboard_auth", "Enable")}
               />
             </:action>
           </.modal_footer>
