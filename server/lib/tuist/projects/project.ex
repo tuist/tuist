@@ -9,6 +9,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Environment
   alias Tuist.Projects.VCSConnection
   alias Tuist.Vault.Binary
 
@@ -188,7 +189,7 @@ defmodule Tuist.Projects.Project do
       end
     end)
     |> update_change(:name, &String.downcase/1)
-    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    |> validate_exclusion(:name, Environment.blocked_project_handles())
     |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
   end
 end

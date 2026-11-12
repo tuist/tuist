@@ -1,6 +1,7 @@
 defmodule Tuist.ProjectTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  alias Tuist.Environment
   alias Tuist.Projects.Project
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -71,16 +72,22 @@ defmodule Tuist.ProjectTest do
   end
 
   describe "validation of handle validity" do
-    test "it fails when the handle is included in the block list" do
-      # Given/When
-      changeset =
-        Project.create_changeset(%Project{}, %{
-          name: Enum.random(Application.get_env(:tuist, :blocked_handles))
-        })
+    test "app is allowed as a project handle" do
+      for name <- ["app", "APP", "App"] do
+        changeset = Project.create_changeset(%Project{}, %{token: "token", name: name, account_id: 0})
 
-      # Then
-      assert changeset.valid? == false
-      assert "is reserved" in errors_on(changeset).name
+        assert changeset.valid?
+        assert changeset.changes.name == "app"
+      end
+    end
+
+    test "other blocked handles remain reserved" do
+      for name <- Environment.blocked_project_handles() do
+        changeset = Project.create_changeset(%Project{}, %{token: "token", name: name, account_id: 0})
+
+        refute changeset.valid?
+        assert "is reserved" in errors_on(changeset).name
+      end
     end
   end
 
@@ -270,14 +277,22 @@ defmodule Tuist.ProjectTest do
       assert changeset.valid? == true
     end
 
-    test "blocked handles are not allowed on update" do
-      changeset =
-        Project.update_changeset(%Project{}, %{
-          name: Enum.random(Application.get_env(:tuist, :blocked_handles))
-        })
+    test "app is allowed as a project handle on update" do
+      for name <- ["app", "APP", "App"] do
+        changeset = Project.update_changeset(%Project{name: "existing"}, %{name: name})
 
-      assert changeset.valid? == false
-      assert "is reserved" in errors_on(changeset).name
+        assert changeset.valid?
+        assert changeset.changes.name == "app"
+      end
+    end
+
+    test "other blocked handles are not allowed on update" do
+      for name <- Environment.blocked_project_handles() do
+        changeset = Project.update_changeset(%Project{}, %{name: name})
+
+        refute changeset.valid?
+        assert "is reserved" in errors_on(changeset).name
+      end
     end
 
     test "name is downcased on update" do

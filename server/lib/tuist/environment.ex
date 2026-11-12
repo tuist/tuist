@@ -86,6 +86,10 @@ defmodule Tuist.Environment do
   """
   def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
+  def blocked_account_handles, do: Application.fetch_env!(:tuist, :blocked_account_handles)
+
+  def blocked_project_handles, do: Application.fetch_env!(:tuist, :blocked_project_handles)
+
   def test? do
     @compile_env == :test
   end
