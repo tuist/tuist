@@ -208,7 +208,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       .edge-graph-lab__edge-toggle {
         display: inline-flex;
         align-items: center;
-        gap: var(--noora-spacing-3);
+        gap: var(--noora-spacing-4);
         padding: 0;
         border: 0;
         background: none;
