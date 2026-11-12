@@ -1,49 +1,50 @@
+/* A 20px box, the line height of medium body text, with the 16px checkbox
+   centered inside. States are set on the control; the box draws them. */
 .noora-checkbox-control {
   display: flex;
+  flex: none;
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  box-sizing: border-box;
-  border-radius: var(--noora-radius-2);
-  width: 16px;
-  height: 16px;
-  color: var(--noora-choice-selector-label);
+  width: 20px;
+  height: 20px;
+  color: var(--noora-button-primary-label);
 
-  & svg {
-    width: 12px;
-    height: 12px;
+  & > [data-part="box"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+    border-radius: var(--noora-radius-2);
+    width: 16px;
+    height: 16px;
   }
 
+  /* The marks fill the box; their paths are centered on its grid. */
   & [data-part="check"],
   & [data-part="minus"] {
     display: none;
-    width: 12px;
-    height: 12px;
-    color: var(--noora-choice-selector-label);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
+    flex: none;
+    width: 100%;
+    height: 100%;
+    color: var(--noora-button-primary-label);
   }
 
-  &[data-state="unchecked"] {
-    box-shadow: var(--noora-border-small-default);
-    background: var(--noora-choice-selector-uncheck-background);
+  /* Unchecked, the box is drawn like an outline ghost button; checked, like
+     a primary button. */
+  &[data-state="unchecked"] > [data-part="box"] {
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    background: var(--noora-surface-background-primary);
   }
 
-  &[data-state="checked"],
-  &[data-state="indeterminate"] {
-    box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
-    border: 1px solid var(--noora-purple-500);
-    background: var(--noora-choice-selector-check-background);
+  &[data-state="checked"] > [data-part="box"],
+  &[data-state="indeterminate"] > [data-part="box"] {
+    box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
   }
 
-  &[data-state="checked"] [data-part="check"] {
-    display: flex;
-  }
-
+  &[data-state="checked"] [data-part="check"],
   &[data-state="indeterminate"] [data-part="minus"] {
-    display: flex;
+    display: block;
   }
 }

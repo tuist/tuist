@@ -55,6 +55,7 @@ defmodule Noora.Checkbox do
       name={@name}
       class="noora-checkbox"
       phx-hook="NooraCheckbox"
+      data-default-checked={@checked}
       data-indeterminate={@indeterminate}
       data-disabled={@disabled}
       {@rest}

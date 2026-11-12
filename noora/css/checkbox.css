@@ -17,31 +17,45 @@
 
   & [data-part="control"] {
     grid-area: control;
-    margin-top: 2px;
 
+    &:not([data-disabled])[data-state="unchecked"][data-hover]
+      > [data-part="box"] {
+      background: var(--noora-surface-background-tertiary);
+    }
+
+    &:not([data-disabled]):is(
+        [data-state="checked"],
+        [data-state="indeterminate"]
+      )[data-hover]
+      > [data-part="box"] {
+      box-shadow: var(--noora-button-border-primary-hover);
+      background: var(--noora-button-background-primary-hover);
+    }
+
+    /* Keyboard focus draws the button focus ring, over hover. */
+    &[data-focus-visible] > [data-part="box"] {
+      box-shadow: var(--noora-button-border-focus) !important;
+    }
+
+    /* Disabled, checked or not, the box keeps the outline and the mark
+       takes the disabled button label. */
     &[data-disabled] {
-      box-shadow: var(--noora-border-small-default);
-      background: var(--noora-choice-selector-disabled-background);
-    }
+      & > [data-part="box"] {
+        box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+        background: var(--noora-surface-background-secondary);
+      }
 
-    &[data-focus] {
-      box-shadow: var(--noora-border-small-focus) !important;
-    }
-
-    &:not([data-disabled])[data-state="unchecked"][data-hover] {
-      background: var(--noora-choice-selector-uncheck-background-hover);
-    }
-
-    &[data-state="checked"][data-hover],
-    &[data-state="indeterminate"][data-hover] {
-      background: var(--noora-choice-selector-check-background-hover);
+      & [data-part="check"],
+      & [data-part="minus"] {
+        color: var(--noora-button-disabled-label);
+      }
     }
   }
 
   & [data-part="label"] {
     display: flex;
     grid-area: label;
-    margin-inline-start: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
 
@@ -54,7 +68,7 @@
     display: flex;
     grid-area: description;
     margin-top: var(--noora-spacing-2);
-    margin-inline-start: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }
