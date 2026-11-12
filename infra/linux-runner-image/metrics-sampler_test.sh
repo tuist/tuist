@@ -186,7 +186,11 @@ fi
 # reach the JSON.
 printf 'oom.victim=a"b\\c oom.victim.anon.kb=1e9x oom.victim.container=c"},{"x":1\n' >"${DIND_MEMORY_PATH}"
 payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 1)"
-if printf '%s' "${payload}" | python3 -c 'import json, sys; s = json.load(sys.stdin)["samples"]; assert len(s) == 1 and s[0]["oom_victim_process"] == "abc" and s[0]["oom_victim_container"] == "cx:1" and s[0]["oom_victim_memory_bytes"] == 19 * 1024, s'; then
+# The test runs in bare Ubuntu images, which have no JSON parser: one sample
+# ending in exactly the sanitized fields, and no stray quote or backslash.
+if [[ "${payload}" == *'"oom_victim_process":"abc","oom_victim_memory_bytes":19456,"oom_victim_container":"cx:1"}]}' ]] &&
+  [[ "$(grep -o '"timestamp"' <<<"${payload}" | wc -l)" -eq 1 ]] &&
+  [[ "${payload}" != *'\'* && "${payload}" != *'"x"'* ]]; then
   echo "  ok   a hostile file stays one valid sample"
 else
   echo "  FAIL hostile payload: ${payload}"
