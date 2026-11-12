@@ -86,6 +86,17 @@ for path in ["app/Sources/TuistApp/App.swift", "app/Resources/TuistApp/icon.png"
 PY
 ok 'parallel clients cannot trigger or influence shipping release detection'
 
+# shellcheck disable=SC2016 # Keep the runner workspace expression literal.
+test "$(yq -r '.env.MISE_CEILING_PATHS' "$root/.github/workflows/app-next.yml")" = '${{ github.workspace }}' ||
+  fail 'Parallel CI must stop mise before the parent toolchain on every platform'
+physical_root=$(cd "$root" && pwd -P)
+MISE_IGNORED_CONFIG_PATHS='' MISE_CEILING_PATHS="$physical_root" \
+  mise -C "$root/app" config ls --json > "$scratch/app-configs.json"
+jq -e --arg app "$physical_root/app/mise.toml" --arg parent "$physical_root/mise.toml" \
+  'any(.[]; .path == $app) and all(.[]; .path != $parent)' "$scratch/app-configs.json" >/dev/null ||
+  fail 'Parallel CI loaded the parent toolchain or lost the app toolchain'
+ok 'parallel CI retains the app toolchain without loading the parent configuration'
+
 # shellcheck disable=SC2016 # Assert literal GitHub expressions, never interpolate them.
 jq -e '
   . as $root |

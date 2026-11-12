@@ -15,6 +15,7 @@ permissions:
   contents: read
   id-token: write
 env:
+  MISE_CEILING_PATHS: ${{ github.workspace }}
   MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
   ONCE_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
 concurrency:
