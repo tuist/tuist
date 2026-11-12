@@ -50,7 +50,7 @@ While this reduces conflicts by distributing the dependency graph, it may slight
 
 Tools like [Tuist](https://tuist.dev/en/docs) and [XcodeGen](https://github.com/yonaskolb/XcodeGen) ([How DoorDash uses XcodeGen to eliminate project merge conflicts](https://careersatdoordash.com/blog/how-doordash-uses-xcodegen-to-eliminate-project-merge-conflicts/)) offer an alternative by introducing domain-specific languages (DSLs) in Swift or YAML to define projects. Instead of listing every file (e.g., one per line), they use wildcard patterns like `/Sources/**/*.swift`, reducing the file’s churn and thus the likelihood of conflicts.
 
-The popularity of project generation stems from this pain point. Tuist, for example, not only minimizes conflicts but also simplifies modularization and optimizes workflows. If conflicts are your only gripe, project generation might be overkill. But if modularization complexity or slow workflows also frustrate you, tools like Tuist are worth exploring. If you already use XcodeGen, our [XcodeGen vs Tuist comparison](/compare/xcodegen) shows how to add Tuist's build infrastructure without leaving XcodeGen, and when migrating is worth it.
+The popularity of project generation stems from this pain point. Tuist, for example, not only minimizes conflicts but also simplifies modularization and optimizes workflows. If conflicts are your only gripe, project generation might be overkill. But if modularization complexity or slow workflows also frustrate you, tools like Tuist are worth exploring.
 
 ## Using SwiftPM as a project manager
 

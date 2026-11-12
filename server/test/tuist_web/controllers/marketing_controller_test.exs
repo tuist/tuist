@@ -357,60 +357,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
-    test "publish FAQPage structured data that matches the visible FAQ", %{conn: conn} do
-      normalize = fn text -> text |> String.split() |> Enum.join(" ") end
-
-      pages_with_faqs =
-        for page <- MarketingMarkdown.decision_guides(), reduce: [] do
-          acc ->
-            document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
-
-            visible =
-              document
-              |> Floki.find("[data-part=content]")
-              |> Enum.flat_map(&Floki.children/1)
-              |> Enum.filter(&is_tuple/1)
-              |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
-              |> Enum.drop(1)
-              |> Enum.take_while(&(elem(&1, 0) != "h2"))
-              |> Enum.drop_while(&(elem(&1, 0) != "h3"))
-              |> Enum.reduce([], fn
-                {"h3", _, _} = question, faqs -> [{Floki.text(question), []} | faqs]
-                block, [{question, answer} | faqs] -> [{question, [Floki.text(block) | answer]} | faqs]
-              end)
-              |> Enum.reverse()
-              |> Enum.map(fn {question, answer} ->
-                {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
-              end)
-
-            faq_page =
-              document
-              |> Floki.find("script[type='application/ld+json']")
-              |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
-              |> Enum.find(&(&1["@type"] == "FAQPage"))
-
-            if visible == [] do
-              assert is_nil(faq_page), page.path
-              acc
-            else
-              structured =
-                Enum.map(faq_page["mainEntity"], fn question ->
-                  assert question["@type"] == "Question"
-                  assert question["acceptedAnswer"]["@type"] == "Answer"
-                  {question["name"], normalize.(question["acceptedAnswer"]["text"])}
-                end)
-
-              assert structured == visible, page.path
-              assert Enum.all?(structured, fn {name, text} -> name != "" and text != "" end), page.path
-              [page.path | acc]
-            end
-        end
-
-      for path <- ["/compare/xcodegen"] do
-        assert path in pages_with_faqs
-      end
-    end
-
     test "point guide links at browser pages and show the review date", %{conn: conn} do
       document = conn |> get("/compare/develocity") |> html_response(200) |> Floki.parse_document!()
       links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")

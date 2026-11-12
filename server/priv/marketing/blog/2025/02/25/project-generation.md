@@ -24,7 +24,7 @@ Companies like [Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239
 
 ## Project generation: Enhancing accessibility and performance
 
-Since 2017, we've been working to address these challenges, first by creating [XcodeProj](https://github.com/tuist/XcodeProj) for working with `.pbxproj` files, then developing Tuist as a project generator. Other tools like [XcodeGen](https://github.com/yonaskolb/XcodeGen) emerged with different approaches, giving developers options based on their specific needs. Our [XcodeGen vs Tuist comparison](/compare/xcodegen) explains how teams that keep XcodeGen can still use Tuist's build infrastructure, and when migrating makes sense.
+Since 2017, we've been working to address these challenges, first by creating [XcodeProj](https://github.com/tuist/XcodeProj) for working with `.pbxproj` files, then developing Tuist as a project generator. Other tools like [XcodeGen](https://github.com/yonaskolb/XcodeGen) emerged with different approaches, giving developers options based on their specific needs.
 
 In 2025, project generation continues to play a vital role by:
 

@@ -68,29 +68,6 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
     end
   end
 
-  test "tool comparisons are discoverable, indexable, and link their migration guides", %{conn: conn} do
-    hub_links = conn |> get("/compare") |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a", "href")
-    xml = conn |> get("/sitemap.xml") |> response(200)
-
-    for {slug, title, migration_link} <- [
-          {"xcodegen", "XcodeGen vs Tuist: keep XcodeGen, add build infrastructure",
-           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project"}
-        ] do
-      path = "/compare/" <> slug
-      document = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
-      content = Floki.find(document, "#marketing-comparison [data-part=content]")
-
-      assert path in hub_links
-      assert xml =~ ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: path))}</loc>\s*<lastmod>2026-11-12</lastmod>|
-      assert document |> Floki.find("h1") |> Floki.text() == title
-      assert Floki.text(content) =~ String.trim_trailing(@definition, ".")
-      assert migration_link in Floki.attribute(content, "a", "href")
-      assert Floki.attribute(document, "link[rel=canonical]", "href") == [Tuist.Environment.app_url(path: path)]
-      assert Floki.find(document, "link[hreflang]") == []
-      assert Floki.attribute(document, "nav[aria-label=Breadcrumbs] a", "href") == ["/", "/compare"]
-    end
-  end
-
   test "sitemap derives the featured English comparison review dates", %{conn: conn} do
     xml = conn |> get("/sitemap.xml") |> response(200)
     refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/compare/amp")}</loc>"

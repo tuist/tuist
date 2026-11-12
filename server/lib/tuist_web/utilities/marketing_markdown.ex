@@ -96,41 +96,12 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
                    |> Regex.replace(guide.description, "\\1")
                    |> String.replace(["**", "`"], "")
 
-                 # FAQPage structured data comes from the rendered FAQ section,
-                 # so it always matches what readers see: each `###` question
-                 # under `## Frequently asked questions` and the blocks up to
-                 # the next question.
-                 faqs =
-                   html
-                   |> Floki.parse_fragment!()
-                   |> Enum.filter(&is_tuple/1)
-                   |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
-                   |> Enum.drop(1)
-                   |> Enum.take_while(&(elem(&1, 0) != "h2"))
-                   |> Enum.drop_while(&(elem(&1, 0) != "h3"))
-                   |> Enum.chunk_while(
-                     [],
-                     fn
-                       {"h3", _, _} = question, [] -> {:cont, [question]}
-                       {"h3", _, _} = question, chunk -> {:cont, Enum.reverse(chunk), [question]}
-                       node, chunk -> {:cont, [node | chunk]}
-                     end,
-                     fn
-                       [] -> {:cont, []}
-                       chunk -> {:cont, Enum.reverse(chunk), []}
-                     end
-                   )
-                   |> Enum.map(fn [question | answer] ->
-                     {Floki.text(question), Enum.map_join(answer, " ", &Floki.raw_html/1)}
-                   end)
-
                  {path,
                   Map.merge(guide, %{
                     slug: path,
                     body: html,
                     head_description: head_description,
                     last_updated: last_updated,
-                    faqs: faqs,
                     logo: nil
                   })}
                end)

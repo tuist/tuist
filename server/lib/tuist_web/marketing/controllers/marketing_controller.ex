@@ -1144,15 +1144,9 @@ defmodule TuistWeb.Marketing.MarketingController do
         if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
 
     template =
-      if guide.path in [
-           "/compare",
-           "/compare/develocity",
-           "/compare/namespace",
-           "/compare/buildkite",
-           "/compare/xcodegen"
-         ],
-         do: :comparison,
-         else: :page
+      if guide.path in ["/compare", "/compare/develocity", "/compare/namespace", "/compare/buildkite"],
+        do: :comparison,
+        else: :page
 
     conn
     |> assign(:head_title, guide.title)
@@ -1165,7 +1159,6 @@ defmodule TuistWeb.Marketing.MarketingController do
         Enum.map(breadcrumbs, fn {name, path} -> {name, Tuist.Environment.app_url(path: path)} end)
       )
     )
-    |> then(&if(guide.faqs == [], do: &1, else: assign_structured_data(&1, get_faq_structured_data(guide.faqs))))
     |> assign(:page, guide)
     |> assign(:breadcrumbs, breadcrumbs)
     |> render(template, layout: false)

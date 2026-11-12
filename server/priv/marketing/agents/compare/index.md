@@ -26,10 +26,6 @@ Include service charges, execution usage, and the team's operational work. Separ
 
 Follow the [documentation](/en/docs-markdown/guides/get-started), choose one supported capability, and consult [pricing](/marketing-markdown/pricing) for current terms. Adoption does not have to begin with moving CI or changing agents.
 
-## Compare project and build tools
-
-Some evaluations start from a developer tool rather than an infrastructure provider. [XcodeGen vs Tuist](/marketing-markdown/compare/xcodegen) shows how a team that keeps XcodeGen adds Tuist's build infrastructure, such as the Xcode cache, build and test insights, and previews, and when migrating to Tuist generated projects is worth it.
-
 ## More existing comparison guides
 
 For a different evaluation, the existing guides remain available: [Appcircle](/marketing-markdown/compare/appcircle), [Bitrise](/marketing-markdown/compare/bitrise), [Blacksmith](/marketing-markdown/compare/blacksmith), [BuildBuddy](/marketing-markdown/compare/buildbuddy), [BuildJet](/marketing-markdown/compare/buildjet), [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), [Codemagic](/marketing-markdown/compare/codemagic), [Depot](/marketing-markdown/compare/depot), [RunsOn](/marketing-markdown/compare/runs-on), [Ubicloud](/marketing-markdown/compare/ubicloud), and [WarpBuild](/marketing-markdown/compare/warpbuild). Each retains its own scope and source-review date.
