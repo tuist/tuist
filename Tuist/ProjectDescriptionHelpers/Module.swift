@@ -1315,6 +1315,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.ci.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),

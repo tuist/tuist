@@ -4,9 +4,8 @@ import Path
 import Testing
 import TuistEnvironment
 import TuistGit
-import TuistServer
 import TuistTesting
-@testable import TuistKit
+@testable import TuistServer
 
 struct GitHistoryServiceTests {
     private let gitController = MockGitControlling()
