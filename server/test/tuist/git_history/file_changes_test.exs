@@ -3,10 +3,14 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.Commit
+  alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.FileChange
   alias Tuist.GitHistory.FileChanges
+  alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Workers.FileChangesWorker
+  alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -67,7 +71,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     rows = rows(repository)
 
     repository
-    |> GitHistory.position(sha)
+    |> place(sha)
     |> GitHistory.chain(:at)
     |> Enum.reverse()
     |> Enum.flat_map(fn %{ref_id: ref_id, hi: hi} ->
@@ -78,6 +82,14 @@ defmodule Tuist.GitHistory.FileChangesTest do
       row, files -> Map.put(files, row.path, {row.git_blob_id, row.mode})
     end)
   end
+
+  # Where the commit sits, on a detached ref too.
+  defp place(repository, sha) do
+    Repo.one(from(c in Commit, where: c.repository_id == ^repository and c.sha == ^sha, select: {c.ref_id, c.position}))
+  end
+
+  defp detached(repository),
+    do: Repo.all(from(r in Ref, where: r.repository_id == ^repository and r.detached, order_by: r.id))
 
   defp with_mode(files), do: Map.new(files, fn {path, blob} -> {path, {blob, @mode}} end)
 
@@ -499,7 +511,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert listing(repository, "d1").changes_expires_at == development
   end
 
-  test "a rewritten branch retires the rows of the commits it dropped", %{repository: repository} do
+  test "a rewritten branch leaves the commits it dropped their files, on a detached ref", %{repository: repository} do
     commits(repository, [{"a", []}, {"f1", ["a"]}, {"g1", ["a"]}])
     head(repository, "main", "a")
     head(repository, "feature", "f1")
@@ -511,8 +523,11 @@ defmodule Tuist.GitHistory.FileChangesTest do
     head(repository, "feature", "g1")
     list(repository, "g1", %{"A.swift" => "a1", "G.swift" => "g1"})
 
-    assert changes(repository, "f1") == %{}
-    assert %{changes_ref_id: nil, changes_position: nil, changes_count: nil} = listing(repository, "f1")
+    main = ref_id(repository, "main")
+    assert [%{id: ref, parent_ref_id: ^main, fork_position: 1}] = detached(repository)
+    assert %{changes_ref_id: ^ref, changes_position: 2, changes_count: 2} = listing(repository, "f1")
+    assert changes(repository, "f1") == %{"A.swift" => "a2", "F.swift" => "f1"}
+    assert files(repository, "f1") == with_mode(%{"A.swift" => "a2", "F.swift" => "f1"})
     assert changes(repository, "g1") == %{"G.swift" => "g1"}
     assert files(repository, "g1") == with_mode(%{"A.swift" => "a1", "G.swift" => "g1"})
   end
@@ -675,6 +690,308 @@ defmodule Tuist.GitHistory.FileChangesTest do
 
         assert GitHistory.position(repository, "c") == {ref_id(repository, "main"), 5}
         assert_settled(repository, Map.put(@shifted, "earlier", @earlier), unquote(expired))
+      end
+    end
+  end
+
+  describe "a commit no branch or pull request owns" do
+    @b %{"A.swift" => "a2", "B.swift" => "b1"}
+    @m %{"A.swift" => "a2", "F.swift" => "f1"}
+
+    # `m` merges a branch's `f` into the default branch's `b`, as the commit
+    # a pull request's run checks out does.
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"f", ["b"]}, {"m", ["b", "f"]}])
+      head(repository, "main", "b")
+      list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b1"})
+      %{main: ref_id(repository, "main")}
+    end
+
+    test "is written on a detached ref that forks at its first parent", %{repository: repository, main: main} do
+      list(repository, "b", @b)
+      list(repository, "m", @m)
+
+      assert [%{id: ref, name: "detached:m", parent_ref_id: ^main, fork_position: 2, head_sha: "m"}] =
+               detached(repository)
+
+      assert place(repository, "m") == {ref, 3}
+      assert changes(repository, "m") == %{"B.swift" => "", "F.swift" => "f1"}
+      assert files(repository, "m") == with_mode(@m)
+      assert FileChanges.current(repository, "m") == {ref, 3}
+      assert FileChanges.write(repository, "m") == :current
+
+      # It forks from a ref that is kept, and expires on its own.
+      assert %{changes_ref_id: ^ref, changes_position: 3, changes_expires_at: expires_at} = listing(repository, "m")
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now(), :day), 90, 1
+
+      # The place is the file changes' alone.
+      assert GitHistory.position(repository, "m") == nil
+
+      assert [%{sha: "m", ref_id: nil, position: nil}, %{sha: "b", ref_id: ^main, position: 2}] =
+               GitHistory.first_parents_to_segment(repository, "m")
+    end
+
+    test "keeps the files of its listing when its first parent is written after it", %{repository: repository} do
+      list(repository, "m", @m)
+      assert changes(repository, "m") == %{"A.swift" => "a2", "B.swift" => "", "F.swift" => "f1"}
+
+      b = %{"A.swift" => "a3", "B.swift" => "b1", "C.swift" => "c1"}
+      list(repository, "b", b)
+
+      assert files(repository, "b") == with_mode(b)
+      assert files(repository, "m") == with_mode(@m)
+    end
+
+    test "takes the unowned commits below it along, written there once listed", %{repository: repository, main: main} do
+      commits(repository, [{"x", ["b"]}, {"y", ["x"]}])
+      x = %{"A.swift" => "a1", "B.swift" => "b1", "X.swift" => "x1"}
+      y = %{"A.swift" => "a1", "B.swift" => "b1", "X.swift" => "x2", "Y.swift" => "y1"}
+
+      list(repository, "y", y)
+      assert [%{id: ref, name: "detached:y", parent_ref_id: ^main, fork_position: 2}] = detached(repository)
+      assert place(repository, "x") == {ref, 3}
+      assert place(repository, "y") == {ref, 4}
+
+      list(repository, "x", x)
+      assert [%{id: ^ref}] = detached(repository)
+      assert %{changes_ref_id: ^ref, changes_position: 3} = listing(repository, "x")
+      assert files(repository, "x") == with_mode(x)
+      assert files(repository, "y") == with_mode(y)
+    end
+
+    test "forks from the detached ref that holds its first parent, and a branch takes both over", %{
+      repository: repository,
+      main: main
+    } do
+      commits(repository, [{"x", ["b"]}, {"y", ["x"]}])
+      x = %{"A.swift" => "a1", "B.swift" => "b1", "X.swift" => "x1"}
+      y = %{"A.swift" => "a1", "B.swift" => "b1", "X.swift" => "x2", "Y.swift" => "y1"}
+
+      list(repository, "x", x)
+      list(repository, "y", y)
+
+      assert [%{id: below, parent_ref_id: ^main, fork_position: 2}, %{id: above} = fork] = detached(repository)
+      assert %{parent_ref_id: ^below, fork_position: 3} = fork
+
+      assert place(repository, "y") == {above, 4}
+      assert changes(repository, "y") == %{"X.swift" => "x2", "Y.swift" => "y1"}
+      assert files(repository, "y") == with_mode(y)
+
+      head(repository, "feature", "y")
+      settle()
+
+      feature = ref_id(repository, "feature")
+      assert detached(repository) == []
+      assert %{changes_ref_id: ^feature, changes_position: 3} = listing(repository, "x")
+      assert %{changes_ref_id: ^feature, changes_position: 4} = listing(repository, "y")
+      assert Enum.all?(rows(repository), &(&1.ref_id in [main, feature]))
+      assert files(repository, "x") == with_mode(x)
+      assert files(repository, "y") == with_mode(y)
+    end
+
+    test "forks from a branch that itself forks, as a stacked pull request's merge commit does", %{
+      repository: repository,
+      main: main
+    } do
+      # `f` is the first pull request's branch; `s` merges the second one's
+      # `g` into it.
+      commits(repository, [{"g", ["f"]}, {"s", ["f", "g"]}])
+      head(repository, "one", "f")
+      one = ref_id(repository, "one")
+      f = %{"A.swift" => "a2", "B.swift" => "b1", "F.swift" => "f1"}
+      s = %{"A.swift" => "a2", "B.swift" => "b1", "F.swift" => "f1", "G.swift" => "g1"}
+
+      list(repository, "s", s)
+      assert [%{id: ref, parent_ref_id: ^one, fork_position: 3}] = detached(repository)
+      assert %{parent_ref_id: ^main, fork_position: 2} = Repo.get(Ref, one)
+      assert place(repository, "s") == {ref, 4}
+      assert files(repository, "s") == with_mode(s)
+
+      # Written below it afterwards, two forks down and then one.
+      list(repository, "b", @b)
+      list(repository, "f", f)
+
+      assert changes(repository, "f") == %{"F.swift" => "f1"}
+      assert files(repository, "b") == with_mode(@b)
+      assert files(repository, "f") == with_mode(f)
+      assert files(repository, "s") == with_mode(s)
+      assert repository |> GitHistory.commit_files("s") |> Map.new(&{&1.path, &1.git_blob_id}) == s
+    end
+
+    test "moves to a detached ref when its branch moves on, also once its listing expired", %{
+      repository: repository,
+      main: main
+    } do
+      head(repository, "feature", "m")
+      list(repository, "b", @b)
+      list(repository, "m", @m)
+      feature = ref_id(repository, "feature")
+      assert %{changes_ref_id: ^feature, changes_position: 3} = listing(repository, "m")
+
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "m"),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      )
+
+      # The pull request's next run checks out a new merge commit.
+      commits(repository, [{"c", ["b"]}, {"m2", ["c", "f"]}])
+      head(repository, "main", "c")
+      head(repository, "feature", "m2")
+      assert place(repository, "m") == {nil, nil}
+
+      assert FileChanges.write(repository, "m") == :moved
+      assert [%{id: ref, parent_ref_id: ^main, fork_position: 2}] = detached(repository)
+      assert %{changes_ref_id: ^ref, changes_position: 3, changes_count: 2} = listing(repository, "m")
+      assert files(repository, "m") == with_mode(@m)
+    end
+
+    test "is placed again when the branch it forks from is rewritten", %{repository: repository, main: main} do
+      commits(repository, [{"f2", ["f"]}, {"x", ["f2"]}, {"g", ["b"]}])
+      head(repository, "feature", "f2")
+      feature = ref_id(repository, "feature")
+      f = %{"A.swift" => "a1", "B.swift" => "b1", "F.swift" => "f1"}
+      x = %{"A.swift" => "a1", "B.swift" => "b1", "F.swift" => "f2", "X.swift" => "x1"}
+
+      list(repository, "f", f)
+      list(repository, "x", x)
+      assert [%{parent_ref_id: ^feature, fork_position: 4}] = detached(repository)
+
+      # A force-push: the commits `x` was above are the branch's no more.
+      head(repository, "feature", "g")
+      settle()
+
+      # The newest is placed first and takes the others along: one ref.
+      assert [%{id: ref, name: "detached:x", parent_ref_id: ^main, fork_position: 2}] = detached(repository)
+      assert Enum.map(~w(f f2 x), &place(repository, &1)) == [{ref, 3}, {ref, 4}, {ref, 5}]
+      assert Enum.all?(rows(repository), &(&1.ref_id in [main, ref]))
+      assert files(repository, "f") == with_mode(f)
+      assert files(repository, "x") == with_mode(x)
+    end
+
+    test "is placed again after the refs are rebuilt", %{repository: repository, main: main} do
+      list(repository, "b", @b)
+      list(repository, "m", @m)
+      assert [%{id: old}] = detached(repository)
+
+      GitHistory.rebuild_refs(repository)
+      assert detached(repository) == []
+      settle()
+
+      assert [%{id: ref, parent_ref_id: ^main, fork_position: 2}] = detached(repository)
+      assert ref != old
+      assert Enum.all?(rows(repository), &(&1.ref_id in [main, ref]))
+      assert files(repository, "b") == with_mode(@b)
+      assert files(repository, "m") == with_mode(@m)
+    end
+
+    test "loses its ref once its file changes expired", %{repository: repository} do
+      list(repository, "m", @m)
+      assert [%{id: ref}] = detached(repository)
+      aged = fn days -> DateTime.utc_now() |> DateTime.add(-days, :day) |> DateTime.truncate(:second) end
+
+      # A ref just made may still be waiting for its write.
+      Repo.update_all(from(l in CommitListing, where: l.sha == "m"), set: [changes_expires_at: aged.(1)])
+      GitHistory.prune(repository, 365)
+      assert [%{id: ^ref}] = detached(repository)
+
+      Repo.update_all(from(l in CommitListing, where: l.sha == "m"), set: [changes_expires_at: aged.(-1)])
+      Repo.update_all(from(r in Ref, where: r.id == ^ref), set: [updated_at: aged.(2)])
+      GitHistory.prune(repository, 365)
+      assert [%{id: ^ref}] = detached(repository)
+
+      Repo.update_all(from(l in CommitListing, where: l.sha == "m"), set: [changes_expires_at: aged.(1)])
+      GitHistory.prune(repository, 365)
+      assert detached(repository) == []
+      assert place(repository, "m") == {nil, nil}
+    end
+
+    test "has no place while its first parents reach no commit a ref owns", %{repository: repository} do
+      commits(repository, [{"p", []}, {"q", ["p"]}])
+      list(repository, "q", %{"Q.swift" => "q1"})
+
+      assert FileChanges.write(repository, "q") == :pending
+      assert detached(repository) == []
+      assert place(repository, "q") == {nil, nil}
+    end
+  end
+
+  describe "a pull request's superseded merge commit, read once its listing is gone" do
+    # What expiry does to a listing: its rows go, and its marker is older
+    # than the file retention.
+    defp expire_listing(repository, sha) do
+      IngestRepo.query!(
+        "ALTER TABLE git_commit_files DELETE WHERE repository_id = {repository_id:Int64} AND sha = {sha:String} " <>
+          "SETTINGS mutations_sync = 2",
+        %{repository_id: repository, sha: sha}
+      )
+
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -365, :day)]
+      )
+    end
+
+    # A 500-file tree; the pull request modifies 20 files, deletes 5 and
+    # adds 7; its next merge commit is over a base that moved.
+    setup do
+      a = Map.new(1..500, &{"Sources/Module#{rem(&1, 25)}/File#{&1}.swift", "a#{&1}"})
+      b = a |> Map.put("Sources/Module1/File1.swift", "b1") |> Map.put("Package.resolved", "pins1")
+
+      m1 =
+        b
+        |> Map.merge(Map.new(100..119, &{"Sources/Module#{rem(&1, 25)}/File#{&1}.swift", "pr#{&1}"}))
+        |> Map.drop(Enum.map(200..204, &"Sources/Module#{rem(&1, 25)}/File#{&1}.swift"))
+        |> Map.merge(Map.new(1..7, &{"Sources/Feature/New#{&1}.swift", "new#{&1}"}))
+
+      c = Map.put(b, "Sources/Module2/File2.swift", "c2")
+      m2 = m1 |> Map.put("Sources/Module2/File2.swift", "c2") |> Map.put("Sources/Feature/New1.swift", "new1b")
+      %{trees: %{a: a, b: b, m1: m1, c: c, m2: m2}}
+    end
+
+    for order <- [:superseded_then_expired, :expired_then_superseded] do
+      test "keeps the files it was listed with (#{order})", %{repository: repository, trees: trees} do
+        commits(repository, [{"a", []}, {"b", ["a"]}, {"f", ["b"]}, {"m1", ["b", "f"]}])
+        head(repository, "main", "b")
+        # A pull request's run reports the merge commit as its branch's head.
+        head(repository, "feature", "m1")
+        list(repository, "a", trees.a)
+        list(repository, "b", trees.b)
+        list(repository, "m1", trees.m1)
+
+        # The next push: the base moved, so the run checks out a new merge commit.
+        supersede = fn ->
+          commits(repository, [{"c", ["b"]}, {"m2", ["c", "f"]}])
+          head(repository, "main", "c")
+          head(repository, "feature", "m2")
+          list(repository, "c", trees.c)
+          list(repository, "m2", trees.m2)
+        end
+
+        if unquote(order) == :superseded_then_expired do
+          supersede.()
+          expire_listing(repository, "m1")
+        else
+          expire_listing(repository, "m1")
+          supersede.()
+        end
+
+        assert ClickHouseRepo.aggregate(
+                 from(f in CommitFile, where: f.repository_id == ^repository and f.sha == "m1"),
+                 :count
+               ) == 0
+
+        # Only the paths the pull request changed are stored for it.
+        assert map_size(changes(repository, "m1")) == 32
+        assert GitHistory.listing_complete?(repository, "m1")
+        assert repository |> GitHistory.commit_files("m1") |> Map.new(&{&1.path, &1.git_blob_id}) == trees.m1
+
+        # A modified path, an added one and a deleted one.
+        assert GitHistory.blobs_at(repository, "m1", [
+                 "Sources/Module0/File100.swift",
+                 "Sources/Feature/New3.swift",
+                 "Sources/Module0/File200.swift"
+               ]) == %{"Sources/Module0/File100.swift" => "pr100", "Sources/Feature/New3.swift" => "new3"}
+
+        assert repository |> GitHistory.changed_files("m1", "m2") |> Enum.map(& &1.path) ==
+                 ["Sources/Feature/New1.swift", "Sources/Module2/File2.swift"]
       end
     end
   end

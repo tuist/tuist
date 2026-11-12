@@ -37,7 +37,9 @@ defmodule Tuist.GitHistory do
   (`tracked_files/3`), what blob a path had at an ancestor, and what differs
   between two commits (`changed_files/4`). Once a ref owns the commit, the
   listing is stored as the paths it changed (`Tuist.GitHistory.FileChanges`)
-  and read from there; the listing's own rows answer until then.
+  and read from there; the listing's own rows answer until then. A listed
+  commit no branch or pull request owns is given a detached ref for that
+  (`detach/3`).
   """
 
   import Ecto.Query
@@ -83,6 +85,18 @@ defmodule Tuist.GitHistory do
   }
 
   @insert_chunk_size 5_000
+
+  # The commits with the place commit coverage follows: none for a detached
+  # ref's commits.
+  # What a detached ref's name starts with (`detach/3`). Git refuses a colon
+  # in a branch name, so no branch or pull request shares it.
+  @detached_prefix "detached:"
+
+  @placed_commits """
+  SELECT c.repository_id, c.sha, r.id AS ref_id, CASE WHEN r.id IS NULL THEN NULL ELSE c.position END AS position
+  FROM git_commits c
+  LEFT JOIN git_refs r ON r.id = c.ref_id AND NOT r.detached
+  """
 
   @doc """
   The history settings in effect for a project: the server defaults (from
@@ -407,12 +421,15 @@ defmodule Tuist.GitHistory do
 
   @doc """
   Where a commit sits on the first-parent tree: `{ref_id, position}` on the
-  segment of the ref that owns it, or nil when no ref does.
+  segment of the branch or pull request that owns it, or nil when none does
+  (a detached ref's commit included).
   """
   def position(repository_id, sha) do
     Repo.one(
       from(c in Commit,
-        where: c.repository_id == ^repository_id and c.sha == ^sha and not is_nil(c.ref_id),
+        join: r in Ref,
+        on: r.id == c.ref_id and not r.detached,
+        where: c.repository_id == ^repository_id and c.sha == ^sha,
         select: {c.ref_id, c.position}
       )
     )
@@ -465,11 +482,18 @@ defmodule Tuist.GitHistory do
   `%{sha, depth, ref_id, position}` nearest first: the commits no ref placed
   yet, then the one the chain goes on from along the refs' segments, absent
   when there is none within `:max_depth` (the default `window_commits`). A
-  commit a ref owns is its own chain.
+  commit a ref owns is its own chain. A detached ref's commits count as
+  placed by no ref.
   """
   def first_parents_to_segment(repository_id, sha, opts \\ []) do
     max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
-    walk(repository_id, sha, false, [], max_depth)
+
+    repository_id
+    |> walk(sha, false, [], max_depth)
+    |> Enum.map(fn
+      %{detached: true} = row -> %{sha: row.sha, depth: row.depth, ref_id: nil, position: nil}
+      row -> Map.delete(row, :detached)
+    end)
   end
 
   @doc """
@@ -530,6 +554,8 @@ defmodule Tuist.GitHistory do
   head, forking above them. Any other ref stops at the first commit some ref
   owns, so two refs never trade commits back and forth; one that stops on a
   sibling's commit forks where the sibling does and owns only what it added.
+  Every ref takes over the commits a detached ref holds (`detach/3`), and a
+  detached ref that lost commits, or whose fork was released, is dropped.
 
   `parent` names the ref this one forks from (nil for the default branch).
   With `only_forward: true` a head the ref already owns, or an ancestor of
@@ -544,7 +570,13 @@ defmodule Tuist.GitHistory do
   `:max_depth` (the default `window_commits`). A head the graph does not
   know yet is recorded without positions.
   """
-  def advance_ref(repository_id, name, parent, head_sha, opts \\ []) do
+  def advance_ref(repository_id, name, parent, head_sha, opts \\ [])
+
+  # A detached ref is the server's to place: a client naming one would move
+  # it, or make a ref `detach/3` then takes for its own.
+  def advance_ref(_repository_id, @detached_prefix <> _sha, _parent, _head_sha, _opts), do: :ok
+
+  def advance_ref(repository_id, name, parent, head_sha, opts) do
     observed_at = opts |> Keyword.get(:observed_at) |> utc_usec()
 
     {:ok, :ok} =
@@ -602,6 +634,8 @@ defmodule Tuist.GitHistory do
             set: [ref_id: nil, position: nil]
           )
 
+          # Their commits are placed again as their file changes are written.
+          Repo.delete_all(from(r in Ref, where: r.repository_id == ^repository_id and r.detached))
           Repo.update_all(from(r in Ref, where: r.repository_id == ^repository_id), set: [fork_position: 0])
 
           refs =
@@ -751,22 +785,16 @@ defmodule Tuist.GitHistory do
     {base, fork, released} = settle(ref, anchor)
 
     new = Enum.filter(walk, &(&1.depth < anchor_depth))
-    losers = new |> Enum.map(& &1.ref_id) |> Enum.reject(&(is_nil(&1) or &1 == ref.id)) |> Enum.uniq()
-    lost = Enum.flat_map(losers, &release(from(c in Commit, where: c.ref_id == ^&1)))
 
-    Repo.query!(
-      """
-      UPDATE git_commits c SET ref_id = $2, position = v.position
-      FROM unnest($3::varchar[], $4::integer[]) AS v (sha, position)
-      WHERE c.repository_id = $1 AND c.sha = v.sha
-      """,
-      [
-        repository_id,
-        ref.id,
-        Enum.map(new, & &1.sha),
-        Enum.map(new, &(base + anchor_depth - &1.depth))
-      ]
-    )
+    {detached, losers} =
+      new
+      |> Enum.reject(&(is_nil(&1.ref_id) or &1.ref_id == ref.id))
+      |> Enum.uniq_by(& &1.ref_id)
+      |> Enum.split_with(& &1.detached)
+
+    losers = Enum.map(losers, & &1.ref_id)
+    lost = Enum.flat_map(losers, &release/1) ++ drop_detached(Enum.map(detached, & &1.ref_id))
+    number(repository_id, ref.id, new, base + anchor_depth)
 
     Repo.update_all(from(r in Ref, where: r.id == ^ref.id),
       set: [head_sha: head_sha, fork_position: fork, updated_at: now()]
@@ -792,17 +820,16 @@ defmodule Tuist.GitHistory do
   end
 
   defp settle(%{id: ref_id} = ref, %{ref_id: ref_id, position: position}) do
-    released = release(from(c in Commit, where: c.ref_id == ^ref_id and c.position > ^position))
-    {position, ref.fork_position, released}
+    {position, ref.fork_position, release(ref_id, position)}
   end
 
   defp settle(%{parent_ref_id: parent_id} = ref, %{ref_id: parent_id, position: position}) do
-    {position, position, release(from(c in Commit, where: c.ref_id == ^ref.id))}
+    {position, position, release(ref.id)}
   end
 
   # A sibling's commit: fork where the sibling forked.
   defp settle(ref, anchor) do
-    released = release(from(c in Commit, where: c.ref_id == ^ref.id))
+    released = release(ref.id)
     sibling = get_ref(anchor.ref_id)
     fork = if sibling.parent_ref_id == ref.parent_ref_id, do: sibling.fork_position, else: 0
     {fork, fork, released}
@@ -811,37 +838,165 @@ defmodule Tuist.GitHistory do
   # The default branch walks through other refs' commits, taking them over,
   # until it reaches its own; any other ref stops at the first owned commit.
   defp anchored?(%{ref_id: nil}, _ref, _takeover?), do: false
+  defp anchored?(%{detached: true}, _ref, _takeover?), do: false
   defp anchored?(%{ref_id: ref_id}, ref, true), do: ref_id in [ref.id, ref.parent_ref_id]
   defp anchored?(_row, _ref, false), do: true
 
   # The first-parent chain of `head_sha` down to the first commit a ref owns,
-  # or, with `takeover?`, the first one one of `anchor_ref_ids` owns.
-  defp walk(repository_id, head_sha, takeover?, anchor_ref_ids, max_depth) do
+  # or, with `takeover?`, the first one one of `anchor_ref_ids` owns. A
+  # detached ref's commits are passed like unowned ones, unless the walk is
+  # for a detached ref, which forks from any ref.
+  defp walk(repository_id, head_sha, takeover?, anchor_ref_ids, max_depth, through_detached? \\ true) do
     %{rows: rows} =
       Repo.query!(
         """
-        WITH RECURSIVE chain (sha, depth, ref_id, position) AS (
-          SELECT c.sha, 0, c.ref_id, c.position
-          FROM git_commits c WHERE c.repository_id = $1 AND c.sha = $2
+        WITH RECURSIVE chain (sha, depth, ref_id, position, detached) AS (
+          SELECT c.sha, 0, c.ref_id, c.position, COALESCE(r.detached, false)
+          FROM git_commits c
+          LEFT JOIN git_refs r ON r.id = c.ref_id
+          WHERE c.repository_id = $1 AND c.sha = $2
           UNION ALL
-          SELECT p.parent_sha, ch.depth + 1, c.ref_id, c.position
+          SELECT p.parent_sha, ch.depth + 1, c.ref_id, c.position, COALESCE(r.detached, false)
           FROM chain ch
           JOIN git_commit_parents p ON p.repository_id = $1 AND p.child_sha = ch.sha AND p.position = 0
           JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.parent_sha
+          LEFT JOIN git_refs r ON r.id = c.ref_id
           WHERE ch.depth < $3
-            AND (ch.ref_id IS NULL OR ($4 AND ch.ref_id <> ALL ($5::bigint[])))
+            AND (ch.ref_id IS NULL OR ($6 AND ch.detached) OR ($4 AND ch.ref_id <> ALL ($5::bigint[])))
         )
-        SELECT sha, depth, ref_id, position FROM chain ORDER BY depth
+        SELECT sha, depth, ref_id, position, detached FROM chain ORDER BY depth
         """,
-        [repository_id, head_sha, max_depth, takeover?, anchor_ref_ids]
+        [repository_id, head_sha, max_depth, takeover?, anchor_ref_ids, through_detached?]
       )
 
-    Enum.map(rows, fn [sha, depth, ref_id, position] -> %{sha: sha, depth: depth, ref_id: ref_id, position: position} end)
+    Enum.map(rows, fn [sha, depth, ref_id, position, detached] ->
+      %{sha: sha, depth: depth, ref_id: ref_id, position: position, detached: detached}
+    end)
   end
 
-  defp release(query) do
-    {_count, shas} = Repo.update_all(select(query, [c], c.sha), set: [ref_id: nil, position: nil])
+  # Numbers the walked commits on the ref, the one at depth 0 at `top`.
+  defp number(repository_id, ref_id, commits, top) do
+    Repo.query!(
+      """
+      UPDATE git_commits c SET ref_id = $2, position = v.position
+      FROM unnest($3::varchar[], $4::integer[]) AS v (sha, position)
+      WHERE c.repository_id = $1 AND c.sha = v.sha
+      """,
+      [repository_id, ref_id, Enum.map(commits, & &1.sha), Enum.map(commits, &(top - &1.depth))]
+    )
+  end
+
+  # Releases the ref's commits above the position, and drops the detached
+  # refs that fork from it above there: the place they fork at is gone.
+  defp release(ref_id, position \\ 0) do
+    {_count, shas} =
+      Repo.update_all(from(c in Commit, where: c.ref_id == ^ref_id and c.position > ^position, select: c.sha),
+        set: [ref_id: nil, position: nil]
+      )
+
+    forks =
+      Repo.all(
+        from(r in Ref,
+          where: r.parent_ref_id == ^ref_id and r.detached and r.fork_position > ^position,
+          select: r.id
+        )
+      )
+
+    shas ++ drop_detached(forks)
+  end
+
+  # Deletes the detached refs and the detached refs that fork from them,
+  # releasing their commits: the ones still listed are placed again when
+  # their file changes are written.
+  defp drop_detached([]), do: []
+
+  defp drop_detached(ref_ids) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        WITH RECURSIVE dropped (id) AS (
+          SELECT unnest($1::bigint[])
+          UNION
+          SELECT r.id FROM dropped d JOIN git_refs r ON r.parent_ref_id = d.id AND r.detached
+        )
+        SELECT id FROM dropped
+        """,
+        [ref_ids]
+      )
+
+    ids = List.flatten(rows)
+
+    {_count, shas} =
+      Repo.update_all(from(c in Commit, where: c.ref_id in ^ids, select: c.sha), set: [ref_id: nil, position: nil])
+
+    Repo.delete_all(from(r in Ref, where: r.id in ^ids))
     shas
+  end
+
+  @doc """
+  Gives a commit no ref owns a place for its file changes
+  (`Tuist.GitHistory.FileChanges`): a detached ref
+  (`Tuist.GitHistory.Ref`) that forks where the commit's first-parent chain
+  reaches a commit a ref owns, holding the commit and the unowned ones in
+  between, as a branch advanced to it would. Returns whether it did: not
+  when a ref owns the commit, or when the chain reaches no owned commit
+  within `:max_depth` (the default `window_commits`), since a ref that forks
+  from none keeps its rows for good. To be called holding the repository's
+  ref lock (`with_refs_lock/2`).
+
+  The place is the file changes' alone: `position/2`,
+  `first_parents_to_segment/3` and commit coverage see the commit as owned
+  by no ref. A branch or pull request advanced through the commit takes it
+  over, and the detached ref is dropped then, when the place it forks at is
+  released, on `rebuild_refs/1`, and by `prune/2` once its file changes
+  expired. The listed commits it held are queued to be written again, which
+  places them.
+  """
+  def detach(repository_id, sha, opts \\ []) do
+    unowned? =
+      Repo.exists?(from(c in Commit, where: c.repository_id == ^repository_id and c.sha == ^sha and is_nil(c.ref_id)))
+
+    if unowned? do
+      max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
+      name = @detached_prefix <> sha
+
+      # Left by a commit that was pruned and uploaded again.
+      stale = Repo.all(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name, select: r.id))
+      released = drop_detached(stale)
+      {unowned, owned} = repository_id |> walk(sha, false, [], max_depth, false) |> Enum.split_while(&is_nil(&1.ref_id))
+      detached? = match?([_anchor | _], owned)
+
+      if detached? do
+        [anchor | _] = owned
+        now = now()
+
+        {1, [ref]} =
+          Repo.insert_all(
+            Ref,
+            [
+              %{
+                repository_id: repository_id,
+                name: name,
+                parent_ref_id: anchor.ref_id,
+                fork_position: anchor.position,
+                head_sha: sha,
+                detached: true,
+                inserted_at: now,
+                updated_at: now
+              }
+            ],
+            returning: [:id]
+          )
+
+        number(repository_id, ref.id, unowned, anchor.position + anchor.depth)
+      end
+
+      moved = if detached?, do: released ++ Enum.map(unowned, & &1.sha), else: released
+      FileChanges.enqueue_moved(repository_id, List.delete(moved, sha))
+      detached?
+    else
+      false
+    end
   end
 
   # A commit's coverage keeps a copy of its place, so a branch's history
@@ -854,7 +1009,7 @@ defmodule Tuist.GitHistory do
       Repo.query!(
         """
         UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-        FROM git_commits c
+        FROM (#{@placed_commits}) c
         WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
           AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
         RETURNING cc.project_id, cc.git_commit_sha, cc.complete
@@ -887,7 +1042,7 @@ defmodule Tuist.GitHistory do
       Repo.query!(
         """
         UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-        FROM git_commits c
+        FROM (#{@placed_commits}) c
         WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
           AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
           AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
@@ -1045,9 +1200,11 @@ defmodule Tuist.GitHistory do
   @doc """
   Drops commits older than `window_days`, with their parent edges. Edges
   pointing at a dropped commit are kept: they mark where the window ends.
+  Detached refs (`detach/3`) whose file changes expired go too.
   """
   def prune(repository_id, window_days) do
     cutoff = DateTime.add(DateTime.utc_now(), -window_days * 86_400, :second)
+    with_refs_lock(repository_id, fn -> drop_expired_detached(repository_id) end)
 
     Repo.transaction(fn ->
       expired =
@@ -1062,6 +1219,35 @@ defmodule Tuist.GitHistory do
 
       count
     end)
+  end
+
+  # A detached ref goes once no commit has file changes kept on it and no
+  # ref forks from it, so the refs of a stack go from the top. One made
+  # within a day may still be waiting for its write.
+  defp drop_expired_detached(repository_id) do
+    now = DateTime.utc_now()
+
+    expired =
+      Repo.all(
+        from(r in Ref,
+          as: :ref,
+          where: r.repository_id == ^repository_id and r.detached and r.updated_at < ^DateTime.add(now, -1, :day),
+          where:
+            not exists(
+              from(l in CommitListing,
+                where: l.repository_id == parent_as(:ref).repository_id and l.changes_ref_id == parent_as(:ref).id,
+                where: l.changes_expires_at > ^now
+              )
+            ),
+          where: not exists(from(f in Ref, where: f.parent_ref_id == parent_as(:ref).id)),
+          select: r.id
+        )
+      )
+
+    if expired != [] do
+      drop_detached(expired)
+      drop_expired_detached(repository_id)
+    end
   end
 
   @doc """

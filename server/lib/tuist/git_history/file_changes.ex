@@ -4,11 +4,14 @@ defmodule Tuist.GitHistory.FileChanges do
   (`Tuist.GitHistory.FileChange`) rather than as its whole listing.
 
   A commit takes part once its listing is stored whole (not truncated) and a
-  ref owns it. Its rows are keyed by its place on the first-parent tree and
-  read along its **chain** (`Tuist.GitHistory.chain/2`): its ref up to its
-  position, then each ref it forks from up to the fork, the nearer ref
-  winning for a path. A commit's files are each path's newest row along its
-  chain, without the paths whose newest row has no blob.
+  ref owns it; one no branch or pull request owns is given a detached ref
+  when it is written (`Tuist.GitHistory.detach/3`), forking where its first
+  parents reach a commit a ref owns. Its rows are keyed by its place on the
+  first-parent tree and read along its **chain**
+  (`Tuist.GitHistory.chain/2`): its ref up to its position, then each ref it
+  forks from up to the fork, the nearer ref winning for a path. A commit's
+  files are each path's newest row along its chain, without the paths whose
+  newest row has no blob.
 
   The rows a commit writes are what its listing changes from what the chain
   holds just below it: a row per path whose blob or mode differs, and a row
@@ -78,8 +81,9 @@ defmodule Tuist.GitHistory.FileChanges do
 
   @doc """
   Queues the listed commits whose file changes are not written at the place
-  they hold, lowest position first: all of the repository's, or those among
-  `shas`.
+  they hold, lowest position first and those no ref owns last (they fork
+  from the others), the newest of them first, so it takes the ones below it
+  along on its detached ref: all of the repository's, or those among `shas`.
   """
   def enqueue_moved(repository_id, shas \\ nil)
 
@@ -92,7 +96,7 @@ defmodule Tuist.GitHistory.FileChanges do
         on: c.repository_id == l.repository_id and c.sha == l.sha,
         where: l.repository_id == ^repository_id and not l.truncated,
         where: fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
-        order_by: [asc_nulls_first: c.position],
+        order_by: [asc_nulls_last: c.position, desc: c.generation],
         select: l.sha
       )
 
@@ -105,7 +109,8 @@ defmodule Tuist.GitHistory.FileChanges do
   it left at a place it no longer holds. Returns `:written`; `:moved` when
   the rows were copied from its old place, or `:deferred` while a commit
   below it is queued to move first; `:current` when they are already there;
-  `:pending` while no ref owns the commit; `:unavailable` when its listing's
+  `:pending` while the commit has no place (its first parents reach no
+  commit a ref owns); `:unavailable` when its listing's
   rows do not add up to its file count; or `:skipped` when it has no whole
   listing to write from, or would be copied above a commit that is not
   going to move, or up its own ref (its rows are retired).
@@ -113,8 +118,19 @@ defmodule Tuist.GitHistory.FileChanges do
   def write(repository_id, sha) do
     GitHistory.with_refs_lock(repository_id, fn ->
       listing = Repo.one(from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == ^sha))
-      if listing && not listing.truncated, do: write_at_place(listing, commit(repository_id, sha)), else: :skipped
+
+      if listing && not listing.truncated,
+        do: write_at_place(listing, commit(repository_id, sha) || detached(listing)),
+        else: :skipped
     end)
+  end
+
+  # A commit no ref owns gets a ref of its own to be written on, while there
+  # is something to write there: its listing, or the rows it left at a place
+  # it was released from.
+  defp detached(listing) do
+    if (staged?(listing) or written(listing)) && GitHistory.detach(listing.repository_id, listing.sha),
+      do: commit(listing.repository_id, listing.sha)
   end
 
   defp commit(repository_id, sha) do
