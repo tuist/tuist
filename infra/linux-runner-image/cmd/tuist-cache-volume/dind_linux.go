@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -342,32 +341,18 @@ func containerField(value string) string {
 	return value
 }
 
-var dockerAPI = &http.Client{
-	Timeout: 2 * time.Second,
-	Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		var dialer net.Dialer
-		return dialer.DialContext(ctx, "unix", "/var/run/docker.sock")
-	}},
-}
-
-// inspectDockerContainer asks dockerd for a container's name and image.
+// inspectDockerContainer asks the job's dockerd for a container's name and
+// image through the docker CLI, as the rest of the supervisor does: an HTTP
+// client here would be one more transport for the certificate-trust review.
 func inspectDockerContainer(id string) (string, string, error) {
-	response, err := dockerAPI.Get("http://docker/containers/" + id + "/json")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", dockerArgs("", "container", "inspect", "--format", "{{.Name}}\t{{.Config.Image}}", id)...).Output()
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("inspecting container %s: %w", id, err)
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("inspecting container %s: %s", id, response.Status)
-	}
-	var container struct {
-		Name   string
-		Config struct{ Image string }
-	}
-	if err := json.NewDecoder(response.Body).Decode(&container); err != nil {
-		return "", "", err
-	}
-	return container.Name, container.Config.Image, nil
+	name, image, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+	return name, image, nil
 }
 
 // dindMemory renders the cgroup v2 memory of the cgroup at path as vitals.sh
