@@ -1,6 +1,13 @@
 import Foundation
 import Path
 import TuistProcess
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
 
 /// Mirrors a local Git worktree into a sandbox, one way, the way Amp mirrors an orb into its Mac satellite: after a sync
 /// the sandbox's copy has exactly the worktree's files that Git does not ignore, tracked or not, with their content,
@@ -42,6 +49,10 @@ struct SandboxSync {
     /// The sandbox's copy is not the one the changes were computed against.
     private static let staleExitCode = 3
     private static let keptManifests = 20
+    /// A large bundle is split into a shard per 8 MB of files, up to 8, each compressed on its own core and uploaded,
+    /// downloaded and extracted alongside the others. Smaller bundles stay one archive.
+    static let shardBytes = 8 * 1024 * 1024
+    static let maxShards = 8
 
     let remote: SandboxRemote
     let commandRunner: CommandRunning
@@ -145,15 +156,37 @@ struct SandboxSync {
             let scratch = FileManager.default.temporaryDirectory
                 .appendingPathComponent("tuist-sandbox-sync-\(UUID().uuidString)")
             defer { try? FileManager.default.removeItem(at: scratch) }
-            let archive = try await bundle(changes, of: entries, previous: previous, repository: repository, in: scratch)
-            let bytes = try FileManager.default.attributesOfItem(atPath: archive.path)[.size] as? Int ?? 0
-
             let kind = previous == nil ? "full" : "delta"
-            let inline = "inline \(kind)\n"
-            if bytes + inline.utf8.count > SandboxRemote.stdinChunkBytes, let url = try await remote.stage(archive) {
-                try await remote.writeStdin(command.id, Data("url \(kind) \(url.absoluteString)\n".utf8))
+            let shards = Self.shards(
+                Self.sizes(of: changes, in: repository),
+                cores: ProcessInfo.processInfo.activeProcessorCount
+            )
+            let bytes: Int
+            if shards.count > 1, let sent = try await sendShards(
+                shards,
+                kind: kind,
+                entries: entries,
+                previous: previous,
+                repository: repository,
+                scratch: scratch,
+                commandID: command.id
+            ) {
+                bytes = sent
             } else {
-                try await remote.writeStdin(command.id, Data(inline.utf8), file: archive)
+                let archive = try await bundle(
+                    changes.map(\.path),
+                    of: entries,
+                    previous: previous,
+                    repository: repository,
+                    in: scratch
+                )
+                bytes = try Self.size(of: archive)
+                let inline = "inline \(kind)\n"
+                if bytes + inline.utf8.count > SandboxRemote.stdinChunkBytes, let url = try await remote.stage(archive) {
+                    try await remote.writeStdin(command.id, Data("url \(kind) \(url.absoluteString)\n".utf8))
+                } else {
+                    try await remote.writeStdin(command.id, Data(inline.utf8), file: archive)
+                }
             }
             let captured = try await output.value
             if captured.exit.exitCode == Self.staleExitCode, previous != nil { return nil }
@@ -166,10 +199,62 @@ struct SandboxSync {
         }
     }
 
-    /// Writes the bundle the sandbox applies: a tar of `files.tar.gz`, the new and changed files, and either `paths.gz`,
-    /// every file's path, or, when the sandbox has `previous`, `deleted` and `added`, the paths that left and joined it.
+    /// Sends the bundle in parts through storage, so compressing, uploading, downloading and extracting overlap: first the
+    /// paths, which the sandbox applies while the files are on their way, then each of `shards`, compressed and uploaded in
+    /// parallel and named on the command's stdin as soon as it is uploaded, which the sandbox then downloads and extracts
+    /// alongside the others. Returns what it uploaded, or nil, having sent nothing, when the server has no uploads.
+    private func sendShards(
+        _ shards: [[String]],
+        kind: String,
+        entries: [Entry],
+        previous: [Entry]?,
+        repository: AbsolutePath,
+        scratch: URL,
+        commandID: String
+    ) async throws -> Int? {
+        let paths = try await bundle(nil, of: entries, previous: previous, repository: repository, in: scratch)
+        guard let pathsURL = try await remote.stage(paths) else { return nil }
+        let (uploads, uploaded) = AsyncThrowingStream.makeStream(of: (url: URL, bytes: Int).self)
+        let producer = Task { [self] in
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for (index, files) in shards.enumerated() {
+                        group.addTask {
+                            let archive = scratch.appendingPathComponent("shard-\(index).tar.gz")
+                            let list = scratch.appendingPathComponent("shard-\(index)")
+                            try await compress(files, from: repository, to: archive, list: list)
+                            guard let url = try await remote.stage(archive) else {
+                                throw SandboxCommandError.stepFailed("Uploading the worktree", "Tuist stopped accepting uploads.")
+                            }
+                            let bytes = try Self.size(of: archive)
+                            uploaded.yield((url, bytes))
+                        }
+                    }
+                    try await group.waitForAll()
+                }
+                uploaded.finish()
+            } catch {
+                uploaded.finish(throwing: error)
+            }
+        }
+        defer { producer.cancel() }
+
+        var bytes = try Self.size(of: paths)
+        try await remote.writeStdin(commandID, Data("shards \(kind) \(pathsURL.absoluteString)\n".utf8), close: false)
+        var sent = 0
+        for try await upload in uploads {
+            sent += 1
+            bytes += upload.bytes
+            try await remote.writeStdin(commandID, Data("\(upload.url.absoluteString)\n".utf8), close: sent == shards.count)
+        }
+        return bytes
+    }
+
+    /// Writes the bundle the sandbox applies: a tar of either `paths.gz`, every file's path, or, when the sandbox has
+    /// `previous`, `deleted` and `added`, the paths that left and joined it, and, unless `files` is nil, `files.tar.gz`,
+    /// the new and changed files.
     private func bundle(
-        _ changes: [Entry],
+        _ files: [String]?,
         of entries: [Entry],
         previous: [Entry]?,
         repository: AbsolutePath,
@@ -180,40 +265,87 @@ struct SandboxSync {
         func write(_ paths: [String], to name: String) throws {
             try Data(paths.map { $0 + "\0" }.joined().utf8).write(to: bundle.appendingPathComponent(name))
         }
-        let names: [String]
+        var names: [String]
         if let previous {
             let delta = Self.delta(from: previous, to: entries)
             try write(delta.deleted, to: "deleted")
             try write(delta.added, to: "added")
-            names = ["files.tar.gz", "deleted", "added"]
+            names = ["deleted", "added"]
         } else {
             try write(entries.map(\.path), to: "paths")
             try await commandRunner.run(arguments: ["gzip", "-n", bundle.appendingPathComponent("paths").path])
                 .awaitCompletion()
-            names = ["files.tar.gz", "paths.gz"]
+            names = ["paths.gz"]
         }
-        let list = scratch.appendingPathComponent("changed")
-        try Data(changes.map { $0.path + "\0" }.joined().utf8).write(to: list)
-        // COPYFILE_DISABLE keeps macOS's tar from adding AppleDouble `._` entries for extended attributes.
-        let environment = ProcessInfo.processInfo.environment.merging(["COPYFILE_DISABLE": "1"]) { $1 }
-        try await commandRunner.run(
-            arguments: [
-                "tar", "-czf", bundle.appendingPathComponent("files.tar.gz").path,
-                "-C", repository.pathString, "--null", "-T", list.path,
-            ],
-            environment: environment
-        ).awaitCompletion()
+        if let files {
+            try await compress(
+                files,
+                from: repository,
+                to: bundle.appendingPathComponent("files.tar.gz"),
+                list: scratch.appendingPathComponent("changed")
+            )
+            names.append("files.tar.gz")
+        }
         let archive = scratch.appendingPathComponent("bundle.tar")
-        try await commandRunner.run(arguments: ["tar", "-cf", archive.path, "-C", bundle.path] + names, environment: environment)
-            .awaitCompletion()
+        try await commandRunner.run(
+            arguments: ["tar", "-cf", archive.path, "-C", bundle.path] + names,
+            environment: Self.tarEnvironment
+        )
+        .awaitCompletion()
         return archive
+    }
+
+    /// Writes a gzipped tar of `files`, relative to `repository`, listing them in `list` first.
+    private func compress(_ files: [String], from repository: AbsolutePath, to archive: URL, list: URL) async throws {
+        try Data(files.map { $0 + "\0" }.joined().utf8).write(to: list)
+        try await commandRunner.run(
+            arguments: ["tar", "-czf", archive.path, "-C", repository.pathString, "--null", "-T", list.path],
+            environment: Self.tarEnvironment
+        ).awaitCompletion()
+    }
+
+    /// COPYFILE_DISABLE keeps macOS's tar from adding AppleDouble `._` entries for extended attributes.
+    private static var tarEnvironment: [String: String] {
+        ProcessInfo.processInfo.environment.merging(["COPYFILE_DISABLE": "1"]) { $1 }
+    }
+
+    private static func size(of file: URL) throws -> Int {
+        try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int ?? 0
+    }
+
+    /// What each entry adds to a tar: its size on disk, or nothing when it is gone, plus a header.
+    static func sizes(of entries: [Entry], in repository: AbsolutePath) -> [(path: String, bytes: Int)] {
+        entries.map { entry in
+            var info = stat()
+            let bytes = lstat(repository.pathString + "/" + entry.path, &info) == 0 ? Int(info.st_size) : 0
+            return (entry.path, bytes + 512)
+        }
+    }
+
+    /// Splits `files` into consecutive runs of about the same size, so each compresses on a core of its own while
+    /// directories stay together: one run per `shardBytes`, at most one per core and `maxShards`.
+    static func shards(_ files: [(path: String, bytes: Int)], cores: Int) -> [[String]] {
+        let total = files.reduce(0) { $0 + $1.bytes }
+        let count = max(1, min(total / shardBytes, cores, maxShards))
+        var shards: [[String]] = [[]]
+        var accumulated = 0
+        for file in files {
+            if shards.count < count, accumulated * count >= total * shards.count {
+                shards.append([])
+            }
+            shards[shards.count - 1].append(file.path)
+            accumulated += file.bytes
+        }
+        return shards
     }
 
     /// Reports the copy's absolute path and the worktree it holds (`root`, `id`, then `probed`), or no worktree when
     /// files it was sent are missing, then reads a header
-    /// line from stdin: `skip`, `inline <kind>` followed by the bundle, or `url <kind> <url>` to download the bundle
-    /// from. A `delta` bundle exits with `staleExitCode` when the copy changed since it was probed. It deletes the files
-    /// that left the worktree, and the directories that leaves empty, before extracting the new and changed ones.
+    /// line from stdin: `skip`, `inline <kind>` followed by the bundle, `url <kind> <url>` to download the bundle from,
+    /// or `shards <kind> <url>` to download a bundle without `files.tar.gz`, followed by a line per shard of the files
+    /// with its URL, each downloaded and extracted alongside the others as soon as it is named. A `delta` bundle exits
+    /// with `staleExitCode` when the copy changed since it was probed. It deletes the files that left the worktree, and
+    /// the directories that leaves empty, before extracting the new and changed ones.
     private static let applyScript = #"""
     set -euo pipefail
     case "$TUIST_DEST" in '$HOME'*) root="$HOME${TUIST_DEST#'$HOME'}" ;; *) root="$TUIST_DEST" ;; esac
@@ -232,13 +364,15 @@ struct SandboxSync {
     fi
     printf 'root %s\nid %s\nprobed\n' "$root" "$probed"
     IFS=' ' read -r action kind url || true
-    if [ "$action" != inline ] && [ "$action" != url ]; then exit 0; fi
+    case "$action" in inline | url | shards) ;; *) exit 0 ;; esac
     work=$(mktemp -d "${TMPDIR:-/tmp}/tuist-sync.XXXXXX")
-    trap 'rm -rf "$work"' EXIT
-    if [ "$action" = url ]; then
-      curl -fsS --retry 3 -o "$work/bundle.tar" "$url"
-    else
+    # Shard URLs may still be arriving when this exits early, such as when the copy is stale: reading them keeps the
+    # client's writes going until it reads the exit status and the error.
+    trap 'cat > /dev/null; rm -rf "$work"' EXIT
+    if [ "$action" = inline ]; then
       cat > "$work/bundle.tar"
+    else
+      curl -fsS --retry 3 -o "$work/bundle.tar" "$url"
     fi
     if [ "$kind" = delta ] && [ "$(cat "$state/id" 2> /dev/null || true)" != "$probed" ]; then
       exit \#(SandboxSync.staleExitCode)
@@ -279,7 +413,21 @@ struct SandboxSync {
     else
       perl -e "$apply" delta "$state/paths" "$work/deleted" "$work/added" > "$work/paths"
     fi
-    tar -xzf "$work/files.tar.gz"
+    if [ -e "$work/files.tar.gz" ]; then tar -xzf "$work/files.tar.gz"; fi
+    # Each shard streams into tar while it downloads. A failed attempt is extracted again from the start, which
+    # overwrites what it left, since curl cannot retry into a pipe.
+    shards=
+    while IFS= read -r shard; do
+      (
+        for attempt in 1 2 3; do
+          if curl -fsS "$shard" | tar -xzf -; then exit 0; fi
+          sleep "$attempt"
+        done
+        exit 1
+      ) &
+      shards="$shards $!"
+    done
+    for shard in $shards; do wait "$shard"; done
     mv "$work/paths" "$state/paths"
     printf '%s' "$TUIST_ID" > "$state/id"
     """#

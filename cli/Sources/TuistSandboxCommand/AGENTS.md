@@ -44,4 +44,10 @@
   the full path list. One stdin-attached command probes
   and applies, so the sandbox cannot pause between them; a bundle over one
   stdin write goes through a presigned upload (`POST .../uploads`), and stdin
-  remains the fallback for servers without it.
+  remains the fallback for servers without it. Changes of at least two shards'
+  worth (`SandboxSync.shardBytes` each, at most one per core and 8), such as a
+  first sync, are split into consecutive runs of files, each a plain
+  `tar -czf` (stock macOS has no zstd) compressed and uploaded in parallel;
+  the paths go first, and each shard's URL goes on stdin as soon as it is
+  uploaded, so the sandbox streams it into `tar` while the others are still
+  being compressed or uploaded.
