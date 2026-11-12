@@ -1,6 +1,7 @@
 defmodule Tuist.Tests.Coverage.HistoryTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Tuist.GitHistory
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
@@ -476,6 +477,66 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       %{points: points} = History.trend_points(project, "main")
       assert length(points) == 40
       assert {List.first(points).git_commit_sha, List.last(points).git_commit_sha} == {"c2", "c41"}
+    end
+
+    test "orders the commits a rebase merge landed at one commit time by their place on the ref", %{
+      project: project,
+      account: account
+    } do
+      # 41 commits on main, all committed at once, their SHAs sorting
+      # opposite to the graph: the head, c59, sorts first.
+      shas = Enum.map(99..59//-1, &"c#{&1}")
+
+      commits =
+        shas
+        |> Enum.with_index()
+        |> Enum.map(fn {sha, index} ->
+          CoverageFixtures.commit(sha, if(index == 0, do: [], else: ["c#{100 - index}"]), 0)
+        end)
+
+      repository_id = CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c59"}])
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+
+      publish_on_ref = fn shas ->
+        rows =
+          for sha <- shas do
+            {ref_id, position} = GitHistory.position(repository_id, sha)
+
+            %{
+              project_id: project.id,
+              repository_id: repository_id,
+              git_commit_sha: sha,
+              git_branch: "main",
+              ref_id: ref_id,
+              position: position,
+              committed_at: @epoch,
+              ran_at: @epoch,
+              covered_lines: position,
+              executable_lines: 100,
+              complete: true,
+              inserted_at: now,
+              updated_at: now
+            }
+          end
+
+        Repo.insert_all(CoverageCommit, rows)
+      end
+
+      {oldest, rest} = Enum.split(shas, 3)
+      publish_on_ref.(oldest)
+
+      trend = History.trend_points(project, "main")
+      assert trend.grouping == :commit
+      assert shas(trend) == ["c99", "c98", "c97"]
+      assert History.latest_complete_commit(project, "main") == "c97"
+
+      # Grouped by day, the day's commit is the one nearest the head.
+      publish_on_ref.(rest)
+
+      trend = History.trend_points(project, "main")
+      assert trend.grouping == :day
+      assert shas(trend) == ["c59"]
+      assert History.latest_complete_commit(project, "main") == "c59"
     end
 
     test "bounds the commits by the period", %{project: project} do
