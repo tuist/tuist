@@ -11,6 +11,7 @@ defmodule Tuist.Sandboxes.CommandsTest do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.Workers.CommandWatchWorker
+  alias Tuist.Sandboxes.Workers.EndLeaseWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
 
   # The guest's read answer: a header line, the stdout chunk on stdout and
@@ -334,6 +335,156 @@ defmodule Tuist.Sandboxes.CommandsTest do
     reject(&Nodes.call/4)
 
     assert {:ok, :skipped} = Sandboxes.pause_idle(sandbox.id)
+  end
+
+  describe "on macOS" do
+    setup do
+      grant = %{
+        "allow" => true,
+        "memory_bytes" => 24 * 1024 * 1024 * 1024,
+        "cpu_milli" => 16_000,
+        "slots" => 2,
+        "node_uid" => "node-uid",
+        "control_uid" => "control-uid",
+        "observed_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      node = %{
+        name: "mac-a",
+        platform: "darwin",
+        generation: "node-uid",
+        control_uid: "control-uid",
+        capacity: %{memory_bytes: 24 * 1024 * 1024 * 1024, cpus: 16},
+        templates: [%{name: "macos", ready: true, tag: "image@sha256:abc"}],
+        admission: grant
+      }
+
+      stub_grant(node, nil)
+      %{node: node}
+    end
+
+    # CI holds the Mac's grant until `opens_at` (monotonic milliseconds).
+    defp stub_grant(node, opens_at) do
+      stub(Nodes, :lookup, fn "mac-a" ->
+        open = is_nil(opens_at) or System.monotonic_time(:millisecond) >= opens_at
+        {:ok, self(), %{node | admission: Map.put(node.admission, "allow", open)}}
+      end)
+    end
+
+    defp mac(opts) do
+      sandbox_fixture(
+        Keyword.merge(
+          [platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, node_name: "mac-a", node_uid: "node-uid"],
+          opts
+        )
+      )
+    end
+
+    defp on_mac(op, answer \\ {:ok, %{"exit_code" => 0}}) do
+      fn "mac-a", ^op, args, _opts ->
+        send(self(), {:node_call, op, args})
+        answer
+      end
+    end
+
+    test "leases the sandbox to the session when its last command ends" do
+      sandbox = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.utc_now())
+      command = running_command(sandbox)
+
+      expect(Nodes, :call, fn "mac-a", "exec", _args, opts ->
+        opts[:on_stream].({:stdout, "exited 0 0 0 -\n"})
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
+
+      assert {:ok, %{status: "exited"}} = Commands.read(sandbox, command.id)
+
+      # The host hold outlasts the lease, so only the server ends it.
+      assert_received {:node_call, "hold_residency", %{work_id: "commands", hold_ms: 720_000}}
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
+      assert [] = all_enqueued(worker: PauseSandboxWorker)
+      assert [%Oban.Job{scheduled_at: ends_at}] = all_enqueued(worker: EndLeaseWorker)
+      assert DateTime.diff(ends_at, DateTime.utc_now()) in 590..600
+    end
+
+    test "a command joins the lease while CI holds the Mac's grant", %{node: node} do
+      sandbox = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.utc_now())
+      stub_grant(node, System.monotonic_time(:millisecond) + 60_000)
+
+      expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
+      expect(Nodes, :call, on_mac("exec"))
+
+      assert {:ok, %{status: "running"}} = Commands.start(sandbox, %{command: "xcodebuild"})
+      # While a command runs, only a release or pause ends the host hold.
+      assert_received {:node_call, "hold_residency", args}
+      refute Map.has_key?(args, :hold_ms)
+    end
+
+    test "without a lease, a command waits in the request for CI to give the Mac's grant back", %{node: node} do
+      sandbox = mac(state: :paused, resident: true, last_active_at: DateTime.utc_now())
+      started = System.monotonic_time(:millisecond)
+      # CI gives the grant back while the request waits.
+      stub_grant(node, started + 1_500)
+
+      expect(Nodes, :call, fn "mac-a", "resume", _args, _opts ->
+        send(self(), {:resumed_after_ms, System.monotonic_time(:millisecond) - started})
+        {:ok, %{"restore_ms" => 400}}
+      end)
+
+      expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
+      expect(Nodes, :call, on_mac("exec"))
+
+      assert {:ok, %{status: "running"}} = Commands.start(sandbox, %{command: "true"})
+      assert_received {:resumed_after_ms, waited}
+      assert waited in 1_500..3_000
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
+    end
+
+    test "ends the lease once the sandbox has been idle for its length, and keeps it otherwise" do
+      busy = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.add(DateTime.utc_now(), -900))
+      running_command(busy)
+      recent = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.add(DateTime.utc_now(), -60))
+      idle = mac(state: :running, residency_work_id: "commands", last_active_at: DateTime.add(DateTime.utc_now(), -601))
+
+      expect(Nodes, :call, on_mac("release_residency", {:ok, %{}}))
+
+      assert :ok = perform_job(EndLeaseWorker, %{sandbox_id: busy.id})
+      assert :ok = perform_job(EndLeaseWorker, %{sandbox_id: recent.id})
+      assert :ok = perform_job(EndLeaseWorker, %{sandbox_id: idle.id})
+
+      assert %Sandbox{residency_work_id: "commands"} = Repo.reload!(busy)
+      assert %Sandbox{residency_work_id: "commands"} = Repo.reload!(recent)
+      assert %Sandbox{residency_work_id: nil} = Repo.reload!(idle)
+      assert_received {:node_call, "release_residency", %{sandbox_id: idle_id, work_id: "commands"}}
+      assert idle_id == idle.id
+
+      # The idle one pauses at once; the recent one is checked again when
+      # its lease would end.
+      assert [%Oban.Job{args: %{"sandbox_id" => ^idle_id}, scheduled_at: pause_at}] =
+               all_enqueued(worker: PauseSandboxWorker)
+
+      assert DateTime.diff(pause_at, DateTime.utc_now()) <= 0
+      assert [%Oban.Job{scheduled_at: ends_at}] = all_enqueued(worker: EndLeaseWorker, args: %{sandbox_id: recent.id})
+      assert DateTime.diff(ends_at, DateTime.utc_now()) in 535..540
+    end
+
+    test "keep/1 leases a sandbox the API started, resuming it when its idle pause got there first" do
+      sandbox = mac(state: :paused, resident: true, last_active_at: DateTime.utc_now())
+
+      expect(Nodes, :call, on_mac("resume", {:ok, %{"restore_ms" => 400}}))
+      expect(Nodes, :call, on_mac("hold_residency", {:ok, %{}}))
+
+      assert {:ok, %Sandbox{state: :running, residency_work_id: "commands"}} = Commands.keep(sandbox)
+      assert_received {:node_call, "hold_residency", %{hold_ms: 720_000}}
+      assert [_lease_end] = all_enqueued(worker: EndLeaseWorker)
+
+      # The idle pause the resume scheduled finds the session holding it.
+      reject(&Nodes.call/4)
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: PauseSandboxWorker)
+      assert :ok = perform_job(PauseSandboxWorker, args)
+      assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
   end
 
   describe "CommandWatchWorker" do
