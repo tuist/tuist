@@ -3241,14 +3241,24 @@ runnersFleetLinux:
     # Internal rollout/rollback switch. Requires enabled above. Applies to
     # every Linux pool; pools may explicitly override nestedVirtualization.
     defaultEnabled: false
+    # Pools that also set exclusiveCPUs cannot use the device plugin: their
+    # Pod-level budget makes the kubelet skip device allocation and can panic
+    # it on concurrent starts (kubernetes/kubernetes#143490). Enabling this
+    # deploys the kvm-nri-plugin DaemonSet on the same hosts, which adds
+    # /dev/kvm through containerd NRI to the containers those Pods name in
+    # `tuist.dev/kvm-containers`, and lets the chart combine the two.
+    nri:
+      enabled: false
   # Whole physical cores per runner Pod, shared by the runner and its
   # sidecars, so a job does not share cores with another job or an Orb.
   # A pool with `exclusiveCPUs: true` gives its Pods one Guaranteed
   # Pod-level budget and lands only on the hosts the CAPI provider labels
   # `tuist.dev/pod-level-resource-managers=true` (Kata hosts on kubelet
   # v1.36 or newer); with no such host in the fleet its Pods stay Pending.
-  # Cannot be combined with nestedVirtualization: current kubelets skip device
-  # allocation during pod-level admission and can panic on concurrent starts
+  # Combined with nestedVirtualization only when
+  # `nestedVirtualization.nri.enabled`, which gives those Pods /dev/kvm
+  # without the device plugin: current kubelets skip device allocation during
+  # pod-level admission and can panic on concurrent starts
   # (kubernetes/kubernetes#143490).
   # Needs kata-qemu and an even vCPU count. See
   # infra/runners-controller/AGENTS.md "Exclusive CPUs".

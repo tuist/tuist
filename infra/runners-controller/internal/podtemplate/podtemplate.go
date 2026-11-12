@@ -95,6 +95,11 @@ const (
 	// the guest, where it resolves to the guest kernel's own KVM device.
 	KVMResourceName corev1.ResourceName = "devices.tuist.dev/kvm"
 
+	// KVMContainersAnnotation names, comma-separated, the containers
+	// kvm-nri-plugin gives /dev/kvm to (internal/kvmnri). Exclusive-CPU
+	// pools use it instead of KVMResourceName.
+	KVMContainersAnnotation = "tuist.dev/kvm-containers"
+
 	// KVMGuestKernelPath is the stable path the CAPI provider points at the
 	// installed KVM-enabled guest kernel (`kataKVMKernelLink` there).
 	KVMGuestKernelPath = "/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container"
@@ -196,13 +201,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 	}
 
+	// A Pod-level budget rules out the devices.tuist.dev/kvm device plugin:
+	// pod-level admission skips device allocation, and concurrent KVM
+	// allocations at container start can panic the kubelet
+	// (https://github.com/kubernetes/kubernetes/issues/143490). Those Pods get
+	// /dev/kvm from the kvm-nri-plugin DaemonSet instead (internal/kvmnri).
+	kvmThroughNRI := pool.Spec.NestedVirtualization && pool.Spec.ExclusiveCPUs
+
 	if pool.Spec.ExclusiveCPUs {
-		// Pod-level admission skips device allocation in current kubelets.
-		// Concurrent KVM allocations at container start can panic the host:
-		// https://github.com/kubernetes/kubernetes/issues/143490.
-		if pool.Spec.NestedVirtualization {
-			return nil, fmt.Errorf("refusing to build runner Pod: pool %q exclusiveCPUs cannot be combined with nestedVirtualization until kubelet supports device allocation during pod-level admission", pool.Name)
-		}
 		if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu" {
 			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 		}
@@ -286,7 +292,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		podResources = &corev1.ResourceRequirements{Requests: resources.Requests, Limits: resources.Limits}
 		resources = corev1.ResourceRequirements{Requests: corev1.ResourceList{}, Limits: corev1.ResourceList{}}
 	}
-	if pool.Spec.NestedVirtualization {
+	if pool.Spec.NestedVirtualization && !kvmThroughNRI {
 		resources.Requests[KVMResourceName] = resource.MustParse("1")
 		resources.Limits[KVMResourceName] = resource.MustParse("1")
 	}
@@ -421,7 +427,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				start = "until [ -x " + externalsPath + "/tuist-cache-volume ]; do sleep 0.1; done && " + start
 			}
 			if pool.Spec.NestedVirtualization {
-				// CDI supplies /dev/kvm to the runner, not this sidecar's /dev.
+				// CDI, or kvm-nri-plugin for exclusive-CPU pools, supplies /dev/kvm
+				// to the runner, not this sidecar's /dev.
 				// Both containers use the same Kata guest kernel, so create its
 				// KVM device here before dockerd resolves --device /dev/kvm.
 				// Keep one allocation per Pod: a second sidecar allocation would
@@ -645,13 +652,23 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
 			{Name: "tuist-runner-jit", MountPath: jitMountPath},
 		}
+		pollerScript := ""
+		if kvmThroughNRI {
+			// The NRI plugin adds /dev/kvm when containerd creates the
+			// container, and nothing does when it is not running. Exit before
+			// claiming a job the runner could not run.
+			pollerScript += "if [ ! -c /dev/kvm ]; then " +
+				"echo \"$(date -u +%FT%TZ) poller: /dev/kvm is missing; is kvm-nri-plugin running? exiting\"; exit 1; fi; "
+		}
 		if dindImage != "" {
-			pollerCommand = []string{"sh", "-c",
-				"i=0; until [ -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; do " +
-					"i=$((i + 1)); if [ \"$i\" -ge " + strconv.Itoa(externalsStageTimeoutTicks) + " ]; then " +
-					"echo \"$(date -u +%FT%TZ) poller: runner externals were not staged; exiting\"; exit 1; fi; " +
-					"sleep 0.1; done; exec /usr/local/bin/dispatch-poll.sh"}
+			pollerScript += "i=0; until [ -e " + externalsStagePath + "/" + externalsStagedMarker + " ]; do " +
+				"i=$((i + 1)); if [ \"$i\" -ge " + strconv.Itoa(externalsStageTimeoutTicks) + " ]; then " +
+				"echo \"$(date -u +%FT%TZ) poller: runner externals were not staged; exiting\"; exit 1; fi; " +
+				"sleep 0.1; done; "
 			pollerMounts = append(pollerMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: externalsStagePath, ReadOnly: true})
+		}
+		if pollerScript != "" {
+			pollerCommand = []string{"sh", "-c", pollerScript + "exec /usr/local/bin/dispatch-poll.sh"}
 		}
 		initContainers = append(initContainers, corev1.Container{
 			Name:         "poller",
@@ -720,6 +737,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
 		if pool.Spec.NestedVirtualization {
 			annotations[kataKernelAnnotation] = KVMGuestKernelPath
+		}
+		if kvmThroughNRI {
+			annotations[KVMContainersAnnotation] = "poller,runner"
 		}
 	}
 	if linuxPod && pool.Spec.RuntimeClass != "" {
