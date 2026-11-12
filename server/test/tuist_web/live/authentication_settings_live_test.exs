@@ -3,12 +3,15 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.SSOLoginDomainVerification
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
+  alias Tuist.Accounts.UserToken
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM
@@ -275,7 +278,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert has_element?(view, "#two-factor-settings", "Enable 2FA")
     assert has_element?(view, "#two-factor-settings form[action^='/users/log_out?return_to=']")
     refute has_element?(view, "#setup-authenticator-modal")
-    refute Accounts.UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
+    refute UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
 
     fresh =
       post(build_conn(), ~p"/users/log_in", %{
@@ -296,11 +299,43 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert Floki.attribute(document, "#mfa-enrollment", "data-recovery-modal") == ["mfa-recovery-modal"]
     assert Floki.find(document, "dialog#mfa-recovery-modal:not([open])") != []
     assert Floki.find(document, "#mfa-recovery-modal [data-recovery-content] #mfa-recovery-codes") == []
-    refute Accounts.UserMFA.enabled?(user)
+    refute UserMFA.enabled?(user)
 
     render_hook(view, "authenticator_modal_change", %{"open" => false})
     session = Accounts.get_user_session(get_session(fresh, :user_token))
-    refute Accounts.UserMFA.get_pending_enrollment(user, session)
+    refute UserMFA.get_pending_enrollment(user, session)
+  end
+
+  test "expired sessions offer 2FA management rather than implying 2FA is disabled", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    confirmed_at = now |> DateTime.add(-1) |> DateTime.truncate(:second)
+
+    Repo.insert!(%UserMFA{
+      user_id: user.id,
+      secret: NimbleTOTP.secret(),
+      enrollment_session_hash: :crypto.strong_rand_bytes(32),
+      enrollment_expires_at: DateTime.add(now, 300),
+      confirmed_at: confirmed_at
+    })
+
+    token = Accounts.generate_user_session_token(user, %{auth_method: :password, mfa_verified_at: confirmed_at})
+
+    stale_at = now |> DateTime.add(-301) |> DateTime.truncate(:second)
+
+    {1, _} =
+      Repo.update_all(
+        from(token in UserToken, where: token.token == ^token),
+        set: [inserted_at: stale_at]
+      )
+
+    stale = put_session(conn, :user_token, token)
+
+    {:ok, view, _html} = live(stale, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#two-factor-settings button", "Manage 2FA")
+    refute has_element?(view, "#two-factor-settings button", "Sign in again")
+    refute has_element?(view, "#two-factor-settings", "Enable 2FA")
   end
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do

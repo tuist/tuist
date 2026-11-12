@@ -97,7 +97,11 @@
         :if={!@fresh_session?}
         return_to={~p"/#{@selected_account.name}/settings/authentication"}
         show_explanation={false}
-        label={if !@mfa_enabled?, do: dgettext("dashboard_auth", "Enable 2FA")}
+        label={
+          if @mfa_enabled?,
+            do: dgettext("dashboard_auth", "Manage 2FA"),
+            else: dgettext("dashboard_auth", "Enable 2FA")
+        }
       />
       <.modal
         :if={!@mfa_enabled? and @fresh_session?}

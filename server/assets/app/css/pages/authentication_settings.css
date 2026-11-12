@@ -256,6 +256,10 @@
     }
   }
 
+  & #passkeys-settings:not(:has([data-part="security-details"])) > [data-part="header"] {
+    padding-bottom: var(--noora-spacing-6);
+  }
+
   & [data-part="sso-card"],
   & [data-part="scim-card"] {
     display: flex;

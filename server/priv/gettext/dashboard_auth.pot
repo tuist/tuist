@@ -513,7 +513,7 @@ msgstr ""
 
 #: lib/tuist_web/components/user_security.ex:206
 #: lib/tuist_web/components/user_security.ex:253
-#: lib/tuist_web/live/authentication_settings_live.html.heex:150
+#: lib/tuist_web/live/authentication_settings_live.html.heex:154
 #: lib/tuist_web/live/choose_username_live.ex:251
 #: lib/tuist_web/live/choose_username_live.ex:279
 #: lib/tuist_web/live/choose_username_live.ex:290
@@ -577,7 +577,7 @@ msgstr ""
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
 #: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
-#: lib/tuist_web/live/authentication_settings_live.html.heex:173
+#: lib/tuist_web/live/authentication_settings_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -768,7 +768,7 @@ msgid "Speed up CI by testing only what changed."
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
-#: lib/tuist_web/live/authentication_settings_live.html.heex:157
+#: lib/tuist_web/live/authentication_settings_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Authentication code"
 msgstr ""
@@ -820,7 +820,7 @@ msgid "Protect your account with an authenticator app and recovery codes."
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
-#: lib/tuist_web/live/authentication_settings_live.html.heex:188
+#: lib/tuist_web/live/authentication_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
 msgstr ""
@@ -1026,13 +1026,13 @@ msgid "Too many attempts. Wait a few minutes and try again."
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
-#: lib/tuist_web/live/authentication_settings_live.html.heex:128
+#: lib/tuist_web/live/authentication_settings_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Authenticator setup QR code"
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:59
-#: lib/tuist_web/live/authentication_settings_live.html.heex:131
+#: lib/tuist_web/live/authentication_settings_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Can't scan the QR code?"
 msgstr ""
@@ -1132,7 +1132,7 @@ msgid "Reset password link is invalid or it has expired."
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
-#: lib/tuist_web/live/authentication_settings_live.html.heex:136
+#: lib/tuist_web/live/authentication_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Setup key"
 msgstr ""
@@ -1199,13 +1199,13 @@ msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
-#: lib/tuist_web/live/authentication_settings_live.html.heex:190
+#: lib/tuist_web/live/authentication_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Save these codes somewhere safe. You won't see them again."
 msgstr ""
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
-#: lib/tuist_web/live/authentication_settings_live.html.heex:109
+#: lib/tuist_web/live/authentication_settings_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Scan the QR code, then enter the six-digit code."
 msgstr ""
@@ -1305,19 +1305,19 @@ msgstr ""
 msgid "Add passkey"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:161
+#: lib/tuist_web/live/authentication_settings_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "XXXXXX"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:181
+#: lib/tuist_web/live/authentication_settings_live.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Enable"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:100
-#: lib/tuist_web/live/authentication_settings_live.html.heex:107
-#: lib/tuist_web/live/authentication_settings_live.html.heex:116
+#: lib/tuist_web/live/authentication_settings_live.html.heex:103
+#: lib/tuist_web/live/authentication_settings_live.html.heex:111
+#: lib/tuist_web/live/authentication_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Enable 2FA"
 msgstr ""
@@ -1335,4 +1335,9 @@ msgstr ""
 #: lib/tuist_web/components/user_security.ex:173
 #, elixir-autogen, elixir-format
 msgid "Regenerate"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Manage 2FA"
 msgstr ""
