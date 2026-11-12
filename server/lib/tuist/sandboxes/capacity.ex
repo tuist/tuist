@@ -88,6 +88,8 @@ defmodule Tuist.Sandboxes.Capacity do
   # Keep only an in-flight growth while admission awaits it. Pauses and CI
   # pressure bypass this provisioning interval; there is no warm-memory hold.
   @shrink_hold_seconds 15
+  # `Tuist.RemoteExecution.Scheduler`'s `@warm_hold_ms`.
+  @execution_hold_seconds 60
   @allocation_ttl_seconds 15
   # How long a placement or resume waits for a growth to be reported, and
   # how long the poller's admission check does before it leaves a work item
@@ -1192,7 +1194,7 @@ defmodule Tuist.Sandboxes.Capacity do
       with %SandboxNode{pod_name: pod_name} = row <- Repo.get(SandboxNode, node_name),
            true <- pod_name == elastic.pod_name,
            row = at_least_floor(row, elastic.memory_floor_bytes),
-           false <- held?(row) and not urgent do
+           false <- (held?(row) or executing?(node)) and not urgent do
         needed = reserved_bytes(node_name) + @daemon_reserve_bytes
 
         target =
@@ -1229,6 +1231,22 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp held?(%SandboxNode{grown_at: grown_at}) do
     DateTime.diff(DateTime.utc_now(), grown_at, :second) < @shrink_hold_seconds
+  end
+
+  # An execution daemon runs one VM per action, so what its VMs hold dips
+  # between actions while a build still has more queued. Shrinking to that
+  # dip makes the next VMs wait for a growth, and larger VMs wait longest. Its
+  # carve-out holds while a VM placed within the time a scheduler holds a
+  # build's warm peak is still on it; warm VMs keep that true between actions.
+  # CI pressure (`urgent`) still shrinks it at once.
+  defp executing?(%{name: node_name} = node) do
+    execution_daemon?(node) and
+      Repo.exists?(
+        from s in Sandbox,
+          where:
+            s.node_name == ^node_name and s.purpose == :remote_execution and
+              s.inserted_at > ago(@execution_hold_seconds, "second")
+      )
   end
 
   defp reclaim_cgroup(node_name, limit) do

@@ -720,6 +720,46 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), image)
     end
 
+    defp grown_execution_daemon(last_vm_placed_at) do
+      {node, _image} = connect_execution(%{capacity: %{memory_bytes: 17 * @gib, cpus: 16}})
+      set_grant(node, memory_limit_bytes: 17 * @gib, grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))
+      # The last action's VM is already gone, so nothing running holds memory.
+      sandbox_fixture(
+        purpose: :remote_execution,
+        template: "bazel",
+        state: :deleted,
+        node_name: node,
+        inserted_at: last_vm_placed_at
+      )
+
+      node
+    end
+
+    test "an execution carve-out holds between actions" do
+      node = grown_execution_daemon(DateTime.utc_now())
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert :unchanged = Capacity.shrink(node_info(node))
+    end
+
+    test "an execution carve-out shrinks once the daemon has placed nothing for a minute" do
+      node = grown_execution_daemon(DateTime.add(DateTime.utc_now(), -61, :second))
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 9 * @gib
+    end
+
+    test "CI pressure shrinks an execution carve-out between actions" do
+      node = grown_execution_daemon(DateTime.utc_now())
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node), true)
+      assert limit == 9 * @gib
+    end
+
     test "agent sandboxes still need the grant's memory to grow", %{template: template} do
       node = connect_elastic(template)
       set_grant(node, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)

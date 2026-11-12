@@ -76,6 +76,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       account_id: account.id,
       agent_environment_id: Keyword.get(opts, :agent_environment_id),
       anthropic_session_id: Keyword.get(opts, :anthropic_session_id),
+      purpose: Keyword.get(opts, :purpose, :agent),
       platform: Keyword.get(opts, :platform, :linux),
       amp_orb_id: Keyword.get(opts, :amp_orb_id),
       amp_integration_id: Keyword.get(opts, :amp_integration_id),
