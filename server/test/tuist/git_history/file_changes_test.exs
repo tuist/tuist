@@ -787,6 +787,35 @@ defmodule Tuist.GitHistory.FileChangesTest do
       assert files(repository, "y") == with_mode(y)
     end
 
+    test "forks from a branch that itself forks, as a stacked pull request's merge commit does", %{
+      repository: repository,
+      main: main
+    } do
+      # `f` is the first pull request's branch; `s` merges the second one's
+      # `g` into it.
+      commits(repository, [{"g", ["f"]}, {"s", ["f", "g"]}])
+      head(repository, "one", "f")
+      one = ref_id(repository, "one")
+      f = %{"A.swift" => "a2", "B.swift" => "b1", "F.swift" => "f1"}
+      s = %{"A.swift" => "a2", "B.swift" => "b1", "F.swift" => "f1", "G.swift" => "g1"}
+
+      list(repository, "s", s)
+      assert [%{id: ref, parent_ref_id: ^one, fork_position: 3}] = detached(repository)
+      assert %{parent_ref_id: ^main, fork_position: 2} = Repo.get(Ref, one)
+      assert place(repository, "s") == {ref, 4}
+      assert files(repository, "s") == with_mode(s)
+
+      # Written below it afterwards, two forks down and then one.
+      list(repository, "b", @b)
+      list(repository, "f", f)
+
+      assert changes(repository, "f") == %{"F.swift" => "f1"}
+      assert files(repository, "b") == with_mode(@b)
+      assert files(repository, "f") == with_mode(f)
+      assert files(repository, "s") == with_mode(s)
+      assert repository |> GitHistory.commit_files("s") |> Map.new(&{&1.path, &1.git_blob_id}) == s
+    end
+
     test "moves to a detached ref when its branch moves on, also once its listing expired", %{
       repository: repository,
       main: main
