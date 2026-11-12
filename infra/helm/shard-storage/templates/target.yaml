@@ -7,6 +7,8 @@
   "endpoint" (printf "http://%s.%s.svc.cluster.local:3900" .Release.Name .Release.Namespace)
   "bucket" .Values.bucket
   "archive_bucket" .Values.archiveBucket
+  "actions_cache_bucket" .Values.actionsCache.bucket
+  "actions_cache_bytes" (mul (int64 .Values.actionsCache.maxGB) 1000000000)
   "region" "garage"
   "access_key_id" "{{ .access_key_id }}"
   "secret_access_key" "{{ .secret_access_key }}" }}

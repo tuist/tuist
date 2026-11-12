@@ -65,10 +65,17 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
   each restore key as a prefix, newest first. Escape LIKE wildcards.
 - A save of an existing key and version in the job's ref is refused (409),
   except a reservation abandoned for an hour. Reservations are idempotent by
-  the agent's entry ID; commits by ID, node and size.
+  the agent's entry ID, and commits by ID and node.
+- A reservation is placed in the account's own storage, otherwise in the shard
+  store (`actions_cache_bucket`) whose site is the node's, which must be on the
+  private network. Without one the save is refused and the job uses GitHub's
+  cache. Lookups only match entries the node's site can read. An entry commits
+  only once its store holds the object.
 - `sweep/1` (hourly) deletes abandoned reservations, entries unused for seven
-  days and a repository's least recently used entries beyond 50 GB. A stored
-  entry's row goes only after its object was deleted.
+  days, a repository's least recently used entries beyond 50 GB, and a store's
+  beyond 90% of its `actions_cache_bytes`, so the Garage quota stays a backstop.
+  An entry's row goes only after its object was deleted, except in a store that
+  is no longer configured.
 
 ## Linux OS versions
 

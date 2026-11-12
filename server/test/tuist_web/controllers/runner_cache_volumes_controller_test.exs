@@ -334,7 +334,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
       :ok
     end
 
-    test "answers a lookup, a pending job, a taken key and an unknown reservation" do
+    test "answers a lookup, a pending job, a taken key, an upload and a commit" do
       expect(ActionsCache, :lookup, fn _ -> {:ok, nil} end)
       assert %{status: 200, resp_body: ~s({"entry":null})} = Controller.actions_cache_lookup(conn(), %{})
 
@@ -343,6 +343,14 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
       expect(ActionsCache, :reserve, fn _ -> {:error, :conflict} end)
       assert Controller.actions_cache_reserve(conn(), %{}).status == 409
+
+      expect(ActionsCache, :upload, fn _ -> {:ok, %{upload_url: "https://store/object", checksum: "c2hh"}} end)
+      upload = Controller.actions_cache_upload(conn(), %{})
+      assert upload.status == 200
+      assert JSON.decode!(upload.resp_body) == %{"upload_url" => "https://store/object", "checksum" => "c2hh"}
+
+      expect(ActionsCache, :commit, fn _ -> :ok end)
+      assert Controller.actions_cache_commit(conn(), %{}).status == 204
 
       expect(ActionsCache, :commit, fn _ -> {:error, :not_found} end)
       assert Controller.actions_cache_commit(conn(), %{}).status == 404

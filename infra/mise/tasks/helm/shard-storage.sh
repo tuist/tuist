@@ -50,7 +50,16 @@ for environment in staging canary production; do
       .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $size and
       .spec.volumeClaimTemplates[0].spec.resources.requests.storage == $size) and
     all(.[]; .kind != "PodDisruptionBudget") and
-    all(.[] | select(.kind == "Service"); [.spec.ports[].port] == [3900]) and
+    all(.[] | select(.kind == "Service"); [.spec.ports[].port] == [3900, 3903]) and
+    any(.[]; .kind == "NetworkPolicy" and
+      [.spec.ingress[] | select(.ports[0].port == 3903) | .from] ==
+        [[{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "shard-storage-lifecycle", "app.kubernetes.io/instance": "shard-storage"}}}]]) and
+    any(.[]; .kind == "StatefulSet" and
+      any(.spec.template.spec.containers[0].env[]; .name == "GARAGE_ADMIN_TOKEN")) and
+    any(.[]; .kind == "CronJob" and
+      any(.spec.jobTemplate.spec.template.spec.containers[]; .name == "actions-cache" and
+        any(.env[]; .name == "BUCKET" and .value == "actions-cache") and
+        any(.env[]; .name == "MAX_SIZE" and (.value | test("^[1-9][0-9]{9,}$"))))) and
     any(.[]; .kind == "ConfigMap" and .data["lifecycle.json"] != null and
       (.data["lifecycle.json"] | fromjson | .Rules[0].Expiration.Days == 3 and
         .Rules[0].AbortIncompleteMultipartUpload.DaysAfterInitiation == 1))
@@ -79,11 +88,12 @@ for environment in staging canary production; do
       .spec.target.name == "shard-storage-targets" and
       (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
         .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
+        .actions_cache_bucket == "actions-cache" and (.actions_cache_bytes | type == "number" and . >= 1000000000) and
         .endpoint == "http://shard-storage.kura.svc.cluster.local:3900" and
         .access_key_id == "{{ .access_key_id }}" and .secret_access_key == "{{ .secret_access_key }}"))
   ' "$WORK/$environment.json" >/dev/null
 done
-echo 'All environments: singleton, placement, region accounting, controlled restart, matching disk reservation and three-day archives verified'
+echo 'All environments: singleton, placement, region accounting, controlled restart, matching disk reservation, three-day archives and a quota-capped Actions cache bucket verified'
 echo 'Canary and production: generated once-only credentials, private-network placement and a published server target verified'
 if helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" --set enabled=true --set externalSecrets.enabled=true --set externalSecrets.item=SHARD_STORAGE >/dev/null 2>&1; then
   echo 'Generated and 1Password credentials must not both define the store Secret' >&2
@@ -133,8 +143,8 @@ jq -e '
   any(.[]; .kind == "PodDisruptionBudget" and .spec.minAvailable == 2) and
   any(.[]; .kind == "Service" and .metadata.name == "shard-storage-peers" and
     .spec.clusterIP == "None" and .spec.publishNotReadyAddresses and [.spec.ports[].port] == [3901]) and
-  any(.[]; .kind == "Service" and .metadata.name == "shard-storage" and [.spec.ports[].port] == [3900]) and
-  any(.[]; .kind == "NetworkPolicy" and [.spec.ingress[].ports[].port] == [3900,3901] and
+  any(.[]; .kind == "Service" and .metadata.name == "shard-storage" and [.spec.ports[].port] == [3900, 3903]) and
+  any(.[]; .kind == "NetworkPolicy" and [.spec.ingress[].ports[].port] == [3900,3903,3901] and
     [.spec.egress[].ports[].port] == [3901,53,53] and
     .spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/instance"] == "shard-storage") and
   any(.[]; .kind == "ConfigMap" and .data["garage.toml"] != null and

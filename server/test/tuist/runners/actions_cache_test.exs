@@ -4,6 +4,7 @@ defmodule Tuist.Runners.ActionsCacheTest do
   import Ecto.Query, only: [from: 2]
   import Mimic
 
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
@@ -11,13 +12,26 @@ defmodule Tuist.Runners.ActionsCacheTest do
   alias Tuist.Runners.ActionsCache
   alias Tuist.Runners.ActionsCache.Entry
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Storage
+  alias Tuist.Storage.S3Target
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @version String.duplicate("a", 64)
   @sha256 String.duplicate("b", 64)
+  @store %{
+    "site" => "gra",
+    "enabled" => true,
+    "private_network_ready" => true,
+    "endpoint" => "http://shard-storage.kura.svc.cluster.local:3900",
+    "bucket" => "shards",
+    "actions_cache_bucket" => "actions-cache",
+    "actions_cache_bytes" => 100_000_000_000,
+    "access_key_id" => "GK0123",
+    "secret_access_key" => "secret"
+  }
 
   setup do
     stub(Environment, :runner_cache_volumes_enabled?, fn _ -> true end)
@@ -28,6 +42,11 @@ defmodule Tuist.Runners.ActionsCacheTest do
     end)
 
     stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+    stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => @store} end)
+    stub(Sites, :shard_storage_site, fn _node -> "gra" end)
+    stub(Storage, :generate_upload_url, fn _key, _actor, _opts -> "http://store/upload" end)
+    stub(Storage, :object_exists?, fn _key, _actor -> true end)
+    stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "http://store/download" end)
 
     runs = start_supervised!({Agent, fn -> %{} end})
     stub(GitHubClient, :get_workflow_run, fn %{run_id: id} -> {:ok, Agent.get(runs, &Map.fetch!(&1, id))} end)
@@ -94,7 +113,8 @@ defmodule Tuist.Runners.ActionsCacheTest do
                "version" => @version
              })
 
-    assert {:ok, _} = ActionsCache.commit(%{"node_name" => "node", "id" => id, "size_bytes" => size, "sha256" => @sha256})
+    assert {:ok, _} = ActionsCache.upload(%{"node_name" => "node", "id" => id, "size_bytes" => size, "sha256" => @sha256})
+    assert :ok = ActionsCache.commit(%{"node_name" => "node", "id" => id})
     id
   end
 
@@ -268,22 +288,33 @@ defmodule Tuist.Runners.ActionsCacheTest do
       assert {:ok, ^second} = ActionsCache.reserve(Map.put(params, "id", second))
       refute Repo.get(Entry, first)
     end
+
+    test "places a save in the store at the node's site, an account's own storage, or nowhere", ctx do
+      pod = running(ctx, "pod-main", push("main"))
+      params = %{"pod_name" => pod, "node_name" => "node", "version" => @version}
+
+      {:ok, in_store} = ActionsCache.reserve(Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "a"}))
+      assert Repo.get(Entry, in_store).storage_target == "gra-v1"
+
+      stub(Sites, :shard_storage_site, fn _node -> "rbx" end)
+
+      assert {:error, :unavailable} =
+               ActionsCache.reserve(Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "b"}))
+
+      Repo.update_all(from(a in Account, where: a.id == ^ctx.account.id),
+        set: [s3_bucket_name: "own", s3_access_key_id: "key", s3_secret_access_key: "secret"]
+      )
+
+      {:ok, own} = ActionsCache.reserve(Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "c"}))
+      assert Repo.get(Entry, own).storage_target == nil
+    end
   end
 
-  describe "commit/1 and stored/1" do
-    test "signs a storage upload once and serves the stored copy", %{account: account} = ctx do
-      stub(Storage, :supports_signed_upload_headers?, fn _ -> true end)
-      id = Ecto.UUID.generate()
-
-      expect(Storage, :generate_upload_url, fn key, _account, opts ->
-        assert key == "runner-actions-cache/#{account.id}/123/" <> id
-        assert [{"x-amz-checksum-sha256", _}] = opts[:signed_headers]
-        "https://storage.example.com/upload"
-      end)
-
-      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://storage.example.com/download" end)
-
+  describe "upload/1 and commit/1" do
+    test "signs an upload into the store bound to the digest, and restores only what the store holds",
+         %{account: account} = ctx do
       pod = running(ctx, "pod-main", push("main"))
+      id = Ecto.UUID.generate()
 
       {:ok, ^id} =
         ActionsCache.reserve(%{
@@ -294,60 +325,63 @@ defmodule Tuist.Runners.ActionsCacheTest do
           "version" => @version
         })
 
-      assert {:error, :not_found} =
-               ActionsCache.commit(%{"node_name" => "other", "id" => id, "size_bytes" => 10, "sha256" => @sha256})
+      upload = %{"node_name" => "node", "id" => id, "size_bytes" => 10, "sha256" => @sha256}
+      assert {:error, :not_found} = ActionsCache.upload(%{upload | "node_name" => "other"})
+      assert {:error, :unavailable} = ActionsCache.upload(%{upload | "size_bytes" => 6_000_000_000})
 
-      assert {:ok, %{upload_url: "https://storage.example.com/upload", checksum: checksum}} =
-               ActionsCache.commit(%{"node_name" => "node", "id" => id, "size_bytes" => 10, "sha256" => @sha256})
+      expect(Storage, :generate_upload_url, fn key, %S3Target{id: "gra-v1", bucket: "actions-cache"}, opts ->
+        assert key == "runner-actions-cache/#{account.id}/123/" <> id
+        assert [{"x-amz-checksum-sha256", _}] = opts[:signed_headers]
+        "http://store/upload"
+      end)
 
+      assert {:ok, %{upload_url: "http://store/upload", checksum: checksum}} = ActionsCache.upload(upload)
       assert checksum == @sha256 |> Base.decode16!(case: :lower) |> Base.encode64()
 
       lookup = %{"pod_name" => pod, "node_name" => "node", "key" => "deps", "version" => @version}
-      assert {:ok, %{id: ^id, size_bytes: 10, download_url: nil}} = ActionsCache.lookup(lookup)
+      stub(Storage, :object_exists?, fn _key, _actor -> false end)
+      assert {:error, :unavailable} = ActionsCache.commit(%{"node_name" => "node", "id" => id})
+      assert {:ok, nil} = ActionsCache.lookup(lookup)
 
-      assert :ok = ActionsCache.stored(%{"node_name" => "node", "id" => id})
-      assert {:ok, %{download_url: "https://storage.example.com/download"}} = ActionsCache.lookup(lookup)
-
-      assert {:error, :conflict} =
-               ActionsCache.commit(%{"node_name" => "node", "id" => id, "size_bytes" => 11, "sha256" => @sha256})
+      stub(Storage, :object_exists?, fn _key, %S3Target{bucket: "actions-cache"} -> true end)
+      assert :ok = ActionsCache.commit(%{"node_name" => "node", "id" => id})
+      assert :ok = ActionsCache.commit(%{"node_name" => "node", "id" => id})
+      assert {:ok, %{id: ^id, size_bytes: 10, download_url: "http://store/download"}} = ActionsCache.lookup(lookup)
+      assert {:error, :not_found} = ActionsCache.upload(upload)
     end
 
-    test "keeps entries larger than one upload on their host", ctx do
-      reject(&Storage.generate_upload_url/3)
+    test "a host at another site misses an entry rather than read a store it cannot reach", ctx do
       pod = running(ctx, "pod-main", push("main"))
-      id = Ecto.UUID.generate()
+      save(pod, "deps")
+      stub(Sites, :shard_storage_site, fn _node -> "rbx" end)
 
-      {:ok, ^id} =
-        ActionsCache.reserve(%{
-          "pod_name" => pod,
-          "node_name" => "node",
-          "id" => id,
-          "key" => "big",
-          "version" => @version
-        })
+      assert restore(pod, "deps") == nil
+    end
 
-      assert {:ok, %{upload_url: nil}} =
-               ActionsCache.commit(%{
-                 "node_name" => "node",
-                 "id" => id,
-                 "size_bytes" => 6_000_000_000,
-                 "sha256" => @sha256
-               })
+    test "an account's own storage gets public links only", ctx do
+      Repo.update_all(from(a in Account, where: a.id == ^ctx.account.id),
+        set: [s3_bucket_name: "own", s3_access_key_id: "key", s3_secret_access_key: "secret"]
+      )
+
+      stub(Storage, :generate_download_url, fn _key, %Account{}, _opts -> "http://10.0.0.1/download" end)
+      pod = running(ctx, "pod-main", push("main"))
+      save(pod, "deps")
+
+      assert restore(pod, "deps") == nil
     end
   end
 
   describe "sweep/1" do
     test "deletes abandoned reservations, idle entries and a repository's oldest entries beyond its limit",
-         %{
-           account: account
-         } = ctx do
-      stub(Storage, :generate_upload_url, fn _, _, _ -> nil end)
+         %{account: account} = ctx do
       pod = running(ctx, "pod-main", push("main"))
       now = DateTime.utc_now()
 
       idle = save(pod, "idle")
-      oldest = save(pod, "oldest", 30_000_000_000)
-      newest = save(pod, "newest", 30_000_000_000)
+      oldest = save(pod, "oldest", min(30_000_000_000, 5_000_000_000))
+      Repo.update_all(from(e in Entry, where: e.id == ^oldest), set: [size_bytes: 30_000_000_000])
+      newest = save(pod, "newest", 5_000_000_000)
+      Repo.update_all(from(e in Entry, where: e.id == ^newest), set: [size_bytes: 30_000_000_000])
 
       {:ok, abandoned} =
         ActionsCache.reserve(%{
@@ -361,10 +395,11 @@ defmodule Tuist.Runners.ActionsCacheTest do
       Repo.update_all(from(e in Entry, where: e.id == ^idle), set: [last_used_at: DateTime.add(now, -8, :day)])
       Repo.update_all(from(e in Entry, where: e.id == ^oldest), set: [last_used_at: DateTime.add(now, -1, :day)])
       Repo.update_all(from(e in Entry, where: e.id == ^abandoned), set: [inserted_at: DateTime.add(now, -2, :hour)])
-      Repo.update_all(from(e in Entry, where: e.id == ^oldest), set: [stored_at: now])
 
-      expect(Storage, :delete_objects, fn [key], _account ->
-        assert key == "runner-actions-cache/#{account.id}/123/#{oldest}"
+      expect(Storage, :delete_objects, fn keys, %S3Target{bucket: "actions-cache"} ->
+        assert Enum.sort(keys) ==
+                 Enum.sort(for id <- [idle, oldest, abandoned], do: "runner-actions-cache/#{account.id}/123/#{id}")
+
         :ok
       end)
 
@@ -372,16 +407,37 @@ defmodule Tuist.Runners.ActionsCacheTest do
       assert Enum.map(Repo.all(Entry), & &1.id) == [newest]
     end
 
-    test "keeps a stored entry whose object could not be deleted", ctx do
-      stub(Storage, :generate_upload_url, fn _, _, _ -> nil end)
+    test "keeps a store under 90% of its quota, least recently used first", ctx do
+      stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => %{@store | "actions_cache_bytes" => 100}} end)
+      pod = running(ctx, "pod-main", push("main"))
+      now = DateTime.utc_now()
+      old = save(pod, "old", 40)
+      recent = save(pod, "recent", 40)
+      newest = save(pod, "newest", 40)
+
+      for {id, hours} <- [{old, -3}, {recent, -2}, {newest, -1}] do
+        Repo.update_all(from(e in Entry, where: e.id == ^id), set: [last_used_at: DateTime.add(now, hours, :hour)])
+      end
+
+      stub(Storage, :delete_objects, fn _keys, _actor -> :ok end)
+
+      assert {:ok, 1} = ActionsCache.sweep(now)
+      refute Repo.get(Entry, old)
+      assert Repo.get(Entry, recent) && Repo.get(Entry, newest)
+    end
+
+    test "keeps an entry whose object could not be deleted, and drops one whose store is gone", ctx do
       pod = running(ctx, "pod-main", push("main"))
       id = save(pod, "idle")
       now = DateTime.utc_now()
-      Repo.update_all(Entry, set: [last_used_at: DateTime.add(now, -8, :day), stored_at: now])
+      Repo.update_all(Entry, set: [last_used_at: DateTime.add(now, -8, :day)])
       stub(Storage, :delete_objects, fn _, _ -> {:error, :unavailable} end)
 
       assert {:ok, 0} = ActionsCache.sweep(now)
       assert Repo.get(Entry, id)
+
+      stub(Environment, :shard_storage_targets, fn -> %{} end)
+      assert {:ok, 1} = ActionsCache.sweep(now)
     end
   end
 end

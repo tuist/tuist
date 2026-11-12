@@ -7,6 +7,9 @@
 {{- fail "shard-storage supports replicas=1 or replicas=3; two replicas cannot retain write quorum during maintenance" }}
 {{- end }}
 {{- $existing := lookup "apps/v1" "StatefulSet" .Release.Namespace .Release.Name }}
+{{- if and .Values.actionsCache.bucket (lt (int .Values.actionsCache.maxGB) 1) }}
+{{- fail "actionsCache.bucket needs a maxGB quota" }}
+{{- end }}
 {{- if and $existing (ne (int $existing.spec.replicas) (int .Values.replicas)) }}
 {{- fail "do not change replication factor on an existing store: install a new release with a new storage target ID" }}
 {{- end }}
@@ -71,6 +74,12 @@ spec:
     - name: s3
       port: 3900
       targetPort: s3
+    {{- if .Values.actionsCache.bucket }}
+    # Only the lifecycle job may reach it (NetworkPolicy below).
+    - name: admin
+      port: 3903
+      targetPort: health
+    {{- end }}
 ---
 {{- if $replicated }}
 apiVersion: v1
@@ -191,6 +200,16 @@ spec:
             - name: GARAGE_DEFAULT_BUCKET
               value: {{ .Values.bucket | quote }}
             {{- end }}
+            {{- if .Values.actionsCache.bucket }}
+            # The lifecycle job sets the Actions cache bucket's quota through the
+            # admin API. Its token is the RPC secret, which already grants full
+            # control of the store.
+            - name: GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}
+                  key: rpc-secret
+            {{- end }}
           ports:
             - name: s3
               containerPort: 3900
@@ -290,6 +309,16 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- if .Values.actionsCache.bucket }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage-lifecycle
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 3903
+    {{- end }}
     {{- if $replicated }}
     - from:
         - podSelector:

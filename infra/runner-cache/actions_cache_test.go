@@ -21,18 +21,57 @@ import (
 	"time"
 )
 
-type fakeActionsIndex struct {
-	mu        sync.Mutex
-	entries   map[string]*ActionsEntry // by key
-	reserved  map[string]string        // id -> key
-	committed map[string]string        // id -> sha256
-	stored    []string
-	upload    ActionsUpload
-	err       error
+// fakeObjectStore stands in for the entry's store: it takes PUTs whose
+// x-amz-checksum-sha256 matches the body, as Garage does, and serves ranged reads.
+type fakeObjectStore struct {
+	mu      sync.Mutex
+	objects map[string][]byte
+	status  int
+	server  *httptest.Server
 }
 
-func newFakeActionsIndex() *fakeActionsIndex {
-	return &fakeActionsIndex{entries: map[string]*ActionsEntry{}, reserved: map[string]string{}, committed: map[string]string{}}
+func newFakeObjectStore(t *testing.T) *fakeObjectStore {
+	store := &fakeObjectStore{objects: map[string][]byte{}}
+	store.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		if store.status != 0 {
+			w.WriteHeader(store.status)
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			sum := sha256.Sum256(body)
+			if r.Header.Get("x-amz-checksum-sha256") != base64.StdEncoding.EncodeToString(sum[:]) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			store.objects[r.URL.Path] = body
+		case http.MethodGet:
+			object, ok := store.objects[r.URL.Path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(object))
+		}
+	}))
+	t.Cleanup(store.server.Close)
+	return store
+}
+
+type fakeActionsIndex struct {
+	mu       sync.Mutex
+	store    *fakeObjectStore
+	entries  map[string]*ActionsEntry // committed, by key
+	reserved map[string]string        // id -> key
+	sizes    map[string]int64         // id -> size
+	err      error
+}
+
+func newFakeActionsIndex(store *fakeObjectStore) *fakeActionsIndex {
+	return &fakeActionsIndex{store: store, entries: map[string]*ActionsEntry{}, reserved: map[string]string{}, sizes: map[string]int64{}}
 }
 
 func (f *fakeActionsIndex) Lookup(_ context.Context, _ ActionsCaller, key string, restoreKeys []string, _ string) (*ActionsEntry, error) {
@@ -64,35 +103,54 @@ func (f *fakeActionsIndex) Reserve(_ context.Context, _ ActionsCaller, id, key, 
 	return nil
 }
 
-func (f *fakeActionsIndex) Commit(_ context.Context, id string, size int64, sum string) (ActionsUpload, error) {
+func (f *fakeActionsIndex) Upload(_ context.Context, id string, size int64, sum string) (ActionsUpload, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.committed[id] = sum
-	f.entries[f.reserved[id]] = &ActionsEntry{ID: id, Key: f.reserved[id], SizeBytes: size}
-	return f.upload, nil
+	digest, err := hex.DecodeString(sum)
+	if err != nil {
+		return ActionsUpload{}, err
+	}
+	f.sizes[id] = size
+	return ActionsUpload{URL: f.store.server.URL + "/" + id, Checksum: base64.StdEncoding.EncodeToString(digest)}, nil
 }
 
-func (f *fakeActionsIndex) Stored(_ context.Context, id string) error {
+func (f *fakeActionsIndex) Commit(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.stored = append(f.stored, id)
+	f.store.mu.Lock()
+	_, stored := f.store.objects["/"+id]
+	f.store.mu.Unlock()
+	if !stored {
+		return &RemoteError{Operation: "commit", StatusCode: http.StatusConflict}
+	}
+	f.entries[f.reserved[id]] = &ActionsEntry{ID: id, Key: f.reserved[id], SizeBytes: f.sizes[id], DownloadURL: f.store.server.URL + "/" + id}
 	return nil
+}
+
+func (f *fakeActionsIndex) committed(key string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.entries[key]
+	return ok
 }
 
 type actionsHarness struct {
 	t      *testing.T
 	cache  *ActionsCache
 	index  *fakeActionsIndex
+	store  *fakeObjectStore
 	server *httptest.Server
 	free   uint64
 	caller ActionsCaller
 }
 
-func newActionsHarness(t *testing.T) *actionsHarness {
-	h := &actionsHarness{t: t, index: newFakeActionsIndex(), free: 1 << 40, caller: ActionsCaller{PodName: "pod", PodUID: "uid-1"}}
+func newActionsHarness(t *testing.T, configure ...func(*ActionsCache)) *actionsHarness {
+	store := newFakeObjectStore(t)
+	h := &actionsHarness{t: t, store: store, index: newFakeActionsIndex(store), free: 1 << 40, caller: ActionsCaller{PodName: "pod", PodUID: "uid-1"}}
 	h.cache = &ActionsCache{
-		Index: h.index,
-		Store: &ActionsStore{Root: t.TempDir(), Reserve: 1 << 20, FreeBytes: func(string) (uint64, error) { return h.free, nil }},
+		Index:    h.index,
+		Store:    &ActionsStore{Root: t.TempDir(), Reserve: 1 << 20, FreeBytes: func(string) (uint64, error) { return h.free, nil }},
+		StoreURL: store.server.URL,
 		Caller: func(_ context.Context, ip string) (ActionsCaller, error) {
 			if ip != "127.0.0.1" || h.caller.PodUID == "" {
 				return ActionsCaller{}, errors.New("not a runner")
@@ -100,9 +158,30 @@ func newActionsHarness(t *testing.T) *actionsHarness {
 			return h.caller, nil
 		},
 	}
+	for _, apply := range configure {
+		apply(h.cache)
+	}
 	h.server = httptest.NewServer(h.cache)
 	t.Cleanup(h.server.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go h.cache.Run(ctx)
 	return h
+}
+
+// settle waits until the staged upload of every finalized save is gone, copied
+// to the store or dropped.
+func (h *actionsHarness) settle() {
+	h.t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		uploads, _ := os.ReadDir(filepath.Join(h.cache.Store.Root, "uploads"))
+		if len(uploads) == 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.t.Fatal("staged uploads were not copied")
 }
 
 func (h *actionsHarness) twirp(method string, body any) map[string]any {
@@ -154,6 +233,7 @@ func (h *actionsHarness) save(key string, content []byte) string {
 	if finalized["ok"] != true {
 		h.t.Fatalf("finalize refused: %v", finalized)
 	}
+	h.settle()
 	return upload
 }
 
@@ -181,11 +261,8 @@ func TestActionsCacheSavesAndRestoresAnEntry(t *testing.T) {
 	if status != http.StatusPartialContent || string(data) != "cache" {
 		t.Fatalf("ranged restore answered %d %q", status, data)
 	}
-	sum := sha256.Sum256(content)
-	for _, recorded := range h.index.committed {
-		if recorded != hex.EncodeToString(sum[:]) {
-			t.Fatalf("committed digest %s", recorded)
-		}
+	if uploads, _ := os.ReadDir(filepath.Join(h.cache.Store.Root, "uploads")); len(uploads) != 0 {
+		t.Fatalf("kept %d staged uploads after the copy", len(uploads))
 	}
 }
 
@@ -206,6 +283,7 @@ func TestActionsCacheAssemblesStagedBlocksInListOrder(t *testing.T) {
 	if answer := h.twirp("FinalizeCacheEntryUpload", map[string]any{"key": "layer", "version": "v1", "size_bytes": 11}); answer["ok"] != true {
 		t.Fatalf("finalize refused: %v", answer)
 	}
+	h.settle()
 	if _, data := h.restore("layer", nil); string(data) != "hello world" {
 		t.Fatalf("restored %q", data)
 	}
@@ -267,8 +345,7 @@ func TestActionsCachePassesOtherResultsRequestsToGitHub(t *testing.T) {
 		fmt.Fprintf(w, "%s %s %s", r.URL.Path, r.Header.Get("Authorization"), body)
 	}))
 	defer upstream.Close()
-	h := newActionsHarness(t)
-	h.cache.Upstream, _ = url.Parse(upstream.URL)
+	h := newActionsHarness(t, func(c *ActionsCache) { c.Upstream, _ = url.Parse(upstream.URL) })
 
 	path := "/twirp/github.actions.results.api.v1.ArtifactService/CreateArtifact"
 	response := h.do(http.MethodPost, h.server.URL+path, []byte(`{"name":"logs"}`), map[string]string{"Authorization": "Bearer token"})
@@ -282,68 +359,38 @@ func TestActionsCachePassesOtherResultsRequestsToGitHub(t *testing.T) {
 	}
 }
 
-func TestActionsCacheServesAndFetchesAnEntryAnotherHostSaved(t *testing.T) {
-	content := []byte("0123456789")
-	storage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(content))
-	}))
-	defer storage.Close()
+func TestActionsCacheDoesNotCommitAnEntryTheStoreRefused(t *testing.T) {
 	h := newActionsHarness(t)
-	id := newEntryID()
-	h.index.entries["deps"] = &ActionsEntry{ID: id, Key: "deps", SizeBytes: int64(len(content)), DownloadURL: storage.URL + "/object"}
+	h.store.status = http.StatusForbidden // Garage's answer once the bucket quota is reached
+	h.save("deps", []byte("payload"))
 
-	found := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "deps", "version": "v1"})
-	link := found["signed_download_url"].(string)
-	if response := h.do(http.MethodHead, link, nil, nil); response.ContentLength != int64(len(content)) {
-		t.Fatalf("HEAD reported %d bytes", response.ContentLength)
+	if h.index.committed("deps") {
+		t.Fatal("committed an entry the store refused")
 	}
-	response := h.do(http.MethodGet, link, nil, map[string]string{"Range": "bytes=2-4"})
-	data, _ := io.ReadAll(response.Body)
-	if response.StatusCode != http.StatusPartialContent || string(data) != "234" {
-		t.Fatalf("ranged read answered %d %q", response.StatusCode, data)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go h.cache.Run(ctx)
-	deadline := time.Now().Add(5 * time.Second)
-	for !h.cache.Store.Has(id) && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if file, err := h.cache.Store.Open(id); err != nil {
-		t.Fatalf("background fetch installed nothing: %v", err)
-	} else if data, _ := io.ReadAll(file); !bytes.Equal(data, content) {
-		t.Fatalf("installed %q", data)
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "deps", "version": "v1"}); answer["ok"] != false {
+		t.Fatalf("restored an entry the store refused: %v", answer)
 	}
 }
 
-func TestActionsCacheCopiesCommittedEntriesToStorage(t *testing.T) {
-	var received []byte
-	var checksum string
-	storage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received, _ = io.ReadAll(r.Body)
-		checksum = r.Header.Get("x-amz-checksum-sha256")
-	}))
-	defer storage.Close()
+func TestActionsCacheHealthFollowsTheStore(t *testing.T) {
 	h := newActionsHarness(t)
-	h.index.upload = ActionsUpload{URL: storage.URL + "/object", Checksum: "c2hh"}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go h.cache.Run(ctx)
-
-	h.save("deps", []byte("payload"))
+	health := func() int {
+		response := h.do(http.MethodGet, h.server.URL+ActionsHealthPath, nil, nil)
+		return response.StatusCode
+	}
 	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		h.index.mu.Lock()
-		stored := len(h.index.stored)
-		h.index.mu.Unlock()
-		if stored == 1 {
-			break
-		}
+	for health() != http.StatusOK && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if string(received) != "payload" || checksum != "c2hh" || len(h.index.stored) != 1 {
-		t.Fatalf("storage received %q with checksum %q, stored %v", received, checksum, h.index.stored)
+	if status := health(); status != http.StatusOK {
+		t.Fatalf("health answered %d with the store up", status)
+	}
+
+	h.cache.reachable.Store(time.Now().Add(-time.Minute).UnixNano())
+	h.store.server.Close()
+	h.cache.probe(context.Background())
+	if status := health(); status != http.StatusServiceUnavailable {
+		t.Fatalf("health answered %d with the store down", status)
 	}
 }
 
@@ -356,54 +403,22 @@ func TestActionsCacheRefusesAnUploadWithoutRoom(t *testing.T) {
 	}
 }
 
-func TestActionsStoreShedsLeastRecentlyUsedEntriesFirst(t *testing.T) {
-	root := t.TempDir()
-	free := uint64(0)
-	store := &ActionsStore{Root: root, FreeBytes: func(string) (uint64, error) { return free, nil }}
-	if err := os.MkdirAll(filepath.Join(root, "entries"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	old, recent := newEntryID(), newEntryID()
-	for i, id := range []string{old, recent} {
-		path := filepath.Join(root, "entries", id)
-		os.WriteFile(path, []byte("x"), 0o600)
-		used := time.Now().Add(time.Duration(i-2) * time.Hour)
-		os.Chtimes(path, used, used)
-	}
-	store.FreeBytes = func(string) (uint64, error) {
-		if !store.Has(old) {
-			free = 100
-		}
-		return free, nil
-	}
-	if !store.Shed(context.Background(), 100) {
-		t.Fatal("shed nothing")
-	}
-	if store.Has(old) || !store.Has(recent) {
-		t.Fatalf("shed the wrong entry: old=%v recent=%v", store.Has(old), store.Has(recent))
-	}
-}
-
-func TestActionsStoreMaintenanceRemovesIdleEntriesAndAbandonedUploads(t *testing.T) {
+func TestActionsStoreMaintenanceRemovesAbandonedUploads(t *testing.T) {
 	root := t.TempDir()
 	store := &ActionsStore{Root: root, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}
-	idle, fresh, abandoned := newEntryID(), newEntryID(), newEntryID()
-	os.MkdirAll(filepath.Join(root, "entries"), 0o700)
-	for _, id := range []string{idle, fresh} {
-		os.WriteFile(filepath.Join(root, "entries", id), []byte("x"), 0o600)
-	}
-	week := time.Now().Add(-8 * 24 * time.Hour)
-	os.Chtimes(filepath.Join(root, "entries", idle), week, week)
+	abandoned, fresh := newEntryID(), newEntryID()
 	store.Begin(abandoned)
-	os.Chtimes(filepath.Join(root, "uploads", abandoned), week, week)
+	store.Begin(fresh)
+	hourAgo := time.Now().Add(-2 * time.Hour)
+	os.Chtimes(filepath.Join(root, "uploads", abandoned), hourAgo, hourAgo)
 
 	if err := store.Maintain(); err != nil {
 		t.Fatal(err)
 	}
-	if store.Has(idle) || !store.Has(fresh) {
-		t.Fatalf("idle=%v fresh=%v", store.Has(idle), store.Has(fresh))
-	}
 	if _, err := os.Stat(filepath.Join(root, "uploads", abandoned)); !os.IsNotExist(err) {
 		t.Fatalf("abandoned upload kept: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "uploads", fresh)); err != nil {
+		t.Fatalf("fresh upload removed: %v", err)
 	}
 }

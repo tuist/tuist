@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,6 +35,10 @@ const (
 	ActionsHealthPath = "/actions-cache/healthz"
 	actionsURLTTL     = 6 * time.Hour
 	actionsServerWait = 5 * time.Second
+	// The store counts as reachable for this long after it last answered.
+	actionsStoreHealthy = 30 * time.Second
+	actionsStoreProbe   = 10 * time.Second
+	actionsCopies       = 4
 )
 
 // ActionsCaller is the runner Pod a request came from.
@@ -47,12 +52,11 @@ type ActionsEntry struct {
 	ID        string `json:"id"`
 	Key       string `json:"key"`
 	SizeBytes int64  `json:"size_bytes"`
-	// DownloadURL reads the copy in object storage; empty until one exists.
+	// DownloadURL reads the entry from its store.
 	DownloadURL string `json:"download_url"`
 }
 
-// ActionsUpload is where a committed entry is copied in object storage. An
-// empty URL keeps it on this host only.
+// ActionsUpload is where the entry's store takes an entry this host received.
 type ActionsUpload struct {
 	URL      string `json:"upload_url"`
 	Checksum string `json:"checksum"`
@@ -64,21 +68,29 @@ type ActionsIndex interface {
 	Lookup(ctx context.Context, caller ActionsCaller, key string, restoreKeys []string, version string) (*ActionsEntry, error)
 	// Reserve returns ErrConflict when the job's ref already holds key and version.
 	Reserve(ctx context.Context, caller ActionsCaller, id, key, version string) error
-	Commit(ctx context.Context, id string, size int64, sha256 string) (ActionsUpload, error)
-	Stored(ctx context.Context, id string) error
+	// Upload returns where the entry's store takes the bytes of reservation id.
+	Upload(ctx context.Context, id string, size int64, sha256 string) (ActionsUpload, error)
+	// Commit makes reservation id restorable once its store holds the object.
+	Commit(ctx context.Context, id string) error
 }
 
 // ActionsCache serves GitHub's cache v2 protocol to runner Pods on this host.
-// Any failure answers as a miss or a refused save, never an error a client
-// retries, so a job falls back to building what it would have restored.
+// Entries live in a store shared by every host: a save is staged here and
+// copied there, a restore is relayed from there. Any failure answers as a miss
+// or a refused save, never an error a client retries, so a job falls back to
+// building what it would have restored.
 type ActionsCache struct {
 	Index ActionsIndex
+	// Store stages uploads until they are copied to the entry's store.
 	Store *ActionsStore
+	// StoreURL is the store's endpoint. The health check fails while it has not
+	// answered recently, so the node shim leaves jobs on GitHub's cache.
+	StoreURL string
 	// Caller resolves a request's source address to a live runner Pod here.
 	Caller func(ctx context.Context, ip string) (ActionsCaller, error)
 	// Upstream receives every request that is not a cache request.
 	Upstream *url.URL
-	// Client copies entries to and from object storage.
+	// Client copies entries to and reads them from their store.
 	Client *http.Client
 	// Record counts an operation by result and the bytes it moved.
 	Record func(operation, result string, bytes int64, start time.Time)
@@ -90,8 +102,8 @@ type ActionsCache struct {
 	mu        sync.Mutex
 	saves     map[actionsSave]actionsPending
 	remote    map[string]actionsRemote
-	replicate chan actionsReplication
-	fetches   chan actionsRemote
+	copies    chan actionsCopy
+	reachable atomic.Int64
 }
 
 type actionsSave struct{ pod, key, version string }
@@ -102,15 +114,14 @@ type actionsPending struct {
 }
 
 type actionsRemote struct {
-	id    string
 	url   string
 	size  int64
 	until time.Time
 }
 
-type actionsReplication struct {
-	id     string
-	upload ActionsUpload
+type actionsCopy struct {
+	id, sha256 string
+	size       int64
 }
 
 func (c *ActionsCache) init() {
@@ -132,8 +143,7 @@ func (c *ActionsCache) init() {
 		}
 		c.saves = map[actionsSave]actionsPending{}
 		c.remote = map[string]actionsRemote{}
-		c.replicate = make(chan actionsReplication, 256)
-		c.fetches = make(chan actionsRemote, 256)
+		c.copies = make(chan actionsCopy, 256)
 	})
 }
 
@@ -142,34 +152,67 @@ func ActionsCachePath(path string) bool {
 	return strings.HasPrefix(path, "/twirp/") || strings.HasPrefix(path, "/actions-cache/")
 }
 
-// Run copies committed entries to object storage and fetches entries other
-// hosts saved, one at a time each, until ctx ends.
+// Run copies finished uploads to their store, a few at a time, and checks that
+// the store answers, until ctx ends.
 func (c *ActionsCache) Run(ctx context.Context) {
 	c.init()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case job := <-c.replicate:
-				c.copyOut(ctx, job)
+	for range actionsCopies {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case job := <-c.copies:
+					c.copyOut(ctx, job)
+				}
 			}
-		}
-	}()
+		}()
+	}
+	ticker := time.NewTicker(actionsStoreProbe)
+	defer ticker.Stop()
 	for {
+		c.probe(ctx)
 		select {
 		case <-ctx.Done():
 			return
-		case remote := <-c.fetches:
-			c.fetch(ctx, remote)
+		case <-ticker.C:
 		}
 	}
+}
+
+// probe records whether the store answered; any HTTP answer will do.
+func (c *ActionsCache) probe(ctx context.Context) {
+	if c.StoreURL == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.StoreURL, nil)
+	if err != nil {
+		return
+	}
+	response, err := c.client().Do(request)
+	if err != nil {
+		logger(c.Log).Warn("actions cache store unreachable", "error", err.Error())
+		return
+	}
+	io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
+	response.Body.Close()
+	c.reachable.Store(time.Now().UnixNano())
+}
+
+func (c *ActionsCache) healthy() bool {
+	return c.StoreURL == "" || time.Since(time.Unix(0, c.reachable.Load())) < actionsStoreHealthy
 }
 
 func (c *ActionsCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.init()
 	switch {
 	case r.URL.Path == ActionsHealthPath && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		if !c.healthy() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	case strings.HasPrefix(r.URL.Path, actionsCacheService) && r.Method == http.MethodPost:
 		c.serveTwirp(w, r, strings.TrimPrefix(r.URL.Path, actionsCacheService))
@@ -233,25 +276,19 @@ func (c *ActionsCache) lookup(ctx context.Context, r *http.Request, caller Actio
 	case err != nil:
 		c.fail("lookup", start, err)
 		return
-	case entry == nil:
+	case entry == nil || entry.DownloadURL == "":
 		c.record("lookup", "miss", 0, start)
 		return
-	case c.Store.Has(entry.ID):
-		c.record("lookup", "local", 0, start)
-	case entry.DownloadURL != "":
-		remote := actionsRemote{id: entry.ID, url: entry.DownloadURL, size: entry.SizeBytes, until: time.Now().Add(actionsURLTTL)}
-		c.mu.Lock()
-		c.remote[entry.ID] = remote
-		c.mu.Unlock()
-		select {
-		case c.fetches <- remote:
-		default:
-		}
-		c.record("lookup", "storage", 0, start)
-	default:
-		c.record("lookup", "elsewhere", 0, start)
-		return
 	}
+	c.mu.Lock()
+	for id, remote := range c.remote {
+		if time.Now().After(remote.until) {
+			delete(c.remote, id)
+		}
+	}
+	c.remote[entry.ID] = actionsRemote{url: entry.DownloadURL, size: entry.SizeBytes, until: time.Now().Add(actionsURLTTL)}
+	c.mu.Unlock()
+	c.record("lookup", "hit", 0, start)
 	answer["ok"] = true
 	answer["signed_download_url"] = c.blobURL(r, "d", entry.ID, caller)
 	answer["matched_key"] = entry.Key
@@ -305,17 +342,14 @@ func (c *ActionsCache) finalize(ctx context.Context, caller ActionsCaller, key, 
 		c.fail("finalize", start, err)
 		return
 	}
-	upload, err := c.Index.Commit(ctx, pending.id, size, sum)
-	if err != nil {
+	// The copy runs after the answer: a job does not wait for it, and its entry
+	// becomes restorable once the store holds it.
+	select {
+	case c.copies <- actionsCopy{id: pending.id, sha256: sum, size: size}:
+	default:
 		c.Store.Remove(pending.id)
-		c.fail("finalize", start, err)
+		c.record("finalize", "busy", 0, start)
 		return
-	}
-	if upload.URL != "" {
-		select {
-		case c.replicate <- actionsReplication{id: pending.id, upload: upload}:
-		default:
-		}
 	}
 	c.record("finalize", "ok", size, start)
 	answer["ok"] = true
@@ -389,14 +423,6 @@ func (c *ActionsCache) serveDownload(w http.ResponseWriter, r *http.Request, id 
 		r.Header.Set("Range", r.Header.Get("x-ms-range"))
 	}
 	start := time.Now()
-	if file, err := c.Store.Open(id); err == nil {
-		defer file.Close()
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("ETag", `"`+id+`"`)
-		http.ServeContent(w, r, "", time.Time{}, file)
-		c.record("download", "local", contentLength(w), start)
-		return
-	}
 	c.mu.Lock()
 	remote, ok := c.remote[id]
 	c.mu.Unlock()
@@ -442,81 +468,67 @@ func (c *ActionsCache) serveDownload(w http.ResponseWriter, r *http.Request, id 
 	c.record("download", "storage", written, start)
 }
 
-// copyOut uploads a committed entry to object storage, then tells the server.
-func (c *ActionsCache) copyOut(ctx context.Context, job actionsReplication) {
+// copyOut copies a finished upload to the entry's store and commits it. The
+// staged upload goes either way.
+func (c *ActionsCache) copyOut(ctx context.Context, job actionsCopy) {
+	defer c.Store.Remove(job.id)
 	start := time.Now()
 	err := func() error {
-		file, err := c.Store.Open(job.id)
+		indexed, cancel := context.WithTimeout(ctx, 30*time.Second)
+		upload, err := c.Index.Upload(indexed, job.id, job.size, job.sha256)
+		cancel()
 		if err != nil {
 			return err
 		}
-		defer file.Close()
-		info, err := file.Stat()
+		for attempt := 1; ; attempt++ {
+			err = c.put(ctx, job, upload)
+			var remote *RemoteError
+			retryable := err != nil && (!errors.As(err, &remote) || remote.StatusCode >= 500 || remote.StatusCode == http.StatusTooManyRequests)
+			if !retryable || attempt == 3 || ctx.Err() != nil {
+				break
+			}
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
 		if err != nil {
 			return err
 		}
-		ctx, cancel := context.WithTimeout(ctx, time.Hour)
+		committed, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		request, err := http.NewRequestWithContext(ctx, http.MethodPut, job.upload.URL, file)
-		if err != nil {
-			return err
-		}
-		request.ContentLength = info.Size()
-		if job.upload.Checksum != "" {
-			request.Header.Set("x-amz-checksum-sha256", job.upload.Checksum)
-		}
-		response, err := c.client().Do(request)
-		if err != nil {
-			return err
-		}
-		io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
-		response.Body.Close()
-		if response.StatusCode/100 != 2 {
-			return &RemoteError{Operation: "upload", StatusCode: response.StatusCode}
-		}
-		stored, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		return c.Index.Stored(stored, job.id)
+		return c.Index.Commit(committed, job.id)
 	}()
 	if err != nil {
-		c.fail("replicate", start, err)
+		c.fail("store", start, err)
 		return
 	}
-	c.record("replicate", "ok", 0, start)
+	c.record("store", "ok", job.size, start)
 }
 
-// fetch copies an entry another host saved into this one's free space.
-func (c *ActionsCache) fetch(ctx context.Context, remote actionsRemote) {
-	if c.Store.Has(remote.id) || time.Now().After(remote.until) {
-		return
-	}
-	start := time.Now()
-	err := func() error {
-		ctx, cancel := context.WithTimeout(ctx, time.Hour)
-		defer cancel()
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, remote.url, nil)
-		if err != nil {
-			return err
-		}
-		response, err := c.client().Do(request)
-		if err != nil {
-			return err
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			return &RemoteError{Operation: "download", StatusCode: response.StatusCode}
-		}
-		return c.Store.Install(ctx, remote.id, remote.size, response.Body)
-	}()
-	if errors.Is(err, ErrCapacity) {
-		c.record("fetch", "no_room", 0, start)
-		return
-	}
+func (c *ActionsCache) put(ctx context.Context, job actionsCopy, upload ActionsUpload) error {
+	file, err := c.Store.Open(job.id)
 	if err != nil {
-		c.fail("fetch", start, err)
-		return
+		return err
 	}
-	c.record("fetch", "ok", remote.size, start)
+	defer file.Close()
+	ctx, cancel := context.WithTimeout(ctx, time.Hour)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, upload.URL, file)
+	if err != nil {
+		return err
+	}
+	request.ContentLength = job.size
+	if upload.Checksum != "" {
+		request.Header.Set("x-amz-checksum-sha256", upload.Checksum)
+	}
+	response, err := c.client().Do(request)
+	if err != nil {
+		return err
+	}
+	io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
+	response.Body.Close()
+	if response.StatusCode/100 != 2 {
+		return &RemoteError{Operation: "upload", StatusCode: response.StatusCode}
+	}
+	return nil
 }
 
 func (c *ActionsCache) client() *http.Client {
@@ -607,11 +619,6 @@ func protoInt64(raw json.RawMessage) (int64, error) {
 	var number int64
 	err := json.Unmarshal(raw, &number)
 	return number, err
-}
-
-func contentLength(w http.ResponseWriter) int64 {
-	length, _ := strconv.ParseInt(w.Header().Get("Content-Length"), 10, 64)
-	return length
 }
 
 func newEntryID() string {
