@@ -7570,21 +7570,29 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/data`.
             public var data: OpenAPIRuntime.Base64EncodedData?
+            /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/offset`.
+            public var offset: Swift.Int?
             /// Creates a new `WriteSandboxCommandStdin`.
             ///
             /// - Parameters:
             ///   - close: End the command's stdin after the data.
             ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+            ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
             public init(
                 close: Swift.Bool? = nil,
-                data: OpenAPIRuntime.Base64EncodedData? = nil
+                data: OpenAPIRuntime.Base64EncodedData? = nil,
+                offset: Swift.Int? = nil
             ) {
                 self.close = close
                 self.data = data
+                self.offset = offset
             }
             public enum CodingKeys: String, CodingKey {
                 case close
                 case data
+                case offset
             }
         }
         /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
@@ -18805,6 +18813,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/env`.
             public var env: Components.Schemas.StartSandboxCommand.envPayload?
+            /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/id`.
+            public var id: Swift.String?
             /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/stdin`.
@@ -18820,6 +18832,7 @@ public enum Components {
             ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
             ///   - cwd: Working directory. Defaults to the sandbox's workspace.
             ///   - env: Environment variables for the command. Never stored.
+            ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
             ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
             public init(
@@ -18827,6 +18840,7 @@ public enum Components {
                 command: Swift.String,
                 cwd: Swift.String? = nil,
                 env: Components.Schemas.StartSandboxCommand.envPayload? = nil,
+                id: Swift.String? = nil,
                 stdin: Swift.Bool? = nil,
                 timeout_ms: Swift.Int? = nil
             ) {
@@ -18834,6 +18848,7 @@ public enum Components {
                 self.command = command
                 self.cwd = cwd
                 self.env = env
+                self.id = id
                 self.stdin = stdin
                 self.timeout_ms = timeout_ms
             }
@@ -18842,6 +18857,7 @@ public enum Components {
                 case command
                 case cwd
                 case env
+                case id
                 case stdin
                 case timeout_ms
             }
@@ -20963,6 +20979,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -30411,6 +30428,7 @@ public enum Components {
                     case account_colon_registry_colon_write = "account:registry:write"
                     case account_colon_runners_colon_read = "account:runners:read"
                     case account_colon_runners_colon_write = "account:runners:write"
+                    case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                     case project_colon_previews_colon_read = "project:previews:read"
                     case project_colon_previews_colon_write = "project:previews:write"
                     case project_colon_admin_colon_read = "project:admin:read"
@@ -33665,6 +33683,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -74302,6 +74321,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/env`.
                     public var env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload?
+                    /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/stdin`.
@@ -74317,6 +74340,7 @@ public enum Operations {
                     ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
                     ///   - cwd: Working directory. Defaults to the sandbox's workspace.
                     ///   - env: Environment variables for the command. Never stored.
+                    ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
                     ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
                     public init(
@@ -74324,6 +74348,7 @@ public enum Operations {
                         command: Swift.String,
                         cwd: Swift.String? = nil,
                         env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload? = nil,
+                        id: Swift.String? = nil,
                         stdin: Swift.Bool? = nil,
                         timeout_ms: Swift.Int? = nil
                     ) {
@@ -74331,6 +74356,7 @@ public enum Operations {
                         self.command = command
                         self.cwd = cwd
                         self.env = env
+                        self.id = id
                         self.stdin = stdin
                         self.timeout_ms = timeout_ms
                     }
@@ -74339,6 +74365,7 @@ public enum Operations {
                         case command
                         case cwd
                         case env
+                        case id
                         case stdin
                         case timeout_ms
                     }
@@ -76483,21 +76510,29 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/data`.
                     public var data: OpenAPIRuntime.Base64EncodedData?
+                    /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/offset`.
+                    public var offset: Swift.Int?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - close: End the command's stdin after the data.
                     ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+                    ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
                     public init(
                         close: Swift.Bool? = nil,
-                        data: OpenAPIRuntime.Base64EncodedData? = nil
+                        data: OpenAPIRuntime.Base64EncodedData? = nil,
+                        offset: Swift.Int? = nil
                     ) {
                         self.close = close
                         self.data = data
+                        self.offset = offset
                     }
                     public enum CodingKeys: String, CodingKey {
                         case close
                         case data
+                        case offset
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/content/application\/json`.
@@ -93277,6 +93312,7 @@ public enum Operations {
                                 case account_colon_registry_colon_write = "account:registry:write"
                                 case account_colon_runners_colon_read = "account:runners:read"
                                 case account_colon_runners_colon_write = "account:runners:write"
+                                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                                 case project_colon_previews_colon_read = "project:previews:read"
                                 case project_colon_previews_colon_write = "project:previews:write"
                                 case project_colon_admin_colon_read = "project:admin:read"
@@ -93657,6 +93693,7 @@ public enum Operations {
                         case account_colon_registry_colon_write = "account:registry:write"
                         case account_colon_runners_colon_read = "account:runners:read"
                         case account_colon_runners_colon_write = "account:runners:write"
+                        case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                         case project_colon_previews_colon_read = "project:previews:read"
                         case project_colon_previews_colon_write = "project:previews:write"
                         case project_colon_admin_colon_read = "project:admin:read"
@@ -144523,6 +144560,7 @@ public enum Operations {
                             case account_colon_registry_colon_write = "account:registry:write"
                             case account_colon_runners_colon_read = "account:runners:read"
                             case account_colon_runners_colon_write = "account:runners:write"
+                            case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                             case project_colon_previews_colon_read = "project:previews:read"
                             case project_colon_previews_colon_write = "project:previews:write"
                             case project_colon_admin_colon_read = "project:admin:read"

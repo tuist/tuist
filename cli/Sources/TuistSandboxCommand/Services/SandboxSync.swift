@@ -144,7 +144,7 @@ struct SandboxSync {
                 throw SandboxCommandError.stepFailed("Preparing \(destination) in the sandbox", captured.stdout + captured.stderr)
             }
             if remoteID == id {
-                try await remote.writeStdin(command.id, Data("skip\n".utf8))
+                try await remote.writeStdin(command.id, at: 0, Data("skip\n".utf8))
                 try Self.check(try await output.value)
                 return Result(root: root, changedFiles: 0, bytes: 0, uploaded: false)
             }
@@ -183,9 +183,9 @@ struct SandboxSync {
                 bytes = try Self.size(of: archive)
                 let inline = "inline \(kind)\n"
                 if bytes + inline.utf8.count > SandboxRemote.stdinChunkBytes, let url = try await remote.stage(archive) {
-                    try await remote.writeStdin(command.id, Data("url \(kind) \(url.absoluteString)\n".utf8))
+                    try await remote.writeStdin(command.id, at: 0, Data("url \(kind) \(url.absoluteString)\n".utf8))
                 } else {
-                    try await remote.writeStdin(command.id, Data(inline.utf8), file: archive)
+                    try await remote.writeStdin(command.id, at: 0, Data(inline.utf8), file: archive)
                 }
             }
             let captured = try await output.value
@@ -240,12 +240,22 @@ struct SandboxSync {
         defer { producer.cancel() }
 
         var bytes = try Self.size(of: paths)
-        try await remote.writeStdin(commandID, Data("shards \(kind) \(pathsURL.absoluteString)\n".utf8), close: false)
+        var offset = try await remote.writeStdin(
+            commandID,
+            at: 0,
+            Data("shards \(kind) \(pathsURL.absoluteString)\n".utf8),
+            close: false
+        )
         var sent = 0
         for try await upload in uploads {
             sent += 1
             bytes += upload.bytes
-            try await remote.writeStdin(commandID, Data("\(upload.url.absoluteString)\n".utf8), close: sent == shards.count)
+            offset = try await remote.writeStdin(
+                commandID,
+                at: offset,
+                Data("\(upload.url.absoluteString)\n".utf8),
+                close: sent == shards.count
+            )
         }
         return bytes
     }

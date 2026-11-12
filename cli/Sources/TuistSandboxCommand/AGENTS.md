@@ -23,7 +23,11 @@
   a command starts detached and its ND-JSON log stream resumes from the last
   byte offsets after a drop, a 5xx or a mid-stream `error` line, giving up after
   15 minutes without progress; a 404 ends it at once. Starting a command and
-  stdin writes wait through 503s while CI holds a shared macOS host. `exec` exits
+  stdin writes wait through 503s while CI holds a shared macOS host, and are sent
+  again after a 5xx or transport error: a proxy 502 can hide an answer whose
+  effect happened, so each start carries an `id` the CLI picks and each stdin
+  write the `offset` it continues, which the server uses to act once. Never
+  retry them without those. `exec` exits
   with the command's status (124 on timeout, 130 when cancelled) and cancels it
   on SIGINT/SIGTERM. Progress notes go to stderr, never stdout. The synchronous
   `POST .../exec` endpoint stays in the API; the CLI no longer uses it.

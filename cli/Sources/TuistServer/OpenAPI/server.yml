@@ -1315,6 +1315,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        offset:
+          description: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
       title: WriteSandboxCommandStdin
       type: object
       x-struct:
@@ -8780,6 +8786,12 @@ components:
           type: object
           x-struct:
           x-validate:
+        id:
+          description: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         stdin:
           description: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
           type: boolean
@@ -10145,6 +10157,7 @@ components:
               - account:registry:write
               - account:runners:read
               - account:runners:write
+              - account:sandboxes:write
               - project:previews:read
               - project:previews:write
               - project:admin:read
@@ -16535,6 +16548,7 @@ components:
                     - account:registry:write
                     - account:runners:read
                     - account:runners:write
+                    - account:sandboxes:write
                     - project:previews:read
                     - project:previews:write
                     - project:admin:read
@@ -18692,6 +18706,7 @@ components:
               - account:registry:write
               - account:runners:read
               - account:runners:write
+              - account:sandboxes:write
               - project:previews:read
               - project:previews:write
               - project:admin:read
@@ -33087,6 +33102,12 @@ paths:
                   type: object
                   x-struct:
                   x-validate:
+                id:
+                  description: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 stdin:
                   description: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                   type: boolean
@@ -33790,6 +33811,12 @@ paths:
                   description: Base64-encoded bytes, at most 256 KiB decoded.
                   format: byte
                   type: string
+                  x-struct:
+                  x-validate:
+                offset:
+                  description: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+                  minimum: 0
+                  type: integer
                   x-struct:
                   x-validate:
               title: WriteSandboxCommandStdin
@@ -39928,6 +39955,7 @@ paths:
                               - account:registry:write
                               - account:runners:read
                               - account:runners:write
+                              - account:sandboxes:write
                               - project:previews:read
                               - project:previews:write
                               - project:admin:read
@@ -40045,6 +40073,7 @@ paths:
                       - account:registry:write
                       - account:runners:read
                       - account:runners:write
+                      - account:sandboxes:write
                       - project:previews:read
                       - project:previews:write
                       - project:admin:read
@@ -58350,6 +58379,7 @@ paths:
                         - account:registry:write
                         - account:runners:read
                         - account:runners:write
+                        - account:sandboxes:write
                         - project:previews:read
                         - project:previews:write
                         - project:admin:read

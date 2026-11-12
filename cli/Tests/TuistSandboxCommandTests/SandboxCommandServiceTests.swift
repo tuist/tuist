@@ -181,6 +181,7 @@ struct SandboxCommandServiceTests {
             accountHandle: .value("resolved-account"),
             serverURL: .value(Self.serverURL),
             sandboxID: .value(Self.id),
+            id: .any,
             command: .value("make test"),
             cwd: .value("/work"),
             environment: .value(["CI": "1"]),

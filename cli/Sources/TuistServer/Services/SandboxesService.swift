@@ -51,11 +51,13 @@ public protocol SandboxesServicing: Sendable {
         sandboxID: String
     ) async throws -> ServerSandbox
     func deleteSandbox(accountHandle: String, serverURL: URL, sandboxID: String) async throws
-    /// Starts a command detached in the sandbox (`POST .../commands`), which outlives any one request.
+    /// Starts a command detached in the sandbox (`POST .../commands`), which outlives any one request. Sent again with the
+    /// same `id`, it answers the command the first request started instead of starting another.
     func startSandboxCommand(
         accountHandle: String,
         serverURL: URL,
         sandboxID: String,
+        id: String,
         command: String,
         cwd: String?,
         environment: [String: String],
@@ -72,12 +74,14 @@ public protocol SandboxesServicing: Sendable {
         stdoutOffset: Int,
         stderrOffset: Int
     ) async throws -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>
+    /// Appends `data` to the command's stdin, which held `offset` bytes before it, so a write sent again lands once.
     func writeSandboxCommandStdin(
         accountHandle: String,
         serverURL: URL,
         sandboxID: String,
         commandID: String,
         data: Data,
+        offset: Int,
         close: Bool
     ) async throws
     func cancelSandboxCommand(
@@ -330,6 +334,7 @@ public struct SandboxesService: SandboxesServicing {
         accountHandle: String,
         serverURL: URL,
         sandboxID: String,
+        id: String,
         command: String,
         cwd: String?,
         environment: [String: String],
@@ -343,6 +348,7 @@ public struct SandboxesService: SandboxesServicing {
                     command: command,
                     cwd: cwd,
                     env: environment.isEmpty ? nil : .init(additionalProperties: environment),
+                    id: id,
                     stdin: stdin,
                     timeout_ms: timeoutMs
                 ))
@@ -418,12 +424,13 @@ public struct SandboxesService: SandboxesServicing {
         sandboxID: String,
         commandID: String,
         data: Data,
+        offset: Int,
         close: Bool
     ) async throws {
         let response = try await SandboxesServiceError.send {
             try await Client.authenticated(serverURL: serverURL).writeSandboxCommandStdin(.init(
                 path: .init(account_handle: accountHandle, sandbox_id: sandboxID, command_id: commandID),
-                body: .json(.init(close: close, data: Base64EncodedData(data)))
+                body: .json(.init(close: close, data: Base64EncodedData(data), offset: offset))
             ))
         }
         switch response {
