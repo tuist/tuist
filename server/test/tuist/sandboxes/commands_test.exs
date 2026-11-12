@@ -139,6 +139,36 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
     end
 
+    test "adopts a pause the node made whose caller died, then resumes the sandbox and starts the command" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      paused = {:error, "sandbox is not running: #{sandbox.id} is paused"}
+
+      # The launch, then the check under the sandbox's lock, both meet the
+      # paused VM while the row still says running.
+      expect(Nodes, :call, 2, fn "node-a", "exec", _args, _opts -> paused end)
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, started())
+
+      assert {:ok, %{id: id, status: "running"}} = Commands.start(sandbox, %{command: "true"})
+      assert %Sandbox{state: :running, residency_work_id: "commands"} = Repo.reload!(sandbox)
+      assert [%SandboxCommand{id: ^id}] = Repo.all(SandboxCommand)
+    end
+
+    test "keeps a running sandbox's row when the node no longer says it is paused" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts ->
+        {:error, "sandbox is not running: #{sandbox.id} is paused"}
+      end)
+
+      # A resume on another replica won the race: the VM runs again.
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      expect(Nodes, :call, started())
+
+      assert {:ok, %{status: "running"}} = Commands.start(sandbox, %{command: "true"})
+      assert %Sandbox{state: :running, paused_at: nil} = Repo.reload!(sandbox)
+    end
+
     test "gives the sandbox back when the command cannot start" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
 

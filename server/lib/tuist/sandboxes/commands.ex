@@ -220,17 +220,23 @@ defmodule Tuist.Sandboxes.Commands do
       prune_finished(running)
 
       case start_on(running, id, params, script, env, timeout_ms) do
-        # An idle sandbox's pause can reach the node before the row says
-        # paused. Like `Sandboxes.exec/3`, wait for it and start on the
-        # resumed sandbox.
-        {:error, "sandbox is being paused" <> _} ->
-          with {:ok, resumed} <- Sandboxes.await_pause(running),
-               do: start_on(resumed, id, params, script, env, timeout_ms)
+        {:error, reason} = error ->
+          if Sandboxes.interrupted_by_pause?(reason),
+            do: start_after_pause(running, id, params, script, env, timeout_ms),
+            else: error
 
         result ->
           result
       end
     end
+  end
+
+  # An idle sandbox's pause can reach the node before the row says paused, or
+  # the pause's caller can die before recording it. Like `Sandboxes.exec/3`,
+  # wait for it and start on the resumed sandbox.
+  defp start_after_pause(running, id, params, script, env, timeout_ms) do
+    with {:ok, resumed} <- Sandboxes.await_pause(running),
+         do: start_on(resumed, id, params, script, env, timeout_ms)
   end
 
   defp start_on(sandbox, id, params, script, env, timeout_ms) do
