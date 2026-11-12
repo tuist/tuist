@@ -225,4 +225,19 @@ func TestControlPodReadyBeforeTemplatePreparation(t *testing.T) {
 	if pod.Status.Phase != corev1.PodRunning || len(pod.Status.Conditions) != 1 || pod.Status.Conditions[0].Type != corev1.PodReady || pod.Status.Conditions[0].Status != corev1.ConditionTrue {
 		t.Fatalf("control Pod not Ready while preparation is pending: %+v", pod.Status)
 	}
+
+	// After an API outage the node lifecycle controller marks the Pod NotReady
+	// and leaves it Running. The next tick must make it Ready again.
+	pod.Status.Conditions[0].Status = corev1.ConditionFalse
+	if _, err = capacity.Kube.CoreV1().Pods(Namespace).UpdateStatus(context.Background(), pod, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.tick(ctx, ctx, &controlUID, &stop)
+	pod, err = capacity.Kube.CoreV1().Pods(Namespace).Get(context.Background(), control.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pod.Status.Phase != corev1.PodRunning || len(pod.Status.Conditions) != 1 || pod.Status.Conditions[0].Status != corev1.ConditionTrue {
+		t.Fatalf("control Pod stayed NotReady after the node recovered: %+v", pod.Status)
+	}
 }

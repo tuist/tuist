@@ -454,9 +454,18 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 	return s.repairReservations(ctx, m)
 }
 
+// markRunning also restores Ready: the node lifecycle controller marks every
+// Pod on a node NotReady when its lease lapses and leaves the phase Running.
 func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
-	if pod.Status.Phase == corev1.PodRunning || !pod.DeletionTimestamp.IsZero() {
+	if !pod.DeletionTimestamp.IsZero() {
 		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return nil
+			}
+		}
 	}
 	copy := pod.DeepCopy()
 	copy.Status.Phase = corev1.PodRunning
