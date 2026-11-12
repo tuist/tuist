@@ -175,7 +175,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetSupportThread
   alias Atlas.MCP.Tools.GetTimeOffCalendar
   alias Atlas.MCP.Tools.GetTimeOffOverview
+  alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
   alias Atlas.MCP.Tools.ImportPublicHolidays
@@ -347,6 +349,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSupportThread
   alias Atlas.MCP.Tools.UpdateTask
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
+  alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.UploadPostalLetter
   alias Atlas.Users.BusinessProfile
 
@@ -567,10 +570,20 @@ defmodule Atlas.MCP.Server do
     EvaluateTuistFeatureFlags,
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
-    UpdateTuistFeatureFlag
+    UpdateTuistFeatureFlag,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits,
+    UpdateTuistRunnerConcurrencyLimits
   ]
-  @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags]
-  @feature_flag_write_tools [UpdateTuistFeatureFlag]
+  # Runner onboarding tools share the flag tools' scopes and Slack/interface rules.
+  @feature_flag_read_tools [
+    ListTuistFeatureFlags,
+    GetTuistFeatureFlag,
+    EvaluateTuistFeatureFlags,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits
+  ]
+  @feature_flag_write_tools [UpdateTuistFeatureFlag, UpdateTuistRunnerConcurrencyLimits]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
@@ -833,6 +846,9 @@ defmodule Atlas.MCP.Server do
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
     UpdateTuistFeatureFlag,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits,
+    UpdateTuistRunnerConcurrencyLimits,
     ListAssets,
     GetAsset,
     ListAssetFinancings,

@@ -45,6 +45,7 @@ defmodule Atlas.MCP.Tools.EvaluateTuistFeatureFlags do
   @impl EMCP.Tool
   def description do
     "Evaluate feature flags for exactly one positive Tuist account_id OR project_id, not an Atlas UUID. Requires feature_flags:read. " <>
+      "get_tuist_account resolves an organization or user handle to its account_id. " <>
       "A project includes its owning account's flags plus project and global flags; an account does not enumerate its projects. " <>
       "Uses current persisted rules, deterministic percentage enrollment and the serving server's actual feature helpers, " <>
       "including environment defaults, kill switches and dependencies. name identifies the source flag; enabled applies to feature, " <>

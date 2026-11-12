@@ -12,13 +12,16 @@ defmodule Atlas.MCP.Tools.UpdateTuistFeatureFlag do
   @impl EMCP.Tool
   def description do
     "Change persisted Tuist feature flag rules. Requires feature_flags:write. Inspect first and supply expected_revision, a reason " <>
-      "and a unique change_id UUID. Account/project scopes use positive Tuist IDs, not Atlas UUIDs. " <>
+      "and a unique change_id UUID. Account/project scopes use positive Tuist IDs, not Atlas UUIDs or organization IDs; " <>
+      "get_tuist_account resolves a handle to its account_id. " <>
       "Percentage enable sets a deterministic actor rollout strictly between 0 and 100; percentage clear takes no percentage. " <>
       "Global disable changes only the boolean gate and PRESERVES actor/percentage overrides; it is not an emergency reset. " <>
       "Clear removes the selected override and restores inheritance. Explicit emergency reset is operation=clear, scope=all, removing ALL gates. " <>
       "Read the flag description for kill-switch polarity and environment defaults; persisted gates do not evaluate environment wrappers. " <>
       "A stale revision is rejected (409): re-inspect before making a new decision. Writes never retry automatically; after an ambiguous failure " <>
-      "reconcile using the SAME change_id and original payload. Actor and interface come from the authenticated session, never arguments."
+      "reconcile using the SAME change_id and original payload. Actor and interface come from the authenticated session, never arguments. " <>
+      "Each write needs the approval of the person you work for: the first call files a request and returns a link, the person " <>
+      "approves it in Atlas, and the same call with identical arguments then runs once. Never approve it yourself."
   end
 
   def execute(conn, args) do
