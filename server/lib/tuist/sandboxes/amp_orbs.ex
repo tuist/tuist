@@ -302,7 +302,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     # residency protects it after this short command exits.
     case Sandboxes.exec(sandbox, bootstrap_command(sandbox), env: env, timeout_ms: bootstrap_timeout(sandbox)) do
       {:ok, %{exit_code: 0}} ->
-        if is_nil(sandbox.amp_creator_user_id) do
+        if is_nil(sandbox.amp_creator_user_id) or is_nil(sandbox.amp_creator_email) do
           _ =
             %{"sandbox_id" => sandbox.id}
             |> CaptureAmpCreatorWorker.new(schedule_in: 5)

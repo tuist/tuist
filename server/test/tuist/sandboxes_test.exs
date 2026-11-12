@@ -46,6 +46,86 @@ defmodule Tuist.SandboxesTest do
            ]
   end
 
+  test "creator email matching requires verification and prefers email over a conflicting username" do
+    verified_at = DateTime.utc_now(:second)
+    creator = user_fixture(email_verified_at: verified_at)
+    other = user_fixture()
+    unverified = user_fixture()
+    disabled = user_fixture(email_verified_at: verified_at)
+    disabled |> Ecto.Changeset.change(disabled_at: verified_at) |> Repo.update!()
+    inactive = user_fixture(email_verified_at: verified_at)
+    inactive |> Ecto.Changeset.change(active: false) |> Repo.update!()
+
+    sandboxes =
+      for {email, username, label} <- [
+            {String.upcase(creator.email), other.account.name, "different-amp-name"},
+            {unverified.email, nil, "unverified"},
+            {disabled.email, nil, "disabled"},
+            {inactive.email, nil, "inactive"},
+            {nil, nil, creator.email}
+          ] do
+        sandbox_fixture()
+        |> Ecto.Changeset.change(
+          amp_creator_user_id: "user_amp",
+          amp_creator_email: email,
+          amp_creator_username: username,
+          amp_creator_name: label
+        )
+        |> Repo.update!()
+      end
+
+    assert Enum.map(Sandboxes.preload_creators(sandboxes), & &1.creator_actor) == [
+             %{name: creator.account.name, source: :matched},
+             %{name: "unverified", source: :reported},
+             %{name: "disabled", source: :reported},
+             %{name: "inactive", source: :reported},
+             %{name: creator.email, source: :reported}
+           ]
+  end
+
+  test "Anthropic creators come from the session's authenticated creator in the same account and environment" do
+    account = account_fixture()
+    creator = user_fixture()
+    environment = agent_environment_fixture(account: account)
+    session = agent_session_fixture(account: account, agent_environment: environment, created_by_user_id: creator.id)
+
+    sandbox =
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: environment.id,
+        anthropic_session_id: session.anthropic_session_id
+      )
+
+    external =
+      sandbox_fixture(account: account, agent_environment_id: environment.id, anthropic_session_id: "session_external")
+
+    other_environment = agent_environment_fixture(account: account)
+
+    wrong_environment =
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: other_environment.id,
+        anthropic_session_id: session.anthropic_session_id
+      )
+
+    assert Enum.map(
+             Sandboxes.preload_creators([sandbox, external, wrong_environment]),
+             & &1.creator_actor
+           ) == [
+             %{name: creator.account.name, source: :matched},
+             %{name: nil, source: :unknown},
+             %{name: nil, source: :unknown}
+           ]
+
+    other_account = account_fixture()
+    sandbox |> Ecto.Changeset.change(account_id: other_account.id) |> Repo.update!()
+    assert [%{creator_actor: %{name: nil, source: :unknown}}] = Sandboxes.preload_creators([Repo.reload!(sandbox)])
+    sandbox |> Repo.reload!() |> Ecto.Changeset.change(account_id: account.id) |> Repo.update!()
+
+    creator |> Ecto.Changeset.change(disabled_at: DateTime.utc_now(:second)) |> Repo.update!()
+    assert [%{creator_actor: %{name: nil, source: :unknown}}] = Sandboxes.preload_creators([sandbox])
+  end
+
   describe "agent environments" do
     test "create_agent_environment/2 stores the key encrypted and lists it back without it" do
       account = account_fixture()

@@ -262,8 +262,48 @@ defmodule Tuist.OIDCTest do
         {token, jwks} = generate_test_token_and_jwks(claims: claims)
         stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
 
-        assert {:ok, %{user_id: "user_creator", name: ^label, username: ^username}} =
+        assert {:ok, %{user_id: "user_creator", name: ^label, username: ^username, email: "creator@example.com"}} =
                  OIDC.amp_creator(token, "https://tuist.dev")
+      end
+    end
+
+    test "does not extract unverified emails or infer emails from display labels" do
+      base =
+        amp_creator_claims()
+        |> Map.delete("preferred_username")
+        |> Map.put("email", "creator@example.com")
+
+      for verified <- [nil, false, "true", 1] do
+        claims = Map.put(base, "email_verified", verified)
+        {token, jwks} = generate_test_token_and_jwks(claims: claims)
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+
+        assert {:ok, %{name: "creator@example.com", email: nil}} = OIDC.amp_creator(token, "https://tuist.dev")
+      end
+
+      claims = %{"name" => "creator@example.com", "email_verified" => true}
+      {token, jwks} = generate_test_token_and_jwks(claims: Map.merge(amp_creator_claims(), claims))
+      stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, %{email: nil}} = OIDC.amp_creator(token, "https://tuist.dev")
+    end
+
+    test "extracts only bounded valid email strings" do
+      longest_email = String.duplicate("a", 242) <> "@example.com"
+
+      for {email, expected} <- [
+            {longest_email, longest_email},
+            {longest_email <> "m", nil},
+            {"not-an-email", nil},
+            {"", nil},
+            {nil, nil},
+            {42, nil},
+            {["creator@example.com"], nil}
+          ] do
+        claims = Map.merge(amp_creator_claims(), %{"email" => email, "email_verified" => true})
+        {token, jwks} = generate_test_token_and_jwks(claims: claims)
+        stub(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+
+        assert {:ok, %{email: ^expected}} = OIDC.amp_creator(token, "https://tuist.dev")
       end
     end
 

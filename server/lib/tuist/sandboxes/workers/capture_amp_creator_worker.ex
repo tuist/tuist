@@ -17,7 +17,8 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"sandbox_id" => id}}) do
     case Repo.get(Sandbox, id) do
-      %Sandbox{amp_orb_id: "amp-" <> uuid, amp_creator_user_id: nil, state: :running} = sandbox ->
+      %Sandbox{amp_orb_id: "amp-" <> uuid, state: :running} = sandbox
+      when is_nil(sandbox.amp_creator_user_id) or is_nil(sandbox.amp_creator_email) ->
         capture(sandbox, "T-" <> uuid)
 
       _ ->
@@ -48,14 +49,30 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker do
     with {:ok, %{exit_code: 0, stdout: token}} <- Sandboxes.exec_running(sandbox, command, timeout_ms: 10_000),
          {:ok, creator} <- OIDC.amp_creator(String.trim(token), @audience),
          true <- creator.thread_id == thread_id do
+      running_orb =
+        from(s in Sandbox,
+          where: s.id == ^sandbox.id and s.amp_orb_id == ^sandbox.amp_orb_id and s.state == :running
+        )
+
+      # Competing proofs can only capture the first creator. Email enrichment
+      # independently checks that creator, never replacing their original labels.
       Repo.update_all(
-        from(s in Sandbox, where: s.id == ^sandbox.id and is_nil(s.amp_creator_user_id)),
+        from(s in running_orb, where: is_nil(s.amp_creator_user_id)),
         set: [
           amp_creator_user_id: creator.user_id,
           amp_creator_username: creator.username,
           amp_creator_name: creator.name
         ]
       )
+
+      if email = Map.get(creator, :email) do
+        Repo.update_all(
+          from(s in running_orb,
+            where: s.amp_creator_user_id == ^creator.user_id and is_nil(s.amp_creator_email)
+          ),
+          set: [amp_creator_email: email]
+        )
+      end
 
       :ok
     else

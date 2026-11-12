@@ -11,6 +11,7 @@ defmodule Tuist.OIDC do
   """
 
   alias Tuist.Accounts.OIDCTrustPolicy
+  alias Tuist.Accounts.User
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
   alias Tuist.ReportActor
@@ -91,6 +92,7 @@ defmodule Tuist.OIDC do
          user_id: user_id,
          thread_id: "T-" <> thread_uuid,
          name: name,
+         email: amp_creator_email(claims),
          username: if(ReportActor.valid_identifier?(claims["preferred_username"]), do: claims["preferred_username"])
        }}
     else
@@ -101,6 +103,13 @@ defmodule Tuist.OIDC do
   end
 
   def amp_creator(_, _), do: {:error, :invalid_token}
+
+  defp amp_creator_email(%{"email_verified" => true, "email" => email})
+       when is_binary(email) and byte_size(email) in 1..254 do
+    if String.valid?(email) and User.email_valid?(email), do: email
+  end
+
+  defp amp_creator_email(_), do: nil
 
   defp amp_thread_uuid("T-" <> uuid), do: Ecto.UUID.cast(uuid)
   defp amp_thread_uuid(_), do: :error

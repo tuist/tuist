@@ -39,6 +39,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :amp_creator_user_id, :string
     field :amp_creator_username, :string
     field :amp_creator_name, :string
+    field :amp_creator_email, :string
     field :creator_actor, :map, virtual: true
     field :template, :string
     field :template_tag, :string

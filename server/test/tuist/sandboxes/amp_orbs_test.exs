@@ -19,6 +19,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
+  alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
   alias Tuist.Storage
 
   setup do
@@ -78,6 +79,27 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:ok, second} = AmpOrbs.dispatch(account, "amp-thread", spawn_params())
     assert first.id == second.id
     assert [%{amp_orb_id: "amp-thread"}] = Sandboxes.list_sandboxes(account)
+  end
+
+  test "bootstrap collects missing email for an already captured creator", %{account: account} do
+    for email <- [nil, "creator@example.com"] do
+      orb_id = "amp-" <> Ecto.UUID.generate()
+
+      sandbox =
+        [account: account, amp_orb_id: orb_id, node_name: "node-a"]
+        |> sandbox_fixture()
+        |> Ecto.Changeset.change(amp_creator_user_id: "user_creator", amp_creator_email: email)
+        |> Repo.update!()
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      assert {:ok, _} = AmpOrbs.dispatch(account, orb_id, spawn_params())
+
+      if is_nil(email) do
+        assert_enqueued(worker: CaptureAmpCreatorWorker, args: %{sandbox_id: sandbox.id})
+      else
+        refute_enqueued(worker: CaptureAmpCreatorWorker, args: %{sandbox_id: sandbox.id})
+      end
+    end
   end
 
   test "resume uses the existing disk and passes a fresh token and custom URL", %{account: account} do

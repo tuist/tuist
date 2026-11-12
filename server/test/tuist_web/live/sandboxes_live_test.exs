@@ -162,15 +162,27 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "[data-part=metadata]", amp.id)
     end
 
-    test "matches creator usernames without linking and falls back to Amp labels or Unknown", %{
+    test "shows username, verified email and authenticated Anthropic creators without linking accounts", %{
       conn: conn,
       account: account,
       user: user
     } do
+      user |> Ecto.Changeset.change(email_verified_at: DateTime.utc_now(:second)) |> Repo.update!()
       matched = sandbox_fixture(account: account, state: :paused)
       reported = sandbox_fixture(account: account, state: :paused)
-      email = sandbox_fixture(account: account, state: :paused)
+      verified_email = sandbox_fixture(account: account, state: :paused)
       unknown = sandbox_fixture(account: account, state: :paused)
+
+      environment = agent_environment_fixture(account: account)
+      session = agent_session_fixture(account: account, agent_environment: environment, created_by_user_id: user.id)
+
+      anthropic =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          agent_environment_id: environment.id,
+          anthropic_session_id: session.anthropic_session_id
+        )
 
       matched
       |> Ecto.Changeset.change(
@@ -184,12 +196,17 @@ defmodule TuistWeb.SandboxesLiveTest do
       |> Ecto.Changeset.change(
         amp_creator_user_id: "user_reported",
         amp_creator_username: "amp-only-creator",
-        amp_creator_name: "amp-only-creator"
+        amp_creator_name: "creator@example.com"
       )
       |> Repo.update!()
 
-      email
-      |> Ecto.Changeset.change(amp_creator_user_id: "user_email", amp_creator_name: "creator@example.com")
+      verified_email
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_verified_email",
+        amp_creator_username: "different-amp-username",
+        amp_creator_name: user.email,
+        amp_creator_email: String.upcase(user.email)
+      )
       |> Repo.update!()
 
       for path <- [
@@ -199,13 +216,16 @@ defmodule TuistWeb.SandboxesLiveTest do
         {:ok, lv, _html} = live(conn, path)
         assert has_element?(lv, "#sandbox-#{matched.id} [data-actor-source=matched]", user.account.name)
         refute has_element?(lv, "[data-actor-source=verified]")
-        assert has_element?(lv, "#sandbox-#{reported.id} [data-actor-source=reported]", "amp-only-creator")
-        assert has_element?(lv, "#sandbox-#{email.id} [data-actor-source=reported]", "creator@example.com")
+        assert has_element?(lv, "#sandbox-#{reported.id} [data-actor-source=reported]", "creator@example.com")
+        assert has_element?(lv, "#sandbox-#{verified_email.id} [data-actor-source=matched]", user.account.name)
+        assert has_element?(lv, "#sandbox-#{anthropic.id} [data-actor-source=matched]", user.account.name)
         assert has_element?(lv, "#sandbox-#{unknown.id} [data-actor-source=unknown]", "Unknown")
       end
 
-      {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{matched.id}")
-      assert has_element?(lv, "[data-actor-source=matched]", user.account.name)
+      for sandbox <- [matched, verified_email, anthropic] do
+        {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{sandbox.id}")
+        assert has_element?(lv, "[data-actor-source=matched]", user.account.name)
+      end
     end
 
     test "searches sandboxes by their name or id", %{conn: conn, account: account} do

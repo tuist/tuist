@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Anthropic.ControlPlane
@@ -265,29 +266,71 @@ defmodule Tuist.Sandboxes do
   end
 
   def preload_creators(sandboxes) do
-    usernames = sandboxes |> Enum.map(& &1.amp_creator_username) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    usernames = sandboxes |> Enum.map(& &1.amp_creator_username) |> Enum.reject(&is_nil/1) |> Enum.map(&String.downcase/1)
+    emails = sandboxes |> Enum.map(& &1.amp_creator_email) |> Enum.reject(&is_nil/1) |> Enum.map(&String.downcase/1)
 
-    # Username equality is a display heuristic, not a verified identity link.
-    # Only match the username claim, never an email, display name or stable ID.
-    names =
-      if usernames == [] do
-        %{}
+    # Matching is for display only. Email must be verified on both sides;
+    # fallback labels are never interpreted as usernames or email addresses.
+    accounts =
+      if usernames == [] and emails == [] do
+        []
       else
-        from(a in Account,
-          join: u in User,
-          on: u.id == a.user_id and u.active == true and is_nil(u.disabled_at),
-          where: a.name in ^usernames,
-          select: a.name
+        Repo.all(
+          from(a in Account,
+            join: u in User,
+            on: u.id == a.user_id and u.active == true and is_nil(u.disabled_at),
+            where: a.name in ^usernames or (not is_nil(u.email_verified_at) and u.email in ^emails),
+            select: %{name: a.name, email: u.email, email_verified_at: u.email_verified_at}
+          )
         )
-        |> Repo.all()
-        |> Map.new(&{String.downcase(&1), &1})
       end
 
-    Enum.map(sandboxes, &%{&1 | creator_actor: sandbox_creator(&1, names)})
+    names = Map.new(accounts, &{String.downcase(&1.name), &1.name})
+
+    email_names =
+      accounts
+      |> Enum.reject(&is_nil(&1.email_verified_at))
+      |> Map.new(&{String.downcase(&1.email), &1.name})
+
+    session_names = session_creator_names(sandboxes)
+
+    Enum.map(sandboxes, &%{&1 | creator_actor: sandbox_creator(&1, names, email_names, session_names)})
   end
 
-  defp sandbox_creator(sandbox, names) do
-    matched_name = Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
+  defp session_creator_names(sandboxes) do
+    session_sandbox_ids = for s <- sandboxes, is_nil(s.amp_orb_id) and not is_nil(s.anthropic_session_id), do: s.id
+
+    if session_sandbox_ids == [] do
+      %{}
+    else
+      from(s in Sandbox,
+        join: session in AgentSession,
+        on:
+          session.anthropic_session_id == s.anthropic_session_id and session.account_id == s.account_id and
+            session.agent_environment_id == s.agent_environment_id,
+        join: u in User,
+        on: u.id == session.created_by_user_id and u.active == true and is_nil(u.disabled_at),
+        join: a in Account,
+        on: a.user_id == u.id,
+        where: s.id in ^session_sandbox_ids,
+        select: {s.id, a.name}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
+  end
+
+  defp sandbox_creator(sandbox, names, email_names, session_names) do
+    matched_name =
+      Enum.find_value(
+        [
+          Map.get(session_names, sandbox.id),
+          Map.get(email_names, String.downcase(sandbox.amp_creator_email || "")),
+          Map.get(names, String.downcase(sandbox.amp_creator_username || ""))
+        ],
+        & &1
+      )
+
     name = matched_name || sandbox.amp_creator_name || sandbox.amp_creator_user_id
 
     %{
