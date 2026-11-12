@@ -48,7 +48,7 @@ defaults:
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
-  MODE: ${{ inputs.mode || 'remote' }}
+  MODE: ${{ inputs.mode || 'local' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags }}
 
@@ -82,6 +82,11 @@ jobs:
       - name: Set up Tuist
         run: |
           set -euo pipefail
+          # Tuist runners point the CLI at their own server's in-cluster cache,
+          # which does not accept another server's tokens.
+          if [ "$TUIST_URL" != https://tuist.dev ]; then
+            unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
+          fi
           if [ "$MODE" = remote ]; then
             ../.github/scripts/tuist-bazel-setup.sh
             grep -q '^build --remote_executor=' .bazelrc.tuist || { echo "::error::$TUIST_URL configured no remote executor"; exit 1; }
@@ -94,6 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           ulimit -n 65536
+          [ "$TUIST_URL" = https://tuist.dev ] || unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
           ../.github/scripts/retry-bazel-command.sh bazel "$COMMAND" //... --nobuild \
             --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
@@ -102,6 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           ulimit -n 65536
+          [ "$TUIST_URL" = https://tuist.dev ] || unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
           start=$(date +%s)
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
           bazel "$COMMAND" //... --disk_cache= --noremote_accept_cached \
