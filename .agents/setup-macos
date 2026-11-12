@@ -48,6 +48,9 @@ mise trust --quiet "$repo_root/mise.toml"
 # (`tuist install` and `tuist setup`); the install runs explicitly below.
 step "Installing CLI and app tools"
 CI=1 mise install --quiet tuist swiftlint swiftformat jq
+# Xcode scheme actions (`tuist inspect build`) call the tuist shim outside
+# the repository, where only a global version resolves.
+mise use --global --quiet "tuist@$(mise current tuist)"
 mise reshim
 
 step "Resolving Swift package dependencies"
