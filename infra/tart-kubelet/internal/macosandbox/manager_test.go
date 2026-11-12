@@ -231,7 +231,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil {
+	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil {
 		t.Fatal(err)
 	}
 	// The hold survives a host restart, CI demand and the idle grace.
@@ -266,7 +266,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("the pause did not end the hold")
 	}
 	// A new turn resumes the evicted VM; releasing it makes it evictable again.
-	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil || r.states[a.SandboxID] != "running" {
+	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil || r.states[a.SandboxID] != "running" {
 		t.Fatal("hold did not resume the sandbox", err)
 	}
 	if err := recovered.Release(a.SandboxID, "amp:amp-thread"); err != nil {
@@ -277,6 +277,38 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("a released sandbox stayed resident", err)
 	}
 }
+
+// A session renews its timed hold between commands even while CI holds the
+// grant; a hold nobody renews expires, and the idle VM goes back to CI.
+func TestTimedHoldRenewsWithoutTheGrantAndExpires(t *testing.T) {
+	m, r, c, a := harness(t)
+	m.Grace = time.Minute
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if err := m.Hold(ctx, a.SandboxID, "commands", 100*time.Millisecond); err != nil {
+		t.Fatalf("renewing the current hold needed the grant: %v", err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "amp:other", 0); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("a new hold was admitted without the grant: %v", err)
+	}
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI evicted a sandbox under a live hold", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if err := m.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.states[a.SandboxID] != "evicted" || c.held[a.SandboxID] {
+		t.Fatal("an expired hold kept the VM from CI")
+	}
+}
+
 func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 	m, r, _, a := harness(t)
 	ctx := context.Background()
@@ -342,7 +374,7 @@ func TestExecIntoRunningSandboxNeedsNoGrantButResumeDoes(t *testing.T) {
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "commands"); err != nil {
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
 		t.Fatal(err)
 	}
 	c.allow = false

@@ -104,7 +104,13 @@ or after the bounded 30-second idle grace. Ownership reconciliation and eviction
 run independently of image downloads and control connection preparation, so a
 failed or slow image update cannot delay returning idle capacity to CI.
 It does not interrupt an active managed
-worker or exec command. CI may therefore wait for active native work to finish
+worker or exec command, nor a hold (`hold_residency`): an Amp Orb's turn, or
+the server's `commands` residency, which on macOS outlives the last command as
+a ten-minute session lease so an agent thinking between commands keeps its VM
+(`server/lib/tuist/sandboxes/commands.ex`). Only a new hold needs a grant;
+renewing the current one does not. A hold with `hold_ms` ends that long after
+it was last renewed even if the server never releases it; the server sets it
+two minutes past the lease, so this only backstops a lost release. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
 Node hello/report frames always include the resident boolean, including false
