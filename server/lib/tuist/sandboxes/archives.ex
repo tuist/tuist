@@ -88,6 +88,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteArchiveCopyWorker
   alias Tuist.Sandboxes.Workers.OffloadArchivesWorker
+  alias Tuist.Sandboxes.Workers.RecoverArchiveUploadWorker
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
 
@@ -102,7 +103,9 @@ defmodule Tuist.Sandboxes.Archives do
   @min_part_size 32 * @mib
   @max_parts 2000
   @per_run 10
-  @retry_after_hours 6
+  # Fixed and bounded: retry real failures within minutes without a tight loop.
+  @retry_after_minutes 5
+  @interrupted_reasons [:not_connected, :node_disconnected, :timeout]
   # Above the node's 30-minute archive timeout: an upload this old belongs
   # to a caller that died.
   @abandoned_after_minutes 45
@@ -270,12 +273,13 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   defp archivable do
-    retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
+    retry_before = DateTime.add(now(), -@retry_after_minutes, :minute)
 
     from s in idle_paused_orbs(),
       where:
         is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
-          (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
+          (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before or
+             s.archive_attempted_at < s.paused_at)
   end
 
   defp idle_paused_orbs do
@@ -287,14 +291,10 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   defp candidates(hours) do
-    now = now()
-    paused_before = DateTime.add(now, -hours, :hour)
-    retry_before = DateTime.add(now, -@retry_after_hours, :hour)
+    paused_before = DateTime.add(now(), -hours, :hour)
 
-    idle_paused_orbs()
+    archivable()
     |> where([s], s.paused_at < ^paused_before)
-    |> where([s], is_nil(s.archived_at) and is_nil(s.archive_upload_id))
-    |> where([s], is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
     |> order_by([s], asc: s.paused_at)
     |> limit(@per_run)
     |> Repo.all()
@@ -341,11 +341,36 @@ defmodule Tuist.Sandboxes.Archives do
   on its node either way.
   """
   def archive(%Sandbox{id: id}) do
-    case Sandboxes.with_sandbox_lock(id, fn -> start(id) end, wait: false) do
-      {:ok, %{} = upload} -> upload |> transfer() |> finish(upload)
-      {:error, :locked} -> {:ok, :skipped}
-      other -> other
-    end
+    result =
+      with_upload_lock(id, fn ->
+        case Sandboxes.with_sandbox_lock(id, fn -> start(id) end, wait: false) do
+          {:ok, %{} = upload} ->
+            case upload |> transfer() |> finish(upload) do
+              {:error, :locked} = error ->
+                # The finish callback did not run. Do not leave its upload claimed.
+                discard(Sandbox, upload, cancelled: true)
+                error
+
+              result ->
+                result
+            end
+
+          {:error, :locked} ->
+            {:ok, :skipped}
+
+          other ->
+            other
+        end
+      end)
+
+    if result == :aborted, do: {:ok, :skipped}, else: result
+  end
+
+  # Held by the uploading process, not a database connection. Unlike the
+  # lifecycle lock it spans transfer, but resume/delete never take this lock.
+  # Process/replica death releases it even if Oban still says "executing".
+  defp with_upload_lock(id, fun) do
+    :global.trans({{__MODULE__, :upload, id}, self()}, fun, [node() | Node.list()], 0)
   end
 
   defp start(id) do
@@ -364,15 +389,23 @@ defmodule Tuist.Sandboxes.Archives do
 
       case start_upload(account, node, sandbox, key) do
         {:ok, upload} ->
+          # Publish ownership and its recovery job together. No connection is
+          # checked out while the node transfers or object readability is polled.
           {:ok, _} =
-            sandbox
-            |> Sandbox.update_changeset(%{
-              archive_key: key,
-              archive_store: upload.store,
-              archive_upload_id: upload.upload_id,
-              archive_attempted_at: now()
-            })
-            |> Repo.update()
+            Repo.transaction(fn ->
+              sandbox
+              |> Sandbox.update_changeset(%{
+                archive_key: key,
+                archive_store: upload.store,
+                archive_upload_id: upload.upload_id,
+                archive_attempted_at: now()
+              })
+              |> Repo.update!()
+
+              %{sandbox_id: id, upload_id: upload.upload_id}
+              |> RecoverArchiveUploadWorker.new(schedule_in: @retry_after_minutes * 60)
+              |> Oban.insert!()
+            end)
 
           {:ok, Map.put(upload, :sandbox, sandbox)}
 
@@ -503,6 +536,13 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  # Losing the command caller/socket says nothing about the Orb's disks.
+  # Abort this upload, but do not penalize the Orb on the next sweep.
+  defp finish({:error, reason}, upload) when reason in @interrupted_reasons do
+    discard(Sandbox, upload, cancelled: true)
+    {:error, reason}
+  end
+
   defp finish({:error, reason}, %{sandbox: sandbox} = upload) do
     Logger.warning("sandboxes: archiving a sandbox failed",
       sandbox_id: sandbox.id,
@@ -555,7 +595,10 @@ defmodule Tuist.Sandboxes.Archives do
   # a disk snapshot) that still records it. Only failures retain backoff.
   defp discard(schema, %{upload_id: upload_id} = upload, opts \\ []) do
     abort(upload)
+    clear_upload(schema, upload_id, opts)
+  end
 
+  defp clear_upload(schema, upload_id, opts) do
     attrs = [archive_key: nil, archive_store: nil, archive_upload_id: nil, updated_at: now()]
     attrs = if opts[:cancelled], do: Keyword.put(attrs, :archive_attempted_at, nil), else: attrs
 
@@ -617,7 +660,7 @@ defmodule Tuist.Sandboxes.Archives do
   # enough ago, or that were never tried (a save while the tier was off, or
   # a job lost with its replica).
   defp queue_disk_snapshot_archives do
-    retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
+    retry_before = DateTime.add(now(), -@retry_after_minutes, :minute)
 
     from(s in DiskSnapshot,
       where:
@@ -636,7 +679,8 @@ defmodule Tuist.Sandboxes.Archives do
   readable, `{:ok, :skipped}` when the snapshot is not archivable right now
   (already archived or uploading, archiving off, node away)
   or changed while uploading, or `{:error, reason}` when the upload failed;
-  the next try waits six hours then.
+  the next automatic try waits until five minutes after the attempt began.
+  Interrupted node calls and abandoned uploads do not retain this backoff.
 
   No lock is held during the upload. The row is claimed by recording the
   upload on it only while it has none, and the archive is recorded only
@@ -741,6 +785,11 @@ defmodule Tuist.Sandboxes.Archives do
   defp finish_disks({:ok, _data}, upload) do
     discard(DiskSnapshot, upload)
     {:error, :invalid_archive_result}
+  end
+
+  defp finish_disks({:error, reason}, upload) when reason in @interrupted_reasons do
+    discard(DiskSnapshot, upload, cancelled: true)
+    {:error, reason}
   end
 
   # An older daemon answers `unknown op "archive_disks"`; like any other
@@ -853,6 +902,50 @@ defmodule Tuist.Sandboxes.Archives do
     |> Enum.each(&delete_restored/1)
   end
 
+  @doc """
+  Reclaims an upload whose caller stopped, without waiting for the
+  abandoned-upload timeout or Oban to notice a dead replica. A live
+  uploader holds the upload lock and is left alone.
+  """
+  def recover_upload(sandbox_id, upload_id) do
+    result =
+      with_upload_lock(sandbox_id, fn ->
+        Sandboxes.with_sandbox_lock(
+          sandbox_id,
+          fn -> recover_orphaned_upload(sandbox_id, upload_id) end,
+          wait: false
+        )
+      end)
+
+    if result in [:aborted, {:error, :locked}], do: {:snooze, 60}, else: result
+  end
+
+  defp recover_orphaned_upload(sandbox_id, upload_id) do
+    uploading =
+      from s in Sandbox,
+        where: s.id == ^sandbox_id and s.archive_upload_id == ^upload_id and is_nil(s.archived_at)
+
+    with %Sandbox{} = sandbox <- Repo.one(uploading),
+         {:ok, actor} <- actor(sandbox) do
+      abort(%{actor: actor, key: sandbox.archive_key, upload_id: upload_id})
+
+      # Releasing the claim must not lose the manual request if
+      # the pool fails again between clearing and enqueueing.
+      {:ok, :ok} =
+        Repo.transaction(fn ->
+          clear_upload(Sandbox, upload_id, cancelled: true)
+          fresh = Sandboxes.get_sandbox_by_id(sandbox_id)
+          if archivable?(fresh), do: request(fresh)
+          :ok
+        end)
+
+      :ok
+    else
+      nil -> :ok
+      error -> error
+    end
+  end
+
   defp abandon_stuck_uploads do
     before = DateTime.add(now(), -@abandoned_after_minutes, :minute)
 
@@ -863,8 +956,11 @@ defmodule Tuist.Sandboxes.Archives do
         Logger.warning("sandboxes: aborting an abandoned archive upload", [{id_key, row.id}])
 
         case actor(row) do
-          {:ok, actor} -> discard(schema, %{actor: actor, key: row.archive_key, upload_id: row.archive_upload_id})
-          {:error, _reason} -> :ok
+          {:ok, actor} ->
+            discard(schema, %{actor: actor, key: row.archive_key, upload_id: row.archive_upload_id}, cancelled: true)
+
+          {:error, _reason} ->
+            :ok
         end
       end)
     end

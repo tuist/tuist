@@ -210,8 +210,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
   and is created with `from_disk_snapshot`. While the archive tier is on, a
   ready snapshot is also uploaded (`archive_disks`, `ArchiveDiskSnapshotWorker`
-  on the `sandbox_archives` queue, retried by `Archives.run/0` every six
-  hours, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
+  on the `sandbox_archives` queue, retried by `Archives.run/0` after a
+  five-minute failure backoff, under `sandbox-archives/<account>/disk-snapshots/`) and keeps its
   node copy; when the node cannot take the Orb, lost the copy or the clone
   fails, an archived snapshot is created `from_archive` on any node with room
   (boot source `disk_snapshot_archive`), else the template boots. A copy the
@@ -263,8 +263,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `Archives.run/0`, which also queues the oldest idle Orb on each node above
   `Environment.sandbox_archive_disk_high_water_percent/0` (default 85% of
   the reserved disk budget, snapshot copies included), rechecking pressure
-  before uploading. It also aborts uploads abandoned for 45 minutes and
-  reverts restores stuck for 15.
+  before uploading. Real failures back off for five minutes from the attempt; a newer `paused_at` bypasses an older attempt without bypassing pause age or upload/residency guards. Node transport interruptions and abandoned uploads clear backoff. Each Orb upload atomically queues `RecoverArchiveUploadWorker` for five minutes later. A separate cluster-wide upload lock spans the caller's transfer, without a pooled connection or blocking resume/delete; recovery retries in a minute while that caller is alive, otherwise discards only that upload and requeues a still-paused Orb. Process/replica death releases the lock regardless of Oban state. Releasing the upload claim and requeueing commit together. Keep the 45-minute abandoned-upload sweep as fallback for pre-rollout Orb uploads and snapshot uploads. Restores stuck for 15 minutes are reverted.
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,

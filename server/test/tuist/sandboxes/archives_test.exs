@@ -23,6 +23,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteArchiveCopyWorker
   alias Tuist.Sandboxes.Workers.OffloadArchivesWorker
+  alias Tuist.Sandboxes.Workers.RecoverArchiveUploadWorker
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
 
@@ -189,7 +190,14 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
     test "counts node snapshot copies and skips busy, uploading and backed-off Orbs", %{account: account} do
       paused_orb(account, paused_at: hours_ago(1), residency_work_id: "amp:busy", workspace_gb: 1, memory_mb: 2048)
-      paused_orb(account, paused_at: hours_ago(2), archive_attempted_at: hours_ago(1), workspace_gb: 1, memory_mb: 2048)
+
+      paused_orb(account,
+        paused_at: hours_ago(2),
+        archive_attempted_at: DateTime.utc_now(),
+        workspace_gb: 1,
+        memory_mb: 2048
+      )
+
       disk_snapshot_fixture(account: account, node_name: "node-a", workspace_gb: 20, archived_at: hours_ago(1))
       eligible = paused_orb(account, paused_at: hours_ago(0), workspace_gb: 1, memory_mb: 2048)
       paused_orb(account, node_name: "node-b", paused_at: hours_ago(1), archive_upload_id: "in-flight")
@@ -389,10 +397,82 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                failed = Repo.reload!(sandbox)
 
       assert failed.archive_attempted_at
-      reject(&Nodes.call/4)
+      stub(Nodes, :call, fn _, _, _, _ -> flunk("must respect retry backoff") end)
       Archives.run()
       refute Archives.make_node_room(["node-a"])
       assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"])
+
+      # Both automatic entry points retry within minutes, not six hours.
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+        set: [archive_attempted_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -6, :minute)]
+      )
+
+      assert Archives.make_node_room(["node-a"])
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> {:error, "still broken"} end)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      Archives.run()
+      refute Archives.make_node_room(["node-a"])
+    end
+
+    test "a new pause bypasses an older attempt, but not the pause-age threshold", %{account: account} do
+      sandbox = paused_orb(account, archive_attempted_at: DateTime.add(DateTime.utc_now(), -4, :minute))
+      refute Archives.make_node_room(["node-a"])
+
+      # A real resume/pause updates paused_at; an old failure must not follow it.
+      Repo.update!(Ecto.Changeset.change(sandbox, paused_at: DateTime.truncate(DateTime.utc_now(), :second)))
+      assert Archives.make_node_room(["node-a"])
+      stub(Nodes, :call, fn _, _, _, _ -> flunk("must respect pause age") end)
+      Archives.run()
+
+      # The age-based sweep uses the same eligibility, while still respecting age.
+      stub(Environment, :sandbox_archive_after_hours, fn -> 0 end)
+
+      Repo.update!(
+        Ecto.Changeset.change(Repo.reload!(sandbox),
+          paused_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -60, :second)
+        )
+      )
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> {:error, "upload failed"} end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      Archives.run()
+      assert Repo.reload!(sandbox).archive_upload_id == nil
+      refute Archives.make_node_room(["node-a"])
+    end
+
+    test "multipart start failures use the short backoff too", %{account: account} do
+      sandbox = paused_orb(account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:error, :unavailable} end)
+      Archives.run()
+      assert Repo.reload!(sandbox).archive_attempted_at
+      refute Archives.make_node_room(["node-a"])
+
+      Repo.update!(
+        Ecto.Changeset.change(Repo.reload!(sandbox),
+          archive_attempted_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -6, :minute)
+        )
+      )
+
+      assert Archives.make_node_room(["node-a"])
+    end
+
+    test "node transport interruptions abort without penalizing the Orb", %{account: account} do
+      for reason <- [:not_connected, :node_disconnected, :timeout] do
+        sandbox = paused_orb(account)
+        expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+        expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> {:error, reason} end)
+        expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+
+        assert {:error, ^reason} = Archives.archive(sandbox)
+
+        assert %Sandbox{state: :paused, node_name: "node-a", archive_upload_id: nil, archive_attempted_at: nil} =
+                 Repo.reload!(sandbox)
+
+        assert Archives.make_node_room(["node-a"])
+        Repo.delete!(sandbox)
+      end
     end
 
     test "a node-confirmed legacy pause becomes archivable and an unsynced checkpoint is safely refreshed", %{
@@ -494,6 +574,117 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert %Sandbox{state: :paused, node_name: "node-a", archived_at: nil} = Repo.reload!(sandbox)
     end
 
+    test "killing an upload caller releases ownership for durable recovery", %{account: account} do
+      sandbox = paused_orb(account)
+      parent = self()
+      supervisor = start_supervised!(Task.Supervisor)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
+        send(parent, :transferring)
+        receive do: (:finish -> archive_result())
+      end)
+
+      task = Task.Supervisor.async_nolink(supervisor, fn -> Archives.archive(sandbox) end)
+      assert_receive :transferring
+      assert %Sandbox{archive_upload_id: "upload-1", archive_attempted_at: %DateTime{}} = Repo.reload!(sandbox)
+      assert [recovery] = all_enqueued(worker: RecoverArchiveUploadWorker)
+      assert {:snooze, 60} = perform_job(RecoverArchiveUploadWorker, recovery.args)
+
+      Process.exit(task.pid, :kill)
+      assert {:exit, :killed} = Task.yield(task, 1_000)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert :ok = perform_job(RecoverArchiveUploadWorker, recovery.args)
+      assert %Sandbox{state: :paused, archive_upload_id: nil, archive_attempted_at: nil} = Repo.reload!(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
+    end
+
+    test "durable recovery requeues a crashed manual archive without waiting 45 minutes", %{account: account} do
+      sandbox = paused_orb(account, paused_at: hours_ago(1))
+      owner = %{sandbox_id: sandbox.id} |> ArchiveSandboxesWorker.new() |> Oban.insert!()
+      owner = owner |> Ecto.Changeset.change(state: "executing") |> Repo.update!() |> Repo.reload!()
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts ->
+        # A recovery on another process/replica must not interrupt a live transfer.
+        assert {:snooze, 60} =
+                 fn -> Archives.recover_upload(sandbox.id, "upload-1") end
+                 |> Task.async()
+                 |> Task.await()
+
+        raise DBConnection.ConnectionError, "pool full"
+      end)
+
+      assert_raise DBConnection.ConnectionError, fn -> ArchiveSandboxesWorker.perform(owner) end
+      assert [recovery] = all_enqueued(worker: RecoverArchiveUploadWorker)
+      assert DateTime.diff(recovery.scheduled_at, owner.inserted_at) in 299..301
+      assert Repo.reload!(sandbox).archive_upload_id == "upload-1"
+      assert {:error, {:invalid_state, :paused}} = Archives.request(Repo.reload!(sandbox))
+
+      # A dead replica can leave Oban saying executing. Process ownership,
+      # not that stale job state, decides whether recovery can proceed.
+      assert Repo.reload!(owner).state == "executing"
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      expect(Oban, :insert, fn _changeset -> raise DBConnection.ConnectionError, "pool still full" end)
+      assert_raise DBConnection.ConnectionError, fn -> perform_job(RecoverArchiveUploadWorker, recovery.args) end
+      # Clearing the claim and requeueing commit together, so recovery can retry.
+      assert Repo.reload!(sandbox).archive_upload_id == "upload-1"
+
+      expect(Oban, :insert, fn changeset -> Mimic.call_original(Oban, :insert, [changeset]) end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      assert :ok = perform_job(RecoverArchiveUploadWorker, recovery.args)
+
+      assert %Sandbox{state: :paused, node_name: "node-a", archive_upload_id: nil, archive_attempted_at: nil} =
+               Repo.reload!(sandbox)
+
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
+
+      # A replay cannot abort a newer attempt or erase its backoff.
+      Repo.update!(
+        Ecto.Changeset.change(Repo.reload!(sandbox),
+          archive_upload_id: "new-upload",
+          archive_attempted_at: DateTime.truncate(DateTime.utc_now(), :second)
+        )
+      )
+
+      reject(&Storage.multipart_abort/3)
+      assert :ok = perform_job(RecoverArchiveUploadWorker, recovery.args)
+      assert %Sandbox{archive_upload_id: "new-upload", archive_attempted_at: %DateTime{}} = Repo.reload!(sandbox)
+    end
+
+    test "a refused finish lock discards its upload instead of leaving a completed job's claim", %{account: account} do
+      sandbox = paused_orb(account)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-a", "archive", _args, _opts -> archive_result() end)
+      expect(Sandboxes, :with_sandbox_lock, fn _id, _fun -> {:error, :locked} end)
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      reject(&Storage.multipart_complete_upload/4)
+
+      assert {:error, :locked} = Archives.archive(sandbox)
+      assert %Sandbox{state: :paused, archive_upload_id: nil, archive_attempted_at: nil} = Repo.reload!(sandbox)
+    end
+
+    test "recovery handles completed owners too, but never requeues a resumed Orb", %{account: account} do
+      for state <- [:paused, :running] do
+        sandbox = paused_orb(account, state: state, archive_key: "old", archive_upload_id: "orphan")
+        owner = %{sandbox_id: sandbox.id} |> ArchiveSandboxesWorker.new() |> Oban.insert!()
+        Repo.update!(Ecto.Changeset.change(owner, state: "completed"))
+        expect(Storage, :multipart_abort, fn "old", "orphan", _account -> :ok end)
+
+        assert :ok =
+                 perform_job(RecoverArchiveUploadWorker, %{
+                   sandbox_id: sandbox.id,
+                   upload_id: "orphan"
+                 })
+
+        assert %Sandbox{state: ^state, archive_upload_id: nil, archive_attempted_at: nil} = Repo.reload!(sandbox)
+        jobs = all_enqueued(worker: ArchiveSandboxesWorker)
+        assert Enum.any?(jobs, &(&1.args["sandbox_id"] == sandbox.id)) == (state == :paused)
+      end
+    end
+
     test "aborts uploads whose caller died and reverts restores that never finished", %{account: account} do
       abandoned =
         paused_orb(account,
@@ -513,7 +704,9 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       Archives.run()
 
-      assert %Sandbox{archive_upload_id: nil, archive_key: nil, state: :paused} = Repo.reload!(abandoned)
+      assert %Sandbox{archive_upload_id: nil, archive_key: nil, archive_attempted_at: nil, state: :paused} =
+               Repo.reload!(abandoned)
+
       assert %Sandbox{state: :archived, node_name: nil, archive_key: key} = Repo.reload!(restoring)
       assert key == restoring.archive_key
     end
@@ -700,7 +893,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert id == snapshot.id
     end
 
-    test "a failed upload is aborted, keeps the node copy and is retried by the run after six hours",
+    test "a failed upload is aborted, keeps the node copy and is retried by the run after five minutes",
          %{account: account} do
       snapshot = disk_snapshot_fixture(account: account)
       expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
@@ -722,7 +915,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert [] = all_enqueued(worker: ArchiveDiskSnapshotWorker)
 
       Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id),
-        set: [archive_attempted_at: 7 |> hours_ago() |> DateTime.truncate(:second)]
+        set: [archive_attempted_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -6, :minute)]
       )
 
       Archives.run()
@@ -750,6 +943,19 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       refute Repo.reload(snapshot)
     end
 
+    test "node transport interruptions do not back off snapshot archives", %{account: account} do
+      for reason <- [:not_connected, :node_disconnected, :timeout] do
+        snapshot = disk_snapshot_fixture(account: account)
+        expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+        expect(Nodes, :call, fn "node-a", "archive_disks", _args, _opts -> {:error, reason} end)
+        expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+        assert {:error, ^reason} = Archives.archive_disk_snapshot(snapshot)
+
+        assert %DiskSnapshot{node_name: "node-a", archive_upload_id: nil, archive_attempted_at: nil} =
+                 Repo.reload!(snapshot)
+      end
+    end
+
     test "aborts abandoned snapshot uploads", %{account: account} do
       snapshot =
         disk_snapshot_fixture(
@@ -764,7 +970,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       Archives.run()
 
-      assert %DiskSnapshot{archive_key: nil, archive_upload_id: nil} = Repo.reload!(snapshot)
+      assert %DiskSnapshot{archive_key: nil, archive_upload_id: nil, archive_attempted_at: nil} = Repo.reload!(snapshot)
     end
   end
 
