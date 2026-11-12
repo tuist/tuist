@@ -91,9 +91,9 @@ struct SandboxRemoteTests {
             """#.utf8)
         )
         given(sandboxesService).startSandboxCommand(
-            accountHandle: .any, serverURL: .any, sandboxID: .any, command: .value("make"), cwd: .any,
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .value("make"), cwd: .any,
             environment: .any, stdin: .any, timeoutMs: .any
-        ).willProduce { _, _, _, _, _, _, _, _ in
+        ).willProduce { _, _, _, _, _, _, _, _, _ in
             if calls.increment() <= 2 { throw SandboxesServiceError.unavailable("No sandbox node") }
             return command
         }
@@ -122,13 +122,14 @@ struct SandboxRemoteTests {
             """#.utf8)
         )
         given(sandboxesService).startSandboxCommand(
-            accountHandle: .any, serverURL: .any, sandboxID: .any, command: .any, cwd: .any,
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
             environment: .value(["TUIST_UPLOAD": "/remote/upload"]), stdin: .value(true), timeoutMs: .any
         ).willReturn(command)
         let writes = Recorder()
         given(sandboxesService).writeSandboxCommandStdin(
-            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(Self.commandID), data: .any, close: .any
-        ).willProduce { _, _, _, _, data, close in writes.append(data, close) }
+            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(Self.commandID), data: .any,
+            offset: .any, close: .any
+        ).willProduce { _, _, _, _, data, offset, close in writes.append(data, offset, close) }
         given(sandboxesService).streamSandboxCommandLogs(
             accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .any, stdoutOffset: .any, stderrOffset: .any
         ).willReturn(try Self.lines(#"{"type":"exit","status":"exited","exit_code":0}"#))
@@ -136,8 +137,59 @@ struct SandboxRemoteTests {
         try await remote.upload(file, to: "/remote/upload")
 
         #expect(writes.entries.map(\.data.count) == [SandboxRemote.stdinChunkBytes, 10])
+        #expect(writes.entries.map(\.offset) == [0, SandboxRemote.stdinChunkBytes])
         #expect(writes.entries.map(\.close) == [false, true])
         #expect(Data(writes.entries.flatMap(\.data)) == (try Data(contentsOf: file)))
+    }
+
+    @Test
+    func startSendsTheSameIDAgainAfterAGatewayError() async throws {
+        let command: ServerSandboxCommand = try JSONDecoder.iso8601.decode(
+            ServerSandboxCommand.self,
+            from: Data(#"""
+            {"id":"\#(Self.commandID)","command":"make","stdin":false,"status":"running",
+             "started_at":"2026-11-08T10:00:00Z","deadline_at":"2026-11-08T11:00:00Z"}
+            """#.utf8)
+        )
+        let ids = Recorder()
+        given(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).willProduce { _, _, _, id, _, _, _, _, _ in
+            ids.append(Data(id.utf8), 0, false)
+            if ids.entries.count == 1 { throw SandboxesServiceError.unknownError(502) }
+            return command
+        }
+
+        let started = try await remote.start("make")
+
+        #expect(started.id == Self.commandID)
+        #expect(ids.entries.count == 2)
+        #expect(Set(ids.entries.map(\.data)).count == 1)
+        #expect(UUID(uuidString: String(decoding: ids.entries[0].data, as: UTF8.self)) != nil)
+    }
+
+    @Test
+    func stdinWritesAreSentAgainAtTheSameOffsetAfterAGatewayErrorButNotAfterARefusal() async throws {
+        let writes = Recorder()
+        given(sandboxesService).writeSandboxCommandStdin(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .any, data: .any, offset: .any, close: .any
+        ).willProduce { _, _, _, _, data, offset, close in
+            writes.append(data, offset, close)
+            if writes.entries.count == 1 { throw SandboxesServiceError.unknownError(502) }
+            if String(decoding: data, as: UTF8.self) == "refused" {
+                throw SandboxesServiceError.refused("The command's stdin is closed.")
+            }
+        }
+
+        let after = try await remote.writeStdin(Self.commandID, at: 7, Data("abc".utf8), close: false)
+        await #expect(throws: SandboxesServiceError.refused("The command's stdin is closed.")) {
+            try await remote.writeStdin(Self.commandID, at: after, Data("refused".utf8))
+        }
+
+        #expect(after == 10)
+        #expect(writes.entries.map(\.offset) == [7, 7, 10])
+        #expect(writes.entries.map(\.close) == [false, false, true])
     }
 
     @Test
@@ -173,12 +225,12 @@ private final class Counter: @unchecked Sendable {
 
 private final class Recorder: @unchecked Sendable {
     private let lock = NSLock()
-    private var recorded: [(data: Data, close: Bool)] = []
+    private var recorded: [(data: Data, offset: Int, close: Bool)] = []
 
-    var entries: [(data: Data, close: Bool)] { lock.withLock { recorded } }
+    var entries: [(data: Data, offset: Int, close: Bool)] { lock.withLock { recorded } }
 
-    func append(_ data: Data, _ close: Bool) {
-        lock.withLock { recorded.append((data, close)) }
+    func append(_ data: Data, _ offset: Int, _ close: Bool) {
+        lock.withLock { recorded.append((data, offset, close)) }
     }
 }
 

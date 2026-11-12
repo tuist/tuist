@@ -8,6 +8,10 @@ import TuistServer
 /// Sandboxes on macOS share hosts with CI, which comes first: while CI holds the host the server answers new work with
 /// 503. Starting a command waits for the host, and a log stream that fails reconnects from its last offsets, for up to
 /// `hostWait` without progress each.
+///
+/// A proxy in front of Tuist can answer 502 after the server acted, so starting a command and writing its stdin are
+/// sent again after a gateway or transport error too: the command carries an id chosen here and each stdin write the
+/// offset it continues, so the server starts the command and appends the bytes once.
 struct SandboxRemote {
     struct Exit: Equatable {
         let status: String
@@ -39,11 +43,13 @@ struct SandboxRemote {
         stdin: Bool = false,
         timeoutMs: Int? = nil
     ) async throws -> ServerSandboxCommand {
-        try await waitingForHost {
+        let id = UUID().uuidString.lowercased()
+        return try await retrying {
             try await sandboxesService.startSandboxCommand(
                 accountHandle: accountHandle,
                 serverURL: serverURL,
                 sandboxID: sandboxID,
+                id: id,
                 command: command,
                 cwd: cwd,
                 environment: environment,
@@ -146,7 +152,7 @@ struct SandboxRemote {
             stdin: true,
             timeoutMs: 60 * 60 * 1000
         )
-        try await writeStdin(command.id, file: local)
+        try await writeStdin(command.id, at: 0, file: local)
         var stderr = ""
         let exit = try await follow(command.id) { isStandardError, data in if isStandardError { stderr += data } }
         guard exit.exitCode == 0 else {
@@ -170,37 +176,62 @@ struct SandboxRemote {
     }
 
     /// Writes `prefix` and then the file at `file`, if any, to the stdin of a command started with `stdin: true`, and
-    /// ends it unless `close` is false. `prefix` must fit in one write.
-    func writeStdin(_ commandID: String, _ prefix: Data = Data(), file: URL? = nil, close: Bool = true) async throws {
+    /// ends it unless `close` is false. `offset` is how many bytes earlier writes sent to the command's stdin; returns
+    /// how many it holds after this one. `prefix` must fit in one write.
+    @discardableResult
+    func writeStdin(
+        _ commandID: String,
+        at offset: Int,
+        _ prefix: Data = Data(),
+        file: URL? = nil,
+        close: Bool = true
+    ) async throws -> Int {
         let handle = try file.map { try FileHandle(forReadingFrom: $0) }
         defer { try? handle?.close() }
         func read(_ count: Int) throws -> Data { try handle?.read(upToCount: count) ?? Data() }
+        var offset = offset
         var chunk = try prefix + read(Self.stdinChunkBytes - prefix.count)
         repeat {
             let next = chunk.count < Self.stdinChunkBytes ? Data() : try read(Self.stdinChunkBytes)
             let data = chunk
-            try await waitingForHost {
+            let at = offset
+            try await retrying {
                 try await sandboxesService.writeSandboxCommandStdin(
                     accountHandle: accountHandle,
                     serverURL: serverURL,
                     sandboxID: sandboxID,
                     commandID: commandID,
                     data: data,
+                    offset: at,
                     close: close && next.isEmpty
                 )
             }
+            offset += data.count
             chunk = next
         } while !chunk.isEmpty
+        return offset
     }
 
-    private func waitingForHost<Value>(_ call: () async throws -> Value) async throws -> Value {
+    /// Sends a request that is safe to send again until it gets an answer: through 503s while the host is held, and
+    /// through gateway and transport errors that may hide an answer, for up to `hostWait`.
+    private func retrying<Value>(_ call: () async throws -> Value) async throws -> Value {
         let deadline = Date().addingTimeInterval(hostWait)
         var attempt = 0
         while true {
             do {
                 return try await call()
-            } catch let SandboxesServiceError.unavailable(message) where Date() < deadline {
-                if attempt == 0 { onWait("Waiting for a sandbox host: \(message)") }
+            } catch {
+                guard Self.isTransient(error),
+                      (error as? SandboxesServiceError) != SandboxesServiceError.limited,
+                      Date() < deadline
+                else { throw error }
+                if attempt == 0 {
+                    if case let SandboxesServiceError.unavailable(message) = error {
+                        onWait("Waiting for a sandbox host: \(message)")
+                    } else {
+                        onWait("Retrying: \(error.localizedDescription)")
+                    }
+                }
                 attempt += 1
                 try await sleep(min(30, 2 * pow(2, Double(attempt - 1))))
             }
