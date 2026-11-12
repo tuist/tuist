@@ -9,10 +9,13 @@ defmodule Tuist.GitHistory.Ref do
   `head_observed_at` when the observation that moved it there was made.
 
   A `detached` ref is neither: it holds a listed commit that no branch or
-  pull request owns (`Tuist.GitHistory.detach/3`), forking at the commit's
-  first parent, so the commit's file changes have a place. Only
-  `Tuist.GitHistory.FileChanges` reads it; to everything else its commits
-  are owned by no ref.
+  pull request owns (`Tuist.GitHistory.detach/3`), forking where the
+  commit's first parents reach a commit a ref owns, so the commit's file
+  changes have a place. Only `Tuist.GitHistory.FileChanges` reads it; to
+  everything else its commits are owned by no ref. Its name is
+  `detached:<sha>`, the commit it was created for, which Git refuses as a
+  branch name. The name only keeps the ref unique: nothing finds a ref by
+  it or reads the commit out of it.
   """
   use Ecto.Schema
 
