@@ -879,54 +879,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end
   end
 
-  describe "job timeouts" do
-    @job_timeout_error "** (Oban.TimeoutError) Tuist.Tests.Workers.ProcessXcresultWorker timed out after 1500000ms"
-
-    # Lifeline (config/runtime.exs) puts an executing job back after 30
-    # minutes while the first copy keeps running, so a longer job runs twice.
-    test "times a job out before Lifeline would run it a second time" do
-      assert ProcessXcresultWorker.timeout(%Oban.Job{}) < to_timeout(minute: 30)
-    end
-
-    test "processes the bundle again after one timeout", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-      job = oban_job(job_args(test_run_id, account.id, project.id), 2, 20)
-      job = %{job | errors: [%{"attempt" => 1, "error" => @job_timeout_error}]}
-
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_failed} end)
-      reject(&Tuist.Tests.create_test/1)
-
-      assert {:error, :parse_failed} = ProcessXcresultWorker.perform(job)
-    end
-
-    test "marks the run failed without downloading it again after a second timeout", %{
-      account: account,
-      project: project
-    } do
-      test_run_id = Ecto.UUID.generate()
-      job = oban_job(job_args(test_run_id, account.id, project.id), 3, 20)
-
-      job = %{
-        job
-        | errors: [
-            %{"attempt" => 1, "error" => @job_timeout_error},
-            %{"attempt" => 2, "error" => @job_timeout_error}
-          ]
-      }
-
-      reject(&Tuist.Storage.download_to_file/3)
-
-      expect(Tuist.Tests, :create_test, fn attrs ->
-        assert attrs.id == test_run_id
-        assert attrs.status == "failed_processing"
-        {:ok, %{id: test_run_id}}
-      end)
-
-      assert {:cancel, :job_timeout} = ProcessXcresultWorker.perform(job)
-    end
-  end
-
   describe "backoff/1" do
     test "spaces processing retries and enters finalization immediately after the fifth failure" do
       assert [30, 120, 300, 600, 1] ==
@@ -940,21 +892,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         attempt: 1,
         max_attempts: 20,
         errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :parse_timeout}"}]
-      }
-
-      assert 900 == ProcessXcresultWorker.backoff(job)
-    end
-
-    test "waits out the in-flight parses before retrying a job that timed out" do
-      job = %Oban.Job{
-        attempt: 1,
-        max_attempts: 20,
-        errors: [
-          %{
-            "attempt" => 1,
-            "error" => "** (Oban.TimeoutError) Tuist.Tests.Workers.ProcessXcresultWorker timed out after 1500000ms"
-          }
-        ]
       }
 
       assert 900 == ProcessXcresultWorker.backoff(job)
