@@ -267,6 +267,24 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline}
     end
 
+    test "keeps a baseline whose listing's files expired once its file changes are written", %{
+      account: account,
+      project: project
+    } do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil), branch_heads: [{"main", "c2"}])
+      CoverageFixtures.commit_coverage(project, repository_id, "c1")
+      assert Tuist.GitHistory.FileChanges.write(repository_id, "c1") == :written
+
+      expired = DateTime.add(DateTime.utc_now(), -Tuist.Environment.coverage_retention_days().files * 86_400, :second)
+
+      Repo.update_all(
+        from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == "c1"),
+        set: [inserted_at: DateTime.truncate(expired, :second)]
+      )
+
+      assert {:ok, %{sha: "c1"}} = Baselines.resolve(project, scope("c2"))
+    end
+
     test "answers baseline_too_old only for a full run whose commit has a complete listing", %{
       account: account,
       project: project

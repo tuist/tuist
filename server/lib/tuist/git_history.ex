@@ -1095,18 +1095,21 @@ defmodule Tuist.GitHistory do
   (`Tuist.Environment.coverage_retention_days/1`), after which the next
   upload stores it again.
   """
-  def listing_complete?(repository_id, sha) do
-    not is_nil(FileChanges.current(repository_id, sha)) or listed?(repository_id, sha)
-  end
+  def listing_complete?(repository_id, sha), do: complete_listings(repository_id, [sha]) != []
 
-  defp listed?(repository_id, sha) do
+  @doc "Those of `shas` whose whole file listing is known (`listing_complete?/2`)."
+  def complete_listings(repository_id, shas) do
     cutoff = listing_cutoff()
 
-    Repo.exists?(
-      from(l in CommitListing,
-        where: l.repository_id == ^repository_id and l.sha == ^sha and l.inserted_at >= ^cutoff and not l.truncated
+    listed =
+      Repo.all(
+        from(l in CommitListing,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff and not l.truncated,
+          select: l.sha
+        )
       )
-    )
+
+    listed ++ FileChanges.current_among(repository_id, shas -- listed)
   end
 
   # A day early: a listing's parts are inserted before the row that marks it
