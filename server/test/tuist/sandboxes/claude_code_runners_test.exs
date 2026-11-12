@@ -52,19 +52,25 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
       {:ok, %{}}
     end)
 
-    assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, @order)
+    # The longest order id the spawn endpoint accepts, with the dots it allows.
+    order = %{@order | order_id: String.duplicate("o.", 127) <> "1"}
+    assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, order)
     assert_receive {:started, sandbox_id, env}, 5_000
 
-    # Idle minutes round up, and the work order travels only in the worker's
-    # environment. The macOS host refuses a worker without a work id.
+    # The macOS guest refuses a worker without a work id, and accepts only
+    # [A-Za-z0-9_-]{1,255} as one.
+    {work_id, env} = Map.pop(env, "ANTHROPIC_WORK_ID")
+    assert work_id =~ ~r/\A[A-Za-z0-9_-]{1,255}\z/
+
+    # Idle minutes round up, and the work order travels only in the worker's environment.
     assert env == %{
-             "ANTHROPIC_WORK_ID" => "claude-code:order-1",
              "SBX_CLAUDE_CODE_WORK_ORDER" => "header.claims.signature",
              "SBX_CLAUDE_CODE_RELEASE_IDLE_MIN" => "25",
              "SBX_WORKDIR" => "/Users/runner/work"
            }
 
-    assert %Sandbox{platform: :darwin, anthropic_session_id: "session_01abc"} = Repo.get(Sandbox, sandbox_id)
+    assert %Sandbox{platform: :darwin, anthropic_session_id: "session_01abc", residency_work_id: ^work_id} =
+             Repo.get(Sandbox, sandbox_id)
   end
 
   test "a session whose sandbox already holds a residency answers that its runner is on the way", %{

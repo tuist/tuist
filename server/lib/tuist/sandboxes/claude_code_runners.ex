@@ -62,7 +62,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
 
   @doc false
   def start_runner(agent_environment, %{order_id: order_id, session_id: session_id, work_order: work_order}) do
-    work_id = "claude-code:" <> order_id
+    # A macOS guest accepts only [A-Za-z0-9_-]{1,255} as a work id, and an
+    # order id may hold dots and be 255 characters long. A hash stays stable
+    # across re-requests of the same order.
+    work_id = "claude-code-" <> (:sha256 |> :crypto.hash(order_id) |> Base.encode16(case: :lower) |> binary_part(0, 32))
 
     # A re-request while an earlier one still boots the VM finds the lock taken.
     result =
