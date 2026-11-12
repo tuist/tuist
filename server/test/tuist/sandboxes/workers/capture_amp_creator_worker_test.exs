@@ -9,10 +9,24 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorkerTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
 
-  test "captures a signed creator once without changing sandbox lifecycle" do
+  @tag :tmp_dir
+  test "captures a signed creator once with Amp outside the bridge's PATH", %{tmp_dir: home} do
     uuid = Ecto.UUID.generate()
-    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> uuid)
-    stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "proof\n"}} end)
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> uuid, platform: :darwin)
+    amp = Path.join(home, ".amp/bin/amp")
+    File.mkdir_p!(Path.dirname(amp))
+    File.write!(amp, "#!/bin/sh\n[ \"$*\" = 'orb id-token --audience https://tuist.dev' ] || exit 1\nprintf 'proof\\n'\n")
+    File.chmod!(amp, 0o755)
+
+    stub(Sandboxes, :exec_running, fn _, command, _ ->
+      {stdout, code} =
+        System.cmd("/bin/sh", ["-c", ~S(exec "$@"), "sh" | command],
+          env: [{"HOME", home}, {"PATH", "/usr/bin:/bin"}],
+          stderr_to_stdout: true
+        )
+
+      {:ok, %{exit_code: code, stdout: stdout}}
+    end)
 
     stub(OIDC, :amp_creator, fn "proof", "https://tuist.dev" ->
       {:ok, %{user_id: "user_creator", name: "amp-name", username: "amp-name", thread_id: "T-" <> uuid}}
@@ -31,6 +45,50 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorkerTest do
     assert :ok = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
   end
 
+  test "retries long enough to capture a creator after a slow detached setup" do
+    uuid = Ecto.UUID.generate()
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> uuid)
+    job = %{sandbox_id: sandbox.id} |> CaptureAmpCreatorWorker.new() |> Ecto.Changeset.apply_changes()
+
+    stub(OIDC, :amp_creator, fn "proof", _ ->
+      {:ok, %{user_id: "user_creator", name: "amp-name", username: nil, thread_id: "T-" <> uuid}}
+    end)
+
+    # The production setup that exposed this failure took 10 minutes 48 seconds.
+    result =
+      Enum.reduce_while(1..job.max_attempts, 0, fn attempt, elapsed ->
+        stub(Sandboxes, :exec_running, fn _, _, _ ->
+          if elapsed < 648,
+            do: {:ok, %{exit_code: 1, stdout: "", stderr: "identity not ready"}},
+            else: {:ok, %{exit_code: 0, stdout: "proof"}}
+        end)
+
+        case perform_job(CaptureAmpCreatorWorker, job.args, attempt: attempt) do
+          :ok -> {:halt, :captured}
+          {:error, _} -> {:cont, elapsed + CaptureAmpCreatorWorker.backoff(%{job | attempt: attempt})}
+        end
+      end)
+
+    assert result == :captured
+    assert %{amp_creator_user_id: "user_creator", state: :running} = Repo.reload!(sandbox)
+  end
+
+  test "reports failure stages without returning guest output" do
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
+
+    stub(Sandboxes, :exec_running, fn _, _, _ ->
+      {:ok, %{exit_code: 1, stdout: "sensitive output", stderr: "sensitive error"}}
+    end)
+
+    assert {:error, {:creator_command_failed, 1}} =
+             perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+
+    stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "untrusted proof"}} end)
+    stub(OIDC, :amp_creator, fn _, _ -> {:error, :invalid_token} end)
+    assert {:error, :invalid_creator_proof} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    assert is_nil(Repo.reload!(sandbox).amp_creator_user_id)
+  end
+
   test "does not trust another thread's proof and does not resume paused sandboxes" do
     sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
     stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "proof"}} end)
@@ -39,7 +97,7 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorkerTest do
       {:ok, %{user_id: "user_wrong", name: "wrong", thread_id: "T-" <> Ecto.UUID.generate()}}
     end)
 
-    assert {:error, :creator_unavailable} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    assert {:error, :creator_thread_mismatch} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
     assert is_nil(Repo.reload!(sandbox).amp_creator_user_id)
 
     paused = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate(), state: :paused)
