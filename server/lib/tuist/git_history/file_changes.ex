@@ -294,6 +294,12 @@ defmodule Tuist.GitHistory.FileChanges do
     )
     """
 
+    # A statement before the last fails on a listing that does not add up
+    # where it reads it, rather than write nothing: the last one, reading it
+    # whole on another replica, would write the commit's rows without the
+    # rows this one owed the commits above.
+    complete = if own?, do: @complete, else: "(SELECT throwIf(NOT (#{@complete}), 'listing incomplete')) = 0"
+
     written =
       if own? do
         """
@@ -319,7 +325,7 @@ defmodule Tuist.GitHistory.FileChanges do
           SELECT if(l.listed = 1, l.path, s.path) AS path, l.git_blob_id AS git_blob_id, l.mode AS mode,
             s.git_blob_id AS below_blob_id, s.mode AS below_mode
           #{compared_sql(commit)}
-          WHERE #{@changed} AND #{@complete}
+          WHERE #{@changed} AND #{complete}
         ) AS c
         LEFT JOIN (
           SELECT path, groupArray((ref_id, position)) AS places,
