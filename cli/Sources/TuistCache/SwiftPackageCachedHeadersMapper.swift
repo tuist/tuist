@@ -146,8 +146,10 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
 
     private func consumers(of artifacts: Set<GraphDependency>, in graphs: [Graph]) -> [GraphDependency: Set<GraphDependency>] {
         var dependents: [GraphDependency: Set<GraphDependency>] = [:]
+        var macros: Set<GraphDependency> = []
         for graph in graphs {
             for (origin, dependencies) in graph.dependencies {
+                if isMacro(origin, in: graph) { macros.insert(origin) }
                 for dependency in dependencies {
                     dependents[dependency, default: []].insert(origin)
                 }
@@ -159,7 +161,7 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
             var visited: Set<GraphDependency> = []
             while let dependency = queue.popLast() {
                 guard visited.insert(dependency).inserted else { continue }
-                queue += dependents[dependency, default: []]
+                if !macros.contains(dependency) { queue += dependents[dependency, default: []] }
                 if case .target = dependency { result[dependency, default: []].insert(artifact) }
             }
         }
@@ -171,9 +173,16 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
         var visited: Set<GraphDependency> = []
         while let dependency = queue.popLast() {
             guard visited.insert(dependency).inserted else { continue }
-            queue += graph.dependencies[dependency, default: []]
+            if !isMacro(dependency, in: graph) { queue += graph.dependencies[dependency, default: []] }
         }
         return visited
+    }
+
+    /// Xcode builds a macro's dependencies for the host only, and the macro's clients never compile against
+    /// them, so neither their headers nor their `ProcessXCFramework` outputs cross a macro.
+    private func isMacro(_ dependency: GraphDependency, in graph: Graph) -> Bool {
+        guard case let .target(name, path, _) = dependency else { return false }
+        return graph.projects[path]?.targets[name]?.product == .macro
     }
 
     private func processors(
