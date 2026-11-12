@@ -7,7 +7,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias Tuist.Repo
-  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -81,7 +80,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
             {:orb_bootstrap_failed, 502, []},
             {:node_disconnected, 503, []}
           ] do
-        expect(Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
+        expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
 
         result =
           post(conn, ~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{
@@ -702,36 +701,6 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       assert %{"commands" => [%{"id" => ^id, "status" => "exited", "exit_code" => 0}]} =
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok)
-    end
-
-    @tag :tmp_dir
-    test "refuses a working directory missing in the sandbox with 400", %{conn: conn, account: account, tmp_dir: home} do
-      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
-      missing = Path.join(home, "does-not-exist")
-
-      # Runs the real start script. The guest agent cannot start a process in
-      # a missing directory, so the exec itself must run in the workspace.
-      expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-c", script], cwd: cwd, env: env}, _opts ->
-        assert cwd == Sandboxes.workspace(sandbox)
-        {_output, code} = System.cmd("/bin/bash", ["-c", script], env: Map.put(env, "HOME", home), cd: home)
-        {:ok, %{"exit_code" => code}}
-      end)
-
-      assert %{"message" => message} =
-               conn
-               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{
-                 command: "true",
-                 cwd: missing
-               })
-               |> json_response(:bad_request)
-
-      assert message =~ missing
-
-      assert conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok) == %{
-               "commands" => []
-             }
-
-      refute File.exists?(Path.join(home, ".cache"))
     end
 
     test "streams 404 as a plain status for an unknown command", %{conn: conn, account: account} do

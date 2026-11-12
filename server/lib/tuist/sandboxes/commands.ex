@@ -39,7 +39,6 @@ defmodule Tuist.Sandboxes.Commands do
   @stdin_env_part_bytes 64 * 1024
   @missing_exit_code 44
   @stdin_closed_exit_code 45
-  @invalid_cwd_exit_code 46
   @list_limit 100
   @finished_retention_days 7
   @env_name ~r/\A[A-Za-z_][A-Za-z0-9_]*\z/
@@ -51,16 +50,9 @@ defmodule Tuist.Sandboxes.Commands do
   # copied (at once when stdin is not attached). The script waits for the
   # pid file, which the detached shell writes after setsid: until then the
   # command is still in the starting exec's process group.
-  #
-  # The script enters the command's working directory itself: the guest
-  # agent refuses to start any process in a missing directory, which would
-  # otherwise surface as a node failure instead of the caller's mistake.
   @start_script @dir <>
-                  """
-
-                  if [ -n "${TUIST_CWD-}" ]; then cd -- "$TUIST_CWD" 2> /dev/null || exit #{@invalid_cwd_exit_code}; fi
-                  """ <>
                   ~S"""
+
                   set -eu
                   mkdir -p "$d"
                   printf '%s' "$TUIST_COMMAND" > "$d/command"
@@ -80,7 +72,7 @@ defmodule Tuist.Sandboxes.Commands do
                     select(undef, undef, undef, 0.1);
                   }
                   FEED
-                  unset TUIST_COMMAND TUIST_STDIN TUIST_CWD
+                  unset TUIST_COMMAND TUIST_STDIN
                   perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' \
                     /bin/bash -c 'echo $$ > "$1/pid"; perl "$1/feed.pl" "$1" | /bin/bash -l "$1/command" > "$1/stdout" 2> "$1/stderr"; echo $? > "$1/exit_code.tmp"; mv "$1/exit_code.tmp" "$1/exit_code"' _ "$d" \
                     < /dev/null > /dev/null 2>&1 &
@@ -238,20 +230,19 @@ defmodule Tuist.Sandboxes.Commands do
   end
 
   defp launch(sandbox, command, env) do
-    exec_opts = [
-      env:
-        Map.merge(env, %{
-          "TUIST_COMMAND_ID" => command.id,
-          "TUIST_COMMAND" => command.command,
-          "TUIST_CWD" => command.cwd || "",
-          "TUIST_STDIN" => if(command.stdin, do: "1", else: "0")
-        }),
-      timeout_ms: 30_000
-    ]
+    exec_opts =
+      [
+        env:
+          Map.merge(env, %{
+            "TUIST_COMMAND_ID" => command.id,
+            "TUIST_COMMAND" => command.command,
+            "TUIST_STDIN" => if(command.stdin, do: "1", else: "0")
+          }),
+        timeout_ms: 30_000
+      ] ++ if(command.cwd, do: [cwd: command.cwd], else: [])
 
     case Sandboxes.exec_running(sandbox, ["/bin/bash", "-c", @start_script], exec_opts) do
       {:ok, %{exit_code: 0}} -> :ok
-      {:ok, %{exit_code: @invalid_cwd_exit_code}} -> {:error, {:invalid_cwd, command.cwd}}
       {:ok, %{stderr: stderr}} -> {:error, String.trim("could not start the command: " <> stderr)}
       {:error, reason} -> {:error, reason}
     end
