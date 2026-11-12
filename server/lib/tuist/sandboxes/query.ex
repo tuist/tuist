@@ -107,6 +107,9 @@ defmodule Tuist.Sandboxes.Query do
   def error({:invalid_state, state}), do: {:conflict, "The sandbox is #{state}."}
   def error(:not_found), do: {:not_found, "Sandbox not found."}
 
+  def error({:invalid_cwd, cwd}),
+    do: {:bad_request, "The working directory #{cwd} does not exist in the sandbox or is not a directory."}
+
   def error(:invalid_parameters),
     do:
       {:bad_request,
