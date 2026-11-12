@@ -9,6 +9,10 @@ name: Remote Execution Benchmark
 # account's execution capacity.
 
 on:
+  # Throwaway benchmark branches run the defaults below on push.
+  push:
+    branches:
+      - bench/remote-execution
   workflow_dispatch:
     inputs:
       server:
@@ -43,14 +47,14 @@ defaults:
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-  TUIST_URL: ${{ inputs.server }}
-  MODE: ${{ inputs.mode }}
-  COMMAND: ${{ inputs.command }}
+  TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
+  MODE: ${{ inputs.mode || 'local' }}
+  COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags }}
 
 jobs:
   benchmark:
-    name: Cold ${{ inputs.command }} (${{ inputs.mode }} ${{ inputs.bazel_flags }})
+    name: Cold benchmark
     if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 90
@@ -94,7 +98,7 @@ jobs:
           ../.github/scripts/retry-bazel-command.sh bazel "$COMMAND" //... --nobuild \
             --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
 
-      - name: Cold ${{ inputs.command }}
+      - name: Cold run
         run: |
           set -euo pipefail
           ulimit -n 65536
@@ -121,7 +125,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: remote-execution-benchmark-${{ inputs.mode }}-${{ github.run_id }}
+          name: remote-execution-benchmark-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/profile.json.gz
             ${{ runner.temp }}/bazel.log
