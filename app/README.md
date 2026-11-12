@@ -51,6 +51,12 @@ Linux executables built through Once can be published with the Tuist CLI's `shar
 
 For legacy Swift commands run from this directory, exclude the parallel toolchain instead: `MISE_IGNORED_CONFIG_PATHS="$PWD/mise.toml" mise exec -- tuist generate --no-open`.
 
+## Preview icons and names
+
+Native Apple/Android bundles declare **Tuist Preview** as their display name and retain the isolated `dev.tuist.app.preview` identity. Their icons are rendered from the shipping `Resources/TuistApp/AppIcon.icon`; regenerate the checked-in raster/ICNS resources on a Mac with Xcode 26+ using `bash apple/generate-icons.sh`. Shipping resources are read-only inputs. Explicit PNG/ICNS resources keep icons in Once's cached outputs, including the iOS fallback icons.
+
+Hosted metadata currently has limitations: Once 0.77.5 omits the Android display label and preview icon payloads, and the server projects Android names from the application ID. Raw Linux executable previews are labeled CLI regardless of whether they open a GUI. Bundle icons do not repair existing hosted previews; metadata publication and a fresh upload are needed.
+
 ## GPUI frontend
 
 Build the Linux/Windows frontend through Once with `mise run build`, then launch with `mise run run`. macOS remains a GPUI development host; the native Swift macOS target is the new Apple frontend. This is an early shell, not a replacement for the shipping Swift app's preview browsing or installation features.

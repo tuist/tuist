@@ -5,6 +5,7 @@
     <key>CFBundleExecutable</key><string>TuistPreview</string>
     <key>CFBundleName</key><string>TuistPreview</string>
     <key>CFBundleDisplayName</key><string>Tuist Preview</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>

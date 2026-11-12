@@ -123,7 +123,7 @@ families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator" }
 entitlements = "ios/Simulator.entitlements"
-resources = ["apple/Resources/en.lproj/Localizable.strings"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
 
 [[target]]
 name = "TuistAppIOSDevice"
@@ -139,7 +139,7 @@ sdk_variant = "device"
 families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos" }
-resources = ["apple/Resources/en.lproj/Localizable.strings"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
 
 [[target]]
 name = "TuistAppMacOS"
@@ -152,7 +152,7 @@ bundle_id = "dev.tuist.app.preview"
 product_name = "TuistPreview"
 minimum_os = "14.0"
 info_plist = "macos/Info.plist"
-resources = ["apple/Resources/en.lproj/Localizable.strings"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
 
 [[target]]
 name = "TuistAppAndroid"
@@ -294,4 +294,4 @@ target = "aarch64-linux-android"
 [[target]]
 name = "TuistAppBrowser"
 kind = "tuist_browser"
-srcs = ["android/dependencies.py", "android/dependencies.lock.json"]
+srcs = ["android/dependencies.py", "android/dependencies.lock.json", "android/AndroidManifest.xml", "android/res/**/*"]
