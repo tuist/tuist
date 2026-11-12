@@ -164,6 +164,8 @@
     "list_licenses": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "release_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "save_my_gmail_attachment": "Copies a file from the caller's personal mailbox into the shared document library through their own OAuth grant; workflows must not act on one person's private messages.",
+    "ovh_list_invoices": "Reads billing data through the caller's personal OVH OAuth grant; workflows must not use one person's private connection.",
+    "ovh_save_invoice": "Copies an invoice through the caller's personal OVH OAuth grant into the shared document library; workflows must not use one person's private connection.",
     "get_contract_template": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "convert_gtm_opportunity": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
