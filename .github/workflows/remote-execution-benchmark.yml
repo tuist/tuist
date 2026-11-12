@@ -53,9 +53,9 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
   MODE: ${{ inputs.mode || 'remote' }}
-  COMMAND: ${{ inputs.command || 'test' }}
+  COMMAND: ${{ inputs.command || 'build' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=20' }}
-  TARGETS: //...
+  TARGETS: '@@rules_rs++crate+crates__aws-lc-sys-0.45.0//:_bs'
 
 jobs:
   benchmark:
