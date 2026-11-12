@@ -142,6 +142,22 @@ defmodule Tuist.Tests.RunSelectionsTest do
       assert %{avoided_tests: 5, estimated_tests: 5, scope_tests: 6} = selection(project, run)
     end
 
+    test "doesn't count a skipped module in an earlier run that hit it", %{project: project, now: now} do
+      executed = test_run(project, days_ago(now, 3), [{"ProfileTests", 6}])
+      command_event(project, executed, [{"ProfileTests", "p0", :miss}])
+
+      # Hit ProfileTests yet reported 2 of its tests: not an execution of it.
+      hit = test_run(project, days_ago(now, 1), [{"ProfileTests", 2}])
+      command_event(project, hit, [{"ProfileTests", "p1", :remote}])
+
+      run = test_run(project, now, [{"CoreTests", 1}])
+      command_event(project, run, [{"ProfileTests", "p2", :local}, {"CoreTests", "c1", :miss}])
+
+      RunSelections.record(project.id, [run.id])
+
+      assert %{avoided_tests: 6, estimated_tests: 6, scope_tests: 7} = selection(project, run)
+    end
+
     test "leaves out the skipped modules a narrowed run didn't name whole", %{project: project, now: now} do
       earlier = test_run(project, days_ago(now, 2), [{"AuthTests", 5}, {"ProfileTests", 4}])
       command_event(project, earlier, [{"AuthTests", "h1", :miss}, {"ProfileTests", "p1", :miss}])

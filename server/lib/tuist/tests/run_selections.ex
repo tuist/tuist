@@ -328,19 +328,23 @@ defmodule Tuist.Tests.RunSelections do
   # The latest test command events in `[since, until)` that executed each of
   # the modules, at most 20 per module, newest first: the event's test targets
   # less the ones it hit. Read from `command_events`, whose sorting key starts
-  # with the project and event name, so it stays a narrow scan.
+  # with the project and event name, so it stays a narrow scan. The hits are
+  # taken out with `arrayExcept`, not a lambda: a lambda that reads the hit
+  # columns copies them for every test target, which runs past the memory
+  # limit on events with hundreds of targets.
   defp latest_executions(project_id, modules, since, until) do
     executions =
       from(e in test_events(project_id),
         where: e.ran_at >= ^since and e.ran_at < ^until and not is_nil(e.test_run_id),
+        where: fragment("hasAny(?, ?)", e.test_targets, type(^modules, {:array, :string})),
         select: %{
           module:
             fragment(
-              "arrayJoin(arrayIntersect(arrayFilter(t -> NOT has(?, t) AND NOT has(?, t), ?), ?))",
-              e.local_test_target_hits,
-              e.remote_test_target_hits,
+              "arrayJoin(arrayExcept(arrayIntersect(?, ?), arrayConcat(?, ?)))",
               e.test_targets,
-              type(^modules, {:array, :string})
+              type(^modules, {:array, :string}),
+              e.local_test_target_hits,
+              e.remote_test_target_hits
             ),
           ran_at: e.ran_at,
           event_id: e.id,
