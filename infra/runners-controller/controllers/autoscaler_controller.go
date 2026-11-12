@@ -858,31 +858,15 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return b.Complete(r)
 }
 
-// darwinPools reconciles the pools with runners on the reservation's host,
-// the only ones that can give it room. Enqueueing every darwin pool put the
-// pool owning that idle runner behind the others' reconciles, each of which
-// lists every Pod in the cluster: in production, with 21 darwin pools, a
-// sandbox create or restore waited 5 to 12 s for its runner to be retired.
-func (r *AutoscalerReconciler) darwinPools(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, _ client.Object) []reconcile.Request {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools); err != nil {
 		return nil
 	}
-	var runners corev1.PodList
-	listErr := r.List(ctx, &runners, client.HasLabels{"tuist.dev/runner-pool"})
-	node := obj.(*corev1.Pod).Spec.NodeName
-	onNode := map[client.ObjectKey]bool{}
-	for i := range runners.Items {
-		if pod := &runners.Items[i]; pod.Spec.NodeName == node {
-			onNode[client.ObjectKey{Namespace: pod.Namespace, Name: pod.Labels["tuist.dev/runner-pool"]}] = true
-		}
-	}
 	var requests []reconcile.Request
 	for _, pool := range pools.Items {
-		key := client.ObjectKeyFromObject(&pool)
-		// Without the runners, every darwin pool, as before.
-		if pool.Spec.OS == "darwin" && (onNode[key] || listErr != nil) {
-			requests = append(requests, reconcile.Request{NamespacedName: key})
+		if pool.Spec.OS == "darwin" {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&pool)})
 		}
 	}
 	return requests

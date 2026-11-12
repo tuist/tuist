@@ -129,23 +129,3 @@ func TestNativeGrantCountsAFreshWarmSandboxVMAsRoomButNotAFreshCIRunner(t *testi
 		t.Fatalf("want the fresh CI runner charged and the fresh warm VM reclaimable: %+v", room)
 	}
 }
-
-func TestReservationReconcilesOnlyTheDarwinPoolsWithRunnersOnItsHost(t *testing.T) {
-	pool := func(name, os string) *tuistv1.RunnerPool {
-		return &tuistv1.RunnerPool{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist-runners"}, Spec: tuistv1.RunnerPoolSpec{OS: os}}
-	}
-	runner := func(name, poolName, node string) *corev1.Pod {
-		pod := newRunnerPod(name, "img", corev1.PodRunning, poolName)
-		pod.Spec.NodeName = node
-		return pod
-	}
-	r, _ := sandboxFixture(t,
-		pool("on-host", "darwin"), pool("elsewhere", "darwin"), pool("empty", "darwin"), pool("linux", "linux"),
-		runner("a", "on-host", "mac-1"), runner("b", "elsewhere", "mac-2"), runner("c", "linux", "mac-1"))
-	reservation := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "macos-sbx-1", Namespace: "tuist-sandboxes", Labels: map[string]string{macosSandboxRole: "execution"}}, Spec: corev1.PodSpec{NodeName: "mac-1"}}
-
-	requests := r.darwinPools(context.Background(), reservation)
-	if len(requests) != 1 || requests[0].Name != "on-host" || requests[0].Namespace != "tuist-runners" {
-		t.Fatalf("want only the darwin pool with a runner on mac-1, got %v", requests)
-	}
-}
