@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -37,27 +38,35 @@ const dindMemoryFile = "/var/run/tuist-dind-memory"
 // containers first in line for the OOM killer. Best-effort: a sample it cannot
 // read or write is skipped, never an error.
 func publishDindMemory() {
+	containers := &jobContainers{known: map[string]string{}, inspect: inspectDockerContainer}
+	var mu sync.Mutex
+	victim := ""
 	go func() {
+		watch := &oomWatch{}
 		for {
-			raiseJobContainerOOMScores("/proc")
+			// The count before the sweep, so a kill it counts happened
+			// before the sweep looked for the victim's process.
+			kills := guestOOMKills("/proc/vmstat")
+			_, processes := raiseJobContainerOOMScores("/proc")
+			containers.observe(processes)
+			// Only this privileged sidecar can read the kernel log, so it
+			// names the victim for the runner's job-completed hook and the
+			// metrics sampler.
+			if named := watch.sweep(kills, processes, kernelLog, containers.describe); named != "" {
+				mu.Lock()
+				victim = named
+				mu.Unlock()
+			}
 			time.Sleep(time.Second)
 		}
 	}()
-	var kills int64
-	victim := ""
 	for {
-		// Only this privileged sidecar can read the kernel log, so it names the
-		// victim for the runner's job-completed hook.
-		if n := guestOOMKills("/proc/vmstat"); n > kills {
-			kills = n
-			if found := latestOOMVictim(kernelLog()); found != "" {
-				victim = found
-			}
-		}
 		if line := dindMemory("/sys/fs/cgroup"); line != "" {
+			mu.Lock()
 			if victim != "" {
 				line += " " + victim
 			}
+			mu.Unlock()
 			if os.WriteFile(dindMemoryFile+".tmp", []byte(line+"\n"), 0o644) == nil {
 				_ = os.Rename(dindMemoryFile+".tmp", dindMemoryFile)
 			}
@@ -74,16 +83,26 @@ func publishDindMemory() {
 // exit code 137 and the runner survives to report it.
 const jobContainerOOMScoreAdj = "1000"
 
+// jobProcess is a process of the job's containers as the last sweep saw it.
+type jobProcess struct {
+	pid    string
+	name   string
+	anonKB int64
+	// container is the container's ID, or docker-build for a BuildKit step.
+	container string
+}
+
 // raiseJobContainerOOMScores sets every process in dockerd's cgroup tree, the
 // job's containers and BuildKit's build steps, to jobContainerOOMScoreAdj and
-// returns how many it changed. Children inherit the score; the sweep catches
-// each new container and `docker exec` within a second.
-func raiseJobContainerOOMScores(proc string) int {
+// returns how many it changed and the processes it found. Children inherit the
+// score; the sweep catches each new container and `docker exec` within a second.
+func raiseJobContainerOOMScores(proc string) (int, []jobProcess) {
 	entries, err := os.ReadDir(proc)
 	if err != nil {
-		return 0
+		return 0, nil
 	}
 	raised := 0
+	var processes []jobProcess
 	for _, entry := range entries {
 		if _, err := strconv.Atoi(entry.Name()); err != nil {
 			continue
@@ -91,6 +110,9 @@ func raiseJobContainerOOMScores(proc string) int {
 		cgroup, err := os.ReadFile(filepath.Join(proc, entry.Name(), "cgroup"))
 		if err != nil || !strings.HasPrefix(string(cgroup), "0::/docker/") {
 			continue
+		}
+		if process, ok := sweptProcess(filepath.Join(proc, entry.Name()), strings.TrimSpace(string(cgroup))); ok {
+			processes = append(processes, process)
 		}
 		path := filepath.Join(proc, entry.Name(), "oom_score_adj")
 		if current, err := os.ReadFile(path); err != nil || strings.TrimSpace(string(current)) == jobContainerOOMScoreAdj {
@@ -100,7 +122,34 @@ func raiseJobContainerOOMScores(proc string) int {
 			raised++
 		}
 	}
-	return raised
+	return raised, processes
+}
+
+// sweptProcess reads a job container process's name and anonymous memory.
+func sweptProcess(dir, cgroup string) (jobProcess, bool) {
+	container := ""
+	if strings.HasPrefix(cgroup, "0::/docker/buildkit/") {
+		container = "docker-build"
+	} else if match := dockerContainerCgroup.FindStringSubmatch(cgroup); match != nil {
+		container = match[1]
+	} else {
+		return jobProcess{}, false
+	}
+	status, err := os.ReadFile(filepath.Join(dir, "status"))
+	if err != nil {
+		return jobProcess{}, false
+	}
+	process := jobProcess{pid: filepath.Base(dir), container: container}
+	for _, line := range strings.Split(string(status), "\n") {
+		if value, ok := strings.CutPrefix(line, "State:"); ok && strings.HasPrefix(strings.TrimSpace(value), "Z") {
+			return jobProcess{}, false // exited: a killed victim waiting to be reaped
+		} else if value, ok := strings.CutPrefix(line, "Name:"); ok {
+			process.name = strings.TrimSpace(value)
+		} else if value, ok := strings.CutPrefix(line, "RssAnon:"); ok {
+			process.anonKB, _ = strconv.ParseInt(strings.TrimSuffix(strings.TrimSpace(value), " kB"), 10, 64)
+		}
+	}
+	return process, process.name != ""
 }
 
 // guestOOMKills is the guest kernel's count of processes killed for memory,
@@ -130,24 +179,195 @@ func kernelLog() string {
 	return string(buffer[:n])
 }
 
-var oomKilledProcess = regexp.MustCompile(`Killed process \d+ \((.*)\) total-vm:\d+kB, anon-rss:(\d+)kB`)
-var unsafeName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+var (
+	oomKilledProcess      = regexp.MustCompile(`Killed process \d+ \((.*)\) total-vm:\d+kB, anon-rss:(\d+)kB`)
+	dockerContainerCgroup = regexp.MustCompile(`^0::/docker/([0-9a-f]{64})$`)
+	unsafeName            = regexp.MustCompile(`[^A-Za-z0-9._-]`)
+	unsafeContainer       = regexp.MustCompile(`[^A-Za-z0-9._/:@-]`)
+)
 
-// latestOOMVictim renders the last process the kernel log reports killed for
-// memory as vitals fields, or "" when it reports none. The name is the job's
-// own process name, so it keeps only characters safe in a vitals line and a
-// GitHub annotation.
-func latestOOMVictim(log string) string {
+// oomKill is the process the kernel log last reports killed for memory.
+type oomKill struct {
+	name   string
+	anonKB int64
+}
+
+// latestOOMKill finds the last process the kernel log reports killed for
+// memory, or false when it reports none.
+func latestOOMKill(log string) (oomKill, bool) {
 	matches := oomKilledProcess.FindAllStringSubmatch(log, -1)
 	if len(matches) == 0 {
-		return ""
+		return oomKill{}, false
 	}
 	last := matches[len(matches)-1]
-	name := unsafeName.ReplaceAllString(last[1], "_")
+	anonKB, _ := strconv.ParseInt(last[2], 10, 64)
+	return oomKill{name: last[1], anonKB: anonKB}, true
+}
+
+// fields renders the kill as vitals fields. The job names its own processes
+// and containers, so every value keeps only characters safe in a vitals line,
+// a GitHub annotation and the sampler's JSON. describe names a container by ID.
+//
+// The kernel cannot name the victim's container: Docker's cgroups here have no
+// memory controller of their own, so its log gives the dind sidecar's cgroup,
+// and a PID from a namespace this sidecar cannot see. The victim is instead
+// the process with its name that a sweep before the kill saw and a sweep after
+// it no longer does; of several, the largest, as the kernel kills the largest.
+// Memory alone cannot pick it: a runaway process grows by gigabytes in the
+// second between sweeps. The second result is false when no such process
+// vanished, and oom.victim.container is then absent.
+func (k oomKill) fields(before, after []jobProcess, describe func(id string) string) (string, bool) {
+	name := unsafeName.ReplaceAllString(k.name, "_")
 	if name == "" {
 		name = "unknown"
 	}
-	return "oom.victim=" + name + " oom.victim.anon.kb=" + last[2]
+	line := "oom.victim=" + name + " oom.victim.anon.kb=" + strconv.FormatInt(k.anonKB, 10)
+	alive := map[string]bool{}
+	for _, process := range after {
+		alive[process.pid+" "+process.name] = true
+	}
+	var match *jobProcess
+	for i := range before {
+		process := &before[i]
+		if process.name == k.name && !alive[process.pid+" "+process.name] && (match == nil || process.anonKB > match.anonKB) {
+			match = process
+		}
+	}
+	switch {
+	case match == nil:
+		return line, false
+	case match.container == "docker-build":
+		return line + " oom.victim.container=docker-build", true
+	default:
+		return line + " " + describe(match.container), true
+	}
+}
+
+// oomWatch names each process the kernel kills for memory, from one sweep to
+// the next.
+type oomWatch struct {
+	kills    int64
+	previous []jobProcess
+	// beforeKill is the last sweep before an unnamed kill, and attempts how
+	// many more sweeps may still find its victim gone.
+	beforeKill []jobProcess
+	attempts   int
+}
+
+// oomWatchAttempts covers a victim that still shows for a sweep or two while
+// it exits. Past them, the victim ran outside the job's containers, or started
+// and died between two sweeps.
+const oomWatchAttempts = 3
+
+// sweep takes the kill count read before a sweep and the processes it found,
+// and returns the victim's fields once it can name them, or "".
+func (w *oomWatch) sweep(kills int64, processes []jobProcess, kernelLog func() string, describe func(string) string) string {
+	defer func() { w.previous = processes }()
+	if kills > w.kills {
+		w.kills = kills
+		w.beforeKill = w.previous
+		w.attempts = oomWatchAttempts
+	}
+	if w.attempts == 0 {
+		return ""
+	}
+	w.attempts--
+	kill, ok := latestOOMKill(kernelLog())
+	if !ok {
+		return ""
+	}
+	line, named := kill.fields(w.beforeKill, processes, describe)
+	if !named && w.attempts > 0 {
+		return ""
+	}
+	w.attempts = 0
+	return line
+}
+
+// jobContainers remembers the name and image of each container the sweep saw,
+// so a kill can still be named after Docker removed the container it ended
+// (`docker run --rm`, a job's service containers at cleanup).
+type jobContainers struct {
+	mu      sync.Mutex
+	known   map[string]string // ID -> container and image fields
+	inspect func(id string) (name, image string, err error)
+}
+
+// observe looks up each container not seen before that runs one of processes.
+func (c *jobContainers) observe(processes []jobProcess) {
+	for _, process := range processes {
+		id := process.container
+		if id == "docker-build" {
+			continue
+		}
+		c.mu.Lock()
+		_, seen := c.known[id]
+		c.mu.Unlock()
+		if seen {
+			continue
+		}
+		name, image, err := c.inspect(id)
+		if err != nil {
+			continue // retried on the next sweep while it runs
+		}
+		fields := "oom.victim.container=" + containerField(strings.TrimPrefix(name, "/"))
+		if image != "" {
+			fields += " oom.victim.image=" + containerField(image)
+		}
+		c.mu.Lock()
+		c.known[id] = fields
+		c.mu.Unlock()
+	}
+}
+
+// describe renders a container's fields, its short ID when it was never seen.
+func (c *jobContainers) describe(id string) string {
+	c.mu.Lock()
+	fields, ok := c.known[id]
+	c.mu.Unlock()
+	if ok {
+		return fields
+	}
+	return "oom.victim.container=" + id[:12]
+}
+
+func containerField(value string) string {
+	value = unsafeContainer.ReplaceAllString(value, "_")
+	if len(value) > 128 {
+		value = value[:128]
+	}
+	if value == "" {
+		return "unknown"
+	}
+	return value
+}
+
+var dockerAPI = &http.Client{
+	Timeout: 2 * time.Second,
+	Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, "unix", "/var/run/docker.sock")
+	}},
+}
+
+// inspectDockerContainer asks dockerd for a container's name and image.
+func inspectDockerContainer(id string) (string, string, error) {
+	response, err := dockerAPI.Get("http://docker/containers/" + id + "/json")
+	if err != nil {
+		return "", "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("inspecting container %s: %s", id, response.Status)
+	}
+	var container struct {
+		Name   string
+		Config struct{ Image string }
+	}
+	if err := json.NewDecoder(response.Body).Decode(&container); err != nil {
+		return "", "", err
+	}
+	return container.Name, container.Config.Image, nil
 }
 
 // dindMemory renders the cgroup v2 memory of the cgroup at path as vitals.sh

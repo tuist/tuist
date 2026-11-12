@@ -39,7 +39,8 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   OOM-kill count (`vm.oom_kill`, `/proc/vmstat`, any container) and,
   once the kernel has killed something, its victim (`oom.victim`,
   `oom.victim.anon.kb`, read by the sidecar from the kernel log, which
-  the runner cannot read), cgroup memory
+  the runner cannot read, plus `oom.victim.container`/`.image`, or
+  `docker-build` for a build step), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest
@@ -54,13 +55,22 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   annotates a job the guest kernel killed a process in with an
   `::error` naming the victim, and a job whose lowest `MemAvailable`
   (which `vitals.sh` records in `/tmp/tuist-runner-memory-low`) fell
-  under 5% of the VM with a `::warning`; both suggest a smaller JVM
-  heap, fewer test forks or a larger runner. It always exits 0: a
+  under 5% of the VM with a `::warning`; both suggest using less memory
+  or a larger runner, naming the JVM heap only when the victim was
+  `java`. It always exits 0: a
   failing job-completed hook fails the job. Covered by
   `memory-report_test.sh`.
 - The same `tuist-cache-volume` sidecar modes raise every process in
   dockerd's cgroup tree (`0::/docker/...`: job and service containers,
-  BuildKit steps) to `oom_score_adj` 1000, sweeping every second.
+  BuildKit steps) to `oom_score_adj` 1000, sweeping every second. The
+  kernel log cannot name a victim's container (Docker's cgroups here
+  have no memory controller, and its PIDs are from a namespace the
+  sidecar cannot see), so the sweep remembers each container process's
+  name and memory, and the victim is the same-named process that a
+  sweep before the kill saw and one after it does not. Never match by
+  memory size alone: a runaway process grows by gigabytes per second.
+  `metrics-sampler.sh` reads the report through a read-only mount on
+  cache-volume pools and sends the victim with the job's metrics.
   Docker starts containers at 0 while the Pod's processes run at the
   kubelet's ~870, so a VM filled by container JVMs used to kill the
   runner ("lost communication") and then dockerd. Now the largest

@@ -19,7 +19,8 @@ set -u
 vmstat="${TUIST_RUNNER_VMSTAT:-/proc/vmstat}"
 low_file="${TUIST_RUNNER_MEMORY_LOW_FILE:-/tmp/tuist-runner-memory-low}"
 dind_file="${TUIST_RUNNER_DIND_MEMORY_FILE:-/var/run/tuist-dind-memory}"
-advice="lower the memory the build uses, such as the JVM heap (org.gradle.jvmargs, kotlin.daemon.jvmargs) or the number of parallel test forks, or run the job on a runner with more memory"
+advice="lower the memory the build uses, such as the number of parallel jobs or test forks, or run the job on a runner with more memory"
+jvm_advice="lower the JVM heap the build uses (org.gradle.jvmargs, kotlin.daemon.jvmargs) or the number of parallel test forks, or run the job on a runner with more memory"
 
 # kB as GB with one decimal, the unit runner shapes are named in.
 gb() { awk -v kb="$1" 'BEGIN { printf "%.1f", kb / 1048576 }'; }
@@ -34,11 +35,20 @@ if [ "${kills:-0}" -gt 0 ] 2>/dev/null; then
   # The job can write the shared file, so keep only a plain process name.
   victim="$(field "${dind}" oom.victim | tr -cd 'A-Za-z0-9._-')"
   victim_kb="$(field "${dind}" oom.victim.anon.kb | tr -cd '0-9')"
+  container="$(field "${dind}" oom.victim.container | tr -cd 'A-Za-z0-9._/:@-')"
+  image="$(field "${dind}" oom.victim.image | tr -cd 'A-Za-z0-9._/:@-')"
   named=""
   if [ -n "${victim}" ]; then
     named="${victim}"
     [ -n "${victim_kb}" ] && named="${victim} ($(gb "${victim_kb}") GB)"
+    if [ "${container}" = "docker-build" ]; then
+      named="${named} in a docker build step"
+    elif [ -n "${container}" ]; then
+      named="${named} in container ${container}${image:+ (${image})}"
+    fi
   fi
+  # Only a JVM's heap is worth naming; other processes get general advice.
+  [ "${victim}" = "java" ] && advice="${jvm_advice}"
   if [ "${kills}" -eq 1 ]; then
     stopped="${named:-a process}"
   else

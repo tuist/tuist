@@ -160,6 +160,47 @@ else
   failures=$((failures + 1))
 fi
 
+
+echo
+echo "a sample with OOM kills names the process killed last"
+DIND_MEMORY_PATH="${fixtures}/dind-memory"
+printf 'dind.mem.current=1 dind.oom_kill=1 oom.victim=java oom.victim.anon.kb=27262976 oom.victim.container=gradle-build oom.victim.image=gradle:8-jdk21@sha256:ab\n' >"${DIND_MEMORY_PATH}"
+payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 1)"
+want=',"oom_kill_count":1,"oom_victim_process":"java","oom_victim_memory_bytes":27917287424,"oom_victim_container":"gradle-build","oom_victim_image":"gradle:8-jdk21@sha256:ab"}]}'
+if [[ "${payload}" == *"${want}" ]]; then
+  echo "  ok   payload names java in gradle-build, 26 GiB"
+else
+  echo "  FAIL payload: ${payload}"
+  failures=$((failures + 1))
+fi
+# Before any kill of its own the job's sample names nobody, even if the
+# file names a victim from before the job was claimed.
+payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 0)"
+if [[ "${payload}" == *oom_victim* ]]; then
+  echo "  FAIL a sample without kills names a victim: ${payload}"
+  failures=$((failures + 1))
+else
+  echo "  ok   a sample without kills names no victim"
+fi
+# The job can write the file: quotes, backslashes and newlines must not
+# reach the JSON.
+printf 'oom.victim=a"b\\c oom.victim.anon.kb=1e9x oom.victim.container=c"},{"x":1\n' >"${DIND_MEMORY_PATH}"
+payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 1)"
+if printf '%s' "${payload}" | python3 -c 'import json, sys; s = json.load(sys.stdin)["samples"]; assert len(s) == 1 and s[0]["oom_victim_process"] == "abc" and s[0]["oom_victim_container"] == "cx:1" and s[0]["oom_victim_memory_bytes"] == 19 * 1024, s'; then
+  echo "  ok   a hostile file stays one valid sample"
+else
+  echo "  FAIL hostile payload: ${payload}"
+  failures=$((failures + 1))
+fi
+rm "${DIND_MEMORY_PATH}"
+payload="$(metrics_payload 1750684800 42.5 1.2 1024 2048 1)"
+if [[ "${payload}" == *'"oom_kill_count":1}]}' ]]; then
+  echo "  ok   a pool without the dind report sends only the count"
+else
+  echo "  FAIL payload: ${payload}"
+  failures=$((failures + 1))
+fi
+
 echo
 echo "SIGTERM sends a final sample without waiting out the interval"
 # Kubelet stops the sidecar right after the runner exits. When the

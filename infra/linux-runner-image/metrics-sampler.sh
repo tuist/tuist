@@ -37,6 +37,8 @@ MEMINFO_PATH=/proc/meminfo
 STAT_PATH=/proc/stat
 NET_DEV_PATH=/proc/net/dev
 VMSTAT_PATH=/proc/vmstat
+# Written by the dind sidecar on cache-volume pools, mounted read-only here.
+DIND_MEMORY_PATH="${TUIST_RUNNER_DIND_MEMORY_FILE:-/var/run/tuist-dind/tuist-dind-memory}"
 interval="${TUIST_RUNNER_METRICS_INTERVAL:-15}"
 
 log() { echo "$(date -u +%FT%TZ) metrics-sampler: $*"; }
@@ -93,6 +95,26 @@ oom_kills() {
   awk '$1 == "oom_kill" { n = $2 } END { printf "%.0f", n + 0 }' "${1:-${VMSTAT_PATH}}" 2>/dev/null || printf '0'
 }
 
+# oom_victim_json echoes the process the dind sidecar last saw the kernel
+# kill for memory as JSON members to append to a sample, starting with a
+# comma, or nothing when it named none. The runner container, where the
+# job runs, can write the file too, so every value keeps only characters
+# that need no JSON escaping, and the server validates them again.
+oom_victim_json() {
+  local line process kb container image json
+  line="$(cat "${1:-${DIND_MEMORY_PATH}}" 2>/dev/null)" || return 0
+  value() { printf '%s\n' "${line}" | tr ' ' '\n' | awk -F= -v k="$1" '$1 == k { print $2; exit }' | tr -cd "$2" | cut -c1-128; }
+  process="$(value oom.victim 'A-Za-z0-9._-')"
+  [ -n "${process}" ] || return 0
+  kb="$(value oom.victim.anon.kb '0-9' | cut -c1-15)"
+  container="$(value oom.victim.container 'A-Za-z0-9._/:@-')"
+  image="$(value oom.victim.image 'A-Za-z0-9._/:@-')"
+  json="$(printf ',"oom_victim_process":"%s","oom_victim_memory_bytes":%s' "${process}" "$(awk -v kb="${kb:-0}" 'BEGIN { printf "%.0f", kb * 1024 }')")"
+  [ -n "${container}" ] && json="${json}$(printf ',"oom_victim_container":"%s"' "${container}")"
+  [ -n "${image}" ] && json="${json}$(printf ',"oom_victim_image":"%s"' "${image}")"
+  printf '%s' "${json}"
+}
+
 # delta cur prev -> max(0, cur-prev); a counter reset reports 0.
 delta() {
   local d=$(( $1 - $2 ))
@@ -104,17 +126,19 @@ delta() {
 #
 # Reads memory and disk itself so every sample carries a view taken at
 # the same moment as the CPU window it is paired with. OOM_KILLS is the
-# number of OOM kills since the job was claimed.
+# number of OOM kills since the job was claimed; once it is above 0, the
+# sample also names the process killed last.
 metrics_payload() {
   local ts="$1" cpu="$2" iowait="$3" net_in="$4" net_out="$5" oom="${6:-0}"
-  local mem_used mem_total disk_used disk_total
+  local mem_used mem_total disk_used disk_total victim=""
 
   read -r mem_used mem_total <<<"$(mem_totals)"
   read -r disk_used disk_total <<<"$(disk_totals)"
+  if [ "${oom}" -gt 0 ] 2>/dev/null; then victim="$(oom_victim_json)"; fi
 
-  printf '{"samples":[{"timestamp":%s,"cpu_usage_percent":%s,"cpu_iowait_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s,"oom_kill_count":%s}]}' \
+  printf '{"samples":[{"timestamp":%s,"cpu_usage_percent":%s,"cpu_iowait_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s,"oom_kill_count":%s%s}]}' \
     "${ts}" "${cpu:-0}" "${iowait:-0}" "${mem_used:-0}" "${mem_total:-0}" \
-    "${net_in}" "${net_out}" "${disk_used:-0}" "${disk_total:-0}" "${oom}"
+    "${net_in}" "${net_out}" "${disk_used:-0}" "${disk_total:-0}" "${oom}" "${victim}"
 }
 
 # post_sample TS CPU IOWAIT

@@ -37,9 +37,19 @@ echo "ok: the warning threshold is 5% of the VM"
 printf 'oom_kill 1\n' >"${TUIST_RUNNER_VMSTAT}"
 printf 'dind.mem.current=1 dind.oom_kill=1 oom.victim=java oom.victim.anon.kb=27262976\n' >"${TUIST_RUNNER_DIND_MEMORY_FILE}"
 report
-grep -qx '::error title=Out of memory::This job ran the runner out of memory, and the Linux kernel stopped java (26.0 GB) to free some. The runner has 33.9 GB of memory. To fit, lower .*' "${fixtures}/out"
+grep -qx '::error title=Out of memory::This job ran the runner out of memory, and the Linux kernel stopped java (26.0 GB) to free some. The runner has 33.9 GB of memory. To fit, lower the JVM heap .*' "${fixtures}/out"
 test "$(wc -l <"${fixtures}/out")" -eq 1
 echo "ok: an OOM kill is an error naming the victim"
+
+# The victim's container, and advice that fits a process that is not a JVM.
+printf 'oom.victim=node oom.victim.anon.kb=1048576 oom.victim.container=web-build oom.victim.image=node:22@sha256:ab\n' >"${TUIST_RUNNER_DIND_MEMORY_FILE}"
+report
+grep -q 'stopped node (1.0 GB) in container web-build (node:22@sha256:ab) to free some' "${fixtures}/out"
+if grep -q 'JVM' "${fixtures}/out"; then echo "FAIL: JVM advice for node"; exit 1; fi
+printf 'oom.victim=cc1plus oom.victim.anon.kb=1048576 oom.victim.container=docker-build\n' >"${TUIST_RUNNER_DIND_MEMORY_FILE}"
+report
+grep -q 'stopped cc1plus (1.0 GB) in a docker build step to free some' "${fixtures}/out"
+echo "ok: the victim's container is named, and JVM advice is only for java"
 
 # Several kills, no sidecar report (a pool without cache volumes).
 printf 'oom_kill 3\n' >"${TUIST_RUNNER_VMSTAT}"
@@ -53,10 +63,10 @@ echo "ok: several kills are counted, with or without a named victim"
 
 # The job can write the shared file; it must not start a workflow command or
 # break the annotation onto a second line.
-printf 'oom.victim=x%%0A::add-mask::y oom.victim.anon.kb=12;rm\n' >"${TUIST_RUNNER_DIND_MEMORY_FILE}"
+printf 'oom.victim=x%%0A::add-mask::y oom.victim.anon.kb=12;rm oom.victim.container=c%%0A"$(id)\n' >"${TUIST_RUNNER_DIND_MEMORY_FILE}"
 report
 test "$(wc -l <"${fixtures}/out")" -eq 1
-grep -q 'stopped 3 processes, the last one x0Aadd-masky (0.0 GB),' "${fixtures}/out"
+grep -q 'stopped 3 processes, the last one x0Aadd-masky (0.0 GB) in container c0Aid,' "${fixtures}/out"
 echo "ok: a hostile victim name stays inside the annotation"
 
 # Nothing readable: no annotation, and never a failing hook.
