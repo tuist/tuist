@@ -54,7 +54,7 @@ env:
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
   MODE: ${{ inputs.mode || 'remote' }}
   COMMAND: ${{ inputs.command || 'test' }}
-  BAZEL_FLAGS: ${{ inputs.bazel_flags }}
+  BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=16' }}
 
 jobs:
   benchmark:
