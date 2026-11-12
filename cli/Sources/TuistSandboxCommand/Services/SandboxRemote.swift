@@ -233,7 +233,8 @@ struct SandboxRemote {
                     }
                 }
                 attempt += 1
-                try await sleep(min(30, 2 * pow(2, Double(attempt - 1))))
+                // A current server already waited for the host inside the request, so retry soon.
+                try await sleep(min(5, 2 * pow(2, Double(attempt - 1))))
             }
         }
     }
