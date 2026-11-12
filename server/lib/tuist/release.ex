@@ -10,6 +10,7 @@ defmodule Tuist.Release do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
 
   require Logger
 
@@ -171,6 +172,23 @@ defmodule Tuist.Release do
     else
       Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
     end
+  end
+
+  @doc """
+  Queues the backfill of `test_run_selections`, the per-run test selection
+  effectiveness the dashboards read
+  (`Tuist.Tests.Workers.RunSelectionsBackfillWorker`), for one project or
+  every project with runs to fill. The migration that ships the table queues
+  it on its own; this queues it again, on a live node. Repeating it rewrites
+  each run's row with the same counts:
+
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections()"
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections(<project id>)"
+  """
+  def backfill_test_run_selections(project_id \\ nil) do
+    args = if project_id, do: %{project_ids: [project_id]}, else: %{}
+    {:ok, _job} = args |> RunSelectionsBackfillWorker.new() |> Oban.insert()
+    :ok
   end
 
   @doc """

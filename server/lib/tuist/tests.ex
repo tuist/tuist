@@ -42,6 +42,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.RunSelections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -529,11 +530,21 @@ defmodule Tuist.Tests do
 
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
-    if is_nil(shard_plan_id) do
-      create_new_test(attrs)
-    else
-      create_or_update_sharded_test(attrs)
+    result =
+      if is_nil(shard_plan_id) do
+        create_new_test(attrs)
+      else
+        create_or_update_sharded_test(attrs)
+      end
+
+    # A run that coverage-based test selection decided counts the tests it
+    # avoided from its impact run; a run hashing alone selected is recorded
+    # when its command event arrives.
+    with {:ok, %Test{test_impact_run_id: impact_run_id} = test} when not is_nil(impact_run_id) <- result do
+      RunSelections.enqueue(test.project_id, test.id)
     end
+
+    result
   end
 
   defp normalize_string_keys(%_{} = struct), do: struct
