@@ -37,11 +37,13 @@ for environment in staging canary production; do
   if [[ "$environment" == production ]]; then size=3Ti; fi
   pool=shard-storage
   region=null
+  ports='[3900,3903]'
   if [[ "$environment" == staging ]]; then
     pool=kura-dedibox
     region='"eu-west"'
+    ports='[3900]'
   fi
-  jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" '
+  jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" --argjson ports "$ports" '
     any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
       .spec.template.metadata.labels["tuist.dev/region"] == $region and
       .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == $pool and
@@ -50,7 +52,7 @@ for environment in staging canary production; do
       .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $size and
       .spec.volumeClaimTemplates[0].spec.resources.requests.storage == $size) and
     all(.[]; .kind != "PodDisruptionBudget") and
-    all(.[] | select(.kind == "Service"); [.spec.ports[].port] == [3900]) and
+    all(.[] | select(.kind == "Service"); [.spec.ports[].port] == $ports) and
     any(.[]; .kind == "ConfigMap" and .data["lifecycle.json"] != null and
       (.data["lifecycle.json"] | fromjson | .Rules[0].Expiration.Days == 3 and
         .Rules[0].AbortIncompleteMultipartUpload.DaysAfterInitiation == 1))
@@ -66,6 +68,11 @@ for environment in staging canary production; do
   archive_budget_bytes=$((100 * 1024 * 1024 * 1024))
   if [[ "$environment" == production ]]; then archive_budget_bytes=$((500 * 1024 * 1024 * 1024)); fi
   jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" '
+    any(.[]; .kind == "Service" and
+      any(.spec.ports[]; .port == 3903 and .targetPort == "health")) and
+    any(.[]; .kind == "NetworkPolicy" and
+      [.spec.ingress[] | select(any(.ports[]; .port == 3903)) | .from] ==
+        [[{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": $ns}}}]]) and
     any(.[]; .kind == "StatefulSet" and
       .spec.template.spec.nodeSelector["tuist.dev/private-network"] == $vrack) and
     any(.[]; .kind == "Password" and .metadata.name == "shard-storage-seed") and
@@ -82,6 +89,7 @@ for environment in staging canary production; do
       (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
         .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
         .archive_bucket == "sandbox-archives" and .archive_budget_bytes == $archive_budget_bytes and
+        .archive_capacity_urls == ["http://shard-storage.kura.svc.cluster.local:3903/metrics"] and
         .endpoint == "http://shard-storage.kura.svc.cluster.local:3900" and
         .access_key_id == "{{ .access_key_id }}" and .secret_access_key == "{{ .secret_access_key }}"))
   ' "$WORK/$environment.json" >/dev/null
@@ -136,13 +144,16 @@ jq -e '
   any(.[]; .kind == "PodDisruptionBudget" and .spec.minAvailable == 2) and
   any(.[]; .kind == "Service" and .metadata.name == "shard-storage-peers" and
     .spec.clusterIP == "None" and .spec.publishNotReadyAddresses and [.spec.ports[].port] == [3901]) and
-  any(.[]; .kind == "Service" and .metadata.name == "shard-storage" and [.spec.ports[].port] == [3900]) and
-  any(.[]; .kind == "NetworkPolicy" and [.spec.ingress[].ports[].port] == [3900,3901] and
+  any(.[]; .kind == "Service" and .metadata.name == "shard-storage" and [.spec.ports[].port] == [3900,3903]) and
+  any(.[]; .kind == "NetworkPolicy" and [.spec.ingress[].ports[].port] == [3900,3903,3901] and
     [.spec.egress[].ports[].port] == [3901,53,53] and
     .spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/instance"] == "shard-storage") and
   any(.[]; .kind == "ConfigMap" and .data["garage.toml"] != null and
     (.data["garage.toml"] | contains("replication_factor = 3") and contains("consistency_mode = \"consistent\"") and
-      contains("data_fsync = true") and contains("metadata_fsync = true")))
+      contains("data_fsync = true") and contains("metadata_fsync = true"))) and
+  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and
+    (.spec.target.template.data["targets.json"] | fromjson | .["gra-production-v1"].archive_capacity_urls) ==
+      [range(0;3) | "http://shard-storage-\(.).shard-storage-peers.kura.svc.cluster.local:3903/metrics"])
 ' "$WORK/replicated.json" >/dev/null
 for replicas in 0 2 4 1.5; do
   if helm template shard-storage "$CHART" --namespace kura --set enabled=true --set externalSecrets.item=SHARD_STORAGE --set replicas="$replicas" >/dev/null 2>&1; then
@@ -167,3 +178,4 @@ for budget in 0 -1 1.5; do
   fi
 done
 echo 'Archive budgets: environment-specific byte limits published; nonpositive and fractional budgets rejected'
+echo 'Archive capacity: per-replica metrics URLs published; metrics ingress restricted to the server namespace'

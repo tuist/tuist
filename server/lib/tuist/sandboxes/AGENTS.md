@@ -263,7 +263,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   and disk snapshot archives across all accounts, including restored objects
   awaiting deletion, leaving room for shard artifacts; uploads can cross it.
   There is no per-account archive limit. Account-storage archives have no cap.
-  Existing archives do not move or expire. There is no count of paused Orbs per account.
+  Budget or measured physical-space pressure offloads completed Orb and snapshot archives oldest `archived_at` first to account storage. Verify the destination size and SHA-256 before switching the recorded key/store; retain the old copy for two hours for signed restores, with durable cleanup jobs. Preserve direct-to-account fallback until rack capacity is actually available. No Orb archive expiry is added. There is no count of paused Orbs per account.
   `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (every minute) runs
   `Archives.run/0`, which also queues the oldest idle Orb on each node above
   `Environment.sandbox_archive_disk_high_water_percent/0` (default 85% of

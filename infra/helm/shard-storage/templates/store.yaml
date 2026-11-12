@@ -71,6 +71,11 @@ spec:
     - name: s3
       port: 3900
       targetPort: s3
+    {{- if .Values.archiveBucket }}
+    - name: metrics
+      port: 3903
+      targetPort: health
+    {{- end }}
 ---
 {{- if $replicated }}
 apiVersion: v1
@@ -290,6 +295,17 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- if .Values.archiveBucket }}
+    # Only the control plane needs filesystem capacity. Garage permits metrics
+    # without a token; administrative operations still require an admin token.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.serverNamespace }}
+      ports:
+        - protocol: TCP
+          port: 3903
+    {{- end }}
     {{- if $replicated }}
     - from:
         - podSelector:
