@@ -674,18 +674,36 @@ defmodule Tuist.GitHistory do
   defp lock_refs(repository_id),
     do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
 
-  @doc "Runs `fun` holding the repository's ref lock, so no commit changes place meanwhile."
-  def with_refs_lock(repository_id, fun) do
-    {:ok, result} =
+  defp try_lock_refs(repository_id) do
+    %{rows: [[locked]]} =
+      Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+
+    locked
+  end
+
+  @doc """
+  Runs `fun` holding the repository's ref lock, so no commit changes place
+  meanwhile. With `wait: false` it returns `:busy` at once when another
+  holds the lock. A `Repo.rollback/1` in `fun` returns its value.
+  """
+  def with_refs_lock(repository_id, fun, opts \\ []) do
+    result =
       Repo.transaction(
         fn ->
-          lock_refs(repository_id)
-          fun.()
+          if Keyword.get(opts, :wait, true) do
+            lock_refs(repository_id)
+            fun.()
+          else
+            if try_lock_refs(repository_id), do: fun.(), else: Repo.rollback(:busy)
+          end
         end,
         timeout: to_timeout(minute: 5)
       )
 
-    result
+    case result do
+      {:ok, result} -> result
+      {:error, reason} -> reason
+    end
   end
 
   @doc """
@@ -1252,8 +1270,10 @@ defmodule Tuist.GitHistory do
 
   @doc """
   Of the given SHAs, the ones whose file listing the repository lacks,
-  counting a listing whose files expired as missing. A truncated listing is
-  not missing: uploading it again would stop at the same limit.
+  counting a listing whose files expired as missing, unless the commit's
+  file changes are current (`Tuist.GitHistory.FileChanges.current/2`): a
+  commit written from a selection diff has no staged files. A truncated
+  listing is not missing: uploading it again would stop at the same limit.
   """
   def missing_listings(_repository_id, []), do: []
 
@@ -1264,12 +1284,13 @@ defmodule Tuist.GitHistory do
     stored =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.staged and l.inserted_at >= ^cutoff,
           select: l.sha
         )
       )
 
-    shas -- stored
+    missing = shas -- stored
+    missing -- FileChanges.current_among(repository_id, missing)
   end
 
   @doc """
@@ -1290,7 +1311,8 @@ defmodule Tuist.GitHistory do
     listed =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff and not l.truncated,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.staged and l.inserted_at >= ^cutoff,
+          where: not l.truncated,
           select: l.sha
         )
       )
@@ -1311,7 +1333,8 @@ defmodule Tuist.GitHistory do
   requests and marks the last with `complete: true`, which records the
   listing as stored (`truncated:` when the client stopped at the limit).
   Repeating a request changes nothing: rows replace their equals and the
-  listing row is written once, and again only once its files expired.
+  listing row is written once, and again only once its files expired or
+  when it was written from a selection diff, without staged files.
   """
   def record_listing(repository_id, sha, files, opts \\ []) do
     now = NaiveDateTime.utc_now()
@@ -1346,11 +1369,12 @@ defmodule Tuist.GitHistory do
         ],
         on_conflict:
           from(l in CommitListing,
-            where: l.inserted_at < ^listing_cutoff(),
+            where: l.inserted_at < ^listing_cutoff() or not l.staged,
             update: [
               set: [
                 files_count: fragment("EXCLUDED.files_count"),
                 truncated: fragment("EXCLUDED.truncated"),
+                staged: true,
                 inserted_at: fragment("EXCLUDED.inserted_at")
               ]
             ]

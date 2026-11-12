@@ -147,6 +147,12 @@ The decision is made once per invocation, before the build: in the plan job for 
 8. **Run** with the skip list applied (see [Applying the selection](#applying-the-selection)).
 9. **Upload** as today, plus `test_impact_run_id` on `POST …/tests`, for runs with a reason too, sharded or not. It's stored on the test run, which is how the run page finds its impact run.
 
+### The checked-out commit's files
+
+A clean checkout's whole diff (not capped at 5,000) against a baseline whose file changes are written (`git_file_changes`, not only a listing in `git_commit_files`) is also the checked-out commit's tree: the baseline's files with the diff applied. The runs request writes it as the commit's file changes (`GitHistory.FileChanges.write_from_diff/5`), with its listing row, so when the client asks `listings/missing` before uploading the commit's listing, the commit isn't missing and the client uploads nothing. The diff carries no mode, so a path keeps the baseline's and an added path is a regular file. The commit has to be in the graph to have a place: a new commit's history is usually uploaded after the run, so the runs request finds it only when an earlier invocation uploaded it, and `listings/missing` tries again from the stored diff (`Runs.write_file_changes/3`), after the client published the commit's history and before it uploads the listing. A commit no ref owns gets a detached ref; one whose first parents reach no owned commit is left to the upload.
+
+Nothing is written, and the client uploads the listing as before, when the checkout is dirty, the diff was capped, the baseline's file changes aren't current or its listing is truncated, the diff doesn't apply to the baseline's files (it adds a path the baseline has, or changes or deletes one it lacks), the result exceeds `commit_file_limit`, the commit has a listing already, or another write holds the repository's ref lock (the write doesn't wait for it). A write that fails never fails its request. The listing row records the files as never uploaded (`git_commit_listings.staged` false): the commit's files are known only while its file changes are current, so it counts as missing once they aren't, and an upload then replaces the row.
+
 ### Baselines come from runs without selection
 
 Selection doesn't treat any branch specially: the default branch selects like any other. Users run `tuist test --no-selective-testing` on the default branch, and on any other branch that shouldn't select, so each of its commits with a run is a full run with fresh evidence, and a pull request's window usually ends at its merge base. Excluded branches the user configures are a later step (see [Known limits](#known-limits)).
@@ -235,7 +241,7 @@ The runs request is a lookup over data the baseline already ingested, so it's sy
 
 - The lookup reads every `coverage_test_sources` version of each test in scope, plus one `coverage_files` row per module of target-level evidence. A version is one per test and set of executed blobs, whichever runs recorded it, so the cost grows with tests times the distinct code states each test ran within retention, not with runs or the window. The diff is stored per commit and baseline; verdicts are recomputed on every run.
 - No request waits on a job: a commit whose coverage isn't folded yet simply isn't a baseline.
-- The client sends only the changed paths and blobs, never the full tree.
+- The client sends only the changed paths and blobs, never the full tree. Writing the checked-out commit's file changes from them adds, under the repository's ref lock, a read of the diff's paths at the baseline and one `INSERT … SELECT` over the diff's paths and those the baseline and the commit's place disagree on, plus one statement per 200 written commits above the commit when it's written below others.
 
 ## Reasons coverage isn't applied
 
