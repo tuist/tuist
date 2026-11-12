@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Prepares a macOS Orb for Apple-platform work on this monorepo: the CLI
+# (cli/) and the app (app/). The server stays on Linux Orbs, so none of its
+# toolchain, databases or services are installed here. Idempotent; warm runs
+# only verify what is already there. `.agents/setup` execs this on Darwin.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+step() {
+  printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
+}
+
+# Keep in sync with .agents/setup and .github/actions/mise/action.yml.
+mise_version="2026.5.15"
+mise_bin="$HOME/.local/bin/mise"
+if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise_version "* ]]; then
+  step "Installing mise $mise_version"
+  curl -fsSL https://mise.run | MISE_VERSION="v$mise_version" MISE_INSTALL_PATH="$mise_bin" sh
+fi
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+export MISE_YES=1
+
+for profile in "$HOME/.bash_profile" "$HOME/.zprofile"; do
+  if ! grep -Fqx "# tuist: mise toolchain" "$profile" 2>/dev/null; then
+    cat >>"$profile" <<'EOF'
+
+# tuist: mise toolchain
+case ":$PATH:" in
+  *":$HOME/.local/share/mise/shims:"*) ;;
+  *) export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH" ;;
+esac
+EOF
+  fi
+done
+
+# mise records checksums into the lockfile while installing. Restore it
+# afterwards so the Orb starts with a clean worktree, unless it already
+# carried someone's edits.
+lockfile_clean=false
+git diff --quiet -- mise.lock && lockfile_clean=true
+
+mise trust --quiet "$repo_root/mise.toml"
+
+# Only the tools CLI and app work needs; the full root toolchain builds
+# Erlang and pulls server and infra tools. CI=1 skips the postinstall hook
+# (`tuist install` and `tuist setup`); the install runs explicitly below.
+step "Installing CLI and app tools"
+CI=1 mise install --quiet tuist swiftlint swiftformat jq
+mise reshim
+
+step "Resolving Swift package dependencies"
+mise exec -- tuist install
+
+if $lockfile_clean; then git checkout --quiet -- mise.lock; fi
+
+step "Writing orb agent guidance"
+guidance="$HOME/.config/amp/AGENTS.md"
+guidance_marker="# Tuist orb environment"
+mkdir -p "$(dirname "$guidance")"
+other_guidance=""
+[[ -f "$guidance" ]] && other_guidance="$(sed "/^$guidance_marker\$/,\$d" "$guidance")"
+{
+  [[ -z "$other_guidance" ]] || printf '%s\n\n' "$other_guidance"
+  cat <<'EOF'
+# Tuist orb environment
+
+- This is a macOS Orb for CLI (`cli/`) and app (`app/`) work. `.agents/setup` installed
+  tuist, swiftlint, swiftformat and jq through mise (shims on PATH) and ran `tuist install`.
+- Build and test as `cli/AGENTS.md` and `app/AGENTS.md` describe (`tuist generate … --no-open`,
+  then `xcodebuild`). Use `xcrun simctl` for simulators.
+- The server, its databases and other mise tools are not installed. Server work belongs in a
+  Linux Orb; install another root tool on demand with `mise install <tool>`.
+EOF
+} >"$guidance.tmp"
+mv "$guidance.tmp" "$guidance"
+
+step "Setup finished"

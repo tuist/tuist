@@ -4,6 +4,11 @@
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
 
+# macOS Orbs serve CLI and app work and have their own setup.
+if [[ "$(uname -s)" == Darwin ]]; then
+  exec "$(dirname "${BASH_SOURCE[0]}")/setup-macos" "$@"
+fi
+
 # The stdout and stderr Amp gives setup can fail a write with EAGAIN when its
 # reader falls behind a burst of output. awk, coreutils and Rust's println!
 # abort on that; on fresh orbs it killed db:migrate's awk filter mid-migration.
