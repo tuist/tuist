@@ -110,6 +110,22 @@ describe("Breadcrumb menus", () => {
   });
 });
 
+describe("Noora.Menu keyboard highlight", () => {
+  it("scrolls the highlighted item into view from the keyboard, not the pointer", () => {
+    mountMenu({ items: checkboxItem("branch", false) });
+    const item = hook.el.querySelector('[data-value="branch"]');
+    item.scrollIntoView = vi.fn();
+
+    hook.el.dispatchEvent(new Event("pointermove", { bubbles: true }));
+    hook.scrollToHighlightedItem("branch");
+    expect(item.scrollIntoView).not.toHaveBeenCalled();
+
+    hook.el.dispatchEvent(new Event("keydown", { bubbles: true }));
+    hook.scrollToHighlightedItem("branch");
+    expect(item.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
+});
+
 it("makes late portaled search results accessible and reapplies the current search", async () => {
   document.body.innerHTML = `
     <div id="tags">

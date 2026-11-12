@@ -216,6 +216,7 @@ export default {
         }
       },
       onHighlightChange: (details) => {
+        this.scrollToHighlightedItem(details.highlightedValue);
         if (this.el.dataset.onHighlightChange) {
           this.pushEvent(this.el.dataset.onHighlightChange, details);
         }
@@ -273,6 +274,13 @@ export default {
     this.el.addEventListener("input", this.handleSearchInput);
     this.el.addEventListener("keydown", this.handleSearchKeydown);
     this.applySearchFilter();
+
+    // Whether the highlight is moving from the keyboard; see
+    // scrollToHighlightedItem.
+    this.trackKeyboard = () => (this.keyboardNavigation = true);
+    this.trackPointer = () => (this.keyboardNavigation = false);
+    this.el.addEventListener("keydown", this.trackKeyboard, true);
+    this.el.addEventListener("pointermove", this.trackPointer);
 
     // Portaled options can be patched after this hook's updated callback.
     const items = this.el.querySelector('[data-part="items"]');
@@ -402,6 +410,18 @@ export default {
     this.highlightBreadcrumbItem(items[next]);
   },
 
+  // Keeps the item highlighted from the keyboard in view. zag only scrolls
+  // when the content itself scrolls, and here the list inside it does. The
+  // list's scroll padding sets how far from its edge the item stops. A
+  // pointer highlights what's under it, which must not scroll the list.
+  scrollToHighlightedItem(value) {
+    if (!this.keyboardNavigation || value == null) return;
+    const item = this.el.querySelector(
+      `[data-part="items"] [data-part="item"][data-value="${CSS.escape(value)}"]`,
+    );
+    item?.scrollIntoView({ block: "nearest" });
+  },
+
   // Moves keyboard focus to an item and marks it highlighted, the way zag
   // marks Noora.Menu items. Focus alone doesn't highlight: opening the menu
   // focuses the selected item, which shows only its check.
@@ -483,6 +503,8 @@ export default {
   destroyed() {
     this.el.removeEventListener("input", this.handleSearchInput);
     this.el.removeEventListener("keydown", this.handleSearchKeydown);
+    this.el.removeEventListener("keydown", this.trackKeyboard, true);
+    this.el.removeEventListener("pointermove", this.trackPointer);
     if (this.breadcrumbKeydown) {
       this.el.removeEventListener("keydown", this.breadcrumbKeydown, true);
       this.el.removeEventListener("pointermove", this.breadcrumbPointerMove);

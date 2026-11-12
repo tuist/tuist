@@ -41,13 +41,30 @@
 @supports (animation-timeline: scroll()) {
   .noora-menu-panel > [data-part="items"],
   .noora-dropdown-content [data-part="items"] {
-    mask-image: linear-gradient(
-      to bottom,
-      transparent,
-      #000 var(--noora-scroll-fade-top),
-      #000 calc(100% - var(--noora-scroll-fade-bottom)),
-      transparent
-    );
+    /* The second layer keeps a strip at the end edge unmasked, so the
+       scrollbar drawn there doesn't fade with the list. */
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent,
+        #000 var(--noora-scroll-fade-top),
+        #000 calc(100% - var(--noora-scroll-fade-bottom)),
+        transparent
+      ),
+      linear-gradient(#000, #000);
+    mask-position:
+      0 0,
+      100% 0;
+    mask-size:
+      100% 100%,
+      var(--noora-spacing-4) 100%;
+    mask-repeat: no-repeat;
+
+    &:dir(rtl) {
+      mask-position:
+        0 0,
+        0 0;
+    }
     animation:
       noora-scroll-fade-top linear both,
       noora-scroll-fade-bottom linear both;
@@ -57,5 +74,8 @@
     animation-range:
       0 var(--noora-spacing-8),
       calc(100% - var(--noora-spacing-8)) 100%;
+    /* An item scrolled to, such as one highlighted from the keyboard, stops
+       clear of the fade instead of under it. */
+    scroll-padding-block: var(--noora-spacing-8);
   }
 }
