@@ -39,6 +39,12 @@ Cache activity then appears on the project's **Bazel Cache** page in the Tuist d
 
 To see how one command used the cache, open it from **Invocations**. The invocation page separates action-cache lookups from content-object requests, so you can tell a cold action cache apart from a slow artifact download.
 
+## Remote execution {#remote-execution}
+
+When remote execution is enabled for your account, `tuist bazel setup` also points Bazel at Tuist's executor in `.bazelrc.tuist`. It sets `--jobs` to twice the number of remote actions your account can run at once, so each one has the next action waiting. Without that, Bazel runs as many actions in parallel as the machine has cores, and a 2-core CI runner keeps only two remote actions in flight.
+
+To use a different value, pass `--jobs` on the command line, or set it in `.bazelrc` after the `try-import` line. Bazel uses the last value it reads, so a `--jobs` before that line is replaced by the generated one.
+
 ## Build insights {#build-insights}
 
 By default, `tuist bazel setup` also configures Bazel's Build Event Service so completed commands appear on the **Invocations** dashboard. See <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link> for what the dashboard shows and how to attach custom metadata.
