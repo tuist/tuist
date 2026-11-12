@@ -107,8 +107,9 @@ spec:
             - |
               wget -q -O /tmp/plugin.zip {{ .Values.plugin.url | quote }}
               echo '{{ .Values.plugin.sha256 }}  /tmp/plugin.zip' | sha256sum -c -
-              unzip -q /tmp/plugin.zip -d /plugins
-              chmod -R u+rwX /plugins
+              # Preserve archive modes without chmodding the root-owned volume;
+              # overwrite files left by an interrupted init-container attempt.
+              unzip -qo /tmp/plugin.zip -d /plugins
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
