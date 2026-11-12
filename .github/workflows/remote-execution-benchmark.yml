@@ -33,6 +33,10 @@ on:
           - test
           - build
         default: test
+      runner:
+        description: Runner label of a 2 vCPU profile on that server
+        default: tuist-staging-staging-linux-2vcpu
+        required: true
       bazel_flags:
         description: Extra Bazel flags for the warm-up and the timed run, such as --jobs=32
         required: false
@@ -48,7 +52,7 @@ defaults:
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
-  MODE: ${{ inputs.mode || 'remote' }}
+  MODE: ${{ inputs.mode || 'local' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags }}
 
@@ -56,7 +60,9 @@ jobs:
   benchmark:
     name: Cold benchmark
     if: github.repository == 'tuist/tuist'
-    runs-on: tuist-linux
+    # A runner of the server under test: remote execution reads inputs from
+    # the account's runner cache, which only its runners upload into.
+    runs-on: ${{ inputs.runner || 'tuist-staging-staging-linux-2vcpu' }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -82,11 +88,6 @@ jobs:
       - name: Set up Tuist
         run: |
           set -euo pipefail
-          # Tuist runners point the CLI at their own server's in-cluster cache,
-          # which does not accept another server's tokens.
-          if [ "$TUIST_URL" != https://tuist.dev ]; then
-            unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
-          fi
           if [ "$MODE" = remote ]; then
             ../.github/scripts/tuist-bazel-setup.sh
             grep -q '^build --remote_executor=' .bazelrc.tuist || { echo "::error::$TUIST_URL configured no remote executor"; exit 1; }
@@ -99,7 +100,6 @@ jobs:
         run: |
           set -euo pipefail
           ulimit -n 65536
-          [ "$TUIST_URL" = https://tuist.dev ] || unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
           ../.github/scripts/retry-bazel-command.sh bazel build //... --nobuild \
             --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
@@ -108,7 +108,6 @@ jobs:
         run: |
           set -euo pipefail
           ulimit -n 65536
-          [ "$TUIST_URL" = https://tuist.dev ] || unset TUIST_CACHE_ENDPOINT TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_API_KEY
           start=$(date +%s)
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
           bazel "$COMMAND" //... --disk_cache= --noremote_accept_cached \
