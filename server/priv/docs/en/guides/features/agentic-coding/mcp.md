@@ -366,7 +366,7 @@ and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
 
 #### Sandboxes
 
-Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandboxes run arbitrary commands, so every tool, including the read-only ones, requires account administration, and the account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
+Sandbox tools expose the same data and actions as the Sandboxes dashboard, with the same access as the [API](https://tuist.dev/api/docs): account members can list, get, create, pause, resume and delete sandboxes, but sandboxes that serve an agent environment, Amp or remote execution, and the analytics and archive tools, require account administration. Read-only viewers can't use them. The account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|

@@ -997,7 +997,7 @@ defmodule TuistWeb.API.SandboxesController do
     with %{sandbox_id: sandbox_id} <- conn.params,
          false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok,
          {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
-         false <- member_sandbox?(sandbox) do
+         false <- Sandboxes.member_sandbox?(sandbox) do
       conn
       |> put_status(:forbidden)
       |> json(%{message: "Only account administrators can use sandboxes that serve agents, Amp or remote execution."})
@@ -1006,11 +1006,6 @@ defmodule TuistWeb.API.SandboxesController do
       _ -> conn
     end
   end
-
-  defp member_sandbox?(sandbox),
-    do:
-      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
-        is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   # Every sandbox 503 comes after the server has already waited for a node or
   # for capacity, so an immediate retry only repeats that wait. The hint is

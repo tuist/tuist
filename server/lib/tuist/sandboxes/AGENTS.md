@@ -437,7 +437,8 @@ socket, the poller and the caller share a replica:
   commands, pause/resume/delete). Members
   (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
   sandboxes without an agent environment, Amp integration, provider
-  environment or remote-execution purpose; everything else is admin-only.
+  environment or remote-execution purpose (`Sandboxes.member_sandbox?/1`);
+  everything else is admin-only. The MCP sandbox tools apply the same rule.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and

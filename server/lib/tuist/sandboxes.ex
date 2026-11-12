@@ -364,6 +364,16 @@ defmodule Tuist.Sandboxes do
     )
   end
 
+  @doc """
+  Whether an account member who isn't an administrator may use the sandbox:
+  one that serves no agent environment, Amp integration, provider environment
+  or remote execution, since those hold credentials or other people's work.
+  """
+  def member_sandbox?(%Sandbox{} = sandbox),
+    do:
+      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
+        is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
+
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id, purpose: :agent) do
