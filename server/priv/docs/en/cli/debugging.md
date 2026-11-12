@@ -35,11 +35,6 @@ The HAR file records all HTTP requests and responses made during the session, wh
 > Learn more about Tuist's directory organization and how to configure custom directories in the <.localized_link href="/cli/directories">Directories documentation</.localized_link>.
 
 
-> [!TIP]
-> **Raw xcodebuild output**
->
-> Commands that run `xcodebuild` format its output with xcbeautify. Pass `--verbose` to see the unformatted output. See <.localized_link href="/guides/integrations/continuous-integration#xcodebuild-output-formatting">xcodebuild output formatting</.localized_link>.
-
 By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).
 
 Session directories older than 5 days are automatically cleaned up. Tuist also keeps at most 50 inactive session directories by default, while preserving sessions owned by currently running Tuist processes. In CI environments that run many Tuist commands with the same state directory, you can raise the inactive-session cap with `TUIST_SESSION_MAX_SESSIONS`, for example `TUIST_SESSION_MAX_SESSIONS=200`. Invalid values, zero, and negative values are ignored and Tuist falls back to the default of 50.
