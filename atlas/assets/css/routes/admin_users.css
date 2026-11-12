@@ -127,6 +127,11 @@
     background: var(--noora-surface-background-primary);
   }
 
+  /* The fill is drawn on the box here, following the input. */
+  [data-part="role-option"] > [data-part="role-checkbox"] > [data-part="box"]::before {
+    display: none;
+  }
+
   [data-part="role-option"] > [data-part="role-checkbox"] [data-part="check"],
   [data-part="role-option"] > [data-part="role-checkbox"] [data-part="minus"] {
     display: none;
@@ -146,6 +151,12 @@
     + [data-part="role-checkbox"]
     [data-part="check"] {
     display: flex;
+    transform: none;
+
+    & path {
+      opacity: 1;
+      stroke-dashoffset: 0;
+    }
   }
 
   [data-part="role-option"] > [data-part="body"] {
