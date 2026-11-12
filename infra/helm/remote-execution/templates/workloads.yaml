@@ -190,6 +190,9 @@ spec:
             # on its first action.
             - {name: ALLOWED_SHAPES, value: "2x4096,4x8192,8x16384"}
             - {name: PREBUILD_SHAPES, value: "2x4096,4x8192"}
+            # The workspace every VM gets (Settings.vm_workspace_gb), so
+            # creates clone the snapshots' formatted workspace.
+            - {name: TEMPLATE_WORKSPACE_GB, value: "30"}
             - {name: DISK_BUDGET_GIB, value: {{ .Values.workers.diskGiB | quote }}}
             - {name: BLOB_CACHE_GIB, value: {{ .Values.workers.blobCacheGiB | quote }}}
             - {name: METRICS_ADDR, value: "$(POD_IP):9090"}
