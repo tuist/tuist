@@ -268,9 +268,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
   retryable). Disk is not an account limit: each node's disk budget bounds
-  it, and archiving frees it, so concurrency analytics chart no disk. The
-  `accounts.sandbox_disk_gb_limit` column is unused and is dropped in a
-  later release.
+  it, and archiving frees it, so concurrency analytics chart no disk.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
   below it (a new VM process), records activity. A running Orb quiet for

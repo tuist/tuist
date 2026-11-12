@@ -636,9 +636,7 @@ caps, independent of CI concurrency. Include both in account metadata exports
 by `accounts.id`; they are not secrets. They remain for the account's lifetime
 and are deleted with it. Existing values are initialized from the account's
 Linux CI limits; no usage history or additional object-storage data is
-created. `accounts.sandbox_disk_gb_limit` (an integer, 420 by default) is no
-longer read or set and is retained only until a later migration drops it; it
-holds no customer data.
+created.
 
 Sandbox fleet allocation (`sandbox_nodes`) is operational infrastructure state,
 not account data, and is excluded from account exports. Each row is keyed by
