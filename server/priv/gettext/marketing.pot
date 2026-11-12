@@ -336,7 +336,7 @@ msgstr ""
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:261
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr ""
@@ -919,17 +919,17 @@ msgstr ""
 msgid "All features, no credit card required"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:226
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:238
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on %{assistant}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:255
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
 msgstr ""
@@ -2204,18 +2204,18 @@ msgstr ""
 msgid "Community links"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:294
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:291
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Dark theme"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:207
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Footer navigation"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:286
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:283
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "Light theme"
@@ -2236,18 +2236,19 @@ msgstr ""
 msgid "Organizations using Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:201
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:202
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:236
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "SOC 2 Type II certified"
 msgstr ""
+
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Search posts"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:278
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:275
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "System theme"
