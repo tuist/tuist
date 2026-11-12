@@ -55,10 +55,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, @order)
     assert_receive {:started, sandbox_id, env}, 5_000
 
-    # Idle minutes round up, and the work order travels only in the worker's
-    # environment. The macOS host refuses a worker without a work id.
+    # Idle minutes round up, and the work order travels only in the worker's environment.
     assert env == %{
-             "ANTHROPIC_WORK_ID" => "claude-code:order-1",
              "SBX_CLAUDE_CODE_WORK_ORDER" => "header.claims.signature",
              "SBX_CLAUDE_CODE_RELEASE_IDLE_MIN" => "25",
              "SBX_WORKDIR" => "/Users/runner/work"
