@@ -203,7 +203,7 @@ func main() {
 		os.Exit(1)
 	}
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(fcVersion); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}

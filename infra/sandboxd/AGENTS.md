@@ -520,7 +520,7 @@ agent so the manager runs end to end without KVM).
 | `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
-| `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
+| `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
@@ -592,8 +592,9 @@ before it was recorded): it is set to `cold_boot` too, because this version
 cannot load it. The daemon exits at startup when it cannot read its own
 Firecracker version. Jail directories without
 `metadata.json` (an interrupted create or template build), `*.building`
-shape directories, shapes another Firecracker version took and every
-`sbx-*` netns are removed.
+shape directories, shapes another Firecracker version took or built with a
+workspace other than `TEMPLATE_WORKSPACE_GB`, and every `sbx-*` netns are
+removed.
 
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and

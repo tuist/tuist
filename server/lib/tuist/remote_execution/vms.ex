@@ -59,7 +59,7 @@ defmodule Tuist.RemoteExecution.VMs do
         template: "bazel",
         vcpus: shape.vcpus,
         memory_mb: shape.memory_mb,
-        workspace_gb: 10
+        workspace_gb: Settings.vm_workspace_gb()
       })
       |> Ecto.Changeset.change(
         template_tag: settings.image_tag,
