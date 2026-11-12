@@ -1,10 +1,19 @@
-# GreptimeDB replacement
+# Pulse on GreptimeDB
 
-Private Apache-2.0 GreptimeDB v1.3.0 standalone backend, qualified separately
-before replacing the existing Pulse ingestion runtime. The replacement workflow
-is **staging-only**. Canary and production continue using Pulse; promotion needs
-a separate reviewed change after staging evidence. Pushes and pull requests only
-validate; they never deploy this replacement.
+Pulse remains the deployed service and product. The existing `pulse` Helm release,
+Service `pulse:4000`, ingestion hosts and credentials are the stable contract.
+GreptimeDB is the replacement engine underneath that contract, not a separate
+customer-facing service. The repository owns its deployment configuration and
+wiring; use the upstream Apache-2.0 GreptimeDB v1.3.0 image now. Forking GreptimeDB
+into this repository and publishing it as Pulse is a future change, not a
+prerequisite for this replacement.
+
+Qualify the private backend separately before replacing the existing Pulse
+ingestion runtime. Backend qualification supports staging, canary and production;
+origin replacement remains **staging-only**. Promotion needs a separate reviewed
+change after staging evidence. Pushes and pull requests only validate; they never
+deploy this replacement. Existing private `greptimedb` resources and their PVC
+retain their names and ownership so a branding change cannot recreate storage.
 
 This is not HA: S3 contains flushed data/indexes; the retained 10 GiB
 `hcloud-volumes` PVC holds raft-engine WAL and standalone state. Restart
@@ -15,10 +24,15 @@ include the backend before installation and replacement gateway before cutover.
 
 ## Deployment order and gates
 
-`GreptimeDB Staging Replacement` accepts only `environment=staging`; this selects the
+`Pulse GreptimeDB Replacement` accepts `environment=staging`, `canary` or
+`production` for backend qualification; this selects the
 protected CI environment, kubeconfig vault, shared observability concurrency
 lane and isolated `tuist-pulso-<env>/greptimedb/` bucket/prefix. Namespace is
 always `observability`. Never read credentials into agent context.
+Canary/production reject `replace_pulse`, `deploy_collectors` and the staging-only
+`inspect_readers` option before loading credentials. Reader configuration belongs
+in declarative deployment configuration, not an independent script that patches
+the live server Deployment and is later overwritten by its owner.
 
 1. Dispatch with `dashboard=true`, `replace_pulse=false`,
    `deploy_collectors=false`. Ownership, storage class, capacity, ESO, S3 privacy,
@@ -61,12 +75,17 @@ always `observability`. Never read credentials into agent context.
    No Grafana deployment is requested here for canary/production or Grafana Cloud.
    Validate the live tailnet/browser/data boundary separately; Helm readiness is
    not evidence of those boundaries.
-7. The server adapter is restored but defaults to Pulse. No managed server
-   endpoint or enrollment changes automatically. **Before step 4**, deploy the
-   adapter image to staging, then explicitly enable `TUIST_PULSE_BACKEND=greptime`
-   for the enrolled staging account and validate its three signal pages.
-   The replacement refuses cutover until staging server Deployments have converged
-   with that backend, URL and database. Server endpoint:
+7. Grafana queries the private backend directly; product-reader enrollment is
+   not a prerequisite. No managed server endpoint, enrollment or feature flag
+   changes automatically. Before step 4, the workflow requires converged server
+   Deployments and inspects **every serving replica's runtime configuration**.
+   Servers without an enrolled Pulse account may remain unchanged. If any
+   replica has an enrolled account, it must already have the reader/Greptime
+   adapter and the expected backend, URL and database; otherwise cutover fails
+   before any Pulse Helm operation. Unknown enrollment, incomplete rollouts and
+   failed or ambiguous inspections also fail closed. Raw RPC output stays private.
+   For an enrolled reader, deploy its declarative settings through its existing
+   owner and validate its three signal pages before cutover. Server endpoint:
    `http://greptimedb.observability.svc.cluster.local:4000`, database `public`,
    username `dashboard`, existing `TUIST_PULSE_TOKEN` password.
    Keep canary/production server values unchanged. Logs/traces support literal
@@ -88,16 +107,19 @@ availability explicitly; it does not call application APIs added by the adapter.
 Do not assume staging uses the production account ID or enable readers before
 confirming the account and flag. Keep managed reader settings unchanged until then.
 
-Before replacing the origin, record the currently deployed server image and
-chart commit and prepare a reader rollback using the normal staging server
-deployment workflow. Deploy the adapter and verified account settings to staging
-only, then exercise the authenticated metrics, logs and traces pages. Do not
+Before replacing the origin, inspect the existing server enrollment. For a
+Grafana-only deployment with no enrolled product readers, leave server settings,
+images and feature flags unchanged; do not deploy the umbrella server/fleet
+release to enable unused readers. Verify the private Grafana with real data and
+its actual tailnet identity boundary. If product readers are enrolled, record
+their deployed image/chart, prepare a reader rollback through their existing
+owner, and exercise the authenticated metrics, logs and traces pages. Do not
 substitute a synthetic local UI for these live acceptance checks.
 
 After cutover with real collectors, record non-CI signal identities and run an
 ordinary staging server deployment with the replacement active. Then rehearse
-the origin rollback below, restore the prior reader backend through a normal
-staging server deployment, and query the recorded Greptime identities read-only
+the origin rollback below, restore any changed reader backend through its
+existing deployment owner, and query the recorded Greptime identities read-only
 to prove data survived rollback. Verify old Pulse ingestion and reader recovery
 separately. Only then consider another staging cutover or promotion. None of
 these steps authorizes removing Grafana Cloud destinations, rules or dashboards.
@@ -190,7 +212,7 @@ as a rollback shortcut. The independent Pulse deployment preflight intentionally
 refuses this gateway; do not rerun a Pulse release to force recovery.
 
 The cutover records the deployed Pulse chart/revision in its run summary.
-Dispatch `GreptimeDB Staging Replacement` on trusted main with
+Dispatch `Pulse GreptimeDB Replacement` on trusted main with
 `environment=staging,rollback_pulse_revision=<recorded revision>`. This selects
 the separate rollback job, not the backend deployment or collector rollout.
 It refuses non-staging environments, nonnumeric/unknown revisions, revisions
