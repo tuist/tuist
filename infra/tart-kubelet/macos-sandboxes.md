@@ -81,6 +81,7 @@ A command into a running VM needs no grant, since the VM already holds its
 charge; a command that has to resume a paused VM does.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
+A create the host refuses for capacity moves on to the next host.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.
 The kubelet refreshes host memory and process pressure on each heartbeat. macOS
 memory warning/critical levels and a process table at least 90% full report
@@ -112,8 +113,12 @@ after eviction, so the server releases its reservation after the host's fence.
 The isolated disk budget counts complete writable root disks and two memory
 images per environment, including evicted environments, against half the host
 filesystem. Save/restore admission also leaves 20 GiB free beyond two memory
-images. When the kubelet's CI store has already pulled the template image, as a
-CI pool on the same image does, preparation clones its cached record and the
+images. The host reports half its filesystem as `disk.budget_bytes`, its free
+space, and the template's root disk as `rootfs_bytes`, and server placement
+applies the same rule to the environments recorded on the host, so it skips a
+host whose disk is full instead of sending it a create to refuse. When the
+kubelet's CI store has already pulled the template image, as a CI pool on the
+same image does, preparation clones its cached record and the
 disk files it names into the isolated store (`seed.go`). The APFS clones share
 the CI copy's blocks, so the template costs no disk while CI holds the image,
 and they keep those blocks after CI collects its copy. Only otherwise does

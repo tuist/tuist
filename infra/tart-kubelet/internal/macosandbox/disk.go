@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -30,6 +31,66 @@ func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int) error {
 	const reserve = 20 * 1024 * 1024 * 1024
 	if ceiling > total/2 || free < uint64(nextMemoryMB)*2*1024*1024+reserve {
 		return fmt.Errorf("%w: sandbox disk reserve", ErrCapacity)
+	}
+	return nil
+}
+
+// diskReport gives the server what diskRoom decides with, so placement
+// skips a host whose disk cannot take another sandbox instead of sending
+// it a create the host refuses: half the filesystem as the budget, and
+// the free space.
+func diskReport(home string) protocol.DiskReport {
+	var fs syscall.Statfs_t
+	if syscall.Statfs(home, &fs) != nil {
+		return protocol.DiskReport{}
+	}
+	total := uint64(fs.Blocks) * uint64(fs.Bsize)
+	return protocol.DiskReport{TotalBytes: total, AvailableBytes: uint64(fs.Bavail) * uint64(fs.Bsize), BudgetBytes: total / 2}
+}
+
+// rootDisk is the root disk ceiling diskRoom reserves per sandbox, the
+// largest of the sandbox VMs in vms, or 0 when none reports its disk. Every
+// sandbox VM is a clone of the template image, whose own size Tart may not
+// report (a stacked image's `Disk` can be null).
+func rootDisk(vms []tart.VM) int64 {
+	var largest int64
+	for _, vm := range vms {
+		if isSandboxVM(vm.Name) && vm.Disk > 0 {
+			largest = max(largest, (int64(vm.Disk)+1)*1_000_000_000)
+		}
+	}
+	return largest
+}
+
+// learnRootDisk records the root disk ceiling for the host's report: the
+// cached template image's size when Tart reports it, otherwise that of a
+// sandbox VM already on the host. checkDisk refreshes it on every create,
+// resume and save.
+func (t *TartRuntime) learnRootDisk(ctx context.Context) error {
+	vms, err := t.Client.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, vm := range vms {
+		if vm.Source == "OCI" && vm.Name == t.Image && vm.Disk > 0 {
+			t.rootfs.Store((int64(vm.Disk) + 1) * 1_000_000_000)
+			return nil
+		}
+	}
+	for _, vm := range vms {
+		if !strings.HasPrefix(vm.Name, sandboxVMPrefix) {
+			continue
+		}
+		detail, err := t.Client.Get(ctx, vm.Name)
+		if err != nil {
+			return err
+		}
+		if detail != nil {
+			if size := rootDisk([]tart.VM{*detail}); size > 0 {
+				t.rootfs.Store(size)
+				return nil
+			}
+		}
 	}
 	return nil
 }
@@ -59,6 +120,9 @@ func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 			return errors.New("sandbox disappeared during disk admission")
 		}
 		vms[i] = *detail
+	}
+	if size := rootDisk(vms); size > 0 {
+		t.rootfs.Store(size)
 	}
 	return diskRoom(vms, uint64(fs.Blocks)*uint64(fs.Bsize), uint64(fs.Bavail)*uint64(fs.Bsize), r.MemoryMB)
 }
