@@ -122,25 +122,23 @@
     pointer-events: none;
   }
 
-  [data-part="role-option"] > [data-part="role-checkbox"] {
-    flex: 0 0 auto;
-    margin-top: var(--noora-spacing-1);
-    box-shadow: var(--noora-border-small-default);
-    background: var(--noora-choice-selector-uncheck-background);
+  [data-part="role-option"] > [data-part="role-checkbox"] > [data-part="box"] {
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    background: var(--noora-surface-background-primary);
   }
 
   [data-part="role-option"] > [data-part="role-checkbox"] [data-part="check"],
   [data-part="role-option"] > [data-part="role-checkbox"] [data-part="minus"] {
     display: none;
-    color: var(--noora-surface-background-primary);
+    color: var(--noora-button-primary-label);
   }
 
   [data-part="role-option"]
     > [data-part="role-input"]:checked
-    + [data-part="role-checkbox"] {
-    box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
-    border: 1px solid var(--noora-purple-500);
-    background: var(--noora-choice-selector-check-background);
+    + [data-part="role-checkbox"]
+    > [data-part="box"] {
+    box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
   }
 
   [data-part="role-option"]
