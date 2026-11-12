@@ -2242,7 +2242,6 @@ msgstr ""
 msgid "SOC 2 Type II certified"
 msgstr ""
 
-
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Search posts"
