@@ -8879,7 +8879,7 @@ public struct Client: APIProtocol {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.

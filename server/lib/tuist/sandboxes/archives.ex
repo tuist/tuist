@@ -6,9 +6,8 @@ defmodule Tuist.Sandboxes.Archives do
   full disk ceiling there. Once it has been paused for longer than
   `Tuist.Environment.sandbox_archive_after_hours/0`, or its node's reserved
   disk exceeds `Tuist.Environment.sandbox_archive_disk_high_water_percent/0`,
-  or its account's
-  disk quota refuses a create or restore (`make_room/1`), or no node has
-  disk left for a new sandbox (`make_node_room/1`), least recently paused
+  or no node has disk left for a new sandbox (`make_node_room/1`), least
+  recently paused
   first, its node uploads the
   kernel, rootfs and workspace (not the memory image) through presigned
   multipart URLs to the in-rack store at its node's site, or to the
@@ -184,30 +183,6 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
-  Makes room for a create or restore the account's disk limit refused:
-  queues the archive of its least recently paused idle Orb. Answers whether
-  room is on its way, which is also the case while one of its archives is
-  already uploading. Answers false when archiving is off or the account
-  has no Orb to archive; only deleting sandboxes frees disk then.
-  """
-  def make_room(account_id) do
-    cond do
-      !Environment.sandbox_archive_after_hours() ->
-        false
-
-      Repo.exists?(from s in Sandbox, where: s.account_id == ^account_id and not is_nil(s.archive_upload_id)) ->
-        true
-
-      Repo.exists?(where(archivable(), [s], s.account_id == ^account_id)) ->
-        {:ok, _job} = %{account_id: account_id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
-        true
-
-      true ->
-        false
-    end
-  end
-
-  @doc """
   Makes room on nodes whose disk refused a new sandbox, any account's:
   queues the archive of the least recently paused idle Orb on them. Answers
   whether room is on its way, which is also the case while an archive is
@@ -234,14 +209,6 @@ defmodule Tuist.Sandboxes.Archives do
       true ->
         false
     end
-  end
-
-  @doc """
-  Archives the account's least recently paused idle Orb, queued by
-  `make_room/1`.
-  """
-  def archive_oldest(account_id) do
-    archivable() |> where([s], s.account_id == ^account_id) |> archive_first()
   end
 
   @doc """

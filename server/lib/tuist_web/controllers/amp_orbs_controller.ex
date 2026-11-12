@@ -47,22 +47,6 @@ defmodule TuistWeb.AmpOrbsController do
     |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
   end
 
-  # An archive of the account's oldest paused Orb is on its way.
-  defp respond(conn, {:error, :sandbox_disk_limit}) do
-    conn
-    |> put_resp_header("x-tuist-orb-retry", "admission")
-    |> send_resp(:too_many_requests, "Account sandbox disk limit reached; archiving a paused Orb")
-  end
-
-  # Nothing can be archived (archiving off, the account at its archive
-  # storage cap, or no paused Orb), so waiting is not enough; deleting
-  # Orbs is.
-  defp respond(conn, {:error, :sandbox_limit}) do
-    conn
-    |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
-    |> send_resp(:too_many_requests, "Account sandbox disk limit reached")
-  end
-
   defp respond(conn, {:error, reason}) when reason in [:locked, :sandbox_account_busy] do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")

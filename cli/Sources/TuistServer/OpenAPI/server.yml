@@ -5574,10 +5574,6 @@ components:
         in_use:
           additionalProperties: false
           properties:
-            disk_gb:
-              type: number
-              x-struct:
-              x-validate:
             memory_gb:
               type: number
               x-struct:
@@ -5587,7 +5583,6 @@ components:
               x-struct:
               x-validate:
           required:
-            - disk_gb
             - memory_gb
             - vcpus
           title: SandboxResourcesInUse
@@ -5597,10 +5592,6 @@ components:
         limits:
           additionalProperties: false
           properties:
-            disk_gb:
-              type: number
-              x-struct:
-              x-validate:
             memory_gb:
               type: number
               x-struct:
@@ -5610,7 +5601,6 @@ components:
               x-struct:
               x-validate:
           required:
-            - disk_gb
             - memory_gb
             - vcpus
           title: SandboxResourceLimits
@@ -5626,10 +5616,6 @@ components:
                 type: string
                 x-struct:
                 x-validate:
-              disk_gb:
-                type: number
-                x-struct:
-                x-validate:
               memory_gb:
                 type: number
                 x-struct:
@@ -5640,7 +5626,6 @@ components:
                 x-validate:
             required:
               - at
-              - disk_gb
               - memory_gb
               - vcpus
             title: SandboxAnalyticsConcurrencyPoint
@@ -12742,10 +12727,6 @@ components:
           type: string
           x-struct:
           x-validate:
-        disk_gb:
-          type: number
-          x-struct:
-          x-validate:
         memory_gb:
           type: number
           x-struct:
@@ -12756,7 +12737,6 @@ components:
           x-validate:
       required:
         - at
-        - disk_gb
         - memory_gb
         - vcpus
       title: SandboxAnalyticsConcurrencyPoint
@@ -17766,10 +17746,6 @@ components:
             in_use:
               additionalProperties: false
               properties:
-                disk_gb:
-                  type: number
-                  x-struct:
-                  x-validate:
                 memory_gb:
                   type: number
                   x-struct:
@@ -17779,7 +17755,6 @@ components:
                   x-struct:
                   x-validate:
               required:
-                - disk_gb
                 - memory_gb
                 - vcpus
               title: SandboxResourcesInUse
@@ -17789,10 +17764,6 @@ components:
             limits:
               additionalProperties: false
               properties:
-                disk_gb:
-                  type: number
-                  x-struct:
-                  x-validate:
                 memory_gb:
                   type: number
                   x-struct:
@@ -17802,7 +17773,6 @@ components:
                   x-struct:
                   x-validate:
               required:
-                - disk_gb
                 - memory_gb
                 - vcpus
               title: SandboxResourceLimits
@@ -17818,10 +17788,6 @@ components:
                     type: string
                     x-struct:
                     x-validate:
-                  disk_gb:
-                    type: number
-                    x-struct:
-                    x-validate:
                   memory_gb:
                     type: number
                     x-struct:
@@ -17832,7 +17798,6 @@ components:
                     x-validate:
                 required:
                   - at
-                  - disk_gb
                   - memory_gb
                   - vcpus
                 title: SandboxAnalyticsConcurrencyPoint
@@ -18494,10 +18459,6 @@ components:
     SandboxResourcesInUse:
       additionalProperties: false
       properties:
-        disk_gb:
-          type: number
-          x-struct:
-          x-validate:
         memory_gb:
           type: number
           x-struct:
@@ -18507,7 +18468,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - disk_gb
         - memory_gb
         - vcpus
       title: SandboxResourcesInUse
@@ -19452,10 +19412,6 @@ components:
     SandboxResourceLimits:
       additionalProperties: false
       properties:
-        disk_gb:
-          type: number
-          x-struct:
-          x-validate:
         memory_gb:
           type: number
           x-struct:
@@ -19465,7 +19421,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - disk_gb
         - memory_gb
         - vcpus
       title: SandboxResourceLimits
@@ -29659,7 +29614,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/analytics:
     get:
       callbacks: {}
-      description: vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+      description: vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
       operationId: getSandboxAnalytics
       parameters:
         - description: ''
@@ -29707,10 +29662,6 @@ paths:
                       in_use:
                         additionalProperties: false
                         properties:
-                          disk_gb:
-                            type: number
-                            x-struct:
-                            x-validate:
                           memory_gb:
                             type: number
                             x-struct:
@@ -29720,7 +29671,6 @@ paths:
                             x-struct:
                             x-validate:
                         required:
-                          - disk_gb
                           - memory_gb
                           - vcpus
                         title: SandboxResourcesInUse
@@ -29730,10 +29680,6 @@ paths:
                       limits:
                         additionalProperties: false
                         properties:
-                          disk_gb:
-                            type: number
-                            x-struct:
-                            x-validate:
                           memory_gb:
                             type: number
                             x-struct:
@@ -29743,7 +29689,6 @@ paths:
                             x-struct:
                             x-validate:
                         required:
-                          - disk_gb
                           - memory_gb
                           - vcpus
                         title: SandboxResourceLimits
@@ -29759,10 +29704,6 @@ paths:
                               type: string
                               x-struct:
                               x-validate:
-                            disk_gb:
-                              type: number
-                              x-struct:
-                              x-validate:
                             memory_gb:
                               type: number
                               x-struct:
@@ -29773,7 +29714,6 @@ paths:
                               x-validate:
                           required:
                             - at
-                            - disk_gb
                             - memory_gb
                             - vcpus
                           title: SandboxAnalyticsConcurrencyPoint

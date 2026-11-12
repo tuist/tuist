@@ -82,21 +82,18 @@ defmodule Tuist.Sandboxes.Query do
          concurrency: %{
            limits: %{
              vcpus: account.sandbox_vcpus_limit,
-             memory_gb: account.sandbox_memory_gb_limit * 1.0,
-             disk_gb: account.sandbox_disk_gb_limit * 1.0
+             memory_gb: account.sandbox_memory_gb_limit * 1.0
            },
            in_use: %{
              vcpus: in_use.vcpus,
-             memory_gb: Float.round(in_use.memory_mb / 1024, 1),
-             disk_gb: Float.round(Concurrency.disk_usage_mb(account.id) / 1024, 1)
+             memory_gb: Float.round(in_use.memory_mb / 1024, 1)
            },
            points:
              points(
                concurrency.dates,
                &%{
                  vcpus: Enum.at(concurrency.vcpus, &1),
-                 memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0,
-                 disk_gb: Enum.at(concurrency.disk_gb, &1) * 1.0
+                 memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0
                }
              )
          }
@@ -116,16 +113,6 @@ defmodule Tuist.Sandboxes.Query do
        "Invalid identifier, pagination, filter, sorting or time range. Use an ordered range of at most 90 days ending no later than now."}
 
   def error(:no_node), do: {:service_unavailable, "No sandbox node with the template ready is connected."}
-
-  def error(:sandbox_limit),
-    do:
-      {:forbidden,
-       "The account has reached its sandbox disk limit, which paused sandboxes count toward. Delete some first."}
-
-  def error(:sandbox_disk_limit),
-    do:
-      {:too_many_requests,
-       "The account has reached its sandbox disk limit. Its oldest paused Orb is being archived to make room; retry shortly."}
 
   def error(:sandbox_concurrency_limit),
     do:

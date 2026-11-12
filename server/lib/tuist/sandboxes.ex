@@ -57,8 +57,8 @@ defmodule Tuist.Sandboxes do
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
   @report_settle_seconds 10
-  # Sandboxes are bounded by the account's CPU, memory and disk quota
-  # (`Concurrency`), not by a count.
+  # Sandboxes are bounded by the account's CPU and memory quota
+  # (`Concurrency`) and by each node's disk budget, not by a count.
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
   # long is paused, in case Amp's own pause never arrives.
   @orb_idle_pause_after_seconds 600
@@ -505,23 +505,9 @@ defmodule Tuist.Sandboxes do
     changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
-         {:ok, sandbox} <- admit_onto_node(account_id, requested, fn -> Repo.insert(changeset) end) do
+         {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
       Events.record(sandbox, "created")
       boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
-    end
-  end
-
-  # Admits one more sandbox onto a node: a create or a restore. Past the
-  # account's disk limit, archiving its oldest paused Orb makes room, so the
-  # refusal is retryable while one is on its way (`:sandbox_disk_limit`), and
-  # final otherwise (`:sandbox_limit`): only deleting sandboxes frees disk.
-  defp admit_onto_node(account_id, requested, reserve) do
-    case Concurrency.admit(account_id, requested, reserve) do
-      {:error, :sandbox_disk_limit} ->
-        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
-
-      other ->
-        other
     end
   end
 
@@ -880,13 +866,13 @@ defmodule Tuist.Sandboxes do
 
   defp do_resume(%Sandbox{state: :paused}), do: {:error, :no_node}
 
-  # An archived sandbox counts against the account's limits again once it is
-  # restored, so the restore is admitted like a create, and then placed on
-  # any node with room and cold booted on the archived disks.
+  # A restored sandbox runs again, so the restore is admitted against the
+  # account's CPU and memory like a create, and then placed on any node with
+  # room and cold booted on the archived disks.
   defp restore(%Sandbox{state: :archived} = sandbox) do
     with {:ok, source} <- Archives.restore_source(sandbox),
          {:ok, creating} <-
-           admit_onto_node(sandbox.account_id, sandbox, fn ->
+           Concurrency.admit(sandbox.account_id, sandbox, fn ->
              update_sandbox(sandbox, %{state: :creating, node_name: nil, error_message: nil})
            end) do
       boot(creating, {:archive, source})

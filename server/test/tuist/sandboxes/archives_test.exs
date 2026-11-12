@@ -15,7 +15,6 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
-  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
@@ -87,72 +86,6 @@ defmodule Tuist.Sandboxes.ArchivesTest do
        "disks_synced" => true,
        "duration_ms" => 1000
      }}
-  end
-
-  describe "making room under the disk limit" do
-    test "a create past it queues the archive of the least recently paused idle Orb", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
-      archived_orb(account, archive_store: "gra-v1", archive_bytes: 500 * @gib)
-      paused_orb(account, paused_at: hours_ago(1))
-      oldest = paused_orb(account, paused_at: hours_ago(3))
-      reject(&Capacity.place/1)
-
-      assert {:error, :sandbox_disk_limit} = Sandboxes.create_sandbox(account, %{})
-      assert [%{args: %{"account_id" => account_id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
-      assert account_id == account.id
-
-      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
-
-      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
-        assert id == oldest.id
-        {:error, "upload failed"}
-      end)
-
-      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
-      assert {:error, "upload failed"} = Archives.archive_oldest(account.id)
-    end
-
-    test "a refusal stays retryable while an archive uploads, without queueing another", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
-      paused_orb(account, archive_upload_id: "upload-in-flight")
-      reject(&Capacity.place/1)
-
-      assert {:error, :sandbox_disk_limit} = Sandboxes.create_sandbox(account, %{})
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
-    end
-
-    test "a refusal is final when nothing can be archived", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
-      paused_orb(account, amp_orb_id: nil)
-      reject(&Capacity.place/1)
-      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
-
-      paused_orb(account)
-      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
-      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
-      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
-    end
-
-    test "a held Managed Agents work item past it makes room the same way", %{account: account} do
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
-      paused_orb(account)
-
-      linux = agent_environment_fixture(account: account)
-      macos = agent_environment_fixture(account: account, platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
-
-      for environment <- [linux, macos] do
-        assert {:error, :sandbox_disk_limit} = Capacity.admission(environment, "new-session")
-      end
-
-      assert [%{args: %{"account_id" => account_id}} | _] = all_enqueued(worker: ArchiveSandboxesWorker)
-      assert account_id == account.id
-
-      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
-
-      for environment <- [linux, macos] do
-        assert {:error, :sandbox_limit} = Capacity.admission(environment, "new-session")
-      end
-    end
   end
 
   describe "making room on nodes without disk" do
@@ -675,26 +608,6 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       assert %Sandbox{state: :archived, node_name: nil, archive_key: key} = Repo.reload!(sandbox)
       assert key == sandbox.archive_key
-    end
-
-    test "archived Orbs do not charge the disk limit, a restore does", %{account: account} do
-      # A default sandbox reserves 18 GiB and 64 MiB on @node.
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 19})
-      for n <- 1..3, do: archived_orb(account, amp_orb_id: "archived-#{n}")
-      expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
-      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
-
-      account = account_fixture()
-      {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 14})
-      sandbox = archived_orb(account)
-      paused_orb(account, amp_orb_id: nil)
-      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
-      reject(&Capacity.place/1)
-
-      assert {:error, :sandbox_limit} =
-               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
-
-      assert Repo.reload!(sandbox).state == :archived
     end
 
     test "pausing an archived Orb is a no-op and deleting it deletes the archive", %{account: account} do

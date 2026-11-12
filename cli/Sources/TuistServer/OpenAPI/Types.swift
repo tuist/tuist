@@ -333,7 +333,7 @@ public protocol APIProtocol: Sendable {
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -2425,7 +2425,7 @@ extension APIProtocol {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -13686,8 +13686,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrency: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
             public struct in_usePayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/vcpus`.
@@ -13695,29 +13693,21 @@ public enum Components {
                 /// Creates a new `in_usePayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13727,7 +13717,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13737,8 +13726,6 @@ public enum Components {
             public var in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
             public struct limitsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/vcpus`.
@@ -13746,29 +13733,21 @@ public enum Components {
                 /// Creates a new `limitsPayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13778,7 +13757,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13790,8 +13768,6 @@ public enum Components {
             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/at`.
                 public var at: Foundation.Date
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/vcpus`.
@@ -13800,23 +13776,19 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - at:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
                     at: Foundation.Date,
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
                     self.at = at
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
                     case at
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
@@ -13825,10 +13797,6 @@ public enum Components {
                     self.at = try container.decode(
                         Foundation.Date.self,
                         forKey: .at
-                    )
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
                     )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
@@ -13840,7 +13808,6 @@ public enum Components {
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "at",
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -24891,8 +24858,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrencyPoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/at`.
             public var at: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/vcpus`.
@@ -24901,23 +24866,19 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - at:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
                 at: Foundation.Date,
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
                 self.at = at
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
                 case at
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
@@ -24926,10 +24887,6 @@ public enum Components {
                 self.at = try container.decode(
                     Foundation.Date.self,
                     forKey: .at
-                )
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
                 )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
@@ -24941,7 +24898,6 @@ public enum Components {
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "at",
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -32057,8 +32013,6 @@ public enum Components {
             public struct concurrencyPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
                 public struct in_usePayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/vcpus`.
@@ -32066,29 +32020,21 @@ public enum Components {
                     /// Creates a new `in_usePayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -32098,7 +32044,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -32108,8 +32053,6 @@ public enum Components {
                 public var in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
                 public struct limitsPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/vcpus`.
@@ -32117,29 +32060,21 @@ public enum Components {
                     /// Creates a new `limitsPayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -32149,7 +32084,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -32161,8 +32095,6 @@ public enum Components {
                 public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/at`.
                     public var at: Foundation.Date
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/vcpus`.
@@ -32171,23 +32103,19 @@ public enum Components {
                     ///
                     /// - Parameters:
                     ///   - at:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
                         at: Foundation.Date,
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
                         self.at = at
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
                         case at
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
@@ -32196,10 +32124,6 @@ public enum Components {
                         self.at = try container.decode(
                             Foundation.Date.self,
                             forKey: .at
-                        )
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
                         )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
@@ -32211,7 +32135,6 @@ public enum Components {
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "at",
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -33450,8 +33373,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse`.
         public struct SandboxResourcesInUse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/vcpus`.
@@ -33459,29 +33380,21 @@ public enum Components {
             /// Creates a new `SandboxResourcesInUse`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -33491,7 +33404,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -35340,8 +35252,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits`.
         public struct SandboxResourceLimits: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/vcpus`.
@@ -35349,29 +35259,21 @@ public enum Components {
             /// Creates a new `SandboxResourceLimits`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -35381,7 +35283,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -63890,7 +63791,7 @@ public enum Operations {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -63978,8 +63879,6 @@ public enum Operations {
                         public struct concurrencyPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
                             public struct in_usePayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/vcpus`.
@@ -63987,29 +63886,21 @@ public enum Operations {
                                 /// Creates a new `in_usePayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -64019,7 +63910,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -64029,8 +63919,6 @@ public enum Operations {
                             public var in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
                             public struct limitsPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/vcpus`.
@@ -64038,29 +63926,21 @@ public enum Operations {
                                 /// Creates a new `limitsPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -64070,7 +63950,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -64082,8 +63961,6 @@ public enum Operations {
                             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/at`.
                                 public var at: Foundation.Date
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/vcpus`.
@@ -64092,23 +63969,19 @@ public enum Operations {
                                 ///
                                 /// - Parameters:
                                 ///   - at:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
                                     at: Foundation.Date,
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
                                     self.at = at
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case at
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
@@ -64117,10 +63990,6 @@ public enum Operations {
                                     self.at = try container.decode(
                                         Foundation.Date.self,
                                         forKey: .at
-                                    )
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
                                     )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
@@ -64132,7 +64001,6 @@ public enum Operations {
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "at",
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])

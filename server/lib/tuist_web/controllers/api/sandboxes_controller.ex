@@ -54,7 +54,6 @@ defmodule TuistWeb.API.SandboxesController do
   @orb_admission_refusals [
     :no_capacity,
     :sandbox_concurrency_limit,
-    :sandbox_disk_limit,
     :sandbox_account_busy,
     :locked
   ]
@@ -451,7 +450,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:analytics,
     summary: "Get the account's sandbox analytics for a time range.",
     description:
-      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
+      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
     operation_id: "getSandboxAnalytics",
     parameters: SandboxSchemas.parameters(:analytics),
     responses:

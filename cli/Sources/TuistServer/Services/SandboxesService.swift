@@ -107,7 +107,7 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
         case let .refused(message), let .unavailable(message), let .notFound(message):
             return message
         case .limited:
-            return "Tuist refused the request for now: the account may have reached its sandbox CPU, memory or disk limit, or sent too many requests. Retry later."
+            return "Tuist refused the request for now: the account may have reached its sandbox CPU or memory limit, or sent too many requests. Retry later."
         case .invalidShape:
             return "Use 2, 4 or 8 vCPUs with 4096, 8192 or 16384 MB of memory."
         case let .unknownError(statusCode):

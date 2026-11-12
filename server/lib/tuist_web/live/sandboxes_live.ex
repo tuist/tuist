@@ -108,7 +108,7 @@ defmodule TuistWeb.SandboxesLive do
       sandboxes: Sandboxes.list_sandboxes(account, limit: @recent_count),
       counts: counts,
       total: counts |> Map.values() |> Enum.sum(),
-      usage: Map.put(Concurrency.usage(account.id), :disk_mb, Concurrency.disk_usage_mb(account.id))
+      usage: Concurrency.usage(account.id)
     )
   end
 
@@ -177,18 +177,6 @@ defmodule TuistWeb.SandboxesLive do
         values: concurrency.memory_gb,
         limit: account.sandbox_memory_gb_limit,
         usage_label: dgettext("dashboard_sandboxes", "Peak memory (GB)")
-      },
-      %{
-        id: "disk",
-        title: dgettext("dashboard_sandboxes", "Disk"),
-        subtitle:
-          dgettext("dashboard_sandboxes", "%{count} of %{limit} on nodes now",
-            count: gigabytes(usage.disk_mb / 1024),
-            limit: gigabytes(account.sandbox_disk_gb_limit)
-          ),
-        values: concurrency.disk_gb,
-        limit: account.sandbox_disk_gb_limit,
-        usage_label: dgettext("dashboard_sandboxes", "Peak disk (GB)")
       }
     ]
   end

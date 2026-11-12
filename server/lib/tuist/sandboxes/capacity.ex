@@ -413,23 +413,6 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  @doc """
-  The template reports of every connected node as one node, to size a
-  sandbox's disk ceiling without knowing its node, as the account disk
-  limit does (`Tuist.Sandboxes.Concurrency`). macOS hosts are left out:
-  their template's root disk is not a Linux rootfs, and a macOS sandbox's
-  ceiling does not use it.
-  """
-  def fleet_node do
-    templates =
-      for node <- Nodes.connected_nodes(),
-          Map.get(node, :platform) != "darwin",
-          template <- Map.get(node, :templates, []),
-          do: template
-
-    %{templates: templates}
-  end
-
   def disk_budget_bytes(%{disk: %{budget_bytes: budget}}) when is_integer(budget) and budget > 0, do: budget
   def disk_budget_bytes(_node), do: :unbounded
 
@@ -826,22 +809,8 @@ defmodule Tuist.Sandboxes.Capacity do
   @doc "Whether `admission/2` lets the session's work item through."
   def admissible?(agent_environment, session_id), do: admission(agent_environment, session_id) == :ok
 
-  @doc """
-  The account's quota check for a work item's sandbox. Past its disk limit,
-  archiving its oldest paused Orb makes room, as for a create
-  (`Tuist.Sandboxes.Archives.make_room/1`): `:sandbox_disk_limit` while one
-  is on its way, so waiting helps, and `:sandbox_limit` when nothing can be
-  archived, so it does not.
-  """
-  def quota(account_id, requested) do
-    case Concurrency.check(account_id, requested) do
-      {:error, :sandbox_disk_limit} ->
-        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
-
-      result ->
-        result
-    end
-  end
+  @doc "The account's CPU and memory quota check for a work item's sandbox."
+  def quota(account_id, requested), do: Concurrency.check(account_id, requested)
 
   defp charged_admission(name) do
     case Nodes.lookup(name) do

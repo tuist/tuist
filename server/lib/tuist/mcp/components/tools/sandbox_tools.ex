@@ -93,7 +93,7 @@ defmodule Tuist.MCP.Components.Tools.GetSandboxAnalytics do
   @impl EMCP.Tool
   def description,
     do:
-      "Get an account's sandbox vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against its limits for a time range, with trends against the previous range. Defaults to the last 30 days; maximum range is 90 days. Requires account administration."
+      "Get an account's sandbox vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against its limits for a time range, with trends against the previous range. Defaults to the last 30 days; maximum range is 90 days. Requires account administration."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:analytics, conn, args)
 end

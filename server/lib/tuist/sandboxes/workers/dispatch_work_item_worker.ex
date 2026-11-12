@@ -3,10 +3,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   Holds an acknowledged Managed Agents work item that no node had room for
   and hands it to `Tuist.Sandboxes.Router.dispatch/2` once
   `Tuist.Sandboxes.Capacity.admission/2` lets it through, checking every
-  few seconds. Snoozing does not use up attempts. Each check past the
-  account's disk limit asks to archive a paused Orb to make room
-  (`Tuist.Sandboxes.Capacity.quota/2`), and the item is released at once
-  when nothing can be archived.
+  few seconds. Snoozing does not use up attempts.
 
   The poller acknowledges such an item instead of leaving it queued because
   Anthropic's queue offers an unacknowledged item only three times, five
@@ -83,18 +80,11 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
           reason: inspect(reason)
         ]
 
-        cond do
-          # The account's disk is full and no paused Orb can be archived, so
-          # only a deletion frees room: waiting out the deadline cannot help.
-          reason == :sandbox_limit ->
-            release(agent_environment, work_id, "the account has no sandbox disk left to free", log)
-
-          System.system_time(:millisecond) < deadline_ms ->
-            if rem(attempt, @log_every) == 0, do: Logger.info("sandboxes: work item still waiting for a node", log)
-            {:snooze, @check_seconds}
-
-          true ->
-            release(agent_environment, work_id, "no node had room for it before its deadline", log)
+        if System.system_time(:millisecond) < deadline_ms do
+          if rem(attempt, @log_every) == 0, do: Logger.info("sandboxes: work item still waiting for a node", log)
+          {:snooze, @check_seconds}
+        else
+          release(agent_environment, work_id, "no node had room for it before its deadline", log)
         end
     end
   end

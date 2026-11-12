@@ -3,9 +3,8 @@ defmodule Tuist.Sandboxes.Workers.ArchiveSandboxesWorker do
   Moves Amp Orbs paused longer than the archive threshold off their nodes
   into object storage, and cleans up
   archives of restored Orbs and uploads or restores whose caller died
-  (`Tuist.Sandboxes.Archives.run/0`). A job with an `account_id` instead
-  archives that account's least recently paused idle Orb to make room under
-  its disk limit (`Archives.make_room/1`), one with `node_names` the least
+  (`Tuist.Sandboxes.Archives.run/0`). A job with `node_names` instead
+  archives the least
   recently paused idle Orb on those nodes, whose disk refused a new
   sandbox (`Archives.make_node_room/1`) or exceeded the high-water mark
   (`disk_pressure: true`, rechecked before uploading), and one with a `sandbox_id`
@@ -30,13 +29,6 @@ defmodule Tuist.Sandboxes.Workers.ArchiveSandboxesWorker do
       Archives.archive(sandbox)
     end
 
-    :ok
-  end
-
-  def perform(%Oban.Job{args: %{"account_id" => account_id}}) do
-    # A failed upload is recorded on the Orb and retried later, like the
-    # periodic run's.
-    Archives.archive_oldest(account_id)
     :ok
   end
 
