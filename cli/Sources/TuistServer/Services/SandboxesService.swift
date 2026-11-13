@@ -143,7 +143,7 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
     }
 }
 
-public struct SandboxesService: SandboxesServicing {
+public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this type_body_length
     public init() {}
 
     public func listSandboxes(
