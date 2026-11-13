@@ -154,6 +154,7 @@ func main() {
 		logger.Error("reading the firecracker version", "bin", firecrackerBin, "error", err)
 		os.Exit(1)
 	}
+	snapshotCompat := hostinfo.SnapshotCompat(fcVersion)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -286,7 +287,7 @@ func main() {
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
 		AllowedShapes: allowedShapes,
-		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion,
+		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion, SnapshotCompat: snapshotCompat,
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
@@ -393,6 +394,7 @@ func main() {
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
 					DirectExecEndpoint: directExecEndpoint,
+					SnapshotCompat:     snapshotCompat,
 					DefaultTemplate:    templateName,
 					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),

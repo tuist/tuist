@@ -483,8 +483,10 @@ defmodule Tuist.Sandboxes do
       from s in Sandbox,
         where: ^orb_filter,
         where: s.purpose == :agent,
+        # An archived sandbox was paused too (its disks moved off the node),
+        # and keeps that pause's retention.
         where:
-          (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
+          (s.state in [:paused, :archived] and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
         order_by: [asc: s.updated_at]
     )
@@ -602,7 +604,12 @@ defmodule Tuist.Sandboxes do
           )
           |> schedule_idle_pause()
 
-        with {:ok, running} <- result, {:archive, _source} <- source, do: Archives.delete_restored(running)
+        # A sandbox resumed from its archived memory still reads it until its
+        # node reports `memory_loaded`.
+        with {:ok, running} <- result, {:archive, _source} <- source do
+          if data["memory_pending"], do: Archives.memory_loading(running), else: Archives.delete_restored(running)
+        end
+
         result
 
       # The archive is the only copy of the sandbox, so a failed restore
@@ -803,11 +810,25 @@ defmodule Tuist.Sandboxes do
 
   # An archive in an in-rack store is served over its site's private
   # network, so only nodes at that site can download it. `archive` is the
-  # sandbox itself, or the disk snapshot it is created from.
+  # sandbox itself, or the disk snapshot it is created from. An archive with
+  # a memory image resumes warm only on a node whose snapshot compatibility
+  # matches the one that wrote it, so it waits for room on those; only when
+  # none is connected does it cold boot its disks on another.
   defp place_restore(sandbox, archive \\ nil) do
-    case Archives.restore_site(archive || sandbox) do
-      nil -> Capacity.place(sandbox)
-      site -> Capacity.place(sandbox, &(Sites.shard_storage_site(&1.name) == site))
+    site = Archives.restore_site(archive || sandbox)
+    on_site = if site, do: &(Sites.shard_storage_site(&1.name) == site), else: fn _node -> true end
+
+    case Archives.memory_compat(archive || sandbox) do
+      nil when is_nil(site) -> Capacity.place(sandbox)
+      nil -> Capacity.place(sandbox, on_site)
+      compat -> place_warm(sandbox, on_site, compat)
+    end
+  end
+
+  defp place_warm(sandbox, on_site, compat) do
+    case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat)) do
+      {:error, :no_node} -> Capacity.place(sandbox, on_site)
+      placed -> placed
     end
   end
 
@@ -877,7 +898,22 @@ defmodule Tuist.Sandboxes do
   end
 
   defp running_or_resume(%Sandbox{state: :running} = sandbox), do: {:ok, sandbox}
-  defp running_or_resume(%Sandbox{state: :paused} = sandbox), do: do_resume(sandbox)
+
+  defp running_or_resume(%Sandbox{state: :paused} = sandbox) do
+    case do_resume(sandbox) do
+      # Its own node has no room for it (CI filling it or reserving it), and
+      # a paused Linux sandbox can only resume there until it is archived:
+      # queue that, so a later resume restores it on any node with room. A
+      # resume the node admits before the upload ends cancels it.
+      {:error, :no_capacity} = error when sandbox.platform == :linux ->
+        Archives.move_off(sandbox)
+        error
+
+      result ->
+        result
+    end
+  end
+
   defp running_or_resume(%Sandbox{state: :archived} = sandbox), do: restore(sandbox)
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
@@ -1569,6 +1605,18 @@ defmodule Tuist.Sandboxes do
           error_or_revert(sandbox, event["reason"] || "sandbox died")
         end
 
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  def handle_node_event(node_name, %{"event" => "memory_loaded", "sandbox_id" => sandbox_id}) do
+    case get_sandbox_by_id(sandbox_id) do
+      %Sandbox{node_name: ^node_name} = sandbox ->
+        Logger.info("sandboxes: restored memory loaded", sandbox_id: sandbox.id, node: node_name)
+        Archives.memory_loaded(sandbox)
         :ok
 
       _ ->

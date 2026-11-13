@@ -7,8 +7,11 @@ defmodule Tuist.Sandboxes.Workers.ArchiveSandboxesWorker do
   archives the least
   recently paused idle Orb on those nodes, whose disk refused a new
   sandbox (`Archives.make_node_room/1`) or exceeded the high-water mark
-  (`disk_pressure: true`, rechecked before uploading), and one with a `sandbox_id`
-  archives that sandbox, which someone asked for (`Archives.request/1`). An
+  (`disk_pressure: true`, rechecked before uploading), or the least recently
+  paused sandbox of any source on a node CI is reclaiming (`ci: true`,
+  `Archives.move_off_node/1`, rechecked before uploading), and one with a
+  `sandbox_id` archives that sandbox, which someone asked for
+  (`Archives.request/1`) or whose node refused its resume (`Archives.move_off/1`). An
   archive can take minutes, so at
   most one run of each kind waits behind the one executing; the sandbox lock
   and the upload marker keep two runs off the same Orb.
@@ -33,7 +36,7 @@ defmodule Tuist.Sandboxes.Workers.ArchiveSandboxesWorker do
   end
 
   def perform(%Oban.Job{args: %{"node_names" => node_names} = args}) do
-    Archives.archive_oldest_on(node_names, disk_pressure: args["disk_pressure"] == true)
+    Archives.archive_oldest_on(node_names, disk_pressure: args["disk_pressure"] == true, ci: args["ci"] == true)
     :ok
   end
 

@@ -204,16 +204,27 @@ func put(ctx context.Context, client *http.Client, target string, data []byte, n
 // the object had exactly the expected size and SHA-256. consume may have
 // written the content out by then; the caller discards it on error.
 func Download(ctx context.Context, client *http.Client, target string, size int64, sum string, consume func(io.Reader) error) error {
+	return DownloadRange(ctx, client, target, 0, size, sum, consume)
+}
+
+// DownloadRange is Download of the size bytes from offset on, such as the
+// disk stream of an archive that holds a memory image ahead of it.
+func DownloadRange(ctx context.Context, client *http.Client, target string, offset, size int64, sum string, consume func(io.Reader) error) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return redact(err)
+	}
+	status := http.StatusOK
+	if offset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+size-1))
+		status = http.StatusPartialContent
 	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return redact(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != status {
 		return fmt.Errorf("object storage answered %d", resp.StatusCode)
 	}
 	if resp.ContentLength >= 0 && resp.ContentLength != size {

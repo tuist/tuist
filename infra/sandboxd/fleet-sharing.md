@@ -79,7 +79,13 @@ work. There is no sandbox count: the account's disk limit charges every sandbox
 on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
-sandboxes. Reclaim page cache and request a shrink, but do not spend the released
+sandboxes. It also moves the node's paused sandboxes to object storage, one upload
+at a time, with their memory images, so their sessions resume warm on
+another node of the same snapshot compatibility (processes kept) instead of
+waiting for this one; a resume the node refuses for room does the same for
+that sandbox. CI waits on neither: a paused sandbox holds no memory, and its
+jail stays until the archive is readable. See the archive
+tier in `server/lib/tuist/sandboxes/AGENTS.md`. Reclaim page cache and request a shrink, but do not spend the released
 memory until the kubelet confirms it. Worker/exec guards remain authoritative if
 activity races a pause. Queue depth alone does not trigger fleet-wide reclamation.
 

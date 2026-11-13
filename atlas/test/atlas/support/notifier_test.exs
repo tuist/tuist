@@ -36,100 +36,37 @@ defmodule Atlas.Support.NotifierTest do
              )
   end
 
-  test "routes no-action inbound to the filtered channel with its resolved status" do
-    stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    notification_id = Ecto.UUID.generate()
+  test "does not post no-action inbound email or chats to Slack" do
+    reject(&API.find_message_by_metadata/4)
+    reject(&API.post_message/5)
     thread = %{thread() | action_needed: false, status: "resolved"}
 
-    expect(API, :find_message_by_metadata, fn :company, "C-FILTERED", _, ^notification_id -> {:ok, nil} end)
-
-    expect(API, :post_message, fn :company, "C-FILTERED", _, blocks, _ ->
-      assert inspect(blocks) =~ "Resolved"
-      {:ok, %{"channel" => "C-FILTERED", "ts" => "1724515200.000100"}}
-    end)
-
-    assert {:ok, %{channel_id: "C-FILTERED"}} =
-             Notifier.notify(thread, "inbound_received", notification_id: notification_id)
+    for event <- ["inbound_received", "chat_received"] do
+      assert :silenced = Notifier.notify(thread, event, notification_id: Ecto.UUID.generate())
+    end
   end
 
-  test "falls back to support and audits an inaccessible filtered channel" do
+  test "audits a rejected support post and leaves it for Oban to retry" do
     stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    notification_id = Ecto.UUID.generate()
-    thread = %{thread() | action_needed: false}
-    stub(API, :find_message_by_metadata, fn :company, _, _, ^notification_id -> {:ok, nil} end)
+    stub(API, :find_message_by_metadata, fn :company, "C-SUPPORT", _, _ -> {:ok, nil} end)
 
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ -> {:error, "not_in_channel"} end)
-
-    expect(API, :post_message, fn :company, "C-SUPPORT", _, _, opts ->
-      assert opts[:client_msg_id] == notification_id
-      {:ok, %{"channel" => "C-SUPPORT", "ts" => "1724515200.000100"}}
-    end)
-
-    assert {:ok, %{channel_id: "C-SUPPORT"}} =
-             Notifier.notify(thread, "inbound_received", notification_id: notification_id)
-
-    activity = Repo.one!(from(a in Activity, where: a.action == "support.notification_failed"))
-    assert activity.target_id == thread.id
-    assert activity.metadata["reason"] == "not_in_channel"
-    assert activity.metadata["slack_channel_id"] == "C-FILTERED"
-  end
-
-  test "leaves transient filtered-channel failures for Oban to retry" do
-    stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    stub(API, :find_message_by_metadata, fn :company, "C-FILTERED", _, _ -> {:ok, nil} end)
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ -> {:error, :timeout} end)
-
-    assert {:error, :timeout} =
-             Notifier.notify(%{thread() | action_needed: false}, "inbound_received",
-               notification_id: Ecto.UUID.generate()
-             )
-  end
-
-  test "tries support on the last attempt even for an unknown filtered-channel failure" do
-    stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    stub(API, :find_message_by_metadata, fn :company, _, _, _ -> {:ok, nil} end)
-
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ ->
+    expect(API, :post_message, fn :company, "C-SUPPORT", _, _, _ ->
       {:error, {:unexpected_response, 503, "private response body"}}
     end)
 
-    expect(API, :post_message, fn :company, "C-SUPPORT", _, _, _ ->
-      {:ok, %{"channel" => "C-SUPPORT", "ts" => "1724515200.000100"}}
-    end)
+    thread = thread()
 
     log =
       ExUnit.CaptureLog.capture_log(fn ->
-        assert {:ok, %{channel_id: "C-SUPPORT"}} =
-                 Notifier.notify(%{thread() | action_needed: false}, "inbound_received",
-                   notification_id: Ecto.UUID.generate(),
-                   final_attempt?: true
-                 )
+        assert {:error, {:unexpected_response, 503, _body}} =
+                 Notifier.notify(thread, "inbound_received", notification_id: Ecto.UUID.generate())
       end)
 
     refute log =~ "private response body"
     activity = Repo.one!(from(a in Activity, where: a.action == "support.notification_failed"))
+    assert activity.target_id == thread.id
     assert activity.metadata["reason"] == "slack_delivery_failed"
-    refute inspect(activity.metadata) =~ "private response body"
-  end
-
-  test "returns the fallback error without recursing when both channels reject the post" do
-    stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    stub(API, :find_message_by_metadata, fn :company, _, _, _ -> {:ok, nil} end)
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ -> {:error, "not_in_channel"} end)
-    expect(API, :post_message, fn :company, "C-SUPPORT", _, _, _ -> {:error, "missing_scope"} end)
-
-    assert {:error, "missing_scope"} =
-             Notifier.notify(%{thread() | action_needed: false}, "inbound_received",
-               notification_id: Ecto.UUID.generate(),
-               final_attempt?: true
-             )
-
-    assert Repo.aggregate(from(a in Activity, where: a.action == "support.notification_failed"), :count) == 2
+    assert activity.metadata["slack_channel_id"] == "C-SUPPORT"
   end
 
   test "team-side events stay in support even when the thread needs no action" do

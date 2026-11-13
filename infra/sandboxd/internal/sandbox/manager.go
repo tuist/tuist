@@ -59,6 +59,9 @@ type Config struct {
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
+	// SnapshotCompat is the node's hostinfo.SnapshotCompat. Archives carry
+	// memory only when it is set, and restore it warm only where it matches.
+	SnapshotCompat string
 }
 
 type Deps struct {
@@ -150,6 +153,9 @@ type Sandbox struct {
 	// first exec or worker: its workspace is the empty disk the create
 	// formatted, which a prepared workspace may replace.
 	fresh bool
+	// memoryPending is set while a warm restore still reads memory from
+	// its archive; EventMemoryLoaded clears it.
+	memoryPending bool
 }
 
 var (
@@ -472,6 +478,12 @@ func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, met
 // brings the guest agent up to date. beforeAgent runs after the load and
 // before the agent handshake.
 func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
+	return m.restoreWith(ctx, sb, log, "", beforeAgent, formatWorkspace)
+}
+
+// restoreWith is restore with the memory served through the userfaultfd
+// socket at memSocket in the jail instead of /mem, when it is set.
+func (m *Manager) restoreWith(ctx context.Context, sb *Sandbox, log *slog.Logger, memSocket string, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
@@ -481,9 +493,13 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 	}
 	api := inst.API()
 	loadStarted := time.Now()
+	backend := firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)}
+	if memSocket != "" {
+		backend = firecracker.MemoryBackend{BackendType: "Uffd", BackendPath: inst.GuestPath(memSocket)}
+	}
 	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
 		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
-		MemBackend:   firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)},
+		MemBackend:   backend,
 		ResumeVM:     true,
 	}); err != nil {
 		return fail(err)
@@ -813,6 +829,10 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
+	// The snapshot read every page, so a warm restore's memory is all on
+	// the node now.
+	memoryLoaded := sb.memoryPending
+	sb.memoryPending = false
 	sb.meta.State = protocol.StatePaused
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
@@ -824,6 +844,9 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		return res, err
 	}
 	m.refreshGauges()
+	if memoryLoaded {
+		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
+	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
 	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced}, nil
 }

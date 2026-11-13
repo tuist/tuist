@@ -50,6 +50,9 @@ const (
 	EventWorkerExited  = "worker_exited"
 	EventSandboxDied   = "sandbox_died"
 	EventTemplateReady = "template_ready"
+	// EventMemoryLoaded: a sandbox restored with its memory from an archive
+	// holds all of it on the node, so the archive may go.
+	EventMemoryLoaded = "memory_loaded"
 )
 
 const (
@@ -184,6 +187,9 @@ type Hello struct {
 	DefaultTemplateTag string `json:"default_template_tag,omitempty"`
 	// DirectExecEndpoint serves claims of claimed execs.
 	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
+	// SnapshotCompat is equal on nodes that can restore each other's
+	// memory snapshots; an archive with memory restores warm only on them.
+	SnapshotCompat string `json:"snapshot_compat,omitempty"`
 }
 
 type Result struct {
@@ -293,6 +299,9 @@ type ArchiveArgs struct {
 	SandboxID string   `json:"sandbox_id"`
 	PartSize  int64    `json:"part_size"`
 	PartURLs  []string `json:"part_urls"`
+	// Memory asks for the memory image too, when it is current; the
+	// answer's TailOffset then locates the disk stream for the restore.
+	Memory bool `json:"memory,omitempty"`
 }
 
 // ArchiveDisksArgs asks for a disk snapshot's kernel and disks to be
@@ -319,6 +328,10 @@ type ArchiveSource struct {
 	URL    string `json:"url"`
 	Bytes  int64  `json:"bytes"`
 	SHA256 string `json:"sha256"`
+	// TailOffset and TailSHA256, from the ArchiveResult, locate the disk
+	// stream of an archive that holds a memory image ahead of it.
+	TailOffset int64  `json:"tail_offset,omitempty"`
+	TailSHA256 string `json:"tail_sha256,omitempty"`
 }
 
 type ExecArgs struct {
@@ -393,6 +406,9 @@ const (
 
 type CreateResult struct {
 	BootMs int64 `json:"boot_ms"`
+	// MemoryPending: the sandbox resumed from an archive's memory image,
+	// which it still reads from the archive until EventMemoryLoaded.
+	MemoryPending bool `json:"memory_pending,omitempty"`
 }
 
 type ResumeResult struct {
@@ -424,6 +440,12 @@ type ArchiveResult struct {
 	StoredBytes int64         `json:"stored_bytes"`
 	DisksSynced bool          `json:"disks_synced"`
 	DurationMs  int64         `json:"duration_ms"`
+	// With a memory image: where the disk stream starts and its digest,
+	// the node's SnapshotCompat, and the memory stored before compression.
+	TailOffset  int64  `json:"tail_offset,omitempty"`
+	TailSHA256  string `json:"tail_sha256,omitempty"`
+	Compat      string `json:"compat,omitempty"`
+	MemoryBytes int64  `json:"memory_bytes,omitempty"`
 }
 
 type ExecResult struct {

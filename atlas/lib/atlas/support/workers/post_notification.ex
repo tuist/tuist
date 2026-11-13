@@ -39,21 +39,19 @@ defmodule Atlas.Support.Workers.PostNotification do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args, attempt: attempt, max_attempts: max_attempts}) do
+  def perform(%Oban.Job{args: args}) do
     Audit.with_context(%{interface: "worker"}, fn ->
       with {:ok, event} <- event(args["event"]),
            thread when not is_nil(thread) <- Support.get_thread(args["thread_id"]),
-           {:ok, delivery} <-
-             Notifier.notify(
-               thread,
-               Atom.to_string(event),
-               [final_attempt?: attempt >= max_attempts] ++ notifier_opts(thread, event, args)
-             ) do
+           {:ok, delivery} <- Notifier.notify(thread, Atom.to_string(event), notifier_opts(thread, event, args)) do
         audit_notification(thread, event, args, delivery)
         :ok
       else
         nil ->
           {:cancel, :support_thread_not_found}
+
+        :silenced ->
+          :ok
 
         {:error, :missing_support_slack_channel_id} = error ->
           Logger.warning("Support Slack notification was skipped because no #support channel is configured")

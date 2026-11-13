@@ -934,20 +934,41 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 			}},
 		}}
 	}
-	return &corev1.Affinity{
-		NodeAffinity: &corev1.NodeAffinity{
-			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
-				Weight: 100,
-				Preference: corev1.NodeSelectorTerm{
-					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
-						Operator: corev1.NodeSelectorOpExists,
-					}},
-				},
+	terms := []corev1.PreferredSchedulingTerm{{
+		Weight: 100,
+		Preference: corev1.NodeSelectorTerm{
+			MatchExpressions: []corev1.NodeSelectorRequirement{{
+				Key:      GoldenNodeAffinityKey(pool.Spec.Image),
+				Operator: corev1.NodeSelectorOpExists,
 			}},
 		},
+	}}
+	// Warm sandbox VMs become sessions themselves, so only CI avoids them.
+	if !IsMacosSandboxWarm(pool) {
+		terms = append(terms, corev1.PreferredSchedulingTerm{
+			Weight: sessionFreePreferenceWeight,
+			Preference: corev1.NodeSelectorTerm{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      MacosSandboxSessionsLabel,
+					Operator: corev1.NodeSelectorOpDoesNotExist,
+				}},
+			},
+		})
 	}
+	return &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{PreferredDuringSchedulingIgnoredDuringExecution: terms}}
 }
+
+// MacosSandboxSessionsLabel is advertised by a tart-kubelet whose host holds
+// a sandbox session, running or paused. Its saved state is encrypted for that
+// Mac, so a CI job filling the host leaves the session waiting or moving to
+// another Mac cold.
+const MacosSandboxSessionsLabel = "tuist.dev/macos-sandbox-sessions"
+
+// sessionFreePreferenceWeight sits between the golden and the cache volume
+// preferences: a host without the golden pulls the image for minutes for
+// every job, while a session on a full host waits or loses its processes,
+// which costs more than starting a cache volume cold.
+const sessionFreePreferenceWeight = 50
 
 // cacheVolumePreferenceWeight keeps the volume preference below the golden
 // one: a host without the image pulls it for minutes, while a host without a

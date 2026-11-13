@@ -9,14 +9,19 @@ defmodule Tuist.Sandboxes.Archives do
   or no node has disk left for a new sandbox (`make_node_room/1`), least
   recently paused
   first, its node uploads the
-  kernel, rootfs and workspace (not the memory image) through presigned
+  kernel, rootfs and workspace, with the memory image and VM state ahead of
+  them when they are current, through presigned
   multipart URLs to the in-rack store at its node's site, or to the
   account's object storage when there is none available or the store's
   sandbox archive budget is exhausted or its physical free space cannot
   safely fit the upload, and the row becomes
   `archived` with no node, and the jail is deleted. The next spawn restores
-  it on any node with room (`Tuist.Sandboxes` creates it `from_archive`)
-  and it cold boots: files survive, processes do not.
+  it on a node with room (`Tuist.Sandboxes` creates it `from_archive`). An
+  archive with memory (`archive_memory`) goes to a node with the writing
+  node's snapshot compatibility and resumes warm, its memory read from the
+  archive as the guest touches it, so the object stays until that node
+  reports `memory_loaded`; without memory, or when no such node is
+  connected, it cold boots: files survive, processes do not.
 
   Any paused sandbox can also be archived on request (`request/1`, the
   dashboard's Archive button), whatever its source or pause age.
@@ -101,6 +106,13 @@ defmodule Tuist.Sandboxes.Archives do
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
+  # A sandbox's archive also holds its memory image (at most its memory,
+  # since zero chunks are left out), its VM state and the memory index.
+  @memory_state_allowance_bytes 64 * @mib
+  # A warm restore reads memory from the archive until its node reports it
+  # all loaded; past the download URL's lifetime it can no longer read it,
+  # so a report that never arrived no longer protects the archive.
+  @memory_loading_grace_seconds 2 * 3600
   @min_part_size 32 * @mib
   @max_parts 2000
   @per_run 10
@@ -221,28 +233,70 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
+  Moves the paused sandboxes off a node CI is taking (its controller
+  allocation asks for a reclaim), any source's, so a session that comes
+  back resumes on any node with room instead of waiting for that one:
+  queues the archive of the least recently paused one. Each allocation
+  observation calls this again while the reclaim lasts, and one upload
+  runs from the node at a time, so they move one after another. Off while
+  the archive tier is.
+  """
+  def move_off_node(node_name) when is_binary(node_name) do
+    if Environment.sandbox_archive_after_hours() && not uploading_on?([node_name]) &&
+         Repo.exists?(on_nodes(archivable(idle_paused()), [node_name])) do
+      {:ok, _job} = %{node_names: [node_name], ci: true} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+    end
+
+    :ok
+  end
+
+  @doc """
+  Queues the archive of a paused sandbox whose own node refused its resume
+  for room, so a later resume restores it on any node instead of waiting
+  for that one. A resume the node admits meanwhile cancels the upload.
+  Failed uploads back off as in `run/0`. Off while the archive tier is.
+  """
+  def move_off(%Sandbox{id: id}) do
+    if Environment.sandbox_archive_after_hours() &&
+         Repo.exists?(where(archivable(idle_paused()), [s], s.id == ^id)) do
+      {:ok, _job} = %{sandbox_id: id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+    end
+
+    :ok
+  end
+
+  @doc """
   Archives the least recently paused idle Orb on the nodes, queued by
   `make_node_room/1`. With
   `disk_pressure: true`, only nodes still above the high-water mark qualify.
+  With `ci: true` (`move_off_node/1`), any paused sandbox on the nodes CI
+  still reclaims.
   """
   def archive_oldest_on(node_names, opts \\ []) when is_list(node_names) do
     # Recheck a queued pressure job: a delete or another archive may have
     # freed room since the sweep. On-demand jobs still make room unconditionally.
     node_names =
-      if opts[:disk_pressure] do
-        if Environment.sandbox_archive_after_hours() do
+      cond do
+        opts[:disk_pressure] && Environment.sandbox_archive_after_hours() ->
           for node <- pressure_nodes(), node.name in node_names, do: node.name
-        else
+
+        opts[:disk_pressure] ->
           []
-        end
-      else
-        node_names
+
+        # A reservation released meanwhile leaves the sandboxes resumable where they are.
+        opts[:ci] ->
+          Enum.filter(node_names, &Capacity.ci_reclaim?/1)
+
+        true ->
+          node_names
       end
+
+    base = if opts[:ci], do: idle_paused(), else: idle_paused_orbs()
 
     if uploading_on?(node_names) do
       {:ok, :skipped}
     else
-      archivable() |> on_nodes(node_names) |> archive_first()
+      base |> archivable() |> on_nodes(node_names) |> archive_first()
     end
   end
 
@@ -278,20 +332,23 @@ defmodule Tuist.Sandboxes.Archives do
     Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id))
   end
 
-  defp archivable do
+  defp archivable(base \\ idle_paused_orbs()) do
     retry_before = DateTime.add(now(), -@retry_after_minutes, :minute)
 
-    from s in idle_paused_orbs(),
+    from s in base,
       where:
         is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
           (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before or
              s.archive_attempted_at < s.paused_at)
   end
 
-  defp idle_paused_orbs do
+  defp idle_paused_orbs, do: where(idle_paused(), [s], not is_nil(s.amp_orb_id))
+
+  # Remote-execution rows belong to their scheduler and lease, never archived.
+  defp idle_paused do
     from(s in Sandbox,
       where:
-        s.state == :paused and s.platform == :linux and not is_nil(s.amp_orb_id) and not is_nil(s.node_name) and
+        s.state == :paused and s.platform == :linux and s.purpose == :agent and not is_nil(s.node_name) and
           is_nil(s.residency_work_id) and not is_nil(s.paused_at)
     )
   end
@@ -431,7 +488,7 @@ defmodule Tuist.Sandboxes.Archives do
   # disk snapshot) on `node` into the store `select_store/3` picks, and
   # presigns its part URLs for the node.
   defp start_upload(account, %{name: node_name} = node, subject, key) do
-    max_bytes = Capacity.disk_snapshot_ceiling_bytes(subject, node) + @kernel_allowance_bytes
+    max_bytes = Capacity.disk_snapshot_ceiling_bytes(subject, node) + @kernel_allowance_bytes + memory_allowance(subject)
     max_bytes = max_bytes + div(max_bytes, 100)
     {store, actor} = select_store(account, node_name, max_bytes)
 
@@ -450,6 +507,11 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  defp memory_allowance(%Sandbox{memory_mb: memory_mb}) when is_integer(memory_mb),
+    do: memory_mb * @mib + @memory_state_allowance_bytes
+
+  defp memory_allowance(_subject), do: 0
+
   # The archive is at most the files' sizes plus a small framing and
   # compression overhead; parts grow past the minimum so no archive needs
   # more than @max_parts presigned URLs.
@@ -463,7 +525,7 @@ defmodule Tuist.Sandboxes.Archives do
     Nodes.call(
       sandbox.node_name,
       "archive",
-      %{sandbox_id: sandbox.id, part_size: upload.part_size, part_urls: upload.urls},
+      %{sandbox_id: sandbox.id, part_size: upload.part_size, part_urls: upload.urls, memory: true},
       timeout: @archive_timeout
     )
   end
@@ -489,6 +551,7 @@ defmodule Tuist.Sandboxes.Archives do
                 archive_attempted_at: nil,
                 archive_bytes: bytes,
                 archive_sha256: sha256,
+                archive_memory: archive_memory(data),
                 archived_at: now()
               })
               |> Repo.update()
@@ -500,6 +563,7 @@ defmodule Tuist.Sandboxes.Archives do
               node: sandbox.node_name,
               archive_bytes: bytes,
               stored_bytes: data["stored_bytes"],
+              memory_bytes: data["memory_bytes"],
               disks_synced: data["disks_synced"],
               duration_ms: data["duration_ms"]
             )
@@ -562,6 +626,15 @@ defmodule Tuist.Sandboxes.Archives do
 
   # A resume, pause or delete since the upload started means the archive no
   # longer holds the sandbox's latest disks.
+  # A node that archived the memory image ahead of the disks says where the
+  # disks start; older nodes archive the disks alone.
+  defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat})
+       when is_integer(offset) and offset > 0 and is_binary(sha256) and is_binary(compat) do
+    %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat}
+  end
+
+  defp archive_memory(_data), do: nil
+
   defp unchanged?(%Sandbox{} = fresh, sandbox, upload_id) do
     fresh.state == :paused and fresh.node_name == sandbox.node_name and fresh.paused_at == sandbox.paused_at and
       fresh.residency_work_id == nil and fresh.residency_epoch == sandbox.residency_epoch and
@@ -845,11 +918,25 @@ defmodule Tuist.Sandboxes.Archives do
        when is_binary(key) and is_integer(bytes) and is_binary(sha256) do
     with {:ok, actor} <- actor(subject) do
       url = Storage.generate_download_url(key, actor, expires_in: @url_ttl_seconds)
-      {:ok, %{url: url, bytes: bytes, sha256: sha256}}
+
+      case Map.get(subject, :archive_memory) do
+        %{"tail_offset" => offset, "tail_sha256" => tail_sha256} ->
+          {:ok, %{url: url, bytes: bytes, sha256: sha256, tail_offset: offset, tail_sha256: tail_sha256}}
+
+        _ ->
+          {:ok, %{url: url, bytes: bytes, sha256: sha256}}
+      end
     end
   end
 
   defp download_source(_subject), do: {:error, :archive_missing}
+
+  @doc """
+  The snapshot compatibility a node needs to resume an archived sandbox
+  from its memory image, or nil when the archive holds only its disks.
+  """
+  def memory_compat(%Sandbox{archive_memory: %{"compat" => compat}}), do: compat
+  def memory_compat(_subject), do: nil
 
   @doc """
   Deletes the archive object of a sandbox or a disk snapshot. Answers `:ok`
@@ -872,6 +959,12 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def delete_restored(%Sandbox{state: state, archived_at: %DateTime{}} = sandbox)
       when state in [:running, :paused, :resuming] do
+    if loading_memory?(sandbox), do: :ok, else: delete_restored_object(sandbox)
+  end
+
+  def delete_restored(%Sandbox{}), do: :ok
+
+  defp delete_restored_object(sandbox) do
     case delete_object(sandbox) do
       :ok ->
         Repo.update_all(
@@ -883,6 +976,7 @@ defmodule Tuist.Sandboxes.Archives do
             archive_store: nil,
             archive_bytes: nil,
             archive_sha256: nil,
+            archive_memory: nil,
             archived_at: nil,
             archive_attempted_at: nil
           ]
@@ -900,7 +994,45 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  def delete_restored(%Sandbox{}), do: :ok
+  defp loading_memory?(%Sandbox{archive_memory: %{"loading_since" => since}}) do
+    case DateTime.from_iso8601(since) do
+      {:ok, since, _offset} -> DateTime.diff(now(), since) < @memory_loading_grace_seconds
+      _ -> false
+    end
+  end
+
+  defp loading_memory?(%Sandbox{}), do: false
+
+  @doc """
+  Marks a sandbox resumed from its archive's memory image as still reading
+  it, which keeps the archive until `memory_loaded/1`. A node may report
+  the memory loaded before its create answer arrives; then the archive
+  goes now.
+  """
+  def memory_loading(%Sandbox{archive_memory: %{"loaded" => true}} = sandbox), do: delete_restored(sandbox)
+
+  def memory_loading(%Sandbox{archive_memory: %{} = memory} = sandbox) do
+    sandbox
+    |> Sandbox.update_changeset(%{archive_memory: Map.put(memory, "loading_since", DateTime.to_iso8601(now()))})
+    |> Repo.update()
+  end
+
+  def memory_loading(%Sandbox{}), do: :ok
+
+  @doc """
+  A node reports that a warm restore holds all of its memory: the archive
+  is no longer needed.
+  """
+  def memory_loaded(%Sandbox{archive_memory: %{} = memory} = sandbox) do
+    {:ok, sandbox} =
+      sandbox
+      |> Sandbox.update_changeset(%{archive_memory: memory |> Map.delete("loading_since") |> Map.put("loaded", true)})
+      |> Repo.update()
+
+    delete_restored(sandbox)
+  end
+
+  def memory_loaded(%Sandbox{}), do: :ok
 
   defp delete_restored_archives do
     from(s in Sandbox, where: s.state in [:running, :paused, :resuming] and not is_nil(s.archived_at))

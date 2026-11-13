@@ -141,15 +141,21 @@ memory image until they cold boot.
   `cold_boot` resume. No template shape snapshot is needed, and the guest
   keeps its workspace. The first pause writes the sandbox's own memory
   image.
-- `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
-  paused with `disks_synced`, since only the disks are archived; stream
-  `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory image) as one
-  zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+- `archive {sandbox_id, part_size, part_urls, memory}`: refuse unless the
+  sandbox is paused with `disks_synced`, so a cold restore of the disks
+  alone is always possible; stream `vmlinux`, `rootfs.ext4` and
+  `workspace.ext4` as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
   header, file records with data blocks at their offsets, holes and zero
   blocks left out) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per
-  part). Answers the parts' ETags, the object's `bytes` and `sha256`,
-  `stored_bytes` and `disks_synced`. The sandbox stays paused on the node;
+  part). With `memory` and a current memory image (not `cold_boot`,
+  written by this Firecracker, and the node's snapshot compatibility known), the object
+  starts with the image's non-zero 2 MiB chunks, each a zstd frame in a
+  skippable frame, and the disk stream after them also carries the VM
+  state and the chunks' index (`internal/archive/memory.go`). Answers the
+  parts' ETags, the object's `bytes` and `sha256`, `stored_bytes` and
+  `disks_synced`, and with memory the disk stream's `tail_offset` and
+  `tail_sha256`, the node's `compat` and `memory_bytes`. The sandbox stays paused on the node;
   the server deletes it once the upload is complete. A `resume` or `delete`
   cancels an archive in flight instead of waiting for it. Transport errors
   never carry the signed URL.
@@ -172,7 +178,18 @@ memory image until they cold boot.
   (three attempts), check its size and SHA-256, extract it into a fresh
   jail (the template name and workspace size must match), then cold boot
   like a disk-snapshot clone. A failure discards the jail; the archive is
-  never touched.
+  never touched. With `tail_offset` and `tail_sha256` only the disk stream
+  is downloaded and checked; when its memory was written on a node with
+  this node's snapshot compatibility (hello `snapshot_compat`: CPU vendor,
+  family, model, stepping, name and flags, host kernel version and
+  Firecracker version) and matches the shape, the VM resumes warm from the
+  VM state with a `Uffd` memory backend: `internal/uffd` takes
+  Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
+  each first-touched page by ranged GET (checked against the index's
+  SHA-256) ahead of a two-stream fill of the rest, answers
+  `memory_pending`, and emits `memory_loaded` once every chunk is
+  installed (or a pause wrote the memory locally). A chunk that cannot be
+  fetched kills the VM. Elsewhere it cold boots the disks.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.
