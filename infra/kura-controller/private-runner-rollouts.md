@@ -29,7 +29,7 @@ lag and catch-up health remain operational checks for both.
 
 ## Private entrance
 
-The catalog sets `private: true`, `privateHost`, `ingressClassName: kura-runners`,
+The catalog sets `private: true`, `privateHost`, `ingressClassName: kura-<site>-runners`,
 `publicHostNetwork: true`, and the runner PN `clientCIDRs`. The historical
 `publicHostNetwork` field selects the shared host-network gateway mechanism;
 `private` determines which address it publishes. A private instance without a
@@ -37,7 +37,7 @@ private host retains its legacy cluster/NodePort behavior, even if an old
 `publicHost` value is present.
 
 The stable account hostname is
-`<account>-scw-fr-par-runners<environment-suffix>.kura.tuist.dev`, where the
+`<account>-<site>-runners<environment-suffix>.kura.tuist.dev`, where the
 suffix is empty, `-staging`, or `-canary`. Its A record uses a Ready gateway node's
 `tuist.dev/pn-ipv4` label, never the public Node InternalIP. Initial placement
 prefers the selected primary's node, with a deterministic fallback. A healthy

@@ -987,7 +987,7 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   The site a private region's nodes are racked at, beside that site's runner
-  pools, or `nil` for a region that serves fleets at no particular site.
+  pools. `nil` for public regions and the retired private tombstones.
   """
   def site(%__MODULE__{site: site}), do: site
   def site(_), do: nil
