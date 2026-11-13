@@ -42,6 +42,10 @@ TUIST_TEST_COVERAGE=1 ./gradlew test
 
 With coverage on, the plugin applies Gradle's `jacoco` plugin to every JVM project. JaCoCo's agent comes from your project's repositories, as it would if you applied the plugin yourself. A project that already configures JaCoCo keeps its settings, and its own reports keep working.
 
+### Sharded runs {#sharded-runs}
+
+When you <.localized_link href="/guides/features/test-sharding/gradle">shard your tests</.localized_link>, every shard that runs with coverage on reports the coverage of the tests it ran, and Tuist merges the shards of a run into one figure. A shard runs part of the suite on purpose, so it doesn't make the commit's coverage incomplete.
+
 ### Complete each commit on CI {#complete-each-commit}
 
 A commit's coverage often comes from several jobs, such as one per shard. Tuist can't tell when the last of them has reported, so tell it. Once every test job for a commit has finished, run this in a job that depends on all of them:
@@ -84,8 +88,7 @@ Some tests are left out on purpose and don't make a commit incomplete:
 - **Filters in your build script**, such as `filter { excludeTestsMatching(...) }`, which define what your suite runs.
 - **Test tasks your build script turns off**, with `enabled = false` or an `onlyIf` that skips them.
 - **Tests that <.localized_link href="/guides/features/test-insights/flaky-tests/gradle">quarantine</.localized_link> skips.** They're left out as if they had been removed, so the lines only they covered count as uncovered.
-
-When you <.localized_link href="/guides/features/test-sharding/gradle">shard your tests</.localized_link>, each shard reports the coverage of the tests it ran, and Tuist merges the shards of a run into one figure.
+- **The tests of other shards**, when you [shard your tests](#sharded-runs).
 
 ### Complete and incomplete commits {#commit-status}
 
@@ -97,6 +100,10 @@ When you <.localized_link href="/guides/features/test-sharding/gradle">shard you
 | Not measured | No run reported coverage for the commit. |
 
 A branch's trend only includes complete commits.
+
+## Performance impact {#performance-impact}
+
+JaCoCo instruments classes as the test JVM loads them, so your compiled classes and the build cache entries of compilation tasks stay the same with coverage on or off. Tasks that read every dependency configuration, such as SBOM generators, also see JaCoCo's agent, so their outputs change when you turn coverage on. Tests run a bit slower, and the plugin reads JaCoCo's data once the test tasks finish. Test tasks with coverage on and off have separate build cache entries, so the first run with coverage on executes the tests even when their results without coverage are cached.
 
 ## Limitations {#limitations}
 
