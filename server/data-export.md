@@ -134,12 +134,14 @@ objects with the last legacy release from Git history.
 
 ### GreptimeDB storage
 
-The GreptimeDB replacement uses an independent `greptimedb/` prefix in each
-environment's `tuist-pulso-<env>` bucket (staging, canary and production) for
-database-managed data and indexes, and disposable `greptimedb/ci-preflight/<run>`
-storage probes. Staging and canary use a retained 10 GiB Kubernetes PVC for local
+Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
+prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
+production) for database-managed data and indexes, and disposable
+`pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
+release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
+those objects and its PVC, and their data expires under its 7-day TTL. Staging and canary use a retained 10 GiB Kubernetes PVC for local
 WAL and standalone state. Production's cluster topology stores data under
-`greptimedb/distributed/`; its WAL lives on replicated Kafka volumes until
+`pulse/distributed/`; its WAL lives on replicated Kafka volumes until
 flushed, and its metadata in a dedicated etcd. Staging and canary
 apply a 7-day database TTL; production keeps data indefinitely. CI synthetic telemetry
 is identified by its run ID and shares the database's retention policy. The
@@ -1307,7 +1309,7 @@ snapshots are ephemeral and disappear with their request, socket, task or job.
 
 The opt-in replacement configuration routes staging operational
 metrics, pod logs and OTLP spans to the private GreptimeDB `public`
-database through the existing Pulse ingestion origins. Grafana Cloud destinations
+database through the in-cluster `pulse` Service. Grafana Cloud destinations
 remain independent and unchanged. This describes the prepared configuration, not
 proof that any environment has completed its cutover. Logs live in `opentelemetry_logs`
 (nanosecond `timestamp`, `body`, severity, trace/span IDs and JSON log/resource
@@ -1317,10 +1319,11 @@ their metric names, timestamps, values and labels. These are operational records
 not new account-owned application tables; identifiers in log bodies or attributes
 and span events can relate to a customer as described above.
 
-Staging stores its data under `tuist-pulso-staging/greptimedb/`
+Staging stores its data under `tuist-pulso-staging/pulse/`
 in Tigris and on its standalone WAL/state PVC. The deployment verifies a seven-day
 database TTL before enabling ingestion; physical object reclamation can lag
-logical expiry. Canary and production remain on Pulse. A future production
+logical expiry. Canary uses the same layout in its own bucket; production
+stores data under `pulse/distributed/`. A production
 migration must preserve its effective retention: the old configured 30/14/90-day
 log/trace/metric periods were observation-only, not enforced. Switching an
 ingestion route stops new writes to the old backend but erases neither store.

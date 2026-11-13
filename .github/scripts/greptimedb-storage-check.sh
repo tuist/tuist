@@ -3,7 +3,7 @@
 set -eu
 case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
 case "$CHECK_RUN" in ''|*[!a-zA-Z0-9-]*) exit 1 ;; esac
-prefix=greptimedb
+prefix=pulse
 bucket="tuist-pulso-$DEPLOY_ENV"
 url="https://t3.storage.dev/$bucket"
 key="$prefix/ci-preflight/$CHECK_RUN"

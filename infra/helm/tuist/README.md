@@ -90,7 +90,7 @@ missing field fails the shared server-config sync. No token is stored in chart
 values.
 
 Staging uses the Greptime reader at
-`http://greptimedb.observability.svc.cluster.local:4000`, database `public`,
+`http://pulse.observability.svc.cluster.local:4000`, database `public`,
 with stable account ID `2`, the staging `tuist` account. It uses the same
 environment-scoped `PULSE_TOKEN/password` source, authenticated as the readonly
 `dashboard` user. The managed staging overlay owns this configuration; do not

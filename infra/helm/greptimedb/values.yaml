@@ -1,4 +1,4 @@
-# Explicit managed environment. Origin replacement is independently gated.
+# Explicit managed environment.
 environment: staging
 # standalone: one StatefulSet with a local raft-engine WAL (staging/canary pilot).
 # cluster: frontends, metasrv on etcd, datanodes on a replicated Kafka WAL.
@@ -6,12 +6,13 @@ environment: staging
 topology: standalone
 dashboard:
   enabled: false
-image: docker.io/greptime/greptimedb:v1.3.0
+# Pulse, Tuist's GreptimeDB fork, built from pulse/ by pulse-release.yml.
+image: ghcr.io/tuist/pulse:1.3.0-tuist.1
 storage:
   bucket: tuist-pulso-staging
   endpoint: https://t3.storage.dev
   region: auto
-  prefix: greptimedb/
+  prefix: pulse/
 persistence:
   storageClass: hcloud-volumes
   size: 10Gi

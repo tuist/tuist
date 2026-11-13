@@ -2,14 +2,14 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: greptimedb-dashboard-auth
+  name: pulse-dashboard-auth
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: onepassword
     kind: ClusterSecretStore
   target:
-    name: greptimedb-dashboard-auth
+    name: pulse-dashboard-auth
     creationPolicy: Owner
     template:
       engineVersion: v2

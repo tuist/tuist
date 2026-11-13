@@ -9,7 +9,6 @@ on:
       - .github/scripts/greptimedb*
       - .github/scripts/pulse-readiness*
       - .github/workflows/server-deployment.yml
-      - .github/workflows/pulse-instance-deployment.yml
       - infra/helm/k8s-monitoring/values-staging.yaml
       - infra/helm/k8s-monitoring/values-canary.yaml
       - infra/helm/k8s-monitoring/values-production.yaml
@@ -25,7 +24,6 @@ on:
       - .github/scripts/greptimedb*
       - .github/scripts/pulse-readiness*
       - .github/workflows/server-deployment.yml
-      - .github/workflows/pulse-instance-deployment.yml
       - infra/helm/k8s-monitoring/values-staging.yaml
       - infra/helm/k8s-monitoring/values-canary.yaml
       - infra/helm/k8s-monitoring/values-production.yaml
@@ -51,8 +49,8 @@ on:
         description: Staging only. Also report non-secret account enrollment and serving images during backend qualification
         type: boolean
         default: false
-      uninstall_pulse:
-        description: Only uninstall the old pulse release once no collector writes to it (keeps Greptime and bucket objects)
+      uninstall_greptimedb:
+        description: Only uninstall the old greptimedb release that Pulse replaces (keeps its PVCs and bucket objects)
         type: boolean
         default: false
 
@@ -102,7 +100,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && !inputs.uninstall_pulse
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && !inputs.uninstall_greptimedb
     needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
@@ -115,8 +113,8 @@ jobs:
       DEPLOY_ENV: ${{ inputs.environment }}
       DASHBOARD_ENABLED: ${{ inputs.dashboard }}
       KUBECONFIG: ${{ github.workspace }}/.kube/greptimedb-config
-      STORAGE_POD: greptimedb-storage-${{ github.run_id }}-${{ github.run_attempt }}
-      SMOKE_POD: greptimedb-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      STORAGE_POD: pulse-storage-${{ github.run_id }}-${{ github.run_attempt }}
+      SMOKE_POD: pulse-smoke-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,7 +145,7 @@ jobs:
           fi
           values=()
           if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          helm template greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" -n observability \
+          helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability \
             "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" > "$dir/rendered.yaml"
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
@@ -184,7 +182,7 @@ jobs:
               pulse_reader_available: Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4),
               greptime_adapter_available: Code.ensure_loaded?(Tuist.Pulse.Greptime),
               greptime_backend: Keyword.get(config, :backend, :pulse) == :greptime,
-              expected_endpoint: Keyword.get(config, :base_url) == "http://greptimedb.observability.svc.cluster.local:4000",
+              expected_endpoint: Keyword.get(config, :base_url) == "http://pulse.observability.svc.cluster.local:4000",
               expected_database: Keyword.get(config, :tenant) == "public",
               pulse_flag: FunWithFlags.enabled?(:pulse, for: account)
             }))' > "$inspection.out" 2> "$inspection.err"; then
@@ -211,7 +209,7 @@ jobs:
           kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
           # Collectors authenticate with the dashboard Secret's ingest identity.
           if [[ "$DASHBOARD_ENABLED" != true ]] &&
-            kubectl -n observability get externalsecret greptimedb-dashboard-auth > /dev/null 2>&1; then
+            kubectl -n observability get externalsecret pulse-dashboard-auth > /dev/null 2>&1; then
             echo '::error::Cannot remove the identities collectors and readers use.'
             exit 1
           fi
@@ -220,23 +218,23 @@ jobs:
             case "$kind" in ConfigMap|Service|StatefulSet|Deployment|PodDisruptionBudget|ExternalSecret|NetworkPolicy) ;; *) exit 1 ;; esac
             existing=$(kubectl -n observability get "$kind" "$name" --ignore-not-found \
               -o 'jsonpath={.metadata.name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-namespace}{"\t"}{.metadata.labels.app\.kubernetes\.io/managed-by}')
-            if [[ -n "$existing" && "$existing" != "$(printf '%s\tgreptimedb\tobservability\tHelm' "$name")" ]]; then
-              echo "::error::GreptimeDB resource ownership conflict: $kind/$name"
+            if [[ -n "$existing" && "$existing" != "$(printf '%s\tpulse\tobservability\tHelm' "$name")" ]]; then
+              echo "::error::Pulse resource ownership conflict: $kind/$name"
               exit 1
             fi
           done < "$dir/resources.tsv"
           kubectl -n observability get externalsecrets -o json | jq -e '
-            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-credentials" or
-              .metadata.name == "greptimedb-credentials") and
-            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-dashboard-auth" or
-              .metadata.name == "greptimedb-dashboard-auth") and
-            all(.items[]; (.spec.target.name // .metadata.name) != "greptimedb-auth")' > /dev/null
+            all(.items[]; (.spec.target.name // .metadata.name) != "pulse-credentials" or
+              .metadata.name == "pulse-credentials") and
+            all(.items[]; (.spec.target.name // .metadata.name) != "pulse-dashboard-auth" or
+              .metadata.name == "pulse-dashboard-auth") and
+            all(.items[]; (.spec.target.name // .metadata.name) != "pulse-auth")' > /dev/null
           # Helm would delete the other topology's workloads (their PVCs are
           # retained). Moving between topologies is a separate migration.
-          if jq -e 'any(.[]; .metadata.name == "greptimedb-datanode")' "$dir/resources.json" > /dev/null; then
-            topology=cluster; other=statefulset/greptimedb
+          if jq -e 'any(.[]; .metadata.name == "pulse-datanode")' "$dir/resources.json" > /dev/null; then
+            topology=cluster; other=statefulset/pulse
           else
-            topology=standalone; other=statefulset/greptimedb-datanode
+            topology=standalone; other=statefulset/pulse-datanode
           fi
           if [[ -n "$(kubectl -n observability get "$other" --ignore-not-found -o name)" ]]; then
             echo "::error::Refusing to replace an existing $other with the $topology topology in place."
@@ -255,10 +253,9 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
           # The probe gets its own run-scoped copy of the chart's storage keys.
-          # pulse-credentials goes away with the old pulse release, and a live
-          # greptimedb-credentials may be missing or rendered by an older chart.
+          # It must work before the first install, when pulse-credentials is missing.
           jq -e --arg name "$STORAGE_POD" '
-            [.[] | select(.kind == "ExternalSecret" and .metadata.name == "greptimedb-credentials")] |
+            [.[] | select(.kind == "ExternalSecret" and .metadata.name == "pulse-credentials")] |
             select(length == 1) | .[0] |
             select([.spec.data[].secretKey] == ["accessKey", "secretKey"]) |
             {apiVersion, kind, metadata:{name:$name, namespace:"observability"}, spec:{
@@ -280,7 +277,7 @@ jobs:
                 volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
                 resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"64Mi"}},
                 envFrom:[{secretRef:{name:$name}}],
-                env:[{name:"DEPLOY_ENV",value:$environment},{name:"STORAGE_PREFIX",value:"greptimedb"},
+                env:[{name:"DEPLOY_ENV",value:$environment},{name:"STORAGE_PREFIX",value:"pulse"},
                   {name:"CHECK_RUN",value:$run}]
               }]}}
           ' > "$RUNNER_TEMP/greptimedb-deploy/storage.json"
@@ -303,8 +300,8 @@ jobs:
           umask 077
           dir="$RUNNER_TEMP/greptimedb-deploy"
           printf 'pilot=%s\n' "$(openssl rand -hex 32)" > "$dir/passwd"
-          if ! kubectl -n observability create secret generic greptimedb-auth --from-file=passwd="$dir/passwd" > "$dir/auth.log" 2>&1; then
-            grep -q 'secrets "greptimedb-auth" already exists' "$dir/auth.log"
+          if ! kubectl -n observability create secret generic pulse-auth --from-file=passwd="$dir/passwd" > "$dir/auth.log" 2>&1; then
+            grep -q 'secrets "pulse-auth" already exists' "$dir/auth.log"
           fi
           rm -f "$dir/passwd" "$dir/auth.log"
       - name: Install private backend, retaining state on failure
@@ -313,16 +310,16 @@ jobs:
           dir="$RUNNER_TEMP/greptimedb-deploy"
           values=()
           if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          if ! helm upgrade --install greptimedb "$dir/tuist-greptimedb-0.1.0.tgz" \
+          if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" \
             "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
             -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
-            echo '::error::GreptimeDB rollout failed; state retained for diagnosis.'
+            echo '::error::Pulse rollout failed; state retained for diagnosis.'
             exit 1
           fi
-          kubectl -n observability wait --for=condition=Ready externalsecret/greptimedb-credentials --timeout=60s
+          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
           if [[ "$DASHBOARD_ENABLED" == true ]]; then
-            kubectl -n observability wait --for=condition=Ready externalsecret/greptimedb-dashboard-auth --timeout=60s
+            kubectl -n observability wait --for=condition=Ready externalsecret/pulse-dashboard-auth --timeout=60s
           fi
       - name: Require OTLP metrics, error logs and traces, then reread after restart without rewriting
         run: |
@@ -334,14 +331,14 @@ jobs:
               restartPolicy:"Never",activeDeadlineSeconds:180,automountServiceAccountToken:false,
               nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
               securityContext:{runAsNonRoot:true,runAsUser:1000,fsGroup:1000,seccompProfile:{type:"RuntimeDefault"}},
-              volumes:([{name:"auth",secret:{secretName:"greptimedb-auth",defaultMode:288}}] +
-                if $dashboard == "true" then [{name:"dashboard",secret:{secretName:"greptimedb-dashboard-auth",defaultMode:288}}] else [] end),
+              volumes:([{name:"auth",secret:{secretName:"pulse-auth",defaultMode:288}}] +
+                if $dashboard == "true" then [{name:"dashboard",secret:{secretName:"pulse-dashboard-auth",defaultMode:288}}] else [] end),
               containers:[{name:"probe",image:"node:22.14.0-alpine3.21",command:["node","--input-type=module","-e",$script],
                 securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
                 volumeMounts:([{name:"auth",mountPath:"/auth",readOnly:true}] +
                   if $dashboard == "true" then [{name:"dashboard",mountPath:"/dashboard",readOnly:true}] else [] end),
                 resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"128Mi"}},
-                env:[{name:"GREPTIMEDB_URL",value:"http://greptimedb.observability:4000"},{name:"DEPLOY_ENV",value:$environment},
+                env:[{name:"GREPTIMEDB_URL",value:"http://pulse.observability:4000"},{name:"DEPLOY_ENV",value:$environment},
                   {name:"SMOKE_RUN",value:$run},{name:"GREPTIMEDB_AUTH_FILE",value:"/auth/passwd"}] +
                   if $dashboard == "true" then [{name:"GREPTIMEDB_DASHBOARD_AUTH_FILE",value:"/dashboard/passwd"}] else [] end
               }]}}
@@ -353,10 +350,10 @@ jobs:
           kubectl -n observability logs "$SMOKE_POD"
           kubectl -n observability delete pod "$SMOKE_POD" --wait=true --timeout=30s > /dev/null
           # Reread after restarting every stateful process that held the data.
-          if kubectl -n observability get statefulset greptimedb-datanode > /dev/null 2>&1; then
-            workloads=(statefulset/greptimedb-datanode deployment/greptimedb-frontend)
+          if kubectl -n observability get statefulset pulse-datanode > /dev/null 2>&1; then
+            workloads=(statefulset/pulse-datanode deployment/pulse-frontend)
           else
-            workloads=(statefulset/greptimedb)
+            workloads=(statefulset/pulse)
           fi
           for workload in "${workloads[@]}"; do
             kubectl -n observability rollout restart "$workload"
@@ -394,7 +391,7 @@ jobs:
       - name: Sanitized failure diagnostics
         if: failure()
         run: |
-          kubectl -n observability get pods -l app.kubernetes.io/instance=greptimedb \
+          kubectl -n observability get pods -l app.kubernetes.io/instance=pulse \
             -o custom-columns=NAME:.metadata.name,PHASE:.status.phase --no-headers || true
       - name: Remove disposable probes and CI-local files only
         if: always()
@@ -406,8 +403,8 @@ jobs:
             kubectl -n observability delete externalsecret "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
           fi
 
-  uninstall-pulse:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.uninstall_pulse
+  uninstall-greptimedb:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.uninstall_greptimedb
     needs: validate
     runs-on: tuist-linux
     timeout-minutes: 15
@@ -417,7 +414,7 @@ jobs:
       cancel-in-progress: false
     env:
       DEPLOY_ENV: ${{ inputs.environment }}
-      KUBECONFIG: ${{ github.workspace }}/.kube/pulse-uninstall-config
+      KUBECONFIG: ${{ github.workspace }}/.kube/greptimedb-uninstall-config
     steps:
       - uses: actions/checkout@v4
         with:
@@ -437,45 +434,48 @@ jobs:
           umask 077
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
-      - name: Uninstall the old pulse release once no collector writes to it
+      - name: Uninstall the old greptimedb release, keeping its volumes
         run: |
           set -euo pipefail
           case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
           # --keep-history leaves an "uninstalled" record that helm status still reports.
-          status=$(helm status pulse -n observability -o json 2>/dev/null | jq -r '.info.status') || status=
+          status=$(helm status greptimedb -n observability -o json 2>/dev/null | jq -r '.info.status') || status=
           if [[ -z "$status" || "$status" == uninstalled ]]; then
-            echo 'PASS: no pulse release to uninstall'
+            echo 'PASS: no greptimedb release to uninstall'
           else
-            # Collectors stop writing to Pulse in an earlier server deploy. Alloy
-            # fails its whole config load, Grafana Cloud included, when a Secret
-            # it references is missing, so refuse while anything still does.
-            if grep -Eq 'pulse\.observability|pulse-credentials' "infra/helm/k8s-monitoring/values-$DEPLOY_ENV.yaml"; then
-              echo '::error::k8s-monitoring still sends to Pulse in this environment; land the collector change first.'
+            # Alloy fails its whole config load, Grafana Cloud included, when a
+            # Secret it references is missing, and a pod cannot start without a
+            # Secret it mounts, so refuse while anything outside the release does.
+            if grep -Eq 'greptimedb\.observability|greptimedb-(dashboard-auth|credentials|auth)' "infra/helm/k8s-monitoring/values-$DEPLOY_ENV.yaml"; then
+              echo '::error::k8s-monitoring still sends to the greptimedb release in this environment.'
               exit 1
             fi
             if kubectl -n observability get configmaps -o json | jq -e '
               any(.items[] | select(.metadata.name | startswith("k8s-monitoring")) | (.data // {})[];
-                test("pulse\\.observability|pulse-credentials"))' > /dev/null; then
-              echo '::error::Live collectors still send to Pulse; deploy the server to this environment first.'
+                test("greptimedb\\.observability|greptimedb-(dashboard-auth|credentials|auth)"))' > /dev/null; then
+              echo '::error::Live collectors still send to the greptimedb release; deploy the server to this environment first.'
               exit 1
             fi
-            if kubectl -n observability get pods -o json | jq -e '
-              any(.items[] | select(.metadata.labels["app.kubernetes.io/instance"] != "pulse");
+            if kubectl get pods -A -o json | jq -e '
+              any(.items[] | select(.metadata.labels["app.kubernetes.io/instance"] != "greptimedb");
                 [.spec.volumes[]?.secret.secretName, .spec.volumes[]?.projected.sources[]?.secret.name,
                   ((.spec.initContainers // [], .spec.containers)[] | .envFrom[]?.secretRef.name, .env[]?.valueFrom.secretKeyRef.name)] |
-                index("pulse-credentials") != null)' > /dev/null; then
-              echo '::error::A pod outside the pulse release still mounts pulse-credentials.'
+                any(.[]; . == "greptimedb-credentials" or . == "greptimedb-dashboard-auth"))' > /dev/null; then
+              echo '::error::A pod outside the greptimedb release still mounts its Secrets.'
               exit 1
             fi
-            helm history pulse -n observability -o json | jq -r '
+            pvcs() { kubectl -n observability get pvc -o name | { grep -E '/data-greptimedb' || true; } | sort; }
+            pvcs > "$RUNNER_TEMP/greptimedb-pvcs"
+            helm history greptimedb -n observability -o json | jq -r '
               .[] | select(.status == "deployed") |
-              "Uninstalled pulse revision \(.revision), chart \(.chart); history kept for helm rollback."' | tee -a "$GITHUB_STEP_SUMMARY"
-            # The release owns no volumes; Greptime's PVCs and bucket objects are untouched.
-            helm uninstall pulse -n observability --keep-history --wait --timeout 5m
+              "Uninstalled greptimedb revision \(.revision), chart \(.chart); history kept for helm rollback."' | tee -a "$GITHUB_STEP_SUMMARY"
+            # Helm never deletes StatefulSet volume claims; check they survive.
+            helm uninstall greptimedb -n observability --keep-history --wait --timeout 5m
+            pvcs | cmp - "$RUNNER_TEMP/greptimedb-pvcs"
+            sed 's/^/Kept /' "$RUNNER_TEMP/greptimedb-pvcs" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-          [[ -z "$(kubectl -n observability get deployment,service,ingress pulse --ignore-not-found -o name)" ]]
-          [[ -z "$(kubectl -n observability get externalsecret pulse-credentials --ignore-not-found -o name)" ]]
-          # Grafana Cloud collection must keep running without Pulse.
+          [[ -z "$(kubectl -n observability get statefulset,deployment,service greptimedb greptimedb-datanode greptimedb-frontend --ignore-not-found -o name)" ]]
+          # Grafana Cloud collection must keep running without it.
           for workload in $(kubectl -n observability get deployment,statefulset,daemonset -o name | grep '/k8s-monitoring-'); do
             kubectl -n observability rollout status "$workload" --timeout=180s
           done

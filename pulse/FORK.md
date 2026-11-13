@@ -4,8 +4,7 @@ Pulse is the observability backend in Tuist's clusters. Since November 2026 it i
 a fork of [GreptimeDB](https://github.com/GreptimeTeam/greptimedb); before that it
 was a separate Elixir application, which is in this directory's history before
 the import commit. The code keeps GreptimeDB's names; Tuist publishes it as
-`ghcr.io/tuist/pulse`. Deployments still run the upstream v1.3.0 image until
-they are pinned to a fork release (see below).
+`ghcr.io/tuist/pulse`, and clusters deploy it as the `pulse` release.
 
 ## Upstream base
 
@@ -85,14 +84,13 @@ line under its license header, or a `Tuist:` comment at the change.
   `docker/buildx/ubuntu/Dockerfile` and release profile (`nightly`), without
   the embedded web dashboard (`servers/dashboard`).
 - Publishing deploys nothing. In each cluster's `observability` namespace the
-  `greptimedb` release ([`infra/helm/greptimedb`](../infra/helm/greptimedb))
-  runs the image pinned in its `values.yaml`, and collectors write to it
-  directly. `greptimedb-deployment.yml` rolls it out when dispatched. Until a
-  fork image is pinned, deployments run upstream v1.3.0 without the nesting
-  limits, so any authenticated reader can crash them. Moving to a new image means pinning it by digest in
-  `values.yaml`, in `.github/scripts/pulse-readiness.sh` (the gate every server
-  deploy runs) and its test, and in `infra/helm/greptimedb/test-managed.sh`, in
-  one change.
+  `pulse` release ([`infra/helm/greptimedb`](../infra/helm/greptimedb), Service
+  `pulse`) runs the fork release pinned in its `values.yaml`, and collectors
+  write to it directly. `greptimedb-deployment.yml` rolls it out when
+  dispatched. Moving to a new release means changing that pin and the one in
+  `infra/helm/greptimedb/test-managed.sh`, then dispatching the deployment.
+  `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
+  accepts any `ghcr.io/tuist/pulse:<version>-tuist.<n>` image.
 
 ## Moving to a newer upstream version
 

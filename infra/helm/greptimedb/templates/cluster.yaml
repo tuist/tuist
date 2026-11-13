@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: greptimedb-metasrv-config
+  name: pulse-metasrv-config
 data:
   config.toml: |
     {{- include "greptimedb.metasrvConfig" . | nindent 4 }}
@@ -11,7 +11,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: greptimedb-datanode-config
+  name: pulse-datanode-config
 data:
   config.toml: |
     {{- include "greptimedb.datanodeConfig" . | nindent 4 }}
@@ -19,7 +19,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: greptimedb-frontend-config
+  name: pulse-frontend-config
 data:
   config.toml: |
     {{- include "greptimedb.frontendConfig" . | nindent 4 }}
@@ -27,7 +27,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: greptimedb-kafka-config
+  name: pulse-kafka-config
 data:
   # Per-broker node.id and advertised.listeners are appended at start.
   server.properties: |
@@ -38,14 +38,14 @@ data:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: greptimedb-credentials
+  name: pulse-credentials
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: onepassword
     kind: ClusterSecretStore
   target:
-    name: greptimedb-credentials
+    name: pulse-credentials
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -60,15 +60,15 @@ spec:
       remoteRef:
         key: PULSE_S3_CREDENTIALS/secret_access_key
 ---
-# Readers keep http://greptimedb.observability.svc.cluster.local:4000.
+# Readers keep http://pulse.observability.svc.cluster.local:4000.
 apiVersion: v1
 kind: Service
 metadata:
-  name: greptimedb
+  name: pulse
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/instance: greptimedb
+    app.kubernetes.io/instance: pulse
     app.kubernetes.io/component: frontend
   ports:
     - name: http
@@ -78,11 +78,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: greptimedb-metasrv
+  name: pulse-metasrv
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/instance: greptimedb
+    app.kubernetes.io/instance: pulse
     app.kubernetes.io/component: metasrv
   ports:
     - {name: grpc, port: 3002, targetPort: grpc}
@@ -92,12 +92,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: greptimedb-{{ $component }}
+  name: pulse-{{ $component }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    app.kubernetes.io/instance: greptimedb
+    app.kubernetes.io/instance: pulse
     app.kubernetes.io/component: {{ $component }}
   ports:
     {{- if eq $component "etcd" }}
@@ -115,21 +115,21 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: greptimedb-{{ $component }}
+  name: pulse-{{ $component }}
 spec:
   maxUnavailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: {{ $component }}
 {{- end }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: greptimedb-etcd
+  name: pulse-etcd
 spec:
-  serviceName: greptimedb-etcd
+  serviceName: pulse-etcd
   replicas: 3
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
@@ -137,12 +137,12 @@ spec:
     whenScaled: Retain
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: etcd
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: etcd
     spec:
       automountServiceAccountToken: false
@@ -159,12 +159,12 @@ spec:
             - --name=$(POD_NAME)
             - --data-dir=/var/lib/etcd/data
             - --listen-client-urls=http://0.0.0.0:2379
-            - --advertise-client-urls=http://$(POD_NAME).greptimedb-etcd.observability.svc.cluster.local:2379
+            - --advertise-client-urls=http://$(POD_NAME).pulse-etcd.observability.svc.cluster.local:2379
             - --listen-peer-urls=http://0.0.0.0:2380
-            - --initial-advertise-peer-urls=http://$(POD_NAME).greptimedb-etcd.observability.svc.cluster.local:2380
-            - --initial-cluster=greptimedb-etcd-0=http://greptimedb-etcd-0.greptimedb-etcd.observability.svc.cluster.local:2380,greptimedb-etcd-1=http://greptimedb-etcd-1.greptimedb-etcd.observability.svc.cluster.local:2380,greptimedb-etcd-2=http://greptimedb-etcd-2.greptimedb-etcd.observability.svc.cluster.local:2380
+            - --initial-advertise-peer-urls=http://$(POD_NAME).pulse-etcd.observability.svc.cluster.local:2380
+            - --initial-cluster=pulse-etcd-0=http://pulse-etcd-0.pulse-etcd.observability.svc.cluster.local:2380,pulse-etcd-1=http://pulse-etcd-1.pulse-etcd.observability.svc.cluster.local:2380,pulse-etcd-2=http://pulse-etcd-2.pulse-etcd.observability.svc.cluster.local:2380
             - --initial-cluster-state=new
-            - --initial-cluster-token=greptimedb-etcd-{{ .Values.environment }}
+            - --initial-cluster-token=pulse-etcd-{{ .Values.environment }}
             - --auto-compaction-mode=periodic
             - --auto-compaction-retention=1h
             - --quota-backend-bytes=4294967296
@@ -196,9 +196,9 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: greptimedb-kafka
+  name: pulse-kafka
 spec:
-  serviceName: greptimedb-kafka
+  serviceName: pulse-kafka
   replicas: 3
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
@@ -206,12 +206,12 @@ spec:
     whenScaled: Retain
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: kafka
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: kafka
       annotations:
         checksum/config: {{ printf "%s\n%s" (include "greptimedb.kafkaServerProperties" .) (include "greptimedb.kafkaLog4j" .) | sha256sum | trunc 16 }}
@@ -230,7 +230,7 @@ spec:
             - |
               config=/tmp/server.properties
               cp /etc/kafka-config/server.properties "$config"
-              printf 'node.id=%s\nadvertised.listeners=PLAINTEXT://%s.greptimedb-kafka.observability.svc.cluster.local:9092\n' \
+              printf 'node.id=%s\nadvertised.listeners=PLAINTEXT://%s.pulse-kafka.observability.svc.cluster.local:9092\n' \
                 "$POD_INDEX" "$POD_NAME" >> "$config"
               /opt/kafka/bin/kafka-storage.sh format --ignore-formatted --cluster-id "$CLUSTER_ID" --config "$config"
               exec /opt/kafka/bin/kafka-server-start.sh "$config"
@@ -261,7 +261,7 @@ spec:
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
-          configMap: {name: greptimedb-kafka-config}
+          configMap: {name: pulse-kafka-config}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
   volumeClaimTemplates:
@@ -277,19 +277,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: greptimedb-metasrv
+  name: pulse-metasrv
 spec:
   replicas: 3
   strategy:
     rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: metasrv
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: metasrv
       annotations:
         checksum/config: {{ include "greptimedb.metasrvConfig" . | sha256sum | trunc 16 }}
@@ -322,16 +322,16 @@ spec:
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
-          configMap: {name: greptimedb-metasrv-config}
+          configMap: {name: pulse-metasrv-config}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: greptimedb-datanode
+  name: pulse-datanode
 spec:
-  serviceName: greptimedb-datanode
+  serviceName: pulse-datanode
   replicas: {{ .Values.cluster.datanode.replicas }}
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
@@ -339,12 +339,12 @@ spec:
     whenScaled: Retain
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: datanode
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: datanode
       annotations:
         checksum/config: {{ include "greptimedb.datanodeConfig" . | sha256sum | trunc 16 }}
@@ -366,7 +366,7 @@ spec:
             - --node-id
             - $(POD_INDEX)
             - --grpc-server-addr
-            - $(POD_NAME).greptimedb-datanode.observability.svc.cluster.local:3001
+            - $(POD_NAME).pulse-datanode.observability.svc.cluster.local:3001
           env:
             - name: POD_NAME
               valueFrom: {fieldRef: {fieldPath: metadata.name}}
@@ -374,7 +374,7 @@ spec:
               valueFrom: {fieldRef: {fieldPath: "metadata.labels['apps.kubernetes.io/pod-index']"}}
           envFrom:
             - secretRef:
-                name: greptimedb-credentials
+                name: pulse-credentials
           ports:
             - {name: grpc, containerPort: 3001}
             - {name: http, containerPort: 4000}
@@ -395,7 +395,7 @@ spec:
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
-          configMap: {name: greptimedb-datanode-config}
+          configMap: {name: pulse-datanode-config}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
   volumeClaimTemplates:
@@ -411,19 +411,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: greptimedb-frontend
+  name: pulse-frontend
 spec:
   replicas: {{ .Values.cluster.frontend.replicas }}
   strategy:
     rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: frontend
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: frontend
       annotations:
         checksum/config: {{ include "greptimedb.frontendConfig" . | sha256sum | trunc 16 }}
@@ -458,7 +458,7 @@ spec:
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
-          configMap: {name: greptimedb-frontend-config}
+          configMap: {name: pulse-frontend-config}
         {{- include "greptimedb.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
@@ -467,26 +467,26 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: greptimedb-internal
+  name: pulse-internal
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/instance: greptimedb
+              app.kubernetes.io/instance: pulse
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: greptimedb-private
+  name: pulse-private
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
       app.kubernetes.io/component: frontend
   policyTypes: [Ingress]
   ingress:

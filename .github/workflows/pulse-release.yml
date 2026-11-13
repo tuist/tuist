@@ -4,9 +4,9 @@ name: Pulse Release
 # tagged pulse@<version>. Versions are the upstream version the fork is based on
 # plus a fork revision, such as 1.3.0-tuist.1.
 #
-# This only publishes. Nothing deploys a release: the Greptime backend runs the
-# image pinned in infra/helm/greptimedb/values.yaml, and greptimedb-deployment.yml
-# rolls it out on dispatch.
+# This only publishes. Nothing deploys a release: the clusters' pulse release
+# runs the image pinned in infra/helm/greptimedb/values.yaml, and
+# greptimedb-deployment.yml rolls it out on dispatch.
 on:
   push:
     branches: [main]

@@ -191,7 +191,7 @@ server:
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "2"
     - name: TUIST_PULSE_URL
-      value: http://greptimedb.observability.svc.cluster.local:4000
+      value: http://pulse.observability.svc.cluster.local:4000
     - name: TUIST_PULSE_TENANT
       value: public
     - name: TUIST_KURA_AVAILABLE_REGIONS
