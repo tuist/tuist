@@ -888,7 +888,9 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  diskGiB: 50
+  # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
+  # checkout workspaces, on the runner node's ~410 GiB data disk.
+  diskGiB: 100
   checkoutWorkspacesGiB: 10
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.

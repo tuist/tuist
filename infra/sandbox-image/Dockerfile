@@ -39,9 +39,6 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # release's SHASUMS256.txt.
 ARG TUIST_VERSION=4.218.0-canary.28
 ARG TUIST_SHA256=7caf26caba2eca7d94c73149a0c45b53641aca8b3230c5ad8be7cab4234686c0
-# agent-browser's Chrome and libraries take about 1 GiB, and a project's
-# .agents/setup fills home (mise, caches) on this same filesystem.
-ARG ROOTFS_SIZE=12G
 ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
@@ -223,22 +220,26 @@ RUN mkdir -p /out \
     && curl -fsSL --retry 3 -o /out/vmlinux.config "${KERNEL_URL}.config" \
     && if [ -n "${KERNEL_SHA256}" ]; then echo "${KERNEL_SHA256}  /out/vmlinux" | sha256sum -c -; fi
 COPY --from=guest / /rootfs
-ARG ROOTFS_SIZE
 # /etc/hostname, hosts and resolv.conf are bind mounts inside a build
 # container, so their defaults are seeded here where they are plain files.
 # sbx-init rewrites all three at boot.
+# The filesystem is sized to its contents plus room for ext4's own metadata,
+# not to what a guest gets: the image layer carries the file dense, so every
+# GiB here would cost every node's image store. install-template.sh grows it
+# to ROOTFS_SIZE on the node.
 RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootfs/workspace /rootfs/mnt/memory \
     && rm -f /rootfs/etc/resolv.conf \
     && echo sandbox > /rootfs/etc/hostname \
     && printf '127.0.0.1\tlocalhost\n127.0.1.1\tsandbox\n::1\tlocalhost ip6-localhost ip6-loopback\n' > /rootfs/etc/hosts \
-    && truncate -s "${ROOTFS_SIZE}" /out/rootfs.ext4 \
+    && used_mib="$(du -sxm /rootfs | cut -f1)" \
+    && truncate -s "$((used_mib + used_mib / 4 + 1024))M" /out/rootfs.ext4 \
     && mkfs.ext4 -q -F -L rootfs -d /rootfs -E lazy_itable_init=0,lazy_journal_init=0 /out/rootfs.ext4 \
     && kernel="$(basename "${KERNEL_URL}")" && kernel="${kernel#vmlinux-}" \
     && runner_uid="$(awk -F: '$1 == "user" { print $3 }' /rootfs/etc/passwd)" \
     && runner_gid="$(awk -F: '$1 == "user" { print $4 }' /rootfs/etc/passwd)" \
     && test -n "${runner_uid}" && test -n "${runner_gid}" \
-    && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s,"runner_uid":%s,"runner_gid":%s}\n' \
-        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
+    && printf '{"name":"default","kernel":"%s","built_at":"%s","runner_uid":%s,"runner_gid":%s}\n' \
+        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
 
 # Build with --target execution-gateway for the stateless public REAPI service.
@@ -249,10 +250,11 @@ USER 65534:65534
 EXPOSE 50051
 ENTRYPOINT ["/usr/local/bin/reapi-gateway"]
 
-# GNU coreutils for cp --sparse=always: busybox's cp cannot keep holes, and
-# a dense copy of the rootfs would cost every node the full 12 GiB.
+# GNU coreutils for cp --sparse=always and truncate (busybox's cp cannot keep
+# holes, and a dense copy would cost every node the full rootfs), e2fsck and
+# resize2fs to grow the rootfs to ROOTFS_SIZE.
 FROM alpine:3.21
-RUN apk add --no-cache coreutils
+RUN apk add --no-cache coreutils e2fsprogs e2fsprogs-extra
 COPY --from=rootfs /out /template
 COPY install-template.sh /install-template.sh
 ENTRYPOINT ["/install-template.sh"]

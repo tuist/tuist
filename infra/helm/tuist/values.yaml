@@ -2721,8 +2721,8 @@ sandboxes:
   # workspace_gb, memory image), so the server reserves each sandbox's
   # ceiling (template rootfs + workspace + memory) at placement, running or
   # paused, and stops placing on a node whose ceilings would exceed this.
-  # A default 2x4096 sandbox with a 10 GB workspace on a 12 GiB rootfs
-  # reserves about 26 GiB. The server also keeps one memory image plus
+  # A default 2x4096 sandbox with a 10 GB workspace on a 20 GiB rootfs
+  # reserves about 34 GiB. The server also keeps one memory image plus
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
@@ -2732,6 +2732,13 @@ sandboxes:
   # copying the tree into the guest. The images come out of diskGiB. 0 turns
   # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
   checkoutWorkspacesGiB: 0
+  # Size of the root filesystem every sandbox gets, which holds home (mise
+  # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
+  # The template's init container grows the image to it, sparse, when it
+  # installs a template version, so a change applies from the next template
+  # tag on; sandboxes keep the rootfs they were created with. Each GiB is
+  # reserved against diskGiB by every sandbox on the node.
+  rootfsGiB: 20
   # Hours an Amp Orb stays paused on its node before the server archives its
   # kernel, rootfs and workspace (not its memory image) to the account's
   # object storage and deletes the node copy, releasing its disk reservation.
