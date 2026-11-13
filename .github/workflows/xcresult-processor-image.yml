@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    runs-on: [self-hosted, macos, bare-metal, macos-27]
     timeout-minutes: 150
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
