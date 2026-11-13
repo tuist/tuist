@@ -551,7 +551,7 @@ defmodule Tuist.Sandboxes.Archives do
                 archive_attempted_at: nil,
                 archive_bytes: bytes,
                 archive_sha256: sha256,
-                archive_memory: archive_memory(data),
+                archive_memory: archive_memory(data, fresh.node_name),
                 archived_at: now()
               })
               |> Repo.update()
@@ -628,12 +628,13 @@ defmodule Tuist.Sandboxes.Archives do
   # longer holds the sandbox's latest disks.
   # A node that archived the memory image ahead of the disks says where the
   # disks start; older nodes archive the disks alone.
-  defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat})
+  # `node` is the node it was archived from, which a warm restore avoids.
+  defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat}, node)
        when is_integer(offset) and offset > 0 and is_binary(sha256) and is_binary(compat) do
-    %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat}
+    %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat, "node" => node}
   end
 
-  defp archive_memory(_data), do: nil
+  defp archive_memory(_data, _node), do: nil
 
   defp unchanged?(%Sandbox{} = fresh, sandbox, upload_id) do
     fresh.state == :paused and fresh.node_name == sandbox.node_name and fresh.paused_at == sandbox.paused_at and
@@ -937,6 +938,15 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def memory_compat(%Sandbox{archive_memory: %{"compat" => compat}}), do: compat
   def memory_compat(_subject), do: nil
+
+  @doc """
+  The node an archive with memory was written from, as a list for
+  `Capacity.place/3`'s `avoid:`: the node was archived off because it was
+  short of room, refused a resume, or CI took it, so a restore goes there
+  only when no other node of its kind can take it.
+  """
+  def origin_nodes(%Sandbox{archive_memory: %{"node" => node}}) when is_binary(node), do: [node]
+  def origin_nodes(_subject), do: []
 
   @doc """
   Deletes the archive object of a sandbox or a disk snapshot. Answers `:ok`

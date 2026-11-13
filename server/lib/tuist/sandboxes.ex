@@ -827,8 +827,9 @@ defmodule Tuist.Sandboxes do
   # network, so only nodes at that site can download it. `archive` is the
   # sandbox itself, or the disk snapshot it is created from. An archive with
   # a memory image resumes warm only on a node whose snapshot compatibility
-  # matches the one that wrote it, so it waits for room on those; only when
-  # none is connected does it cold boot its disks on another.
+  # matches the one that wrote it, so it waits for room on those, taking the
+  # node it was archived from only when no other can; only when none is
+  # connected does it cold boot its disks on another.
   defp place_restore(sandbox, archive \\ nil) do
     site = Archives.restore_site(archive || sandbox)
     on_site = if site, do: &(Sites.shard_storage_site(&1.name) == site), else: fn _node -> true end
@@ -836,12 +837,12 @@ defmodule Tuist.Sandboxes do
     case Archives.memory_compat(archive || sandbox) do
       nil when is_nil(site) -> Capacity.place(sandbox)
       nil -> Capacity.place(sandbox, on_site)
-      compat -> place_warm(sandbox, on_site, compat)
+      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(archive || sandbox))
     end
   end
 
-  defp place_warm(sandbox, on_site, compat) do
-    case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat)) do
+  defp place_warm(sandbox, on_site, compat, origin) do
+    case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat), avoid: origin) do
       {:error, :no_node} -> Capacity.place(sandbox, on_site)
       placed -> placed
     end

@@ -109,6 +109,22 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert %Sandbox{node_name: ^free} = Repo.reload!(sandbox)
     end
 
+    test "place/3 takes an avoided node only when no other can take the sandbox", %{template: template} do
+      origin = connect(node_name(), template)
+      other = connect(node_name(), template)
+      # The origin is the freer node, which place/1 would pick.
+      sandbox_fixture(template: template, state: :running, node_name: other, residency_work_id: "work", memory_mb: 4096)
+
+      assert {:ok, ^other} = Capacity.place(new_sandbox(template), fn _node -> true end, avoid: [origin])
+
+      # (4096 + 4096 + 4096 + 3 x 64) MiB leaves no room for a fourth on
+      # the other node's 19.5 GiB budget, and its residents are busy.
+      sandbox_fixture(template: template, state: :running, node_name: other, residency_work_id: "work", memory_mb: 8192)
+      reject(&Nodes.call/4)
+
+      assert {:ok, ^origin} = Capacity.place(new_sandbox(template), fn _node -> true end, avoid: [origin])
+    end
+
     test "answers no_node when no connected node has the template ready", %{template: template} do
       connect(node_name(), template, %{templates: [%{name: template, tag: "sha-1", ready: false}]})
       connect(node_name(), "other-#{template}")

@@ -890,11 +890,12 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
     test "an archive with memory resumes warm on a node of its kind and stays until that node loaded it",
          %{account: account} do
-      memory = %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"}
+      memory = %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5", "node" => "node-d"}
       sandbox = archived_orb(account, archive_memory: memory)
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
 
-      expect(Capacity, :place, fn placed, filter ->
+      expect(Capacity, :place, fn placed, filter, opts ->
+        assert opts[:avoid] == ["node-d"]
         assert filter.(%{name: "node-b", snapshot_compat: "zen5"})
         refute filter.(%{name: "node-a", snapshot_compat: "zen4"})
         refute filter.(%{name: "node-c"})
@@ -934,7 +935,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
         archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
 
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
-      expect(Capacity, :place, fn _placed, _warm -> {:error, :no_node} end)
+      expect(Capacity, :place, fn _placed, _warm, [avoid: []] -> {:error, :no_node} end)
 
       expect(Capacity, :place, fn placed, any ->
         assert any.(%{name: "node-a", snapshot_compat: "zen4"})

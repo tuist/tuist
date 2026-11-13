@@ -332,7 +332,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   and `tail_sha256`, and the writing node's `compat`, its hello's
   `snapshot_compat`: CPU model and flags, host kernel version and
   Firecracker version) is placed only on nodes with the same
-  `snapshot_compat`, waiting for room on them, and resumes warm: the node
+  `snapshot_compat`, waiting for room on them, and on the node it was
+  archived from (`archive_memory.node`) only when no other of them can take
+  it (`Capacity.place/3`'s `avoid:`), and resumes warm: the node
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
   them while a fill fetches the rest (sandboxd `internal/uffd`). It cold

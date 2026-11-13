@@ -670,6 +670,10 @@ defmodule Tuist.Sandboxes.Capacity do
   free memory, such as the nodes holding the session repository's checkout.
   A preferred node only wins when it can take the sandbox like any other
   would; a full one is passed over, never waited for.
+
+  The nodes in `avoid:` take the sandbox only when no other can, even by
+  pausing idle sandboxes or growing a carve-out, such as the node an
+  archived sandbox was moved off.
   """
   def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter, opts) do
     ready =
@@ -693,7 +697,17 @@ defmodule Tuist.Sandboxes.Capacity do
         {:error, :no_capacity}
 
       true ->
-        place_on(candidates, sandbox, Keyword.get(opts, :prefer, []))
+        place_avoiding(candidates, sandbox, Keyword.get(opts, :prefer, []), Keyword.get(opts, :avoid, []))
+    end
+  end
+
+  defp place_avoiding(candidates, sandbox, prefer, avoid) do
+    {others, avoided} = Enum.split_with(candidates, &(&1.name not in avoid))
+
+    case others != [] && place_on(others, sandbox, prefer) do
+      {:ok, node_name} -> {:ok, node_name}
+      _no_room when avoided != [] -> place_on(avoided, sandbox)
+      no_room -> no_room
     end
   end
 
