@@ -26,7 +26,7 @@ defmodule Tuist.Ops.FeatureFlags do
     {:bazel_remote_execution, "account",
      "Opt-in Linux Bazel execution; configured capacity and project grants still apply."},
     {:immutable_shard_reports, "account",
-     "Opt-in immutable shard plans; Mix projects and coverage-enabled accounts remain excluded."},
+     "Disabled in code until immutable shard plans support coverage and test selection; the toggle has no effect."},
     {:runner_shard_storage, "account",
      "Opt-in Linux Mix/Cargo plans to runner-local storage; existing plans keep their store."},
     {:kura_positive_fence, "account",

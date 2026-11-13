@@ -4,7 +4,7 @@ How Tuist collects, stores and shows code coverage today. Mix and Cargo projects
 
 ## Immutable shard plans
 
-Projects with coverage (Mix projects, and every project of a coverage-enabled account) remain on legacy shard plans: the immutable-report creation gate excludes them. Coverage's receipt-ordered files, evidence and mutable totals cannot safely describe producer-ordered attempts on a version-1 plan yet.
+Immutable (version-1) shard plans are disabled in code for every account (`Tuist.FeatureFlags.immutable_shard_reports_enabled?/2`), so every new plan is a legacy one. Coverage's receipt-ordered files, evidence and mutable totals cannot safely describe producer-ordered attempts on a version-1 plan yet, and test selection reads that coverage. They come back once coverage reads version-1 reports.
 
 If coverage is enabled after such a plan exists, the persisted reporting contract still wins. Version-1 reports keep their test results but do not ingest coverage or evidence; they record `coverage_enabled = false` and an empty `coverage_evidence_status`. Direct publication/evidence calls skip these runs, and queued uploaded-coverage jobs cancel before downloading. They neither become coverage sources nor introduce gaps into a commit's figure. Unsharded runs and legacy plans retain the model below. See [immutable shard reporting](shard-workflow-consistency.md) for enrollment and compatibility requirements.
 

@@ -33,28 +33,30 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Default-off immutable shard creation gate. Version-1 plans drop coverage, so
-  projects with coverage (`coverage_enabled?/3`: Mix and Cargo projects, and every
-  project of a coverage-enabled account) remain on legacy plans. Given an
-  account, it answers for the account's other projects.
+  Immutable shard plans (version 1) are disabled for every account, whatever
+  the `:immutable_shard_reports` toggle says, so every new plan is a legacy one.
+
+  Version-1 plans drop coverage and per-test evidence: the coverage stores pick
+  each shard's current report by receipt order, while version-1 reports are
+  ordered by producer attempt, and coverage and test selection read every
+  attempt's facts from `test_case_runs`/`test_module_runs`. A sharded run on
+  such a plan therefore gets no commit coverage and gives test selection no
+  baseline or evidence. No account uses immutable plans, so they stay off
+  until coverage and test selection read version-1 reports (rows tagged with
+  their fact set, run totals derived rather than rewritten). Existing version-1
+  plans keep their contract.
+
+  To re-enable, answer with the account's toggle again, and keep projects
+  whose coverage still can't be read from version-1 reports on legacy plans.
   """
   def immutable_shard_reports_enabled?(subject, flags \\ nil)
 
-  def immutable_shard_reports_enabled?(%Project{account: account} = project, flags) do
-    Observability.feature_flag_evaluated(
-      :immutable_shard_reports,
-      account,
-      flag_enabled?(:immutable_shard_reports, account, flags) and not coverage_enabled?(account, project, flags)
-    )
-  end
+  def immutable_shard_reports_enabled?(%Project{account: account}, _flags), do: immutable_shard_reports_disabled(account)
 
-  def immutable_shard_reports_enabled?(account, flags) do
-    Observability.feature_flag_evaluated(
-      :immutable_shard_reports,
-      account,
-      flag_enabled?(:immutable_shard_reports, account, flags) and not xcode_coverage_enabled?(account, flags)
-    )
-  end
+  def immutable_shard_reports_enabled?(account, _flags), do: immutable_shard_reports_disabled(account)
+
+  defp immutable_shard_reports_disabled(account),
+    do: Observability.feature_flag_evaluated(:immutable_shard_reports, account, false)
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account, flags \\ nil) do
