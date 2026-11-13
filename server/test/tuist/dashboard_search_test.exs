@@ -541,6 +541,175 @@ defmodule Tuist.DashboardSearchTest do
     assert length(paths) == 3
   end
 
+  test "pasted PR and MR links match the PR in the linked repository only" do
+    # Callers pass projects without their VCS connection loaded.
+    connected =
+      [vcs_connection: [repository_full_handle: "Acme/App"]] |> project() |> Repo.reload!() |> Repo.preload(:account)
+
+    other = project()
+
+    # Gradle builds record no CI identity, so only a VCS connection ties them to the repository.
+    gradle_connected =
+      [build_system: :gradle, vcs_connection: [repository_full_handle: "acme/app"]]
+      |> project()
+      |> Repo.reload!()
+      |> Repo.preload(:account)
+
+    gradle_other = project(build_system: :gradle)
+    gradle = GradleFixtures.build_fixture(project_id: gradle_connected.id, git_ref: "refs/pull/81/head")
+    GradleFixtures.build_fixture(project_id: gradle_other.id, git_ref: "refs/pull/81/head")
+
+    {:ok, by_connection} = RunsFixtures.test_fixture(project_id: connected.id, pull_request_number: 81)
+    RunsFixtures.test_fixture(project_id: connected.id, pull_request_number: 82)
+
+    {:ok, by_ci_handle} =
+      RunsFixtures.test_fixture(
+        project_id: other.id,
+        pull_request_number: 81,
+        ci_provider: "github",
+        ci_project_handle: "Acme/App"
+      )
+
+    RunsFixtures.test_fixture(
+      project_id: other.id,
+      pull_request_number: 81,
+      ci_provider: "github",
+      ci_project_handle: "acme/other"
+    )
+
+    {:ok, merge_request} =
+      RunsFixtures.build_fixture(
+        project_id: other.id,
+        git_ref: "refs/merge-requests/81/head",
+        ci_provider: "gitlab",
+        ci_project_handle: "group/sub/app"
+      )
+
+    preview = AppBuildsFixtures.preview_fixture(project: connected, display_name: "PR", git_ref: "refs/pull/81/head")
+    AppBuildsFixtures.preview_fixture(project: other, display_name: "PR", git_ref: "refs/pull/81/head")
+
+    ids = fn query ->
+      response = DashboardSearch.search([connected, other, gradle_connected, gradle_other], query)
+      assert response.unavailable == []
+      response.results |> Enum.map(&(&1.path |> String.split("/") |> List.last())) |> Enum.sort()
+    end
+
+    assert ids.("https://github.com/acme/app/pull/81/files?diff=split") ==
+             Enum.sort([by_connection.id, by_ci_handle.id, preview.id, gradle])
+
+    assert ids.("https://gitlab.example.com/group/sub/app/-/merge_requests/81") == [merge_request.id]
+    assert ids.("pr:82 https://github.com/acme/app/pull/81") == []
+  end
+
+  test "pasted CI links match the runs that recorded that CI run" do
+    p = project()
+
+    {:ok, github} =
+      RunsFixtures.test_fixture(project_id: p.id, ci_provider: "github", ci_project_handle: "Acme/App", ci_run_id: "123")
+
+    RunsFixtures.build_fixture(project_id: p.id, ci_provider: "github", ci_project_handle: "acme/app", ci_run_id: "124")
+
+    {:ok, buildkite} =
+      RunsFixtures.build_fixture(
+        project_id: p.id,
+        ci_provider: "buildkite",
+        ci_project_handle: "acme/ios",
+        ci_run_id: "77"
+      )
+
+    RunsFixtures.test_fixture(
+      project_id: p.id,
+      ci_provider: "buildkite",
+      ci_project_handle: "acme/android",
+      ci_run_id: "77"
+    )
+
+    {:ok, gitlab} =
+      RunsFixtures.test_fixture(
+        project_id: p.id,
+        ci_provider: "gitlab",
+        ci_project_handle: "group/sub/app",
+        ci_host: "gitlab.example.com",
+        ci_run_id: "900"
+      )
+
+    {:ok, bitrise} = RunsFixtures.build_fixture(project_id: p.id, ci_provider: "bitrise", ci_run_id: "ABCDEF")
+    # Same handle and run ID under another provider.
+    RunsFixtures.build_fixture(project_id: p.id, ci_provider: "gitlab", ci_project_handle: "acme/app", ci_run_id: "123")
+
+    {:ok, circle_job} =
+      RunsFixtures.build_fixture(
+        project_id: p.id,
+        ci_provider: "circleci",
+        ci_project_handle: "acme/app",
+        ci_run_id: "42"
+      )
+
+    workflow = "9b1c4a3e-1f2d-4c5b-8a7e-6d5c4b3a2f10"
+
+    # Older Mix clients recorded the CircleCI workflow instead of the job.
+    {:ok, circle_workflow} =
+      RunsFixtures.test_fixture(
+        project_id: p.id,
+        ci_provider: "circleci",
+        ci_project_handle: "acme/app",
+        ci_run_id: workflow
+      )
+
+    RunsFixtures.build_fixture(
+      project_id: p.id,
+      ci_provider: "circleci",
+      ci_project_handle: "acme/other",
+      ci_run_id: "42"
+    )
+
+    {:ok, codemagic} =
+      RunsFixtures.test_fixture(
+        project_id: p.id,
+        ci_provider: "codemagic",
+        ci_project_handle: "5f2b9c1e8d3a4b0012c3d4e6",
+        ci_run_id: "5f2b9c1e8d3a4b0012c3d4e5"
+      )
+
+    ids = fn query ->
+      response = DashboardSearch.search([p], query)
+      assert response.unavailable == []
+      response.results |> Enum.map(&(&1.path |> String.split("/") |> List.last())) |> Enum.sort()
+    end
+
+    assert ids.("https://github.com/acme/app/actions/runs/123/job/456") == [github.id]
+    assert ids.("https://buildkite.com/acme/ios/builds/77#0190a1b2") == [buildkite.id]
+    assert ids.("https://gitlab.example.com/group/sub/app/-/pipelines/900") == [gitlab.id]
+    assert ids.("https://app.bitrise.io/build/abcdef") == [bitrise.id]
+    assert ids.("https://app.bitrise.io/app/31e481ce08e0afd9/build/abcdef") == [bitrise.id]
+
+    assert ids.("https://app.circleci.com/pipelines/github/acme/app/310/workflows/#{workflow}/jobs/42") ==
+             Enum.sort([circle_job.id, circle_workflow.id])
+
+    assert ids.("https://app.circleci.com/pipelines/github/acme/app/310/workflows/#{workflow}") == [circle_workflow.id]
+    assert ids.("https://app.circleci.com/jobs/github/acme/app/42") == [circle_job.id]
+    assert ids.("https://codemagic.io/app/5f2b9c1e8d3a4b0012c3d4e6/build/5f2b9c1e8d3a4b0012c3d4e5") == [codemagic.id]
+    # Contradictory links match nothing, as contradictory filters would.
+    assert ids.("https://github.com/acme/app/actions/runs/123 https://buildkite.com/acme/ios/builds/77") == []
+    # GitLab job IDs are not recorded, so a job link cannot identify a run.
+    assert ids.("https://gitlab.example.com/group/sub/app/-/jobs/900") == []
+
+    # A link part in a shape its provider never uses is not a filter: the link
+    # stays a literal search term and finds nothing, even a run that recorded it.
+    RunsFixtures.build_fixture(project_id: p.id, ci_provider: "github", ci_project_handle: "acme/app", ci_run_id: "123x")
+
+    for link <- [
+          "https://github.com/acme/app/actions/runs/123x",
+          "https://github.com/acme/app/actions/runs/123'or'1'='1",
+          "https://github.com/acme/app%27/actions/runs/123",
+          "https://buildkite.com/acme/ios/builds/-77",
+          "https://app.bitrise.io/build/abc%27def",
+          "https://github.com/acme/app/pull/99999999999"
+        ] do
+      assert ids.(link) == []
+    end
+  end
+
   test "Bazel and Once never satisfy PR filters and catalogs never borrow run metadata" do
     bazel = project(build_system: :bazel)
     once = project(build_system: :once)

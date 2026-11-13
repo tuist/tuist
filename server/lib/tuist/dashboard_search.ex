@@ -10,6 +10,12 @@ defmodule Tuist.DashboardSearch do
   Empty searches suggest projects in caller order, with the preferred project first.
   Results preserve global relevance order with at most five results per type.
 
+  A pasted pull request, merge request or CI run link becomes filters rather than
+  text. A PR link matches runs with that PR number in projects connected to the
+  repository, or runs whose recorded CI project is the repository. A CI link
+  matches runs that recorded that CI run (the inverse of `Tuist.VCS.ci_run_url/1`),
+  which only some build and test tables store.
+
   All runs and native Once case attempts are restricted to the last 30 days.
   Shared case catalogs cannot honor run metadata filters and are excluded for them.
   Unsupported filters exclude a provider, rather than widening its scope.
@@ -29,7 +35,12 @@ defmodule Tuist.DashboardSearch do
   alias Tuist.DashboardSearchQuery
   alias Tuist.Repo
 
-  @metadata_keys ~w(branch commit status date pr)
+  @metadata_keys ~w(branch commit status date pr repo ci)
+  # Pasted link parts: run numbers, hexadecimal or UUID build slugs, and
+  # repository or pipeline path segments (search terms arrive lowercased).
+  @number ~r/\A[0-9]{1,20}\z/
+  @slug ~r/\A[0-9a-f-]{1,64}\z/
+  @handle_segment ~r/\A[a-z0-9_.][a-z0-9_.-]{0,99}\z/
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
   # Must match the `idx_search_ngram` expression on `test_cases` exactly for the
   # index to apply.
@@ -37,18 +48,21 @@ defmodule Tuist.DashboardSearch do
   # Test cases are read without FINAL: every column they match on is part of the
   # sort key, so all versions of a case match alike, and `LIMIT 1 BY` keeps the
   # newest. FINAL would also disable the skip index that bounds the read.
+  # The last element says whether the source records which CI run produced it
+  # (`ci_provider`, `ci_project_handle` and `ci_run_id`).
   @sources [
     {"test_case", "test_cases", "id", "name", ["module_name", "suite_name", "name"], "last_ran_at", "tests/test-cases",
-     nil},
-    {"test_run", "test_run_summaries", "id", "scheme", ["scheme"], "ran_at", "tests/test-runs", nil},
-    {"build", "build_runs FINAL", "id", "scheme", ["scheme", "configuration"], "inserted_at", "builds/build-runs",
-     :xcode},
+     nil, false},
+    {"test_run", "test_run_summaries", "id", "scheme", ["scheme"], "ran_at", "tests/test-runs", nil, true},
+    {"build", "build_runs FINAL", "id", "scheme", ["scheme", "configuration"], "inserted_at", "builds/build-runs", :xcode,
+     true},
     {"build", "gradle_builds", "id", "root_project_name",
-     ["root_project_name", "arrayStringConcat(requested_tasks, ' ')"], "inserted_at", "builds/build-runs", :gradle},
+     ["root_project_name", "arrayStringConcat(requested_tasks, ' ')"], "inserted_at", "builds/build-runs", :gradle,
+     false},
     {"build", "bazel_invocations FINAL", "invocation_id", "command",
-     ["command", "arrayStringConcat(target_patterns, ' ')"], "inserted_at", "builds/invocations", :bazel},
-    {"build", "cargo_builds", "id", "command", ["command"], "inserted_at", "builds/cargo-builds", :cargo},
-    {"build", "mix_builds", "id", "mix_env", ["mix_env"], "inserted_at", "builds/mix-builds", :mix}
+     ["command", "arrayStringConcat(target_patterns, ' ')"], "inserted_at", "builds/invocations", :bazel, false},
+    {"build", "cargo_builds", "id", "command", ["command"], "inserted_at", "builds/cargo-builds", :cargo, true},
+    {"build", "mix_builds", "id", "mix_env", ["mix_env"], "inserted_at", "builds/mix-builds", :mix, true}
   ]
 
   def search(projects, raw_query, opts \\ []) do
@@ -65,9 +79,8 @@ defmodule Tuist.DashboardSearch do
     preferred = Keyword.get(opts, :preferred_project_id)
     scope = query.filters["project"] || Keyword.get(opts, :project)
     projects = Enum.filter(projects, &(is_nil(scope) or String.downcase(&1.name) == String.downcase(scope)))
-    {projects, terms} = normalize(projects, query.terms)
-
-    query = %{query | terms: terms}
+    {projects, query} = normalize(projects, query)
+    terms = query.terms
     project_map = Map.new(projects, &{&1.id, &1})
 
     cond do
@@ -135,17 +148,25 @@ defmodule Tuist.DashboardSearch do
   defp providers(projects, query, preferred) do
     broad? = Enum.any?(query.terms, &(String.length(&1) >= 3)) or map_size(query.filters) > 0
     uuid? = Enum.any?(query.terms, &uuid?/1)
+    ci_link? = Map.has_key?(query.filters, "ci")
+    # Sources without CI columns can only tie a run to a repository through its
+    # project's VCS connection.
+    repo_ids = with {_, _, ids} <- query.filters["repo"], do: ids
 
     ch =
-      Enum.flat_map(@sources, fn {type, _, _, _, _, _, _, system} = source ->
-        ids = for p <- projects, is_nil(system) or p.build_system == system, do: p.id
+      Enum.flat_map(@sources, fn {type, _, _, _, _, _, _, system, ci?} = source ->
+        ids =
+          for p <- projects,
+              is_nil(system) or p.build_system == system,
+              ci? or is_nil(repo_ids) or p.id in repo_ids,
+              do: p.id
 
         # Bazel invocation IDs may be arbitrary strings. Other run IDs are UUIDs,
         # so ordinary words cannot match their exact-identity-only searches.
         identity? = system == :bazel or uuid?
         useful? = not exact_only?(query, type) or identity?
 
-        if broad? and useful? and ids != [] and
+        if broad? and useful? and ids != [] and (ci? or not ci_link?) and
              eligible?(query, type, type != "test_case", type != "test_case" and system != :bazel),
            do: [{type, fn -> clickhouse(source, ids, query, preferred) end}],
            else: []
@@ -161,10 +182,14 @@ defmodule Tuist.DashboardSearch do
             :once_case -> "test_case"
           end
 
-        ids = for p <- projects, kind == :preview or p.build_system == :once, do: p.id
+        ids =
+          for p <- projects,
+              kind == :preview or p.build_system == :once,
+              is_nil(repo_ids) or p.id in repo_ids,
+              do: p.id
 
         supported =
-          broad? and
+          broad? and not ci_link? and
             (not exact_only?(query, type) or uuid?) and
             eligible?(query, type, kind != :once_case, kind == :preview) and
             not (kind == :preview and Map.has_key?(query.filters, "status"))
@@ -176,7 +201,7 @@ defmodule Tuist.DashboardSearch do
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  defp clickhouse({type, table, id, title, fields, timestamp, route, system}, ids, query, preferred) do
+  defp clickhouse({type, table, id, title, fields, timestamp, route, system, ci?}, ids, query, preferred) do
     catalog? = type == "test_case"
     status = if catalog?, do: "''", else: ch_status()
 
@@ -200,7 +225,16 @@ defmodule Tuist.DashboardSearch do
 
     window = if catalog?, do: "", else: "AND #{timestamp} >= now64(6) - INTERVAL 30 DAY AND #{timestamp} <= now64(6)"
     native = if system == :cargo, do: "AND command != 'nextest'", else: ""
-    filters = predicates(query, :ch, %{branch: branch, commit: commit, status: status, date: timestamp, pr: pr})
+
+    filters =
+      predicates(query, :ch, %{
+        branch: branch,
+        commit: commit,
+        status: status,
+        date: timestamp,
+        pr: pr,
+        ci?: ci?
+      })
 
     match =
       "arrayAll(t -> positionCaseInsensitiveUTF8(concat(#{text}), t) > 0 OR lowerUTF8(toString(#{id})) = t, {terms:Array(String)})"
@@ -424,6 +458,28 @@ defmodule Tuist.DashboardSearch do
       {"pr", _} ->
         "AND (#{columns.pr}) = #{param(dialect, :pr)}"
 
+      # Only ClickHouse sources with CI columns can match a CI link, and
+      # `providers/3` skips the rest; this clause matches nothing for them.
+      {"ci", {_, handle, _}} ->
+        cond do
+          not Map.get(columns, :ci?) ->
+            "AND 1 = 0"
+
+          handle ->
+            "AND ci_provider = {ci_provider:String} AND has({ci_runs:Array(String)}, lower(ci_run_id)) AND lower(ci_project_handle) = {ci_handle:String}"
+
+          true ->
+            "AND ci_provider = {ci_provider:String} AND has({ci_runs:Array(String)}, lower(ci_run_id))"
+        end
+
+      # Sources without CI columns are limited to the repository's connected
+      # projects in `providers/3` instead.
+      {"repo", _} ->
+        if Map.get(columns, :ci?),
+          do:
+            "AND (has({repo_ids:Array(Int64)}, project_id) OR (ci_provider = {repo_provider:String} AND lower(ci_project_handle) = {repo:String}))",
+          else: ""
+
       {"date", {first, last}} ->
         from = if first, do: "AND #{columns.date} >= #{param(dialect, :from)}", else: ""
         to = if last, do: "AND #{columns.date} < #{param(dialect, :to)}", else: ""
@@ -456,8 +512,16 @@ defmodule Tuist.DashboardSearch do
 
   defp ch_params(ids, query, preferred) do
     {first, last} = Map.get(query.filters, "date", {nil, nil})
+    {ci_provider, ci_handle, ci_runs} = Map.get(query.filters, "ci", {"", "", []})
+    {repo_provider, repo, repo_ids} = Map.get(query.filters, "repo", {"", "", []})
 
     %{
+      ci_provider: ci_provider,
+      ci_handle: ci_handle || "",
+      ci_runs: ci_runs,
+      repo_provider: repo_provider,
+      repo: repo,
+      repo_ids: repo_ids,
       ids: ids,
       terms: query.terms,
       preferred: preferred || -1,
@@ -543,7 +607,103 @@ defmodule Tuist.DashboardSearch do
     end
   end
 
-  defp normalize(projects, [query]) do
+  # Pasted PR, MR and CI links become filters; dashboard URLs and paths scope
+  # projects. A link filter that contradicts a typed or earlier one matches
+  # nothing, as ANDed filters would.
+  defp normalize(projects, query) do
+    Enum.reduce(query.terms, {projects, %{query | terms: []}}, fn term, {projects, query} ->
+      case link_filters(projects, term) do
+        nil ->
+          {projects, normalized} = normalize_term(projects, term)
+          {projects, %{query | terms: query.terms ++ [normalized]}}
+
+        filters ->
+          conflict? = Enum.any?(filters, fn {key, value} -> Map.get(query.filters, key, value) != value end)
+          {if(conflict?, do: [], else: projects), %{query | filters: Map.merge(query.filters, filters)}}
+      end
+    end)
+  end
+
+  # A link becomes a filter only when every part has the shape its provider
+  # uses; anything else stays an ordinary search term. Values are bound as query
+  # parameters either way.
+  defp link_filters(projects, term) do
+    with %URI{scheme: scheme, host: host, path: path} when scheme in ["http", "https"] and is_binary(host) <-
+           URI.parse(term),
+         {kind, provider, handle, ids} <- link(host, String.split(path || "", "/", trim: true)),
+         true <- valid_link?(provider, handle, ids) do
+      link_filter(kind, provider, handle && Enum.join(handle, "/"), ids, projects)
+    else
+      _ -> nil
+    end
+  end
+
+  defp valid_link?(provider, handle, ids),
+    do:
+      (is_nil(handle) or Enum.all?(handle, &Regex.match?(@handle_segment, &1))) and Enum.all?(ids, &run_id?(provider, &1))
+
+  defp link_filter(:ci, provider, handle, ids, _projects), do: %{"ci" => {provider, handle, ids}}
+
+  defp link_filter(:pr, provider, handle, [number], projects) do
+    case String.to_integer(number) do
+      number when number > 0 and number <= 4_294_967_295 ->
+        %{"pr" => number, "repo" => {provider, handle, connected_project_ids(projects, provider, handle)}}
+
+      _ ->
+        nil
+    end
+  end
+
+  # Only GitHub connections record a repository a link can name. A failed
+  # preload raises to the controller's loader, which answers 503.
+  defp connected_project_ids(projects, "github", handle) do
+    for %{id: id, vcs_connection: %{provider: :github, repository_full_handle: repository}} <-
+          Repo.preload(projects, :vcs_connection),
+        String.downcase(repository) == handle,
+        do: id
+  end
+
+  defp connected_project_ids(_projects, _provider, _handle), do: []
+
+  defp run_id?(provider, id) when provider in ["bitrise", "codemagic"], do: Regex.match?(@slug, id)
+  defp run_id?("circleci", id), do: Regex.match?(@number, id) or uuid?(id)
+  defp run_id?(_, id), do: Regex.match?(@number, id)
+
+  # Mirrors `Tuist.VCS.ci_run_url/1` and the CI identity clients record:
+  # GitHub's run ID, GitLab's pipeline ID, Buildkite's build number, CircleCI's
+  # job number (or, from older Mix clients, its workflow ID), Bitrise's build
+  # slug and Codemagic's build ID. Forge paths match on any host, so GitHub
+  # Enterprise and self-managed GitLab work too.
+  defp link("buildkite.com", [org, pipeline, "builds", number | _]), do: {:ci, "buildkite", [org, pipeline], [number]}
+
+  defp link("app.circleci.com", ["pipelines", vcs, org, repo, _, "workflows", workflow | rest]) do
+    # Organizations created on CircleCI itself put UUIDs, not the project's
+    # names, in links, and a job number is unique only within its project.
+    case {vcs, rest} do
+      {"circleci", _} -> {:ci, "circleci", nil, [workflow]}
+      {_, ["jobs", job | _]} -> {:ci, "circleci", [org, repo], [job, workflow]}
+      _ -> {:ci, "circleci", [org, repo], [workflow]}
+    end
+  end
+
+  defp link("app.circleci.com", ["jobs", vcs, org, repo, job | _]) when vcs != "circleci",
+    do: {:ci, "circleci", [org, repo], [job]}
+
+  defp link("app.bitrise.io", ["build", slug | _]), do: {:ci, "bitrise", nil, [slug]}
+  defp link("app.bitrise.io", ["app", _, "build", slug | _]), do: {:ci, "bitrise", nil, [slug]}
+  defp link("codemagic.io", ["app", _, "build", build | _]), do: {:ci, "codemagic", nil, [build]}
+  defp link(_, [owner, repo, "pull", number | _]), do: {:pr, "github", [owner, repo], [number]}
+  defp link(_, [owner, repo, "actions", "runs", run | _]), do: {:ci, "github", [owner, repo], [run]}
+
+  defp link(_, segments) do
+    case Enum.split_while(segments, &(&1 != "-")) do
+      {[_, _ | _] = path, ["-", "merge_requests", number | _]} -> {:pr, "gitlab", path, [number]}
+      {[_, _ | _] = path, ["-", "pipelines", pipeline | _]} -> {:ci, "gitlab", path, [pipeline]}
+      _ -> nil
+    end
+  end
+
+  defp normalize_term(projects, query) do
     path = if String.starts_with?(query, ["https://", "http://"]), do: URI.parse(query).path || "", else: query
 
     if String.starts_with?(path, "/") do
@@ -561,16 +721,9 @@ defmodule Tuist.DashboardSearch do
           do: path,
           else: path |> String.split("/") |> List.last() |> URI.decode()
 
-      {scoped, [String.downcase(term)]}
+      {scoped, String.downcase(term)}
     else
-      {projects, [query]}
+      {projects, query}
     end
-  end
-
-  defp normalize(projects, terms) do
-    Enum.reduce(terms, {projects, []}, fn term, {scoped, normalized} ->
-      {scoped, [term]} = normalize(scoped, [term])
-      {scoped, normalized ++ [term]}
-    end)
   end
 end
