@@ -1121,7 +1121,28 @@ apiserver patch fails. `isIdle` additionally treats a terminated
 `poller` init container as proof of a claim, so a Pod running a job
 survives even when the label never landed.
 
-To replace a box, delete its Machine and follow the release:
+The release wait covers CI only. A Linux box also hosts agent sandboxes
+(Amp Orbs, Claude Code sessions) in `tuist-sandboxes`, and the release
+deletes them with it. Drain them first, the **sandbox drain step**: cordon
+the Node (`kubectl cordon <node>`), which makes the runners-controller's
+allocation ask the server to reclaim it, so the server pauses idle
+sandboxes and archives paused ones, one upload at a time
+(`Tuist.Sandboxes.Archives.node_drain/1`). Then run the check until it
+prints `DRAINED` and exits 0:
+
+```bash
+kubectl -n tuist exec deploy/tuist-tuist-server -- \
+  bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+```
+
+It lists each sandbox still on the node (state, account, Orb, whether a
+turn holds it, upload state) and queues the next archive. A sandbox in a
+turn waits for the turn to end; errored rows are listed but do not block.
+Nothing enforces this: deleting the Machine earlier loses the sandboxes
+still listed.
+
+To replace a box, drain its sandboxes, then delete its Machine and follow
+the release:
 
 ```bash
 kubectl -n <namespace> delete machine <machine-name>

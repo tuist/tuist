@@ -193,6 +193,33 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
 
+    test "the drain check lists what a release would lose and keeps the archives moving", %{account: account} do
+      waiting = paused(account, amp_orb_id: "orb-1", paused_at: hours_ago(1))
+      in_turn = sandbox_fixture(account: account, state: :running, node_name: "node-a", residency_work_id: "amp:orb-2")
+      paused(account, purpose: :remote_execution, paused_at: hours_ago(1))
+      sandbox_fixture(account: account, state: :archived, node_name: nil)
+      sandbox_fixture(account: account, state: :paused, node_name: "node-b", paused_at: hours_ago(1))
+
+      drain = Archives.node_drain("node-a")
+
+      assert %{reclaiming: true, archive_tier: true, drained: false} = drain
+      assert drain.sandboxes |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([waiting.id, in_turn.id])
+      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      Repo.update!(Ecto.Changeset.change(waiting, state: :archived, node_name: nil))
+      Repo.update!(Ecto.Changeset.change(in_turn, state: :error))
+
+      assert %{drained: true, sandboxes: [%{state: :error}]} = Archives.node_drain("node-a")
+    end
+
+    test "the drain check archives nothing on a node CI does not reclaim", %{account: account} do
+      paused(account, paused_at: hours_ago(1))
+      Repo.update_all(from(n in SandboxNode, where: n.name == "node-a"), set: [allocation_reclaim: false])
+
+      assert %{reclaiming: false, drained: false} = Archives.node_drain("node-a")
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
     test "a resume its node refuses for room queues that sandbox's archive", %{account: account} do
       sandbox = paused(account, paused_at: hours_ago(1))
       stub(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)

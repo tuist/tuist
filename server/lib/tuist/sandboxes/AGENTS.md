@@ -372,6 +372,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   completes, after which it restores on any node and cold boots (files kept,
   processes and memory lost). Off with the tier. Archived non-Orb rows keep
   the 14-day retention of their pause.
+  Before a cordoned box's Machine is deleted, operators run
+  `Tuist.Release.sandbox_node_drain/1` (`Archives.node_drain/1`): it lists
+  the agent sandboxes still on the node, queues the next archive, and
+  raises until only errored rows are left (the runbook is
+  `infra/runners-controller/AGENTS.md`, "Replacing a runner box").
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
