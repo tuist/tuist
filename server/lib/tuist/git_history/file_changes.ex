@@ -34,7 +34,9 @@ defmodule Tuist.GitHistory.FileChanges do
   left at the old one. Only rows that would move up their own ref (a rebuild
   placed a commit below them) are not copied but retired: every commit above
   would be copied onto the rows of the next, so those commits' files are
-  unknown until they are listed again.
+  unknown until they are listed again. The listing is kept for days
+  (`Tuist.GitHistory.listing_retention_days/0`): a commit not written by
+  then is listed again by its next run.
 
   The rows of a ref that forks from none are kept. Any other ref's rows
   expire together, since a commit's files read every row below it:
@@ -403,7 +405,7 @@ defmodule Tuist.GitHistory.FileChanges do
   defp staged?(listing), do: listing.staged and DateTime.after?(listing.inserted_at, staged_since(DateTime.utc_now()))
 
   # A day early: the listing's files expire on their own, part by part.
-  defp staged_since(now), do: DateTime.add(now, -(Environment.coverage_retention_days().files - 1), :day)
+  defp staged_since(now), do: DateTime.add(now, -(GitHistory.listing_retention_days() - 1), :day)
 
   defp write_listing(listing, commit, written) do
     if listed_files(listing) == listing.files_count do

@@ -696,11 +696,11 @@ defmodule Tuist.GitHistoryTest do
 
     test "count as missing once the files outlived their retention, and are stored again", %{repository: repository} do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
-      age_listing(repository, "c", 30)
       assert GitHistory.listing_complete?(repository, "c")
 
-      # The files are kept 90 days by default (TUIST_COVERAGE_FILE_RETENTION_DAYS).
-      age_listing(repository, "c", 90)
+      # The files are kept two days: no ref owns the commit, so its file
+      # changes were never written from them.
+      age_listing(repository, "c", 2)
       refute GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
 
@@ -714,6 +714,34 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == []
       assert %{files_count: 2} = CoverageFixtures.listing(repository, "c")
+    end
+
+    test "a commit whose file changes are written outlives its listing's files", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [commit("c", [], 0)])
+      GitHistory.record_branch_head(repository, "main", "c", "main")
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
+      assert GitHistory.FileChanges.write(repository, "c") == :written
+
+      age_listing(repository, "c", 30)
+
+      assert GitHistory.listing_complete?(repository, "c")
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+      assert GitHistory.blobs_at(repository, "c", ["Sources/A.swift"]) == %{"Sources/A.swift" => "a1"}
+
+      # An upload repeated all the same leaves the listing as it is.
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+      assert %{truncated: false} = CoverageFixtures.listing(repository, "c")
+      assert GitHistory.listing_complete?(repository, "c")
+    end
+
+    test "a truncated listing is asked for again only after the file retention", %{repository: repository} do
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+
+      age_listing(repository, "c", 30)
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+
+      age_listing(repository, "c", 90)
+      assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
     end
   end
 
