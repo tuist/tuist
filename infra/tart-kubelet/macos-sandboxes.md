@@ -156,10 +156,7 @@ named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
 instead of waiting when the host lacks room, the template or disk. A create of
 the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
-Pod, and the VM keeps its name for life. A warm VM already has a 10 GB
-workspace volume, the size Amp Orbs and agent environments request, so their
-claim runs no guest command. APFS cannot change a volume's quota, so a claim
-for another size replaces the volume. Other shapes and hosts without a
+Pod, and the VM keeps its name for life. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those
 hosts first, and claimed creates record the `warm` boot source. A kubelet
 restart deletes unclaimed warm VMs and fails their Pods; the pool refills them.

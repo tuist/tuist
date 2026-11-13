@@ -86,9 +86,6 @@ type Record struct {
 	// VM names a claimed warm VM (`sbw-<pod UID>`), which keeps the name and
 	// env share it booted with. Cold-created sandboxes leave it empty.
 	VM string `json:"vm,omitempty"`
-	// WorkspaceVolumeGB is the quota of the workspace volume the VM already
-	// has, 0 before it has one. Warm VMs add it before a sandbox claims them.
-	WorkspaceVolumeGB int `json:"workspace_volume_gb,omitempty"`
 }
 
 // Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
@@ -329,7 +326,7 @@ func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *wa
 		return err
 	}
 	now := time.Now().UTC()
-	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, WorkspaceVolumeGB: w.rec.WorkspaceVolumeGB, Resident: true, CreatedAt: now, IdleAt: now}
+	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, Resident: true, CreatedAt: now, IdleAt: now}
 	m.records[a.SandboxID] = r
 	if err := m.begin(r, "claim"); err != nil {
 		delete(m.records, a.SandboxID)
