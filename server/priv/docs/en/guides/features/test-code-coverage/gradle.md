@@ -82,6 +82,7 @@ When a run leaves tests out, Tuist fills in what they covered from an earlier ru
 Some tests are left out on purpose and don't make a commit incomplete:
 
 - **Filters in your build script**, such as `filter { excludeTestsMatching(...) }`, which define what your suite runs.
+- **Test tasks your build script turns off**, with `enabled = false` or an `onlyIf` that skips them.
 - **Tests that <.localized_link href="/guides/features/test-insights/flaky-tests/gradle">quarantine</.localized_link> skips.** They're left out as if they had been removed, so the lines only they covered count as uncovered.
 
 When you <.localized_link href="/guides/features/test-sharding/gradle">shard your tests</.localized_link>, each shard reports the coverage of the tests it ran, and Tuist merges the shards of a run into one figure.

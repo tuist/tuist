@@ -340,10 +340,11 @@ internal class GradleCoverage(
             }
         }
 
-        val ranModules = records
-            .filter { outcomes[it.taskPath] in setOf(CoverageTaskOutcome.EXECUTED, CoverageTaskOutcome.RESTORED, CoverageTaskOutcome.NO_SOURCE) }
-            .map { it.module }
-            .toSet()
+        // A test task the build reached is part of the run, whatever its outcome: one its own
+        // configuration skipped (disabled, `onlyIf`) is how the build defines its suite, as an
+        // Xcode test plan's disabled tests are. Only the tasks the build never reached were left out.
+        val ranModules = (records.filter { it.taskPath in outcomes }.map { it.module } +
+            testTasks.orEmpty().filterKeys { it in outcomes }.values).toSet()
         // A shard runs what its plan assigned, which the server knows from the plan.
         val leftOut = if (sharded || testTasks == null) {
             emptyMap()

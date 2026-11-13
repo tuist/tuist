@@ -478,18 +478,31 @@ abstract class TuistTestInsightsService :
         coverageRecords[record.taskPath] = record
     }
 
+    private val coverageTestTaskPaths: Set<String> by lazy { parameters.coverageTestTasks.orNull?.keys.orEmpty() }
+
+    // Every listed test task's outcome, beside the recorded ones': a task the build's own
+    // configuration skipped (disabled, or an earlier `onlyIf` that said no) never reaches the
+    // `onlyIf` that records it, yet it was part of the run.
     @Synchronized
     override fun onFinish(event: FinishEvent) {
         if (event !is TaskFinishEvent) return
         val path = event.descriptor.taskPath
-        if (path in coverageRecords) coverageOutcomes[path] = CoverageTaskOutcome.of(event)
+        if (path in coverageRecords || path in coverageTestTaskPaths) coverageOutcomes[path] = CoverageTaskOutcome.of(event)
     }
 
     // A test task restored from the build cache, or up to date, runs no test, yet its execution
     // data is the coverage of its tests: a build whose tests all came that way still reports it.
-    @Synchronized
-    private fun hasRestoredCoverage(): Boolean =
-        coverageEnabled() && coverageRecords.keys.any { coverageOutcomes[it] == CoverageTaskOutcome.RESTORED }
+    // A credential-free report carries no coverage, so such a build has nothing to send.
+    private fun hasRestoredCoverage(): Boolean {
+        val restored = synchronized(this) {
+            coverageEnabled() && coverageRecords.keys.any { coverageOutcomes[it] == CoverageTaskOutcome.RESTORED }
+        }
+        return restored && try {
+            configurationProvider.getConfiguration().token.isNotBlank()
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     private fun coverageEnabled(): Boolean = parameters.coverageEnabled.getOrElse(false)
 

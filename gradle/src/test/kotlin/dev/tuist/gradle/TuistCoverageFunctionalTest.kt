@@ -52,6 +52,8 @@ class TuistCoverageFunctionalTest {
                 val path = request.path.orEmpty()
                 requests += path to request.body.readUtf8()
                 return when {
+                    path == "/.well-known/tuist.json" ->
+                        MockResponse().setResponseCode(200).setBody("""{"network_trusted_report_publishing":true}""")
                     path.contains("/api/cache/endpoints") ->
                         MockResponse().setResponseCode(200)
                             .setBody("""{"endpoints":["${server.url("/").toString().trimEnd('/')}"]}""")
@@ -178,6 +180,21 @@ class TuistCoverageFunctionalTest {
     }
 
     @Test
+    fun `a credential-free build whose test tasks were all restored reports nothing`() {
+        val unsigned = mapOf("TUIST_TOKEN" to "", "TUIST_XDG_CONFIG_HOME" to File(tempDir, "config").path)
+        val reports = { requests.count { it.first == apiPath } }
+
+        val executed = runner("test", environment = unsigned).build()
+        assertEquals(1, reports(), executed.output)
+        assertFalse(run(executed).has("coverage"), run(executed).toString())
+
+        // Up to date: a credential-free report would hold neither tests nor coverage.
+        val upToDate = runner("test", environment = unsigned).build()
+        assertEquals(TaskOutcome.UP_TO_DATE, upToDate.task(":core:test")?.outcome, upToDate.output)
+        assertEquals(1, reports(), upToDate.output)
+    }
+
+    @Test
     fun `a shard retried with nothing to run reports once per plan`() {
         val shard = mapOf("TUIST_SHARD_INDEX" to "0", "TUIST_SHARD_REFERENCE" to "reference")
         val reports = { requests.count { it.first == apiPath } }
@@ -218,6 +235,24 @@ class TuistCoverageFunctionalTest {
 
         assertEquals(true, run.getAsJsonObject("coverage").get("partial").asBoolean)
         assertEquals(listOf(":core"), run.getAsJsonArray("only_test_identifiers").map { it.asString })
+    }
+
+    @Test
+    fun `a test task the build itself disables is not something the run left out`() {
+        File(projectDir, "app/build.gradle.kts").appendText("\ntasks.test {\n    enabled = false\n}\n")
+        fixture.git(projectDir, "commit", "-q", "-am", "Disable app's tests")
+
+        val full = runner("test").build()
+        assertEquals(TaskOutcome.SKIPPED, full.task(":app:test")?.outcome, full.output)
+        val run = run(full)
+        assertEquals(false, run.getAsJsonObject("coverage").get("partial").asBoolean, full.output)
+        assertFalse(run.has("only_test_identifiers"), run.toString())
+        assertFalse(run.has("skip_test_identifiers"), run.toString())
+
+        // A test task the build never reached is still left out.
+        val narrowed = run(runner(":core:test").build())
+        assertEquals(true, narrowed.getAsJsonObject("coverage").get("partial").asBoolean)
+        assertEquals(listOf(":core"), narrowed.getAsJsonArray("only_test_identifiers").map { it.asString })
     }
 
     @Test
@@ -403,13 +438,16 @@ class TuistCoverageFunctionalTest {
             .withArguments(arguments.toList() + listOf("--configuration-cache", "--stacktrace"))
             .withPluginClasspath()
             .withEnvironment(
-                System.getenv().filterKeys { key -> key !in ciEnvironmentVariables && !key.startsWith("TUIST_") } +
-                    fixture.environment +
-                    mapOf(
-                        "CI" to "1",
-                        "TUIST_URL" to server.url("/").toString().trimEnd('/'),
-                        "TUIST_TOKEN" to "test-token"
-                    ) + environment
+                (
+                    System.getenv().filterKeys { key -> key !in ciEnvironmentVariables && !key.startsWith("TUIST_") } +
+                        fixture.environment +
+                        mapOf(
+                            "CI" to "1",
+                            "TUIST_URL" to server.url("/").toString().trimEnd('/'),
+                            "TUIST_TOKEN" to "test-token"
+                        ) + environment
+                    // An empty value unsets the variable.
+                    ).filterValues { it.isNotEmpty() }
             )
 
     private fun writeProject(coverage: Boolean = true) {
