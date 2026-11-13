@@ -37,6 +37,13 @@ for env in staging canary production; do
   jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
     length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization != true)' "$work/exclusive.json" >/dev/null
   jq -e 'all(.[]|select(.kind == "RunnerPool" and .spec.os == "linux"); .spec.exclusiveCPUs != true)' "$work/on.json" >/dev/null
+  # With the NRI plugin, exclusive-CPU pools keep KVM without the device plugin.
+  render --set runnersFleetLinux.nestedVirtualization.nri.enabled=true \
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/nri.json"
+  jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
+    length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization == true)' "$work/nri.json" >/dev/null
+  jq -e '[.[]|select(.kind == "DaemonSet" and .metadata.labels["app.kubernetes.io/component"] == "kvm-nri-plugin")] | length == 1' "$work/nri.json" >/dev/null
+  jq -e 'all(.[]; .kind != "DaemonSet" or .metadata.labels["app.kubernetes.io/component"] != "kvm-nri-plugin")' "$work/on.json" >/dev/null
   echo "$env: every Linux pool has KVM; rollback changes the idle rollout revision."
 done
 yq -e '.runnersFleetLinux.nestedVirtualization.defaultEnabled == false and .runnersFleetLinux.nestedVirtualization.enabled == false' "$chart/values.yaml" >/dev/null

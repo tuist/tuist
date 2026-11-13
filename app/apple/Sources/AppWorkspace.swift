@@ -40,7 +40,10 @@ struct AppWorkspace: View {
                                 state: profile.id == client.view.active_profile_id ? .on : .off
                             ) { _ in Task { await client.perform("switch_profile", ["id": profile.id]) } }
                         } + [
-                            UIAction(title: String(localized: "Add profile"), image: UIImage(systemName: "person.badge.plus")) { _ in addingProfile = true },
+                            UIAction(
+                                title: String(localized: "Add profile"),
+                                image: UIImage(systemName: "person.badge.plus")
+                            ) { _ in addingProfile = true },
                             UIAction(title: String(localized: "View profile")) { _ in selection = "profile" },
                         ])
                     })
@@ -155,7 +158,10 @@ private struct ProfileView: View {
                 Link("Terms of Service", destination: URL(string: "https://tuist.dev/terms")!)
                 Link("Privacy Policy", destination: URL(string: "https://tuist.dev/privacy")!)
                 Link("Get help", destination: URL(string: "mailto:contact@tuist.dev")!)
-                LabeledContent("App version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+                LabeledContent(
+                    "App version",
+                    value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+                )
             }
             Section {
                 Button("Sign out", role: .destructive) { Task { await client.perform("sign_out") } }

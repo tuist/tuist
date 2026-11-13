@@ -502,7 +502,8 @@
     }
 
     /// The history a process collected per checkout and commit, and whether its commits are up, so the
-    /// stress gate's early upload and the run's report share one collection and one upload.
+    /// early uploads (coverage-based test selection's before its baseline request, the stress gate's
+    /// before its plan) and the run's report share one collection and one upload.
     public actor GitHistoryCache {
         public static let shared = GitHistoryCache()
 

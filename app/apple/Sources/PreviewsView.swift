@@ -73,13 +73,17 @@ struct PreviewsView: View {
                     }
                 }
             }
-            if loading && previews.isEmpty {
+            if loading, previews.isEmpty {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if previews.isEmpty {
                 ContentUnavailableView {
                     Label(projects.isEmpty ? "No Tuist projects found" : "No previews found", systemImage: "square.stack.3d.up")
                 } description: {
-                    Text(search.isEmpty && track == nil ? "Pull down to refresh your previews." : "Try a different search or select another track.")
+                    Text(
+                        search.isEmpty && track == nil
+                            ? "Pull down to refresh your previews."
+                            : "Try a different search or select another track."
+                    )
                 }
             } else {
                 ForEach(previews) { preview in
@@ -147,7 +151,8 @@ struct PreviewsView: View {
             project = projects.first?.full_name ?? ""
             if project.isEmpty { loading = false }
         } catch {
-            if generation == client.view.generation, !Task.isCancelled { loading = false; client.error = error.localizedDescription }
+            if generation == client.view.generation,
+               !Task.isCancelled { loading = false; client.error = error.localizedDescription }
         }
     }
 
@@ -159,7 +164,8 @@ struct PreviewsView: View {
         let generation = client.view.generation
         do {
             let data = try await client.call("tracks", ["project": selected])
-            guard ticket == trackRequestID, selected == project, generation == client.view.generation, !Task.isCancelled else { return }
+            guard ticket == trackRequestID, selected == project, generation == client.view.generation,
+                  !Task.isCancelled else { return }
             supportsFilters = data["unsupported"] as? Bool != true
             total = data["total_count"] as? Int
             tracks = (data["tracks"] as? [[String: Any]] ?? []).compactMap {
@@ -178,8 +184,13 @@ struct PreviewsView: View {
         let id = UUID()
         requestID = id
         let generation = client.view.generation
-        let args: [String: Any] = ["project": project, "track": track as Any? ?? NSNull(),
-                                   "search": search, "page": nextPage, "page_size": 20]
+        let args: [String: Any] = [
+            "project": project,
+            "track": track as Any? ?? NSNull(),
+            "search": search,
+            "page": nextPage,
+            "page_size": 20,
+        ]
         loading = true
         do {
             let data = try await client.call("previews", args)

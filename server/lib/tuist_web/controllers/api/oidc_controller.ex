@@ -14,6 +14,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
+  alias Tuist.Sandboxes
   alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
@@ -83,12 +84,13 @@ defmodule TuistWeb.API.OIDCController do
 
     with {:ok, claims} <- OIDC.claims(token, account_handle),
          {:ok, account, grant} <- authorized_account(claims, token, account_handle),
-         {:ok, access_token} <- generate_token(account, grant) do
+         ttl_seconds = token_ttl_seconds(claims),
+         {:ok, access_token} <- generate_token(account, grant, ttl_seconds) do
       conn
       |> put_status(:ok)
       |> json(%{
         access_token: access_token,
-        expires_in: @token_ttl_seconds
+        expires_in: ttl_seconds
       })
     else
       {:error, :invalid_token} ->
@@ -159,6 +161,14 @@ defmodule TuistWeb.API.OIDCController do
             "This Amp workspace or project is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
         })
 
+      {:error, :claude_code_environment_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Claude Code environment is not connected to a Tuist account. Connect it to a Tuist account with sandboxes to run its sessions on Tuist."
+        })
+
       {:error, :ambiguous_amp_workspace, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -209,6 +219,14 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
+  # A session of a connected Claude Code environment runs on the account's
+  # sandboxes, and gets CI access like a build would, for its cache.
+  defp authorized_account(%{claude_code_environment_id: environment_id}, _token, _account_handle) do
+    with {:ok, account} <- Sandboxes.claude_code_environment_account(environment_id) do
+      {:ok, account, %{"all_projects" => true}}
+    end
+  end
+
   defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
 
   defp authorized_account(%{provider: :oidc} = identity) do
@@ -245,10 +263,17 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp generate_token(account, grant) do
+  # Anthropic does not revoke a session token before its expiry, so nothing
+  # derived from one outlives it.
+  defp token_ttl_seconds(%{expires_at: expires_at}) when is_integer(expires_at),
+    do: max(min(@token_ttl_seconds, expires_at - System.system_time(:second)), 1)
+
+  defp token_ttl_seconds(_claims), do: @token_ttl_seconds
+
+  defp generate_token(account, grant, ttl_seconds) do
     claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, grant)
 
-    case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
+    case Guardian.encode_and_sign(account, claims, ttl: {ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}
       error -> error
     end

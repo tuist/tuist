@@ -14,6 +14,7 @@ defmodule Tuist.Runners.LearnedWarmFloorsTest do
       fleet_name: fleet,
       repository: "acme/app",
       status: Keyword.get(opts, :status, "queued"),
+      conclusion: Keyword.get(opts, :conclusion, ""),
       enqueued_at: enqueued_at,
       updated_at: Keyword.get(opts, :updated_at, enqueued_at)
     }
@@ -81,6 +82,20 @@ defmodule Tuist.Runners.LearnedWarmFloorsTest do
     job!(fleet, enqueued_at, workflow_job_id: workflow_job_id, status: "completed", updated_at: ago(30))
 
     assert LearnedWarmFloors.for_fleet(fleet) == 1
+  end
+
+  test "leaves out skipped jobs, which never ask for a runner" do
+    fleet = unique_fleet()
+    start = ago(600)
+
+    # One fan-out of six, three of them skipped by an `if:` condition.
+    burst!(fleet, start, 3)
+
+    for i <- 3..5 do
+      job!(fleet, DateTime.add(start, i, :second), status: "completed", conclusion: "skipped")
+    end
+
+    assert LearnedWarmFloors.for_fleet(fleet) == 3
   end
 
   test "is zero for a pool without jobs" do

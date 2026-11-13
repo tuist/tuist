@@ -43,12 +43,14 @@ type Service struct {
 	Node, Root, Tools string
 	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
 	// image preparation clones instead of pulling it again.
-	CIStore  string
-	mu       sync.Mutex
-	manager  *Manager
-	capacity *KubeCapacity
-	ready    bool
-	err      error
+	CIStore string
+	// Checkouts is the runner cache's checkout masters, nil without it.
+	Checkouts Checkouts
+	mu        sync.Mutex
+	manager   *Manager
+	capacity  *KubeCapacity
+	ready     bool
+	err       error
 }
 
 func (s *Service) NeedLeaderElection() bool { return false }
@@ -276,7 +278,8 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			if err != nil {
 				return err
 			}
-			go keepAmpCLI(context.WithoutCancel(ctx), s.Tools)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "amp", provisionAmpCLI)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "claude-code", provisionClaudeCode)
 		}
 		for _, name := range []string{"sbx-macos", "sbx-worker"} {
 			info, err := os.Stat(filepath.Join(s.Tools, name))
@@ -299,7 +302,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			controlID = string(control.UID)
 		}
 		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
-		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools}}
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools, Checkouts: s.Checkouts}}
 		if err = m.Load(ctx); err != nil {
 			return err
 		}
@@ -524,12 +527,14 @@ func (s *Service) LaunchGuard(ctx context.Context, _ string) (func(), error) {
 func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(protocol.Stream)) protocol.Result {
 	var args struct {
 		protocol.CreateArgs
-		Env       map[string]string `json:"env"`
-		Cmd       []string          `json:"cmd"`
-		Cwd       string            `json:"cwd"`
-		TimeoutMs int64             `json:"timeout_ms"`
-		NodeUID   string            `json:"node_uid"`
-		WorkID    string            `json:"work_id"`
+		Env       map[string]string       `json:"env"`
+		Cmd       []string                `json:"cmd"`
+		Cwd       string                  `json:"cwd"`
+		TimeoutMs int64                   `json:"timeout_ms"`
+		NodeUID   string                  `json:"node_uid"`
+		WorkID    string                  `json:"work_id"`
+		HoldMs    int64                   `json:"hold_ms"`
+		Checkout  *protocol.CheckoutGrant `json:"checkout"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -563,12 +568,12 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data, err = m.Exec(ctx, protocol.ExecArgs{SandboxID: args.SandboxID, Cmd: args.Cmd, Env: args.Env, Cwd: args.Cwd, TimeoutMs: args.TimeoutMs}, out)
 	case protocol.OpStartWorker:
 		var status WorkerStatus
-		status, err = m.Worker(ctx, args.SandboxID, "start", args.Env)
+		status, err = m.StartWorker(ctx, args.SandboxID, args.Env, args.Checkout)
 		data = protocol.StartWorkerResult{ExecID: status.ID}
 	case protocol.OpStopWorker:
 		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
 	case protocol.OpHoldResidency:
-		err = m.Hold(ctx, args.SandboxID, args.WorkID)
+		err = m.Hold(ctx, args.SandboxID, args.WorkID, time.Duration(args.HoldMs)*time.Millisecond)
 	case protocol.OpReleaseResidency:
 		err = m.Release(args.SandboxID, args.WorkID)
 	case protocol.OpStatus:

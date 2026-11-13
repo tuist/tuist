@@ -590,6 +590,40 @@ idle custom masters for the rest of its room, but never one a job holds or is
 attaching, and never other checkout masters: without the room the job checks
 out as usual.
 
+### Sandbox sessions
+
+Claude Code sessions in sandboxd's Firecracker guests on the same nodes start
+from the same masters and feed them back, under the CI rules. The server grants
+a checkout in `start_worker` with the fields of a CI allocation (a default-branch
+job that may not start a master, so only an export of the granted `commit`
+moves one); sandboxd relays it, and only it, to the agent (see
+[sandboxd](../sandboxd/AGENTS.md), "Guest to host: checkout"). Guests never
+reach the agent: sandboxd drops their traffic to port 8090, since they share its
+Pod's address and NetworkPolicy identity.
+
+- The caller must be the live, non-terminating sandboxd Pod (label
+  `tuist.dev/sandboxd: "true"`) it names in `--sandboxes-namespace`, on this
+  node, at the caller's address. sandboxd is not on the host network. The chart
+  sets the flag, a `get pods` Role there and both NetworkPolicy rules when
+  sandboxes are enabled; without the flag both endpoints answer 403.
+- `POST /sandbox-checkout/seed` with `{"pod_name": ..., "grant": {...}}` tracks
+  the volume and, with a master for its clear generation, clones it under the
+  scope lock into `checkouts/.sandbox-seeds/<use>/`, attaches the clone
+  read-only and answers 200 with a tar of its `checkout/` tree (directories,
+  regular files and symlinks with their permission bits, no owners; links are
+  never followed). The clone is detached and deleted afterwards. A stream that
+  fails midway is cut without its end-of-archive blocks. Without a master it
+  answers 404 `{"error":"cold"}` and restores the HEAD in the background when
+  there is one. Either way the use ends at once (`report` with state `deleted`,
+  `warm` when it seeded): the session holds a copy, not a branch. Four seeds
+  run at a time (`busy` past them); a stream gets 10 minutes. Clones left by a
+  restarted agent are abandoned at start.
+- `POST /sandbox-checkout/export` takes the same request line, then the export
+  tar in the CI format, into `checkouts/.incoming/sandbox-<use>` with the CI
+  export's intake slots, admission and 5-minute bound, and queues the build. It
+  answers 202 `{"ok":true}` once queued, 507 without room, 400 for an invalid
+  export, 409 while the same use's export is still being received.
+
 ## Docker cache volumes
 
 Each repository whose Linux jobs use Docker gets a volume with the reserved key

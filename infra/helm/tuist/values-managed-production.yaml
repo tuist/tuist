@@ -1679,10 +1679,16 @@ rackFleet:
   # median 20 to 26 s on the rack. The server sizes each pool's floor to the
   # burst its jobs arrive in and keeps it while the pool has had a job in the
   # last day (`Tuist.Runners.LearnedWarmFloors`). What is set here is only
-  # the cap on that floor, which is what it costs: up to three idle guests
+  # the cap on that floor, which is what it costs: up to eight idle guests
   # per image, one host for the 16 vCPU shape. The floor yields to every
   # pool's queued jobs (infra/runners-controller/AGENTS.md), so the cap is
-  # the most a pool keeps idle while the rack has room.
+  # the most a pool keeps idle while the rack has room. It is one value for
+  # every image rather than one per image, so it does not need moving as
+  # customers move between Xcodes. At three, 27.1's 10-job fan-outs left
+  # 9 to 23% of its jobs a day over the 10 s queue-time target in the week
+  # to 2026-11-13; eight covers the p90 burst of every image but 26.3's
+  # nightly 12, and the in-use pools are funded first when floors sum past
+  # the rack's seats.
   #
   # 26.6 also keeps one runner whatever its history, since a new account's
   # first job lands there and `tuist-macos` resolves there.
@@ -1701,14 +1707,14 @@ rackFleet:
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
-      maxLearnedWarmPoolFloor: 3
+      maxLearnedWarmPoolFloor: 8
       maxReplicas: 32
     xcodeOverrides:
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxLearnedWarmPoolFloor: 3
+          maxLearnedWarmPoolFloor: 8
           maxReplicas: 32
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is

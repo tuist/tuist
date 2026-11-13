@@ -39,6 +39,9 @@ enum TestImpactOutcome: Equatable {
 /// `TestImpactGraphMapper` while the project is generated, so that modules with no selected test are
 /// pruned before anything is built.
 ///
+/// Before it asks for a baseline it publishes the run's Git history, so the server's graph has the
+/// checkout's commit when it places it.
+///
 /// It never fails the run: a request that fails or times out leaves default selective testing, with a
 /// warning.
 actor TestImpactSelector {
@@ -56,6 +59,9 @@ actor TestImpactSelector {
         let destination: String?
         /// The platform the run asked for, through `--platform` or `-destination`.
         let platform: XcodeGraph.Platform?
+        /// Whether the run uploads coverage (`UploadResultBundleService.uploadsCoverage`), as the run's
+        /// report tells `GitHistoryService`.
+        let coverage: Bool
     }
 
     /// How many of the checkout's ancestors the server accepts.
@@ -67,17 +73,27 @@ actor TestImpactSelector {
     private let gitController: GitControlling
     private let resolveBaselineService: ResolveTestImpactBaselineServicing
     private let createRunService: CreateTestImpactRunServicing
+    private let gitHistoryService: GitHistoryServicing
+    /// Whether the run reports without credentials, which uploads no history.
+    private let reportsWithoutCredentials: @Sendable (URL) async -> Bool
 
     init(
         invocation: Invocation,
         gitController: GitControlling = GitController(),
         resolveBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
-        createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService()
+        createRunService: CreateTestImpactRunServicing = CreateTestImpactRunService(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
+        reportsWithoutCredentials: @escaping @Sendable (URL) async -> Bool = {
+            // Rejected credentials fail the report too, so nothing is uploaded ahead of it.
+            (try? await ServerReportPublishingMode.usesNetworkTrust(serverURL: $0)) ?? true
+        }
     ) {
         self.invocation = invocation
         self.gitController = gitController
         self.resolveBaselineService = resolveBaselineService
         self.createRunService = createRunService
+        self.gitHistoryService = gitHistoryService
+        self.reportsWithoutCredentials = reportsWithoutCredentials
     }
 
     // swiftlint:disable function_body_length
@@ -115,12 +131,15 @@ actor TestImpactSelector {
             return []
         }
 
+        await publishGitHistory(gitInfo: gitInfo, repository: repository)
+
         let refs = Self.deepeningRefs(gitInfo: gitInfo)
         var ancestorSHAs: [String] = []
         var baseline = await resolveBaseline(checkout: checkout, ancestorSHAs: ancestorSHAs, platform: platform)
-        // The checkout may lead to the server's history only through commits it hasn't seen, such as
-        // a push of several commits: the server then walks from the checkout's ancestors. A clone is
-        // deepened at most once per invocation, so the diff below doesn't deepen again.
+        // The checkout may still lead to the server's history only through commits it hasn't seen,
+        // when the history couldn't be published or the publish is off: the server then walks from
+        // the checkout's ancestors. A clone is deepened at most once per invocation, so the diff below
+        // doesn't deepen again.
         var deepeningRefs = refs
         if baseline == .unavailable(.historyUnknown) {
             _ = await gitController.deepenShallowClone(workingDirectory: repository, refs: refs, limits: Self.historyLimits)
@@ -185,6 +204,23 @@ actor TestImpactSelector {
     }
 
     // swiftlint:enable function_body_length
+
+    /// Uploads the commits and branch heads the server's graph lacks, so the baseline request finds the
+    /// checkout's commit, or on a pull request's merge checkout both its parents, in the graph: the
+    /// history `GitHistoryService` collects is the commit `gitInfo` reports, never the merge commit.
+    /// The collection and the upload are kept per process under the repository's top level, the
+    /// directory the report reads the history from too, so the report sends nothing again. A failed
+    /// upload only warns, as the report's does, and is retried when the run is reported.
+    private func publishGitHistory(gitInfo: GitInfo, repository: AbsolutePath) async {
+        guard await !reportsWithoutCredentials(invocation.serverURL) else { return }
+        _ = await gitHistoryService.publish(
+            gitInfo: gitInfo,
+            workingDirectory: repository,
+            fullHandle: invocation.fullHandle,
+            serverURL: invocation.serverURL,
+            coverage: invocation.coverage
+        )
+    }
 
     private func resolveBaseline(
         checkout: GitCheckedOutCommit,

@@ -28,6 +28,15 @@ type checkoutGrant struct {
 	VolumeKey        string `json:"volume_key"`
 }
 
+// task is the populator's request for the granted volume.
+func (g checkoutGrant) task() cachevolumes.CheckoutTask {
+	return cachevolumes.CheckoutTask{
+		Scope: g.Scope, Generation: g.Generation, CloneURL: g.CloneURL, DefaultBranch: g.DefaultBranch,
+		Commit: g.Commit, DefaultBranchJob: g.DefaultBranchJob, MayStartMaster: g.MayStartMaster, Use: g.ID, VolumeKey: g.VolumeKey, UID: g.UID,
+		BaseGeneration: g.BaseGeneration, ImageDigest: g.ImageDigest, ContentDigest: g.ContentDigest,
+	}
+}
+
 // A cold or slow checkout never makes a job wait longer than a clone would.
 const checkoutAcquireBudget = 15 * time.Second
 
@@ -130,11 +139,7 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest, asked time.
 	case err != nil:
 		return checkoutUnavailable("denied"), err
 	}
-	task := cachevolumes.CheckoutTask{
-		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
-		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
-	}
+	task := grant.task()
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
 	identity := grant.Identity
 	identity.Kind, identity.CanPublish = cachevolumes.KindCheckout, false
@@ -146,7 +151,7 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest, asked time.
 			a.checkouts.Enqueue(task)
 		}
 		// No branch can exist, so nothing is admitted or journaled: the use ends now.
-		a.endUse(grant.ID)
+		a.endUse(grant.ID, false)
 		return checkoutUnavailable("cold"), nil
 	}
 	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
@@ -162,9 +167,9 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest, asked time.
 }
 
 // endUse reports a use that never got a branch as deleted, as reconcile does for
-// a branch it removed.
-func (a *agent) endUse(id string) {
-	_, _ = a.report(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: id}, State: "deleted"}, true)
+// a branch it removed; warm says whether it started from this host's master.
+func (a *agent) endUse(id string, warm bool) {
+	_, _ = a.report(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: id}, State: "deleted", Warm: warm}, true)
 }
 
 // serveCheckoutExport takes what a finished job's checkout added, streamed by

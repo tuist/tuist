@@ -1523,10 +1523,19 @@ fractional CPU count, since the hosts allocate whole two-thread cores.
 
 Keep every container free of its own CPU and memory: a container with its own
 Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
-on an empty shared pool, which the kubelet rejects. Keep nested KVM pools on
-container-level budgets: Build and Helm reject `exclusiveCPUs` together with
-`nestedVirtualization` until kubelet's pod-level device allocation is fixed
-(kubernetes/kubernetes#143490). Code that sizes a Pod
+on an empty shared pool, which the kubelet rejects. Never give a Pod with a
+Pod-level budget a `devices.tuist.dev/kvm` request: kubelet's pod-level
+admission skips device allocation and can panic on concurrent starts
+(kubernetes/kubernetes#143490). A pool with both `exclusiveCPUs` and
+`nestedVirtualization` gets `/dev/kvm` from `cmd/kvm-nri-plugin` instead, a
+containerd NRI plugin (`internal/kvmnri`) that adds the device to the
+containers a kata-qemu Pod in the runners namespace names in
+`tuist.dev/kvm-containers`. Build sets that annotation to `poller,runner`,
+requests no device, and has the poller exit before claiming a job when
+`/dev/kvm` is missing, since a stopped plugin adds nothing. dind keeps creating
+the guest's node with `mknod`. Helm combines the two only with
+`runnersFleetLinux.nestedVirtualization.nri.enabled`, which deploys the
+DaemonSet. Code that sizes a Pod
 (`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
 budget when it is set, or a running job looks nearly free.
 `isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.

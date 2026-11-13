@@ -66,10 +66,18 @@ defmodule Tuist.Tests.RunSelections do
   @history_windows_days [7, 31, 90, 1095]
   # `xcode_targets` keeps its rows 30 days, so no earlier hash is found past it.
   @hash_window_days 31
+  # How many earlier executions of a skipped module a hit looks among, also
+  # written in `latest_executions/5`.
+  @executions_per_hit 20
   # Bounds every read the counting makes, so recording and backfilling share
   # ClickHouse with the dashboards' queries rather than competing with them.
-  @query_settings [max_threads: 2, max_memory_usage: 1_073_741_824, max_execution_time: 60]
+  # They keep `ClickHouseRepo`'s time limit, which ends a read before the
+  # client stops waiting for it.
+  @query_settings [max_threads: 2, max_memory_usage: 1_073_741_824]
   @chunk_size 1_000
+  # `xcode_targets` is read by event through a projection; past a few hundred
+  # events ClickHouse reads it in far larger ranges.
+  @event_chunk_size 200
   @backfill_page_size 200
   @backfill_budget_ms to_timeout(minute: 5)
 
@@ -230,7 +238,7 @@ defmodule Tuist.Tests.RunSelections do
     until = ran_ats |> Enum.max(NaiveDateTime) |> days_after(2)
 
     event_ids
-    |> Enum.chunk_every(@chunk_size)
+    |> Enum.chunk_every(@event_chunk_size)
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
@@ -254,23 +262,24 @@ defmodule Tuist.Tests.RunSelections do
   defp hit_counts(_project_id, []), do: %{}
 
   defp hit_counts(project_id, hits) do
-    {counts, unknown} = resolve_hits(project_id, hits, @history_windows_days, %{}, %{})
+    history = %{executions: %{}, candidates: %{}, tests: %{}, hashes: %{}, days: 0}
+    {counts, unknown} = resolve_hits(project_id, hits, @history_windows_days, history, %{}, %{})
 
     unknown
     |> Map.new(&{hit_key(&1), {0, :estimated}})
     |> Map.merge(counts)
   end
 
-  defp resolve_hits(_project_id, [], _windows, resolved, _fallbacks), do: {resolved, []}
-  defp resolve_hits(_project_id, hits, [], resolved, _fallbacks), do: {resolved, hits}
+  defp resolve_hits(_project_id, [], _windows, _history, resolved, _fallbacks), do: {resolved, []}
+  defp resolve_hits(_project_id, hits, [], _history, resolved, _fallbacks), do: {resolved, hits}
 
-  defp resolve_hits(project_id, hits, [days | windows], resolved, fallbacks) do
-    sources = earlier_executions(project_id, hits, days)
+  defp resolve_hits(project_id, hits, [days | windows], history, resolved, fallbacks) do
+    history = earlier_executions(project_id, hits, days, history)
 
     {resolved, fallbacks, unresolved} =
       Enum.reduce(hits, {resolved, fallbacks, []}, fn hit, {resolved, fallbacks, unresolved} ->
         key = hit_key(hit)
-        sources = Map.get(sources, key, [])
+        sources = sources(history, hit, days)
         exact = hit.hash && Enum.find(sources, &(&1.hash == hit.hash))
         estimate = with %{tests: tests} <- List.first(sources), do: {tests, :estimated}
 
@@ -290,49 +299,119 @@ defmodule Tuist.Tests.RunSelections do
         end
       end)
 
-    resolve_hits(project_id, unresolved, windows, resolved, fallbacks)
+    resolve_hits(project_id, unresolved, windows, history, resolved, fallbacks)
   end
 
   defp hit_key(hit), do: {hit.run.id, hit.module}
 
-  # `%{{test_run_id, module} => [%{tests, hash}]}`, newest first: the hit
-  # module's executions before the hit's run, within `days` before the
-  # earliest hit, that executed tests of the module without narrowing it.
-  defp earlier_executions(project_id, hits, days) do
-    ran_ats = Enum.map(hits, & &1.run.ran_at)
+  # `[%{tests, hash}]`, newest first: the hit's candidates that executed tests
+  # of the module without narrowing it, other than its own run's.
+  defp sources(history, hit, days) do
+    for execution <- Map.fetch!(history.candidates, hit_key(hit)),
+        execution.run_id != hit.run.id,
+        tests = Map.get(history.tests, {execution.run_id, hit.module}) do
+      hash = if days <= @hash_window_days, do: Map.get(history.hashes, {execution.event_id, hit.module})
+      %{tests: tests, hash: hash}
+    end
+  end
+
+  # Sets each hit's candidates for the window, its module's 20 latest
+  # executions within `days` before its run, and reads their tests and,
+  # within the days `xcode_targets` keeps, their hashes. What earlier windows
+  # read is kept: a hit that already had 20 candidates has the same ones in a
+  # wider window, and the others only need the days this window adds, so the
+  # wide windows read the few modules that rarely run rather than every event
+  # in them.
+  defp earlier_executions(project_id, hits, days, history) do
+    open = Enum.reject(hits, &(length(Map.get(history.candidates, hit_key(&1), [])) == @executions_per_hit))
+    executions = read_executions(project_id, open, days, history)
+
+    candidates =
+      Map.new(hits, fn hit ->
+        since = days_before(hit.run.ran_at, days)
+
+        latest =
+          executions
+          |> Map.get(hit.module, [])
+          |> Enum.filter(
+            &(not NaiveDateTime.before?(&1.ran_at, since) and NaiveDateTime.before?(&1.ran_at, hit.run.ran_at))
+          )
+          |> Enum.sort_by(&{&1.order, &1.event_id, &1.run_id})
+          |> Enum.take(@executions_per_hit)
+
+        {hit_key(hit), latest}
+      end)
+
+    module_executions =
+      Enum.uniq(for hit <- hits, execution <- candidates[hit_key(hit)], do: Map.put(execution, :module, hit.module))
+
+    pairs =
+      module_executions
+      |> Enum.map(&{&1.run_id, &1.module})
+      |> Enum.uniq()
+      |> Enum.reject(&Map.has_key?(history.tests, &1))
+
+    tests = pairs |> Map.new(&{&1, nil}) |> Map.merge(module_tests(project_id, pairs)) |> Map.merge(history.tests)
+    hashes = candidate_hashes(project_id, hits, module_executions, tests, days, history.hashes)
+
+    %{history | executions: executions, candidates: candidates, tests: tests, hashes: hashes, days: days}
+  end
+
+  # Adds to the executions read so far, by module, those the open hits need:
+  # within `days` before their runs and older than the previous window, which
+  # was read whole for them.
+  defp read_executions(_project_id, [], _days, history), do: history.executions
+
+  defp read_executions(project_id, open, days, history) do
+    ran_ats = Enum.map(open, & &1.run.ran_at)
     since = ran_ats |> Enum.min(NaiveDateTime) |> days_before(days)
-    until = Enum.max(ran_ats, NaiveDateTime)
-    modules = hits |> Enum.map(& &1.module) |> Enum.uniq()
+    until = ran_ats |> Enum.max(NaiveDateTime) |> days_before(history.days)
+    modules = open |> Enum.map(& &1.module) |> Enum.uniq()
+    run_times = ran_ats |> Enum.uniq() |> Enum.map(&usec/1)
 
-    executions = latest_executions(project_id, modules, since, until)
-    tests = executions |> Enum.map(&{&1.run_id, &1.module}) |> Enum.uniq() |> then(&module_tests(project_id, &1))
-
-    hashes =
-      if Enum.any?(hits, & &1.hash) and days <= @hash_window_days,
-        do: execution_hashes(project_id, executions),
-        else: %{}
-
-    by_module = Enum.group_by(executions, & &1.module)
-
-    Map.new(hits, fn hit ->
-      sources =
-        for execution <- Map.get(by_module, hit.module, []),
-            execution.run_id != hit.run.id and NaiveDateTime.before?(execution.ran_at, hit.run.ran_at),
-            tests = Map.get(tests, {execution.run_id, hit.module}),
-            do: %{tests: tests, hash: Map.get(hashes, {execution.event_id, hit.module})}
-
-      {hit_key(hit), sources}
+    project_id
+    |> latest_executions(modules, run_times, since, until)
+    |> Enum.group_by(& &1.module, &Map.delete(&1, :module))
+    |> Enum.reduce(history.executions, fn {module, found}, executions ->
+      Map.update(executions, module, found, &Enum.uniq(&1 ++ found))
     end)
   end
 
+  # `%{{command_event_id, module} => hash | nil}` with the candidates that
+  # count tests of a module a hit hashed, looked up once each.
+  defp candidate_hashes(project_id, hits, module_executions, tests, days, hashes) do
+    hashed_modules = for hit <- hits, hit.hash, into: MapSet.new(), do: hit.module
+
+    pending =
+      Enum.filter(module_executions, fn execution ->
+        MapSet.member?(hashed_modules, execution.module) and Map.get(tests, {execution.run_id, execution.module}) != nil and
+          not Map.has_key?(hashes, {execution.event_id, execution.module})
+      end)
+
+    if days <= @hash_window_days and pending != [] do
+      ran_ats = Enum.map(module_executions, & &1.ran_at)
+      since = ran_ats |> Enum.min(NaiveDateTime) |> days_before(1)
+      until = ran_ats |> Enum.max(NaiveDateTime) |> days_after(1)
+
+      pending
+      |> Map.new(&{{&1.event_id, &1.module}, nil})
+      |> Map.merge(execution_hashes(project_id, pending, since, until))
+      |> Map.merge(hashes)
+    else
+      hashes
+    end
+  end
+
   # The latest test command events in `[since, until)` that executed each of
-  # the modules, at most 20 per module, newest first: the event's test targets
-  # less the ones it hit. Read from `command_events`, whose sorting key starts
-  # with the project and event name, so it stays a narrow scan. The hits are
-  # taken out with `arrayExcept`, not a lambda: a lambda that reads the hit
-  # columns copies them for every test target, which runs past the memory
-  # limit on events with hundreds of targets.
-  defp latest_executions(project_id, modules, since, until) do
+  # the modules, at most 20 per module between consecutive run times: the
+  # event's test targets less the ones it hit. Every run's 20 latest
+  # executions before it are among those of the gaps below it. Read from
+  # `command_events`, whose sorting key starts with the project and event
+  # name, so it stays a narrow scan. The hits are taken out with
+  # `arrayExcept`, not a lambda: a lambda that reads the hit columns copies
+  # them for every test target, which runs past the memory limit on events
+  # with hundreds of targets.
+  defp latest_executions(project_id, modules, run_times, since, until) do
     executions =
       from(e in test_events(project_id),
         where: e.ran_at >= ^since and e.ran_at < ^until and not is_nil(e.test_run_id),
@@ -353,7 +432,7 @@ defmodule Tuist.Tests.RunSelections do
       )
 
     from(x in subquery(executions),
-      group_by: x.module,
+      group_by: [x.module, fragment("arrayCount(t -> t <= ?, ?)", x.ran_at, ^run_times)],
       select:
         {x.module,
          fragment(
@@ -366,8 +445,8 @@ defmodule Tuist.Tests.RunSelections do
     )
     |> ClickHouseRepo.all(settings: @query_settings)
     |> Enum.flat_map(fn {module, executions} ->
-      for {_order, event_id, run_id, ran_at} <- executions,
-          do: %{module: module, event_id: event_id, run_id: run_id, ran_at: ran_at}
+      for {order, event_id, run_id, ran_at} <- executions,
+          do: %{module: module, order: order, event_id: event_id, run_id: run_id, ran_at: ran_at}
     end)
   end
 
@@ -412,25 +491,24 @@ defmodule Tuist.Tests.RunSelections do
 
   # `%{{command_event_id, module} => hash}` for the executions whose target
   # missed with a hash. `xcode_targets` isn't sorted by project, so the read is
-  # bounded to the days around the executions.
-  defp execution_hashes(_project_id, []), do: %{}
-
-  defp execution_hashes(project_id, executions) do
-    ran_ats = Enum.map(executions, & &1.ran_at)
-    since = ran_ats |> Enum.min(NaiveDateTime) |> days_before(1)
-    until = ran_ats |> Enum.max(NaiveDateTime) |> days_after(1)
+  # bounded to the days around the executions. The modules are matched with
+  # `indexOf` rather than `IN`: ClickHouse checks an `IN` list against the
+  # name's n-gram skip indexes granule by granule, which takes longer than the
+  # read itself with hundreds of modules.
+  defp execution_hashes(project_id, executions, since, until) do
     modules = executions |> Enum.map(& &1.module) |> Enum.uniq()
 
     executions
     |> Enum.map(& &1.event_id)
     |> Enum.uniq()
-    |> Enum.chunk_every(@chunk_size)
+    |> Enum.chunk_every(@event_chunk_size)
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
           where: t.command_event_id in ^ids and t.project_id == ^project_id,
           where: t.inserted_at >= ^since and t.inserted_at < ^until,
-          where: t.name in ^modules and not is_nil(t.selective_testing_hash),
+          where: fragment("indexOf(?, ?) > 0", type(^modules, {:array, :string}), t.name),
+          where: not is_nil(t.selective_testing_hash),
           where: fragment("? = 'miss'", t.selective_testing_hit),
           distinct: true,
           select: {t.command_event_id, t.name, t.selective_testing_hash}

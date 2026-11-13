@@ -13,6 +13,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -174,6 +175,91 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   def allocate_checkout(_), do: {:error, :unavailable}
+
+  @doc """
+  Allocates, for one worker start of a sandbox session (a Claude Code session),
+  the checkout volume of the GitHub repository `repository` (`owner/name`) it
+  works on: the volume the repository's CI jobs on that platform use, so the
+  session starts from the same host-built master. The account's github.com
+  installation must read the repository. A session has no CI job, so the commit
+  is the default branch's head as GitHub reports it now, never anything the
+  guest says, and the use is a default-branch job's: the host moves or starts
+  the master only when an export names that commit, and any other export, such
+  as the session's own branch, only adds objects. `use_key` (the worker's work
+  id) makes a retried start reuse its use.
+  """
+  def allocate_sandbox_checkout(
+        %{account_id: account_id, node_name: node, platform: sandbox_platform},
+        repository,
+        use_key
+      )
+      when sandbox_platform in [:darwin, :linux] and is_binary(node) and is_binary(use_key) do
+    {platform, arch} = if sandbox_platform == :darwin, do: {:macos, "arm64"}, else: {:linux, "amd64"}
+
+    with true <- is_binary(repository) and Regex.match?(~r/\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/, repository),
+         true <- Environment.runner_cache_volumes_enabled?(platform),
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
+         true <- VCS.installation_api_url(installation) == "https://api.github.com",
+         {:ok, %{"id" => repository_id, "full_name" => full_name, "default_branch" => default}}
+         when is_integer(repository_id) and is_binary(default) <- GitHubClient.get_repository(installation, repository),
+         {:ok, %{"commit" => %{"sha" => commit}}} when is_binary(commit) <-
+           GitHubClient.get_branch(installation, full_name, default),
+         session = %{account_id: account_id, workflow_job_id: nil, workflow_run_id: nil, repository: full_name},
+         identity = %{
+           repository_id: repository_id,
+           trusted: true,
+           same_repository: true,
+           default_branch: default,
+           writer_branch: default
+         },
+         {:ok, allocation} <-
+           allocate_for_job(session, identity, %{
+             pod_name: "sandbox-" <> use_key,
+             pod_uid: use_key,
+             node_name: node,
+             key: @checkout_key,
+             architecture: arch,
+             platform: to_string(platform),
+             uid: sandbox_checkout_uid(account_id, repository_id, platform, arch)
+           }) do
+      usage = Repo.get!(Usage, allocation.id)
+
+      {:ok,
+       Map.merge(allocation, %{
+         generation: usage.generation,
+         repository: full_name,
+         clone_url: "https://github.com/" <> full_name,
+         default_branch: default,
+         commit: commit,
+         default_branch_job: true,
+         may_start_master: false,
+         volume_key: checkout_volume_key(usage.volume_id)
+       })}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  # The volume's identity includes the user that owns the tree, so a session
+  # takes the user of the repository's CI checkout volume on its platform, and
+  # the runner image's user without one (`runner` on macOS, `user` in the Linux
+  # sandbox template).
+  defp sandbox_checkout_uid(account_id, repository_id, platform, arch) do
+    Repo.one(
+      from(v in Volume,
+        where:
+          v.account_id == ^account_id and v.provider == "github" and v.provider_instance == "github.com" and
+            v.scope_id == ^to_string(repository_id) and v.key == @checkout_key and v.platform == ^to_string(platform) and
+            v.architecture == ^arch and is_nil(v.deleted_at),
+        order_by: [desc_nulls_last: v.last_used_at, desc: v.updated_at],
+        limit: 1,
+        select: v.uid
+      )
+    ) || runner_image_uid(platform)
+  end
+
+  defp runner_image_uid(:macos), do: 502
+  defp runner_image_uid(:linux), do: 1000
 
   # A job follows its profile's setting; one on a legacy label has checkouts on.
   defp cached_checkouts?(%Profile{cached_checkouts: enabled}), do: enabled

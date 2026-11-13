@@ -70,16 +70,20 @@ Do this on one staging box before canary:
 
 ## Pod-level resource managers (kubelet v1.36)
 
-**Do not combine exclusive CPUs with nested KVM on current kubelets.**
+**Exclusive-CPU Pods must not get KVM from the device plugin on current kubelets.**
 [Kubernetes #143490](https://github.com/kubernetes/kubernetes/issues/143490)
 identifies a missing device allocation in pod-level admission. Containers then
 allocate devices concurrently at startup, racing in the device manager and
 panicking kubelet. The proposed [upstream fix](https://github.com/kubernetes/kubernetes/pull/143494)
-is not yet merged. Helm and the runners-controller reject pools with both
-`exclusiveCPUs: true` and `nestedVirtualization: true`. Managed pools keep KVM
-and container-level CPU/memory budgets; exclusive CPU isolation remains available
-only to pools that turn nested virtualization off. Do not remove these guards
-until a verified upstream fix is installed on every eligible host.
+is not yet merged. Pools with both `exclusiveCPUs: true` and
+`nestedVirtualization: true` therefore get `/dev/kvm` from the `kvm-nri-plugin`
+DaemonSet (`runnersFleetLinux.nestedVirtualization.nri.enabled`), a containerd
+NRI plugin that adds the device to the containers a kata-qemu Pod names in its
+`tuist.dev/kvm-containers` annotation; those Pods request no
+`devices.tuist.dev/kvm`. Without NRI enabled, Helm still rejects the
+combination. Never give a Pod with a Pod-level budget a
+`devices.tuist.dev/kvm` request. See `infra/runners-controller/AGENTS.md`
+("Exclusive CPUs").
 
 This prevents new Pods from taking the broken admission path; it does not repair
 an already-inconsistent CPU checkpoint. Recover a damaged host separately after
@@ -87,6 +91,19 @@ checking its live runtime workloads. Never reset allocation state automatically
 under running jobs. Production's OnDelete fleets do not upgrade existing hosts
 when `kubernetesVersion` changes, so check live kubelet versions rather than
 assuming every host runs the chart's version.
+
+**A kubelet restart with exclusive-CPU Pods running leaks their cores.** On
+v1.36.6 (and upstream master), `staticPolicy.AllocatePod` does not check for an
+existing Pod-level allocation, so the restarted kubelet re-admits each running
+Pod onto new cores and never returns the old ones. The Pods keep running, but the
+old cores are in neither `defaultCpuSet` nor any entry, and the next kubelet
+start fails `validateState` ("current set of available CPUs ... doesn't match")
+and stops. Staging reproduced it on 2026-11-12: two Pods on `1,13` and `2,14`
+moved to `3,15` and `4,16`, and the checkpoint was left with
+`defaultCpuSet: 0,3-12,15-23` and no entries. Once no exclusive-CPU Pod is left
+on the host, recover by stopping the kubelet, moving
+`/var/lib/kubelet/cpu_manager_state` aside and starting it again. Drain
+exclusive-CPU Pods before a planned kubelet restart.
 
 A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
 and the shell bridge. On v1.34 the static policy can only pin a container whose

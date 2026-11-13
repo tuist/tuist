@@ -53,8 +53,30 @@ exits after `max_idle_seconds` without activity, which pauses the sandbox; the
 session's next message resumes the same sandbox.
 
 Claude Code is pinned to one version in this Dockerfile, the template
-Dockerfile and `sbx-worker`; macOS guests download and verify the pinned binary
-on first use.
+Dockerfile, `sbx-worker` and tart-kubelet (`internal/macosandbox/tools.go`,
+whose test checks the pin against `sbx-worker`). macOS hosts download and
+verify the pinned build once and share it with their VMs; a session copies
+it from the share, and downloads it only when the host has not fetched it yet.
+
+## Startup and caches
+
+- **Tuist cache:** the worker gets `TUIST_URL` and, when the account has an
+  in-rack cache at the node's site, `TUIST_CACHE_ENDPOINT`. `sbx-worker`
+  starts the runner with itself as `--exec-path`; that wrapper exports the
+  session's `CLAUDE_CODE_SESSION_ACCESS_TOKEN` as `TUIST_OIDC_TOKEN` and execs
+  Claude Code, so Tuist clients sign in with the session identity
+  (`Tuist.OIDC`). The token is the one at spawn time (four hours by default).
+- **Cached checkouts (macOS and Linux):** the hook sends
+  `CLAUDE_RUNNER_PRIMARY_REPO_URL` as `repository_url`. When the account's
+  GitHub installation reads that github.com repository, the worker starts
+  with the repository's CI checkout volume: before the runner starts,
+  `sbx-worker` copies the node's master of it to the runner's canonical clone
+  (`<base-dir>/<owner>/<repo>`), so the runner fetches only what it lacks
+  ([pre-warmed checkouts](https://code.claude.com/docs/en/self-hosted-environments-deploy#reuse-a-pre-warmed-checkout)).
+  After the runner exits it exports the default branch's commit the server
+  named at allocation, which the node verifies and builds the next master
+  from, under the rules CI exports follow. macOS goes through a per-VM share,
+  Linux through vsock to sandboxd and the runner-cache agent.
 
 `run-orchestrator.test.sh` and `spawn-runner.test.mjs` run in the sandbox-image
 workflow. Not yet run end to end: a live session needs a Team or Enterprise

@@ -158,6 +158,58 @@ defmodule Tuist.Tests.RunSelectionsTest do
       assert %{avoided_tests: 6, estimated_tests: 6, scope_tests: 7} = selection(project, run)
     end
 
+    test "counts each run of a batch among its module's latest executions before it", %{project: project, now: now} do
+      stored = test_run(project, days_ago(now, 5), [{"AuthTests", 4}])
+      command_event(project, stored, [{"AuthTests", "h1", :miss}])
+
+      older = test_run(project, days_ago(now, 2), [{"CoreTests", 1}])
+      command_event(project, older, [{"AuthTests", "h1", :local}, {"CoreTests", "c1", :miss}])
+
+      # Then 20 jobs ran AuthTests without reporting its tests: they are the
+      # newer run's 20 latest executions of it, and none counts it.
+      for n <- 1..20 do
+        ran_at = NaiveDateTime.add(days_ago(now, 1), n, :second)
+
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_run_id: Ecto.UUID.generate(),
+          ran_at: ran_at,
+          created_at: ran_at,
+          test_targets: ["AuthTests"]
+        )
+      end
+
+      newer = test_run(project, now, [{"CoreTests", 1}])
+      command_event(project, newer, [{"AuthTests", "h1", :local}, {"CoreTests", "c1", :miss}])
+
+      assert RunSelections.record(project.id, [older.id, newer.id]) == 2
+      assert %{avoided_tests: 4, estimated_tests: 0} = selection(project, older)
+      assert %{avoided_tests: 0, estimated_tests: 0} = selection(project, newer)
+    end
+
+    test "looks further back for the modules without a recent execution", %{project: project, now: now} do
+      auth = test_run(project, days_ago(now, 3), [{"AuthTests", 2}])
+      command_event(project, auth, [{"AuthTests", "a1", :miss}])
+      profile = test_run(project, days_ago(now, 20), [{"ProfileTests", 3}])
+      command_event(project, profile, [{"ProfileTests", "p0", :miss}])
+      search = test_run(project, days_ago(now, 50), [{"SearchTests", 6}])
+      command_event(project, search, [{"SearchTests", "s0", :miss}])
+
+      run = test_run(project, now, [{"CoreTests", 1}])
+
+      command_event(project, run, [
+        {"AuthTests", "a1", :local},
+        {"ProfileTests", "p1", :local},
+        {"SearchTests", "s1", :remote},
+        {"CoreTests", "c1", :miss}
+      ])
+
+      RunSelections.record(project.id, [run.id])
+
+      assert %{avoided_tests: 11, estimated_tests: 9, scope_tests: 12} = selection(project, run)
+    end
+
     test "leaves out the skipped modules a narrowed run didn't name whole", %{project: project, now: now} do
       earlier = test_run(project, days_ago(now, 2), [{"AuthTests", 5}, {"ProfileTests", 4}])
       command_event(project, earlier, [{"AuthTests", "h1", :miss}, {"ProfileTests", "p1", :miss}])

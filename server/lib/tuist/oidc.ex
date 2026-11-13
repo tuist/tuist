@@ -7,6 +7,8 @@ defmodule Tuist.OIDC do
   - CircleCI
   - Bitrise
   - Amp orbs, through account-connected Amp workspaces
+  - Claude Code cloud sessions, through account-connected Claude Code
+    environments (session tokens, `sk-ant-cc-<JWT>`)
   - Configured workload identity providers
   """
 
@@ -28,8 +30,18 @@ defmodule Tuist.OIDC do
   @audience "tuist"
   # Amp recommends an audience that names the relying service.
   @amp_audience "https://tuist.dev"
+  # https://code.claude.com/docs/en/self-hosted-environments-identity
+  @claude_code_token_prefix "sk-ant-cc-"
+  @claude_code_issuer "ccr"
+  @claude_code_jwks_uri "https://api.anthropic.com/v1/code/.well-known/jwks.json"
 
   def claims(token, account_handle \\ nil)
+
+  # Anthropic marks the tokens of sessions in self-hosted environments with
+  # this prefix; Anthropic-hosted sessions' tokens carry another one and are
+  # signed by other keys.
+  def claims(@claude_code_token_prefix <> token, _account_handle) when byte_size(token) <= 16_384,
+    do: claude_code_claims(token)
 
   def claims(token, account_handle) when is_binary(token) and byte_size(token) <= 16_384 do
     with {:ok, issuer} <- peek_issuer(token) do
@@ -44,6 +56,22 @@ defmodule Tuist.OIDC do
   end
 
   def claims(_, _), do: {:error, :invalid_token}
+
+  # A session token proves a session in one environment, named in `aud` and
+  # `ccr:pool_id`; other tokens of self-hosted environments (environment
+  # secrets, runner tokens, work orders) share the keys but not the role.
+  defp claude_code_claims(token) do
+    with {:ok, @claude_code_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, @claude_code_jwks_uri, ["ES256"]),
+         %{"ccr:role" => "session_worker", "ccr:pool_id" => "ccpool_" <> _ = environment_id, "exp" => exp} <- claims,
+         :ok <- audience_includes(claims, environment_id) do
+      {:ok, %{claude_code_environment_id: environment_id, expires_at: exp}}
+    else
+      {:ok, _issuer} -> {:error, :invalid_token}
+      %{} -> {:error, :invalid_token}
+      error -> error
+    end
+  end
 
   @doc """
   The verified claims of a GitHub Actions token minted for `audience`.
@@ -271,10 +299,10 @@ defmodule Tuist.OIDC do
       String.starts_with?(url, "git@github.com:")
   end
 
-  defp verify(token, jwks_uri) do
+  defp verify(token, jwks_uri, algorithms \\ ["RS256"]) do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
-         {:ok, claims} <- verify_signature(token, jwks, kid),
+         {:ok, claims} <- verify_signature(token, jwks, kid, algorithms),
          :ok <- validate_expiration(claims),
          :ok <- validate_not_before(claims) do
       {:ok, claims}
@@ -302,17 +330,17 @@ defmodule Tuist.OIDC do
     end)
   end
 
-  defp verify_signature(token, %{"keys" => keys}, kid) do
+  defp verify_signature(token, %{"keys" => keys}, kid, algorithms) do
     with {:ok, key} <- find_key(keys, kid),
          {true, %JOSE.JWT{fields: fields}, _jws} <-
-           JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), ["RS256"], token) do
+           JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), algorithms, token) do
       {:ok, fields}
     else
       _ -> {:error, :invalid_signature}
     end
   end
 
-  defp verify_signature(_, _, _), do: {:error, :invalid_signature}
+  defp verify_signature(_, _, _, _), do: {:error, :invalid_signature}
 
   defp find_key(keys, nil), do: {:ok, List.first(keys)}
 
