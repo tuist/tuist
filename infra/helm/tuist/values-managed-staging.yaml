@@ -755,11 +755,15 @@ ovhFleets:
     endpoint: ovh-us
     # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       offer: rise-m
-      # Existing hosts are enrolled during drained network maintenance.
+      # Backfill existing OnDelete hosts during drained network enrollment.
       # All jobs share the direct regional cache path and runner pool.
+      vRackID: pn-2023588
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
