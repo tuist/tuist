@@ -116,7 +116,11 @@ jobs:
         run: |
           python3 prepare-native.py
           once build TuistCodeDesktop
-          once test --all
+          # Concurrent test batches race on shared per-package outputs on Windows,
+          # so run them one at a time there, as distribution/release.sh does.
+          jobs=
+          test "$RUNNER_OS" != Windows || jobs=1
+          once test --all ${jobs:+--jobs "$jobs"}
       - name: Script tests and shared navigation fixture
         run: |
           for test in distribution/test_*.sh; do bash "$test"; done
