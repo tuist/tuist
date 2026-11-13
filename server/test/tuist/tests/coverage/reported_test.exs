@@ -1494,7 +1494,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   # A monorepo commit lists every toolchain's build files; only the project's
   # own build system's decide whether its evidence still holds.
-  test "an Xcode project carries across a commit that changes only Mix's build inputs", %{
+  test "an Xcode project carries across a commit that changes only Mix's and Gradle's build inputs", %{
     project: project,
     account: account
   } do
@@ -1502,10 +1502,11 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files())
 
-    record_build_inputs(account, %{"Package.resolved" => "one", "server/mix.lock" => "one"}, %{
-      "Package.resolved" => "one",
-      "server/mix.lock" => "two"
-    })
+    record_build_inputs(
+      account,
+      %{"Package.resolved" => "one", "server/mix.lock" => "one", "android/build.gradle.kts" => "one"},
+      %{"Package.resolved" => "one", "server/mix.lock" => "two", "android/build.gradle.kts" => "two"}
+    )
 
     assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
     assert reasons(reported) == []
@@ -1514,7 +1515,11 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
   end
 
-  for {build_system, input} <- [mix: "server/config/runtime.exs", cargo: "crates/cli/Cargo.lock"] do
+  for {build_system, input} <- [
+        mix: "server/config/runtime.exs",
+        cargo: "crates/cli/Cargo.lock",
+        gradle: "android/app/build.gradle.kts"
+      ] do
     @build_system build_system
     @input input
 

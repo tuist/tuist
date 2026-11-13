@@ -84,17 +84,7 @@ defmodule Tuist.GitHistory do
       "**/project.pbxproj",
       "**/Podfile.lock",
       "**/Cartfile.resolved",
-      ".xcode-version",
-      # Gradle: build scripts and their logic, version catalogs, properties,
-      # dependency locks and the wrapper's Gradle version.
-      "**/*.gradle",
-      "**/*.gradle.kts",
-      "**/gradle.properties",
-      "**/*.versions.toml",
-      "**/gradle.lockfile",
-      "**/gradle-wrapper.properties",
-      "**/buildSrc/**",
-      "**/build-logic/**"
+      ".xcode-version"
     ],
     mix: [
       "**/mix.exs",
@@ -113,6 +103,23 @@ defmodule Tuist.GitHistory do
       "**/.config/nextest.toml",
       "**/rust-toolchain",
       "**/rust-toolchain.toml",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ],
+    # Build scripts and their logic, version catalogs, properties, dependency
+    # locks, the wrapper's Gradle version and the JDK pins.
+    gradle: [
+      "**/*.gradle",
+      "**/*.gradle.kts",
+      "**/gradle.properties",
+      "**/*.versions.toml",
+      "**/gradle.lockfile",
+      "**/gradle-wrapper.properties",
+      "**/buildSrc/**",
+      "**/build-logic/**",
+      "**/.java-version",
+      "**/.sdkmanrc",
       "**/.tool-versions",
       "**/mise.toml",
       "**/.mise.toml"
