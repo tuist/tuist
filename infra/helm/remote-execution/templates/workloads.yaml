@@ -24,8 +24,8 @@
 {{- if or (lt $floor 1) (gt $floor $slots) }}
 {{- fail "workers.sharedHosts.floorSlots must be between 1 and ceilingSlots" }}
 {{- end }}
-{{- if empty $shared.nodes }}
-{{- fail "workers.sharedHosts.nodes must name the runner hosts the workers share" }}
+{{- if empty $shared.nodeSelector }}
+{{- fail "workers.sharedHosts.nodeSelector must select the runner hosts the workers share" }}
 {{- end }}
 {{- else if ne (index .Values.workers.nodeSelector "tuist.dev/workload") "remote-execution" }}
 {{- fail "execution workers require the dedicated remote-execution node selector" }}
@@ -126,15 +126,7 @@ spec:
       terminationGracePeriodSeconds: 60
       {{- if $shared.enabled }}
       priorityClassName: {{ .Release.Name }}-workers
-      nodeSelector: {kubernetes.io/arch: amd64, kubernetes.io/os: linux}
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: {{ toYaml $shared.nodes | nindent 22 }}
+      nodeSelector: {{ merge (dict "kubernetes.io/arch" "amd64" "kubernetes.io/os" "linux") $shared.nodeSelector | toYaml | nindent 8 }}
       {{- with $shared.tolerations }}
       tolerations: {{ toYaml . | nindent 8 }}
       {{- end }}
