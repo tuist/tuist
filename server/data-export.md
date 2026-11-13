@@ -494,7 +494,7 @@ operations; retain them until an administrator removes them.
   namespace, receipt identity and export process. Bazel and Gradle publications include only
   the selected signed application payload, or executable distribution, and derived native metadata, not
   signing keys or unrelated build outputs. Gradle metadata includes the application
-  ID, version code/name, verified signing certificate SHA-256 fingerprints, and
+  ID, an optional display name, version code/name, verified signing certificate SHA-256 fingerprints, and
   signature-verification result. Its publication target identifies the module and
   variant; track is optional and revision is currently absent.
   Executable publications retain the entry-point path, display name, operating
@@ -511,6 +511,20 @@ operations; retain them until an administrator removes them.
   the original payload in the artifact namespace, rather than a detached copy.
   This key is server-owned, not accepted as upload metadata. Include it in
   preview exports and retrieve the referenced bytes from account storage.
+  The Android display name, when present and valid, becomes `previews.display_name`;
+  otherwise the application ID is used. Apple and Android install interfaces may
+  name a PNG icon payload (`spec.icon_payload`). Projection enqueues a
+  `Tuist.Artifacts.PreviewIconWorker` job (args: publication ID, preview ID and
+  the icon's digest/size/media-type descriptor; normal Oban pruning) that copies
+  a valid icon of at most 1 MiB to the preview's icon object,
+  `{account_handle}/{project_handle}/previews/{preview_id}/icon.png`
+  (`Tuist.AppBuilds.icon_storage_key/1`), the same object `tuist share` uploads.
+  The original stays in the artifact closure. The job writes nothing once the
+  publication has expired or the preview is gone. The copy is exported through
+  that key and is deleted by preview retention, which derives the key from the
+  current account and project handles. Like `tuist share` icons, it lies outside
+  the account-ID namespace that `DeleteAccountArtifactsWorker` erases, and it is
+  not deleted after a handle rename or a project or account deletion.
 - **Retention**: receipt lookup, content download, commit replay and preview
   projection use a 30-day window from `inserted_at` on hosted Tuist. Self-hosted
   instances use `artifact_retention_days.app_previews`
