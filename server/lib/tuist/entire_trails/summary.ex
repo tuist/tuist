@@ -15,6 +15,8 @@ defmodule Tuist.EntireTrails.Summary do
     field :findings, {:array, :map}, default: []
     field :review_id, :string
     field :finding_ids, {:array, :string}, default: []
+    field :discussion_id, :string
+    field :message_id, :string
     timestamps(type: :utc_datetime)
   end
 end

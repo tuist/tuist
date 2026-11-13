@@ -1,6 +1,7 @@
 defmodule Tuist.EntireTrails do
   @moduledoc """
-  Publishes Tuist insights as commit checks and head-pinned Trail reviews.
+  Publishes Tuist insights as commit checks, head-pinned Trail reviews, and a
+  maintained Trail comment.
   GitHub connections can coexist with these connections.
   """
 
@@ -214,9 +215,10 @@ defmodule Tuist.EntireTrails do
          {:ok, trail} <- Client.trail(connection.installation, repository, number),
          true <- trail["status"] in ["open", "draft"],
          check = %{branch: trail["branch"], key: handle(connection.project), details_url: project_url(connection.project)},
-         {:ok, ids} <- Client.publish(connection.installation, repository, number, check, current) do
+         {:ok, ids} <- Client.publish(connection.installation, repository, number, check, current),
+         {:ok, comment} <- publish_comment(connection, repository, number, current) do
       current
-      |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
+      |> Ecto.Changeset.change(ids |> Map.merge(comment) |> Map.put(:published_at, current.reported_at))
       |> Repo.update!()
 
       Logger.info("Entire report published connection_id=#{connection.id} trail_number=#{number}")
@@ -231,6 +233,48 @@ defmodule Tuist.EntireTrails do
         )
 
         :ok
+    end
+  end
+
+  # Like the GitHub integration's comment, each project keeps one summary
+  # comment per Trail and edits it as reports change.
+  defp publish_comment(connection, repository, number, summary) do
+    body = summary.report_body <> "\n\n" <> marker(connection.project)
+
+    case upsert_comment(connection, repository, number, summary, body) do
+      {:error, :revoked} ->
+        # Installations that have not granted discussions still receive checks and findings.
+        Logger.warning("Entire comment skipped connection_id=#{connection.id} trail_number=#{number} reason=revoked")
+        {:ok, %{}}
+
+      result ->
+        result
+    end
+  end
+
+  defp upsert_comment(connection, repository, number, %{discussion_id: id} = summary, body) when is_binary(id) do
+    pointer = Map.take(summary, [:discussion_id, :message_id])
+
+    case Client.update_comment(connection.installation, repository, number, pointer, body) do
+      {:ok, _} -> {:ok, pointer}
+      # The comment was deleted on Entire, so post it again.
+      {:error, :revoked} -> upsert_comment(connection, repository, number, %{summary | discussion_id: nil}, body)
+      {:error, _} = error -> error
+    end
+  end
+
+  defp upsert_comment(connection, repository, number, _summary, body) do
+    installation = connection.installation
+
+    case Client.find_comment(installation, repository, number, marker(connection.project)) do
+      {:ok, nil} ->
+        Client.create_comment(installation, repository, number, "Tuist insights for " <> handle(connection.project), body)
+
+      {:ok, pointer} ->
+        with {:ok, _} <- Client.update_comment(installation, repository, number, pointer, body), do: {:ok, pointer}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -339,6 +383,8 @@ defmodule Tuist.EntireTrails do
 
     if report do
       fallback = "### Tuist insights for `#{sha}`\n\n[View the full report](#{base_url})"
+      # Leave room for the comment marker within Entire's body limits.
+      limit = 65_535 - byte_size("\n\n" <> marker(project))
 
       findings =
         [{"failed-tests", "medium", report.failed_tests}, {"flaky-tests", "low", report.flaky_tests}]
@@ -352,10 +398,11 @@ defmodule Tuist.EntireTrails do
           }
         end)
 
-      %{body: if(byte_size(report.summary) <= 65_535, do: report.summary, else: fallback), findings: findings}
+      %{body: if(byte_size(report.summary) <= limit, do: report.summary, else: fallback), findings: findings}
     end
   end
 
   defp handle(project), do: "#{project.account.name}/#{project.name}"
   defp project_url(project), do: Environment.app_url(path: "/" <> handle(project))
+  defp marker(project), do: "<!-- tuist-project:#{project.id} -->"
 end
