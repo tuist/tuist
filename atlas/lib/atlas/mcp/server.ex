@@ -176,6 +176,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetTimeOffCalendar
   alias Atlas.MCP.Tools.GetTimeOffOverview
   alias Atlas.MCP.Tools.GetTuistAccount
+  alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.IgnoreErrorIssue
@@ -350,6 +351,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
   alias Atlas.MCP.Tools.UpdateTask
+  alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.UploadPostalLetter
@@ -577,17 +579,20 @@ defmodule Atlas.MCP.Server do
     UpdateTuistFeatureFlag,
     GetTuistAccount,
     GetTuistRunnerConcurrencyLimits,
-    UpdateTuistRunnerConcurrencyLimits
+    UpdateTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan,
+    UpdateTuistAccountPlan
   ]
-  # Runner onboarding tools share the flag tools' scopes and Slack/interface rules.
+  # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
     EvaluateTuistFeatureFlags,
     GetTuistAccount,
-    GetTuistRunnerConcurrencyLimits
+    GetTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan
   ]
-  @feature_flag_write_tools [UpdateTuistFeatureFlag, UpdateTuistRunnerConcurrencyLimits]
+  @feature_flag_write_tools [UpdateTuistFeatureFlag, UpdateTuistRunnerConcurrencyLimits, UpdateTuistAccountPlan]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
@@ -855,6 +860,8 @@ defmodule Atlas.MCP.Server do
     GetTuistAccount,
     GetTuistRunnerConcurrencyLimits,
     UpdateTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan,
+    UpdateTuistAccountPlan,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
