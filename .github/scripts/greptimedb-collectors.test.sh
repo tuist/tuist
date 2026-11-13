@@ -6,7 +6,7 @@ chart=infra/helm/k8s-monitoring
 origin=http://pulse.observability.svc.cluster.local:4000
 # Extract one top-level-or-indented Alloy block by its exact opening line.
 block() { awk -v start="$1" '$0 ~ "^ *" start " \\{$" { copying=1; indent=match($0, /[^ ]/) } copying { print } copying && $0 ~ "^ {" indent-1 "}}$" { exit }' "$2"; }
-for environment in staging canary; do
+for environment in staging canary production; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
   helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
   # Cloud and Pulse (the GreptimeDB fork) each keep every signal. Nothing reads
@@ -79,13 +79,11 @@ for environment in staging canary; do
       (contains("grafana_cloud") | not))
   ' "$tmp/rendered.json" > /dev/null
 done
-# Production stays Cloud-only until its Pulse backend is installed (its readiness
-# gate would refuse pulse-dashboard-auth before then). Management and pentest
-# collect metrics only for Cloud: no Pulse writer or Secret.
-for environment in production management pentest; do
+# Management and pentest collect metrics only for Cloud: no Pulse writer or Secret.
+for environment in management pentest; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
   helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
   if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|greptimedb[_-](metrics|logs|traces)|greptimedb\.observability|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
   grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
 done
-echo 'PASS: workload collectors write natively to Pulse (GreptimeDB) with gateway headers and the write-only pulse-dashboard-auth login; production, management and pentest stay Cloud-only; Cloud preserved'
+echo 'PASS: workload collectors write natively to Pulse (GreptimeDB) with gateway headers and the write-only pulse-dashboard-auth login; management and pentest stay Cloud-only; Cloud preserved'

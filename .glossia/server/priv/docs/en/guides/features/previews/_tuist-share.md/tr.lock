@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "8a34fe4006dc4a56d92aba615400204596db2d4b553cc60e2c6d30d5e371323b",
+  "hash": "03963d4ab62edeaee7e1913b19a6aaa6e03a6b5f9336d959353e7f8ff81fecc2",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "4dceee7ce3e8b1ac31cbe68a34d4a2fd06fee640b173e5f1d8f98f8caf05226c"
                 },
                 "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "40ad37f7e18102360a192100654613467964f6b47067c668f8544665a45fb995"
+                  "content_hash": "8e4a9da558c26e08cf7a62b09d7c6763a81b1ba3bf1927f2d1368a1f527ff3fd"
                 },
                 "## Release notes {#release-notes}": {
                   "content_hash": "2c0075723f26f798966fd0d5d310f690c515c78bc85b1d8740b1cb8a9ccd6a51"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "f8c22cb8e5bd4b1986d6af111a0811692122cf35783b23ee8544024103ca8866",
+          "hash": "73616ad1c67c51b2d41e5421460166cedb5dc801ef9eb8a02bebca85cd9fd961",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews/_tuist-share.md",
           "metadata": {
-            "content_hash": "1ba714dd8ea8eb431f3ef309138d80e718aad4ad0ec3f75a7ba9fa46a2c24256"
+            "content_hash": "faf5df337f9067daa70491b1ea81af1c80ce08b73c674d4497124263925ff549"
           }
         },
         {
@@ -230,14 +230,14 @@
         }
       ],
       "details": {},
-      "hash": "8a34fe4006dc4a56d92aba615400204596db2d4b553cc60e2c6d30d5e371323b",
+      "hash": "03963d4ab62edeaee7e1913b19a6aaa6e03a6b5f9336d959353e7f8ff81fecc2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews/_tuist-share.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a9fd1ab3b98ed125d5985ea56e1920716d133b1356ca9457d2d0f46a9cda5246",
+  "output_hash": "418b2da668615d4a44645bf8b4bbc55e6bc12500298f6b7e99a71861e2b13f4b",
   "output_path": "server/priv/docs/tr/guides/features/previews/_tuist-share.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ca4feaa61b067aae5ee5a9248c9eaa5c839a90c4",
+  "source_commit_sha": "dcb02e10972686faa1931ae79ce7c5d67ec2ace7",
   "source_path": "server/priv/docs/en/guides/features/previews/_tuist-share.md",
-  "translated_at": "2026-11-06T18:01:00.734711Z",
-  "translation_session_id": "01a1b201-9078-74d7-ade6-b43aaf72c649"
+  "translated_at": "2026-11-13T15:06:48.912753Z",
+  "translation_session_id": "01a1d570-b6b3-785a-85d5-7847a337c4c0"
 }
