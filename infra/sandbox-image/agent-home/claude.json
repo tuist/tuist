@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tuist": {
+      "type": "http",
+      "url": "${TUIST_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TUIST_OIDC_TOKEN}"
+      }
+    }
+  }
+}

@@ -23,6 +23,11 @@ ARG AGENT_BROWSER_VERSION=0.38.1
 # sbx-worker uses this copy only when it is that exact build.
 ARG CLAUDE_CODE_VERSION=2.1.311
 ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be8489ada
+# The first release that signs in with the sandbox's workload identity (#15541)
+# without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
+# release's SHASUMS256.txt.
+ARG TUIST_VERSION=4.218.0-canary.28
+ARG TUIST_SHA256=7caf26caba2eca7d94c73149a0c45b53641aca8b3230c5ad8be7cab4234686c0
 # agent-browser's Chrome and libraries take about 1 GiB, and a project's
 # .agents/setup fills home (mise, caches) on this same filesystem.
 ARG ROOTFS_SIZE=12G
@@ -116,6 +121,24 @@ RUN npm install -g "agent-browser@${AGENT_BROWSER_VERSION}" \
     && runuser -u user -- env -i HOME=/home/user USER=user PATH=/usr/local/bin:/usr/bin:/bin \
         bash -c 'cd /home/user && agent-browser install --with-deps' \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.npm
+
+# Agents read the project's Tuist data with no setup: the Tuist CLI, a `tuist`
+# MCP server for Amp and Claude Code that authenticates with the sandbox's own
+# identity (`${amp:id-token}` in an Orb, the session token sbx-worker exports
+# as TUIST_OIDC_TOKEN in Claude Code), and a skill for when to use them. Amp
+# also loads skills from ~/.claude/skills.
+ARG TUIST_VERSION
+ARG TUIST_SHA256
+RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
+        "https://github.com/tuist/tuist/releases/download/${TUIST_VERSION}/tuist-linux-x86_64.tar.gz" \
+    && echo "${TUIST_SHA256}  /tmp/tuist.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
+    && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
+    && test "$(HOME=/tmp tuist version)" = "${TUIST_VERSION}"
+COPY agent-home/amp-settings.json /home/user/.config/amp/settings.json
+COPY agent-home/claude.json /home/user/.claude.json
+COPY agent-home/skills/ /home/user/.claude/skills/
+RUN chown -R user:user /home/user/.config /home/user/.claude /home/user/.claude.json
 
 RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
     && git lfs install --system --skip-repo \
