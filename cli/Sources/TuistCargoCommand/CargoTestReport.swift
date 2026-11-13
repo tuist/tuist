@@ -6,6 +6,8 @@ struct CargoTestTarget {
     let source: String
     let isLibrary: Bool
     let packageDirectory: String
+    /// Cargo's workspace root, which doctest names are relative to.
+    var workspaceRoot: String?
 
     static func read(_ metadata: [String: Any], arguments: [String] = []) -> [Self] {
         let packages = metadata["packages"] as? [[String: Any]] ?? []
@@ -14,6 +16,7 @@ struct CargoTestTarget {
         guard selection.allSatisfy(names.contains) else { return [] }
         let selectsWorkspace = arguments.prefix(while: { $0 != "--" }).contains { ["--workspace", "--all"].contains($0) }
         let selected = selection.isEmpty || selectsWorkspace ? names : Set(selection)
+        let workspaceRoot = metadata["workspace_root"] as? String
         return packages.flatMap { package -> [Self] in
             guard let packageName = package["name"] as? String, selected.contains(packageName),
                   let manifest = package["manifest_path"] as? String else { return [] }
@@ -28,7 +31,8 @@ struct CargoTestTarget {
                     name: name,
                     source: source,
                     isLibrary: isLibrary,
-                    packageDirectory: packageDirectory
+                    packageDirectory: packageDirectory,
+                    workspaceRoot: workspaceRoot
                 )
             }
         }
@@ -72,6 +76,9 @@ struct CargoTestReport {
         let module: String
         let isDoctest: Bool
         var binary: String?
+        /// A doctest heading's package, and the directory its tests' paths are relative to.
+        var packageDirectory: String?
+        var workspaceRoot: String?
     }
 
     let modules: [[String: Any]]
@@ -93,7 +100,8 @@ struct CargoTestReport {
             guard let heading = heading(line, targets: targets, directory: directory), headings.count < 1000 else { return nil }
             headings.append(heading)
         }
-        guard let groups = assign(sections, to: headings) else { return nil }
+        let packages = Set(targets.map(\.packageDirectory))
+        guard let groups = assign(sections, to: headings, packages: packages, directory: directory) else { return nil }
         var modules: [[String: Any]] = []
         var duration = 0
         for (heading, group) in zip(headings, groups) {
@@ -149,20 +157,53 @@ struct CargoTestReport {
             let name = String(line.dropFirst("Doc-tests ".count))
             let matches = targets.filter { $0.isLibrary && $0.name.replacingOccurrences(of: "-", with: "_") == name }
             guard matches.count == 1, let target = matches.first else { return nil }
-            return Heading(module: "\(target.module)::doctest/\(target.name)", isDoctest: true)
+            return Heading(
+                module: "\(target.module)::doctest/\(target.name)", isDoctest: true,
+                packageDirectory: target.packageDirectory, workspaceRoot: target.workspaceRoot
+            )
         }
         guard let parts = captures(headingPattern, line) else { return nil }
         let binary = URL(fileURLWithPath: parts[1]).lastPathComponent
             .replacingOccurrences(of: #"-[0-9a-f]{16}(?:\.exe)?$"#, with: "", options: .regularExpression)
-        let matches = targets.filter { target in
+        let path = parts[1].hasPrefix("/") ? parts[1] : directory + "/" + parts[1]
+        var matches = targets.filter { target in
             let source = parts[0].hasPrefix("/") ? parts[0] : target.packageDirectory + "/" + parts[0]
             return (target.name == binary || target.name.replacingOccurrences(of: "-", with: "_") == binary)
                 && target.source == source
         }
+        // Packages of a workspace can share a target's name and package-relative source (`tests/tests.rs` as
+        // `integration`): the binary's location says whose it is.
+        if matches.count > 1 { matches = matches.filter { builds($0, binary: path) } }
         guard matches.count == 1, let target = matches.first else { return nil }
-        return Heading(
-            module: target.module, isDoctest: false, binary: parts[1].hasPrefix("/") ? parts[1] : directory + "/" + parts[1]
+        return Heading(module: target.module, isDoctest: false, binary: path)
+    }
+
+    /// Whether Cargo built `binary` for the target's package: Cargo 1.100's build directory keeps each unit in
+    /// `build/<package>/<hash>/out`; earlier versions keep its fingerprint in `.fingerprint/<package>-<hash>` beside
+    /// `deps`.
+    private static func builds(_ target: CargoTestTarget, binary: String) -> Bool {
+        let package = target.module.components(separatedBy: "::")[0]
+        let components = binary.replacingOccurrences(of: #"\.exe$"#, with: "", options: .regularExpression)
+            .split(separator: "/").map(String.init)
+        guard components.count >= 5,
+              let hash = components.last.flatMap({ $0.split(separator: "-").last.map(String.init) }) else { return false }
+        if components[components.count - 2] == "out", components[components.count - 5] == "build" {
+            return components[components.count - 4] == package && components[components.count - 3] == hash
+        }
+        let profile = URL(fileURLWithPath: binary).deletingLastPathComponent().deletingLastPathComponent()
+        return FileManager.default.fileExists(
+            atPath: profile.appendingPathComponent(".fingerprint/\(package)-\(hash)").path
         )
+    }
+
+    /// Whether a doctest belongs to the heading's package: Cargo names doctests by their file relative to the
+    /// workspace root, and the package is the innermost one holding that file.
+    private static func owns(_ heading: Heading, _ test: Test, packages: Set<String>, directory: String) -> Bool {
+        guard let package = heading.packageDirectory, let separator = test.name.range(of: " - ") else { return false }
+        let file = String(test.name[..<separator.lowerBound])
+        let path = file.hasPrefix("/") ? file : (heading.workspaceRoot ?? directory) + "/" + file
+        let owner = packages.filter { path.hasPrefix($0 + "/") }.max { $0.count < $1.count }
+        return owner == package
     }
 
     private static func sections(_ lines: [String]) -> [Section]? {
@@ -213,7 +254,9 @@ struct CargoTestReport {
         return expected == nil ? sections : nil
     }
 
-    private static func assign(_ sections: [Section], to headings: [Heading]) -> [[Section]]? {
+    private static func assign(
+        _ sections: [Section], to headings: [Heading], packages: Set<String>, directory: String
+    ) -> [[Section]]? {
         // stdout and stderr are independent pipes. Align completed suites after both drain,
         // rather than relying on the delivery order of Cargo's stderr headings. Edition 2024
         // rustdoc can print several libtest summaries followed by one merged-doctest footer.
@@ -233,14 +276,18 @@ struct CargoTestReport {
                     guard work <= 10000 else { return nil }
                     let group = sections[start ..< end]
                     if !heading.isDoctest, group.contains(where: \.doctestFooter) { continue }
-                    if heading.isDoctest, !group.flatMap(\.tests).allSatisfy({ $0.name.contains(" (line ") }) { continue }
+                    if heading.isDoctest, !group.flatMap(\.tests).allSatisfy({
+                        $0.name.contains(" (line ") && owns(heading, $0, packages: packages, directory: directory)
+                    }) { continue }
                     next.append(path + [start ..< end])
                 }
             }
             paths = next
         }
         let complete = paths.filter { $0.last?.upperBound == sections.count }
-        guard complete.count == 1, let path = complete.first else { return nil }
+        // Alignments that differ only in where sections without tests go attribute every test the same way.
+        let attributions = Set(complete.map { $0.map { sections[$0].flatMap(\.tests).map(\.name) } })
+        guard attributions.count == 1, let path = complete.first else { return nil }
         return path.map { Array(sections[$0]) }
     }
 }
