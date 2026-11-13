@@ -14,7 +14,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [codebase-search/](codebase-search/AGENTS.md) | Bounded hosted source-code search |
 | [cache/](cache/AGENTS.md) | Cache service |
 | [registry/](registry/AGENTS.md) | Stateless package registry read frontend |
-| [pulse/](pulse/AGENTS.md) | Headless observability, alerting, and reliability backend |
+| [pulse/](pulse/AGENTS.md) | Pulse, Tuist's fork of GreptimeDB (observability database) |
 | [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
 | [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
 | [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |

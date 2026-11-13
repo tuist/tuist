@@ -26,15 +26,18 @@ for environment in staging canary production; do
       ([.spec.rules[0].http.paths[].path] | sort) == ["/api/v1/write","/loki/api/v1/push","/v1/traces"] and
       all(.spec.rules[0].http.paths[]; .pathType == "Exact"))
   ' "$tmp/gateway.json" > /dev/null
-  # Exact old ESO expressions and provider references; no actual Secret is read.
-  helm template pulse infra/helm/pulse -n observability -f "infra/helm/pulse/values-managed-$environment.yaml" > "$tmp/old.yaml"
-  yq -o=json 'select(.kind == "ExternalSecret") | .spec' "$tmp/old.yaml" > "$tmp/old-eso.json"
-  jq '[.[] | select(.kind == "ExternalSecret").spec][0]' "$tmp/gateway.json" > "$tmp/new-eso.json"
-  jq -e --slurpfile old "$tmp/old-eso.json" '
-    .target == $old[0].target and .secretStoreRef == $old[0].secretStoreRef and
-    .refreshInterval == $old[0].refreshInterval and
-    (.data | sort_by(.secretKey)) == ($old[0].data | sort_by(.secretKey))
-  ' "$tmp/new-eso.json" > /dev/null
+  # The legacy Pulse release's ESO resource, which this gateway took over:
+  # same target, owner, store and remote items. No actual Secret is read.
+  jq -e '[.[] | select(.kind == "ExternalSecret").spec][0] |
+    .refreshInterval == "1h" and .secretStoreRef == {name:"onepassword",kind:"ClusterSecretStore"} and
+    .target.name == "pulse-credentials" and .target.creationPolicy == "Owner" and
+    (.target.template.data | has("pulse-username") and has("pulse-password") and has("tenantId")) and
+    ([.data[] | [.secretKey, .remoteRef.key]] | sort) == [
+      ["PULSE_S3_ACCESS_KEY_ID","PULSE_S3_CREDENTIALS/access_key_id"],
+      ["PULSE_S3_SECRET_ACCESS_KEY","PULSE_S3_CREDENTIALS/secret_access_key"],
+      ["PULSE_TENANT_TOKENS","PULSE_TOKEN/password"],
+      ["SECRET_KEY_BASE","PULSE_SECRET_KEY_BASE/password"]]
+  ' "$tmp/gateway.json" > /dev/null
 done
 if helm template pulse "$chart" -n default > /dev/null 2>&1; then exit 1; fi
 if helm template pulse "$chart" -n observability --set environment=other > /dev/null 2>&1; then exit 1; fi

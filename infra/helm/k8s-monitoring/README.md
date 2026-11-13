@@ -83,7 +83,7 @@ Prerequisites:
    | `PULSE_SECRET_KEY_BASE` | Password | `password` (`openssl rand -base64 48`) |
    | `PULSE_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
-3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. Pulse needs conditional writes (`If-None-Match: *` and `If-Match`); see the [Pulse object storage requirements](../../../pulse/docs/configuration.md#object-storage).
+3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. See the [Pulse bootstrap prerequisites](../greptimedb/README.md#bootstrap-prerequisites).
 4. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
 5. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
@@ -140,9 +140,9 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse
 
-No cluster's collectors write to [Pulse](../pulse/README.md) any more. Staging, canary, production, management and pentest send their telemetry only to Grafana Cloud. Removing the independently released Pulse backends, including management's `pulse-management` Flux child, is a separate step.
+No cluster's collectors write to [Pulse](../greptimedb/README.md) any more. Staging, canary, production, management and pentest send their telemetry only to Grafana Cloud. Removing the independently released Pulse backends, including management's `pulse-management` Flux child, is a separate step.
 
-All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/mcp`, `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Atlas retains read-only projected ServiceAccount authentication for MCP. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
+All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS until the old `pulse` release is uninstalled; GreptimeDB has no public ingress. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
 
 These are prepared configuration changes, not deployed acceptance. `bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and fails on any Pulse destination, credential or collector.
 
