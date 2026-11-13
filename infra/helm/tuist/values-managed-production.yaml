@@ -1185,7 +1185,7 @@ ovhFleets:
   # have been retired.
   eu-west:
     enabled: true
-    replicas: 6
+    replicas: 7
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -1215,8 +1215,9 @@ ovhFleets:
     # Four boxes: three Advance-1-2024 (ns3263234 added 2026-11-03) plus ns3128245
     # (Advance-1-2026, 2026-10-19). At three the region's admission headroom was
     # down to 4 GiB, so placement expansions and claim growths for the accounts it
-    # hosts were refused.
-    replicas: 4
+    # hosts were refused. A fifth (Advance-1-2024, 4x960 NVMe, ordered
+    # 2026-11-13) is the landing box for converting the region to thin LVM.
+    replicas: 5
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1267,7 +1268,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 3
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1287,7 +1288,7 @@ ovhFleets:
   # answered from Virginia.
   ap-southeast:
     enabled: true
-    replicas: 1
+    replicas: 2
     # The endpoint names the OVHcloud entity holding the account, not the box's
     # geography — APAC datacenters bill under the US subsidiary, the same way
     # ca-east's Quebec box does. Every OVH fleet must share one endpoint:
@@ -1298,12 +1299,11 @@ ovhFleets:
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # Matched case-insensitively as a substring of the box's commercialRange,
-      # which OVH's 2026 range spells with a CPU suffix rather than a year. A
-      # value matching nothing adopts nothing, silently, so this is the range
-      # string verbatim — and in full, so a differently specced Advance-2 cannot
-      # land in this pool by accident.
-      offer: "ADVANCE-2 | AMD EPYC 4344P"
+      # Substring of the box's commercialRange, matched case-insensitively, so
+      # this adopts the Advance-2 box and the Advance-1 box added for the thin
+      # LVM conversion alike, as us-east does. The displayName prefix, set only
+      # by the pool prep, is what keeps other boxes out of the pool.
+      offer: advance
       # Prefix-matched, so this claims a box in any sgp* datacenter.
       datacenter: sgp
       os: ubuntu_24.04
