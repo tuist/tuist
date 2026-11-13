@@ -526,6 +526,26 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert text =~ "You do not have access to project: acme/app"
     end
 
+    test "reads a nested suite's whole path and percent-encoded parts from the identifier" do
+      project = %{id: "project-id", name: "project-name"}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_cases, fn "project-id", %{filters: filters} ->
+        send(self(), {:filters, Map.new(filters, &{&1.field, &1.value})})
+        {[], %{}}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      for identifier <- ["LibTests/Outer/Inner/b()", "OrdersTest/create_order%2F2/creates 100%25"] do
+        GetTestCase.call(conn, %{"account_handle" => "acme", "project_handle" => "app", "identifier" => identifier})
+      end
+
+      assert_received {:filters, %{module_name: "LibTests", suite_name: "Outer/Inner", name: "b()"}}
+      assert_received {:filters, %{module_name: "OrdersTest", suite_name: "create_order/2", name: "creates 100%"}}
+    end
+
     test "returns error without test_case_id or identifier" do
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
