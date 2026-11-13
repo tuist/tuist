@@ -829,7 +829,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// which owns its finalizer, and later handed to a sandbox. It
 		// polls no dispatch and must hold no credential.
 		pod.Labels[MacosSandboxWarmLabel] = "true"
-		pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] = "v1"
+		pod.Spec.NodeSelector[MacosSandboxWarmHostLabelFor(pool.Spec.PodMemoryMB)] = "v1"
 		pod.Spec.AutomountServiceAccountToken = ptr(false)
 		pod.Spec.Containers[0].Env = nil
 	}
@@ -844,6 +844,17 @@ const (
 	// warm Pods, so an older kubelet never runs one as a CI VM.
 	MacosSandboxWarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
 )
+
+// MacosSandboxWarmHostLabelFor is the host label a warm Pod of memoryMB
+// selects. tart-kubelet advertises each shape's label only while its disk has
+// room for a VM of that shape (macosandbox.WarmHostLabelFor): 8 GiB keeps the
+// original label, the others append their memory.
+func MacosSandboxWarmHostLabelFor(memoryMB int32) string {
+	if memoryMB == 8192 {
+		return MacosSandboxWarmHostLabel
+	}
+	return fmt.Sprintf("%s-%d", MacosSandboxWarmHostLabel, memoryMB)
+}
 
 // IsMacosSandboxWarm reports whether the pool keeps warm sandbox VMs.
 func IsMacosSandboxWarm(pool *tuistv1.RunnerPool) bool {

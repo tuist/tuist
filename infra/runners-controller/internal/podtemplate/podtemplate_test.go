@@ -1539,10 +1539,18 @@ func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
 func TestBuild_MacOSSandboxWarmPoolHoldsNoCredentialAndNeedsAWarmHost(t *testing.T) {
 	pool := basePool("darwin")
 	pool.Labels = map[string]string{MacosSandboxWarmLabel: "true"}
+	pool.Spec.PodMemoryMB = 8192
 	pod := build(t, pool)
 
 	if pod.Labels[MacosSandboxWarmLabel] != "true" || pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "v1" {
 		t.Fatalf("warm Pod not labelled or not pinned to warm hosts: labels=%v selector=%v", pod.Labels, pod.Spec.NodeSelector)
+	}
+	// A larger warm VM reserves more disk, so it selects the label tart-kubelet
+	// advertises only with room for that shape, never the 8 GiB one.
+	pool.Spec.PodMemoryMB = 24576
+	large := build(t, pool)
+	if large.Spec.NodeSelector["tuist.dev/macos-sandbox-warm-host-24576"] != "v1" || large.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "" {
+		t.Fatalf("24 GiB warm Pod selector = %v", large.Spec.NodeSelector)
 	}
 	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
 		t.Fatal("warm Pod mounts a ServiceAccount token")

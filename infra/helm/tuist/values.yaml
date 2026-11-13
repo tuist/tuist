@@ -2664,14 +2664,16 @@ sandboxes:
     xcodeVersion: "26.6"
     # Empty follows the same released, digest-pinned image as the CI pool.
     image: ""
-    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
-    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
-    # macOS runner fleet) and share its warm-pool budget with CI. With the
-    # default floor of 0 no warm VM is ever booted: nothing routes demand to
-    # the pool, so `minWarmPoolFloor` is how many it keeps.
+    # Pre-booted 8 vCPU sandbox VMs that a create of the same shape claims
+    # instead of cold-booting. Each entry of `memoryMB` (8192, 16384 or 24576)
+    # is a RunnerPool on `fleetSelector` (default: the macOS runner fleet)
+    # sharing its warm-pool budget with CI. With the default floor of 0 no
+    # warm VM is ever booted: nothing routes demand to the pools, so
+    # `minWarmPoolFloor` is how many each keeps.
     warm:
       enabled: false
       fleetSelector: ""
+      memoryMB: [8192]
       minWarmPoolFloor: 0
       maxReplicas: 1
   namespace: tuist-sandboxes
