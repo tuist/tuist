@@ -2332,17 +2332,16 @@ runnersFleet:
 #
 # Shares the `tuist-pool-` host pool with macosFleet and runnersFleet.
 #
-# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
-# to a new macOS release" in vm-image-builder.md. The two Tahoe builders
-# keep their own os pin and the `vm-image-builder` label, and run the
-# Layer 1, xcresult processor and opt-in standalone builds. Machines
-# created from here on adopt a Golden Gates host and register with
-# `macos-27`, so they take a release's stacked builds, one at a time
-# each. Three macOS 27 builders run a release's nine stacked builds in
-# three rounds.
+# Every builder runs macOS 27 (Golden Gates) and registers with
+# `macos-27`, so it takes a release's stacked builds, one at a time
+# each: three run a release's nine stacked builds in three rounds. The
+# Layer 1, xcresult processor and opt-in standalone builds select
+# `vm-image-builder`, which is added by hand to these runners in the
+# org's Actions settings (vm-image-builder.md). They boot Tahoe guests,
+# which a macOS 27 host runs, so no builder needs a Tahoe host.
 buildersFleet:
   enabled: true
-  replicas: 5
+  replicas: 3
   adoptPoolPrefix: "tuist-pool-"
   ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
   machine:
