@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFileSync, spawnSync} from 'node:child_process';
-import {mkdtempSync, writeFileSync, rmSync} from 'node:fs';
+import {existsSync, mkdtempSync, writeFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
@@ -20,13 +20,10 @@ test('managed product configuration scopes Greptime to the staging Tuist account
     assert.deepEqual(connection, environment === 'staging' ? {
       TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: '2',
       TUIST_PULSE_URL: 'http://greptimedb.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
-    } : environment === 'production' ? {
-      TUIST_PULSE_ACCOUNT_ID: '3', TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000',
-      TUIST_PULSE_TENANT: 'tuist',
     } : {}, environment);
     const secret = objects.find(object => object.kind === 'ExternalSecret' &&
       object.spec.data?.some(source => source.secretKey === 'TUIST_PULSE_TOKEN'));
-    if (environment === 'canary') {
+    if (environment !== 'staging') {
       assert.equal(secret, undefined);
     } else {
       assert.ok(container.envFrom.some(source => source.secretRef?.name === secret.spec.target.name));
@@ -57,11 +54,18 @@ if (kind === 'pods') {
 }
 const greptime = scenario !== 'Pulse' && scenario !== 'Pulse unready';
 const cluster = scenario.startsWith('cluster');
+// Presence probe once the old pulse release is gone.
+if (name === 'greptimedb' && args[get + 3] === 'greptimedb-datanode') {
+  if (scenario !== 'no pulse no backend') console.log(cluster ? 'statefulset.apps/greptimedb-datanode' : 'statefulset.apps/greptimedb');
+  process.exit(0);
+}
 // Topology probe: only the distributed backend has a datanode StatefulSet.
 if (name === 'greptimedb-datanode' && args.includes('--ignore-not-found')) {
   if (cluster) console.log('statefulset.apps/greptimedb-datanode');
   process.exit(0);
 }
+// After uninstall the old pulse release has no Deployment at all.
+if (name === 'pulse' && scenario.startsWith('no pulse')) process.exit(0);
 const backend = name !== 'pulse';
 if (backend && (!greptime || scenario === 'backend missing' || cluster === (name === 'greptimedb'))) process.exit(1);
 let replicas = backend ? (name === 'greptimedb-frontend' ? 2 : cluster ? 3 : 1) : 1;
@@ -82,7 +86,7 @@ if (scenario === 'cluster metasrv image' && name === 'greptimedb-metasrv') value
 if (scenario === 'owner') value.metadata.annotations['meta.helm.sh/release-name']='other';
 if (scenario === 'image') value.spec.template.spec.containers[0].image='nginx:latest';
 if (scenario === 'stale generation') value.status.observedGeneration=1;
-if (scenario === 'Pulse unready' || scenario === 'gateway unready' && !backend || scenario === 'backend unready' && backend) value.status.readyReplicas=0;
+if (scenario === 'Pulse unready' || scenario === 'gateway unready' && !backend || (scenario === 'backend unready' || scenario === 'no pulse backend unready') && backend) value.status.readyReplicas=0;
 if (scenario === 'backend revision' && backend) value.status.currentRevision='r1';
 console.log(JSON.stringify(value));
 `, {mode:0o755});
@@ -91,13 +95,15 @@ console.log(JSON.stringify(value));
     assert.ok(step.includes('pulse-readiness.sh'));
     for (const environment of ['staging', 'canary', 'production']) {
       for (const scenario of ['Pulse', 'Pulse unready', 'Greptime', 'backend missing', 'backend unready', 'backend revision', 'gateway unready', 'owner', 'image', 'stale generation', 'legacy deployment', 'legacy pod',
-        'standalone scaled up', 'cluster', 'cluster frontend unready', 'cluster kafka revision', 'cluster metasrv image', 'cluster datanode scaled down']) {
+        'standalone scaled up', 'no pulse', 'no pulse backend unready', 'no pulse no backend', 'cluster', 'cluster frontend unready', 'cluster kafka revision', 'cluster metasrv image', 'cluster datanode scaled down']) {
         const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
           PATH:`${work}:${process.env.PATH}`, SCENARIO:scenario, DEPLOY_ENV:environment,
           OBSERVABILITY_NAMESPACE:'observability', OBSERVABILITY_CHART_PATH:'infra/helm/k8s-monitoring'}});
-        const accepted = ['Pulse', 'Greptime', 'cluster'].includes(scenario);
+        const accepted = ['Pulse', 'Greptime', 'no pulse', 'no pulse no backend', 'cluster'].includes(scenario);
         assert.equal(result.status === 0, accepted, `${environment}/${scenario}: ${result.stdout}${result.stderr}`);
         if (scenario === 'cluster') assert.match(result.stdout, /Greptime gateway and cluster backend ready/);
+        if (scenario === 'no pulse') assert.match(result.stdout, /Greptime standalone backend ready/);
+        if (scenario === 'no pulse no backend') assert.match(result.stdout, /no Pulse backend installed/);
       }
     }
   } finally { rmSync(work, {recursive:true, force:true}); }
@@ -179,7 +185,7 @@ if (JSON.stringify(args) === JSON.stringify(['-n','observability','get','deploym
 if (JSON.stringify(args) === JSON.stringify(['-n','observability','get','pods','-o','json'])) {
   console.log(JSON.stringify({items:[]})); process.exit(0);
 }
-if (JSON.stringify(args) !== JSON.stringify(['-n','observability','get','deployment','pulse','-o','json'])) process.exit(99);
+if (JSON.stringify(args.filter(arg => arg !== '--ignore-not-found')) !== JSON.stringify(['-n','observability','get','deployment','pulse','-o','json'])) process.exit(99);
 const fs = require('node:fs');
 const restored = fs.existsSync(process.env.ROLLBACK_MARKER);
 const value = {
@@ -259,6 +265,64 @@ if (args.includes('deployments')) {
         assert.ok(!result.stdout.includes('password'));
         assert.ok(!result.stdout.includes('https://'));
       }
+    }
+  } finally { rmSync(work, {recursive:true, force:true}); }
+});
+
+test('pulse uninstall refuses while collectors still use Pulse and never touches Secrets or Greptime', () => {
+  const work = mkdtempSync(join(tmpdir(), 'pulse-uninstall-'));
+  try {
+    writeFileSync(join(work, 'helm'), `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const fs = require('node:fs');
+const uninstalled = process.env.SCENARIO === 'already uninstalled' || fs.existsSync(process.env.MARKER);
+if (args[0] === 'status') console.log(JSON.stringify({info:{status:uninstalled ? 'uninstalled' : 'deployed'}}));
+else if (args[0] === 'history') console.log(JSON.stringify([{revision:7,chart:'pulse-1.43.6',status:'deployed'}]));
+else if (JSON.stringify(args) === JSON.stringify(['uninstall','pulse','-n','observability','--keep-history','--wait','--timeout','5m'])) fs.writeFileSync(process.env.MARKER, '');
+else process.exit(99);
+`, {mode:0o755});
+    // Read-only apart from Helm: any Secret read or kubectl mutation fails the step.
+    writeFileSync(join(work, 'kubectl'), `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const scenario = process.env.SCENARIO;
+const gone = scenario === 'already uninstalled' || require('node:fs').existsSync(process.env.MARKER);
+const get = args.indexOf('get');
+const kind = args[get + 1];
+if (args[2] === 'rollout' && args[3] === 'status') process.exit(0);
+if (get < 0 || /^secrets?$/i.test(kind)) process.exit(99);
+if (kind === 'configmaps') {
+  const data = scenario === 'live collectors' ? 'url = "http://pulse.observability.svc.cluster.local:4000"' : 'url = "https://grafana.net"';
+  console.log(JSON.stringify({items:[{metadata:{name:'k8s-monitoring-alloy-metrics'},data:{'config.alloy':data}}]}));
+} else if (kind === 'pods') {
+  const pulse = {metadata:{labels:{'app.kubernetes.io/instance':'pulse'}},spec:{containers:[{image:'ghcr.io/tuist/pulse:1.43.6',envFrom:[{secretRef:{name:'pulse-credentials'}}]}]}};
+  const alloy = {metadata:{labels:{'app.kubernetes.io/instance':'k8s-monitoring'}},spec:{containers:[{image:'docker.io/grafana/alloy:v1.15.0'}],
+    volumes:scenario === 'pod mounts' ? [{secret:{secretName:'pulse-credentials'}}] : []}};
+  console.log(JSON.stringify({items:gone ? [alloy] : [pulse, alloy]}));
+} else if (kind === 'deployment,statefulset,daemonset') {
+  console.log('deployment.apps/k8s-monitoring-alloy-receiver');
+} else if (kind === 'deployment,service,ingress' || kind === 'externalsecret') {
+  if (!gone) console.log(kind === 'externalsecret' ? 'externalsecret/pulse-credentials' : 'deployment.apps/pulse');
+} else if (kind === 'deployment' || kind === 'statefulset') {
+  // Readiness on a cluster with neither the old release nor Greptime.
+  if (args[get + 2] === 'pulse' && !gone) process.exit(98);
+} else process.exit(99);
+`, {mode:0o755});
+    const workflow = JSON.parse(execFileSync('yq', ['-o=json', '.', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'}));
+    const job = workflow.jobs['uninstall-pulse'];
+    assert.ok(job.if.includes('inputs.uninstall_pulse'));
+    assert.ok(workflow.jobs.deploy.if.includes('!inputs.uninstall_pulse'));
+    assert.equal(job.concurrency.group, 'server-deploy-${{ inputs.environment }}-observability');
+    const step = job.steps.find(step => step.name === 'Uninstall the old pulse release once no collector writes to it').run;
+    for (const scenario of ['clean', 'live collectors', 'pod mounts', 'already uninstalled']) {
+      const marker = join(work, 'uninstalled');
+      rmSync(marker, {force:true});
+      const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
+        PATH:`${work}:${process.env.PATH}`, SCENARIO:scenario, DEPLOY_ENV:'production', MARKER:marker,
+        GITHUB_STEP_SUMMARY:join(work, 'summary')}});
+      const output = `${scenario}: ${result.stdout}${result.stderr}`;
+      assert.equal(result.status === 0, ['clean', 'already uninstalled'].includes(scenario), output);
+      assert.equal(existsSync(marker), scenario === 'clean', output);
+      if (result.status === 0) assert.match(result.stdout, /no Pulse backend installed/, output);
     }
   } finally { rmSync(work, {recursive:true, force:true}); }
 });

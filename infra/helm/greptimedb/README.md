@@ -299,6 +299,25 @@ until then readers continue querying Greptime and will not see new Pulse writes.
 Backend data preservation and both reader/ingest recovery must be demonstrated
 with live reads; a successful Helm rollback is not that evidence.
 
+## Uninstalling the old pulse release
+
+No collector writes to Pulse any more, so the old `pulse` release (gateway in
+staging, Elixir Pulse in canary and production) is removed by dispatching with
+`environment` and `uninstall_pulse=true`. That runs only the `uninstall-pulse`
+job: no backend install and no collector rollout. It refuses while the
+environment's `k8s-monitoring` values, live `k8s-monitoring-*` ConfigMaps, or
+any pod outside the release still reference `pulse.observability` or
+`pulse-credentials`, because Alloy drops its whole config, Grafana Cloud
+included, when a referenced Secret is missing. Deploy the server to that
+environment first. It then runs `helm uninstall pulse --keep-history`, which
+removes `pulse-credentials` with the release and never touches Greptime, its
+PVCs or bucket objects, and finishes with the routine readiness gate.
+
+The backend deploy's storage probe does not depend on either release's
+Secret: it creates a run-scoped ExternalSecret from the rendered chart's
+`PULSE_S3_CREDENTIALS` references and deletes it afterwards, so it works before
+the first install and after the old release is gone.
+
 ## Validation
 
 ```bash

@@ -61,6 +61,10 @@ on:
         description: Restore a known pre-cutover Pulse Helm revision in the selected environment
         type: string
         required: false
+      uninstall_pulse:
+        description: Only uninstall the old pulse release once no collector writes to it (keeps Greptime and bucket objects)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -114,7 +118,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision == ''
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision == '' && !inputs.uninstall_pulse
     needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
@@ -225,13 +229,13 @@ jobs:
           kubectl get namespace observability > /dev/null
           kubectl get storageclass hcloud-volumes > /dev/null
           kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
-          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
           if [[ "$DASHBOARD_ENABLED" != true ]]; then
-            kubectl -n observability get deployment pulse -o json | jq -e '
-              .metadata.labels["app.kubernetes.io/name"] != "greptimedb-ingest"' > /dev/null || {
-                echo '::error::Cannot remove scoped identities from an active replacement backend.'
-                exit 1
-              }
+            pulse=$(kubectl -n observability get deployment pulse --ignore-not-found -o json)
+            if [[ -n "$pulse" ]] && jq -e '
+              .metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest"' <<< "$pulse" > /dev/null; then
+              echo '::error::Cannot remove scoped identities from an active replacement backend.'
+              exit 1
+            fi
           fi
           jq -r '.[] | [.kind, .metadata.name] | @tsv' "$dir/resources.json" > "$dir/resources.tsv"
           while IFS=$'\t' read -r kind name; do
@@ -271,6 +275,21 @@ jobs:
       - name: Verify shared S3 lifecycle, privacy and isolated prefix access
         run: |
           set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          # The probe gets its own run-scoped copy of the chart's storage keys.
+          # pulse-credentials goes away with the old pulse release, and a live
+          # greptimedb-credentials may be missing or rendered by an older chart.
+          jq -e --arg name "$STORAGE_POD" '
+            [.[] | select(.kind == "ExternalSecret" and .metadata.name == "greptimedb-credentials")] |
+            select(length == 1) | .[0] |
+            select([.spec.data[].secretKey] == ["accessKey", "secretKey"]) |
+            {apiVersion, kind, metadata:{name:$name, namespace:"observability"}, spec:{
+              refreshInterval:"0", secretStoreRef:.spec.secretStoreRef, data:.spec.data,
+              target:{name:$name, creationPolicy:"Owner", template:{engineVersion:"v2", data:{
+                AWS_ACCESS_KEY_ID:"{{ .accessKey | trim }}", AWS_SECRET_ACCESS_KEY:"{{ .secretKey | trim }}"}}}}}
+          ' "$dir/resources.json" > "$dir/storage-credentials.json"
+          kubectl create -f "$dir/storage-credentials.json" > /dev/null
+          kubectl -n observability wait --for=condition=Ready "externalsecret/$STORAGE_POD" --timeout=60s
           jq -n --arg name "$STORAGE_POD" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$DEPLOY_ENV" --arg environment "$DEPLOY_ENV" \
             --rawfile script .github/scripts/greptimedb-storage-check.sh '
             {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
@@ -282,10 +301,9 @@ jobs:
                 securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
                 volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
                 resources:{requests:{cpu:"25m",memory:"32Mi"},limits:{memory:"64Mi"}},
+                envFrom:[{secretRef:{name:$name}}],
                 env:[{name:"DEPLOY_ENV",value:$environment},{name:"STORAGE_PREFIX",value:"greptimedb"},
-                  {name:"CHECK_RUN",value:$run},
-                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_ACCESS_KEY_ID"}}},
-                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_S3_SECRET_ACCESS_KEY"}}}]
+                  {name:"CHECK_RUN",value:$run}]
               }]}}
           ' > "$RUNNER_TEMP/greptimedb-deploy/storage.json"
           kubectl create -f "$RUNNER_TEMP/greptimedb-deploy/storage.json" > /dev/null
@@ -300,6 +318,7 @@ jobs:
           kubectl -n observability logs "$STORAGE_POD" || true
           [[ "$phase" == Succeeded ]]
           kubectl -n observability delete pod "$STORAGE_POD" --wait=true --timeout=30s > /dev/null
+          kubectl -n observability delete externalsecret "$STORAGE_POD" --wait=true --timeout=30s > /dev/null
       - name: Bootstrap pilot authentication without rotating an existing identity
         run: |
           set -euo pipefail
@@ -492,7 +511,87 @@ jobs:
           trap 'rm -rf "$RUNNER_TEMP/greptimedb-deploy"; rm -f "$KUBECONFIG"' EXIT
           if [[ -f "$KUBECONFIG" ]]; then
             kubectl -n observability delete pod "$SMOKE_POD" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete externalsecret "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
           fi
+
+  uninstall-pulse:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision == '' && inputs.uninstall_pulse
+    needs: validate
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    environment: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}-observability
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/pulse-uninstall-config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl jq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+      - name: Load selected deployment identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+      - name: Uninstall the old pulse release once no collector writes to it
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
+          # --keep-history leaves an "uninstalled" record that helm status still reports.
+          status=$(helm status pulse -n observability -o json 2>/dev/null | jq -r '.info.status') || status=
+          if [[ -z "$status" || "$status" == uninstalled ]]; then
+            echo 'PASS: no pulse release to uninstall'
+          else
+            # Collectors stop writing to Pulse in an earlier server deploy. Alloy
+            # fails its whole config load, Grafana Cloud included, when a Secret
+            # it references is missing, so refuse while anything still does.
+            if grep -Eq 'pulse\.observability|pulse-credentials' "infra/helm/k8s-monitoring/values-$DEPLOY_ENV.yaml"; then
+              echo '::error::k8s-monitoring still sends to Pulse in this environment; land the collector change first.'
+              exit 1
+            fi
+            if kubectl -n observability get configmaps -o json | jq -e '
+              any(.items[] | select(.metadata.name | startswith("k8s-monitoring")) | (.data // {})[];
+                test("pulse\\.observability|pulse-credentials"))' > /dev/null; then
+              echo '::error::Live collectors still send to Pulse; deploy the server to this environment first.'
+              exit 1
+            fi
+            if kubectl -n observability get pods -o json | jq -e '
+              any(.items[] | select(.metadata.labels["app.kubernetes.io/instance"] != "pulse");
+                [.spec.volumes[]?.secret.secretName, .spec.volumes[]?.projected.sources[]?.secret.name,
+                  ((.spec.initContainers // [], .spec.containers)[] | .envFrom[]?.secretRef.name, .env[]?.valueFrom.secretKeyRef.name)] |
+                index("pulse-credentials") != null)' > /dev/null; then
+              echo '::error::A pod outside the pulse release still mounts pulse-credentials.'
+              exit 1
+            fi
+            helm history pulse -n observability -o json | jq -r '
+              .[] | select(.status == "deployed") |
+              "Uninstalled pulse revision \(.revision), chart \(.chart); history kept for helm rollback."' | tee -a "$GITHUB_STEP_SUMMARY"
+            # The release owns no volumes; Greptime's PVCs and bucket objects are untouched.
+            helm uninstall pulse -n observability --keep-history --wait --timeout 5m
+          fi
+          [[ -z "$(kubectl -n observability get deployment,service,ingress pulse --ignore-not-found -o name)" ]]
+          [[ -z "$(kubectl -n observability get externalsecret pulse-credentials --ignore-not-found -o name)" ]]
+          # Grafana Cloud collection must keep running without Pulse.
+          for workload in $(kubectl -n observability get deployment,statefulset,daemonset -o name | grep '/k8s-monitoring-'); do
+            kubectl -n observability rollout status "$workload" --timeout=180s
+          done
+          # The same gate the next routine server deploy runs before collectors.
+          bash .github/scripts/pulse-readiness.sh
+      - name: Remove CI-local identity
+        if: always()
+        run: rm -f "$KUBECONFIG"
 
   rollback:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.rollback_pulse_revision != ''

@@ -5,7 +5,17 @@ trap 'echo "::error::Pulse readiness failed at line $LINENO; collectors were not
 : "${DEPLOY_ENV:?managed environment required}"
 case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
 namespace=${OBSERVABILITY_NAMESPACE:-observability}
-deployment=$(kubectl -n "$namespace" get deployment pulse -o json)
+deployment=$(kubectl -n "$namespace" get deployment pulse --ignore-not-found -o json)
+# The old pulse release is uninstalled once no collector writes to it. Gate
+# on the Greptime backend when one is installed; a cluster with neither
+# still gets Grafana Cloud collection.
+if [[ -z "$deployment" ]]; then
+  if [[ -n "$(kubectl -n "$namespace" get statefulset greptimedb greptimedb-datanode --ignore-not-found -o name)" ]]; then
+    greptime=true
+  else
+    greptime=none
+  fi
+else
 jq -e '
   .metadata.annotations["meta.helm.sh/release-name"] == "pulse" and
   .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
@@ -18,6 +28,15 @@ if jq -e '.metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest"' <<<
   # Select by the live runtime, not an environment-wide migration flag. Legacy
   # Pulse deployments still do not depend on a Greptime StatefulSet existing.
   jq -e '.spec.template.spec.containers[0].image == "nginxinc/nginx-unprivileged:1.28.0-alpine"' <<< "$deployment" >/dev/null
+  greptime=true
+  origin="Greptime gateway and"
+else
+  jq -e '.spec.template.spec.containers[0].image |
+    test("^ghcr.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[0-9a-f]{64}$")' <<< "$deployment" >/dev/null
+  greptime=false
+fi
+fi
+if [[ "$greptime" == true ]]; then
   # The chart's topology decides which backend workloads must be ready.
   if [[ -n "$(kubectl -n "$namespace" get statefulset greptimedb-datanode --ignore-not-found -o name)" ]]; then
     workloads='statefulset/greptimedb-etcd:3 statefulset/greptimedb-kafka:3 deployment/greptimedb-metasrv:3 statefulset/greptimedb-datanode:3 deployment/greptimedb-frontend:2'
@@ -38,10 +57,10 @@ if jq -e '.metadata.labels["app.kubernetes.io/name"] == "greptimedb-ingest"' <<<
         [.spec.template.spec.containers[].image] == ["docker.io/greptime/greptimedb:v1.3.0"])
     ' >/dev/null
   done
-  backend="Greptime gateway and $topology backend"
+  backend="${origin:-Greptime} $topology backend"
+elif [[ "$greptime" == none ]]; then
+  backend='no Pulse backend installed (Grafana Cloud only)'
 else
-  jq -e '.spec.template.spec.containers[0].image |
-    test("^ghcr.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[0-9a-f]{64}$")' <<< "$deployment" >/dev/null
   backend='existing Pulse (Greptime is not required)'
 fi
 legacy=$(kubectl -n "$namespace" get deployment pulso --ignore-not-found -o json)
