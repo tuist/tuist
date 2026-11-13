@@ -84,6 +84,13 @@ run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
 
+tart-kubelet (with its embedded macOS sandbox tools) ships inside the
+`capi-scaleway@` operator image, and the operator's drift loop pushes it to the
+macOS hosts after the Helm upgrade. Canary's deploy waits up to 20 minutes for
+every serving host to report the operator's binary
+(`scripts/tart-kubelet-rollout-gate.sh`, tested by its `.test.sh` in Helm CI)
+and fails closed; staging only reports and production does not wait.
+
 Sandbox guest templates and Amp provider images publish as one immutable version through `sandbox-image.yml`, called by both
 server deployment workflows. Keep template-only changes in the production
 path gate, require publication before every deploy leg, and promote one source
