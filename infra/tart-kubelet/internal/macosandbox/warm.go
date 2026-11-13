@@ -26,9 +26,35 @@ const (
 	WarmLabel     = "tuist.dev/macos-sandbox-warm"
 	WarmFinalizer = "tuist.dev/macos-sandbox-warm"
 	// WarmHostLabel is advertised by kubelets that own warm Pods, so an older
-	// kubelet is never given one to boot as a CI VM.
+	// kubelet is never given one to boot as a CI VM, and only while the host
+	// can boot one now (WarmHostLabels).
 	WarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
 )
+
+// WarmHostLabels advertises WarmHostLabel while the sandbox service is ready
+// and the disk has room for one more 8 GiB VM, the smallest warm shape.
+// Otherwise the scheduler keeps placing warm Pods on a host with free CPU and
+// memory that refuses each one: on 2026-11-13 b04 and b05 failed a new warm
+// Pod every 2 s for hours on "sandbox disk reserve", and no host kept a warm
+// VM meanwhile.
+func (s *Service) WarmHostLabels(ctx context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m, ready := s.manager, s.ready
+	s.mu.Unlock()
+	if m == nil || !ready {
+		return map[string]string{}, nil
+	}
+	runtime, ok := m.Runtime.(*TartRuntime)
+	if !ok {
+		return map[string]string{}, nil
+	}
+	if err := runtime.roomForClone(ctx, runtime.Client, 8192); errors.Is(err, ErrCapacity) {
+		return map[string]string{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return map[string]string{WarmHostLabel: "v1"}, nil
+}
 
 type warmVM struct {
 	pod       types.UID

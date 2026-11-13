@@ -116,6 +116,9 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 		slog.Info("macOS sandbox boot phases", append(phases, "total_ms", time.Since(start).Milliseconds())...)
 	}()
 	c := t.client(r)
+	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
+		return err
+	}
 	if err := c.Clone(ctx, t.Image, r.VMName()); err != nil {
 		return err
 	}

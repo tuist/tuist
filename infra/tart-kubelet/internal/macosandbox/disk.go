@@ -16,8 +16,9 @@ import (
 // Disk admission reserves complete writable root disks (including APFS clone
 // growth) and two memory images per VM. Half the filesystem stays outside the
 // sandbox budget; the free-space check also protects current CI disk use.
-func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int) error {
-	var ceiling uint64
+// next is the ceiling of a VM not yet cloned, so not in vms.
+func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int, next uint64) error {
+	ceiling := next
 	for _, vm := range vms {
 		if !isSandboxVM(vm.Name) {
 			continue
@@ -26,13 +27,19 @@ func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int) error {
 			return errors.New("unknown sandbox disk ceiling")
 		}
 		// Tart JSON reports decimal GB; round the parsed whole GB upward.
-		ceiling += (uint64(vm.Disk)+1)*1_000_000_000 + uint64(vm.Memory)*2*1024*1024 + 128*1024*1024
+		ceiling += sandboxCeiling((uint64(vm.Disk)+1)*1_000_000_000, vm.Memory)
 	}
 	const reserve = 20 * 1024 * 1024 * 1024
 	if ceiling > total/2 || free < uint64(nextMemoryMB)*2*1024*1024+reserve {
 		return fmt.Errorf("%w: sandbox disk reserve", ErrCapacity)
 	}
 	return nil
+}
+
+// sandboxCeiling is what diskRoom reserves for one sandbox VM: its writable
+// root disk and two memory images.
+func sandboxCeiling(rootDisk uint64, memoryMB int) uint64 {
+	return rootDisk + uint64(memoryMB)*2*1024*1024 + 128*1024*1024
 }
 
 // diskReport gives the server what diskRoom decides with, so placement
@@ -99,11 +106,23 @@ func isSandboxVM(name string) bool {
 }
 
 func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
+	return t.admitDisk(ctx, t.client(r), r.MemoryMB, 0)
+}
+
+// roomForClone checks the disk for a VM not cloned yet, counting it at the
+// template's root disk once known. Warm checks it before cloning, and the
+// warm-host label follows it, so a host without room is neither offered warm
+// Pods nor clones and deletes a VM for each one it refuses.
+func (t *TartRuntime) roomForClone(ctx context.Context, c *tart.Client, memoryMB int) error {
+	return t.admitDisk(ctx, c, memoryMB, sandboxCeiling(uint64(max(t.rootfs.Load(), 0)), memoryMB))
+}
+
+func (t *TartRuntime) admitDisk(ctx context.Context, c *tart.Client, memoryMB int, next uint64) error {
 	var fs syscall.Statfs_t
 	if err := syscall.Statfs(t.Client.HomeDir, &fs); err != nil {
 		return err
 	}
-	vms, err := t.client(r).List(ctx)
+	vms, err := c.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -112,7 +131,7 @@ func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 		if !isSandboxVM(vm.Name) {
 			continue
 		}
-		detail, err := t.client(r).Get(ctx, vm.Name)
+		detail, err := c.Get(ctx, vm.Name)
 		if err != nil {
 			return err
 		}
@@ -124,7 +143,7 @@ func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 	if size := rootDisk(vms); size > 0 {
 		t.rootfs.Store(size)
 	}
-	return diskRoom(vms, uint64(fs.Blocks)*uint64(fs.Bsize), uint64(fs.Bavail)*uint64(fs.Bsize), r.MemoryMB)
+	return diskRoom(vms, uint64(fs.Blocks)*uint64(fs.Bsize), uint64(fs.Bavail)*uint64(fs.Bsize), memoryMB, next)
 }
 
 // hasImage reports whether the store has cached image. `tart get` opens only
