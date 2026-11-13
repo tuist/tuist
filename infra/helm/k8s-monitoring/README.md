@@ -138,17 +138,46 @@ A rack can live in a non-production env (BER1 was in staging while it was built 
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
-## Pulse
+## Pulse (GreptimeDB)
 
-No cluster's collectors write to [Pulse](../greptimedb/README.md) any more. Staging, canary, production, management and pentest send their telemetry only to Grafana Cloud. Removing the independently released Pulse backends, including management's `pulse-management` Flux child, is a separate step.
+Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The legacy Elixir Pulse is gone. Production joins once its Pulse backend is installed; until then it, management and pentest send only to Grafana Cloud.
 
-All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS until the old `pulse` release is uninstalled; GreptimeDB has no public ingress. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
+Staging and canary collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
 
-These are prepared configuration changes, not deployed acceptance. `bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and fails on any Pulse destination, credential or collector.
+- `pulse-metrics`: Prometheus remote write to `/v1/prometheus/write`, with the same relabel/drop policy as Cloud.
+- `pulse-logs`: a custom WAL-backed Loki writer to `/v1/loki/api/v1/push` with the `loki_otlp` pipeline into `opentelemetry_logs`. It sets no tenant.
+- `pulse-traces`: OTLP/HTTP to `/v1/otlp/v1/traces` with the `greptime_trace_v1` pipeline into `opentelemetry_traces`. Traces are unsampled, while Cloud keeps its tail sampling.
+
+Every request selects the `public` database with `X-Greptime-DB-Name`; these are the headers the retired `greptimedb-ingest` gateway set. Basic auth uses the `ingest-username` (`tuist`, write-only in Greptime's static user provider) and `ingest-password` (the `PULSE_TOKEN` value) keys of the `pulse-dashboard-auth` Secret owned by the `pulse` release, which renders it when `dashboard.enabled`. The upstream chart still renders an `X-Scope-OrgID` header from a `tenantId` key; the Secret has none, so Alloy sends it empty, as it does for Grafana Cloud, and Greptime ignores it.
+
+Install the `pulse` release with `dashboard=true` before these collectors reach a cluster. Alloy fails its whole config load, Grafana Cloud included, when a referenced Secret is missing, so `.github/scripts/pulse-readiness.sh` refuses a deploy whose collector values reference `pulse-dashboard-auth` until that ExternalSecret is Ready with the ingest keys.
+
+The base `pulse-metrics` destination in `values.yaml` carries Cloud's relabel/drop policy, including Kura instance normalization, but is inert (`type: custom` with no config emits nothing), so management and pentest never reference its Secret. The workload overlays activate it with `type: prometheus` and their env label.
+
+Separate in-memory Loki queues alone do **not** isolate failures: once the
+backend's queue fills, Alloy backpressures shared log sources and the Faro
+receiver, stalling Cloud delivery and making the server's browser telemetry
+gateway time out with 503. `pulse-logs` is therefore a custom Loki writer
+that enables a write-ahead log (the upstream chart does not expose it). Its
+reader can wait for Pulse while sources append to disk. Segments become
+eligible for deletion after one hour; this is not unlimited retention or a byte
+quota. WAL uses the collector's existing storage path, so storage exhaustion
+still blocks ingestion and ephemeral collector replacement can lose buffered
+data. It does not repair Pulse availability or recover historical logs
+already lost during an outage.
+
+`bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret or the retired interim `greptimedb` release, or if production, management or pentest write anywhere but Cloud.
+
+`python3 infra/helm/k8s-monitoring/test-log-destination-outage.py` uses the rendered
+canary Faro receiver and Pulse log writer with local backends: it fills more than the default
+10 MiB queue while Pulse returns 503, requires every browser POST to complete
+within two seconds and all 1,800 log entries to reach Cloud, then restores Pulse
+and requires delivery of all buffered entries. It runs Alloy v1.15.0 in Docker,
+or the executable supplied in `ALLOY_BINARY`, without production credentials.
 
 ## What gets deployed
 
-Seven Alloy roles in workload overlays (managed by the upstream `alloy-operator`):
+Eight Alloy roles in workload overlays (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
@@ -156,6 +185,8 @@ Seven Alloy roles in workload overlays (managed by the upstream `alloy-operator`
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
 - `grafana-cloud-traces-sampler` — keeps failed, slow, and sampled healthy
   traces before they are sent to Grafana Cloud
+- `pulse-traces-servicegraph` — pairs trace spans and writes derived service-graph
+  metrics only to Pulse, before the independent Cloud sampling branch
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine

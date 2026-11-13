@@ -146,6 +146,8 @@ jobs:
         run: |
           mise use -g yq@4.52.5
           bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test Pulse log writer isolation
+        run: python3 infra/helm/k8s-monitoring/test-log-destination-outage.py
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0

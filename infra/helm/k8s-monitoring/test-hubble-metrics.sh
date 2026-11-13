@@ -72,6 +72,9 @@ done | awk '
   }
   {
     gsub(/"60s"|"10s"/, "\"1s\"")
+    # Workload overlays also fan out to GreptimeDB; this test checks only the
+    # Cloud path, whose remote_write is the one extracted above.
+    gsub(/, prometheus\.remote_write\.pulse_metrics\.receiver/, "")
     print
   }
 ' >> "${temporary}/pipeline.alloy"
