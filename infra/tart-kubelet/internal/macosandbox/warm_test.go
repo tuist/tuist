@@ -149,9 +149,10 @@ func TestDeletedWarmPodDeletesItsVM(t *testing.T) {
 	if err := s.warmTick(ctx, ctx); err != nil {
 		t.Fatal(err)
 	}
-	current, _ := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
-	if len(current.Finalizers) != 0 {
-		t.Fatal("the warm finalizer outlived its VM")
+	// No kubelet confirms a warm Pod's termination: the host completes the
+	// deletion, or the Pod keeps its slot until the controller reaps it.
+	if _, err := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("the retired warm Pod still holds its host: %v", err)
 	}
 	runtime.mu.Lock()
 	_, left := runtime.states[warmVMPrefix+string(pod.UID)]

@@ -151,27 +151,33 @@ turned off in the isolated store so it cannot decide environment retention.
 ### Warm sandbox VMs
 
 `sandboxes.macos.warm.enabled` renders a darwin RunnerPool labelled
-`tuist.dev/macos-sandbox-warm=true` whose Pods are pre-booted 8 vCPU / 8 GiB
-sandbox VMs. The pool shares the CI warm-pool budget: the runners-controller
-preempts it and rolls its image like a CI pool's, and its idle
-Pods give up their slot to CI and to sandbox growth. Unlike an idle CI runner,
-a warm VM counts as reclaimable room in sandbox grants immediately, without the
-CI preemption grace. The server never routes a job to the pool, so it keeps only
-`sandboxes.macos.warm.minWarmPoolFloor` VMs (rendered explicitly, default 0,
-since the CRD defaults an absent floor to 1). Production keeps one on the BER1
-rack: a cold create there took 17 to 19 s on a host with room, and a claim
-skips its clone and boot, leaving the workspace volume (`macOS sandbox boot
-phases` and `claim phases` in the kubelet log time each step).
+`tuist.dev/macos-sandbox-warm=true` for each size in
+`sandboxes.macos.warm.memoryMB` (8192, 16384 or 24576; 8 vCPU each). Their Pods
+are pre-booted sandbox VMs. The pools share the CI warm-pool budget: the
+runners-controller preempts them and rolls their image like a CI pool's, and
+their idle Pods give up their slot to CI and to sandbox growth. Unlike an idle
+CI runner, a warm VM counts as reclaimable room in sandbox grants immediately,
+without the CI preemption grace. The server never routes a job to the pools, so
+each keeps only `sandboxes.macos.warm.minWarmPoolFloor` VMs (rendered
+explicitly, default 0, since the CRD defaults an absent floor to 1). Production
+keeps one 8 GiB VM on the BER1 rack: a cold create there took 17 to 19 s on a
+host with room, and a claim skips its clone and boot, leaving the workspace
+volume (`macOS sandbox boot phases` and `claim phases` in the kubelet log time
+each step). 8 GiB is the default of Claude Code, Amp Orbs and the tuist-mac
+plugin; larger shapes are explicit requests and cold-boot. On a 16 vCPU /
+48 GiB rack host every warm VM takes one of the host's two 8 vCPU slots
+whatever its memory, so a larger warm size would cost CI no more, only disk.
 
 tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
-only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. A host
-advertises it only while its sandbox service is ready and its disk has room
-for one more 8 GiB VM (checked every node heartbeat), so warm Pods are not
-scheduled onto a host that would refuse each one, and a warm boot checks the
-room before it clones. The VM is
-named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
-instead of waiting when the host lacks room, the template or disk. A create of
-the same template, image and shape claims a ready VM under the same
+only on hosts advertising its size's label: `tuist.dev/macos-sandbox-warm-host=v1`
+for 8 GiB, `tuist.dev/macos-sandbox-warm-host-<MB>=v1` for the others. A host
+advertises a size only while its sandbox service is ready and its disk has room
+for one more VM of that size (checked every node heartbeat; a VM reserves its
+root disk and two memory images), so warm Pods are not scheduled onto a host
+that would refuse each one, and a warm boot checks the room before it clones.
+The VM is named `sbw-<pod UID>`, holds no credential and is not journalled; it
+fails instead of waiting when the host lacks room, the template or disk. A
+create of the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
 Pod, and the VM keeps its name for life. A warm VM already has a 10 GB
 workspace volume, the size Amp Orbs and agent environments request, so their
@@ -179,7 +185,11 @@ claim runs no guest command. APFS cannot change a volume's quota, so a claim
 for another size replaces the volume. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those
 hosts first, and claimed creates record the `warm` boot source. A kubelet
-restart deletes unclaimed warm VMs and fails their Pods; the pool refills them.
+restart deletes unclaimed warm VMs and fails their Pods; the pools refill them.
+When the runners-controller retires an idle warm Pod for CI, the host deletes
+its VM and completes the Pod's deletion with a zero grace period, as it does
+for CI Pods; otherwise the Pod stayed Terminating and held the host for about
+six minutes until the controller force-reaped it.
 
 ## Runtime, identity and recovery
 
