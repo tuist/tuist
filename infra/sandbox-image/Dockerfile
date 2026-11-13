@@ -134,7 +134,7 @@ RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
     && echo "${TUIST_SHA256}  /tmp/tuist.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
     && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
-    && test "$(HOME=/tmp tuist version)" = "${TUIST_VERSION}"
+    && test "$(tuist version)" = "${TUIST_VERSION}"
 COPY agent-home/amp-settings.json /home/user/.config/amp/settings.json
 COPY agent-home/claude.json /home/user/.claude.json
 COPY agent-home/skills/ /home/user/.claude/skills/
