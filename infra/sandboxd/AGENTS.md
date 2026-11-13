@@ -161,6 +161,13 @@ memory image until they cold boot.
   snapshot changed. The snapshot stays on the node. Any node can then
   `create` from the object with `from_archive`, which is how a project
   snapshot reaches a node other than the one that saved it.
+- `copy_disks {snapshot_id, template, workspace_gb, from_archive}`: fill the
+  disk snapshot `snapshot_id` from its archive, so a node other than the one
+  that saved it clones it like its own. The download and extraction go to a
+  `snapshots/.tmp-copy-<id>-*` directory outside the snapshot lock, the
+  header must name the template and workspace size given, and the directory
+  is renamed into place under the lock. A snapshot already on the node is
+  kept and the call succeeds without downloading. Answers `duration_ms`.
 - `create {..., from_archive: {url, bytes, sha256}}`: download the archive
   (three attempts), check its size and SHA-256, extract it into a fresh
   jail (the template name and workspace size must match), then cold boot
@@ -398,6 +405,7 @@ Server to node:
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
 {"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
 {"type":"command","id":"c12","op":"archive_disks","args":{"snapshot_id":"...","part_size":N,"part_urls":["https://..."]}}
+{"type":"command","id":"c13","op":"copy_disks","args":{"snapshot_id":"...","template":"default","workspace_gb":10,"from_archive":{"url":"https://...","bytes":N,"sha256":"..."}}}
 ```
 
 A running sandbox's `cpu_ms` is its Firecracker process's user and system
@@ -512,6 +520,23 @@ shape on the shared OVH Linux fleet):
 | create from an archive (cold boot, after download) | 6 | 724 ms | 772 ms | | | 772 ms |
 | resume on the node (`node_call_ms`) | 266 | 144 ms | 319 ms | 438 ms | 788 ms | 1.3 s |
 | resume admission before the node call (`admit_ms`) | 265 | 866 ms | 1.6 s | 1.9 s | 3.1 s | 12.7 s |
+
+Disk snapshot spawns, production, 2026-11-04 to 2026-11-13, from ClickHouse
+`sandbox_events` (`started` events of Amp Orbs, `duration_ms` from the
+spawn's placement to a booted VM) and the daemon's `archive downloaded`
+lines:
+
+| Path | n | p50 | p90 | p99 |
+|---|---|---|---|---|
+| clone on the snapshot's node (`disk_snapshot`) | 88 | 1.3 s | 2.1 s | 3.0 s |
+| create from the snapshot's archive (`disk_snapshot_archive`) | 35 | 45 s | 92 s | 139 s |
+| of which the archive download (4.4 GB, 12.8 GB of disks) | 37 | 44 s | 89 s | 137 s |
+| create from an Orb archive (`archive`) | 184 | 67 s | 108 s | 160 s |
+
+From 2026-11-11 to 2026-11-13, 31 of 67 snapshot spawns that booted missed
+the snapshot's node (29 from the archive, 2 from the template, whose setup
+then takes 411 s at p50), almost all for `:no_capacity` on that node. That
+is what node copies of popular snapshots (`copy_disks`) remove.
 
 The VM is not the bottleneck: half of all resumes spend longer in
 `Capacity.admit/1` (grant check, node lock, carve-out growth) than the

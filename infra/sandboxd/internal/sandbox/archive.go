@@ -222,35 +222,9 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	if err := vm.Prepare(sb.root, uid, uid); err != nil {
 		return res, err
 	}
-	limits := map[string]int64{
-		firecracker.KernelPath:    maxKernelBytes,
-		firecracker.RootfsPath:    maxRootfsBytes,
-		firecracker.WorkspacePath: int64(args.WorkspaceGB) << 30,
-	}
-	downloadStart := time.Now()
-	var header archive.Header
-	for attempt := 1; ; attempt++ {
-		err = archive.Download(ctx, m.http, src.URL, src.Bytes, src.SHA256, func(r io.Reader) error {
-			var extractErr error
-			header, extractErr = archive.Extract(r, sb.root, limits)
-			return extractErr
-		})
-		if err == nil {
-			break
-		}
-		for _, name := range archivedFiles {
-			_ = os.Remove(filepath.Join(sb.root, name))
-		}
-		if attempt == restoreAttempts || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
-			return res, fmt.Errorf("restoring archive: %w", err)
-		}
-		log.Warn("archive download failed, retrying", "attempt", attempt, "error", err)
-	}
-	if header.Template != template || header.WorkspaceGB != args.WorkspaceGB {
-		return res, fmt.Errorf("%w: it holds template %s with a %d GB workspace", ErrArchiveMismatch, header.Template, header.WorkspaceGB)
-	}
-	if size := vm.FileSize(filepath.Join(sb.root, firecracker.WorkspacePath)); size != int64(args.WorkspaceGB)<<30 {
-		return res, fmt.Errorf("%w: workspace image is %d bytes", ErrArchiveMismatch, size)
+	header, err := m.downloadArchive(ctx, src, sb.root, template, args.WorkspaceGB, log)
+	if err != nil {
+		return res, err
 	}
 	for _, name := range archivedFiles {
 		if err := vm.Chown(filepath.Join(sb.root, name), uid, uid); err != nil {
@@ -260,6 +234,49 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	sb.mu.Lock()
 	sb.meta.Tag = header.Tag
 	sb.mu.Unlock()
-	log.Info("archive downloaded", "bytes", src.Bytes, "source_sandbox", header.SourceSandbox, "download", time.Since(downloadStart))
 	return m.coldCreate(ctx, sb, log.With("slot", slot, "from_archive", true))
+}
+
+// downloadArchive extracts an archive's kernel and disks into dir, checked
+// against the size and checksum it was uploaded with, and checks that it
+// holds the template and workspace size asked for. A failed attempt removes
+// what it extracted; dir is left without the archived files on error.
+func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSource, dir, template string, workspaceGB int, log *slog.Logger) (archive.Header, error) {
+	limits := map[string]int64{
+		firecracker.KernelPath:    maxKernelBytes,
+		firecracker.RootfsPath:    maxRootfsBytes,
+		firecracker.WorkspacePath: int64(workspaceGB) << 30,
+	}
+	removeFiles := func() {
+		for _, name := range archivedFiles {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
+	start := time.Now()
+	var header archive.Header
+	for attempt := 1; ; attempt++ {
+		err := archive.Download(ctx, m.http, src.URL, src.Bytes, src.SHA256, func(r io.Reader) error {
+			var extractErr error
+			header, extractErr = archive.Extract(r, dir, limits)
+			return extractErr
+		})
+		if err == nil {
+			break
+		}
+		removeFiles()
+		if attempt == restoreAttempts || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
+			return header, fmt.Errorf("restoring archive: %w", err)
+		}
+		log.Warn("archive download failed, retrying", "attempt", attempt, "error", err)
+	}
+	if header.Template != template || header.WorkspaceGB != workspaceGB {
+		removeFiles()
+		return header, fmt.Errorf("%w: it holds template %s with a %d GB workspace", ErrArchiveMismatch, header.Template, header.WorkspaceGB)
+	}
+	if size := vm.FileSize(filepath.Join(dir, firecracker.WorkspacePath)); size != int64(workspaceGB)<<30 {
+		removeFiles()
+		return header, fmt.Errorf("%w: workspace image is %d bytes", ErrArchiveMismatch, size)
+	}
+	log.Info("archive downloaded", "bytes", src.Bytes, "source_sandbox", header.SourceSandbox, "download", time.Since(start))
+	return header, nil
 }

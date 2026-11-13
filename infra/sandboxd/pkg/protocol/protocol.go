@@ -35,6 +35,10 @@ const (
 	// OpArchiveDisks uploads a disk snapshot in the archive format, so any
 	// node can create a sandbox from it with CreateArgs.FromArchive.
 	OpArchiveDisks = "archive_disks"
+	// OpCopyDisks downloads a disk snapshot's archive into the node's disk
+	// snapshots, so the node can create sandboxes from it without the
+	// download. The answer is a SaveDisksResult.
+	OpCopyDisks = "copy_disks"
 	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
 	// detached guest work (an Amp Orb's turn) that the host cannot observe
 	// runs; a pause or OpReleaseResidency with the same work ID ends it.
@@ -298,6 +302,15 @@ type ArchiveDisksArgs struct {
 	SnapshotID string   `json:"snapshot_id"`
 	PartSize   int64    `json:"part_size"`
 	PartURLs   []string `json:"part_urls"`
+}
+
+// CopyDisksArgs asks for a disk snapshot to be filled from its archive. The
+// archive must hold the template and workspace size given.
+type CopyDisksArgs struct {
+	SnapshotID  string         `json:"snapshot_id"`
+	Template    string         `json:"template"`
+	WorkspaceGB int            `json:"workspace_gb"`
+	FromArchive *ArchiveSource `json:"from_archive"`
 }
 
 // ArchiveSource is an archive to restore: a presigned GET URL and the size

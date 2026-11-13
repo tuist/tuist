@@ -279,6 +279,43 @@ func TestArchiveDisksRestoresOnAnotherNode(t *testing.T) {
 	if vm.FileSize(restored) != 1<<30 || string(got) != "project set up" {
 		t.Fatalf("a sandbox created from the archive must hold the snapshot's disks, not the source's later writes; got %q", got)
 	}
+
+	// A copy on the other node: an archive of another workspace size is
+	// refused and leaves nothing behind, a matching one becomes a disk
+	// snapshot the node clones like one it saved itself.
+	other.m.cloneFile = sparseCopy
+	mismatch := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 2, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, mismatch); !errors.Is(err, ErrArchiveMismatch) {
+		t.Fatalf("copying an archive of another workspace size must fail with a mismatch, got %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 0 {
+		t.Fatalf("a refused copy must leave no disk snapshot, got %+v", infos)
+	}
+	copyArgs := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, copyArgs); err != nil {
+		t.Fatalf("copy disks: %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 1 || infos[0].ID != "snap1" || infos[0].WorkspaceGB != 1 {
+		t.Fatalf("the copy must be listed as the disk snapshot, got %+v", infos)
+	}
+	// A repeated copy keeps the one already there without downloading.
+	if _, err := other.m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: &protocol.ArchiveSource{URL: server.URL + "/gone", Bytes: 1, SHA256: "00"}}); err != nil {
+		t.Fatalf("copying a snapshot the node holds must succeed, got %v", err)
+	}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "cloned", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromDiskSnapshot: "snap1"}); err != nil {
+		t.Fatalf("create from the copied disk snapshot: %v", err)
+	}
+	cloned, err := os.Open(filepath.Join(vm.RootDir(other.jailBase, "cloned"), "workspace.ext4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cloned.Close()
+	if _, err := cloned.ReadAt(got, 300<<20); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "project set up" {
+		t.Fatalf("a sandbox cloned from the copy must hold the snapshot's disks, got %q", got)
+	}
 }
 
 // sparseCopy copies src to dst, leaving zero blocks as holes.
