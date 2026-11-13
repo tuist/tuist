@@ -123,13 +123,20 @@ defmodule Tuist.Tests.StressNewTests do
   defp identity(test_case), do: {test_case.module_name, test_case.suite_name, test_case.name}
 
   # A test case in a nested suite is also known under the ID it had before
-  # nested suites were recorded whole (`LegacySuiteIdentity`).
+  # nested suites were recorded whole (`LegacySuiteIdentity`). The request
+  # doesn't say which build system sent it (the Xcode CLI, the Gradle plugin and
+  # tuist_ex all call the gate), so the project's decides.
   defp reject_known(project, default_branch, test_cases) do
+    build_system = to_string(project.build_system)
+
     with_ids =
       Enum.map(test_cases, fn test_case ->
         %{name: name, module_name: module_name, suite_name: suite_name} = test_case
         id = Tests.generate_test_case_id(project.id, name, module_name, suite_name)
-        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, name, module_name, suite_name)
+
+        legacy_id =
+          LegacySuiteIdentity.legacy_test_case_id(project.id, build_system, name, module_name, suite_name)
+
         {Enum.reject([id, legacy_id], &is_nil/1), test_case}
       end)
 

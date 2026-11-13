@@ -31,28 +31,38 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
   alias Tuist.Tests.CoverageTestSource
   alias Tuist.Tests.TestCaseEvent
 
+  # One query parameter is capped at 128 KiB, about 3,000 UUIDs, so a module
+  # with thousands of new nested tests is read in chunks.
+  @lookup_batch_size 2_000
+
   @doc """
   The ID a test case had before nested suites were recorded whole, or `nil` when
-  its suite isn't nested and the ID never changed.
+  its suite isn't nested and the ID never changed. Only Xcode suites were ever
+  truncated: other build systems report a `/` in their suite names as they always
+  did (ExUnit describes such as `create_order/2`, Once and Bazel paths), so their
+  IDs never changed.
   """
-  def legacy_test_case_id(project_id, name, module_name, suite_name) do
+  def legacy_test_case_id(project_id, "xcode", name, module_name, suite_name) do
     case String.split(suite_name || "", "/") do
       [_not_nested] -> nil
       components -> Tests.generate_test_case_id(project_id, name, module_name, List.last(components))
     end
   end
 
+  def legacy_test_case_id(_project_id, _build_system, _name, _module_name, _suite_name), do: nil
+
   @doc """
   Copies the state ledgers of the legacy IDs of `test_cases` (maps with `:id`,
   `:name`, `:module_name` and `:suite_name`, all ingested for the first time) to
-  their new IDs. Returns the IDs that inherited a ledger.
+  their new IDs, for a run of `build_system`. Returns the IDs that inherited a
+  ledger.
   """
-  def carry_over(_project_id, []), do: MapSet.new()
+  def carry_over(_project_id, _build_system, []), do: MapSet.new()
 
-  def carry_over(project_id, test_cases) do
+  def carry_over(project_id, build_system, test_cases) do
     legacy_to_new =
       Enum.reduce(test_cases, %{}, fn test_case, acc ->
-        case legacy_test_case_id(project_id, test_case.name, test_case.module_name, test_case.suite_name) do
+        case legacy_test_case_id(project_id, build_system, test_case.name, test_case.module_name, test_case.suite_name) do
           nil -> acc
           legacy_id -> Map.update(acc, legacy_id, [test_case.id], &[test_case.id | &1])
         end
@@ -74,10 +84,10 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
   # the new ID, collapses into one row.
   defp copy_coverage_versions(project_id, legacy_ids, legacy_to_new) do
     rows =
-      ClickHouseRepo.all(
+      all_in_chunks(legacy_ids, fn ids ->
         from(s in CoverageTestSource,
           where: s.project_id == ^project_id,
-          where: fragment("? IN (?)", s.test_case_id, type(^legacy_ids, {:array, Ecto.UUID})),
+          where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
           select: %{
             project_id: s.project_id,
             git_repository_id: s.git_repository_id,
@@ -91,9 +101,8 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
             ran_at: s.ran_at,
             inserted_at: s.inserted_at
           }
-        ),
-        multipart: true
-      )
+        )
+      end)
 
     copies =
       for row <- rows, new_id <- Map.fetch!(legacy_to_new, row.test_case_id) do
@@ -107,10 +116,10 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
 
   defp copy_test_case_events(project_id, legacy_ids, legacy_to_new) do
     rows =
-      ClickHouseRepo.all(
+      all_in_chunks(legacy_ids, fn ids ->
         from(e in TestCaseEvent,
           where: e.project_id == ^project_id,
-          where: fragment("? IN (?)", e.test_case_id, type(^legacy_ids, {:array, Ecto.UUID})),
+          where: fragment("? IN (?)", e.test_case_id, type(^ids, {:array, Ecto.UUID})),
           select: %{
             id: e.id,
             test_case_id: e.test_case_id,
@@ -119,9 +128,8 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
             alert_id: e.alert_id,
             inserted_at: e.inserted_at
           }
-        ),
-        multipart: true
-      )
+        )
+      end)
 
     copies =
       for row <- Enum.uniq_by(rows, & &1.id), new_id <- Map.fetch!(legacy_to_new, row.test_case_id) do
@@ -134,9 +142,9 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
 
   defp copy_alert_events(legacy_ids, legacy_to_new) do
     rows =
-      ClickHouseRepo.all(
+      all_in_chunks(legacy_ids, fn ids ->
         from(e in AlertEvent,
-          where: fragment("? IN (?)", e.test_case_id, type(^legacy_ids, {:array, Ecto.UUID})),
+          where: fragment("? IN (?)", e.test_case_id, type(^ids, {:array, Ecto.UUID})),
           select: %{
             id: e.id,
             alert_id: e.alert_id,
@@ -147,9 +155,8 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
             recovered_at: e.recovered_at,
             inserted_at: e.inserted_at
           }
-        ),
-        multipart: true
-      )
+        )
+      end)
 
     copies =
       for row <- Enum.uniq_by(rows, & &1.id), new_id <- Map.fetch!(legacy_to_new, row.test_case_id) do
@@ -158,6 +165,12 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
 
     if copies != [], do: IngestRepo.insert_all(AlertEvent, copies)
     MapSet.new(copies, & &1.test_case_id)
+  end
+
+  defp all_in_chunks(ids, query_fun) do
+    ids
+    |> Enum.chunk_every(@lookup_batch_size)
+    |> Enum.flat_map(&ClickHouseRepo.all(query_fun.(&1), multipart: true))
   end
 
   # Deterministic, so a report ingested twice (a retry, or two pods racing on

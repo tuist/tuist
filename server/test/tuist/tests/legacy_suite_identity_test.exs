@@ -14,15 +14,38 @@ defmodule Tuist.Tests.LegacySuiteIdentityTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  describe "legacy_test_case_id/4" do
+  describe "legacy_test_case_id/5" do
     test "is the ID the innermost suite gave a nested suite's test" do
-      assert LegacySuiteIdentity.legacy_test_case_id(1, "b()", "LibTests", "Outer/Inner") ==
+      assert LegacySuiteIdentity.legacy_test_case_id(1, "xcode", "b()", "LibTests", "Outer/Inner") ==
                Tests.generate_test_case_id(1, "b()", "LibTests", "Inner")
     end
 
     test "is nil when the suite isn't nested" do
-      assert LegacySuiteIdentity.legacy_test_case_id(1, "b()", "LibTests", "Inner") == nil
-      assert LegacySuiteIdentity.legacy_test_case_id(1, "b()", "LibTests", "") == nil
+      assert LegacySuiteIdentity.legacy_test_case_id(1, "xcode", "b()", "LibTests", "Inner") == nil
+      assert LegacySuiteIdentity.legacy_test_case_id(1, "xcode", "b()", "LibTests", "") == nil
+    end
+
+    test "is nil for other build systems, whose suites always kept their `/`" do
+      assert LegacySuiteIdentity.legacy_test_case_id(1, "mix", "creates it", "OrdersTest", "create_order/2") == nil
+    end
+  end
+
+  describe "carry_over/3" do
+    test "reads the legacy IDs of a module with thousands of new nested tests in chunks" do
+      # One query parameter holds about 3,000 UUIDs before ClickHouse rejects the request.
+      test_cases =
+        for i <- 1..5_000 do
+          suite_name = "Outer/Inner#{i}"
+
+          %{
+            id: Tests.generate_test_case_id(1, "t()", "Big", suite_name),
+            name: "t()",
+            module_name: "Big",
+            suite_name: suite_name
+          }
+        end
+
+      assert LegacySuiteIdentity.carry_over(1, "xcode", test_cases) == MapSet.new()
     end
   end
 
@@ -142,6 +165,19 @@ defmodule Tuist.Tests.LegacySuiteIdentityTest do
       assert Enum.count(event_types(new_id), &(&1 == "muted")) == 1
     end
 
+    test "leaves a Mix describe holding a `/` alone", %{project: project, account: account} do
+      {:ok, _} = create_test(project, account, "2", "main", build_system: "mix")
+      legacy_id = Tests.generate_test_case_id(project.id, "b()", "LibTests", "2")
+      {:ok, _} = Tests.update_test_case(legacy_id, %{state: "muted"})
+
+      {:ok, _} = create_test(project, account, "create_order/2", "main", build_system: "mix")
+
+      {:ok, test_case} =
+        Tests.get_test_case_by_id(Tests.generate_test_case_id(project.id, "b()", "LibTests", "create_order/2"))
+
+      assert test_case.state == "enabled"
+    end
+
     test "records a first_run for a nested suite's test that never existed under its innermost suite", %{
       project: project,
       account: account
@@ -153,8 +189,9 @@ defmodule Tuist.Tests.LegacySuiteIdentityTest do
     end
   end
 
-  defp create_test(project, account, suite_name, branch) do
+  defp create_test(project, account, suite_name, branch, opts \\ []) do
     Tests.create_test(%{
+      build_system: Keyword.get(opts, :build_system, "xcode"),
       id: UUIDv7.generate(),
       project_id: project.id,
       account_id: account.id,

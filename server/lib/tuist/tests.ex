@@ -1268,6 +1268,7 @@ defmodule Tuist.Tests do
     test_run_id = Keyword.get(opts, :test_run_id)
     is_ci = Keyword.get(opts, :is_ci, false)
     record_durations = Keyword.get(opts, :record_durations, true)
+    build_system = Keyword.get(opts, :build_system, "xcode")
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -1347,7 +1348,11 @@ defmodule Tuist.Tests do
     # A test case that inherits its legacy ID's ledger already has a history, so it
     # gets no `first_run` event or `test_case.created` webhook of its own.
     carried_over =
-      LegacySuiteIdentity.carry_over(project_id, Enum.filter(test_cases, &MapSet.member?(new_test_case_ids, &1.id)))
+      LegacySuiteIdentity.carry_over(
+        project_id,
+        build_system,
+        Enum.filter(test_cases, &MapSet.member?(new_test_case_ids, &1.id))
+      )
 
     new_test_case_ids = MapSet.difference(new_test_case_ids, carried_over)
 
@@ -2448,7 +2453,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test_case_data, project)
+    test_case_data = check_new_test_cases(test_case_data, project, test.build_system)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key,
@@ -2604,13 +2609,13 @@ defmodule Tuist.Tests do
   # commit the default branch has since reached (a merge queue's, typically).
   # A test case in a nested suite is also known under the ID it had before
   # nested suites were recorded whole (`LegacySuiteIdentity`).
-  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project)
+  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project, build_system)
        when is_binary(default_branch) and default_branch != "" do
     existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(project.id, default_branch)
 
     test_case_data =
       Enum.map(test_case_data, fn %{identity_key: {name, module_name, suite_name}} = data ->
-        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, name, module_name, suite_name)
+        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, build_system, name, module_name, suite_name)
         Map.put(data, :known_ids, Enum.reject([data.test_case_id, legacy_id], &is_nil/1))
       end)
 
@@ -2630,7 +2635,8 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp check_new_test_cases(test_case_data, _project), do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
+  defp check_new_test_cases(test_case_data, _project, _build_system),
+    do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
 
   defp project_default_branch(project_id) do
     project = Tuist.Projects.get_project_by_id(project_id)
@@ -2857,6 +2863,7 @@ defmodule Tuist.Tests do
         create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
           test_run_id: test.id,
           is_ci: test.is_ci,
+          build_system: test.build_system,
           record_durations: not (test.scheme == "cargo test" or String.starts_with?(test.scheme || "", "cargo test · "))
         )
       end
