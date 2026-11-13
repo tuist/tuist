@@ -14,6 +14,7 @@ struct ProgramStatusReporterTests {
         (["tuist", "generate"], true, true, false),
         (["tuist", "generate", "--json"], true, false, false),
         (["tuist", "--quiet", "generate"], true, false, false),
+        (["tuist", "generate", "--quiet"], true, false, false),
         (["tuist", "dump"], true, false, false),
         (["tuist", "--verbose", "dump"], true, false, false),
     ])

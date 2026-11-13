@@ -32,6 +32,15 @@ struct MachineReadableOutputTests {
         #expect(MachineReadableOutput.isQuiet(arguments: arguments))
     }
 
+    @Test(arguments: [
+        ["tuist", "generate", "--quiet", "--no-open"],
+        ["tuist", "generate", "run", "--quiet", "--no-open"],
+    ])
+    func quiet_generation_is_detected_and_global_flag_is_removed(arguments: [String]) {
+        #expect(MachineReadableOutput.isQuiet(arguments: arguments))
+        #expect(CommandLineArguments.removingGlobalFlags(arguments) == arguments.filter { $0 != "--quiet" })
+    }
+
     @Test func isQuiet_whenQuietFlagIsNotPresent() {
         let arguments = ["tuist", "generate"]
 
