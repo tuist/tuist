@@ -81,6 +81,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -187,16 +188,21 @@ defmodule Tuist.Sandboxes.Archives do
 
   @doc """
   Makes room on nodes whose disk refused a new sandbox, any account's:
-  queues the archive of the least recently paused idle Orb on them. Answers
-  whether room is on its way, which is also the case while an archive is
-  uploading from one of them. Answers false when archiving is off or they
-  hold no Orb to archive. With `disk_pressure: true`, the worker rechecks
-  the high-water mark before archiving; used by the proactive sweep.
+  drops a copy of a disk snapshot made for another node's sake
+  (`DiskSnapshots.drop_copy/1`), else queues the archive of the least
+  recently paused idle Orb on them. Answers whether room is on its way,
+  which is also the case while an archive is uploading from one of them.
+  Answers false when archiving is off or they hold no Orb to archive. With
+  `disk_pressure: true`, the worker rechecks the high-water mark before
+  archiving; used by the proactive sweep.
   """
   def make_node_room(node_names, opts \\ []) when is_list(node_names) do
     node_names = node_names |> Enum.uniq() |> Enum.sort()
 
     cond do
+      DiskSnapshots.drop_copy(node_names) ->
+        true
+
       !Environment.sandbox_archive_after_hours() or node_names == [] ->
         false
 

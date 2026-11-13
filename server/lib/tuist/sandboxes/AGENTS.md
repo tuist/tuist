@@ -245,6 +245,31 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
+  A popular archived snapshot (two Orbs spawned from its Amp id, or from
+  the id it refreshes, in 24 hours) also gets extra node copies
+  (`sandbox_disk_snapshot_copies`, `DiskSnapshots.copy/1`,
+  `CopyDiskSnapshotWorker` on its own `sandbox_snapshot_copies` queue): the
+  node downloads the archive (`copy_disks`) into its snapshot directory, under
+  the snapshot's id. They are queued after a spawn that missed every node
+  holding the snapshot and once a snapshot finishes archiving, so a refreshed
+  snapshot of a busy project is copied out before its first miss. Spawns
+  place on any node holding a ready copy (`Capacity.place_on_node/2` takes the
+  list). Copies are placed as runner cache volumes are
+  (`Tuist.Runners.VolumePlacement`): by the snapshot's `lineage_id`, which a
+  save inherits from the snapshot it refreshes (else the id its Orb was
+  spawned from, else its own), so every snapshot of a project goes to the
+  same nodes; on half again as many nodes as the lineage's Orbs held memory
+  at once in the 24 hours (at least two, the snapshot's own node counting
+  when it is one of them, and at most four copies), picked by weighted rendezvous hashing over the
+  ready nodes at the archive's site, weighted by disk budget. Keep the key
+  stable across refreshes: hashing the Amp id itself would move a project's
+  copies at every refresh. A copy reserves the snapshot's ceiling on its
+  node, is admitted only while that node's reserved disk stays under the
+  archive high-water mark with it (so it never makes an Orb get archived;
+  a node that cannot take it passes it to the next in rendezvous order), and
+  is the first thing `Archives.make_node_room/2` gives up. Copies go with their snapshot
+  (expiry, supersede), after 24 hours unused, after 45 minutes stuck
+  copying, and when their node stops listing them.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
   unset), or the least recently paused one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most

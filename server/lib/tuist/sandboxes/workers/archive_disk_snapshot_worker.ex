@@ -16,12 +16,15 @@ defmodule Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker do
   alias Tuist.Repo
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshots
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"disk_snapshot_id" => id}}) do
     # A snapshot deleted or superseded meanwhile never loads.
-    with %DiskSnapshot{} = snapshot <- Repo.get(DiskSnapshot, id) do
-      Archives.archive_disk_snapshot(snapshot)
+    # A popular project's refreshed snapshot is copied out once it can be.
+    with %DiskSnapshot{} = snapshot <- Repo.get(DiskSnapshot, id),
+         {:ok, %DiskSnapshot{} = archived} <- Archives.archive_disk_snapshot(snapshot) do
+      DiskSnapshots.queue_copies(archived)
     end
 
     :ok

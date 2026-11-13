@@ -5,6 +5,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -80,6 +81,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       platform: Keyword.get(opts, :platform, :linux),
       amp_orb_id: Keyword.get(opts, :amp_orb_id),
       amp_integration_id: Keyword.get(opts, :amp_integration_id),
+      amp_base_snapshot_id: Keyword.get(opts, :amp_base_snapshot_id),
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       vcpus: Keyword.get(opts, :vcpus, 2),
@@ -113,6 +115,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
     Repo.insert!(%DiskSnapshot{
       account_id: account.id,
       amp_snapshot_id: Keyword.get(opts, :amp_snapshot_id, "snapshot-#{TuistTestSupport.Utilities.unique_integer()}"),
+      lineage_id: Keyword.get(opts, :lineage_id),
       source_sandbox_id: Keyword.get(opts, :source_sandbox_id),
       node_name: Keyword.get(opts, :node_name, "node-a"),
       template: Keyword.get(opts, :template, "default"),
@@ -127,6 +130,15 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       archive_sha256: Keyword.get(opts, :archive_sha256),
       archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
       archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate()
+    })
+  end
+
+  def disk_snapshot_copy_fixture(%DiskSnapshot{} = snapshot, opts \\ []) do
+    Repo.insert!(%DiskSnapshotCopy{
+      disk_snapshot_id: snapshot.id,
+      node_name: Keyword.get(opts, :node_name, "node-b"),
+      state: Keyword.get(opts, :state, :ready),
+      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate()
     })
   end
 

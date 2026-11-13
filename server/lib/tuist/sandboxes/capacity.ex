@@ -60,6 +60,7 @@ defmodule Tuist.Sandboxes.Capacity do
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
@@ -445,12 +446,20 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   # An archived snapshot whose node copy is gone has no `node_name` and
-  # reserves nothing.
+  # reserves nothing. Copies on other nodes reserve the same ceiling there.
   defp reserved_disk_snapshot_bytes(%{name: node_name} = node) do
+    copies =
+      from(c in DiskSnapshotCopy,
+        join: s in assoc(c, :disk_snapshot),
+        where: c.node_name == ^node_name,
+        select: %{workspace_gb: s.workspace_gb, template: s.template}
+      )
+
     from(s in DiskSnapshot,
       where: s.node_name == ^node_name,
       select: %{workspace_gb: s.workspace_gb, template: s.template}
     )
+    |> union_all(^copies)
     |> Repo.all()
     |> Enum.map(&disk_snapshot_ceiling_bytes(&1, node))
     |> Enum.sum()
@@ -470,9 +479,11 @@ defmodule Tuist.Sandboxes.Capacity do
   Runs `apply` under the node's lock when its disk budget and free space
   can take a new disk snapshot's ceiling, so a concurrent placement never
   counts on the same bytes. Answers `{:error, :no_capacity}` otherwise.
+  `budget_percent:` admits only within that share of the budget.
   """
-  def reserve_disk_snapshot(%{name: node_name} = node, snapshot, apply) when is_function(apply, 0) do
+  def reserve_disk_snapshot(%{name: node_name} = node, snapshot, apply, opts \\ []) when is_function(apply, 0) do
     ceiling = disk_snapshot_ceiling_bytes(snapshot, node)
+    percent = Keyword.get(opts, :budget_percent, 100)
 
     Repo.transaction(fn ->
       lock(node_name)
@@ -480,7 +491,7 @@ defmodule Tuist.Sandboxes.Capacity do
       fits_budget =
         case disk_budget_bytes(node) do
           :unbounded -> true
-          budget -> reserved_disk_bytes(node) + ceiling <= budget
+          budget -> (reserved_disk_bytes(node) + ceiling) * 100 <= budget * percent
         end
 
       fits_filesystem =
@@ -668,20 +679,21 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   @doc """
-  `place/1` restricted to one node: the node that holds the disk snapshot a
-  sandbox is cloned from. Answers `{:error, :no_node}` when that node is not
+  `place/1` restricted to the nodes that hold a copy of the disk snapshot a
+  sandbox is cloned from. Answers `{:error, :no_node}` when none of them is
   connected with the template ready, so the caller can fall back to
   `place/1`.
   """
-  def place_on_node(%Sandbox{node_name: nil, template: template} = sandbox, node_name) when is_binary(node_name) do
-    case Enum.filter(ready_nodes(template), &(&1.name == node_name)) do
+  def place_on_node(%Sandbox{node_name: nil, template: template} = sandbox, node_names) when is_list(node_names) do
+    case Enum.filter(ready_nodes(template), &(&1.name in node_names)) do
       [] ->
         {:error, :no_node}
 
-      [node] ->
-        if disk_space?(node, sandbox) and disk_room?(node, sandbox),
-          do: place_on([node], sandbox),
-          else: {:error, :no_capacity}
+      nodes ->
+        case Enum.filter(nodes, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox))) do
+          [] -> {:error, :no_capacity}
+          candidates -> place_on(candidates, sandbox)
+        end
     end
   end
 

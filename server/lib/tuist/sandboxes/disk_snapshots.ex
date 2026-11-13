@@ -12,19 +12,36 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   archived snapshot whose node copy is gone keeps its row with no
   `node_name`; one that was never archived is dropped.
 
+  A popular archived snapshot is also copied onto other nodes
+  (`Tuist.Sandboxes.DiskSnapshotCopy`, `copy/1`): a spawn that finds every
+  node holding it full otherwise pays the archive download on its path. The
+  nodes are placed as runner cache volumes are (`Tuist.Runners.VolumePlacement`):
+  by the snapshot's lineage, which Amp's refreshes keep, so every snapshot of
+  a project goes to the same nodes, and as many as half again its most Orbs
+  running at once, with at most four copies. A copy goes only to a node whose reserved disk stays
+  under the archive high-water mark with it, so it never makes an Orb get
+  archived, and it is the first thing dropped when a node needs room
+  (`drop_copy/1`).
+
   Snapshots unused for longer than Amp reuses one are deleted with their
-  archive, and the node's reports reconcile copies the database no longer
-  knows and rows whose copy the node lost.
+  archive and copies, copies unused for a day are dropped, and the node's
+  reports reconcile copies the database no longer knows and rows whose copy
+  the node lost.
   """
   import Ecto.Query
 
+  alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.CopyDiskSnapshotWorker
   alias Tuist.Tasks
 
   require Logger
@@ -35,6 +52,21 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # A report can be older than a save that just finished.
   @report_grace_seconds 120
   @save_timeout 120_000
+  # A snapshot is popular once this many Orbs were spawned from it, or from
+  # the snapshot it refreshes, within the window. Measured in production
+  # (2026-11): a busy project spawns over ten Orbs a day from one snapshot.
+  @popular_spawns 2
+  @popularity_window_hours 24
+  # An Orb in these states holds memory on its node.
+  @live_states [:creating, :running, :resuming]
+  # Extra node copies of one snapshot at most, however busy its lineage.
+  # Each reserves a snapshot ceiling (about 22 GiB) of its node's disk budget.
+  @max_copies 4
+  @copy_unused_hours 24
+  # A copy downloads the whole archive (4.4 GB at p50), as long as the
+  # daemon's archive timeout at most.
+  @copy_timeout to_timeout(minute: 30)
+  @stuck_copying_minutes 45
 
   def unused_retention_hours, do: @unused_retention_hours
 
@@ -76,6 +108,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     attrs = %{
       account_id: sandbox.account_id,
       amp_snapshot_id: amp_snapshot_id,
+      lineage_id: lineage_id(sandbox, amp_snapshot_id),
       source_sandbox_id: sandbox.id,
       node_name: node_name,
       template: sandbox.template,
@@ -113,6 +146,23 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     end
   end
 
+  # The refresh chain a save continues: the lineage of an older save of this
+  # id or of the snapshot the Orb was spawned from, else the id the Orb was
+  # spawned from, else this one. It stays the same across Amp's refreshes,
+  # so every snapshot of a project is copied to the same nodes.
+  defp lineage_id(%Sandbox{account_id: account_id, amp_base_snapshot_id: base}, amp_snapshot_id) do
+    ids = Enum.reject([amp_snapshot_id, base], &is_nil/1)
+
+    Repo.one(
+      from(s in DiskSnapshot,
+        where: s.account_id == ^account_id and s.amp_snapshot_id in ^ids and not is_nil(s.lineage_id),
+        order_by: [desc: s.inserted_at],
+        limit: 1,
+        select: s.lineage_id
+      )
+    ) || base || amp_snapshot_id
+  end
+
   defp saved_since_pause?(%Sandbox{id: id, account_id: account_id, paused_at: paused_at}, amp_snapshot_id) do
     query =
       from(s in DiskSnapshot,
@@ -145,18 +195,37 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   Records that a sandbox was created from the snapshot, which keeps it
   from expiring.
   """
-  def touch(%DiskSnapshot{id: id}) do
+  def touch(%DiskSnapshot{id: id}, node_name \\ nil) do
     Repo.update_all(from(s in DiskSnapshot, where: s.id == ^id), set: [last_used_at: now()])
+
+    if node_name,
+      do:
+        Repo.update_all(from(c in DiskSnapshotCopy, where: c.disk_snapshot_id == ^id and c.node_name == ^node_name),
+          set: [last_used_at: now()]
+        )
+
     :ok
+  end
+
+  @doc """
+  The nodes holding a ready copy of the snapshot: its own node and the
+  nodes it was copied to.
+  """
+  def held_nodes(%DiskSnapshot{id: id, node_name: node_name}) do
+    copies =
+      Repo.all(from(c in DiskSnapshotCopy, where: c.disk_snapshot_id == ^id and c.state == :ready, select: c.node_name))
+
+    if node_name, do: [node_name | copies], else: copies
   end
 
   @doc """
   Forgets the node copy when the node answered that it no longer holds it:
   an archived snapshot keeps its row without a node, any other is dropped.
   """
-  def forget_if_missing(%DiskSnapshot{} = snapshot, reason) when is_binary(reason) do
+  def forget_if_missing(%DiskSnapshot{} = snapshot, node_name, reason) when is_binary(reason) do
     cond do
       not String.contains?(reason, "disk snapshot not found") -> :ok
+      node_name != snapshot.node_name -> delete_copy_row(snapshot.id, node_name)
       snapshot.archived_at -> forget_node_copy(snapshot)
       true -> delete(snapshot)
     end
@@ -164,7 +233,11 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     :ok
   end
 
-  def forget_if_missing(_snapshot, _reason), do: :ok
+  def forget_if_missing(_snapshot, _node_name, _reason), do: :ok
+
+  defp delete_copy_row(snapshot_id, node_name) do
+    Repo.delete_all(from(c in DiskSnapshotCopy, where: c.disk_snapshot_id == ^snapshot_id and c.node_name == ^node_name))
+  end
 
   # The node lost its copy (it answered so, or stopped listing it). Only the
   # archive is left of an archived snapshot.
@@ -201,7 +274,13 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   defp do_delete(snapshot) do
-    if snapshot.node_name, do: delete_node_copy(snapshot)
+    if snapshot.node_name, do: delete_node_copy(snapshot.id, snapshot.node_name)
+
+    # The rows go with the snapshot's; a node that misses this removes its
+    # copy at its next report.
+    from(c in DiskSnapshotCopy, where: c.disk_snapshot_id == ^snapshot.id, select: c.node_name)
+    |> Repo.all()
+    |> Enum.each(&delete_node_copy(snapshot.id, &1))
 
     case Archives.delete_disk_snapshot_archive(snapshot) do
       :ok ->
@@ -227,15 +306,15 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     end
   end
 
-  defp delete_node_copy(%DiskSnapshot{} = snapshot) do
-    case Nodes.call(snapshot.node_name, "delete_disks", %{snapshot_id: snapshot.id}, []) do
+  defp delete_node_copy(snapshot_id, node_name) do
+    case Nodes.call(node_name, "delete_disks", %{snapshot_id: snapshot_id}, []) do
       {:ok, _data} ->
         :ok
 
       {:error, reason} ->
         Logger.warning("sandboxes: failed to delete a disk snapshot on its node",
-          disk_snapshot_id: snapshot.id,
-          node: snapshot.node_name,
+          disk_snapshot_id: snapshot_id,
+          node: node_name,
           reason: inspect(reason)
         )
     end
@@ -265,6 +344,25 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
       delete(snapshot)
     end)
+
+    copy_unused_before = DateTime.add(now(), -@copy_unused_hours, :hour)
+    copy_stuck_before = DateTime.add(now(), -@stuck_copying_minutes, :minute)
+
+    from(c in DiskSnapshotCopy,
+      where:
+        (c.state == :ready and c.last_used_at < ^copy_unused_before) or
+          (c.state == :copying and c.updated_at < ^copy_stuck_before)
+    )
+    |> Repo.all()
+    |> Enum.each(fn copy ->
+      Logger.info("sandboxes: dropping an unused disk snapshot copy",
+        disk_snapshot_id: copy.disk_snapshot_id,
+        node: copy.node_name,
+        state: copy.state
+      )
+
+      delete_copy(copy)
+    end)
   end
 
   @doc """
@@ -279,8 +377,16 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
     # A row that no longer names this node (its copy was given up for lost)
     # does not reserve the node's disk, so the copy goes too.
+    copies =
+      from(c in DiskSnapshotCopy,
+        where: c.disk_snapshot_id in ^reported_ids and c.node_name == ^node_name,
+        select: c.disk_snapshot_id
+      )
+
     known =
-      Repo.all(from(s in DiskSnapshot, where: s.id in ^reported_ids and s.node_name == ^node_name, select: s.id))
+      from(s in DiskSnapshot, where: s.id in ^reported_ids and s.node_name == ^node_name, select: s.id)
+      |> union(^copies)
+      |> Repo.all()
 
     reported_ids
     |> Kernel.--(known)
@@ -303,10 +409,245 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       forget_node_copy(snapshot)
     end)
 
+    forget_missing_copies(node_name, reported_ids, reported_before)
     :ok
   end
 
   def reconcile_node_report(_node_name, _report), do: :ok
+
+  defp forget_missing_copies(node_name, reported_ids, reported_before) do
+    from(c in DiskSnapshotCopy,
+      where:
+        c.node_name == ^node_name and c.disk_snapshot_id not in ^reported_ids and c.state == :ready and
+          c.updated_at < ^reported_before
+    )
+    |> Repo.all()
+    |> Enum.each(fn copy ->
+      Logger.warning("sandboxes: disk snapshot copy missing on node",
+        disk_snapshot_id: copy.disk_snapshot_id,
+        node: node_name
+      )
+
+      Repo.delete(copy, allow_stale: true)
+    end)
+  end
+
+  @doc """
+  Queues copies of an archived snapshot onto other nodes when it is popular.
+  Answers whether it queued them.
+  """
+  def queue_copies(%DiskSnapshot{} = snapshot) do
+    if copyable?(snapshot) and popular?(spawns(snapshot)) do
+      {:ok, _job} = %{disk_snapshot_id: snapshot.id} |> CopyDiskSnapshotWorker.new() |> Oban.insert()
+      true
+    else
+      false
+    end
+  end
+
+  defp copyable?(%DiskSnapshot{state: :ready, archived_at: %DateTime{}}), do: true
+  defp copyable?(%DiskSnapshot{}), do: false
+
+  # The Orbs spawned within the window from the snapshot's Amp identifier,
+  # or from the one its source Orb was spawned from: Amp refreshes a project
+  # snapshot under a new identifier, and the new one is as popular as the
+  # one it replaces. Each is the span it held memory: from its creation to
+  # its last change, still open (`nil`) while it is live.
+  defp spawns(%DiskSnapshot{} = snapshot) do
+    base =
+      if snapshot.source_sandbox_id,
+        do: Repo.one(from(s in Sandbox, where: s.id == ^snapshot.source_sandbox_id, select: s.amp_base_snapshot_id))
+
+    ids = Enum.reject([snapshot.amp_snapshot_id, base], &is_nil/1)
+    since = DateTime.add(now(), -@popularity_window_hours, :hour)
+
+    from(s in Sandbox,
+      where: s.account_id == ^snapshot.account_id and s.amp_base_snapshot_id in ^ids and s.inserted_at >= ^since,
+      select: {s.inserted_at, s.state, s.updated_at}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {started, state, updated} -> {started, if(state not in @live_states, do: updated)} end)
+  end
+
+  defp popular?(spawns), do: length(spawns) >= @popular_spawns
+
+  # The most spawns that held memory at the same time. A span ending when
+  # another starts does not overlap it.
+  defp peak_concurrency(spawns) do
+    spawns
+    |> Enum.flat_map(fn
+      {started, nil} -> [{started, 1}]
+      {started, ended} -> [{started, 1}, {ended, -1}]
+    end)
+    |> Enum.sort_by(fn {at, delta} -> {DateTime.to_unix(at), delta} end)
+    |> Enum.scan(0, fn {_at, delta}, open -> open + delta end)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  @doc """
+  Copies a popular archived snapshot from its archive (`copy_disks`) onto
+  the nodes that hold its lineage, one node at a time. Like a runner cache
+  volume (`VolumePlacement`), a lineage is held by half again as many nodes
+  as its Orbs ran on at once in the window, at least two, picked by weighted
+  rendezvous hashing of the lineage over the ready nodes at the archive's
+  site, weighted by disk budget. The snapshot's own node counts when it is
+  among them, and a snapshot gets at most four copies however busy it is. A node that cannot take the copy, because its reserved disk
+  would pass the archive high-water mark (so a copy never pushes an Orb into
+  the archive), passes it to the next node in that order. The copy is
+  reserved under the node's lock before the download, like a save. Answers
+  `{:error, :no_capacity}` when fewer nodes than that hold it.
+  """
+  def copy(%DiskSnapshot{id: id}) do
+    with %DiskSnapshot{} = snapshot <- Repo.get(DiskSnapshot, id),
+         true <- copyable?(snapshot),
+         spawns = spawns(snapshot),
+         true <- popular?(spawns) do
+      copy_to_holders(snapshot, peak_concurrency(spawns))
+    else
+      _skipped -> :ok
+    end
+  end
+
+  defp copy_to_holders(snapshot, peak) do
+    site = Archives.restore_site(snapshot)
+
+    peers =
+      snapshot.template
+      |> Capacity.ready_nodes()
+      |> Enum.filter(&(is_nil(site) or Sites.shard_storage_site(&1.name) == site))
+      |> Map.new(&{&1.name, &1})
+
+    weights = placement_weights(peers)
+    wanted = VolumePlacement.replicas(peak, map_size(weights))
+    copies = Repo.all(from(c in DiskSnapshotCopy, where: c.disk_snapshot_id == ^snapshot.id, select: c.node_name))
+    held = if snapshot.node_name, do: [snapshot.node_name | copies], else: copies
+
+    snapshot
+    |> placement_key()
+    |> VolumePlacement.holders(weights, map_size(weights))
+    |> Enum.reduce_while({0, @max_copies - length(copies)}, fn name, {holders, room} = acc ->
+      cond do
+        enough?(acc, wanted) -> {:halt, acc}
+        name in held -> {:cont, {holders + 1, room}}
+        true -> copy_to_node(snapshot, peers[name], acc)
+      end
+    end)
+    |> case do
+      {:error, reason} -> {:error, reason}
+      acc -> if enough?(acc, wanted), do: :ok, else: {:error, :no_capacity}
+    end
+  end
+
+  # Enough nodes hold the lineage, or the snapshot has its most copies.
+  defp enough?({holders, room}, wanted), do: holders >= wanted or room <= 0
+
+  defp copy_to_node(snapshot, node, {holders, room} = acc) do
+    insert = fn ->
+      %DiskSnapshotCopy{}
+      |> DiskSnapshotCopy.create_changeset(%{disk_snapshot_id: snapshot.id, node_name: node.name, last_used_at: now()})
+      |> Repo.insert()
+    end
+
+    budget_percent = Environment.sandbox_archive_disk_high_water_percent() || 100
+
+    case Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: budget_percent) do
+      {:ok, copy} ->
+        case fill_copy(snapshot, copy) do
+          {:ok, _copy} -> {:cont, {holders + 1, room - 1}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+
+      {:error, _reason} ->
+        {:cont, acc}
+    end
+  end
+
+  # A snapshot's copies are placed by its account and lineage. Snapshots
+  # saved before lineages were recorded are their own lineage.
+  defp placement_key(%DiskSnapshot{account_id: account_id} = snapshot),
+    do: "#{account_id}/#{snapshot.lineage_id || snapshot.amp_snapshot_id}"
+
+  # Nodes weigh their disk budget, as cache hosts weigh their cache capacity.
+  # While any node has an unbounded budget, every node weighs the same.
+  defp placement_weights(peers) do
+    budgets = Map.new(peers, fn {name, node} -> {name, Capacity.disk_budget_bytes(node)} end)
+
+    if Enum.all?(budgets, fn {_name, budget} -> is_integer(budget) end),
+      do: budgets,
+      else: Map.new(peers, fn {name, _node} -> {name, 1} end)
+  end
+
+  defp fill_copy(snapshot, %DiskSnapshotCopy{node_name: node_name} = copy) do
+    args = %{snapshot_id: snapshot.id, template: snapshot.template, workspace_gb: snapshot.workspace_gb}
+
+    with {:ok, source} <- Archives.restore_source(snapshot),
+         {:ok, data} <- Nodes.call(node_name, "copy_disks", Map.put(args, :from_archive, source), timeout: @copy_timeout) do
+      case Repo.update_all(from(c in DiskSnapshotCopy, where: c.id == ^copy.id),
+             set: [state: :ready, last_used_at: now(), updated_at: now()]
+           ) do
+        {1, _} ->
+          Logger.info("sandboxes: disk snapshot copied",
+            disk_snapshot_id: snapshot.id,
+            node: node_name,
+            archive_bytes: snapshot.archive_bytes,
+            duration_ms: data["duration_ms"]
+          )
+
+          {:ok, copy}
+
+        # The snapshot was deleted while the copy downloaded.
+        {0, _} ->
+          delete_node_copy(snapshot.id, node_name)
+          {:error, :deleted}
+      end
+    else
+      {:error, reason} ->
+        Logger.warning("sandboxes: copying a disk snapshot failed",
+          disk_snapshot_id: snapshot.id,
+          node: node_name,
+          reason: inspect(reason)
+        )
+
+        # A download the node finishes anyway is removed at its next report.
+        {:ok, _deleted} = Repo.delete(copy, allow_stale: true)
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Frees disk on nodes that need room by dropping the least recently used
+  ready copy on them: a copy is the cheapest thing to give up, since its
+  snapshot stays on its own node and in its archive. The row goes at once,
+  which is what frees the reservation; the node removes the files right
+  after. Answers whether it dropped one.
+  """
+  def drop_copy(node_names) when is_list(node_names) do
+    from(c in DiskSnapshotCopy,
+      where: c.node_name in ^node_names and c.state == :ready,
+      order_by: [asc: c.last_used_at],
+      limit: 1
+    )
+    |> Repo.one()
+    |> case do
+      nil ->
+        false
+
+      copy ->
+        Logger.info("sandboxes: dropping a disk snapshot copy to make room",
+          disk_snapshot_id: copy.disk_snapshot_id,
+          node: copy.node_name
+        )
+
+        {:ok, _deleted} = Repo.delete(copy, allow_stale: true)
+        Tasks.run_async(fn -> delete_node_copy(copy.disk_snapshot_id, copy.node_name) end)
+        true
+    end
+  end
+
+  defp delete_copy(%DiskSnapshotCopy{} = copy) do
+    delete_node_copy(copy.disk_snapshot_id, copy.node_name)
+    Repo.delete(copy, allow_stale: true)
+  end
 
   # Runs off the socket process, which has to deliver the answer.
   defp delete_orphan(node_name, snapshot_id) do

@@ -26,6 +26,7 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandbox_disk_snapshots" do
     field :amp_snapshot_id, :string
+    field :lineage_id, :string
     field :node_name, :string
     field :template, :string
     field :template_tag, :string
@@ -51,6 +52,7 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
     |> cast(attrs, [
       :account_id,
       :amp_snapshot_id,
+      :lineage_id,
       :source_sandbox_id,
       :node_name,
       :template,

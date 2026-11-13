@@ -5,12 +5,18 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
   import Ecto.Query
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @gib 1024 * 1024 * 1024
 
@@ -132,5 +138,245 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
              Capacity.disk_snapshot_ceiling_bytes(%{workspace_gb: 10, template: "default"}, node)
 
     assert Capacity.disk_snapshot_ceiling_bytes(%{workspace_gb: 10, template: "default"}, node) > 18 * @gib
+  end
+
+  describe "copies" do
+    defp copy_node(name),
+      do: %{
+        name: name,
+        disk: %{budget_bytes: 100 * @gib},
+        templates: [%{name: "default", ready: true, rootfs_bytes: 8 * @gib}]
+      }
+
+    defp popular_snapshot(opts \\ []) do
+      account = Keyword.get_lazy(opts, :account, &AccountsFixtures.account_fixture/0)
+
+      snapshot =
+        disk_snapshot_fixture(
+          Keyword.merge(
+            [
+              account: account,
+              amp_snapshot_id: "proj-1",
+              node_name: "node-a",
+              archive_key: "snapshot-key",
+              archive_bytes: 2048,
+              archive_sha256: "cafe",
+              archived_at: DateTime.utc_now()
+            ],
+            opts
+          )
+        )
+
+      for _ <- 1..Keyword.get(opts, :running, 2)//1,
+          do: sandbox_fixture(account: account, amp_base_snapshot_id: snapshot.amp_snapshot_id, node_name: "node-a")
+
+      snapshot
+    end
+
+    defp copied_nodes(snapshot) do
+      Repo.all(
+        from(c in DiskSnapshotCopy,
+          where: c.disk_snapshot_id == ^snapshot.id and c.state == :ready,
+          select: c.node_name,
+          order_by: c.node_name
+        )
+      )
+    end
+
+    setup do
+      stub(Environment, :sandbox_archive_disk_high_water_percent, fn -> 85 end)
+      stub(Storage, :generate_download_url, fn "snapshot-key", _actor, _opts -> "https://s3/snapshot" end)
+      :ok
+    end
+
+    test "copies a popular snapshot to a node that stays under the high-water mark with it" do
+      snapshot = popular_snapshot()
+      # 72 GiB reserved: the copy's 18 GiB fits node-b's budget but not 85% of it.
+      sandbox_fixture(node_name: "node-b", state: :paused, workspace_gb: 60)
+      stub(Nodes, :connected_nodes, fn -> Enum.map(~w(node-a node-b node-c), &copy_node/1) end)
+      before = Capacity.reserved_disk_bytes(copy_node("node-c"))
+
+      expect(Nodes, :call, fn "node-c", "copy_disks", args, _opts ->
+        assert args == %{
+                 snapshot_id: snapshot.id,
+                 template: "default",
+                 workspace_gb: 10,
+                 from_archive: %{url: "https://s3/snapshot", bytes: 2048, sha256: "cafe"}
+               }
+
+        assert [%DiskSnapshotCopy{state: :copying}] = Repo.all(DiskSnapshotCopy)
+        {:ok, %{"duration_ms" => 40_000}}
+      end)
+
+      assert {:error, :no_capacity} = DiskSnapshots.copy(snapshot)
+
+      assert [%DiskSnapshotCopy{node_name: "node-c", state: :ready}] = Repo.all(DiskSnapshotCopy)
+      assert Enum.sort(DiskSnapshots.held_nodes(snapshot)) == ["node-a", "node-c"]
+
+      assert Capacity.reserved_disk_bytes(copy_node("node-c")) - before ==
+               Capacity.disk_snapshot_ceiling_bytes(snapshot, copy_node("node-c"))
+    end
+
+    test "every snapshot of a lineage is copied to the same nodes, however the nodes are listed" do
+      account = AccountsFixtures.account_fixture()
+      nodes = Enum.map(1..8, &copy_node("node-#{&1}"))
+      stub(Nodes, :call, fn _node, "copy_disks", _args, _opts -> {:ok, %{}} end)
+
+      # Two Orbs ran at once, so three nodes hold the lineage; the snapshot's
+      # own node-a is not ready here and does not count.
+      stub(Nodes, :connected_nodes, fn -> nodes end)
+      first = popular_snapshot(account: account, amp_snapshot_id: "proj-1", lineage_id: "proj-0")
+      assert :ok = DiskSnapshots.copy(first)
+      assert length(copied_nodes(first)) == 3
+
+      # Amp's refresh lands on the same nodes, even when they report in
+      # another order and an older copy fills part of their disk.
+      stub(Nodes, :connected_nodes, fn -> Enum.reverse(nodes) end)
+      refreshed = popular_snapshot(account: account, amp_snapshot_id: "proj-2", lineage_id: "proj-0")
+      assert :ok = DiskSnapshots.copy(refreshed)
+      assert copied_nodes(refreshed) == copied_nodes(first)
+    end
+
+    test "a lineage is held by half again as many nodes as its Orbs ran on at once, at least two, with at most four copies" do
+      stub(Nodes, :connected_nodes, fn -> Enum.map(1..8, &copy_node("node-#{&1}")) end)
+      stub(Nodes, :call, fn _node, "copy_disks", _args, _opts -> {:ok, %{}} end)
+
+      # Four Orbs at once want six holders; copies stop at four.
+      busy = popular_snapshot(running: 4)
+      assert :ok = DiskSnapshots.copy(busy)
+      assert length(copied_nodes(busy)) == 4
+
+      # Three Orbs one after another: one at a time.
+      account = AccountsFixtures.account_fixture()
+      sequential = popular_snapshot(account: account, running: 0)
+      start = DateTime.utc_now() |> DateTime.add(-6 * 3600) |> DateTime.truncate(:second)
+
+      for hour <- [0, 2, 4] do
+        orb =
+          sandbox_fixture(
+            account: account,
+            amp_base_snapshot_id: sequential.amp_snapshot_id,
+            state: :deleted,
+            inserted_at: DateTime.add(start, hour * 3600)
+          )
+
+        Repo.update_all(from(s in Sandbox, where: s.id == ^orb.id),
+          set: [updated_at: DateTime.add(start, hour * 3600 + 3600)]
+        )
+      end
+
+      assert :ok = DiskSnapshots.copy(sequential)
+      assert length(copied_nodes(sequential)) == 2
+    end
+
+    test "copies no snapshot that is not popular or not archived" do
+      account = AccountsFixtures.account_fixture()
+
+      unpopular =
+        disk_snapshot_fixture(account: account, archive_key: "snapshot-key", archived_at: DateTime.utc_now())
+
+      sandbox_fixture(account: account, amp_base_snapshot_id: unpopular.amp_snapshot_id)
+      unarchived = popular_snapshot(archived_at: nil)
+      stub(Nodes, :connected_nodes, fn -> [copy_node("node-b")] end)
+      reject(&Nodes.call/4)
+
+      refute DiskSnapshots.queue_copies(unpopular)
+      refute DiskSnapshots.queue_copies(unarchived)
+      assert :ok = DiskSnapshots.copy(unpopular)
+      assert Repo.all(DiskSnapshotCopy) == []
+    end
+
+    test "a failed copy gives its reservation back" do
+      snapshot = popular_snapshot()
+      stub(Nodes, :connected_nodes, fn -> [copy_node("node-a"), copy_node("node-b")] end)
+
+      expect(Nodes, :call, fn "node-b", "copy_disks", _args, _opts -> {:error, "restoring archive: checksum mismatch"} end)
+
+      assert {:error, "restoring archive: checksum mismatch"} = DiskSnapshots.copy(snapshot)
+      assert Repo.all(DiskSnapshotCopy) == []
+    end
+
+    test "node reports keep copies and forget the ones their node lost" do
+      snapshot = popular_snapshot()
+      kept = disk_snapshot_copy_fixture(snapshot, node_name: "node-b")
+      copying = disk_snapshot_copy_fixture(snapshot, node_name: "node-c", state: :copying)
+      lost = disk_snapshot_copy_fixture(popular_snapshot(), node_name: "node-b")
+      Repo.update_all(from(c in DiskSnapshotCopy, where: c.id == ^lost.id), set: [updated_at: ~U[2026-01-01 00:00:00Z]])
+      reject(&Nodes.call/4)
+
+      assert :ok = DiskSnapshots.reconcile_node_report("node-b", %{"disk_snapshots" => [%{"id" => snapshot.id}]})
+      assert :ok = DiskSnapshots.reconcile_node_report("node-c", %{"disk_snapshots" => []})
+
+      assert Repo.reload(kept)
+      assert Repo.reload(copying)
+      refute Repo.reload(lost)
+    end
+
+    test "deleting a snapshot, as a refresh under a new id does, removes its copies from their nodes" do
+      snapshot = popular_snapshot()
+      disk_snapshot_copy_fixture(snapshot, node_name: "node-b")
+      expect(Storage, :delete_object, fn "snapshot-key", _account -> :ok end)
+
+      expect(Nodes, :call, 2, fn node, "delete_disks", %{snapshot_id: id}, _opts when id == snapshot.id ->
+        assert node in ["node-a", "node-b"]
+        {:ok, %{}}
+      end)
+
+      assert :ok = DiskSnapshots.delete(snapshot)
+      assert Repo.all(DiskSnapshotCopy) == []
+    end
+
+    test "copies unused for a day are dropped" do
+      snapshot = popular_snapshot()
+
+      unused =
+        disk_snapshot_copy_fixture(snapshot,
+          node_name: "node-b",
+          last_used_at: DateTime.add(DateTime.utc_now(), -25 * 3600)
+        )
+
+      used =
+        disk_snapshot_copy_fixture(snapshot,
+          node_name: "node-c",
+          last_used_at: DateTime.add(DateTime.utc_now(), -23 * 3600)
+        )
+
+      expect(Nodes, :call, fn "node-b", "delete_disks", _args, _opts -> {:ok, %{}} end)
+
+      DiskSnapshots.delete_expired()
+
+      refute Repo.reload(unused)
+      assert Repo.reload(used)
+      assert Repo.reload(snapshot)
+    end
+
+    test "a node that needs room drops its least recently used copy before archiving an Orb" do
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+
+      older =
+        disk_snapshot_copy_fixture(popular_snapshot(),
+          node_name: "node-b",
+          last_used_at: DateTime.add(DateTime.utc_now(), -3600)
+        )
+
+      newer = disk_snapshot_copy_fixture(popular_snapshot(), node_name: "node-b")
+
+      sandbox_fixture(
+        amp_orb_id: "amp-idle",
+        node_name: "node-b",
+        state: :paused,
+        paused_at: DateTime.add(DateTime.utc_now(), -3600)
+      )
+
+      stub(Nodes, :call, fn "node-b", "delete_disks", _args, _opts -> {:ok, %{}} end)
+      reserved = Capacity.reserved_disk_bytes(copy_node("node-b"))
+
+      assert Archives.make_node_room(["node-b"])
+
+      refute Repo.reload(older)
+      assert Repo.reload(newer)
+      refute_enqueued(worker: ArchiveSandboxesWorker)
+      assert Capacity.reserved_disk_bytes(copy_node("node-b")) < reserved
+    end
   end
 end

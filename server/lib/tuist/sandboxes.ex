@@ -576,6 +576,7 @@ defmodule Tuist.Sandboxes do
           node: node_name,
           template: sandbox.template,
           disk_snapshot_id: data["disk_snapshot_id"],
+          disk_snapshot_copy: data["disk_snapshot_copy"],
           from_archive: match?({:archive, _}, source),
           boot_ms: data["boot_ms"]
         )
@@ -654,22 +655,34 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  # The snapshot's node clones it fastest, so it goes first. When that node
-  # cannot take the sandbox or the clone fails, an archived snapshot boots
-  # from its archive on any node with room, without holding the snapshot
-  # node's reservation; otherwise, or when that fails too, the template
+  # A node holding the snapshot (its own, or one it was copied to) clones
+  # it fastest, so those go first. When none of them can take the sandbox
+  # or the clone fails, an archived snapshot boots from its archive on any
+  # node with room, without holding that node's reservation, and is copied
+  # out if it is popular; otherwise, or when that fails too, the template
   # boots. A failed clone of a snapshot without an archive keeps the node's
   # reservation, so the template boot retries on the same node.
-  defp place_and_create(sandbox, args, %DiskSnapshot{node_name: snapshot_node} = disk_snapshot)
-       when is_binary(snapshot_node) do
-    case Capacity.place_on_node(sandbox, snapshot_node) do
+  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot) do
+    case DiskSnapshots.held_nodes(disk_snapshot) do
+      [] -> create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
+      held -> create_from_held_disk_snapshot(sandbox, args, disk_snapshot, held)
+    end
+  end
+
+  defp create_from_held_disk_snapshot(sandbox, args, disk_snapshot, held) do
+    case Capacity.place_on_node(sandbox, held) do
       {:ok, node_name} ->
         clone_args = Map.put(args, :from_disk_snapshot, disk_snapshot.id)
 
         case Nodes.call(node_name, "create", clone_args, timeout: @create_timeout) do
           {:ok, data} ->
-            DiskSnapshots.touch(disk_snapshot)
-            {:ok, node_name, Map.put(data, "disk_snapshot_id", disk_snapshot.id)}
+            DiskSnapshots.touch(disk_snapshot, node_name)
+
+            {:ok, node_name,
+             Map.merge(data, %{
+               "disk_snapshot_id" => disk_snapshot.id,
+               "disk_snapshot_copy" => node_name != disk_snapshot.node_name
+             })}
 
           {:error, reason} ->
             Logger.warning("sandboxes: create from disk snapshot failed",
@@ -679,7 +692,7 @@ defmodule Tuist.Sandboxes do
               reason: inspect(reason)
             )
 
-            DiskSnapshots.forget_if_missing(disk_snapshot, reason)
+            DiskSnapshots.forget_if_missing(disk_snapshot, node_name, reason)
             create_after_failed_clone(sandbox, args, node_name, disk_snapshot)
         end
 
@@ -687,17 +700,13 @@ defmodule Tuist.Sandboxes do
         Logger.info("sandboxes: disk snapshot node cannot take the sandbox, booting elsewhere",
           sandbox_id: sandbox.id,
           disk_snapshot_id: disk_snapshot.id,
-          node: snapshot_node,
+          node: Enum.join(held, ","),
           reason: inspect(reason)
         )
 
         create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
     end
   end
-
-  # An archived snapshot whose node copy is gone.
-  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot),
-    do: create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
 
   # A macOS host's own checks (its CI grant, its disk) are final and can
   # refuse a create the server placed, after which the host discards the
@@ -753,6 +762,9 @@ defmodule Tuist.Sandboxes do
       case Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
         {:ok, data} ->
           DiskSnapshots.touch(disk_snapshot)
+          # Every node holding it was full or failed: copy it out ahead of
+          # the project's next spawn.
+          DiskSnapshots.queue_copies(disk_snapshot)
           {:ok, node_name, Map.merge(data, %{"disk_snapshot_id" => disk_snapshot.id, "disk_snapshot_archive" => true})}
 
         # The node holds the reservation already, so the template boots there.
