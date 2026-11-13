@@ -123,6 +123,9 @@ it was last renewed even if the server never releases it; the server sets it
 two minutes past the lease, so this only backstops a lost release. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
+A VM the runtime proves lost (its process gone with no checkpoint, or its VM
+missing) holds no CPU or memory and never cold-boots, so it releases its
+reservation once and stays in `error`, with its disk, until the server deletes it.
 Node hello/report frames always include the resident boolean, including false
 after eviction, so the server releases its reservation after the host's fence.
 

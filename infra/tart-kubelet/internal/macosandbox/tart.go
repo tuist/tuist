@@ -426,7 +426,7 @@ func (t *TartRuntime) Recover(ctx context.Context, r *Record) error {
 		return errors.New("deletion must be retried")
 	}
 	if vm == nil {
-		return errors.New("sandbox VM is missing; cold-boot fallback refused")
+		return fmt.Errorf("sandbox VM is missing; %w", ErrVMLost)
 	}
 	running, err := c.IsRunning(ctx, r.VMName())
 	if err != nil {
@@ -449,7 +449,7 @@ func (t *TartRuntime) Recover(ctx context.Context, r *Record) error {
 		return nil
 	}
 	if !strings.EqualFold(vm.State, "suspended") {
-		return errors.New("sandbox process lost without a checkpoint; cold-boot fallback refused")
+		return fmt.Errorf("sandbox process lost without a checkpoint; %w", ErrVMLost)
 	}
 	marker, err := os.ReadFile(filepath.Join(t.directory(r), "checkpoint-instance"))
 	if err != nil {

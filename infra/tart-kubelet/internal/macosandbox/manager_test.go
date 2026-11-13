@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -24,7 +25,7 @@ type fakeRuntime struct {
 	saveErr, errorRecovery   error
 	createErr                error
 	saveStarted, saveRelease chan struct{}
-	creates, warms           int
+	creates, warms, recovers int
 	claimedVolumeGB          int
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
@@ -101,6 +102,7 @@ func (f *fakeRuntime) Delete(_ context.Context, r *Record) error {
 	return nil
 }
 func (f *fakeRuntime) Recover(_ context.Context, r *Record) error {
+	f.recovers++
 	if f.errorRecovery != nil {
 		return f.errorRecovery
 	}
@@ -470,6 +472,51 @@ func TestRecoveryRefusesWrongOwnerAndNeverFreesUnknownVM(t *testing.T) {
 	}
 	if !c.held[a.SandboxID] || recovered.Snapshot()[0].State != "error" {
 		t.Fatal("unknown VM became free capacity")
+	}
+}
+
+// A VM found with no process and no checkpoint holds no CPU or memory: it
+// gives its slot back once, without being retried every reconcile, and stays
+// listed in error until the server deletes it.
+func TestLostVMReleasesItsReservationOnceUntilDeleted(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	r.errorRecovery = fmt.Errorf("sandbox process lost without a checkpoint; %w", ErrVMLost)
+	c.releaseErr = errors.New("API unavailable")
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !c.held[a.SandboxID] || !recovered.Snapshot()[0].Resident {
+		t.Fatal("a failed release dropped the reservation")
+	}
+	c.releaseErr = nil
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	info := recovered.Snapshot()[0]
+	if c.held[a.SandboxID] || info.Resident || info.State != "error" {
+		t.Fatalf("lost VM kept its slot: held %v, %+v", c.held[a.SandboxID], info)
+	}
+	// The release is journaled, so neither a reconcile nor a restart retries it.
+	again := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := again.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	before := r.recovers
+	for i := 0; i < 3; i++ {
+		if err := again.Reconcile(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r.recovers != before {
+		t.Fatalf("lost VM was recovered %d more times", r.recovers-before)
+	}
+	if err := again.Delete(ctx, a.SandboxID); err != nil || len(again.Snapshot()) != 0 {
+		t.Fatal("lost VM could not be deleted", err)
 	}
 }
 func TestInterruptedDeleteIsRetriedAfterRestart(t *testing.T) {

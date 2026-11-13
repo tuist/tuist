@@ -23,6 +23,10 @@ import (
 
 var ErrCapacity = errors.New("macOS sandbox capacity unavailable")
 
+// ErrVMLost is a VM the runtime proved has no process and no checkpoint. It
+// holds no CPU or memory and can never resume; only a delete remains.
+var ErrVMLost = errors.New("cold-boot fallback refused")
+
 // Runtime must fence its process before Save or Delete succeeds. Recover must
 // never cold boot or accept an old checkpoint for a disk that has since run.
 type Runtime interface {
@@ -189,9 +193,11 @@ func (m *Manager) Load(ctx context.Context) error {
 			m.publish()
 			continue
 		}
-		if err = m.Runtime.Recover(ctx, &r); err != nil {
+		if lost, err := m.recover(ctx, &r); err != nil {
 			r.State = "error"
 			r.Error = err.Error()
+		} else if lost {
+			continue
 		}
 		// A reservation is removed only when the runtime positively recovered a
 		// fenced checkpoint. Unknown/error VMs keep their previous Pod charge.
@@ -205,6 +211,27 @@ func (m *Manager) Load(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// recover asks the runtime what became of an interrupted VM. A lost VM
+// (ErrVMLost) gives its reservation back at once and stays in error, with its
+// disk, until the server deletes it, so it neither holds a slot CI or another
+// sandbox could use nor is retried on every reconcile. It reports lost=true
+// once that is journaled; any other failure keeps the reservation.
+func (m *Manager) recover(ctx context.Context, r *Record) (bool, error) {
+	err := m.Runtime.Recover(ctx, r)
+	if !errors.Is(err, ErrVMLost) {
+		return false, err
+	}
+	if releaseErr := m.Capacity.Release(ctx, r); releaseErr != nil {
+		return false, errors.Join(err, releaseErr)
+	}
+	slog.Warn("a macOS sandbox VM was lost; released its reservation until the server deletes it", "sandbox", r.SandboxID, "error", err)
+	r.State = "error"
+	r.Error = err.Error()
+	r.Operation = ""
+	r.Resident = false
+	return true, m.persist(r)
 }
 
 func validID(id string) bool {
@@ -650,9 +677,12 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 			continue
 		}
 		if r.Operation != "" || r.State == "error" {
-
-			if err := m.Runtime.Recover(ctx, r); err != nil {
+			lost, err := m.recover(ctx, r)
+			if err != nil {
 				errs = append(errs, err)
+				continue
+			}
+			if lost {
 				continue
 			}
 			if err := m.finish(r, nil); err != nil {
