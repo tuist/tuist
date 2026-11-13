@@ -1005,7 +1005,7 @@ defmodule Tuist.Sandboxes do
              ) do
           {1, [paused]} ->
             Events.record_transition(sandbox, paused)
-            if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
+            if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name)
             {:ok, paused}
 
           {0, []} ->

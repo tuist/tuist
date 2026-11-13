@@ -182,15 +182,10 @@ defmodule Tuist.Sandboxes.Capacity do
   defp allocation_memory_limit(%SandboxNode{pod_name: pod, memory_limit_bytes: limit}, pod), do: limit
   defp allocation_memory_limit(_row, _pod), do: @gib
 
-  def enqueue_reclaim(node_name, released \\ false) do
-    if released do
-      {:ok, _updated} =
-        Repo.transaction(fn ->
-          lock(node_name)
-          Repo.update_all(from(n in SandboxNode, where: n.name == ^node_name), set: [grown_at: nil])
-        end)
-    end
-
+  # A pause keeps a growth's hold: the growth may be another placement's
+  # that has not reserved its memory yet, and shrinking under it refuses
+  # that placement. CI pressure still shrinks at once.
+  def enqueue_reclaim(node_name) do
     %{node: node_name} |> ReclaimCapacityWorker.new() |> Oban.insert!()
   end
 

@@ -114,6 +114,17 @@ defmodule Tuist.Sandboxes.AllocationTest do
     assert Repo.get!(SandboxNode, node.name).memory_limit_bytes == 5 * @gib
   end
 
+  test "a pause keeps a fresh growth that another placement has not reserved yet", %{node: node} do
+    assert :ok = Capacity.update_allocation(grant(node))
+    sandbox = sandbox_fixture(node_name: node.name, state: :running, memory_mb: 4096)
+    stub(Nodes, :call, fn _name, "pause", _args, _opts -> {:ok, %{}} end)
+    reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+    assert {:ok, %{state: :paused}} = Sandboxes.pause(sandbox)
+    assert :ok = Capacity.reconcile_allocation(node.name)
+    assert Repo.get!(SandboxNode, node.name).memory_limit_bytes == 12 * @gib
+  end
+
   test "a busy exec refusing pause stays charged and a failed shrink is retried", %{node: node} do
     idle = sandbox_fixture(node_name: node.name, state: :running, memory_mb: 4096)
     assert :ok = Capacity.update_allocation(grant(node, %{"reclaim" => true, "memory_bytes" => 0}))
