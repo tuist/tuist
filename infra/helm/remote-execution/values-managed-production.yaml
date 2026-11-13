@@ -10,18 +10,21 @@ gateway:
     enabled: true
     host: execution.tuist.dev
 workers:
-  # Six slots' rootfs clones, 30 GiB workspaces and memory images (277 GiB of
+  # Four slots' rootfs clones, 30 GiB workspaces and memory images (185 GiB of
   # ceilings) plus the 20 GiB input blob cache, which comes out of this budget.
   # Ceilings, not use: the images are sparse files that fill as VMs write.
-  diskGiB: 300
-  # Two runners-linux hosts: 2 VMs each always (9 GiB, 4 CPUs), up to 6 each
-  # (25 GiB) ahead of queued CI.
+  # Runner hosts had 222-325 GiB free on /data in November 2026.
+  diskGiB: 205
+  # Every runners-linux host: 1 VM each always (5 GiB, 2 CPUs), up to 4 each
+  # (17 GiB) ahead of queued CI. Ten hosts give 40 slots (167 GiB). In the
+  # week to 2026-11-13, busy runners peaked at 608 GiB, which left about
+  # 224 GiB of the autoscaler's budget with one host down; 4 slots also leave
+  # each host room for the largest runner shape (16 vCPU / 64 GiB).
   sharedHosts:
     enabled: true
-    nodes:
-      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-sfkd5
-      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-2qkj8
-    floorSlots: 2
-    ceilingSlots: 6
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: runners-linux
+    floorSlots: 1
+    ceilingSlots: 4
     tolerations:
       - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}
