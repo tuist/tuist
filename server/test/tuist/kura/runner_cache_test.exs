@@ -81,7 +81,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     account
   end
 
-  defp claimed_job(account, fleet_name, opts \\ []) do
+  defp claimed_job(account, fleet_name, opts) do
     claimed_at =
       Keyword.get_lazy(opts, :claimed_at, fn ->
         DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :days_ago, 0) * 86_400, :second)
