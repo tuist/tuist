@@ -104,7 +104,7 @@ let tuist = Tuist(
 The strategy requires:
 
 - **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
-- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.0 or later** [linked by your test targets](#linking-testcoverageattribution). It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
+- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.1 or later** [linked by your test targets](#linking-testcoverageattribution). It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
 - **Full test runs, often enough.** A run with `tuist test --no-selective-testing` executes every test and becomes a baseline. A selective run compares against a recent one in its commit's history on the same platform, and applies no coverage without one. Where and how often to run them depends on how your team works, such as on every commit of your default branch, nightly, or on release branches. We recommend the default branch: a full run there also catches, before a change ships, what coverage can't see, such as a fixture or a service a test depends on.
 
 With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run.
@@ -128,7 +128,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/tuist/TestCoverageAttribution",
-            .upToNextMinor(from: "0.5.0")
+            .upToNextMinor(from: "0.5.1")
         ),
     ]
 )
