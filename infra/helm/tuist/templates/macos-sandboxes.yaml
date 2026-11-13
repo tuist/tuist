@@ -1,0 +1,139 @@
+{{- if .Values.sandboxes.macos.enabled }}
+{{- $namespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
+{{- if ne $namespace "tuist-sandboxes" }}{{ fail "macOS sandbox host identity currently requires the tuist-sandboxes namespace" }}{{- end }}
+{{- $image := .Values.sandboxes.macos.image }}
+{{- $rackImage := $image }}
+{{- if not $image }}
+{{- $image = include "tuist.macosRunnerImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
+{{- $rackImage = $image }}
+{{- /* The rack boots the image its CI pools run: on a stacked rack that is the
+stacked build, which every release rebuilds, while the standalone build is
+carried between releases and can predate the guest's sandbox boot guard. */}}
+{{- if and .Values.rackFleet.enabled (dig "stackedImages" false (.Values.rackFleet.runners | default dict)) }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
+{{- $rackImage = . }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $fleets := list (dict "key" "runners" "fleet" (include "tuist.runnersFleetName" .) "image" $image) (dict "key" "rack" "fleet" (include "tuist.rackFleetName" .) "image" $rackImage) }}
+{{- if not .Values.sandboxes.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+---
+{{- end }}
+# This Pod is a host-service identity, not a guest. tart-kubelet intercepts it
+# before the ordinary VM launch path and keeps its token outside all shares.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tuist-macos-sandboxd
+  namespace: {{ $namespace }}
+automountServiceAccountToken: false
+---
+# The server checks the Pod UID and role after TokenReview. This permission
+# must exist even when the Linux sandbox DaemonSet is disabled.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+{{- range $fleets }}
+---
+# One control DaemonSet per fleet, because each fleet's hosts boot their own
+# image: the host service reads it from this Pod's config annotation.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tuist-macos-sandboxd-{{ .key }}
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    matchLabels:
+      tuist.dev/macos-sandbox-role: control
+      tuist.dev/macos-sandbox-fleet: {{ .key }}
+  template:
+    metadata:
+      labels:
+        tuist.dev/macos-sandbox-role: control
+        tuist.dev/macos-sandbox-fleet: {{ .key }}
+      annotations:
+        tuist.dev/macos-sandbox-config: {{ dict "url" $.Values.server.appUrl "image" .image "template" $.Values.sandboxes.macos.templateName | toJson | quote }}
+    spec:
+      serviceAccountName: tuist-macos-sandboxd
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/macos-sandbox-host: v1
+        tuist.dev/fleet: {{ .fleet | quote }}
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: host-service
+          image: {{ .image | quote }}
+          # No VM and no guest resources. Execution reservations charge the
+          # configured CPU/RAM separately, including while resident-paused.
+          resources: {}
+{{- end }}
+{{- with .Values.sandboxes.macos.warm }}
+{{- if .enabled }}
+{{- $poolName := include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos-sandbox-warm") }}
+---
+# Pre-booted sandbox VMs share the CI warm-pool budget: the runners-controller
+# preempts and rolls this pool like any CI pool, and its idle VMs give way to CI
+# the same way. tart-kubelet's sandbox service, not the CI launch path, boots
+# them, and a sandbox create on the host claims one of the same shape. No job
+# routes here: the server ignores pools carrying the warm label.
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $.Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
+    tuist.dev/macos-sandbox-warm: "true"
+spec:
+  labels: []
+  replicas: 0
+  {{- $warmFleet := .fleetSelector | default (include "tuist.runnersFleetName" $) }}
+  image: {{ ternary $rackImage $image (eq $warmFleet (include "tuist.rackFleetName" $)) | quote }}
+  os: darwin
+  fleetSelector: {{ $warmFleet | quote }}
+  dispatchLabel: "tuist-internal-macos-sandbox-warm"
+  runnerLabels: []
+  # The shape a default sandbox create asks for; other shapes cold-boot.
+  podCPUMilli: 8000
+  podMemoryMB: 8192
+  autoscaling:
+    enabled: true
+    # Rendered explicitly: the CRD defaults an absent floor to 1.
+    minWarmPoolFloor: {{ .minWarmPoolFloor | default 0 }}
+    maxReplicas: {{ .maxReplicas | default 1 }}
+{{- end }}
+{{- end }}
+{{- end }}

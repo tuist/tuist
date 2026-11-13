@@ -1,0 +1,158 @@
+name: In-cluster CAPI Upgrade
+
+# Upgrades the Cluster API core and kubeadm providers that run inside a
+# workload cluster (installed by `clusterctl init` in
+# infra/mise/tasks/k8s/bootstrap-workload.sh). They manage the self-joined
+# Machines (OVH, Vultr, rack and Scaleway hosts), not the cluster's own control
+# plane, which the management cluster's CAPI rolls.
+#
+# clusterctl needs cluster-admin (CRDs, ClusterRoles, webhook configurations
+# and the clusterctl provider inventory), which no kubectl gateway tier grants,
+# so it runs here with the env's deployer kubeconfig, like hccm-deployment.yml.
+#
+# Dispatch one environment at a time (staging, canary, production), `plan`
+# first. `apply` refuses unless the cluster holds exactly the three providers
+# this workflow upgrades, and fails if any Machine was recreated or the Cluster
+# loses ControlPlaneInitialized. CAPI has no downgrade path. See the
+# "In-cluster CAPI v1.10 → v1.13" plan in the exclusive-CPU rollout notes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Workload cluster to upgrade (staging, then canary, then production)
+        type: choice
+        options: [staging, canary, production]
+        default: staging
+      mode:
+        description: plan only reports; apply upgrades
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+
+env:
+  CAPI_VERSION: v1.13.8
+  # sha256 of clusterctl-linux-amd64 at CAPI_VERSION.
+  CLUSTERCTL_SHA256: a6759ddb51ca52ff531c1afd87c5851513729e05e27dbad983f74f7422a6887a
+
+jobs:
+  upgrade:
+    name: ${{ inputs.mode }} (${{ inputs.environment }})
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    # Same lane as server-deployment.yml and the kube-system add-on workflows,
+    # so a deploy's helm --wait never races the provider upgrade.
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      # clusterctl reads provider release metadata from GitHub.
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: kubectl --request-timeout=10s get --raw /version
+      - name: Install clusterctl
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/clusterctl" \
+            "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_VERSION}/clusterctl-linux-amd64"
+          echo "${CLUSTERCTL_SHA256}  $RUNNER_TEMP/clusterctl" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/clusterctl"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Inventory
+        run: |
+          set -euo pipefail
+          echo "## Providers"
+          kubectl get providers.clusterctl.cluster.x-k8s.io -A \
+            -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type,VERSION:.version'
+          echo "## Controllers"
+          kubectl get deploy -A -o json | jq -r '.items[]
+            | select(.spec.template.spec.containers[0].image | test("registry.k8s.io/cluster-api/"))
+            | "\(.metadata.namespace)/\(.metadata.name) \(.spec.template.spec.containers[0].image)"'
+          echo "## Machines"
+          kubectl get machines.cluster.x-k8s.io -A --no-headers \
+            -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,UID:.metadata.uid,PHASE:.status.phase' \
+            | sort | tee "$RUNNER_TEMP/machines-before.txt"
+      - name: clusterctl upgrade plan
+        run: clusterctl upgrade plan
+      - name: Check the provider set
+        if: inputs.mode == 'apply'
+        # This workflow upgrades exactly core and the kubeadm pair. Anything
+        # else clusterctl manages here would be upgraded or skipped silently,
+        # so stop and look instead.
+        run: |
+          set -euo pipefail
+          got="$(kubectl get providers.clusterctl.cluster.x-k8s.io -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort | paste -sd, -)"
+          want="bootstrap-kubeadm,cluster-api,control-plane-kubeadm"
+          if [[ "$got" != "$want" ]]; then
+            echo "::error::Expected providers ${want}, found ${got}"
+            exit 1
+          fi
+      - name: clusterctl upgrade apply
+        if: inputs.mode == 'apply'
+        run: |
+          clusterctl upgrade apply \
+            --core "cluster-api:${CAPI_VERSION}" \
+            --bootstrap "kubeadm:${CAPI_VERSION}" \
+            --control-plane "kubeadm:${CAPI_VERSION}" \
+            --wait-providers --wait-provider-timeout 600
+      - name: Verify
+        if: inputs.mode == 'apply'
+        run: |
+          set -euo pipefail
+          for d in capi-system/capi-controller-manager \
+                   capi-kubeadm-bootstrap-system/capi-kubeadm-bootstrap-controller-manager \
+                   capi-kubeadm-control-plane-system/capi-kubeadm-control-plane-controller-manager; do
+            kubectl -n "${d%%/*}" rollout status "deploy/${d#*/}" --timeout=5m
+            image="$(kubectl -n "${d%%/*}" get deploy "${d#*/}" -o jsonpath='{.spec.template.spec.containers[0].image}')"
+            echo "$d $image"
+            [[ "$image" == *":${CAPI_VERSION}" ]] || { echo "::error::$d runs $image"; exit 1; }
+          done
+
+          echo "## CRD versions (storage moves to v1beta2 once CAPI's CRD migrator runs)"
+          kubectl get crd machines.cluster.x-k8s.io clusters.cluster.x-k8s.io \
+            -o custom-columns='NAME:.metadata.name,STORED:.status.storedVersions,SERVED:.spec.versions[?(@.served==true)].name'
+
+          echo "## Cluster ControlPlaneInitialized (Machine creation waits on it)"
+          ok=""
+          for _ in $(seq 1 30); do
+            status="$(kubectl get clusters.cluster.x-k8s.io -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}={.status.conditions[?(@.type=="ControlPlaneInitialized")].status}{"\n"}{end}')"
+            if [[ -n "$status" ]] && ! grep -qv '=True$' <<<"$status"; then ok=1; break; fi
+            sleep 10
+          done
+          echo "$status"
+          [[ -n "$ok" ]] || { echo "::error::A Cluster does not report ControlPlaneInitialized=True"; exit 1; }
+
+          echo "## Machines (no Machine may be recreated)"
+          kubectl get machines.cluster.x-k8s.io -A --no-headers \
+            -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,UID:.metadata.uid,PHASE:.status.phase' \
+            | sort | tee "$RUNNER_TEMP/machines-after.txt"
+          if ! diff <(awk '{print $1,$2,$3}' "$RUNNER_TEMP/machines-before.txt") \
+                    <(awk '{print $1,$2,$3}' "$RUNNER_TEMP/machines-after.txt"); then
+            echo "::error::Machines changed across the upgrade"
+            exit 1
+          fi
+          if ! diff "$RUNNER_TEMP/machines-before.txt" "$RUNNER_TEMP/machines-after.txt"; then
+            echo "::warning::A Machine's phase changed; check it"
+          fi

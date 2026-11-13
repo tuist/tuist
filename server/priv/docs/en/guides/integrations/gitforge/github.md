@@ -29,7 +29,7 @@ Once the app is installed, you can also link a project without the dashboard:
 The repository must be one the GitHub App installation can access, and the project adopts the repository's default branch. Account tokens need the `project:admin:write` scope.
 
 > [!TIP]
-> **Ip Allowlisting**
+> **IP allowlisting**
 >
 > If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <.localized_link href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</.localized_link> so that the integration can communicate with your repository.
 
@@ -88,7 +88,7 @@ Organization administrators can also change or clear the API URL on an existing 
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
-The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
+The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews/xcode#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing/generated-xcode-project#pullmerge-request-comments">tests</.localized_link>:
 
 Tuist updates one comment as results arrive. Gradle builds appear separately for each root project and set of requested tasks; rerunning the same tasks replaces that invocation's previous result. The full build history remains available on Tuist.
 
@@ -101,10 +101,10 @@ Disabling comments does not disable build or test uploads, GitHub Actions job su
 > [!NOTE]
 > **Requirements**
 >
-> The comment is only posted when your CI runs are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+> The comment is only posted when your CI runs are <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>.
 
 > [!NOTE]
-> **Github_ref**
+> **`GITHUB_REF`**
 >
 > If you have a custom workflow that's not triggered on a PR commit, but for example, a GitHub comment, you might need to ensure that the `GITHUB_REF` variable is set to either `refs/pull/<PR_NUMBER>/merge` or `refs/pull/<PR_NUMBER>/head`.
 >
@@ -125,4 +125,4 @@ This is particularly useful with [merge queues](https://docs.github.com/en/repos
 > [!NOTE]
 > **Requirements**
 >
-> Job summaries require a successful report upload. On the hosted Tuist server, your CI runs must be <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>. Self-hosted instances can also accept credential-free reports when network-trusted report publishing is enabled.
+> Job summaries require a successful report upload. On the hosted Tuist server, your CI runs must be <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>. Self-hosted instances can also accept credential-free reports when network-trusted report publishing is enabled.

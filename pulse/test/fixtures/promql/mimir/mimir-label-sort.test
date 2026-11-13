@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Test sort_by_label / sort_by_label_desc.
+load 1m
+  test_metric{test1="c", test2="x", case="float 1"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 2"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 3"}             0+10x3
+  test_metric{test1="b", test2="y", case="float 4"}             0+10x3
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}} {{count:0 sum:12}} {{count:0 sum:12}}
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}} {{count:20 sum:5}} {{count:20 sum:5}}
+
+# With no labels, we sort by all labels in sorted order (i.e. "case" is compared first)
+eval_ordered instant at 1m sort_by_label(test_metric)
+  test_metric{test1="c", test2="x", case="float 1"}             10
+  test_metric{test1="a", test2="x", case="float 2"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+
+eval_ordered instant at 1m sort_by_label(test_metric, "test1")
+  test_metric{test1="a", test2="x", case="float 2"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="c", test2="x", case="float 1"}             10
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+
+eval_ordered instant at 1m sort_by_label(test_metric, "test2", "test1")
+  test_metric{test1="a", test2="x", case="float 2"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="c", test2="x", case="float 1"}             10
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+
+# sort_by_label doesn't affect range queries, verify that here.
+eval range from 0 to 3m step 1m sort_by_label(test_metric, "test1")
+  test_metric{test1="c", test2="x", case="float 1"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 2"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 3"}             0+10x3
+  test_metric{test1="b", test2="y", case="float 4"}             0+10x3
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}} {{count:0 sum:12}} {{count:0 sum:12}} {{count:0 sum:12}}
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}} {{count:20 sum:5}} {{count:20 sum:5}} {{count:20 sum:5}}
+
+# With no labels, we sort by all labels in sorted order (i.e. "case" is compared first)
+eval_ordered instant at 1m sort_by_label_desc(test_metric)
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="a", test2="x", case="float 2"}             10
+  test_metric{test1="c", test2="x", case="float 1"}             10
+
+eval_ordered instant at 1m sort_by_label_desc(test_metric, "test1")
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="c", test2="x", case="float 1"}             10
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="a", test2="x", case="float 2"}             10
+
+eval_ordered instant at 1m sort_by_label_desc(test_metric, "test2", "test1")
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}}
+  test_metric{test1="b", test2="y", case="float 4"}             10
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}}
+  test_metric{test1="c", test2="x", case="float 1"}             10
+  test_metric{test1="a", test2="x", case="float 3"}             10
+  test_metric{test1="a", test2="x", case="float 2"}             10
+
+# sort_by_label_desc doesn't affect range queries, verify that here.
+eval range from 0 to 3m step 1m sort_by_label_desc(test_metric, "test1")
+  test_metric{test1="d", test2="y", case="histogram 2"}         {{count:20 sum:5}} {{count:20 sum:5}} {{count:20 sum:5}} {{count:20 sum:5}}
+  test_metric{test1="d", test2="x", case="histogram 1"}         {{count:0 sum:12}} {{count:0 sum:12}} {{count:0 sum:12}} {{count:0 sum:12}}
+  test_metric{test1="b", test2="y", case="float 4"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 3"}             0+10x3
+  test_metric{test1="a", test2="x", case="float 2"}             0+10x3
+  test_metric{test1="c", test2="x", case="float 1"}             0+10x3
+
+clear

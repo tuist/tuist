@@ -1,0 +1,334 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test inputs/oracles: Copyright Grafana Labs contributors; adjacent LICENSE applies.
+// Standard-library-only source extraction. Never executes Loki/Pulse or constructors.
+// Usage: producer /path/to/pinned/loki > matcher-admission.json
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
+	"unicode/utf8"
+)
+
+const revision = "5aa4b9212d64d723f63b2770452054aa23df114d"
+
+type object map[string]any
+type source struct {
+	path string
+	data []byte
+	fs   *token.FileSet
+	file *ast.File
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func hash(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
+func load(root, path, want string) *source {
+	data, err := os.ReadFile(filepath.Join(root, path))
+	must(err)
+	if hash(data) != want {
+		panic("source differs from pinned revision: " + path)
+	}
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, path, data, parser.ParseComments)
+	must(err)
+	return &source{path, data, fs, f}
+}
+func (s *source) code(n ast.Node) string {
+	return string(s.data[s.fs.Position(n.Pos()).Offset:s.fs.Position(n.End()).Offset])
+}
+func (s *source) span(n ast.Node) object {
+	a, b := s.fs.Position(n.Pos()), s.fs.Position(n.End())
+	return object{"start_line": a.Line, "start_column": a.Column, "end_line": b.Line,
+		"end_column": b.Column, "start_byte": a.Offset, "end_byte_exclusive": b.Offset}
+}
+func (s *source) record(n ast.Node) object {
+	return object{"source": s.path, "source_range": s.span(n), "original_go": s.code(n)}
+}
+func (s *source) selection(name string, n ast.Node) object {
+	r := s.record(n)
+	text := s.code(n) + "\n"
+	r["name"], r["original_go"], r["sha256"] = name, text, hash([]byte(text))
+	return r
+}
+func (s *source) function(name string) *ast.FuncDecl {
+	for _, d := range s.file.Decls {
+		if f, ok := d.(*ast.FuncDecl); ok && f.Name.Name == name {
+			return f
+		}
+	}
+	panic("missing function: " + name)
+}
+func (s *source) namedValue(name string) *ast.ValueSpec {
+	for _, d := range s.file.Decls {
+		if g, ok := d.(*ast.GenDecl); ok {
+			for _, spec := range g.Specs {
+				if v, ok := spec.(*ast.ValueSpec); ok && len(v.Names) == 1 && v.Names[0].Name == name {
+					return v
+				}
+			}
+		}
+	}
+	panic("missing declaration: " + name)
+}
+func literalString(e ast.Expr) (string, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	v, err := strconv.Unquote(lit.Value)
+	must(err)
+	return v, true
+}
+func literalInt(e ast.Expr) (int64, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		return 0, false
+	}
+	v, err := strconv.ParseInt(lit.Value, 0, 64)
+	return v, err == nil
+}
+func nilExpr(e ast.Expr) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == "nil"
+}
+
+// Resolve only original NewParseError(literal-or-pinned-constant, int, int).
+// A diagnostic is the constructor tuple, not an executed Error() rendering.
+func errorWant(s *source, e ast.Expr, constants map[string]string) object {
+	r := s.record(e)
+	r["resolved"] = false
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return r
+	}
+	r["constructor_expression"] = s.code(call.Fun)
+	args := []object{}
+	for _, arg := range call.Args {
+		args = append(args, s.record(arg))
+	}
+	r["arguments"] = args
+	if s.code(call.Fun) != "logqlmodel.NewParseError" || len(call.Args) != 3 {
+		return r
+	}
+	msg, msgOK := literalString(call.Args[0])
+	if id, ok := call.Args[0].(*ast.Ident); ok {
+		msg, msgOK = constants[id.Name]
+	}
+	line, lineOK := literalInt(call.Args[1])
+	col, colOK := literalInt(call.Args[2])
+	if msgOK && lineOK && colOK {
+		r["resolved"] = true
+		r["diagnostic"] = object{"message": msg, "line": line, "column": col}
+	}
+	return r
+}
+
+// This is lexical normalization of the five original literal helper calls,
+// not labels.NewMatcher evaluation, regex compilation or query parsing.
+func matcherWant(s *source, e ast.Expr) object {
+	r := s.record(e)
+	r["resolved"] = false
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return r
+	}
+	r["constructor_expression"] = s.code(call.Fun)
+	args := []object{}
+	for _, arg := range call.Args {
+		args = append(args, s.record(arg))
+	}
+	r["arguments"] = args
+	if s.code(call.Fun) != "mustNewMatcher" || len(call.Args) != 3 {
+		return r
+	}
+	symbol := s.code(call.Args[0])
+	operators := map[string]string{"labels.MatchEqual": "=", "labels.MatchNotEqual": "!=",
+		"labels.MatchRegexp": "=~", "labels.MatchNotRegexp": "!~"}
+	op, opOK := operators[symbol]
+	name, nameOK := literalString(call.Args[1])
+	value, valueOK := literalString(call.Args[2])
+	if opOK && nameOK && valueOK {
+		r["resolved"] = true
+		r["operator_symbol"], r["op"], r["name"], r["value"] = symbol, op, name, value
+	}
+	return r
+}
+
+func extract(s *source, name string, constants map[string]string) object {
+	fn := s.function(name)
+	var table *ast.CompositeLit
+	var executor *ast.RangeStmt
+	if name == "TestParseMatchers" {
+		assignment := fn.Body.List[0].(*ast.AssignStmt)
+		if s.code(assignment.Lhs[0]) != "tests" {
+			panic("unexpected table binding")
+		}
+		table = assignment.Rhs[0].(*ast.CompositeLit)
+		executor = fn.Body.List[1].(*ast.RangeStmt)
+	} else {
+		executor = fn.Body.List[0].(*ast.RangeStmt)
+		table = executor.X.(*ast.CompositeLit)
+	}
+	calls, assertions := []object{}, []object{}
+	ast.Inspect(executor.Body, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok {
+			switch s.code(c.Fun) {
+			case "ParseMatchers", "ParseSampleExpr", "ParseLogSelector":
+				r := s.record(c)
+				r["validation_argument_expression"] = nil
+				if s.code(c.Fun) != "ParseSampleExpr" {
+					if len(c.Args) != 2 || s.code(c.Args[1]) != "true" {
+						panic("original validation argument differs")
+					}
+					r["validation_argument_expression"] = s.code(c.Args[1])
+				}
+				calls = append(calls, r)
+			case "t.Errorf", "require.Nil", "AssertMatchers", "require.Equal":
+				assertions = append(assertions, s.record(c))
+			}
+		}
+		return true
+	})
+	if len(calls) != 1 {
+		panic("unexpected parser call count")
+	}
+	rows := []object{}
+	accepted, rejected, matcherCount, exactErrors := 0, 0, 0, 0
+	for i, elt := range table.Elts {
+		entry := elt.(*ast.CompositeLit)
+		var queryExpr, wantExpr, errExpr ast.Expr
+		reject := false
+		if name == "TestParseMatchers" {
+			if len(entry.Elts) != 3 {
+				panic("unexpected positional row")
+			}
+			queryExpr, wantExpr = entry.Elts[0], entry.Elts[1]
+			switch s.code(entry.Elts[2]) {
+			case "true":
+				reject = true
+			case "false":
+			default:
+				panic("nonliteral wantErr")
+			}
+		} else {
+			for _, item := range entry.Elts {
+				kv := item.(*ast.KeyValueExpr)
+				switch s.code(kv.Key) {
+				case "in":
+					queryExpr = kv.Value
+				case "err":
+					errExpr = kv.Value
+				default:
+					panic("unexpected row field")
+				}
+			}
+			reject = errExpr != nil && !nilExpr(errExpr)
+		}
+		query, ok := literalString(queryExpr)
+		if !ok || !utf8.ValidString(query) {
+			panic("expected literal UTF-8 source input")
+		}
+		r := s.record(entry)
+		r["source_index"], r["table"] = i, name
+		r["query"], r["query_expression"] = query, s.code(queryExpr)
+		r["query_bytes_base64"], r["query_utf8_valid"] = base64.StdEncoding.EncodeToString([]byte(query)), true
+		r["reject"] = reject
+		r["expected_matchers_present"], r["expected_matchers_expression"] = wantExpr != nil, nil
+		r["expected_matchers"], r["expected_error"] = nil, nil
+		r["expected_error_present"], r["expected_error_expression"] = errExpr != nil, nil
+		r["want_err_expression"] = nil
+		if name == "TestParseMatchers" {
+			r["want_err_expression"] = s.code(entry.Elts[2])
+		}
+		if wantExpr != nil {
+			r["expected_matchers_expression"] = s.code(wantExpr)
+			if !nilExpr(wantExpr) {
+				matchers := []object{}
+				for _, item := range wantExpr.(*ast.CompositeLit).Elts {
+					matchers = append(matchers, matcherWant(s, item))
+					matcherCount++
+				}
+				r["expected_matchers"] = matchers
+			}
+		}
+		if errExpr != nil {
+			r["expected_error_expression"] = s.code(errExpr)
+			r["expected_error"] = errorWant(s, errExpr, constants)
+			exactErrors++
+		}
+		if reject {
+			rejected++
+		} else {
+			accepted++
+		}
+		rows = append(rows, r)
+	}
+	return object{"name": name, "selection": s.selection(name, fn), "table": s.record(table),
+		"executor": s.record(executor), "parser_calls": calls, "assertion_calls": assertions,
+		"row_count": len(rows), "accepted_count": accepted, "rejected_count": rejected,
+		"matcher_tuple_count": matcherCount, "exact_error_count": exactErrors, "rows": rows}
+}
+
+func main() {
+	if len(os.Args) != 2 {
+		panic("usage: producer /path/to/pinned/loki")
+	}
+	s := load(os.Args[1], "pkg/logql/syntax/parser_test.go", "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99")
+	p := load(os.Args[1], "pkg/logql/syntax/parser.go", "a38e8d4760af3969d5316e456db8abed93655a66fd81f8cfdd2fa50226142667")
+	e := load(os.Args[1], "pkg/logqlmodel/error.go", "21816c4294243f16157f6408d92fb0907612a3258333288ab39b3f84bf7a4db5")
+	u := load(os.Args[1], "pkg/logql/syntax/test_utils.go", "9fcfb55c03fe98c52c19b00f3dc058c7d92c16dcf2138a39fc851a62cc6d67df")
+	a := load(os.Args[1], "pkg/logql/syntax/ast.go", "87eb6811c68654e2b2f7d629d799d215dc79fb549e0f9d71a805a46bd51e1e69")
+	constant := p.namedValue("errAtleastOneEqualityMatcherRequired")
+	msg, ok := literalString(constant.Values[0])
+	if !ok {
+		panic("constant is not an original string literal")
+	}
+	resolvedConstant := p.record(constant)
+	resolvedConstant["name"], resolvedConstant["value"] = constant.Names[0].Name, msg
+	constants := map[string]string{constant.Names[0].Name: msg}
+	tables := []object{}
+	for i, name := range []string{"TestParseMatchers", "TestParseSampleExpr_equalityMatcher", "TestParseLogSelectorExpr_equalityMatcher"} {
+		table := extract(s, name, constants)
+		if table["row_count"] != []int{4, 19, 7}[i] || table["accepted_count"] != []int{2, 9, 4}[i] ||
+			table["rejected_count"] != []int{2, 10, 3}[i] || table["matcher_tuple_count"] != []int{5, 0, 0}[i] ||
+			table["exact_error_count"] != []int{0, 10, 3}[i] || len(table["assertion_calls"].([]object)) != []int{3, 1, 1}[i] {
+			panic("pinned source counts differ: " + name)
+		}
+		tables = append(tables, table)
+	}
+	support := []object{e.selection("NewParseError", e.function("NewParseError")), e.selection("ParseError.Error", e.function("Error")),
+		u.selection("AssertMatchers", u.function("AssertMatchers")), u.selection("RemoveFastRegexMatchers", u.function("RemoveFastRegexMatchers")),
+		a.selection("mustNewMatcher", a.function("mustNewMatcher"))}
+	for _, d := range e.file.Decls {
+		if g, ok := d.(*ast.GenDecl); ok {
+			for _, spec := range g.Specs {
+				if t, ok := spec.(*ast.TypeSpec); ok && t.Name.Name == "ParseError" {
+					support = append(support, e.selection("ParseError", g))
+				}
+			}
+		}
+	}
+	sources := []object{}
+	for _, src := range []*source{s, p, e, u, a} {
+		sources = append(sources, object{"path": src.path, "sha256": hash(src.data)})
+	}
+	out := object{"schema_version": 1, "revision": revision, "sources": sources,
+		"resolved_constants": []object{resolvedConstant}, "supporting_declarations": support,
+		"row_count": 30, "accepted_count": 15, "rejected_count": 15, "matcher_tuple_count": 5,
+		"exact_error_count": 13, "boolean_only_rejection_count": 2, "tables": tables}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	must(encoder.Encode(out))
+}

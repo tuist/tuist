@@ -5,6 +5,7 @@ defmodule TuistWeb.UserSessionControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts
   alias Tuist.Environment
   alias TuistWeb.RateLimit.Auth
 
@@ -27,6 +28,27 @@ defmodule TuistWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log_in" do
+    test "submitting an older login tab returns to that tab's destination", %{conn: conn, user: user} do
+      first = "/first-preview?revision=first"
+      second = "/second-preview?revision=second"
+
+      conn = get(conn, ~p"/docs/login?#{%{return_to: first}}")
+      conn = conn |> recycle() |> get(redirected_to(conn))
+      [action] = conn |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("#login_form", "action")
+
+      # The tabs share cookies, but this must not change the first tab's form.
+      conn = conn |> recycle() |> get(~p"/docs/login?#{%{return_to: second}}")
+      conn = conn |> recycle() |> get(redirected_to(conn))
+
+      conn =
+        conn
+        |> recycle()
+        |> post(action, %{"user" => %{"email" => user.email, "password" => valid_user_password()}})
+
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == first
+    end
+
     test "logs the user in when user params are in the user key", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
@@ -152,6 +174,35 @@ defmodule TuistWeb.UserSessionControllerTest do
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
       assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "failed login preserves the tab's destination on retry", %{conn: conn, user: user} do
+      destination = "/first-preview?revision=first"
+
+      failed =
+        post(conn, ~p"/users/log_in?#{%{return_to: destination}}", %{
+          "user" => %{"email" => user.email, "password" => "incorrect"}
+        })
+
+      refute get_session(failed, :user_token)
+      assert redirected_to(failed) == ~p"/users/log_in?#{%{return_to: destination}}"
+
+      # A second tab changes the cookie before the first tab retries.
+      retry_conn =
+        failed
+        |> recycle()
+        |> init_test_session(user_return_to: "/second-preview")
+        |> get(redirected_to(failed))
+
+      [action] = retry_conn |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("#login_form", "action")
+
+      completed =
+        retry_conn
+        |> recycle()
+        |> post(action, %{"user" => %{"email" => user.email, "password" => valid_user_password()}})
+
+      assert get_session(completed, :user_token)
+      assert redirected_to(completed) == destination
     end
 
     @tag rate_limited: true
@@ -375,10 +426,12 @@ defmodule TuistWeb.UserSessionControllerTest do
       refute get_session(conn, :user_return_to)
     end
 
-    test "ignores protocol-relative return_to paths", %{conn: conn} do
-      conn = get(conn, ~p"/docs/login?#{%{return_to: "//evil.example"}}")
-      assert redirected_to(conn) == ~p"/users/log_in"
-      refute get_session(conn, :user_return_to)
+    test "ignores unsafe local-looking return_to paths", %{conn: conn} do
+      for path <- ["//evil.example", "/\\evil.example", "/\t/evil.example", "/%09/evil.example", "/page\r\nlocation:evil"] do
+        redirected = get(conn, ~p"/docs/login?#{%{return_to: path}}")
+        assert redirected_to(redirected) == ~p"/users/log_in"
+        refute get_session(redirected, :user_return_to)
+      end
     end
   end
 
@@ -405,14 +458,21 @@ defmodule TuistWeb.UserSessionControllerTest do
       refute get_session(conn, :user_token)
     end
 
-    test "ignores protocol-relative return_to paths", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> log_in_user(user)
-        |> delete(~p"/users/log_out?#{%{return_to: "//evil.example/foo"}}")
-
-      assert redirected_to(conn) == ~p"/"
-      refute get_session(conn, :user_token)
+    test "ignores unsafe local-looking return_to paths and still revokes the session", %{conn: conn, user: user} do
+      for path <- [
+            "//evil.example/foo",
+            "/\\evil.example",
+            "/\t/evil.example",
+            "/%09/evil.example",
+            "/page\r\nlocation:evil"
+          ] do
+        logged_in = log_in_user(conn, user)
+        token = get_session(logged_in, :user_token)
+        logged_out = delete(logged_in, ~p"/users/log_out?#{%{return_to: path}}")
+        assert redirected_to(logged_out) == ~p"/"
+        refute get_session(logged_out, :user_token)
+        refute Accounts.get_user_by_session_token(token)
+      end
     end
 
     test "ignores non-local return_to paths", %{conn: conn, user: user} do

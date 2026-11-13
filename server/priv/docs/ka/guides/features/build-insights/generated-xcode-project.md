@@ -1,19 +1,18 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "გენერირებული Xcode პროექტი",
+  "titleTemplate": ":title · ბილდის ანალიტიკა · ფუნქციები · სახელმძღვანელოები · Tuist",
+  "description": "აკონტროლეთ ბილდის ანალიტიკა Tuist-ით გენერირებული Xcode პროექტისთვის Tuist დაშბორდზე."
 }
 ---
 # გენერირებული Xcode პროექტი {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> ავტომატურად გენერირებული სქემები ავტომატურად მოიცავენ `tuist inspect build` post-action-ს.
-
+> ავტომატურად გენერირებული სქემები ავტომატურად შეიცავენ `tuist inspect build` post-action-ს.
 >
-> თუ არ გსურთ აგების ინფორმაციის თვალყურის დევნა გენერირებულ სქემებში, გათიშეთ ის [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist)-ის გამოყენებით.
+> თუ არ გსურთ ბილდის ინსაიტების თრეკინგი გენერირებულ სქემებში, გათიშეთ ის [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist)-ის გამოყენებით.
 
-თუ იყენებთ გენერირებულ პროექტებს მორგებული სქემებით, თავად უნდა დაამატოთ post-action. [Mise](https://mise.jdx.dev/)-ისთვის:
+თუ იყენებთ გენერირებულ პროექტებს მორგებული სქემებით, post-action თავად უნდა დაამატოთ. [Mise](https://mise.jdx.dev/)-ისთვის:
 
 ```swift
 let project = Project(
@@ -63,60 +62,12 @@ buildAction: .buildAction(
 )
 ```
 
-## აგების ინფორმაცია CI-ში {#continuous-integration}
+<!-- @snippet: ./_xcode-ci -->
 
-CI-ში აგების ინფორმაციის თვალყურის სადევნად, დარწმუნდით, რომ CI არის <.localized_link href="/guides/integrations/continuous-integration#authentication">აუთენტიფიცირებული</.localized_link>.
+<!-- @snippet: ./_xcode-network-trusted -->
 
-Xcodebuild-ზე დაფუძნებული CI-ისთვის თქვენ უნდა:
-- გამოიყენოთ <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link>, როდესაც იწვევთ `xcodebuild` ქმედებებს.
-- დაამატოთ `-resultBundlePath` თქვენს `xcodebuild` ბრძანებაში.
+<!-- @snippet: ./_xcode-machine-metrics -->
 
-`-resultBundlePath`-ის გარეშე, საჭირო აქტივობის ლოგები და შედეგების ბანდლები არ გენერირდება და `tuist inspect build` ვერ შეძლებს აგების ანალიზს.
+<!-- @snippet: ./_xcode-actor-claim -->
 
-## მანქანის მეტრიკები {#machine-metrics}
-
-აგების ინფორმაცია შეიძლება მოიცავდეს მანქანის დონის შესრულების მეტრიკებს (CPU, მეხსიერება, ქსელი და დისკის გამოყენება), რომლებიც აღიბეჭდება აგების დროს. ამის ჩასართავად, დააყენეთ მსუბუქი ფონური დემონი, რომელიც უწყვეტად იღებს სისტემის მეტრიკებს:
-
-```bash
-tuist setup insights
-```
-
-ეს აწარმოებს ლოკალურ დემონს, რომელიც ფონურად იღებს მეტრიკებს. მონაცემები ავტომატურად იჭერება `tuist inspect build`-ის მიერ და იტვირთება აგების ანგარიშთან ერთად.
-
-> [!TIP]
-> **Ci**
->
-> გაუშვით `tuist setup insights` თქვენს CI მანქანებზე აგებამდე, რათა ასევე აღიბეჭდოს მანქანის მეტრიკები.
-
-მანქანის მეტრიკების შეგროვების შესაჩერებლად, გაუშვით:
-
-```bash
-tuist teardown insights
-```
-
-ეს ტვირთავს დემონის LaunchAgent-ს, აშორებს მის plist-ს და შლის შეგროვებულ მეტრიკებსა და დემონის ლოგებს `~/.local/state`-დან, ასე რომ ფონზე არაფერი რჩება გაშვებული.
-
-
-## მორგებული მეტამონაცემები {#custom-metadata}
-
-შეგიძლიათ დააკავშიროთ მეტამონაცემები აგებებთან გარემოს ცვლადების გამოყენებით ფილტრაციის გასაუმჯობესებლად.
-
-### გარემოს ცვლადები
-
-| ცვლადი | ფორმატი | აღწერა |
-|----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | მძიმით გამოყოფილი | მრავალი ტეგი ერთ ცვლადში. |
-| `TUIST_BUILD_VALUE_*` | ერთი მნიშვნელობა | ღირებულებათა წყვილი, სადაც სუფიქსი არის გასაღები. |
-
-### მაგალითები
-
-დააყენეთ ეს მნიშვნელობები CI-ში ან თქვენს shell-ში აგების გამოძახებამდე:
-
-```sh
-export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-```
-
-```sh
-export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
-export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
-```
+<!-- @snippet: ./_xcode-custom-metadata -->

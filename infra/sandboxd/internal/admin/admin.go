@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
 	"github.com/tuist/tuist/infra/sandboxd/internal/sandbox"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
@@ -189,7 +189,7 @@ func (h *handler) pause(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := h.backend.Pause(r.Context(), id)
+	res, err := h.backend.PauseWith(r.Context(), protocol.PauseArgs{SandboxID: id})
 	if err != nil {
 		writeError(w, err)
 		return

@@ -1,0 +1,105 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: pulse
+  namespace: flux-system
+spec:
+  interval: 10m
+  type: oci
+  url: oci://ghcr.io/tuist/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pulse-management
+  namespace: flux-system
+spec:
+  interval: 10m
+  releaseName: pulse
+  targetNamespace: observability
+  storageNamespace: observability
+  chart:
+    spec:
+      chart: pulse
+      version: "1.39.0"
+      interval: 10m
+      sourceRef:
+        kind: HelmRepository
+        name: pulse
+        namespace: flux-system
+  install:
+    createNamespace: true
+    remediation:
+      retries: -1
+  upgrade:
+    remediation:
+      retries: 3
+      strategy: rollback
+  # Same values as helm/pulse/values-managed-management.yaml. The published
+  # 1.39.0 chart predates that overlay; valuesFiles on an OCI source cannot
+  # load a file from GitRepository. Keep this explicit until a chart containing
+  # the overlay is published and the pin is deliberately advanced.
+  values:
+    fullnameOverride: pulse
+    replicaCount: 1
+    existingSecret: pulse-credentials
+    externalSecrets:
+      enabled: true
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      items:
+        SECRET_KEY_BASE: PULSE_SECRET_KEY_BASE/password
+        PULSE_TENANT_TOKENS: PULSE_TOKEN/password
+        PULSE_S3_ACCESS_KEY_ID: PULSE_S3_CREDENTIALS/access_key_id
+        PULSE_S3_SECRET_ACCESS_KEY: PULSE_S3_CREDENTIALS/secret_access_key
+      template:
+        PULSE_TENANT_TOKENS: '{"tuist":"sha256${{ .PULSE_TENANT_TOKENS | trim | sha256sum }}"}'
+        pulse-username: tuist
+        pulse-password: '{{ .PULSE_TENANT_TOKENS | trim }}'
+        tenantId: tuist
+    storage:
+      bucket: tuist-pulse-management
+      region: auto
+      endpoint: https://t3.storage.dev
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+    serviceMonitor:
+      enabled: false
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "4000"
+      prometheus.io/path: /metrics
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    autoscaling:
+      enabled: false
+    pools:
+      enabled: false
+    clustering:
+      enabled: false
+    strategy:
+      type: Recreate
+      rollingUpdate: null
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 1536Mi
+    metricsCompaction:
+      enabled: true
+      finalize: true
+    logCompaction:
+      enabled: false
+    traceCompaction:
+      enabled: false
+    ingestBatching:
+      flushIntervalMs: 2000
+      maxConcurrentRequests: 32
+    retention:
+      mode: observe

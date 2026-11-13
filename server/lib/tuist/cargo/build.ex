@@ -3,6 +3,8 @@ defmodule Tuist.Cargo.Build do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  alias Tuist.Accounts.Account
+
   @derive {Flop.Schema,
            filterable: [:project_id, :status, :is_ci, :git_branch, :command, :rust_version, :inserted_at],
            sortable: [:inserted_at, :duration_ms, :id],
@@ -32,6 +34,10 @@ defmodule Tuist.Cargo.Build do
     field :ci_host, Ch, type: "String"
     field :started_at, Ch, type: "Nullable(DateTime64(6))"
     field :inserted_at, Ch, type: "DateTime"
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
   end
 end

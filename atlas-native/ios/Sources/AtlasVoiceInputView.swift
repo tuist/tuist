@@ -19,12 +19,41 @@ private enum AtlasComposerColors {
     #endif
 }
 
+struct AtlasComposerSurface<Surface: InsettableShape>: ViewModifier {
+    let shape: Surface
+    var interactive = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var opaque: Bool { reduceTransparency || contrast == .increased }
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content
+                .background { if opaque { opaqueSurface } }
+                .glassEffect(opaque ? .identity : .regular.interactive(interactive), in: shape)
+        } else {
+            content.background {
+                if opaque {
+                    opaqueSurface
+                } else {
+                    shape.fill(.regularMaterial)
+                        .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
+                }
+            }
+        }
+    }
+
+    private var opaqueSurface: some View {
+        shape.fill(AtlasComposerColors.surface)
+            .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
+    }
+}
+
 struct AtlasThreadSuggestions: View {
     let suggestions: [AtlasThreadSuggestion]
     let prompt: (String) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -40,7 +69,7 @@ struct AtlasThreadSuggestions: View {
                         }
                         .font(.subheadline)
                         .padding(.horizontal, 16).padding(.vertical, 8).frame(minHeight: 44)
-                        .background { surface }
+                        .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -55,19 +84,6 @@ struct AtlasThreadSuggestions: View {
         .padding(.horizontal, -16)
         .accessibilityLabel("Suggested prompts")
         .accessibilityIdentifier("thread-suggestions")
-    }
-
-    @ViewBuilder private var surface: some View {
-        let shape = Capsule()
-        if reduceTransparency || contrast == .increased {
-            shape.fill(AtlasComposerColors.surface)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            shape.fill(.clear).glassEffect(.regular.interactive(), in: shape)
-        } else {
-            shape.fill(.regularMaterial)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
-        }
     }
 }
 
@@ -86,8 +102,6 @@ struct AtlasThreadComposer: View {
     let cancel: () -> Void
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var recording: Bool { phase != .idle }
@@ -177,23 +191,9 @@ struct AtlasThreadComposer: View {
             }
             .padding(4)
             .foregroundStyle(.primary)
-            .background { surface }
+            .modifier(AtlasComposerSurface(shape: RoundedRectangle(cornerRadius: 28)))
         }
         .accessibilityElement(children: .contain)
-    }
-
-    @ViewBuilder private var surface: some View {
-        let shape = RoundedRectangle(cornerRadius: 28)
-        if reduceTransparency || contrast == .increased {
-            shape.fill(AtlasComposerColors.surface)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            shape.fill(.clear).glassEffect(.regular, in: shape)
-        } else {
-            shape.fill(.regularMaterial)
-                .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
-                .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
-        }
     }
 }
 

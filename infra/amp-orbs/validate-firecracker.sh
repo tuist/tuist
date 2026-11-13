@@ -124,7 +124,7 @@ kill -0 "$pid"
 counter=$(cat /home/user/counter.pid)
 [[ $(awk "{print \$22}" /proc/$counter/stat) == $(cat /home/user/counter.start) ]]
 before=$(cat /workspace/amp/counter); sleep 2; [[ $(cat /workspace/amp/counter) -gt $before ]]
-ORB_TOKEN=validation-refreshed AMP_URL=https://amp.example.invalid /usr/local/bin/sbx-orb-bootstrap
+ORB_TOKEN=validation-refreshed AMP_URL=https://amp.example.invalid TUIST_TOKEN=must-not-cross /usr/local/bin/sbx-orb-bootstrap
 read -r current _ < /run/tuist-amp/process
 read -r previous _ < /home/user/first-bootstrap
 [[ $current != "$previous" ]]

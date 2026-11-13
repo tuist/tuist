@@ -45,7 +45,7 @@ internal fun checkBusinessModels() {
     check(pending.size == 1)
     check(save.getJSONObject("fields").getString("title") == "Keep this draft")
     check(save.getJSONObject("fields").getString("due_on") == "2027-07-14")
-    check(!save.getJSONObject("fields").has("remind_at") && !save.getJSONObject("fields").has("status"))
+    check(!save.getJSONObject("fields").has("status"))
     fail()
     check(!model.busy && !model.saving && model.draft?.fields?.get("title") == "Keep this draft")
     model.save()
@@ -267,35 +267,26 @@ private fun checkBusinessLists() {
     val model = AtlasBusinessModel("tasks") { action, done -> pending.add(action to done) }
     model.load()
     model.load(search = "follow-up", filters = mapOf("status" to "open"))
-    model.load(
-        search = "quarter",
-        filters =
-            mapOf(
-                "status" to "",
-                "reminder" to "upcoming",
-                "group_by" to "reminder",
-                "unsupported" to "ignored",
-            ),
-    )
-    check(pending.size == 3 && model.query == "quarter" && model.filters == mapOf("reminder" to "upcoming", "group_by" to "reminder"))
+    model.load(search = "quarter", filters = mapOf("status" to "", "unsupported" to "ignored"))
+    check(pending.size == 3 && model.query == "quarter" && model.filters.isEmpty())
     val latest = pending.removeAt(2)
     latest.second(Result.success(fixtures.execute(latest.first)))
-    check(model.items.single().id == "task-5" && model.items.single()["reminder_group"] == "upcoming")
+    check(model.items.single().id == "task-5")
     pending[1].second(Result.success(fixtures.execute(pending[1].first)))
     pending[0].second(Result.failure(IllegalStateException("Old failure")))
     check(model.items.single().id == "task-5" && model.error == null && !model.busy)
     pending.clear()
-    model.load(search = "", filters = mapOf("group_by" to "reminder"))
+    model.load(search = "", filters = mapOf("status" to "open"))
 
     fun finish() {
         val (action, done) = pending.removeAt(0)
         done(Result.success(fixtures.execute(action)))
     }
     finish()
-    check(model.items.map { it.id } == listOf("task-1", "task-4"))
+    check(model.items.map { it.id } == listOf("task-1", "task-3"))
     model.loadMore()
     finish()
-    check(model.items.map { it["reminder_group"] } == listOf("overdue", "overdue", "upcoming", "none"))
+    check(model.items.map { it.id } == listOf("task-1", "task-3", "task-4", "task-5"))
     model.loadMore()
     model.load(search = "", filters = emptyMap())
     check(pending.size == 2 && pending.last().first.getInt("page") == 1)

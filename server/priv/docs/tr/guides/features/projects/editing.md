@@ -1,55 +1,37 @@
 ---
 {
-  "title": "Editing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities."
+  "title": "Düzenleme",
+  "titleTemplate": ":title · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist proje bildirimlerini Xcode otomatik tamamlama ve derleme doğrulama ile düzenleyin."
 }
 ---
 # Düzenleme {#editing}
 
-Değişikliklerin Xcode'un kullanıcı arayüzü üzerinden yapıldığı geleneksel Xcode
-projelerinin veya Swift paketi olan Swift paketi projelerinin aksine, Tuist
-tarafından yönetilen projeler **manifest dosyalarında** bulunan Swift kodunda
-tanımlanır. Swift paketi ve `Package.swift` dosyasını biliyorsanız, yaklaşım çok
-benzerdir.
+Geleneksel Xcode projelerinin veya Swift Paketlerinin aksine, değişikliklerin Xcode arayüzü üzerinden yapıldığı durumlarda, Tuist ile yönetilen projeler **manifest dosyaları** içinde yer alan Swift koduyla tanımlanır. Swift Paketlerine ve `Package.swift` dosyasına aşinaysanız, yaklaşım oldukça benzerdir.
 
-Bu dosyaları herhangi bir metin düzenleyici kullanarak düzenleyebilirsiniz,
-ancak bunun için Tuist tarafından sağlanan iş akışını kullanmanızı öneririz,
-`tuist edit`. İş akışı, tüm manifesto dosyalarını içeren bir Xcode projesi
-oluşturur ve bunları düzenlemenize ve derlemenize olanak tanır. Xcode kullanımı
-sayesinde **kod tamamlama, sözdizimi vurgulama ve hata denetiminin tüm
-avantajlarından yararlanabilirsiniz**.
+Bu dosyaları herhangi bir metin düzenleyiciyle düzenleyebilirsiniz, ancak bunun için Tuist tarafından sağlanan iş akışını, yani `tuist edit` kullanmanızı öneririz. Bu iş akışı, tüm manifest dosyalarını içeren bir Xcode projesi oluşturur ve bunları düzenlemenize ve derlemenize olanak tanır. Xcode kullandığınız için **kod tamamlama, sözdizimi vurgulama ve hata denetimi** gibi tüm avantajlardan yararlanırsınız.
 
-## Projeyi düzenleyin {#edit-the-project}
+## Projeyi düzenle {#edit-the-project}
 
-Projenizi düzenlemek için, bir Tuist proje dizininde veya bir alt dizinde
-aşağıdaki komutu çalıştırabilirsiniz:
+Projenizi düzenlemek için bir Tuist proje dizininde veya alt dizininde aşağıdaki komutu çalıştırabilirsiniz:
 
 ```bash
 tuist edit
 ```
 
-Komut, genel bir dizinde bir Xcode projesi oluşturur ve bunu Xcode'da açar.
-Proje, tüm manifestolarınızın geçerli olduğundan emin olmak için
-oluşturabileceğiniz bir `Manifests` dizini içerir.
+Komut, genel bir dizinde bir Xcode projesi oluşturur ve bunu Xcode'da açar. Proje, tüm manifest dosyalarınızın geçerli olduğundan emin olmak için derleyebileceğiniz bir `Manifests` dizini içerir.
 
 > [!NOTE]
-> **Glob-resolved Manifests**
+> **Glob ile çözümlenen manifestler**
 >
-> `tuist edit`, projenin kök dizininden ( `Tuist.swift` dosyasını içeren)
-> `**/{Manifest}.swift` glob'unu kullanarak dahil edilecek manifestoları çözümler.
-> Projenin kök dizininde geçerli bir `Tuist.swift` dosyası olduğundan emin olun.
+> `tuist edit`, projenin kök dizininden (yani `Tuist.swift` dosyasını içeren dizinden) `**/{Manifest}.swift` glob desenini kullanarak dahil edilecek manifestleri çözümler. Projenin kökünde geçerli bir `Tuist.swift` bulunduğundan emin olun.
 
 
-### Manifesto dosyalarını yok sayma {#ignoring-manifest-files}
+### Manifest dosyalarını yoksayma {#ignoring-manifest-files}
 
-Projeniz, gerçek Tuist manifestoları olmayan alt dizinlerde manifesto
-dosyalarıyla aynı ada sahip Swift dosyaları içeriyorsa (örneğin,
-`Project.swift`), bunları düzenleme projesinden hariç tutmak için projenizin kök
-dizininde bir `.tuistignore` dosyası oluşturabilirsiniz.
+Projenizde, gerçek Tuist manifestleri olmayan alt dizinlerde manifest dosyalarıyla aynı ada sahip Swift dosyaları (örneğin `Project.swift`) varsa, bunları düzenleme projesinden hariç tutmak için projenizin kökünde bir `.tuistignore` dosyası oluşturabilirsiniz.
 
-`.tuistignore` dosyası, hangi dosyaların göz ardı edileceğini belirtmek için
-glob kalıpları kullanır:
+`.tuistignore` dosyası, hangi dosyaların yoksayılması gerektiğini belirtmek için glob desenlerini kullanır:
 
 ```gitignore
 # Ignore all Project.swift files in the Sources directory
@@ -59,16 +41,10 @@ Sources/**/Project.swift
 Tests/Fixtures/**/Workspace.swift
 ```
 
-Bu, özellikle Tuist bildirim dosyalarıyla aynı adlandırma kuralını kullanan test
-fikstürleriniz veya örnek kodunuz olduğunda kullanışlıdır.
+Bu durum, özellikle test sabitleri veya örnek kodunuzun Tuist manifest dosyalarıyla aynı adlandırma kuralını kullandığı durumlarda oldukça kullanışlıdır.
 
-## İş akışını düzenleme ve oluşturma {#edit-and-generate-workflow}
+## Düzenleme ve oluşturma iş akışı {#edit-and-generate-workflow}
 
-Fark etmiş olabileceğiniz gibi, düzenleme oluşturulan Xcode projesinden
-yapılamaz. Bu, oluşturulmuş projelenin Tuist'e bağımlı olmasını önlemek ve
-gelecekte Tuist'ten çok az çabayla geçebilmenizi sağlamak için tasarım
-gereğidir.
+Fark etmiş olabileceğiniz gibi, düzenleme işlemi oluşturulan Xcode projesinden yapılamaz. Bu, oluşturulan projenin Tuist'e bağımlı olmasını önlemek amacıyla tasarlanmıştır; böylece gelecekte Tuist'ten ayrılmanız gerekirse bunu minimal çabayla gerçekleştirebilirsiniz.
 
-Bir proje üzerinde yineleme yaparken, projeyi düzenlemek üzere bir Xcode projesi
-almak için bir terminal oturumundan `tuist edit` çalıştırmanızı ve `tuist
-generate` çalıştırmak için başka bir terminal oturumu kullanmanızı öneririz.
+Bir proje üzerinde yinelemeli çalışırken, projeyi düzenlemek için bir Xcode projesi elde etmek üzere bir terminal oturumunda `tuist edit` çalıştırmanızı ve `tuist generate` çalıştırmak için başka bir terminal oturumu kullanmanızı öneririz.

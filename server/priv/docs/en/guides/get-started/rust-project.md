@@ -32,7 +32,7 @@ project = "account/project"
 # url = "https://your-tuist-server.example.com"
 ```
 
-Log in with `tuist auth login`, then run your usual Cargo commands through Tuist. In CI, set `TUIST_TOKEN` to a project token. You can also set `TUIST_PROJECT` instead of adding a configuration file, and `TUIST_URL` if you use a self-hosted server.
+Log in with `tuist auth login`, then run your usual Cargo commands through Tuist. In CI, authenticate with your CI provider's OIDC identity or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>. You can also set `TUIST_PROJECT` instead of adding a configuration file, and `TUIST_URL` if you use a self-hosted server.
 
 ```sh
 tuist cargo build --workspace
@@ -59,7 +59,7 @@ Run `mise reshim` after adding the wrapper. You can then use `cargo build`, `car
 
 ## Compilation cache
 
-`tuist cargo build` automatically caches eligible registry leaf libraries, locally and through Kura's remote cache. No additional tool or cache configuration is needed. The cache is experimental and doesn't yet cover all compilations or reuse across different checkout paths. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for supported compilations, authentication, and how to verify reuse.
+`tuist cargo build` automatically caches eligible compilations, dependencies and build-script runs, locally and through Kura's remote cache. No additional tool or cache configuration is needed. The cache is experimental, is qualified on Apple silicon Macs, and doesn't yet cover every compilation. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for supported compilations, authentication, and how to verify reuse.
 
 ## Build insights
 

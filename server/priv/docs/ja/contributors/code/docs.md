@@ -1,34 +1,38 @@
 ---
 {
   "title": "ドキュメント",
-  "titleTemplate": ":title · コード · コントリビューター · Tuist",
-  "description": "Tuist のドキュメントサイトに貢献する。"
+  "titleTemplate": ":title · コード · 貢献者 · Tuist",
+  "description": "Tuistのドキュメントサイトへの貢献。"
 }
 ---
 # ドキュメント {#docs}
 
-ソース: [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
+ソース: [github.com/tuist/tuist/tree/main/server/priv/docs](https://github.com/tuist/tuist/tree/main/server/priv/docs)
 
 ## 目的 {#what-it-is-for}
 
-このドキュメントサイトでは、Tuistの製品およびコントリビューター向けドキュメントを公開しています。VitePressで構築されています。
+このドキュメントサイトでは、Tuist の製品およびコントリビューター向けのドキュメントを公開しています。これは Phoenix アプリケーションである Tuist サーバーの一部であり、`server/priv/docs/en` 以下の Markdown ページを `/docs` でレンダリングします。
 
 ## 貢献方法 {#how-to-contribute}
 
-### ローカル環境のセットアップ {#set-up-locally}
+`server/priv/docs/en` 以下の英語ページを編集してください。翻訳は別途管理されているため、他のロケールディレクトリは編集しないでください。サイドバーは `server/lib/tuist/docs_sidebar.ex` で定義されています。新しいページを追加して、読者が発見できるようにしてください。
+
+複数のページで同じテキスト（ビルドシステム横断のセクションなど）を共有する場合は、それらのページと同じ場所にファイル名が `_` で始まるファイルを作成し、不安定なテストのページで行われているように、`@snippet:` HTML コメントでそのファイルを指してインクルードしてください。`_` で始まるファイルは単独のページとして公開されません。
+
+### ローカル環境の設定 {#set-up-locally}
+
+`server` ディレクトリからサーバーを実行し、[セットアップ手順](https://github.com/tuist/tuist/blob/main/server/AGENTS.md)に従ってください:
 
 ```bash
-cd docs
+cd server
 mise install
 mise run dev
 ```
 
-### オプションの生成データ {#optional-generated-data}
+次に [http://localhost:8080/en/docs](http://localhost:8080/en/docs) を開きます。
 
-ドキュメントには一部の生成データを埋め込んでいます:
+### 生成されたコンテンツ {#generated-content}
 
-- CLIリファレンスデータ: `mise run generate-cli-docs`
+CLI リファレンスは最新の CLI リリースのコマンド仕様から生成されるため、ローカルでビルドする必要はありません。
 
-これらはオプションです。ドキュメントは这些数据なしでも表示されるため、生成コンテンツを更新する必要がある場合にのみ実行してください。
-
-ProjectDescription APIリファレンスは、[projectdescription.tuist.dev](https://projectdescription.tuist.dev) のDocCサイトとして別途公開されています。ローカルでビルドするには、リポジトリのルートから `mise run docs:project-description` を実行してください。
+ProjectDescription API リファレンスは、[projectdescription.tuist.dev](https://projectdescription.tuist.dev) で DocC サイトとして別途ホストされています。ローカルでビルドするには、リポジトリのルートから `mise run docs:project-description` を実行してください。

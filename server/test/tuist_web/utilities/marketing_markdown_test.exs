@@ -20,7 +20,11 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"ubicloud", "Ubicloud"},
     {"warpbuild", "WarpBuild"}
   ]
+  @featured_providers ~w(buildkite develocity namespace)
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
+  # Developer tools rather than infrastructure providers, compared in the featured format.
+  @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}]
+  @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
     "/build-systems" | Enum.map(["xcode", "gradle", "bazel", "elixir", "once"], &"/build-systems/#{&1}")
   ]
@@ -52,14 +56,15 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
                  "/tests"
-               ] ++ @comparison_paths ++ @build_system_paths
+               ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
     for path <- MarketingMarkdown.guide_paths() do
       markdown = MarketingMarkdown.get(path)
 
-      assert String.starts_with?(markdown, "# Tuist")
-      if path not in @build_system_paths, do: assert(markdown =~ "## Limitations")
+      assert String.starts_with?(markdown, "# ")
+      assert markdown =~ "Tuist"
+      refute markdown =~ "## Limitations"
       refute markdown =~ "](/"
       refute markdown =~ "<script"
       refute markdown =~ "<html"
@@ -133,7 +138,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/AGENTS") == nil
   end
 
-  test "problem and comparison discovery metadata derives from Markdown-only guides" do
+  test "problem and comparison discovery metadata derives from the authored guides" do
     assert Enum.map(MarketingMarkdown.decision_guides(), & &1.path) ==
              Enum.sort(
                [
@@ -142,7 +147,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests"
-               ] ++ @comparison_paths ++ @build_system_paths
+               ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
     for page <- MarketingMarkdown.decision_guides() do
@@ -156,6 +161,19 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/AGENTS") == nil
   end
 
+  test "homepage and cache guides qualify toolchain support" do
+    home = MarketingMarkdown.get("/")
+    cache = MarketingMarkdown.get("/cache")
+
+    assert home =~ "Elixir"
+    assert home =~ "remote cache"
+    assert home =~ "Once support is in canary"
+    assert home =~ "Rust compilation caching is experimental"
+    refute home =~ "Tuist does not provide remote build caching"
+    assert cache =~ "/guides/features/cache"
+    assert cache =~ "different prerequisites"
+  end
+
   test "build-system guides distinguish native capabilities, Tuist infrastructure, and availability" do
     for path <- @build_system_paths do
       markdown = MarketingMarkdown.get(path)
@@ -166,7 +184,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "https://github.com/tuist/tuist"
       assert markdown =~ "https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md"
       assert markdown =~ MarketingMarkdown.alternate_path("/openness")
-      assert markdown =~ "2026-10-09"
+      assert markdown =~ ~r/Sources reviewed on \*\*\d{4}-\d{2}-\d{2}\*\*/
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
       assert MarketingMarkdown.source(path) == nil
     end
@@ -197,7 +215,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert once =~ "Script annotations or wrapper configuration"
     assert once =~ "without rewriting the project into a new build language"
     assert once =~ "npm run build"
-    assert once =~ "remote execution coming soon"
+    assert once =~ "remote execution requires an enabled account"
+    assert once =~ "linux/amd64"
+    assert once =~ "does not ingest Once's raw action log stream"
     refute once =~ "## Limitations"
 
     assert MarketingMarkdown.get("/build-systems/index") == nil
@@ -205,7 +225,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   end
 
   test "build-system positioning recommends one platform with native depth rather than more compute" do
-    for path <- ["/", "/compare" | @build_system_paths] do
+    for path <- @build_system_paths do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ "one productivity platform", path
       assert markdown =~ "native depth", path
@@ -226,7 +246,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert overview =~ "Some CI and acceleration providers also offer deep integrations"
     assert overview =~ "not proof that any provider wants slow builds"
     assert overview =~ "Tuist's own usage charges"
-    assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#billing-and-incentives"
+    assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#compare-total-costs"
   end
 
   test "Bazel positioning combines native depth, organizational breadth, and developer experience" do
@@ -245,7 +265,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert markdown =~ "A closed hosted service"
   end
 
-  test "problem guides connect diagnosis, agent investigation, experiments, and limitations" do
+  test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
     for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
@@ -256,47 +276,78 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "## Diagnose"
       assert markdown =~ "## Investigate with an agent"
       assert markdown =~ "## First experiment"
-      assert markdown =~ "## Limitations"
+      refute markdown =~ "## Limitations"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
+
+      [_before, faq] = String.split(markdown, "## Frequently asked questions\n", parts: 2)
+      assert length(Regex.scan(~r/^### /m, faq)) in 4..6, path
 
       for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
         assert mcp_docs =~ "`#{tool}`", tool
       end
     end
 
-    assert MarketingMarkdown.get("/solutions/slow-builds") =~ "Xcode 26"
+    assert MarketingMarkdown.get("/solutions/slow-builds") =~ "/guides/features/cache"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "test-target granularity"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "not Bazel today"
-    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "quarantine is not applied there yet"
-    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "no public pricing"
+    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "cross-run detection without retries"
+    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "mute/skip quarantine"
+    assert MarketingMarkdown.get("/solutions/slow-builds") =~ "whole-module substitution and compilation-output reuse"
+
+    assert MarketingMarkdown.get("/solutions/ci-costs") =~
+             "access is invite-only, and per-minute rates are on the [pricing page]"
   end
 
   test "comparisons disclose their perspective, primary sources, and review date" do
-    for path <- ["/compare" | @comparison_paths] do
+    for path <- ["/compare" | @comparison_paths ++ @tool_paths] do
       markdown = MarketingMarkdown.get(path)
-      assert markdown =~ "written by Tuist"
+      assert String.downcase(markdown) =~ "written by tuist"
       assert markdown =~ ~r/Sources checked on \*\*\d{4}-\d{2}-\d{2}\*\*/
       assert markdown =~ "https://"
-      assert markdown =~ "## Limitations"
-      assert markdown =~ "invite-only"
+      refute markdown =~ "## Limitations"
     end
 
     for {slug, vendor} <- @providers do
       markdown = MarketingMarkdown.get("/compare/" <> slug)
       assert markdown =~ "## Choose Tuist when"
-      refute markdown =~ "## Choose #{vendor} when"
+
+      if slug in @featured_providers do
+        assert markdown =~ "## Choose #{vendor} when"
+        assert markdown =~ "## What is #{vendor}?"
+      else
+        refute markdown =~ "## Choose #{vendor} when"
+        assert markdown =~ "## What overlaps"
+      end
+
       assert markdown =~ "## Sources and review"
-      assert markdown =~ "## What overlaps"
       assert markdown =~ "## First experiment"
     end
 
     assert MarketingMarkdown.get("/compare/bitrise") =~ "Agent access and insights are not unique to Tuist"
-    assert MarketingMarkdown.get("/compare") =~ "Openness is not unique to Tuist"
-    assert MarketingMarkdown.get("/compare") =~ "Runner independence alone is not a unique Tuist claim"
+
+    for {slug, tool} <- @tools do
+      markdown = MarketingMarkdown.get("/compare/" <> slug)
+      assert markdown =~ "# #{tool} vs Tuist:"
+      assert markdown =~ "## What is #{tool}?"
+      assert markdown =~ "## First experiment"
+      assert markdown =~ "## Frequently asked questions"
+    end
+
+    nx = MarketingMarkdown.get("/compare/nx")
+    assert nx =~ "## Choose Nx when"
+    assert nx =~ "## Choose Tuist when"
+
+    # XcodeGen projects can adopt Tuist's build infrastructure without migrating,
+    # so the page leads with that path and presents migration as optional.
+    xcodegen = MarketingMarkdown.get("/compare/xcodegen")
+    assert xcodegen =~ "## Keep XcodeGen, add Tuist"
+    assert xcodegen =~ "## When to migrate"
+    assert xcodegen =~ "### Is Tuist an Xcode project generator?"
   end
 
-  test "comparisons keep recommendations and adoption experiments focused on Tuist" do
-    for path <- ["/compare" | @comparison_paths] do
+  test "legacy comparisons keep their existing recommendation contract" do
+    for {slug, _name} <- @providers, slug not in @featured_providers do
+      path = "/compare/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
       assert String.starts_with?(introduction, "Choose Tuist")
@@ -317,9 +368,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "comparison overview links every detailed provider guide" do
     overview = MarketingMarkdown.get("/compare")
 
-    for {slug, vendor} <- @providers do
+    for {slug, vendor} <- @providers ++ @tools do
       path = "/compare/" <> slug
-      assert overview =~ "[Tuist and #{vendor}]"
+      assert overview =~ vendor
       assert overview =~ MarketingMarkdown.alternate_path(path)
       assert MarketingMarkdown.get(path) =~ MarketingMarkdown.alternate_path("/compare")
     end
@@ -328,7 +379,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "comparisons retain researched overlaps and integration-specific qualifications" do
     codemagic = MarketingMarkdown.get("/compare/codemagic")
     assert codemagic =~ "CompilationCache.noindex"
-    assert codemagic =~ "Do not say Codemagic lacks compilation caching"
+    assert codemagic =~ "Codemagic does offer compilation caching"
 
     depot = MarketingMarkdown.get("/compare/depot")
     assert depot =~ "local workstations is not supported yet"
@@ -337,8 +388,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert depot =~ "XCODE_XCCONFIG_FILE"
 
     namespace = MarketingMarkdown.get("/compare/namespace")
-    assert namespace =~ "separate Bazel remote cache supports local builds and external CI"
-    assert namespace =~ "does not provide that execution service"
+    assert namespace =~ "standalone remote cache also serves local builds and external CI"
     assert namespace =~ "https://namespace.so/docs/bazel"
 
     assert MarketingMarkdown.get("/compare/blacksmith") =~ "JUnit results take precedence"
@@ -348,9 +398,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "explicitly separates `enterprise/`"
-    assert MarketingMarkdown.get("/compare/develocity") =~ "predictive selection learns from build history"
-    assert MarketingMarkdown.get("/compare/develocity") =~ "Gradle or Maven build's tests"
-    assert MarketingMarkdown.get("/compare/buildkite") =~ "Pro or Enterprise"
+    assert MarketingMarkdown.get("/compare/develocity") =~ "Read-only MCP servers"
+    assert MarketingMarkdown.get("/compare/buildkite") =~ "hosted and self-hosted execution"
     assert MarketingMarkdown.get("/compare/circleci") =~ "OAuth organizations"
     assert MarketingMarkdown.get("/compare/circleci") =~ "circleci/<UID>"
     assert MarketingMarkdown.get("/compare/circleci") =~ "`npx` server is deprecated"
@@ -358,21 +407,23 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/warpbuild") =~ "approximately one minute"
     assert MarketingMarkdown.get("/compare/runs-on") =~ "macOS is not yet supported"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "Transparent Cache"
-    assert MarketingMarkdown.get("/compare/ubicloud") =~ "deprecated"
+    assert MarketingMarkdown.get("/compare/ubicloud") =~ "instead of the older replacement actions"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "AGPL-3.0"
     assert MarketingMarkdown.get("/compare/cirun") =~ "Linux runners on AWS"
     assert MarketingMarkdown.get("/compare/cirun") =~ "https://docs.cirun.io/caching/s3-compatible"
     assert MarketingMarkdown.get("/compare/buildjet") =~ "official, self-hosted, and BuildJet runners"
 
-    for slug <- ["appcircle", "bitrise", "buildkite", "circleci", "develocity", "warpbuild"] do
+    assert MarketingMarkdown.get("/compare/runs-on") =~ "Bazel action outputs and Gradle task outputs"
+
+    for slug <- ["appcircle", "bitrise", "buildbuddy", "buildkite", "circleci", "develocity", "namespace", "warpbuild"] do
       assert MarketingMarkdown.get("/compare/" <> slug) =~ "MCP"
     end
   end
 
   test "guides prioritize project improvements before execution environments across toolchains" do
     for path <-
-          ["/", "/cache", "/compute", "/pricing", "/compare"] ++
-            @comparison_paths ++
+          ["/", "/cache", "/compute", "/pricing"] ++
+            Enum.reject(@comparison_paths, &(Path.basename(&1) in @featured_providers)) ++
             ["/solutions/slow-builds", "/solutions/slow-tests", "/solutions/flaky-tests", "/solutions/ci-costs"] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
@@ -385,45 +436,38 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert home =~ "Bazel action outputs"
     assert home =~ "For Elixir"
     assert home =~ "Xcode compilation outputs"
-    assert home =~ "not the scope of the build and test platform"
+    assert home =~ "macOS/Linux command-line distributions"
+
+    for path <- [
+          "/",
+          "/build-systems/elixir",
+          "/solutions/ci-costs",
+          "/compare/appcircle",
+          "/compare/runs-on"
+        ] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "compiled dependencies", path
+      assert markdown =~ ~r/[Aa]pplication source files/, path
+    end
   end
 
-  test "billing comparisons cite units, scope, exceptions, and Tuist's own metering" do
+  test "comparison hub compares workflow responsibilities without freezing prices" do
     overview = MarketingMarkdown.get("/compare")
-    assert overview =~ "## Billing and incentives"
-    assert overview =~ "included allowances and fixed commitments"
-    assert overview =~ "per-build charge for Docker builds"
-    assert overview =~ "per-second/vCPU metering for Depot CI"
-    assert overview =~ "Build minutes by machine type on pay-as-you-go plans"
-    assert overview =~ "Hosted-agent vCPU minutes"
-    assert overview =~ "annual license tiers"
-    assert overview =~ "rather than a universal per-build fee"
-    assert overview =~ "do not prove that a provider deliberately keeps builds slow"
-    assert overview =~ "Tuist itself has"
-
-    for url <- [
-          "https://namespace.so/pricing",
-          "https://www.blacksmith.sh/pricing",
-          "https://www.warpbuild.com/pricing",
-          "https://depot.dev/pricing",
-          "https://circleci.com/docs/guides/plans-pricing/credits/index.md",
-          "https://docs.codemagic.io/billing/billing/",
-          "https://buildkite.com/pricing/",
-          "https://runs-on.com/pricing/",
-          "https://www.buildbuddy.io/pricing/"
-        ] do
-      assert overview =~ url
-    end
-
-    assert MarketingMarkdown.get("/pricing") =~ "Tuist also meters feature usage"
-    assert MarketingMarkdown.get("/solutions/ci-costs") =~ "include its charges"
+    assert overview =~ "## Compare a real workflow"
+    assert overview =~ "Compare total usage"
+    assert overview =~ MarketingMarkdown.alternate_path("/pricing")
+    assert overview =~ "No prices, benchmarks, customer endorsements, or feature gaps are invented"
   end
 
   test "documents important feature-specific constraints" do
     assert MarketingMarkdown.get("/compute") =~ "invite-only"
-    assert MarketingMarkdown.get("/compute") =~ "Pricing is not public yet"
-    assert MarketingMarkdown.get("/tests") =~ "Tuist-generated Xcode projects"
+    assert MarketingMarkdown.get("/compute") =~ "[Tuist charges]"
+    assert MarketingMarkdown.get("/tests") =~ "generated-project requirements"
+    assert MarketingMarkdown.get("/tests") =~ "early-access"
+    assert MarketingMarkdown.get("/tests") =~ "/guides/features/test-insights/flaky-tests"
     assert MarketingMarkdown.get("/previews") =~ "device builds must be correctly signed"
+    assert MarketingMarkdown.get("/previews") =~ "not in a sandbox"
+    assert MarketingMarkdown.get("/compute") =~ "/guides/features/runners"
     assert MarketingMarkdown.get("/pricing") =~ "does not duplicate numeric rates"
   end
 end

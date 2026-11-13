@@ -7,10 +7,12 @@ import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "../app/js/Theme
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsCopyPageButtonHook, { dispatchCopyPageButtonFlash } from "./hooks/docs-copy-page-button-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import DocsReleaseStatusHook from "./hooks/docs-release-status-hook.mjs";
 import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 import { copyTextToClipboard } from "../shared/js/clipboard.js";
 import { initAnalytics } from "../shared/js/analytics.js";
+import { registerWebMCPTools } from "../shared/js/webmcp.mjs";
 import languageDropdown from "../shared/js/hooks/language-dropdown.js";
 
 import "./docs.css";
@@ -32,6 +34,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     DocsContent: DocsContentHook,
     DocsCopyPageButton: DocsCopyPageButtonHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    DocsReleaseStatus: DocsReleaseStatusHook,
     MermaidDiagram: MermaidDiagramHook,
     ThemeToggle,
     ThemeSwitcher,
@@ -114,6 +117,8 @@ window.addEventListener("phx:page-loading-stop", (info) => {
 liveSocket.connect();
 
 initAnalytics();
+
+registerWebMCPTools();
 
 window.liveSocket = liveSocket;
 

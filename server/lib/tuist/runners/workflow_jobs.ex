@@ -43,8 +43,10 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Repo
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
@@ -236,20 +238,29 @@ defmodule Tuist.Runners.WorkflowJobs do
   `Tuist.Runners.Claims.release/2`). Both are the execution's own
   moment rather than the minting claim's: B waited in the queue until
   GitHub placed it here, not until the Pod that took it was reserved.
+
+  `guards: [account_id: id]` confines the move to that account's row. The
+  executed job's id comes from a webhook body, which a GitHub Enterprise
+  Server sender writes itself, so it may name another account's job.
   """
-  def transition_executing(workflow_job_id, runner_name, pod_name, site \\ nil)
+  def transition_executing(workflow_job_id, runner_name, pod_name, site \\ nil, guards \\ [])
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
 
     workflow_job_id
-    |> transition(["queued"], "running",
-      runner_name: runner_name,
-      pod_name: pod_name,
-      site: site,
-      claimed_at: now,
-      started_at: now,
-      executed_workflow_job_id: workflow_job_id
+    |> transition(
+      ["queued"],
+      "running",
+      [
+        runner_name: runner_name,
+        pod_name: pod_name,
+        site: site,
+        claimed_at: now,
+        started_at: now,
+        executed_workflow_job_id: workflow_job_id
+      ],
+      guards
     )
     |> finish_executing()
   end
@@ -272,7 +283,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   that is running, and the handle guard confines the takeover to the
   claim the caller found naming the job.
   """
-  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at, site \\ nil)
+  def take_over_executing(
+        workflow_job_id,
+        runner_name,
+        pod_name,
+        %DateTime{} = stale_claimed_at,
+        site \\ nil,
+        guards \\ []
+      )
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
@@ -289,7 +307,7 @@ defmodule Tuist.Runners.WorkflowJobs do
         started_at: now,
         executed_workflow_job_id: workflow_job_id
       ],
-      claimed_at: stale_claimed_at
+      Keyword.put(guards, :claimed_at, stale_claimed_at)
     )
     |> finish_executing()
   end
@@ -500,6 +518,122 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  `account_id`'s lifecycle row for `workflow_job_id`, or `nil` when the
+  account has no such row.
+  """
+  def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
+    Repo.one(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id and j.account_id == ^account_id))
+  end
+
+  @doc """
+  The ClickHouse `runner_jobs` row the outbox replays for `row`'s
+  current state, versioned at the row's own `updated_at`.
+  """
+  def replica_row(%WorkflowJob{} = row), do: ch_row(row, row.updated_at)
+
+  @doc """
+  Brings ClickHouse `runner_jobs` rows (`%Tuist.Runners.Job{}`) of jobs
+  that predate this table into it, so every job has a lifecycle row:
+
+    * A job with no row gets one in its terminal state. No outbox event
+      is emitted, since ClickHouse already holds the job. Jobs ClickHouse
+      has not seen finish and jobs of deleted accounts are skipped.
+    * A row whose `log_archived_at` is `NULL` takes the ClickHouse
+      marker, which archives stamped before the column existed carry
+      only there. Skipped while the job has unflushed outbox events,
+      since ClickHouse is behind for it then.
+
+  Returns how many rows were inserted and markers copied.
+  """
+  def backfill_from_replica(jobs) when is_list(jobs) do
+    ids = Enum.map(jobs, & &1.workflow_job_id)
+
+    tracked =
+      from(j in WorkflowJob, where: j.workflow_job_id in ^ids, select: {j.workflow_job_id, j.log_archived_at})
+      |> Repo.all()
+      |> Map.new()
+
+    {untracked, tracked_jobs} = Enum.split_with(jobs, &(not Map.has_key?(tracked, &1.workflow_job_id)))
+
+    %{
+      inserted: insert_untracked(untracked),
+      archive_markers: copy_archive_markers(tracked_jobs, tracked)
+    }
+  end
+
+  defp insert_untracked(jobs) do
+    account_ids =
+      from(a in Account, where: a.id in ^Enum.map(jobs, & &1.account_id), select: a.id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    rows =
+      jobs
+      |> Enum.filter(&(&1.status == "completed" and MapSet.member?(account_ids, &1.account_id)))
+      |> Enum.map(&lifecycle_row/1)
+
+    {inserted, _} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing, conflict_target: :workflow_job_id)
+    inserted
+  end
+
+  defp copy_archive_markers(jobs, tracked) do
+    pending =
+      from(e in WorkflowJobTransitionEvent,
+        where: e.workflow_job_id in ^Enum.map(jobs, & &1.workflow_job_id),
+        distinct: true,
+        select: e.workflow_job_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    jobs
+    |> Enum.filter(fn job ->
+      not is_nil(job.log_archived_at) and is_nil(Map.fetch!(tracked, job.workflow_job_id)) and
+        not MapSet.member?(pending, job.workflow_job_id)
+    end)
+    |> Enum.reduce(0, fn job, copied ->
+      {count, _} =
+        Repo.update_all(
+          from(j in WorkflowJob, where: j.workflow_job_id == ^job.workflow_job_id and is_nil(j.log_archived_at)),
+          set: [log_archived_at: job.log_archived_at]
+        )
+
+      copied + count
+    end)
+  end
+
+  defp lifecycle_row(job) do
+    %{
+      workflow_job_id: job.workflow_job_id,
+      account_id: job.account_id,
+      fleet_name: job.fleet_name,
+      status: terminal_status(job.conclusion),
+      conclusion: blank_to_nil(job.conclusion),
+      platform: job.platform,
+      vcpus: job.vcpus,
+      memory_gb: job.memory_gb,
+      repository: job.repository,
+      workflow_run_id: job.workflow_run_id,
+      workflow_name: job.workflow_name,
+      run_attempt: job.run_attempt,
+      job_name: job.job_name,
+      head_branch: job.head_branch,
+      head_sha: job.head_sha,
+      requested_dispatch_label: job.requested_dispatch_label,
+      enqueued_at: job.enqueued_at,
+      claimed_at: job.claimed_at,
+      started_at: job.started_at,
+      completed_at: job.completed_at,
+      pod_name: blank_to_nil(job.pod_name),
+      runner_name: blank_to_nil(job.runner_name),
+      executor_claimed_at: job.executor_claimed_at,
+      log_archived_at: job.log_archived_at,
+      inserted_at: DateTime.truncate(job.enqueued_at, :second),
+      updated_at: DateTime.truncate(job.updated_at, :second)
+    }
+  end
+
+  @doc """
   Terminal upsert for the completion choke point. Existing rows CAS
   from any non-terminal status; a missing row (completed delivered
   before queued, or the job predates this table) is inserted terminal
@@ -616,28 +750,74 @@ defmodule Tuist.Runners.WorkflowJobs do
       )
 
     if executor_claimed_at do
-      {:ok, :ok} =
+      job =
+        from(j in WorkflowJob,
+          where: j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id
+        )
+
+      {:ok, first_stamped} =
         Repo.transaction(fn ->
-          {_count, rows} =
-            Repo.update_all(
-              from(j in WorkflowJob,
-                where:
-                  j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id and
-                    (is_nil(j.executor_claimed_at) or j.executor_claimed_at != ^executor_claimed_at),
-                select: j
+          first_stamped =
+            stamp_executor_claimed_at(from(j in job, where: is_nil(j.executor_claimed_at)), executor_claimed_at)
+
+          restamped =
+            stamp_executor_claimed_at(
+              from(j in job,
+                where: not is_nil(j.executor_claimed_at) and j.executor_claimed_at != ^executor_claimed_at
               ),
-              set: [
-                executor_claimed_at: executor_claimed_at,
-                updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-              ]
+              executor_claimed_at
             )
 
-          emit_transition_events(rows)
+          :ok = emit_transition_events(first_stamped ++ restamped)
+          first_stamped
         end)
+
+      Enum.each(first_stamped, &emit_executed/1)
     end
 
     :ok
   end
+
+  defp stamp_executor_claimed_at(query, executor_claimed_at) do
+    {_count, rows} =
+      Repo.update_all(from(j in query, select: j),
+        set: [executor_claimed_at: executor_claimed_at, updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+      )
+
+    rows
+  end
+
+  # Observes each job's queue time once, when GitHub first names the runner
+  # it ran on. `limit_held` sets apart the jobs that waited for their own
+  # account's concurrency limit at any point from enqueue to 15 s before
+  # the claim, about one runner boot earlier, when a runner would have had
+  # to start for it.
+  defp emit_executed(%WorkflowJob{enqueued_at: %DateTime{} = enqueued_at, executor_claimed_at: claimed_at} = row) do
+    boot_before_claim = DateTime.add(claimed_at, -15, :second)
+
+    limit_held =
+      case row.platform do
+        platform when platform in ["linux", "macos"] ->
+          Concurrency.limit_held?(
+            row.account_id,
+            String.to_existing_atom(platform),
+            %{vcpus: row.vcpus, memory_gb: row.memory_gb},
+            Enum.min([enqueued_at, boot_before_claim], DateTime),
+            Enum.max([enqueued_at, boot_before_claim], DateTime)
+          )
+
+        _ ->
+          false
+      end
+
+    :telemetry.execute(
+      Telemetry.event_name_job_executed(),
+      %{queue_time_ms: max(DateTime.diff(claimed_at, enqueued_at, :millisecond), 0)},
+      %{fleet: row.fleet_name || "", platform: row.platform, limit_held: to_string(limit_held)}
+    )
+  end
+
+  defp emit_executed(_row), do: :ok
 
   @doc """
   Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
@@ -929,8 +1109,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   keeps ClickHouse single-writer, so nothing can re-assert a stale
   lifecycle state under a newer `updated_at`.
 
-  Returns `:ok` when applied, `:noop` when no lifecycle row exists —
-  jobs archived before this table was introduced have none.
+  Returns `:ok` when applied, `:noop` when no lifecycle row exists.
   """
   def record_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
@@ -954,30 +1133,6 @@ defmodule Tuist.Runners.WorkflowJobs do
       end)
 
     outcome
-  end
-
-  @doc """
-  The `log_archived_at` on `account_id`'s lifecycle row for the job, or
-  `:not_found` when the account has no such row.
-
-  Control-plane reads use this rather than the ClickHouse row, which
-  trails the outbox flush by up to a tick after an archive lands. Scoped
-  on `account_id` as well as the job id: the row is account-owned, so a
-  lookup keyed on the caller-supplied job id alone would answer across
-  tenants.
-  """
-  def log_archived_at(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
-    # Wrapping the value keeps "no row for this account" distinguishable
-    # from "row exists, never stamped" in one query.
-    from(j in WorkflowJob,
-      where: j.workflow_job_id == ^workflow_job_id and j.account_id == ^account_id,
-      select: {true, j.log_archived_at}
-    )
-    |> Repo.one()
-    |> case do
-      nil -> :not_found
-      {true, archived_at} -> {:ok, archived_at}
-    end
   end
 
   # ----- internal -----
@@ -1009,10 +1164,11 @@ defmodule Tuist.Runners.WorkflowJobs do
     outcome
   end
 
-  defp apply_guards(query, []), do: query
-
-  defp apply_guards(query, claimed_at: %DateTime{} = claimed_at) do
-    where(query, [j], j.claimed_at == ^claimed_at)
+  defp apply_guards(query, guards) do
+    Enum.reduce(guards, query, fn
+      {:claimed_at, %DateTime{} = claimed_at}, q -> where(q, [j], j.claimed_at == ^claimed_at)
+      {:account_id, account_id}, q when is_integer(account_id) -> where(q, [j], j.account_id == ^account_id)
+    end)
   end
 
   # One statement for the batch: emitting these per row was what still

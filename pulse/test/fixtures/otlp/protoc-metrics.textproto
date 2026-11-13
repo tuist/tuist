@@ -1,0 +1,57 @@
+resource_metrics {
+  resource {
+    attributes { key: "service.name" value { string_value: "example-api" } }
+    attributes { key: "service.namespace" value { string_value: "example" } }
+    attributes { key: "service.instance.id" value { string_value: "pod-1" } }
+    attributes { key: "deployment.environment" value { string_value: "production" } }
+    attributes { key: "deployment.environment.name" value { string_value: "production" } }
+    attributes { key: "bytes" value { bytes_value: "\000\377" } }
+    dropped_attributes_count: 1
+  }
+  schema_url: "https://opentelemetry.io/schemas/1.27.0"
+  scope_metrics {
+    scope {
+      name: "example.instrumentation"
+      version: "1.2.3"
+      attributes { key: "enabled" value { bool_value: false } }
+      dropped_attributes_count: 2
+    }
+    schema_url: "https://example.com/metric-schema/1"
+    metrics {
+      name: "cpu.utilization"
+      description: "Synthetic scalar fixture"
+      unit: "1"
+      metadata { key: "category" value { string_value: "runtime" } }
+      gauge {
+        data_points {
+          time_unix_nano: 1700000000123456789
+          as_double: -0.0
+          exemplars {
+            time_unix_nano: 1700000000123456788
+            as_double: -0.0
+            trace_id: "0123456789abcdef"
+            span_id: "deadbeef"
+            filtered_attributes { key: "request.id" value { string_value: "fixture-request" } }
+          }
+          attributes { key: "http.method" value { string_value: "GET" } }
+          attributes { key: "integer" value { int_value: 9223372036854775807 } }
+          attributes { key: "nested" value { array_value { values { bool_value: false } values { bytes_value: "\000\377" } } } }
+        }
+        data_points { time_unix_nano: 1700000000123456790 as_int: -9223372036854775808 }
+        data_points { time_unix_nano: 1700000000123456791 as_double: nan }
+        data_points { time_unix_nano: 1700000000123456792 as_double: inf }
+        data_points { time_unix_nano: 1700000000123456793 flags: 1 }
+      }
+    }
+    metrics {
+      name: "request.count"
+      unit: "{request}"
+      sum {
+        aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+        is_monotonic: true
+        data_points { start_time_unix_nano: 1700000000000000000 time_unix_nano: 1700000000123456794 as_int: 20 }
+        data_points { start_time_unix_nano: 1700000000000000000 time_unix_nano: 1700000000123456795 as_double: 22.0 }
+      }
+    }
+  }
+}

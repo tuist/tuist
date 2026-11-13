@@ -91,8 +91,14 @@ defmodule Tuist.Accounts.AgentAuthSigningKey do
     end
   end
 
-  defp private_jwk do
-    private_key = derive_private_key(Environment.secret_key_tokens())
+  @doc """
+  The P-256 private JWK derived from Tuist's token-signing secret for
+  `purpose`. Each purpose label yields an independent key, so other issuers
+  (for example Anthropic identity federation) can sign with their own key and
+  rotate it separately by changing their label.
+  """
+  def derived_jwk(purpose) when is_binary(purpose) do
+    private_key = derive_private_key(purpose, Environment.secret_key_tokens())
     {public_key, private_key} = :crypto.generate_key(:ecdh, :secp256r1, private_key)
     <<4, x::binary-size(32), y::binary-size(32)>> = public_key
 
@@ -105,16 +111,18 @@ defmodule Tuist.Accounts.AgentAuthSigningKey do
     })
   end
 
+  defp private_jwk, do: derived_jwk("tuist-auth-md-signing-key")
+
   defp public_jwk do
     JOSE.JWK.to_public(private_jwk())
   end
 
   defp key_id, do: JOSE.JWK.thumbprint(private_jwk())
 
-  defp derive_private_key(secret) do
+  defp derive_private_key(purpose, secret) do
     value =
       :sha256
-      |> :crypto.hash("tuist-auth-md-signing-key\0#{secret}")
+      |> :crypto.hash("#{purpose}\0#{secret}")
       |> :binary.decode_unsigned()
       |> rem(@p256_order - 1)
       |> Kernel.+(1)

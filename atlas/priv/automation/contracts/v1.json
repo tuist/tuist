@@ -86,6 +86,7 @@
   "excluded_tools": {
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "check_out_air_gapped_license": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
+    "get_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
     "publish_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "create_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "set_signal_source_enabled": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
@@ -115,19 +116,19 @@
     "rotate_project_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "start_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
-    "list_coding_repositories": "Personal GitHub grants and repository selection are not transactional workflow capabilities.",
-    "update_coding_repository_settings": "Personal repository defaults require an explicit caller decision, not automated workflow changes to personal preferences.",
     "get_domain_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "claim_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_signals": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_time_off_overview": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "describe_tuist_postgres_table": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "run_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "list_coding_repositories": "Personal GitHub grants and repository selection are not transactional workflow capabilities.",
     "validate_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "list_people": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "connect_claude_provider": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "send_account_email": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "cancel_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
+    "search_my_slack": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "ingest_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_signal_candidates": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "search_apollo_outreach": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
@@ -135,8 +136,10 @@
     "notify_gtm_opportunity": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_invoices": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_automation_records": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "send_my_gmail_draft": "Sends mail from the caller's personal mailbox only after the mailbox owner approves the exact draft in Atlas; external delivery is not a workflow behavior.",
     "generate_enterprise_contract": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "finance_get_transaction": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "request_cluster_elevation": "Grants an Amp thread write access to a production cluster as the caller; each call needs that person's approval of the exact arguments, so it is not a workflow capability.",
     "update_automation_behavior": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "poll_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "get_nudge_analytics_status": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
@@ -146,9 +149,12 @@
     "search_web": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "query_tuist_clickhouse": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "list_tuist_postgres_tables": "Remote arbitrary-query execution is outside bounded local domain actions.",
+    "update_coding_repository_settings": "Personal repository defaults require an explicit caller decision, not automated workflow changes to personal preferences.",
     "create_automation_behavior": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "update_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
     "create_signal_source": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "delete_automation_behavior": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "search_my_gmail": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "prepare_gtm_opportunity_outreach": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "create_license": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "decide_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
@@ -157,12 +163,16 @@
     "save_error_alert_rule": "Alert routing can disclose receiver credentials and enable external incident declarations; it requires a dedicated approved workflow adapter.",
     "list_licenses": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "release_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "save_my_gmail_attachment": "Copies a file from the caller's personal mailbox into the shared document library through their own OAuth grant; workflows must not act on one person's private messages.",
+    "ovh_list_invoices": "Reads billing data through the caller's personal OVH OAuth grant; workflows must not use one person's private connection.",
+    "ovh_save_invoice": "Copies an invoice through the caller's personal OVH OAuth grant into the shared document library; workflows must not use one person's private connection.",
     "get_contract_template": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "convert_gtm_opportunity": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "check_letter_delivery": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "send_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "add_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "manage_label_session": "Physical printer output and private relay capabilities require owner-specific browser approval and dedicated durable dispatch; they are not generic workflow behaviors.",
     "create_time_off_location": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "search_notes": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
     "decide_automation_approval": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -187,6 +197,7 @@
     "extend_license": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "get_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "get_my_profile": "Personal self-description is private caller context, not a workflow capability; it must not be copied into shared execution inputs or outputs.",
+    "create_my_gmail_draft": "Reads or writes drafts in the caller's personal mailbox through their own OAuth grant; workflows must not act on one person's private messages.",
     "add_email_audience_subscriber": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "send_test_push_notification": "Personal device consent and push-test delivery are not workflow capabilities; notification delivery requires an explicit durable adapter.",
     "list_automation_types": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -199,11 +210,15 @@
     "save_memory": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
     "query_tuist_postgres": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "update_tuist_feature_flag": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
+    "update_tuist_runner_concurrency_limits": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
+    "get_tuist_runner_concurrency_limits": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "get_tuist_account": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "update_my_business_profile": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_account_feature_usage": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_automation_trigger": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "enroll_outreach_contact": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "get_automation_execution": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "get_my_gmail_message": "Reads the caller's personal mailbox or Slack through their own OAuth grant; workflows must not act on one person's private messages.",
     "preview_error_alert_rule": "Historical event-window queries require a bounded ClickHouse workflow adapter; management preview is not a published workflow behavior.",
     "import_public_holidays": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "update_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
@@ -214,6 +229,7 @@
     "remove_public_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "get_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "create_mcp_server": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
+    "ovh_set_server_display_name": "Renames a production server through the caller's own OVH connection and makes a fleet adopt and wipe it; each call needs that person's approval of the exact arguments, so it is not a workflow capability.",
     "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "disconnect_llm_provider": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "get_mcp_connection_status": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
@@ -32481,7 +32497,7 @@
       "version": 1
     },
     {
-      "description": "Mark an Atlas task as completed and cancel its pending reminder.",
+      "description": "Mark an Atlas task as completed.",
       "domain": "tasks",
       "effect": "write",
       "execution_mode": "local_transaction",
@@ -32538,18 +32554,6 @@
               "id": {
                 "type": "string"
               },
-              "remind_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "reminded_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "status": {
                 "type": "string"
               },
@@ -32565,8 +32569,6 @@
               "assignee_id",
               "account_id",
               "due_on",
-              "remind_at",
-              "reminded_at",
               "completed_at"
             ],
             "type": "object"
@@ -32583,7 +32585,7 @@
       "version": 1
     },
     {
-      "description": "Create a task for an Atlas user, optionally linked to an account and scheduled for a Slack reminder.",
+      "description": "Create a task for an Atlas user, optionally linked to an account and with a due date.",
       "domain": "tasks",
       "effect": "write",
       "execution_mode": "local_transaction",
@@ -32604,10 +32606,6 @@
           "due_on": {
             "description": "Task due date.",
             "format": "date",
-            "type": "string"
-          },
-          "remind_at": {
-            "description": "ISO 8601 date and time with offset, for a Slack reminder.",
             "type": "string"
           },
           "title": {
@@ -32659,18 +32657,6 @@
               "id": {
                 "type": "string"
               },
-              "remind_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "reminded_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "status": {
                 "type": "string"
               },
@@ -32686,8 +32672,6 @@
               "assignee_id",
               "account_id",
               "due_on",
-              "remind_at",
-              "reminded_at",
               "completed_at"
             ],
             "type": "object"
@@ -32804,18 +32788,6 @@
               "id": {
                 "type": "string"
               },
-              "remind_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "reminded_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "status": {
                 "type": "string"
               },
@@ -32831,8 +32803,6 @@
               "assignee_id",
               "account_id",
               "due_on",
-              "remind_at",
-              "reminded_at",
               "completed_at"
             ],
             "type": "object"
@@ -32926,18 +32896,6 @@
                 "id": {
                   "type": "string"
                 },
-                "remind_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "reminded_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
                 "status": {
                   "type": "string"
                 },
@@ -32953,8 +32911,6 @@
                 "assignee_id",
                 "account_id",
                 "due_on",
-                "remind_at",
-                "reminded_at",
                 "completed_at"
               ],
               "type": "object"
@@ -32999,13 +32955,6 @@
           "due_on": {
             "description": "Task due date, or null to remove it.",
             "format": "date",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "remind_at": {
-            "description": "ISO 8601 date and time with offset, or null to remove the reminder.",
             "type": [
               "string",
               "null"
@@ -33063,18 +33012,6 @@
               "id": {
                 "type": "string"
               },
-              "remind_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "reminded_at": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "status": {
                 "type": "string"
               },
@@ -33090,8 +33027,6 @@
               "assignee_id",
               "account_id",
               "due_on",
-              "remind_at",
-              "reminded_at",
               "completed_at"
             ],
             "type": "object"

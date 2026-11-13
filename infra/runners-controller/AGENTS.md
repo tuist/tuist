@@ -99,6 +99,12 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  The floor tier funds pools in use (load now, or a runner session in the
+  last hour: `Signals.InUse`) before pools that only hold a learned floor,
+  in `capByShape` too. Learned floors on a busy rack sum past its seats, and
+  an even split left the pools whose jobs were arriving short of warm
+  runners while pools with no job in an hour stayed warm.
+
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
   pools with the largest target (which includes the hourly peak), then by
@@ -216,6 +222,10 @@ cancellable and leaves the reserve intact. See
     Per-node shape caps and reservation calculations subtract the same
     allocation plus the daemon's CPU request, including pending shrinks and
     terminating daemons. Never write the adjusted allocatable back to a Node.
+    Remote execution workers on shared hosts (`tuist.dev/remote-execution-daemon`
+    Pods in the same namespace) are a second daemon per node: they are
+    subtracted the same way, and their grants and revocations are published as
+    `<node>.remote-execution`, the name they connect to the server with.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
@@ -951,7 +961,7 @@ AGENTS.md.
    ```
 
    `PREP_SKIP_MARK=1` stages the box without naming it;
-   `baremetal:mark-ovh` names it later.
+   `baremetal:mark-ovh` names it later. Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
 
 3. **Raise `ovhFleets.runners-linux.replicas`** in
    `values-managed-<env>.yaml` to the new box count and deploy. It must
@@ -980,26 +990,28 @@ A Node is ready for runner Pods once it carries
 
 ### cgroup leak on kata nodes
 
-kubelet runs `cgroupDriver: systemd`, so the kata-qemu handler must set
-`SystemdCgroup = true` in its own options block. Without it the kata shim
-writes the systemd slice name kubelet hands it as a literal directory at
-the cgroup root
+Kata 3.30 only resolves the systemd cgroup path kubelet hands it when
+`sandbox_cgroup_only = true`. With the default (`false`) the shim writes
+the slice name as a literal directory at the cgroup root
 (`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
-instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
-never knew about them and the shim does not remove them, so they
-accumulate one per container start. At exhaustion every cgroup `mkdir`
-returns ENOSPC, and the node keeps reporting `Ready` while failing every
-new Pod sandbox. A busy node reached ~65k of them, against ~70 on a
-freshly booted one. The self-join (`kataSetup`) sets it on the handler
-block it appends.
+holding QEMU, and puts virtiofsd and itself in
+`/sys/fs/cgroup/kata_overhead/<id>`. Both sit outside `kubepods.slice`, so
+the kubelet's Pod limits and cpusets never apply to the VM, and nothing
+removes either directory when the sandbox exits. They accumulate one each
+per sandbox. At exhaustion every cgroup `mkdir` returns ENOSPC, and the
+node keeps reporting `Ready` while failing every new Pod sandbox. A busy
+node reached ~65k of each, against ~70 on a freshly booted one.
+`SystemdCgroup = true` on the handler does not prevent this (a staging
+host with it had 3,351 of each after 8 days).
 
-**There is a second population of the same size:**
-`/sys/fs/cgroup/kata_overhead/*`, one per sandbox, named by container ID.
-Same shape (flat empty leaves), same one-per-container-start growth,
-never reclaimed. Whether `SystemdCgroup = true` also stops it is **not
-established**: the overhead cgroups are created by the shim either way.
-Sweeping only the root population leaves the node at half its leak and
-reads as a stuck reclaim.
+The `50-tuist-sandbox-cgroup.toml` drop-in (`kataSandboxCgroupSetup`)
+turns `sandbox_cgroup_only` on, which puts the shim, virtiofsd and QEMU
+in a systemd scope under the Pod's slice that systemd removes with the
+sandbox. When it lands on an existing host through the Kata host config
+repair, it also sweeps both leaked populations. Sandboxes started before
+it keep their old cgroups, so a host can leak a handful more until they
+exit; sweep those as below. Sweeping only the root population leaves the
+node at half its leak and reads as a stuck reclaim.
 
 Check a host without SSH. The count should be in the hundreds, not
 thousands:
@@ -1497,6 +1509,28 @@ deploying over staging's live Kura rehearsal. The provider automatically set
 the queued workflow ran as UID 1000 with KVM acceleration. The committed
 [`android-smoke` fixture](../kata-kvm-kernel/android-smoke/AGENTS.md) passed
 both Gradle Managed Device instrumentation and all 15 Macrobenchmark cold starts.
+
+## Exclusive CPUs
+
+A Linux `kata-qemu` pool with `spec.exclusiveCPUs: true` gets whole cores per
+Pod: `podtemplate.Build` puts the pool's CPU and memory on the Pod
+(`.spec.resources`, requests equal to limits) instead of the runner container,
+gives no container CPU or memory of its own, and adds the
+`tuist.dev/pod-level-resource-managers=true` node selector, which the CAPI
+provider sets on Kata hosts running kubelet v1.36's pod-level resource
+managers. `fleetNodeSelector` adds the same label. Build refuses an odd or
+fractional CPU count, since the hosts allocate whole two-thread cores.
+
+Keep every container free of its own CPU and memory: a container with its own
+Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
+on an empty shared pool, which the kubelet rejects. Keep nested KVM pools on
+container-level budgets: Build and Helm reject `exclusiveCPUs` together with
+`nestedVirtualization` until kubelet's pod-level device allocation is fixed
+(kubernetes/kubernetes#143490). Code that sizes a Pod
+(`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
+budget when it is set, or a running job looks nearly free.
+`isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
+Why and how to roll it out: `infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`.
 
 ## Linux cache volumes
 

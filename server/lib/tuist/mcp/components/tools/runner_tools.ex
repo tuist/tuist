@@ -78,6 +78,45 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     }
   end
 
+  @doc """
+  `job_schema/0` plus `out_of_memory`, which only `get_runner_job` returns:
+  it reads the job's machine metrics.
+  """
+  def job_detail_schema do
+    job_schema()
+    |> put_in(["properties", "out_of_memory"], %{
+      "type" => ["object", "null"],
+      "description" =>
+        "What the runner VM killed for running out of memory during the job, or null when it killed nothing.",
+      "properties" => %{
+        "kill_count" => %{"type" => "integer", "description" => "Processes the runner VM killed."},
+        "first_kill_at" => %{"type" => "string", "description" => "When the first kill was reported (ISO 8601)."},
+        "victim" => %{
+          "type" => ["object", "null"],
+          "description" => "The process killed last, or null when the runner did not name it.",
+          "properties" => %{
+            "process" => %{"type" => "string"},
+            "memory_bytes" => %{"type" => "integer", "description" => "Memory the process was using."},
+            "container" => %{
+              "type" => ["string", "null"],
+              "description" => "Its Docker container: null outside a container, docker-build for a docker build step."
+            },
+            "image" => %{"type" => ["string", "null"], "description" => "That container's image."}
+          },
+          "required" => ["process", "memory_bytes", "container", "image"],
+          "additionalProperties" => false
+        },
+        "description" => %{
+          "type" => "string",
+          "description" => "What happened and what to change, as the job page's \"Ran out of memory\" alert says it."
+        }
+      },
+      "required" => ["kill_count", "first_kill_at", "victim", "description"],
+      "additionalProperties" => false
+    })
+    |> Map.update!("required", &(&1 ++ ["out_of_memory"]))
+  end
+
   def workflow_schema do
     %{
       "type" => "object",
@@ -119,6 +158,10 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "vcpus" => %{"type" => "integer"},
         "memory_gb" => %{"type" => "integer"},
         "xcode_version" => %{"type" => ["string", "null"]},
+        "os_version" => %{
+          "type" => ["string", "null"],
+          "description" => "The Ubuntu release of a Linux profile, for example ubuntu-24.04. Null on macOS."
+        },
         "protected" => %{"type" => "boolean"},
         "runs_on_label" => %{
           "type" => "string",
@@ -148,6 +191,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "protected",
         "runs_on_label",
         "cache_writer_all_branches",
@@ -188,7 +232,22 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in" => %{"type" => "integer"},
         "network_bytes_out" => %{"type" => "integer"},
         "disk_used_bytes" => %{"type" => "integer"},
-        "disk_total_bytes" => %{"type" => "integer"}
+        "disk_total_bytes" => %{"type" => "integer"},
+        "oom_kill_count" => %{
+          "type" => "integer",
+          "description" => "Processes the runner VM killed for running out of memory since the job started."
+        },
+        "oom_victim_process" => %{
+          "type" => "string",
+          "description" => "The process the runner VM killed last for running out of memory, or empty."
+        },
+        "oom_victim_memory_bytes" => %{"type" => "integer", "description" => "Memory that process was using."},
+        "oom_victim_container" => %{
+          "type" => "string",
+          "description" =>
+            "That process's Docker container: empty outside a container, docker-build for a docker build step."
+        },
+        "oom_victim_image" => %{"type" => "string", "description" => "That container's image, or empty."}
       },
       "required" => [
         "timestamp",
@@ -199,7 +258,12 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in",
         "network_bytes_out",
         "disk_used_bytes",
-        "disk_total_bytes"
+        "disk_total_bytes",
+        "oom_kill_count",
+        "oom_victim_process",
+        "oom_victim_memory_bytes",
+        "oom_victim_container",
+        "oom_victim_image"
       ],
       "additionalProperties" => false
     }
@@ -266,6 +330,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       vcpus: profile.vcpus,
       memory_gb: profile.memory_gb,
       xcode_version: profile.xcode_version,
+      os_version: profile.os_version,
       protected: profile.protected,
       runs_on_label: Profile.dispatch_label(profile),
       cache_writer_all_branches: profile.cache_writer_all_branches,
@@ -283,6 +348,11 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       "xcode_version" => %{
         "type" => "string",
         "description" => "An available Xcode version, for example 26.5. Required for macOS profiles."
+      },
+      "os_version" => %{
+        "type" => "string",
+        "description" =>
+          "An available Ubuntu release for Linux profiles, for example ubuntu-24.04. Defaults to the catalog default."
       }
     }
   end
@@ -335,9 +405,22 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
             "required" => ["xcode_version", "default"],
             "additionalProperties" => false
           }
+        },
+        "os_versions" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "os_version" => %{"type" => "string"},
+              "label" => %{"type" => "string"},
+              "default" => %{"type" => "boolean"}
+            },
+            "required" => ["os_version", "label", "default"],
+            "additionalProperties" => false
+          }
         }
       },
-      "required" => ["shapes", "xcode_versions"],
+      "required" => ["shapes", "xcode_versions", "os_versions"],
       "additionalProperties" => false
     }
   end
@@ -506,21 +589,26 @@ defmodule Tuist.MCP.Components.Tools.GetRunnerJob do
       "required" => ["account_handle", "workflow_job_id"],
       "additionalProperties" => false
     },
-    output_schema: Tuist.MCP.Components.Tools.RunnerTools.job_schema()
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.job_detail_schema()
 
   alias Tuist.MCP.Components.Tools.RunnerTools
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
 
   @impl EMCP.Tool
-  def description, do: "Get a CI runner job for an account."
+  def description,
+    do: "Get a CI runner job for an account, including whether its machine ran out of memory and what to change."
 
   @impl EMCP.Tool
   def call(conn, %{"workflow_job_id" => workflow_job_id} = arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
          {:ok, account} <- RunnerTools.authorize_account(arguments, conn.assigns),
          {:ok, job} <- Jobs.get_for_account(account.id, workflow_job_id) do
-      MCPTool.json_response(RunnerTools.serialize_job(job), __MODULE__)
+      job
+      |> RunnerTools.serialize_job()
+      |> Map.put(:out_of_memory, JobMetrics.out_of_memory_report(job.workflow_job_id))
+      |> MCPTool.json_response(__MODULE__)
     else
       {:error, :not_found} -> EMCP.Tool.error("Runner job not found: #{workflow_job_id}")
       {:error, message} -> EMCP.Tool.error(message)
@@ -723,7 +811,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version. Use get_runner_catalog for the available shapes and Xcode versions. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
+      "Create a runner profile that pins a platform, a machine shape and, on macOS, an Xcode version, or on Linux an Ubuntu release. Use get_runner_catalog for the available shapes, Xcode versions and Ubuntu releases. Reference the returned runs_on_label in a workflow's runs-on. Requires account administration or the account:runners:write scope."
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -734,6 +822,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"
@@ -758,6 +847,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
     name: "update_runner_profile",
     title: "Update Runner Profile",
     read_only_hint: false,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" =>
@@ -786,7 +876,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests, pull_request_target jobs and GitLab merge requests from forks never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+      ~s(Update a runner profile's machine shape, Xcode version, Ubuntu release, or which jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests, pull_request_target jobs and GitLab merge requests from forks never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -795,6 +885,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "os_version",
         "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"

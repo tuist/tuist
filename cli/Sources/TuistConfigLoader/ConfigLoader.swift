@@ -72,6 +72,7 @@ public struct ConfigLoader: ConfigLoading {
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            testInsights: .init(coverage: .init(upload: tomlConfig.testInsights?.coverage?.upload ?? false)),
             url: tomlConfig.url ?? Constants.URLs.production,
             network: .init(
                 proxy: tomlConfig.network?.proxy ?? true,

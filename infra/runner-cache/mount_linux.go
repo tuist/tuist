@@ -4,11 +4,13 @@ package cachevolumes
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -155,6 +157,35 @@ func MeasureFS(path string) (int64, int64, error) {
 		return 0, 0, errors.New("volume not mounted")
 	}
 	return int64(st.Blocks-st.Bfree) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize), nil
+}
+
+// fitrim is FITRIM, _IOWR('X', 121, struct fstrim_range), which x/sys/unix
+// does not define.
+const fitrim = 0xc0185879
+
+// TrimFS discards every free block of the ext4 volume mounted at path, as
+// fstrim does, through a descriptor opened without following links. ext4 keeps
+// blocks freed in an uncommitted transaction busy and FITRIM skips them, so the
+// caller commits first. It never syncs itself: a write-back error is reported
+// to one syncfs only, and that must be CheckFilesystem's.
+func TrimFS(path string) error {
+	target, err := targetFD(path)
+	if err != nil {
+		return err
+	}
+	defer target.Close()
+	var st unix.Statfs_t
+	if err := unix.Fstatfs(int(target.Fd()), &st); err != nil {
+		return err
+	}
+	if st.Type != unix.EXT4_SUPER_MAGIC {
+		return errors.New("volume not mounted")
+	}
+	trim := struct{ start, length, minLength uint64 }{0, math.MaxUint64, 0}
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, target.Fd(), fitrim, uintptr(unsafe.Pointer(&trim))); errno != 0 {
+		return errno
+	}
+	return nil
 }
 
 func FreeBytes(path string) (uint64, error) {

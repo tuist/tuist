@@ -1,0 +1,380 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test data: Copyright Grafana Labs contributors.
+// Adapted for Pulse on 2026-10-28; the adjacent LICENSE applies.
+// Standard-library-only AST/source extraction, following logfmt-producer.go.txt.
+// This never executes Loki/Pulse or computes query/parser expectations.
+// From the Pulse repository root, using the unmodified pinned Loki checkout:
+//
+//	cp test/fixtures/logs/loki-upstream/logfmt-ownership-producer.go.txt /tmp/logfmt-ownership-producer.go
+//	go build -o /tmp/logfmt-ownership-producer /tmp/logfmt-ownership-producer.go
+//	/tmp/logfmt-ownership-producer /tmp/pulse-loki-expressions-reference/pkg/logql/log/parser_test.go /tmp/pulse-loki-expressions-reference/pkg/logql/internal/logqltest/testdata/parsers.logqltest > /tmp/logfmt-ownership.json
+//	cmp /tmp/logfmt-ownership.json test/fixtures/logs/loki-upstream/logfmt-ownership.json
+//
+// Normal Elixir/Rust replay reads committed JSON, without Go or network access.
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+const revision = "5aa4b9212d64d723f63b2770452054aa23df114d"
+const parserPath = "pkg/logql/log/parser_test.go"
+const enginePath = "pkg/logql/internal/logqltest/testdata/parsers.logqltest"
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func require(ok bool, message string) {
+	if !ok {
+		panic(message)
+	}
+}
+func hash(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
+func number(s string) int     { n, err := strconv.Atoi(s); must(err); return n }
+func unquote(s string) string { v, err := strconv.Unquote(s); must(err); return v }
+func literal(e ast.Expr) string {
+	lit, ok := e.(*ast.BasicLit)
+	require(ok && lit.Kind == token.STRING, "expected string literal")
+	return unquote(lit.Value)
+}
+
+type selection struct {
+	Purpose     string `json:"purpose"`
+	SourceStart int    `json:"source_start"`
+	SourceEnd   int    `json:"source_end"`
+	SHA256      string `json:"sha256"`
+	Raw         string `json:"raw"`
+}
+type source struct {
+	Path       string      `json:"path"`
+	SHA256     string      `json:"sha256"`
+	URL        string      `json:"url"`
+	Selections []selection `json:"selections"`
+}
+
+func selectLines(data []byte, first, last int, purpose string) selection {
+	lines := strings.SplitAfter(string(data), "\n")
+	require(first > 0 && last >= first && last <= len(lines), "invalid source range")
+	raw := strings.Join(lines[first-1:last], "")
+	return selection{purpose, first, last, hash([]byte(raw)), raw}
+}
+func loadSource(path, upstream, expectedHash string) ([]byte, source) {
+	data, err := os.ReadFile(path)
+	must(err)
+	require(hash(data) == expectedHash, "unrecognized source bytes: "+upstream)
+	return data, source{Path: upstream, SHA256: hash(data), URL: "https://github.com/grafana/loki/blob/" + revision + "/" + upstream}
+}
+func labels(e ast.Expr) map[string]string {
+	call := e.(*ast.CallExpr)
+	selector := call.Fun.(*ast.SelectorExpr)
+	require(selector.X.(*ast.Ident).Name == "labels", "unexpected labels package")
+	out := map[string]string{}
+	if selector.Sel.Name == "EmptyLabels" {
+		require(len(call.Args) == 0, "unexpected EmptyLabels arguments")
+		return out
+	}
+	require(selector.Sel.Name == "FromStrings" && len(call.Args)%2 == 0, "unsupported labels expression")
+	for i := 0; i < len(call.Args); i += 2 {
+		key := literal(call.Args[i])
+		_, exists := out[key]
+		require(!exists, "duplicate label")
+		out[key] = literal(call.Args[i+1])
+	}
+	return out
+}
+func metadata(e ast.Expr) map[string]string {
+	out := map[string]string{}
+	for _, field := range e.(*ast.CompositeLit).Elts {
+		pair := field.(*ast.KeyValueExpr)
+		key := literal(pair.Key)
+		_, exists := out[key]
+		require(!exists, "duplicate metadata")
+		out[key] = literal(pair.Value)
+	}
+	return out
+}
+func extractTables(data []byte) []map[string]any {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, parserPath, data, 0)
+	must(err)
+	raw := func(n ast.Node) string {
+		return string(data[fset.Position(n.Pos()).Offset:fset.Position(n.End()).Offset])
+	}
+	rows := []map[string]any{}
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || (fn.Name.Name != "TestLogfmtParser_parse" && fn.Name.Name != "TestLogfmtExpressionParser") {
+			continue
+		}
+		isParse := fn.Name.Name == "TestLogfmtParser_parse"
+		var table *ast.CompositeLit
+		var testLine ast.Expr
+		for _, statement := range fn.Body.List {
+			assign, ok := statement.(*ast.AssignStmt)
+			if !ok {
+				continue
+			}
+			switch assign.Lhs[0].(*ast.Ident).Name {
+			case "tests":
+				table = assign.Rhs[0].(*ast.CompositeLit)
+			case "testLine":
+				testLine = assign.Rhs[0]
+			}
+		}
+		require(table != nil && ((isParse && len(table.Elts) == 20) || (!isParse && len(table.Elts) == 10)), "unexpected table size")
+		item := table.Elts[len(table.Elts)-1].(*ast.CompositeLit)
+		first, last := fset.Position(item.Pos()).Line, fset.Position(item.End()).Line
+		require((isParse && first == 1418 && last == 1429) || (!isParse && first == 1728 && last == 1739), "unexpected ownership row range")
+		s := selectLines(data, first, last, "complete ownership table row")
+		row := map[string]any{"name": literal(item.Elts[0]), "function": fn.Name.Name, "source_start": first, "source_end": last, "raw": s.Raw, "sha256": s.SHA256, "line_expression": raw(item.Elts[1]), "initial_parsed_labels": map[string]string{}, "keep_empty": false}
+		if isParse {
+			require(len(item.Elts) == 7 && row["name"] == "duplicate conflict with structured metadata", "unexpected parse row")
+			call := item.Elts[1].(*ast.CallExpr)
+			require(raw(call.Fun) == "[]byte" && len(call.Args) == 1, "unexpected line conversion")
+			row["line"] = literal(call.Args[0])
+			row["base_labels"], row["want"], row["want_strict"] = labels(item.Elts[2]), labels(item.Elts[3]), labels(item.Elts[4])
+			row["hint_expression"], row["structured_metadata"] = raw(item.Elts[5]), metadata(item.Elts[6])
+			row["effective_strict_want"] = row["want"]
+			if len(row["want_strict"].(map[string]string)) > 0 {
+				row["effective_strict_want"] = row["want_strict"]
+			}
+			row["strict_values"] = []bool{false, true}
+		} else {
+			require(len(item.Elts) == 6 && row["name"] == "structured metadata conflict" && raw(item.Elts[1]) == "testLine", "unexpected expression row")
+			call := testLine.(*ast.CallExpr)
+			require(raw(call.Fun) == "[]byte" && len(call.Args) == 1, "unexpected testLine definition")
+			row["line"], row["line_definition"] = literal(call.Args[0]), raw(testLine)
+			fields := [][2]string{}
+			for _, expression := range item.Elts[2].(*ast.CompositeLit).Elts {
+				call := expression.(*ast.CallExpr)
+				require(raw(call.Fun) == "NewLabelExtractionExpr" && len(call.Args) == 2, "unexpected extraction expression")
+				fields = append(fields, [2]string{literal(call.Args[0]), literal(call.Args[1])})
+			}
+			row["fields"], row["fields_expression"] = fields, raw(item.Elts[2])
+			row["base_labels"], row["want"], row["structured_metadata"] = labels(item.Elts[3]), labels(item.Elts[4]), metadata(item.Elts[5])
+			row["strict_values"] = []bool{false}
+		}
+		rows = append(rows, row)
+	}
+	require(len(rows) == 2, "missing ownership table rows")
+	return rows
+}
+
+type load struct {
+	Labels   map[string]string `json:"labels"`
+	Line     string            `json:"line"`
+	Start    int               `json:"start"`
+	Every    int               `json:"every"`
+	Count    int               `json:"count"`
+	Metadata map[string]string `json:"metadata"`
+	selection
+}
+type series struct {
+	Labels map[string]string `json:"labels"`
+	Values []string          `json:"values"`
+}
+type entry struct {
+	Labels    map[string]string `json:"labels"`
+	Line      string            `json:"line"`
+	Timestamp int               `json:"timestamp"`
+	Metadata  map[string]string `json:"metadata"`
+	Parsed    map[string]string `json:"parsed"`
+	selection
+}
+type engineCase struct {
+	Query           string   `json:"query"`
+	Mode            string   `json:"mode"`
+	Start           int      `json:"start"`
+	End             int      `json:"end"`
+	Step            int      `json:"step"`
+	Direction       string   `json:"direction,omitempty"`
+	Outcome         string   `json:"outcome"`
+	Expected        []series `json:"expected"`
+	ExpectedEntries []entry  `json:"expected_entries"`
+	selection
+}
+type fixture struct {
+	SourceStart int          `json:"source_start"`
+	SourceEnd   int          `json:"source_end"`
+	Loads       []load       `json:"loads"`
+	Cases       []engineCase `json:"cases"`
+}
+
+var goString = "(?:\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`)"
+var labelPair = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)=(` + goString + `)`)
+
+func labelText(text string) map[string]string {
+	out := map[string]string{}
+	for text = strings.TrimSpace(text); text != ""; text = strings.TrimSpace(text) {
+		m := labelPair.FindStringSubmatch(text)
+		require(m != nil, "unexpected label text: "+text)
+		_, exists := out[m[1]]
+		require(!exists, "duplicate label text")
+		out[m[1]] = unquote(m[2])
+		text = strings.TrimSpace(strings.TrimPrefix(text[len(m[0]):], ","))
+	}
+	return out
+}
+func extractEngine(data []byte) []fixture {
+	lines := strings.Split(string(data), "\n")
+	loadRE := regexp.MustCompile(`^\{([^}]*)\}\s+(` + goString + `)\s+@ (\d+)s(?: \[repeat every (\d+)s for (\d+)\])?(?: \[metadata (.*)\])?$`)
+	instantRE := regexp.MustCompile(`^eval instant at (\d+)s (.+)$`)
+	rangeRE := regexp.MustCompile(`^eval range from (\d+)s to (\d+)s step (\d+)s (.+)$`)
+	selectRE := regexp.MustCompile(`^eval select from (\d+)(?:s)? to (\d+)s (forward|backward) (.+)$`)
+	resultRE := regexp.MustCompile(`^\{([^}]*)\}\s+([\d_ ]+)$`)
+	entryRE := regexp.MustCompile(`^\{([^}]*)\}\s+(` + goString + `) @ (\d+)s(?: \[metadata (.*?)\])?(?: \[parsed (.*?)\])?$`)
+	fixtures := []fixture{}
+	var current *fixture
+	var evaluation *engineCase
+	finishCase := func() {
+		if evaluation == nil {
+			return
+		}
+		if evaluation.Mode == "select" {
+			require(len(evaluation.ExpectedEntries) > 0 && len(evaluation.Expected) == 0, "missing select expectation")
+		} else {
+			require(len(evaluation.Expected) > 0 && len(evaluation.ExpectedEntries) == 0, "missing metric expectation")
+		}
+		evaluation.selection = selectLines(data, evaluation.SourceStart, evaluation.SourceEnd, "complete evaluation and exact oracle")
+		current.Cases = append(current.Cases, *evaluation)
+		current.SourceEnd = evaluation.SourceEnd
+		evaluation = nil
+	}
+	finishFixture := func() {
+		finishCase()
+		if current != nil {
+			require(len(current.Loads) > 0 && len(current.Cases) > 0, "incomplete fixture")
+			fixtures = append(fixtures, *current)
+			current = nil
+		}
+	}
+	// Complete omitted block only. Never inherit loads from neighboring ranges.
+	for lineNo := 34; lineNo <= 83; lineNo++ {
+		text := strings.TrimSpace(lines[lineNo-1])
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		switch {
+		case text == "clear":
+			finishFixture()
+			current = &fixture{SourceStart: lineNo}
+		case text == "load":
+			require(current != nil && len(current.Loads) == 0, "unexpected load directive")
+		case strings.HasPrefix(text, "eval "):
+			finishCase()
+			require(current != nil && len(current.Loads) > 0, "evaluation without loads")
+			evaluation = &engineCase{Expected: []series{}, ExpectedEntries: []entry{}, selection: selection{SourceStart: lineNo, SourceEnd: lineNo}}
+			text = strings.TrimSpace(strings.Split(text, " #")[0])
+			if m := instantRE.FindStringSubmatch(text); m != nil {
+				evaluation.Mode, evaluation.Outcome, evaluation.Start, evaluation.End, evaluation.Query = "instant", "series", number(m[1]), number(m[1]), m[2]
+			} else if m := rangeRE.FindStringSubmatch(text); m != nil {
+				evaluation.Mode, evaluation.Outcome, evaluation.Start, evaluation.End, evaluation.Step, evaluation.Query = "range", "series", number(m[1]), number(m[2]), number(m[3]), m[4]
+			} else if m := selectRE.FindStringSubmatch(text); m != nil {
+				evaluation.Mode, evaluation.Outcome, evaluation.Start, evaluation.End, evaluation.Direction, evaluation.Query = "select", "entries", number(m[1]), number(m[2]), m[3], m[4]
+			} else {
+				panic("unexpected evaluation: " + text)
+			}
+		case evaluation != nil:
+			evaluation.SourceEnd = lineNo
+			if evaluation.Mode == "select" {
+				m := entryRE.FindStringSubmatch(text)
+				require(m != nil, "unexpected categorized expectation: "+text)
+				evaluation.ExpectedEntries = append(evaluation.ExpectedEntries, entry{labelText(m[1]), unquote(m[2]), number(m[3]), labelText(m[4]), labelText(m[5]), selectLines(data, lineNo, lineNo, "categorized select oracle")})
+			} else {
+				m := resultRE.FindStringSubmatch(text)
+				require(m != nil, "unexpected metric oracle: "+text)
+				evaluation.Expected = append(evaluation.Expected, series{labelText(m[1]), strings.Fields(m[2])})
+			}
+		default:
+			require(current != nil, "load without clear")
+			m := loadRE.FindStringSubmatch(text)
+			require(m != nil, "unexpected load: "+text)
+			row := load{Labels: labelText(m[1]), Line: unquote(m[2]), Start: number(m[3]), Count: 1, Metadata: labelText(m[6]), selection: selectLines(data, lineNo, lineNo, "complete load row")}
+			if m[4] != "" {
+				row.Every, row.Count = number(m[4]), number(m[5])
+			}
+			current.Loads = append(current.Loads, row)
+		}
+	}
+	finishFixture()
+	return fixtures
+}
+
+func main() {
+	require(len(os.Args) == 3, "usage: logfmt-ownership-producer parser_test.go parsers.logqltest")
+	parserData, parserSource := loadSource(os.Args[1], parserPath, "346b91ced2d38e51d8cf7fd8acb3335ea5796e9286fd901b45dd625c0b3634ff")
+	engineData, engineSource := loadSource(os.Args[2], enginePath, "07d63941842085ca40bbc3944884377e802df38ede67027b9702594e840114ea")
+	parserSource.Selections = []selection{
+		selectLines(parserData, 1181, 1190, "parse table schema"),
+		selectLines(parserData, 1418, 1429, "complete structured-metadata conflict parse row"),
+		selectLines(parserData, 1432, 1468, "non-strict and strict parse harnesses; metadata and effective strict oracle"),
+		selectLines(parserData, 1611, 1621, "expression shared input and table schema"),
+		selectLines(parserData, 1728, 1739, "complete structured-metadata conflict expression row (not 1744-1757)"),
+		selectLines(parserData, 1741, 1757, "expression harness: strict=false, metadata before parsing, flat label assertion"),
+	}
+	engineSource.Selections = []selection{selectLines(engineData, 34, 83, "complete omitted ownership block, including all comments and whitespace")}
+	rows, fixtures := extractTables(parserData), extractEngine(engineData)
+	counts := map[string]int{"parse_rows": 1, "expression_rows": 1, "table_rows": len(rows), "table_evaluations": 3, "engine_fixtures": len(fixtures), "engine_sparse_slots": 0}
+	for _, fixture := range fixtures {
+		counts["engine_load_rows"] += len(fixture.Loads)
+		for _, load := range fixture.Loads {
+			counts["engine_loaded_entries"] += load.Count
+		}
+		for _, row := range fixture.Cases {
+			counts["engine_evaluations"]++
+			counts["engine_"+row.Mode+"_evaluations"]++
+			counts["engine_expected_series"] += len(row.Expected)
+			counts["engine_expected_entries"] += len(row.ExpectedEntries)
+			for _, series := range row.Expected {
+				for _, value := range series.Values {
+					if value == "_" {
+						counts["engine_sparse_slots"]++
+					} else {
+						counts["engine_numeric_slots"]++
+					}
+				}
+			}
+		}
+	}
+	counts["total_evaluations"] = counts["table_evaluations"] + counts["engine_evaluations"]
+	for key, want := range map[string]int{"engine_fixtures": 3, "engine_load_rows": 6, "engine_loaded_entries": 16, "engine_evaluations": 10, "engine_instant_evaluations": 5, "engine_range_evaluations": 2, "engine_select_evaluations": 3, "engine_expected_series": 10, "engine_expected_entries": 3, "engine_numeric_slots": 13, "engine_sparse_slots": 0, "total_evaluations": 13} {
+		require(counts[key] == want, "incorrect count: "+key)
+	}
+	artifact := map[string]any{
+		"schema_version": 1, "revision": revision, "license": "AGPL-3.0-only",
+		"attribution": "Grafana Labs contributors; extraction adapted for Pulse on 2026-10-28. See adjacent LICENSE. No upstream runtime implementation is included.",
+		"provenance":  map[string]any{"repository": "https://github.com/grafana/loki", "producer": "test/fixtures/logs/loki-upstream/logfmt-ownership-producer.go.txt", "method": "Standard-library Go AST plus bounded logqltest source extraction, following logfmt-producer.go.txt; no runtime evaluation.", "sources": []source{parserSource, engineSource}, "range_hash_convention": "SHA-256 of exact inclusive complete source lines, including the final newline. All raw fields preserve indentation, comments and spelling."},
+		"replay": map[string]any{
+			"requirements": "Normal replay reads committed JSON using Elixir/Rust only, without Go, network or expectation generation. The producer is an optional provenance tool, not a test dependency.",
+			"table":        "base_labels is the initial stream owner, structured_metadata is attached by the harness before parsing, initial_parsed_labels={} records the absence of preexisting parsed labels after builder reset. want is the exact flat LabelsResult().Labels() assertion, NOT a categorized output oracle. Do not infer upstream owner assertions from flat labels. keep_empty=false follows the parse harness and is inapplicable to explicit expression extraction.",
+			"strict":       "Run the parse row with strict_values=[false,true]. Non-strict uses want; strict uses effective_strict_want, selecting nonempty want_strict or falling back to want (parser_test.go:1460-1464). Run the expression row only with strict=false, as asserted by its harness at 1743. Do not invent a strict expression evaluation.",
+			"fields":       "Expression fields are ordered [destination, source-expression] pairs; fields_expression and line_definition preserve original Go text. line_expression=testLine is resolved from the exact shared declaration at parser_test.go:1612. Parse-all has no fields column. hint_expression is inert Go source, not evaluated; the selected parse row uses NoParserHints().",
+			"engine":       "All exported times, steps and repeat intervals are integer seconds relative to upstream epoch 2026-01-01T00:00:00Z (logqltest/parser.go:19-25). Replay may shift the entire fixture to a deterministic retained epoch, preserving every relative timestamp. A repeat count includes the first entry; expand start+i*every for i=0..count-1 (parser.go:129-134). Preserve load order, noise and metadata; never flatten metadata into stream labels.",
+			"metrics":      "mode=instant has equal start/end and step=0; mode=range has its explicit step. outcome=series uses expected label maps and original numeric-string values (or sparse underscores); evaluate at start+i*step. Labels are the exact combined metric oracle, not category assertions. Preserve all per-fixture loads across its evaluations, resetting only on clear.",
+			"select":       "mode=select uses explicit direction, start/end and step=0. outcome=entries uses expected_entries: labels is the stream owner only; metadata and parsed are separate per-entry owners. Omitted category clauses become empty maps, not unknown data. timestamp and line are exact source expectations. Match all categories, text and time, not just flattened labels, following logqltest/runner.go:490-545 (categorize-labels encoding). Empty expected/expected_entries arrays are mode placeholders, NOT expect-empty assertions.",
+		},
+		"limitations": []string{
+			"These are frozen upstream table/engine fixtures, not results of actual Loki or Pulse runtime execution. Counts describe selected upstream evaluations, not passing Pulse tests or HTTP/Parquet/S3 acceptance.",
+			"Only parsers.logqltest:34-83 and the two selected parser_test.go rows are exported for replay. Neighboring sources are preserved solely as schema/input/harness provenance. This does not establish general repeated-parser ownership, hints, client/deployment/capacity or full parser compatibility, and invents no repeated-parser example.",
+			"The analogous expression row is actually parser_test.go:1728-1739 at this pin; 1744-1757 is its harness. Table assertions are flat labels; only the three select evaluations provide categorized output oracles.",
+			"Existing logfmt.json (60 evaluations) and logfmt-expressions.json (15 rows) are separate, unchanged selections. No production changes or HTTP replay are included here.",
+		},
+		"counts": counts, "table_cases": rows, "fixtures": fixtures,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	must(enc.Encode(artifact))
+	fmt.Fprintln(os.Stderr, "2 table rows / 3 table evaluations; 3 engine fixtures / 6 loads / 16 entries / 10 evaluations (7 metric, 3 select); 13 evaluations total")
+}

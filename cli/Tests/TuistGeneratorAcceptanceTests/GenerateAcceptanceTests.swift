@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
@@ -17,6 +18,7 @@ import TuistGenerateCommand
 import TuistTestCommand
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct GeneratorAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_app_with_framework_and_tests"))
     func app_with_framework_and_tests() async throws {
@@ -91,6 +93,7 @@ struct GeneratorAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
     @Test(.withFixture("generated_app_with_generated_test_plan"), .inTemporaryDirectory)
     func app_with_generated_test_plan() async throws {
@@ -142,6 +145,7 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func ios_app_with_tests() async throws {
@@ -177,11 +181,21 @@ struct GenerateAcceptanceTestiOSAppWithTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithFrameworks {
     @Test(.withFixture("generated_ios_app_with_frameworks"), .inTemporaryDirectory)
     func ios_app_with_frameworks() async throws {
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
+
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "MainApp.xcworkspace").pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", derivedData.pathString,
+        ])
         try await XCTAssertProductWithDestinationContainsInfoPlistKey(
             "Framework1.framework",
             destination: "Debug-iphonesimulator",
@@ -190,6 +204,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworks {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithHeaders {
     @Test(.disabled(), .withFixture("generated_ios_app_with_headers"), .inTemporaryDirectory)
     func ios_app_with_headers() async throws {
@@ -198,6 +213,7 @@ struct GenerateAcceptanceTestiOSAppWithHeaders {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestInvalidWorkspaceManifestName {
     @Test(.disabled(), .withFixture("generated_invalid_workspace_manifest_name"), .inTemporaryDirectory)
     func invalid_workspace_manifest_name() async throws {
@@ -211,6 +227,7 @@ struct GenerateAcceptanceTestInvalidWorkspaceManifestName {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCacheProfilesInvalidDefault {
     @Test(.disabled(), .withFixture("generated_ios_app_with_cache_profiles_invalid_default"), .inTemporaryDirectory)
     func ios_app_with_cache_profiles_invalid_default() async throws {
@@ -237,6 +254,7 @@ struct GenerateAcceptanceTestCacheProfilesInvalidDefault {
 //    }
 // }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
     @Test(.disabled(), .withFixture("generated_ios_app_with_framework_and_resources"), .inTemporaryDirectory)
     func ios_app_with_framework_and_resources() async throws {
@@ -326,6 +344,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports {
     @Test(
         .disabled(),
@@ -338,6 +357,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithOnDemandResources {
     @Test(.disabled(), .withFixture("generated_ios_app_with_on_demand_resources"), .inTemporaryDirectory)
     func ios_app_with_on_demand_resources() async throws {
@@ -370,6 +390,7 @@ struct GenerateAcceptanceTestiOSAppWithOnDemandResources {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithPrivacyManifest {
     @Test(.disabled(), .withFixture("generated_ios_app_with_privacy_manifest"), .inTemporaryDirectory)
     func ios_app_with_privacy_manifest() async throws {
@@ -385,6 +406,7 @@ struct GenerateAcceptanceTestiOSAppWithPrivacyManifest {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
     @Test(.disabled(), .withFixture("generated_ios_app_with_custom_development_region"), .inTemporaryDirectory)
     func ios_app_with_custom_development_region() async throws {
@@ -416,6 +438,7 @@ struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
     @Test(.disabled(), .withFixture("generated_ios_app_with_custom_resource_parser_options"), .inTemporaryDirectory)
     func ios_app_with_custom_resource_parser_options() async throws {
@@ -453,6 +476,7 @@ struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework {
     @Test(.disabled(), .withFixture("generated_ios_app_with_framework_linking_static_framework"), .inTemporaryDirectory)
     func ios_app_with_framework_linking_static_framework() async throws {
@@ -479,6 +503,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestsiOSAppWithCustomScheme {
     @Test(.disabled(), .withFixture("generated_ios_app_with_custom_scheme"), .inTemporaryDirectory)
     func ios_app_with_custom_scheme() async throws {
@@ -522,11 +547,17 @@ struct GenerateAcceptanceTestsiOSAppWithCustomScheme {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
-    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    @Test(
+        .withFixture("generated_ios_app_with_local_swift_package"),
+        .inTemporaryDirectory,
+        .withTestingSimulator("iPhone 17")
+    )
     func ios_app_with_local_swift_package() async throws {
+        let simulator = try #require(Simulator.testing)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "--device", simulator.name)
     }
 
     @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
@@ -558,6 +589,7 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
     @Test(.withFixture("generated_command_line_tool_with_native_package_traits"), .inTemporaryDirectory)
     func command_line_tool_with_native_package_traits() async throws {
@@ -566,6 +598,7 @@ struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
     @Test(.withFixture("generated_command_line_tool_with_package_access_and_module_map"), .inTemporaryDirectory)
     func command_line_tool_with_package_access_and_module_map() async throws {
@@ -599,6 +632,7 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithLocalMacroPackage {
     @Test(.withFixture("generated_command_line_tool_with_local_macro_package"), .inTemporaryDirectory)
     func command_line_tool_with_local_macro_package() async throws {
@@ -626,6 +660,7 @@ struct GenerateAcceptanceTestCommandLineToolWithLocalMacroPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
     func ios_app_with_objc_and_c_static_framework_package() async throws {
@@ -672,7 +707,7 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
 
 /// This integration test resolves a large external package graph and runs two Xcode builds. Serializing it prevents
 /// the intermittent resource contention observed when it runs alongside the rest of the acceptance-test shard.
-@Suite(.serialized)
+@Suite(.coverageAttribution, .serialized)
 struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
     @Test(.withFixture("generated_ios_app_with_modulemap_packages"), .inTemporaryDirectory)
     func ios_app_with_modulemap_packages() async throws {
@@ -717,6 +752,7 @@ struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     /// Headers stay browsable through their source folder without becoming Xcode build inputs.
     /// Compilation still resolves the custom module map, nested public headers and private includes.
@@ -748,6 +784,7 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     /// Duplicate basenames retain their directory hierarchy. Consumers resolve <nanopb/pb.h>
     /// through the original public include root without copying or flattening either wrapper.
@@ -782,6 +819,7 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSPMFrameworkBundleIdentifiers {
     @Test(.withFixture("generated_app_with_spm_framework_bundle_identifiers"), .inTemporaryDirectory)
     func app_with_spm_framework_bundle_identifiers() async throws {
@@ -836,6 +874,7 @@ struct GenerateAcceptanceTestAppWithSPMFrameworkBundleIdentifiers {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
     /// Pins package compiler-setting propagation through static target chains while ensuring
     /// package object files are linked only by the final binary.
@@ -888,6 +927,7 @@ struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {
@@ -931,6 +971,7 @@ struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithIncompatibleXcode {
     @Test(.disabled(), .withFixture("generated_ios_app_with_incompatible_xcode"), .withMockedDependencies())
     func ios_app_with_incompatible_xcode() async throws {
@@ -990,6 +1031,7 @@ struct GenerateAcceptanceTestiOSAppWithIncompatibleXcode {
 //    }
 // }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithBuildVariables {
     @Test(.disabled(), .withFixture("generated_ios_app_with_build_variables"), .inTemporaryDirectory)
     func ios_app_with_build_variables() async throws {
@@ -1013,6 +1055,7 @@ struct GenerateAcceptanceTestiOSAppWithBuildVariables {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage {
     @Test(.disabled(), .withFixture("generated_ios_app_with_remote_swift_package"), .inTemporaryDirectory)
     func ios_app_with_remote_swift_package() async throws {
@@ -1021,6 +1064,7 @@ struct GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestVisionOSAppWithRemoteSwiftPackage {
     @Test(.disabled(), .withFixture("generated_visionos_app"), .inTemporaryDirectory)
     func visionos_app() async throws {
@@ -1030,6 +1074,7 @@ struct GenerateAcceptanceTestVisionOSAppWithRemoteSwiftPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
     @Test(.disabled(), .withFixture("generated_ios_app_with_local_binary_swift_package"), .inTemporaryDirectory)
     func ios_app_with_local_binary_swift_package() async throws {
@@ -1038,6 +1083,7 @@ struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSignedLocalBinarySwiftPackage {
     @Test(.disabled(), .withFixture("generated_app_with_signed_local_binary_swift_package"), .inTemporaryDirectory)
     func app_with_signed_local_binary_swift_package() async throws {
@@ -1059,6 +1105,7 @@ struct GenerateAcceptanceTestAppWithSignedLocalBinarySwiftPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithExtensions {
     @Test(.withFixture("generated_ios_app_with_extensions"), .inTemporaryDirectory)
     func ios_app_with_extensions() async throws {
@@ -1123,6 +1170,7 @@ struct GenerateAcceptanceTestiOSAppWithExtensions {
 //    }
 // }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithWatchApp2 {
     @Test(.disabled(), .withFixture("generated_ios_app_with_watchapp2"), .inTemporaryDirectory)
     func ios_app_with_watchapp2() async throws {
@@ -1149,6 +1197,7 @@ struct GenerateAcceptanceTestiOSAppWithWatchApp2 {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestInvalidManifest {
     @Test(.withFixture("generated_invalid_manifest"), .inTemporaryDirectory)
     func invalid_manifest() async throws {
@@ -1158,6 +1207,7 @@ struct GenerateAcceptanceTestInvalidManifest {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppLarge {
     @Test(.disabled(), .withFixture("generated_ios_app_large"), .inTemporaryDirectory)
     func ios_app_large() async throws {
@@ -1165,6 +1215,7 @@ struct GenerateAcceptanceTestiOSAppLarge {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle {
     @Test(.disabled(), .withFixture("generated_ios_workspace_with_dependency_cycle"), .inTemporaryDirectory)
     func ios_workspace_with_dependency_cycle() async throws {
@@ -1177,6 +1228,7 @@ struct GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithCoreData {
     @Test(.disabled(), .withFixture("generated_ios_app_with_coredata"), .inTemporaryDirectory)
     func ios_app_with_coredata() async throws {
@@ -1208,6 +1260,7 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithAppClip {
     @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
@@ -1233,6 +1286,7 @@ struct GenerateAcceptanceTestiOSAppWithAppClip {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolBase {
     @Test(.withFixture("generated_command_line_tool_basic"), .inTemporaryDirectory)
     func command_line_tool_basic() async throws {
@@ -1242,6 +1296,7 @@ struct GenerateAcceptanceTestCommandLineToolBase {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestGeneratedBundleWithMetalFiles {
     @Test(.disabled(), .withFixture("generated_bundle_with_metal_files"), .inTemporaryDirectory)
     func generated_bundle_with_metal_files() async throws {
@@ -1255,6 +1310,7 @@ struct GenerateAcceptanceTestGeneratedBundleWithMetalFiles {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
     @Test(.disabled(), .withFixture("generated_metallib_in_static_framework"), .inTemporaryDirectory)
     func generated_bundle_with_metal_files() async throws {
@@ -1268,6 +1324,7 @@ struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithStaticLibrary {
     @Test(.disabled(), .withFixture("generated_command_line_tool_with_static_library"), .inTemporaryDirectory)
     func command_line_tool_with_static_library() async throws {
@@ -1276,6 +1333,7 @@ struct GenerateAcceptanceTestCommandLineToolWithStaticLibrary {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithDynamicLibrary {
     @Test(.disabled(), .withFixture("generated_command_line_tool_with_dynamic_library"), .inTemporaryDirectory)
     func command_line_tool_with_dynamic_library() async throws {
@@ -1284,6 +1342,7 @@ struct GenerateAcceptanceTestCommandLineToolWithDynamicLibrary {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestCommandLineToolWithDynamicFramework {
     @Test(.disabled(), .withFixture("generated_command_line_tool_with_dynamic_framework"), .inTemporaryDirectory)
     func command_line_tool_with_dynamic_framework() async throws {
@@ -1292,6 +1351,7 @@ struct GenerateAcceptanceTestCommandLineToolWithDynamicFramework {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
     @Test(.disabled(), .withFixture("generated_macos_app_with_copy_files"), .inTemporaryDirectory)
     func macos_app_with_copy_files() async throws {
@@ -1328,6 +1388,7 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestManifestWithLogs {
     @Test(.disabled(), .withFixture("generated_manifest_with_logs"), .withMockedDependencies())
     func manifest_with_logs() async throws {
@@ -1336,6 +1397,7 @@ struct GenerateAcceptanceTestManifestWithLogs {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestsProjectWithClassPrefix {
     @Test(.disabled(), .withFixture("generated_project_with_class_prefix"), .inTemporaryDirectory)
     func project_with_class_prefix() async throws {
@@ -1352,6 +1414,7 @@ struct GenerateAcceptanceTestsProjectWithClassPrefix {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
     @Test(.disabled(), .withFixture("generated_project_with_file_header_template"), .inTemporaryDirectory)
     func project_with_file_header_template() async throws {
@@ -1371,6 +1434,7 @@ struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
     @Test(.disabled(), .withFixture("generated_project_with_inline_file_header_template"), .inTemporaryDirectory)
     func project_with_inline_file_header_template() async throws {
@@ -1390,6 +1454,7 @@ struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
     @Test(.disabled(), .withFixture("generated_workspace_with_file_header_template"), .inTemporaryDirectory)
     func workspace_with_file_header_template() async throws {
@@ -1409,6 +1474,7 @@ struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
     @Test(.disabled(), .withFixture("generated_workspace_with_inline_file_header_template"), .inTemporaryDirectory)
     func workspace_with_inline_file_header_template() async throws {
@@ -1428,6 +1494,7 @@ struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
     @Test(.disabled(), .withFixture("generated_ios_app_with_framework_and_disabled_resources"), .inTemporaryDirectory)
     func ios_app_with_framework_and_disabled_resources() async throws {
@@ -1470,6 +1537,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestmacOSAppWithExtensions {
     @Test(.disabled(), .withFixture("generated_macos_app_with_extensions"), .inTemporaryDirectory)
     func macos_app_with_extensions() async throws {
@@ -1496,6 +1564,7 @@ struct GenerateAcceptanceTestmacOSAppWithExtensions {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
     @Test(.disabled(), .withFixture("generated_ios_app_with_none_linking_status_framework"), .inTemporaryDirectory)
     func ios_app_with_none_linking_status_framework() async throws {
@@ -1523,6 +1592,7 @@ struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
     @Test(.disabled(), .withFixture("generated_ios_app_with_weakly_linked_framework"), .inTemporaryDirectory)
     func ios_app_with_weakly_linked_framework() async throws {
@@ -1548,6 +1618,7 @@ struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithCatalyst {
     @Test(.disabled(), .withFixture("generated_ios_app_with_catalyst"), .inTemporaryDirectory)
     func ios_app_with_catalyst() async throws {
@@ -1568,6 +1639,7 @@ struct GenerateAcceptanceTestiOSAppWithCatalyst {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestSPMPackage {
     @Test(.disabled(), .withFixture("generated_spm_package"), .inTemporaryDirectory)
     func spm_package() async throws {
@@ -1582,6 +1654,7 @@ struct GenerateAcceptanceTestSPMPackage {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithDefaultConfiguration {
     @Test(.disabled(), .withFixture("generated_app_with_custom_default_configuration"), .inTemporaryDirectory)
     func app_with_custom_default_configuration() async throws {
@@ -1590,6 +1663,7 @@ struct GenerateAcceptanceTestAppWithDefaultConfiguration {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
     @Test(.disabled(), .withFixture("generated_app_with_custom_default_configuration_settings"), .inTemporaryDirectory)
     func app_with_custom_default_configuration_settings() async throws {
@@ -1608,6 +1682,7 @@ struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithCustomScheme {
     @Test(.disabled(), .withFixture("generated_app_with_custom_scheme"), .inTemporaryDirectory)
     func app_with_custom_scheme() async throws {
@@ -1629,6 +1704,7 @@ struct GenerateAcceptanceTestAppWithCustomScheme {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest {
     @Test(.disabled(), .withFixture("generated_ios_app_without_config_manifest"), .inTemporaryDirectory)
     func generated_ios_app_without_config_manifest() async throws {
@@ -1637,6 +1713,7 @@ struct GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GeneratediOSStaticLibraryWithStringResources {
     @Test(.disabled(), .withFixture("generated_ios_static_library_with_string_resources"), .inTemporaryDirectory)
     func generated_ios_static_library_with_string_resources() async throws {
@@ -1653,6 +1730,7 @@ struct GeneratediOSStaticLibraryWithStringResources {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
     func ios_app_with_static_framework_with_xcstrings() async throws {
@@ -1691,6 +1769,7 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestStaticFrameworkWithBundleMacro {
     @Test(.withFixture("generated_static_framework_with_bundle_macro"), .inTemporaryDirectory)
     func static_framework_with_bundle_macro() async throws {
@@ -1699,6 +1778,7 @@ struct GenerateAcceptanceTestStaticFrameworkWithBundleMacro {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.disabled(), .withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {
@@ -1726,6 +1806,7 @@ struct GenerateAcceptanceTestsAppWithMetalOptions {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithGoogleMaps {
     @Test(.disabled(), .withFixture("generated_app_with_google_maps"), .inTemporaryDirectory)
     func app_with_google_maps() async throws {
@@ -1735,6 +1816,7 @@ struct GenerateAcceptanceTestAppWithGoogleMaps {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithGlobs {
     @Test(.disabled(), .withFixture("generated_app_with_globs"), .inTemporaryDirectory)
     func app_with_globs() async throws {
@@ -1758,6 +1840,7 @@ struct GenerateAcceptanceTestAppWithGlobs {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages {
     @Test(.disabled(), .withFixture("generated_framework_with_macro_and_plugin_packages"), .inTemporaryDirectory)
     func framework_with_macro_and_plugin_packages() async throws {
@@ -1767,6 +1850,7 @@ struct GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithRevenueCat {
     @Test(.disabled(), .withFixture("generated_app_with_revenue_cat"), .inTemporaryDirectory)
     func app_with_revenue_cat() async throws {
@@ -1776,6 +1860,7 @@ struct GenerateAcceptanceTestAppWithRevenueCat {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSwiftCMark {
     @Test(.disabled(), .withFixture("generated_app_with_swift_cmark"), .inTemporaryDirectory)
     func app_with_swift_cmark() async throws {
@@ -1785,6 +1870,7 @@ struct GenerateAcceptanceTestAppWithSwiftCMark {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSPMModuleAliases {
     @Test(.disabled(), .withFixture("generated_app_with_spm_module_aliases"), .inTemporaryDirectory)
     func app_with_spm_module_aliases() async throws {
@@ -1794,6 +1880,7 @@ struct GenerateAcceptanceTestAppWithSPMModuleAliases {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
     @Test(
         .disabled(),
@@ -1821,6 +1908,7 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
     @Test(.disabled(), .withFixture("generated_app_with_executable_non_local_dependencies"), .inTemporaryDirectory)
     func app_with_non_local_app_dependencies() async throws {
@@ -1854,6 +1942,7 @@ struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithGeneratedSources {
     @Test(.disabled(), .withFixture("generated_app_with_generated_sources"), .inTemporaryDirectory)
     func app_with_generated_sources() async throws {
@@ -1882,6 +1971,7 @@ struct GenerateAcceptanceTestAppWithGeneratedSources {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithMacBundle {
     @Test(.disabled(), .withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
     func app_with_mac_bundle() async throws {
@@ -2046,6 +2136,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
     @Test(.disabled(), .withFixture("generated_app_with_signed_xcframework_dependencies"))
     func app_with_signed_xcframework_dependencies() async throws {
@@ -2075,6 +2166,7 @@ struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
     }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
         .disabled(),
@@ -2109,6 +2201,7 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
 //    }
 }
 
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
     @Test(.withFixture("generated_app_with_buildable_folder_membership"), .inTemporaryDirectory)
     func app_with_buildable_folder_membership() async throws {

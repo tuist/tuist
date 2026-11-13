@@ -61,9 +61,9 @@ defmodule Tuist.Application.RuntimeChildren do
   worker and re-sends itself `:init_worker` with no backoff, so the pool
   stays up and retries forever (measured at ~120 failures per second on
   both xcresult-processor replicas), burning CPU on hosts whose only job
-  is CPU-bound xcresult parsing and flooding Sentry. `start_pool/1` cannot
-  intercept it: `NimblePool.start_link/2` has already returned `{:ok, pid}`
-  by then, so the `:ignore` branch never runs.
+  is CPU-bound xcresult parsing and flooding Sentry. In `:web` mode,
+  `Tuist.OpenGraphImageRenderer.start_pool/1` checks for Chrome before
+  starting the pool and returns `:ignore` when there is none.
   """
   def open_graph_image_renderer(:web) do
     [

@@ -1,4 +1,9 @@
-<div id="build-run" data-build-system="cargo">
+<div
+  id="build-run"
+  data-build-system="cargo"
+  phx-hook="PageFavicon"
+  data-favicon-status={@build.status}
+>
   <.button
     label={dgettext("dashboard_builds", "Builds")}
     data-part="back-button"
@@ -100,6 +105,7 @@
           </div>
         </div>
       </div>
+      <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
       <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
     </.card_section>
   </.card>

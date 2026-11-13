@@ -1,0 +1,4 @@
+storage:
+  bucket: tuist-pulso-production
+  endpoint: https://t3.storage.dev
+  prefix: openobserve/

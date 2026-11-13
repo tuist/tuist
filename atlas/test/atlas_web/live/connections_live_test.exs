@@ -7,6 +7,7 @@ defmodule AtlasWeb.ConnectionsLiveTest do
   alias Atlas.Audit.Activity
   alias Atlas.Connections.Config
   alias Atlas.Connections.Connection
+  alias Atlas.Connections.Gmail
   alias Atlas.Repo
 
   setup do
@@ -30,17 +31,46 @@ defmodule AtlasWeb.ConnectionsLiveTest do
     assert has_element?(view, "#account-connections-link [data-selected]")
     assert has_element?(view, "#connection-account-github", "octocat")
     assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize']")
-    assert has_element?(view, "#connection-gmail-consent[href='/connections/google/authorize?gmail=read']")
+    refute has_element?(view, "#connection-gmail-consent")
     refute has_element?(view, "#connection-disconnect-slack")
     refute render(view) =~ "private-access"
     refute render(view) =~ "private-refresh"
 
     view |> element("#connection-disconnect-github") |> render_click()
-    refute has_element?(view, "#connection-account-github")
+    refute has_element?(view, "#connection-account-github", "octocat")
     refute has_element?(view, "#connection-disconnect-github")
     assert Repo.get(Connection, own.id) == nil
     assert Repo.get!(Connection, foreign.id)
     assert Repo.get_by!(Activity, action: "connection.disconnected", target_id: own.id).interface == "dashboard"
+  end
+
+  test "Gmail consents are offered once Google is connected, and later consents keep the granted ones", %{conn: conn} do
+    {conn, user} = log_in_user(conn)
+    google = insert_connection!(user, "google")
+    {:ok, view, _html} = live(conn, ~p"/settings/connections")
+    assert has_element?(view, "#connection-gmail-consent[href='/connections/google/authorize?gmail=read']")
+    assert has_element?(view, "#connection-gmail-drafts-consent[href='/connections/google/authorize?gmail=compose']")
+    assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize']")
+
+    google |> Ecto.Changeset.change(scopes: [Gmail.scope()]) |> Repo.update!()
+    {:ok, view, _html} = live(conn, ~p"/settings/connections")
+    refute has_element?(view, "#connection-gmail-consent")
+    assert has_element?(view, "#connection-gmail-status", "Read access granted")
+    assert has_element?(view, "#connection-gmail-drafts-status", "Not granted")
+
+    assert has_element?(
+             view,
+             "#connection-gmail-drafts-consent[href='/connections/google/authorize?gmail=read,compose']"
+           )
+
+    assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize?gmail=read']")
+
+    google |> Ecto.Changeset.change(scopes: [Gmail.compose_scope()]) |> Repo.update!()
+    {:ok, view, _html} = live(conn, ~p"/settings/connections")
+    refute has_element?(view, "#connection-gmail-drafts-consent")
+    assert has_element?(view, "#connection-gmail-drafts-status", "Drafts access granted")
+    assert has_element?(view, "#connection-gmail-consent[href='/connections/google/authorize?gmail=read,compose']")
+    assert has_element?(view, "#connection-connect-google[href='/connections/google/authorize?gmail=compose']")
   end
 
   test "unconfigured connections remain visible without unusable consent links", %{conn: conn} do

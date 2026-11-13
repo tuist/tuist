@@ -7,9 +7,9 @@
 ---
 # Install Tuist {#install-tuist}
 
-The Tuist command-line interface runs on **macOS** and **Linux** and connects your Xcode, generated, Gradle, and Bazel projects to Tuist's cache, insights, and runner infrastructure. Although you can build Tuist from [source](https://github.com/tuist/tuist), we recommend one of the installation methods below to ensure a valid, verifiable installation.
+The Tuist command-line interface runs on **macOS** and **Linux** and connects your Xcode, generated, Gradle, Bazel, and Rust projects to Tuist's cache, insights, and runner infrastructure. Although you can build Tuist from [source](https://github.com/tuist/tuist), we recommend one of the installation methods below to ensure a valid, verifiable installation. Elixir projects use the `tuist_ex` Hex package instead and do not need the CLI.
 
-### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
+## Mise {#recommended-mise}
 
 > [!NOTE]
 > If you don't have Mise installed, follow the [getting started guide](https://mise.jdx.dev/getting-started.html) first. Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
@@ -27,7 +27,7 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 If you clone a project that already has a Tuist version pinned in `mise.toml`, run `mise install` to install it.
 
 > [!TIP]
-> `tuist@latest` resolves to the latest **stable** release. Tuist also publishes prerelease canary and release candidate builds; those are opt-in only and are never resolved by `latest`. See <.localized_link href="/cli/release-channels">Release channels</.localized_link> for how to pin a stable line you can trust and how to opt into prereleases.
+> `tuist@latest` resolves to the latest **stable** release. Tuist also publishes prerelease canary and release candidate builds; those are opt-in only and are never resolved by `latest`. See <.localized_link href="/cli/release/channels">Release channels</.localized_link> for how to pin a stable line you can trust and how to opt into prereleases.
 
 <details>
 <summary>Linux support</summary>
@@ -37,7 +37,7 @@ On Linux, Tuist is available exclusively via Mise. Commands that depend on Xcode
 </details>
 
 
-### <a href="https://brew.sh">Homebrew</a> (macOS only) {#recommended-homebrew}
+## Homebrew (macOS only) {#recommended-homebrew}
 
 You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
 
@@ -48,7 +48,7 @@ brew install --formula tuist@x.y.z
 ```
 
 > [!TIP]
-> **Verifying The Authenticity Of The Binaries**
+> **Verifying the authenticity of the binaries**
 >
 > You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
 >
@@ -59,3 +59,8 @@ brew install --formula tuist@x.y.z
 ## HTTP proxy {#http-proxy}
 
 If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+
+## Next steps {#next-steps}
+
+- Follow the <.localized_link href="/guides/get-started">Get started guide</.localized_link> to connect your project to Tuist.
+- Explore [Tuist's build infrastructure for engineering teams and coding agents](https://tuist.dev) for the broader product context.

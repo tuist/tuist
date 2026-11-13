@@ -1,4 +1,14 @@
-# iOS and macOS companion app
+# Tuist clients
+
+The Once workspace in this directory is the parallel Rust-core client, reporting to `tuist/app`. Native frontend sources live in `apple/`, `ios/`, `macos/`, and `android/`; the moved GPUI frontend lives in `gpui/`. Keep shared business logic in Rust crates, platform UI in Swift/Kotlin/GPUI, and UI dependencies out of the shared core. See `README.md` for build commands and coexistence boundaries.
+
+Use the separate `dev.tuist.app.preview` identity for new Apple/Android clients. Distribution is internal-preview-only: no store uploads, public releases, production OAuth/deep-link registrations, or changes to shipping client behavior. The legacy project below remains at its existing paths, and the shipping Android client remains in `../android/`.
+
+New Apple copy belongs in `apple/Resources/en.lproj/Localizable.strings`; new Android copy belongs in `android/res/values/strings.xml`. Platform code owns localization; the Rust core exposes stable destination IDs through the C/JNI bridge. Once builds must not import legacy Swift CLI modules or the legacy Gradle app. Run new-client tasks with the root mise config excluded as documented in the README, leaving root toolchain behavior unchanged for legacy builds.
+
+## Existing iOS and macOS companion app
+
+The following sections govern the existing `Project.swift`, `Sources/`, `Resources/`, and `Tests/` client, not the parallel Once frontends.
 
 SwiftUI app with a macOS menu bar and iOS project/preview management. Shared CLI
 modules supply server access, domain models, and automation; keep those concerns
@@ -40,3 +50,9 @@ xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp
 - Obtain complete project names/counts from authorized `/previews/tracks`, never a downloaded page. Counts stay full-project totals across filters; All includes untracked previews. Older servers remain browsable without invented partial choices/counts. Accept case-only track differences (`citext`), but detect missing/different filters.
 - Keep horizontally scrolling Tracks pills below the rounded selector, selected purple; All resets without a separate clear/menu/alert. Release notes are plain text: first nonblank line truncated in rows, full text in details, never Markdown/HTML. Keep the track tag beside the commit hash.
 - Empty states use native pull-to-refresh, not a duplicate button; filtered states explain adjusting filters and unfiltered states explain pulling down. Await refresh so its indicator tracks the request; refresh projects when none are loaded.
+
+## Localization
+
+- User-facing copy lives in `Resources/TuistApp/en.lproj/Localizable.strings`, keyed by the English text. Pass literals to SwiftUI APIs or `LocalizedStringKey` parameters, use `String(localized:)` for `String` values, and `Text(verbatim:)` for user or server content. `.strings` has no plural rules, so avoid count-dependent wording.
+- When you add or change user-facing copy, update the English catalog in the same change: add each new key with the English text as its value, and remove keys the code no longer uses. A key missing from the catalog still renders in English but is never translated.
+- The Glossia GitHub App owns the other `.lproj` catalogs; never edit them. `L10N.md` configures it.

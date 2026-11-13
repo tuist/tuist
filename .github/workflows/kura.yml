@@ -9,6 +9,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +17,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   merge_group: {}
 
 permissions:
@@ -81,10 +83,8 @@ jobs:
       # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
       # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking the merge.
       # (Bazel has no local fallback for a gRPC cache that errors mid-build.)
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -148,10 +148,8 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -216,10 +214,8 @@ jobs:
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       # Remote cache is best-effort here too (see bazel-compile): falls back to a cold local build.
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -299,6 +295,9 @@ jobs:
       DOCKER_BUILDKIT: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The Kura preview below reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
 
       - uses: tuist/cache-volume@v1
         with:
@@ -313,10 +312,8 @@ jobs:
       # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -328,6 +325,14 @@ jobs:
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
+
+      # Publishes the binary above as a preview of the tuist/kura project (from
+      # tuist.toml), so people and agents can try the pull request with
+      # `tuist run <preview-url>`. A failed upload must not hold back the E2E shards.
+      - name: Share Kura preview
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: tuist share bin/amd64 --executable kura
 
       - name: Assemble the runtime image
         run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
@@ -405,7 +410,7 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh spec/e2e/xcode_lookups_lifecycle_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh spec/e2e/xcode_lookups_lifecycle_spec.sh spec/e2e/action_inputs_spec.sh"
           - shard_name: bytestream-admission
             specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff

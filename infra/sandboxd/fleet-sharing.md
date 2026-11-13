@@ -57,7 +57,8 @@ The priority order is:
    CI shape, but CI queued elsewhere does not veto every sandbox grant.
 3. CI warm floors and recent-demand headroom. Idle, unclaimed warm runners can
    be retired for a deferred sandbox growth even while CI is queued. There is
-   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes.
+   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes,
+   except 20 seconds after a sandbox's last command (see below).
 
 Admission is opportunistic, not a global FIFO queue or a guaranteed resource
 split. Kubernetes arbitrates competing Pod requests. Keep sandbox demand
@@ -73,7 +74,8 @@ changing CI limits. Creating, resuming and running rows count, including detache
 Amp processes; paused rows retain disk but release compute quota. The account
 row serializes admission and reservation across replicas before node commands
 are sent. Lowering a limit blocks new starts/resumes without stopping running
-work. The existing five-live-sandbox count (including paused disks) also applies.
+work. There is no sandbox count: the account's disk limit charges every sandbox
+on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
 sandboxes. Reclaim page cache and request a shrink, but do not spend the released
@@ -106,7 +108,10 @@ must conflict if a newer resize or Pod replacement already landed.
 
 Every accepted observation transactionally queues an idempotent Oban reclaim job.
 Busy sandbox locks are skipped rather than waited on; the next observation retries
-them. Shared-node pauses have zero extra grace and enqueue a shrink immediately.
+them. Shared-node pauses have zero extra grace and enqueue a shrink immediately,
+except the pause after a sandbox's last command ends, which waits 20 seconds so
+the next command of a run (a sync, then a build) finds it running. The sandbox
+holds no residency meanwhile, so pressure from an observation pauses it at once.
 There is no three-minute warm hold. Only an in-flight growth can retain its request
 for up to 15 seconds while admission waits for it; a pause or CI reclaim bypasses
 that interval. The minute cron remains a recovery sweep. A failed shrink is
@@ -153,8 +158,9 @@ sandbox growth, stale coordination generations, a controller/server restart,
 active-turn protection, failed pause/shrink, and repeated demand/shrink cycles.
 Measure CI queue and job latency as well as sandbox startup latency.
 
-Coordinate a staging deployment before replacing its current experiment. Build
-matching daemon, guest and controller images and pin their immutable tags. The
+Coordinate a staging deployment before replacing its current experiment. A
+staging deployment from the branch builds the matching daemon and guest images;
+build the controller image and pin its immutable tag. The
 controller reaches canary/production through a `runners-controller@` release,
 separately from the server/chart. Keep account flags off until both sides and the
 metrics are present, then enable the Tuist account first.
@@ -163,7 +169,7 @@ Rollback first stops accepting new sandbox work through the account flag. Let
 active turns finish and shrink allocations before removing daemons; deleting a
 daemon is not a substitute for reclaim. Preserve node-local files needed for
 paused sessions. Canary and production chart values enable the daemons with
-their pinned images and 1 GiB floor per node. The account flag controls API and
+a 1 GiB floor per node. The account flag controls API and
 poller access, not the daemon's baseline resources or template prebuilds. Keep
 the global flag off and enable only the Tuist account initially, after matching
 releases are deployed and grants are confirmed. The generic chart default stays

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/sandbox"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
@@ -32,13 +32,23 @@ func (f *fakeBackend) Resume(ctx context.Context, id string) (protocol.ResumeRes
 	}
 	return protocol.ResumeResult{RestoreMs: 3}, nil
 }
-func (f *fakeBackend) Pause(ctx context.Context, id string) (protocol.PauseResult, error) {
-	if id == "busy" {
+func (f *fakeBackend) PauseWith(ctx context.Context, args protocol.PauseArgs) (protocol.PauseResult, error) {
+	if args.SandboxID == "busy" {
 		return protocol.PauseResult{}, sandbox.ErrBusy
 	}
 	return protocol.PauseResult{SnapshotMs: 4, MemBytes: 5}, nil
 }
 func (f *fakeBackend) Delete(ctx context.Context, id string) error { return nil }
+func (f *fakeBackend) SaveDisks(ctx context.Context, args protocol.SaveDisksArgs) (protocol.SaveDisksResult, error) {
+	return protocol.SaveDisksResult{}, nil
+}
+func (f *fakeBackend) DeleteDisks(ctx context.Context, id string) error { return nil }
+func (f *fakeBackend) Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	return protocol.ArchiveResult{}, nil
+}
+func (f *fakeBackend) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
+	return protocol.ArchiveResult{}, nil
+}
 func (f *fakeBackend) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.OutputFunc) (protocol.ExecResult, error) {
 	out("stdout", []byte("out\n"))
 	out("stderr", []byte("err\n"))

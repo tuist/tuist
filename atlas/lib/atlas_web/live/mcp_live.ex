@@ -497,6 +497,7 @@ defmodule AtlasWeb.MCPLive do
 
   defp auth_label(:oauth2), do: gettext("OAuth")
   defp auth_label(:bearer_token), do: gettext("Shared token")
+  defp auth_label(:service_account_token), do: gettext("Service account")
   defp auth_label(:none), do: gettext("None")
 
   defp status_label(:connected), do: gettext("Connected")

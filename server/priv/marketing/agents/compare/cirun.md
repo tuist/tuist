@@ -6,7 +6,7 @@ Choose Tuist for supported build-output reuse, toolchain evidence, and agent inv
 
 [Cirun's documentation](https://docs.cirun.io/) covers cloud connections, runner configuration, custom images, and on-premises execution. Its [on-premises guide](https://docs.cirun.io/on-prem) explains connecting customer infrastructure instead of moving all execution to a hosted fleet.
 
-Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its automatic Actions-cache backend currently supports Linux runners on AWS; the separate [S3-compatible cache action](https://docs.cirun.io/caching/s3-compatible) supports broader OS, cloud, and runner environments with a compatible store and configured credentials. Do not describe Cirun as lacking caching or conflate those two integration scopes.
+Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its automatic Actions-cache backend currently supports Linux runners on AWS; the separate [S3-compatible cache action](https://docs.cirun.io/caching/s3-compatible) supports broader OS, cloud, and runner environments with a compatible store and configured credentials. Cirun does offer caching, and those two integration scopes differ.
 
 ## Compare the operating model
 
@@ -28,9 +28,5 @@ Keep the existing runner configuration and pilot a [supported Tuist integration]
 ## Sources and review
 
 Sources checked on **2026-10-08**: [Cirun documentation](https://docs.cirun.io/), [on-premises runners](https://docs.cirun.io/on-prem), [automatic caching](https://docs.cirun.io/caching/), [S3-compatible action](https://docs.cirun.io/caching/s3-compatible), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and distinguishes runner lifecycle from artifact reuse.
-
-## Limitations
-
-You still need to own cloud permissions, machine configuration, network policy, and operational cost. Cache integration support and lifecycle behavior can change. Tuist capabilities vary by toolchain; selective testing requires generated Xcode projects. Licenses and supported server self-hosting are separate questions. Tuist Runners are invite-only with no public pricing, and no guaranteed saving is claimed.
 
 Related: [RunsOn](/marketing-markdown/compare/runs-on), [Buildkite](/marketing-markdown/compare/buildkite), and [all comparisons](/marketing-markdown/compare).

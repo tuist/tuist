@@ -37,11 +37,20 @@ if [[ ! -e /home/user/workspace && ! -L /home/user/workspace ]]; then
     ln -s /workspace/amp /home/user/workspace
 fi
 
+# The Tuist URL and cache endpoint reach Amp's processes when dispatch
+# supplies them. No Tuist credential does: Tuist clients in the guest sign in
+# with the Orb's Amp identity. They stay out of the fingerprint, so a retried
+# spawn never restarts a running bootstrap.
+tuist_env=()
+for name in TUIST_URL TUIST_CACHE_ENDPOINT; do
+    [[ -z "${!name:-}" ]] || tuist_env+=("$name=${!name}")
+done
+
 # exec preserves this child's PID across privilege drop and launch. Open
 # logs as user, detach all streams, and do not inherit the dispatch lock.
 nohup setpriv --reuid=user --regid=user --init-groups \
     env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/user USER=user LOGNAME=user LANG=C.UTF-8 \
-    ORB_TOKEN="$ORB_TOKEN" AMP_URL="$AMP_URL" \
+    ORB_TOKEN="$ORB_TOKEN" AMP_URL="$AMP_URL" "${tuist_env[@]}" \
     bash -c 'cd /home/user; exec /usr/local/bin/amp orb bootstrap >.amp-bootstrap.log 2>&1' \
     </dev/null >/dev/null 2>&1 9>&- &
 pid=$!

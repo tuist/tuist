@@ -44,86 +44,63 @@ struct AtlasThreadDetail: View {
             && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
     }
 
-    var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    if selectionMatches {
-                        if model.hasOlder, !model.messages.isEmpty {
-                            Button(model.loadingHistory || pagingHistory ? "Loading earlier messages…" : "Load earlier messages") {
-                                Task { await loadEarlier() }
-                            }
-                            .disabled(model.loadingHistory || pagingHistory).frame(minHeight: 44)
-                            .accessibilityIdentifier("thread-earlier")
-                        }
-                        if current.kind == "private", !model.messages.isEmpty || showsWelcome {
-                            #if os(iOS)
-                                Label("Private · Only you and \(assistantName)", systemImage: "lock")
-                                    .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
-                            #endif
-                            if showsWelcome {
-                                AtlasPipWelcome()
-                            }
-                        }
-                        AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
-                            await model.componentAction(messageId: id, event: event)
-                        }
-                        if current.kind == "private", !model.historyCached, let environmentRequest {
-                            AtlasEnvironmentActivityView(threadId: thread.id, enabled: current.status != "archived",
-                                                         request: environmentRequest)
-                                .id(thread.id)
-                        }
-                        if let activity = model.activityMessage {
-                            AtlasThreadActivity(message: activity,
-                                                typing: model.selected?.agentStatus == "running" && model.activeToolName == nil)
-                        }
-                        if let error = model.errorMessage {
-                            Text(error).font(.callout).foregroundStyle(.red)
-                            Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
-                        }
+    private var timeline: some View {
+        Group {
+            if selectionMatches {
+                if model.hasOlder, !model.messages.isEmpty {
+                    Button(model.loadingHistory || pagingHistory ? "Loading earlier messages…" : "Load earlier messages") {
+                        Task { await loadEarlier() }
                     }
-                    Color.clear.frame(height: current.status == "archived" && !model.messages.isEmpty ? 49 : 1).id("thread-latest")
+                    .disabled(model.loadingHistory || pagingHistory).frame(minHeight: 44)
+                    .accessibilityIdentifier("thread-earlier")
                 }
-                .scrollTargetLayout()
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
-                .background {
-                    if #unavailable(iOS 18.0, macOS 15.0) {
-                        GeometryReader { content in
-                            Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
-                                height: content.size.height,
-                                bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
-                                viewport: geometry.size.height))
-                        }
-                    }
+                if current.kind == "private", !model.messages.isEmpty || showsWelcome {
+                    #if os(iOS)
+                        Label("Private · Only you and \(assistantName)", systemImage: "lock")
+                            .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
+                    #endif
+                    if showsWelcome { AtlasPipWelcome() }
+                }
+                AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
+                    await model.componentAction(messageId: id, event: event)
+                }
+                if current.kind == "private", !model.historyCached, let environmentRequest {
+                    AtlasEnvironmentActivityView(threadId: thread.id, enabled: current.status != "archived",
+                                                 request: environmentRequest)
+                        .id(thread.id)
+                }
+                if let activity = model.activityMessage {
+                    AtlasThreadActivity(message: activity,
+                                        typing: model.selected?.agentStatus == "running" && model.activeToolName == nil)
+                }
+                if let error = model.errorMessage {
+                    Text(error).font(.callout).foregroundStyle(.red)
+                    Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
                 }
             }
-            .scrollPosition(id: $visibleMessageID, anchor: scrollAnchor)
-            .modifier(AtlasThreadScrollObserver(update: { metrics in
+            Color.clear.frame(height: current.status == "archived" && !model.messages.isEmpty ? 49 : 1).id("thread-latest")
+                .listRowInsets(EdgeInsets())
+        }
+    }
+
+    private var scrollableTranscript: some View {
+        AtlasThreadTranscript { timeline }
+            .modifier(AtlasThreadScrollObserver(messageID: $visibleMessageID, anchor: scrollAnchor,
+                                               following: scrolling.following,
+                                               latest: selectionMatches ? model.messages.last : nil,
+                                               activity: model.activityMessage, update: { metrics in
                 guard selectionMatches else { return }
-                if !jumpingToPrompt, scrolling.update(metrics), !showsWelcome { followLatest() }
+                if !jumpingToPrompt { scrolling.update(metrics) }
                 if hasShownMessages, !scrolling.following, !jumpingToPrompt, metrics.offset < 240,
                    model.hasOlder, !model.loadingHistory, !pagingHistory, model.errorMessage == nil {
                     Task { await loadEarlier() }
                 }
             }, interaction: { scrolling.userScrolling = $0 }))
             .scrollDismissesKeyboard(.interactively)
-            .modifier(AtlasThemedContent())
             .refreshable { if selectionMatches { await model.history() } }
             .onChange(of: model.messages.last?.id, initial: true) { _, latest in
                 guard selectionMatches, latest != nil else { return }
-                if !hasShownMessages || scrolling.following { followLatest() }
                 hasShownMessages = true
-            }
-            .onChange(of: model.activityMessage) { _, _ in
-                if scrolling.following { followLatest() }
-            }
-            .onChange(of: scrolling.following) { _, following in
-                if following { followLatest() }
-            }
-            .onChange(of: geometry.size.height) { _, _ in
-                if scrolling.following, !showsWelcome { followLatest() }
             }
             .overlay(alignment: .bottomTrailing) {
                 if current.status == "archived" { threadNavigation.padding() }
@@ -143,29 +120,47 @@ struct AtlasThreadDetail: View {
                     ProgressView("Loading conversation…").accessibilityIdentifier("thread-history-loading")
                 }
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if current.status == "archived" {
-                HStack {
-                    Label("Archived conversation", systemImage: "archivebox").font(.subheadline).foregroundStyle(.secondary)
-                    Spacer()
-                    if let selfId, current.ownerId == selfId {
-                        Button { Task { await model.archive(current, archived: false) } } label: {
-                            Text("Restore").frame(minWidth: 44, minHeight: 44)
-                        }
-                        .disabled(model.saving).accessibilityIdentifier("thread-restore")
+    }
+
+    @ViewBuilder private var bottomBar: some View {
+        if current.status == "archived" {
+            HStack {
+                Label("Archived conversation", systemImage: "archivebox").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                if let selfId, current.ownerId == selfId {
+                    Button { Task { await model.archive(current, archived: false) } } label: {
+                        Text("Restore").frame(minWidth: 44, minHeight: 44)
                     }
+                    .disabled(model.saving).accessibilityIdentifier("thread-restore")
                 }
-                .padding(.horizontal).padding(.bottom, 8).background(.bar)
-            } else if model.historyCached {
-                Text("Saved conversation. Connect to refresh before sending.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .padding().frame(maxWidth: .infinity).background(.bar)
-                    .accessibilityIdentifier("thread-saved-history")
-            } else {
-                composer
+            }
+            .padding(.horizontal).padding(.bottom, 8).background(.bar)
+        } else if model.historyCached {
+            Text("Saved conversation. Connect to refresh before sending.")
+                .font(.footnote).foregroundStyle(.secondary)
+                .padding().frame(maxWidth: .infinity).background(.bar)
+                .accessibilityIdentifier("thread-saved-history")
+        } else {
+            composer
+        }
+    }
+
+    @ViewBuilder private var conversation: some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            scrollableTranscript.safeAreaBar(edge: .bottom, spacing: 0) {
+                GlassEffectContainer(spacing: 0) { bottomBar }
+            }
+        } else {
+            VStack(spacing: 0) {
+                scrollableTranscript
+                bottomBar
             }
         }
+    }
+
+    var body: some View {
+        conversation
+        .modifier(AtlasThemedContent())
         #if os(iOS)
         .navigationTitle(current.kind == "private" ? assistantName : current.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -252,32 +247,11 @@ extension AtlasThreadDetail {
                                               guard selectionMatches else { return }
                                               scrolling.following = id == "thread-latest"
                                               jumpingToPrompt = false
-                                              if scrolling.following {
-                                                  followLatest()
-                                              } else {
-                                                  // Settle the target after lazy rows finish changing their estimates during the animation.
-                                                  scrolling.schedulePosition(following: false, clear: {
-                                                      if selectionMatches { visibleMessageID = nil }
-                                                  }, {
-                                                      if selectionMatches { visibleMessageID = id }
-                                                  })
-                                              }
                                           }
                                       })
                                       .id(thread.id)
             }
         }
-    }
-
-    private func followLatest() {
-        scrolling.schedulePosition(clear: {
-            guard selectionMatches, !jumpingToPrompt, !showsWelcome else { return }
-            visibleMessageID = nil
-        }, {
-            guard selectionMatches, !jumpingToPrompt, !showsWelcome else { return }
-            scrollAnchor = .bottom
-            visibleMessageID = "thread-latest"
-        })
     }
 
     private func resetPresentation() {
@@ -354,7 +328,8 @@ extension AtlasThreadDetail {
                 #if os(iOS)
                 if editing {
                     Button("Hide keyboard", systemImage: "keyboard.chevron.compact.down") { editing = false }
-                        .labelStyle(.iconOnly).frame(width: 44, height: 44)
+                        .labelStyle(.iconOnly).buttonStyle(.plain).frame(width: 44, height: 44)
+                        .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
                         .accessibilityIdentifier("thread-hide-keyboard")
                 }
                 #endif

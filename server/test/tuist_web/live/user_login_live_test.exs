@@ -46,9 +46,11 @@ defmodule TuistWeb.UserLoginLiveTest do
     test "renders SSO button if Okta is configured", %{conn: conn} do
       stub(Environment, :okta_oauth_configured?, fn -> true end)
       stub(Environment, :tuist_hosted?, fn -> false end)
-      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+      {:ok, lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "SSO"
+      assert has_element?(lv, "[data-part='authentication-methods'] #passkey-login")
+      assert has_element?(lv, "[data-part='authentication-methods'] [data-part='sso']")
     end
 
     test "does not render SSO button if Okta is not configured and not tuist hosted", %{
@@ -97,8 +99,16 @@ defmodule TuistWeb.UserLoginLiveTest do
     test "renders email and password fields regardless of mail configuration", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
-      assert has_element?(lv, "input#email")
-      assert has_element?(lv, "input#password")
+      assert has_element?(lv, "input#email[autocomplete='username webauthn']")
+      assert has_element?(lv, "input#password[autocomplete='current-password']")
+
+      assert has_element?(
+               lv,
+               "#passkey-login[hidden] > button",
+               "Log in with a passkey"
+             )
+
+      assert has_element?(lv, "[data-part='oauth-providers'] #passkey-login")
     end
 
     test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do
@@ -107,6 +117,7 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, lv, html} = live(conn, ~p"/users/log_in")
 
       refute has_element?(lv, "#login_form")
+      refute has_element?(lv, "#passkey-login")
       refute has_element?(lv, "input#password")
       refute html =~ "Sign up"
     end

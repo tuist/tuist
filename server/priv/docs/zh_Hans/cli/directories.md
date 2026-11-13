@@ -7,11 +7,11 @@
 ---
 # 目录 {#directories}
 
-Tuist 遵循 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，将文件组织在系统上的多个目录中。这提供了一种清晰、标准的方式来管理配置、缓存和状态文件。
+Tuist 遵循 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，将文件组织在系统中的多个目录下。这提供了一种简洁、标准的方式来管理配置、缓存和状态文件。
 
 ## 支持的环境变量 {#supported-environment-variables}
 
-Tuist 同时支持标准的 XDG 变量和带有 Tuist 特定前缀的变体。Tuist 特定的变体（以 `TUIST_` 为前缀）具有更高优先级，允许你独立于其他应用程序配置 Tuist。
+Tuist 同时支持标准的 XDG 环境变量和带有 Tuist 特定前缀的变体。Tuist 特定的变体（以 `TUIST_` 为前缀）具有更高优先级，允许你独立于其他应用程序配置 Tuist。
 
 ### 配置目录 {#configuration-directory}
 
@@ -44,13 +44,13 @@ tuist auth login
 **默认值：** `~/.cache/tuist`
 
 **用途：**
-- **Plugins**：下载并编译的插件缓存
-- **ProjectDescriptionHelpers**：编译后的项目描述辅助代码
+- **Plugins**：已下载并编译的插件缓存
+- **ProjectDescriptionHelpers**：已编译的项目描述辅助代码
 - **Manifests**：缓存的清单文件
 - **Projects**：生成的自动化项目缓存
 - **EditProjects**：edit 命令的缓存
 - **Runs**：测试和构建运行的分析数据
-- **Binaries**：构建产物二进制文件（无法在不同环境间共享）
+- **Binaries**：构建产物二进制文件（不可在不同环境间共享）
 - **SelectiveTests**：选择性测试缓存
 
 **示例：**
@@ -74,7 +74,7 @@ tuist cache
 
 **用途：**
 - **Sessions**：会话日志和网络记录（`sessions/{uuid}/`）
-- **Locks**：身份验证锁文件（`{handle}.sock`）
+- **Locks**：认证锁文件（`{handle}.sock`）
 
 **示例：**
 ```bash
@@ -96,7 +96,7 @@ tuist generate
 3. **默认位置**（例如 `~/.config/tuist`）
 
 这使你可以：
-- 使用标准 XDG 变量来一致地组织所有应用程序
+- 使用标准 XDG 变量来统一组织所有应用程序
 - 当需要为 Tuist 使用不同位置时，可通过 Tuist 特定变量进行覆盖
 - 无需任何配置即可依赖合理的默认值
 

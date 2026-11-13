@@ -1,0 +1,26 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-comparison" lang="en" dir="ltr">
+    <article data-part="article">
+      <nav aria-label={dgettext("marketing", "Breadcrumbs")} data-part="breadcrumbs">
+        <ol>
+          <li :for={{name, path} <- @breadcrumbs}>
+            <a :if={path != @page.path} href={path}>{name}</a>
+            <span :if={path == @page.path} aria-current="page">{name}</span>
+          </li>
+        </ol>
+      </nav>
+      <header data-part="header">
+        <p data-part="eyebrow">{dgettext("marketing", "Compare your options")}</p>
+        <h1>{@page.title}</h1>
+        <p :if={@page.last_updated} data-part="last-updated">
+          {dgettext("marketing", "Last updated %{date}",
+            date: Timex.format!(@page.last_updated, "{Mfull} {D}, {YYYY}")
+          )}
+        </p>
+      </header>
+      <section data-part="content" data-prose>
+        {raw(content_html(@page.body))}
+      </section>
+    </article>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Server do
   alias Tuist.Environment
   alias Tuist.MCP.Components.Prompts
   alias Tuist.MCP.Components.Tools
+  alias Tuist.MCP.Feedback
 
   # Backed by the hosted Typesense search service, so only offered on the
   # Tuist-hosted installation.
@@ -20,6 +21,10 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.GetBazelIntegrationGuide,
+    Tools.QueryPulse,
+    Tools.GetPulseAnalytics,
+    Tools.GetPulseErrorIssue,
+    Tools.GetPulseErrorEvent,
     Tools.ListAccounts,
     Tools.GetOrganization,
     Tools.ListAccountTokens,
@@ -29,6 +34,18 @@ defmodule Tuist.MCP.Server do
     Tools.AddOrganizationMember,
     Tools.InviteOrganizationMember,
     Tools.CancelOrganizationInvitation,
+    Tools.ListAISubscriptions,
+    Tools.ConnectClaudeSubscription,
+    Tools.StartChatGPTSubscriptionLogin,
+    Tools.PollChatGPTSubscriptionLogin,
+    Tools.CancelChatGPTSubscriptionLogin,
+    Tools.DisconnectAISubscription,
+    Tools.ListNotificationEvents,
+    Tools.ListNotificationConditionOptions,
+    Tools.ListNotificationRules,
+    Tools.CreateNotificationRule,
+    Tools.UpdateNotificationRule,
+    Tools.DeleteNotificationRule,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -45,7 +62,20 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerVolumeJobs,
     Tools.ListRunnerJobVolumes,
     Tools.GetRunnerVolumeAnalytics,
-    Tools.ClearRunnerVolume,
+    Tools.DeleteRunnerVolume,
+    Tools.ListSandboxes,
+    Tools.GetSandbox,
+    Tools.CreateSandbox,
+    Tools.GetSandboxAnalytics,
+    Tools.PauseSandbox,
+    Tools.ResumeSandbox,
+    Tools.ArchiveSandbox,
+    Tools.DeleteSandbox,
+    Tools.ListAmpWorkspaceConnections,
+    Tools.ConnectAmpWorkspace,
+    Tools.DisconnectAmpWorkspace,
+    Tools.ListClaudeEnvironments,
+    Tools.ConnectClaudeEnvironment,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -56,6 +86,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildSteps,
     Tools.GetXcodeBuildStep,
+    Tools.GetBuildTrace,
     Tools.ListXcodeBuildIssues,
     Tools.ListXcodeBuildCacheTasks,
     Tools.ListXcodeBuildCASOutputs,
@@ -149,7 +180,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.43.0",
+      version: "1.61.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
@@ -161,7 +192,9 @@ defmodule Tuist.MCP.Server do
   defp tools do
     hosted_tools = if Environment.tuist_hosted?(), do: @hosted_tools, else: []
     codebase_tools = if codebase_search_enabled?(), do: @codebase_tools, else: []
-    hosted_tools ++ codebase_tools ++ @tools
+    # Reports are published to Atlas, Tuist's internal support system.
+    feedback_tools = if Environment.tuist_hosted?() and Feedback.enabled?(), do: [Tools.ReportFeedback], else: []
+    hosted_tools ++ codebase_tools ++ feedback_tools ++ @tools
   end
 
   defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)

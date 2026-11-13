@@ -23,6 +23,28 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
     end
   end
 
+  test "deletes macOS Orbs a week after their pause, which have no archive tier" do
+    expired =
+      sandbox_fixture(
+        state: :paused,
+        amp_orb_id: "amp-old",
+        platform: :darwin,
+        node_name: "mac-a",
+        paused_at: days_ago(8)
+      )
+
+    fresh = sandbox_fixture(state: :paused, amp_orb_id: "amp-new", platform: :darwin, paused_at: days_ago(6))
+    linux = sandbox_fixture(state: :paused, amp_orb_id: "amp-linux", paused_at: days_ago(8))
+    expired_id = expired.id
+
+    expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: ^expired_id}, _opts -> {:ok, %{}} end)
+
+    assert :ok = perform_job(RetentionWorker, %{})
+    refute Repo.get(Sandbox, expired.id)
+    assert Repo.reload!(fresh).state == :paused
+    assert Repo.reload!(linux).state == :paused
+  end
+
   test "deletes sandboxes paused for longer than the retention window and keeps the rest" do
     expired =
       sandbox_fixture(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -217,6 +218,39 @@ func TestEnsurePodNATFencesGuestsOffTheDaemon(t *testing.T) {
 	accept := strings.Index(joined, "-A FORWARD -s 172.31.0.0/16 -j ACCEPT")
 	if drop < 0 || accept < 0 || drop > accept {
 		t.Fatalf("the slot-to-slot drop must be installed before the forwarding accept:\n%s", joined)
+	}
+}
+
+func TestEnsurePodNATKeepsGuestsOffTheDaemonOnlyPorts(t *testing.T) {
+	f := &fakeRunner{}
+	m := &Manager{
+		Run: f.run, Log: slog.Default(),
+		DaemonOnlyTCPPorts:  []int{3900, 8080},
+		DaemonOnlyEndpoints: []netip.AddrPort{netip.MustParseAddrPort("10.96.12.34:80")},
+	}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(f.calls, "\n")
+	accept := strings.Index(joined, "-A FORWARD -s 172.31.0.0/16 -j ACCEPT")
+	for _, rule := range []string{
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 3900 -j DROP",
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 8080 -j DROP",
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -d 10.96.12.34 -p tcp --dport 80 -j DROP",
+	} {
+		drop := strings.Index(joined, rule)
+		if drop < 0 || accept < 0 || drop > accept {
+			t.Fatalf("%q must be installed before the forwarding accept:\n%s", rule, joined)
+		}
+	}
+
+	f = &fakeRunner{}
+	m = &Manager{Run: f.run, Log: slog.Default()}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if joined := strings.Join(f.calls, "\n"); strings.Contains(joined, "--dport") {
+		t.Fatalf("no port is dropped without one configured:\n%s", joined)
 	}
 }
 

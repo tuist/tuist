@@ -15,8 +15,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
@@ -108,6 +113,11 @@ type AutoscalerReconciler struct {
 	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
 	// when the chart runs no sandboxes.
 	SandboxesNamespace string
+
+	// ReservationsNamespace, when set, is where the manager caches macOS
+	// sandbox reservation Pods; a new one reconciles the darwin pools at
+	// once instead of on the next poll.
+	ReservationsNamespace string
 
 	// APIReader is an uncached reader for the sandbox daemons, which live
 	// outside the namespace the manager caches. Nil falls back to Client.
@@ -482,10 +492,16 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
-	if pool.Spec.OS == "linux" {
+	nativeSlots := map[string]int32{}
+	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
 		daemons, err := r.sandboxDaemons(ctx)
 		if err != nil {
 			return nil, err
+		}
+		for _, daemon := range daemons {
+			if daemon.native {
+				nativeSlots[daemon.node]++
+			}
 		}
 		for i := range nodes.Items {
 			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
@@ -502,7 +518,11 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 			if nodeFilterReason(&nodes.Items[i]) != "" {
 				continue
 			}
-			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+			available := nodeSeatsForShape(&nodes.Items[i], shape)
+			if nativeSlots[nodes.Items[i].Name] > 0 {
+				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
+			}
+			seats += available
 		}
 		caps[key] = seats
 	}
@@ -676,6 +696,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			Name:       p.Name,
 			PerPodCost: cost,
 			Floor:      scaling.WarmFloor(sig, k),
+			InUse:      sig.InUse(),
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),
@@ -750,6 +771,13 @@ func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, 
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for i := range nodes.Items {
+		nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+	}
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
 
@@ -808,11 +836,54 @@ func (r *AutoscalerReconciler) now() time.Time {
 }
 
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{}).
-		Complete(r)
+		For(&tuistv1.RunnerPool{})
+	if r.ReservationsNamespace != "" {
+		// A new macOS sandbox reservation may be waiting for an idle CI
+		// runner's slot. Reconcile the darwin pools now rather than on the
+		// next poll, so the sandbox's create or restore waits less.
+		b = b.Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.darwinPools), builder.WithPredicates(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return e.Object.GetNamespace() == r.ReservationsNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
+			},
+			UpdateFunc:  func(event.UpdateEvent) bool { return false },
+			DeleteFunc:  func(event.DeleteEvent) bool { return false },
+			GenericFunc: func(event.GenericEvent) bool { return false },
+		}))
+	}
+	return b.Complete(r)
+}
+
+// darwinPools reconciles the pools with runners on the reservation's host,
+// the only ones that can give it room. Enqueueing every darwin pool put the
+// pool owning that idle runner behind the others' reconciles, each of which
+// lists every Pod in the cluster: in production, with 21 darwin pools, a
+// sandbox create or restore waited 5 to 12 s for its runner to be retired.
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, obj client.Object) []reconcile.Request {
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools); err != nil {
+		return nil
+	}
+	var runners corev1.PodList
+	listErr := r.List(ctx, &runners, client.HasLabels{"tuist.dev/runner-pool"})
+	node := obj.(*corev1.Pod).Spec.NodeName
+	onNode := map[client.ObjectKey]bool{}
+	for i := range runners.Items {
+		if pod := &runners.Items[i]; pod.Spec.NodeName == node {
+			onNode[client.ObjectKey{Namespace: pod.Namespace, Name: pod.Labels["tuist.dev/runner-pool"]}] = true
+		}
+	}
+	var requests []reconcile.Request
+	for _, pool := range pools.Items {
+		key := client.ObjectKeyFromObject(&pool)
+		// Without the runners, every darwin pool, as before.
+		if pool.Spec.OS == "darwin" && (onNode[key] || listErr != nil) {
+			requests = append(requests, reconcile.Request{NamespacedName: key})
+		}
+	}
+	return requests
 }

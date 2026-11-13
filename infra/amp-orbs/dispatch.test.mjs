@@ -46,12 +46,12 @@ async function dispatch(overrides = {}, status = 204, executable = script) {
   }
 }
 
-test('spawn translates the contract without forwarding provider credentials or snapshot IDs', async () => {
+test('spawn translates the contract without forwarding provider credentials', async () => {
   const { code, requests } = await dispatch({ AMP_URL: 'https://amp.example.com', ORB_SNAPSHOT_ID: 'snapshot-id', AMP_ORB_PROVIDER_TOKEN: 'provider-secret' });
   assert.equal(code, 0);
   assert.deepEqual(requests, [{
     path: '/api/accounts/test-team/sandboxes/amp-orbs/amp-thread', auth: 'Bearer api-secret',
-    body: { operation: 'spawn', orb_token: 'orb-secret', template: 'default', vcpus: 2, memory_mb: 4096, workspace_gb: 10, amp_url: 'https://amp.example.com' },
+    body: { operation: 'spawn', snapshot_id: 'snapshot-id', orb_token: 'orb-secret', template: 'default', vcpus: 2, memory_mb: 4096, workspace_gb: 10, amp_url: 'https://amp.example.com' },
   }]);
 });
 
@@ -61,6 +61,15 @@ test('pause and delete require no per-Orb token or image', async () => {
     assert.equal(code, 0);
     assert.deepEqual(requests[0].body, { operation });
   }
+});
+
+test('pause forwards the project snapshot to save; delete never does', async () => {
+  const pause = await dispatch({ ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_IMAGE: '', ORB_SNAPSHOT_ID: 'proj_01:a.b-c' });
+  assert.equal(pause.code, 0);
+  assert.deepEqual(pause.requests[0].body, { operation: 'pause', snapshot_id: 'proj_01:a.b-c' });
+  const remove = await dispatch({ ORB_OPERATION: 'delete', ORB_TOKEN: '', ORB_IMAGE: '', ORB_SNAPSHOT_ID: 'snapshot-id' });
+  assert.equal(remove.code, 0);
+  assert.deepEqual(remove.requests[0].body, { operation: 'delete' });
 });
 
 test('live observer works without inheriting any provider AMP_* variables', async () => {
@@ -87,7 +96,7 @@ test('live observer works without inheriting any provider AMP_* variables', asyn
 });
 
 test('refuses unsafe path components, missing tokens, unsupported images and unknown operations before HTTP', async () => {
-  for (const overrides of [{ ORB_ID: '../other' }, { TUIST_ACCOUNT: 'a/b' }, { ORB_TOKEN: '' }, { ORB_IMAGE: 'arbitrary:latest' }, { ORB_OPERATION: 'unknown' }]) {
+  for (const overrides of [{ ORB_ID: '../other' }, { TUIST_ACCOUNT: 'a/b' }, { ORB_TOKEN: '' }, { ORB_IMAGE: 'arbitrary:latest' }, { ORB_OPERATION: 'unknown' }, { ORB_SNAPSHOT_ID: '../other' }]) {
     const { code, requests } = await dispatch(overrides);
     assert.notEqual(code, 0);
     assert.equal(requests.length, 0);
@@ -101,6 +110,16 @@ test('does not retry unmarked HTTP errors or log private response bodies', async
     assert.match(output, new RegExp(`HTTP ${status}`));
     assert.equal(requests.length, 1);
   }
+});
+
+test('fails a pause whose project snapshot was not saved, without retrying', async () => {
+  const { code, output, requests } = await dispatch(
+    { ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_SNAPSHOT_ID: 'proj-1' },
+    () => ({ status: 503, headers: { 'X-Tuist-Orb-Refusal': 'snapshot-not-saved' } }),
+  );
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert.match(output, /could not save its project snapshot/);
 });
 
 test('supports an explicitly installed template and allowed shape', async () => {
@@ -139,6 +158,31 @@ test('managed dispatch rereads the rotated workload token and ignores a requeste
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test('managed spawns forward the orb type and explain an unknown one; standalone spawns keep their shape', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-type-'));
+  const identity = join(directory, 'token');
+  try {
+    await writeFile(identity, 'identity');
+    const managed = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos' });
+    assert.equal(managed.code, 0, managed.output);
+    assert.equal(managed.requests[0].body.orb_type, 'macos');
+
+    const unknown = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'gpu' },
+      () => ({ status: 400, headers: { 'X-Tuist-Orb-Refusal': 'unknown-orb-type' } }));
+    assert.notEqual(unknown.code, 0);
+    assert.equal(unknown.requests.length, 1);
+    assert.match(unknown.output, /does not offer the orb type 'gpu'/);
+
+    const pause = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos', ORB_OPERATION: 'pause', ORB_TOKEN: '' });
+    assert.equal(pause.requests[0].body.orb_type, undefined);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+
+  const standalone = await dispatch({ ORB_TYPE: 'macos' });
+  assert.equal(standalone.code, 0, standalone.output);
+  assert.equal(standalone.requests[0].body.orb_type, undefined);
+  assert.equal(standalone.requests[0].body.template, 'default');
+});
+
 const admission = status => ({ status, headers: { 'X-Tuist-Orb-Retry': 'admission' } });
 
 test('never retries an ambiguous transport failure', async () => {
@@ -170,6 +214,7 @@ test('stops at the admission deadline instead of making another request', async 
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
   assert.match(output, /Timed out waiting for sandbox capacity/);
+  assert.match(output, /archiving a paused Orb/);
 });
 
 test('HTTP time counts against the wait deadline', async () => {
@@ -187,7 +232,7 @@ test('allows disabling waiting and rejects invalid or extended wait budgets', as
   const { code, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '0' }, () => admission(429));
   assert.equal(code, 1);
   assert.equal(requests.length, 1);
-  for (const value of ['151', '-1', '1.5', 'forever', '99999999999999999', '08']) {
+  for (const value of ['91', '150', '-1', '1.5', 'forever', '99999999999999999', '08']) {
     const result = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: value });
     assert.equal(result.code, 1);
     assert.equal(result.requests.length, 0);

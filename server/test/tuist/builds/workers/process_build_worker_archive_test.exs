@@ -11,11 +11,23 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
   @build_id "00000000-0000-4000-8000-000000000001"
   @log_name ~c"xcactivitylog/build.xcactivitylog"
 
+  # One CLI sample inside the recording window (Apple reference time 0.125..1.325).
+  @sample ~s({"timestamp":978307200.625,"cpu_usage_percent":50,"memory_used_bytes":1,"memory_total_bytes":2,) <>
+            ~s("network_bytes_in":3,"network_bytes_out":4,"disk_bytes_read":5,"disk_bytes_written":6,) <>
+            ~s("disk_total_bytes":500000000000,"disk_available_bytes":125000000000})
+
   setup :verify_on_exit!
 
   setup context do
+    metrics_entries =
+      case context[:machine_metrics] do
+        nil -> []
+        :over_cap -> [{~c"machine_metrics.jsonl", @sample <> "\n" <> :binary.copy(" ", 32 * 1024 * 1024)}]
+        jsonl -> [{~c"machine_metrics.jsonl", jsonl}]
+      end
+
     {:ok, {_, archive}} =
-      :zip.create(~c"build.zip", [{@log_name, "original activity log"}], [:memory, {:compress, []}])
+      :zip.create(~c"build.zip", [{@log_name, "original activity log"} | metrics_entries], [:memory, {:compress, []}])
 
     archive =
       case context[:archive_error] do
@@ -85,6 +97,51 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
     assert_received {:extracted_path, extracted_path}
     refute File.exists?(download_path)
     refute File.exists?(Path.dirname(extracted_path))
+  end
+
+  @tag machine_metrics: @sample <> "\n"
+  test "ingests machine metric samples from the archive" do
+    stub_parse_and_get_build()
+
+    expect(Builds, :create_build, fn attrs ->
+      assert [sample] = attrs.machine_metrics
+      assert sample.timestamp == 978_307_200.625
+      assert sample.offset_ms == 500.0
+      assert sample.cpu_usage_percent == 50
+      assert sample.disk_bytes_written == 6
+      assert sample.disk_total_bytes == 500_000_000_000
+      assert sample.disk_available_bytes == 125_000_000_000
+      {:ok, attrs}
+    end)
+
+    assert :ok = ProcessBuildWorker.perform(job(1))
+  end
+
+  # The same valid sample, padded with a blank line to just over the 32 MiB cap.
+  @tag machine_metrics: :over_cap
+  test "skips a machine metrics file larger than the cap and still processes the build" do
+    stub_parse_and_get_build()
+
+    expect(Builds, :create_build, fn attrs ->
+      assert attrs.status == "success"
+      assert attrs.machine_metrics == []
+      {:ok, attrs}
+    end)
+
+    assert :ok = ProcessBuildWorker.perform(job(1))
+  end
+
+  defp stub_parse_and_get_build do
+    expect(XCActivityLogParser, :parse, fn _path, _, _, false, consume ->
+      consume.(%{
+        "status" => "success",
+        "duration" => 1200,
+        "time_started_recording" => 0.125,
+        "time_stopped_recording" => 1.325
+      })
+    end)
+
+    expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
   end
 
   defp job(attempt) do

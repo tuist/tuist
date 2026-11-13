@@ -1,0 +1,465 @@
+defmodule TuistWeb.SandboxesLiveTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
+  use Mimic
+
+  import Ecto.Query
+  import Phoenix.LiveViewTest
+  import TuistTestSupport.Fixtures.SandboxesFixtures
+
+  alias Tuist.Accounts
+  alias Tuist.FeatureFlags
+  alias Tuist.Repo
+  alias Tuist.Sandboxes.Events
+  alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.Sandbox
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
+
+  setup %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    %{account: account} =
+      AccountsFixtures.organization_fixture(name: "sandbox-org", creator: user, preload: [:account])
+
+    conn = conn |> assign(:selected_account, account) |> log_in_user(user)
+    %{conn: conn, user: user, account: account}
+  end
+
+  defp log_in_with_role(conn, account, role) do
+    member = AccountsFixtures.user_fixture()
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    Accounts.add_user_to_organization(member, organization, role: role)
+    conn |> recycle() |> assign(:selected_account, account) |> log_in_user(member)
+  end
+
+  describe "feature flag" do
+    test "the pages do not exist while the flag is off", %{conn: conn, account: account} do
+      stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
+
+      for path <- [
+            "/#{account.name}/sandboxes",
+            "/#{account.name}/sandboxes/instances"
+          ] do
+        assert_raise NotFoundError, fn -> live(conn, path) end
+      end
+    end
+
+    test "the sidebar links to sandboxes only while the flag is on", %{conn: conn, account: account} do
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/members")
+      assert html =~ ~s(href="/#{account.name}/sandboxes")
+
+      stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/members")
+      refute html =~ ~s(href="/#{account.name}/sandboxes")
+    end
+  end
+
+  describe "overview" do
+    test "shows how to start a sandbox from the CLI when the account has no sandboxes", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
+
+      assert has_element?(lv, "#sandboxes-empty-state", "Run agents in sandboxes")
+      assert has_element?(lv, "#sandboxes-empty-state", "tuist sandbox create")
+      refute has_element?(lv, "#sandboxes")
+    end
+
+    test "shows the most recent sandboxes and current usage", %{conn: conn, account: account} do
+      oldest = sandbox_fixture(account: account, amp_orb_id: "orb-oldest", state: :paused)
+      recent = for i <- 1..4, do: sandbox_fixture(account: account, amp_orb_id: "orb-recent-#{i}", state: :paused)
+      sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      Repo.update_all(from(s in Sandbox, where: s.id == ^oldest.id), set: [inserted_at: ~U[2026-01-01 00:00:00Z]])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
+
+      assert has_element?(lv, "#sandboxes-recent a[href='/#{account.name}/sandboxes/instances']", "View more")
+      assert has_element?(lv, "#sandboxes-recent tbody tr", "orb-active")
+      refute has_element?(lv, "#sandbox-#{oldest.id}")
+      assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
+      refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
+      refute has_element?(lv, "#sandboxes-empty-state")
+      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
+      refute has_element?(lv, "#sandboxes-concurrency-disk")
+    end
+
+    test "charts the account's sandbox history", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-history")
+      Events.record(sandbox, "created")
+      Events.record(sandbox, "started", Events.boot("disk_snapshot", 1_500))
+      Events.record(sandbox_fixture(amp_orb_id: "orb-of-another-account"), "created")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
+      render_async(lv, 5_000)
+
+      assert has_element?(lv, "#widget-sandboxes-created", "1")
+      assert has_element?(lv, "#widget-sandboxes-time-to-start", "p50 Time to start")
+      refute has_element?(lv, "#widget-sandboxes-time-to-start", "No data yet")
+      assert has_element?(lv, "#widget-sandboxes-setup", "No data yet")
+      assert has_element?(lv, "#sandboxes-created-chart")
+
+      render_click(lv, "select_widget", %{"widget" => "time_to_start"})
+      render_async(lv, 5_000)
+
+      assert_patch(lv, ~p"/#{account.name}/sandboxes?widget=time_to_start")
+      assert has_element?(lv, "#sandboxes-time-to-start-chart")
+    end
+  end
+
+  describe "instances" do
+    test "lists the account's sandboxes", %{conn: conn, account: account} do
+      active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      paused = sandbox_fixture(account: account, amp_orb_id: "orb-paused", state: :paused, vcpus: 4, memory_mb: 8192)
+      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
+      other = sandbox_fixture(amp_orb_id: "orb-of-another-account")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
+
+      assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
+      assert has_element?(lv, "#sandboxes-table th", "Instance")
+      refute has_element?(lv, "#sandboxes-table th", "Name")
+      refute has_element?(lv, "#sandbox-#{active.id} td:first-child [data-part=sublabel]")
+      assert has_element?(lv, "#sandbox-#{active.id}", "Active")
+      assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(4)", "4")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(5)", "8 GB")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(6)", "10 GB")
+      assert has_element?(lv, "#sandboxes-table th", "Memory")
+      refute has_element?(lv, "#sandboxes-table th", "Resources")
+      assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
+      refute has_element?(lv, "#sandbox-#{other.id}")
+      refute has_element?(lv, "#sandboxes-table th", "Source")
+      refute has_element?(lv, "[data-part='pagination']")
+    end
+
+    test "shows one compact identifier while preserving full IDs", %{conn: conn, account: account} do
+      amp_id = "amp-019a1234-5678-7000-8000-123456abcdef"
+      amp = sandbox_fixture(account: account, amp_orb_id: amp_id, state: :paused)
+      short = sandbox_fixture(account: account, anthropic_session_id: "sesn_1234567890123456789", state: :paused)
+      long = sandbox_fixture(account: account, anthropic_session_id: "sesn_12345678901234567890", state: :paused)
+      standalone = sandbox_fixture(account: account, state: :paused)
+
+      for path <- ["/#{account.name}/sandboxes", "/#{account.name}/sandboxes/instances"] do
+        {:ok, lv, _html} = live(conn, path)
+
+        for {sandbox, full_id, label} <- [
+              {amp, amp_id, "amp-019a…56abcdef"},
+              {short, "sesn_1234567890123456789", "sesn_1234567890123456789"},
+              {long, "sesn_12345678901234567890", "sesn_123…34567890"}
+            ] do
+          assert has_element?(lv, "#sandbox-#{sandbox.id} td:first-child [title='#{full_id}'] [data-part=label]", label)
+          refute has_element?(lv, "#sandbox-#{sandbox.id} td:first-child [data-part=sublabel]")
+        end
+
+        assert has_element?(lv, "#sandbox-#{standalone.id} td:first-child [title='#{standalone.id}']")
+      end
+
+      {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{amp.id}")
+      assert has_element?(lv, "h1", amp_id)
+      assert has_element?(lv, "[data-part=metadata]", amp.id)
+    end
+
+    test "shows username, verified email and authenticated Anthropic creators without linking accounts", %{
+      conn: conn,
+      account: account,
+      user: user
+    } do
+      user |> Ecto.Changeset.change(email_verified_at: DateTime.utc_now(:second)) |> Repo.update!()
+      matched = sandbox_fixture(account: account, state: :paused)
+      reported = sandbox_fixture(account: account, state: :paused)
+      verified_email = sandbox_fixture(account: account, state: :paused)
+      unknown = sandbox_fixture(account: account, state: :paused)
+
+      environment = agent_environment_fixture(account: account)
+      session = agent_session_fixture(account: account, agent_environment: environment, created_by_user_id: user.id)
+
+      anthropic =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          agent_environment_id: environment.id,
+          anthropic_session_id: session.anthropic_session_id
+        )
+
+      matched
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_matched",
+        amp_creator_username: String.upcase(user.account.name),
+        amp_creator_name: String.upcase(user.account.name)
+      )
+      |> Repo.update!()
+
+      reported
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_reported",
+        amp_creator_username: "amp-only-creator",
+        amp_creator_name: "creator@example.com"
+      )
+      |> Repo.update!()
+
+      verified_email
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_verified_email",
+        amp_creator_username: "different-amp-username",
+        amp_creator_name: user.email,
+        amp_creator_email: String.upcase(user.email)
+      )
+      |> Repo.update!()
+
+      for path <- [
+            "/#{account.name}/sandboxes",
+            "/#{account.name}/sandboxes/instances?filter_status_op=%3D%3D&filter_status_val=paused"
+          ] do
+        {:ok, lv, _html} = live(conn, path)
+        assert has_element?(lv, "#sandbox-#{matched.id} [data-actor-source=matched]", user.account.name)
+        refute has_element?(lv, "[data-actor-source=verified]")
+        assert has_element?(lv, "#sandbox-#{reported.id} [data-actor-source=reported]", "creator@example.com")
+        assert has_element?(lv, "#sandbox-#{verified_email.id} [data-actor-source=matched]", user.account.name)
+        assert has_element?(lv, "#sandbox-#{anthropic.id} [data-actor-source=matched]", user.account.name)
+        assert has_element?(lv, "#sandbox-#{unknown.id} [data-actor-source=unknown]", "Unknown")
+      end
+
+      for sandbox <- [matched, verified_email, anthropic] do
+        {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{sandbox.id}")
+        assert has_element?(lv, "[data-actor-source=matched]", user.account.name)
+      end
+    end
+
+    test "searches sandboxes by their name or id", %{conn: conn, account: account} do
+      wanted = sandbox_fixture(account: account, amp_orb_id: "orb-wanted")
+      unwanted = sandbox_fixture(account: account, amp_orb_id: "orb-unwanted")
+      session = sandbox_fixture(account: account, anthropic_session_id: "sesn_wanted")
+      id_part = String.slice(wanted.id, 9, 9)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
+      lv |> form("#sandboxes-search-form") |> render_change(%{"search" => id_part})
+
+      assert_patch(lv, "/#{account.name}/sandboxes/instances?search=#{id_part}")
+      assert has_element?(lv, "#sandbox-#{wanted.id}")
+      refute has_element?(lv, "#sandbox-#{unwanted.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=orb-want")
+      assert has_element?(lv, "#sandbox-#{wanted.id}")
+      refute has_element?(lv, "#sandbox-#{unwanted.id}")
+      refute has_element?(lv, "#sandbox-#{session.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=SESN_WANT")
+      assert has_element?(lv, "#sandbox-#{session.id}")
+      refute has_element?(lv, "#sandbox-#{wanted.id}")
+
+      # LIKE wildcards are matched literally.
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?search=%")
+      refute has_element?(lv, "#sandbox-#{wanted.id}")
+      assert has_element?(lv, "#sandboxes-table", "No sandboxes found")
+    end
+
+    test "filters sandboxes by status and size", %{conn: conn, account: account} do
+      active = sandbox_fixture(account: account, amp_orb_id: "orb-active", residency_work_id: "amp:orb-active")
+      idle = sandbox_fixture(account: account, amp_orb_id: "orb-idle")
+      big_idle = sandbox_fixture(account: account, amp_orb_id: "orb-big-idle", vcpus: 8, memory_mb: 16_384)
+      failed = sandbox_fixture(account: account, amp_orb_id: "orb-failed", state: :error, error_message: "boom")
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/sandboxes/instances?#{%{"filter_status_op" => "==", "filter_status_val" => "idle"}}"
+        )
+
+      assert has_element?(lv, "#sandbox-#{idle.id}")
+      assert has_element?(lv, "#sandbox-#{big_idle.id}")
+      refute has_element?(lv, "#sandbox-#{active.id}")
+      refute has_element?(lv, "#sandbox-#{failed.id}")
+
+      params = %{
+        "filter_status_op" => "!=",
+        "filter_status_val" => "failed",
+        "filter_vcpus_op" => "==",
+        "filter_vcpus_val" => "8"
+      }
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?#{params}")
+
+      assert has_element?(lv, "#sandbox-#{big_idle.id}")
+      refute has_element?(lv, "#sandbox-#{idle.id}")
+      refute has_element?(lv, "#sandbox-#{active.id}")
+      assert has_element?(lv, "[data-part='active-filters']", "vCPUs")
+    end
+
+    test "sorts sandboxes by instance and last activity", %{conn: conn, account: account} do
+      b = sandbox_fixture(account: account, amp_orb_id: "orb-b", last_active_at: ~U[2026-01-03 00:00:00Z])
+      a = sandbox_fixture(account: account, amp_orb_id: "orb-a", last_active_at: ~U[2026-01-01 00:00:00Z])
+      c = sandbox_fixture(account: account, amp_orb_id: "orb-c", last_active_at: ~U[2026-01-02 00:00:00Z])
+
+      row_ids = fn lv ->
+        lv |> element("#sandboxes-table") |> render() |> Floki.parse_fragment!() |> Floki.attribute("tbody tr", "id")
+      end
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=name")
+      assert row_ids.(lv) == Enum.map([a, b, c], &"sandbox-#{&1.id}")
+
+      lv |> element("#sandboxes-table th a", "Instance") |> render_click()
+      assert row_ids.(lv) == Enum.map([c, b, a], &"sandbox-#{&1.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=last_active")
+      assert row_ids.(lv) == Enum.map([b, c, a], &"sandbox-#{&1.id}")
+    end
+
+    test "pages through filtered sandboxes", %{conn: conn, account: account} do
+      start = ~U[2026-01-01 00:00:00Z]
+
+      paused =
+        for i <- 1..22 do
+          sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-paused-#{i}", state: :paused)
+          inserted_at = DateTime.add(start, i, :minute)
+          Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [inserted_at: inserted_at])
+          sandbox
+        end
+
+      running = sandbox_fixture(account: account, amp_orb_id: "orb-running")
+      [oldest, second_oldest | _] = paused
+      filter = "filter_status_op=%3D%3D&filter_status_val=paused"
+
+      {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/instances?#{filter}")
+
+      assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
+      assert has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
+      refute has_element?(lv, "#sandbox-#{second_oldest.id}")
+      refute has_element?(lv, "#sandbox-#{running.id}")
+
+      lv |> element("[data-part='pagination'] a", "Next") |> render_click()
+
+      assert_patch(lv, "/#{account.name}/sandboxes/instances?#{filter}&page=2")
+      assert has_element?(lv, "#sandbox-#{oldest.id}")
+      assert has_element?(lv, "#sandbox-#{second_oldest.id}")
+      refute has_element?(lv, "#sandbox-#{Enum.at(paused, 2).id}")
+
+      render_patch(lv, ~p"/#{account.name}/sandboxes/instances")
+      assert has_element?(lv, "#sandbox-#{running.id}")
+      assert has_element?(lv, "[data-part='pagination']", "Page 1 of 2")
+    end
+  end
+
+  describe "sandbox" do
+    test "shows the sandbox's details", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-details", state: :error, error_message: "jail died")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+
+      assert has_element?(lv, "h1", "orb-details")
+      assert has_element?(lv, "#sandbox-error", "jail died")
+      refute has_element?(lv, "#sandbox-amp-managed")
+      assert has_element?(lv, ~s([data-part="back-button"][href="/#{account.name}/sandboxes/instances"]), "Instances")
+      assert has_element?(lv, ~s(#sidebar-sandboxes a[href="/#{account.name}/sandboxes/instances"] [data-selected]))
+    end
+
+    test "does not show another account's sandbox", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(amp_orb_id: "orb-of-another-account")
+
+      assert_raise NotFoundError, fn -> live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}") end
+    end
+
+    test "pauses an idle sandbox", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: id}, _opts when id == sandbox.id -> {:ok, %{}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+      lv |> element("#sandbox-pause") |> render_click()
+      render_async(lv, 5_000)
+
+      assert Repo.get!(Sandbox, sandbox.id).state == :paused
+      assert has_element?(lv, "h1 + .noora-badge", "Paused")
+    end
+
+    test "does not offer to pause a sandbox an agent is working in", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, residency_work_id: "amp:orb")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+
+      refute has_element?(lv, "#sandbox-pause")
+      assert has_element?(lv, "#sandbox-delete")
+    end
+
+    test "deletes a sandbox", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-delete", node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: id}, _opts when id == sandbox.id -> {:ok, %{}} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+      lv |> element("#sandbox-delete") |> render_click()
+      render_click(lv, "delete", %{})
+
+      assert_redirect(lv, ~p"/#{account.name}/sandboxes/instances", 5_000)
+      refute Repo.get(Sandbox, sandbox.id)
+    end
+
+    test "queues a paused sandbox with a full in-rack budget and shows its archive progress", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(
+        account: AccountsFixtures.account_fixture(),
+        state: :archived,
+        node_name: nil,
+        archive_store: "gra-v1",
+        archive_bytes: 500 * 1024 * 1024 * 1024,
+        archived_at: DateTime.utc_now()
+      )
+
+      sandbox = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+      lv |> element("#sandbox-archive", "Archive") |> render_click()
+      render_async(lv, 5_000)
+
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: Tuist.Sandboxes.Workers.ArchiveSandboxesWorker)
+      assert id == sandbox.id
+      assert has_element?(lv, "#sandbox-flash-info", "Archiving started")
+
+      # While the node uploads, the button says so and cannot be pressed again.
+      sandbox |> Ecto.Changeset.change(archive_upload_id: "upload-1") |> Repo.update!()
+      send(lv.pid, :refresh)
+      assert has_element?(lv, "#sandbox-archive[disabled]", "Archiving…")
+
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :archived, node_name: nil, archive_upload_id: nil))
+      send(lv.pid, :refresh)
+      refute has_element?(lv, "#sandbox-archive")
+      assert has_element?(lv, "#sandbox-resume")
+    end
+
+    test "Amp Orbs are archived from the dashboard but restored by Amp", %{conn: conn, account: account} do
+      paused =
+        sandbox_fixture(
+          account: account,
+          amp_orb_id: "orb-paused",
+          state: :paused,
+          node_name: "node-a",
+          paused_at: DateTime.utc_now()
+        )
+
+      archived = sandbox_fixture(account: account, amp_orb_id: "orb-archived", state: :archived, node_name: nil)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{paused.id}")
+      assert has_element?(lv, "#sandbox-archive")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{archived.id}")
+      refute has_element?(lv, "#sandbox-resume")
+      refute has_element?(lv, "#sandbox-archive")
+    end
+
+    test "read-only members cannot manage sandboxes", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account)
+      reject(&Nodes.call/4)
+      conn = log_in_with_role(conn, account, :viewer)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/#{sandbox.id}")
+
+      refute has_element?(lv, "#sandbox-pause")
+      refute has_element?(lv, "#sandbox-delete")
+      render_click(lv, "pause", %{})
+      render_click(lv, "archive", %{})
+      render_click(lv, "delete", %{})
+      assert Repo.get!(Sandbox, sandbox.id).state == :running
+    end
+  end
+end

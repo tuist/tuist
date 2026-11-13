@@ -1,0 +1,176 @@
+[
+  {
+    "mode": "names",
+    "scope": "resource",
+    "key": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "resource",
+          "tags": [
+            "deployment.environment",
+            "service.name",
+            "service.namespace"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "mode": "names",
+    "scope": "span",
+    "key": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "span",
+          "tags": [
+            "cached",
+            "empty",
+            "mixed",
+            "opaque",
+            "request.kind",
+            "retries",
+            "same",
+            "unicode"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "resource",
+    "key": "service.name",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "resource",
+    "key": "absent",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "request.kind",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "api"
+        },
+        {
+          "type": "string",
+          "value": "rpc"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "retries",
+    "response": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "-9223372036854775808"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775807"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "cached",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "bool",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "same",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "false"
+        },
+        {
+          "type": "string",
+          "value": "true"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "mixed",
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "string",
+          "value": "false"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "empty",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "mode": "values",
+    "scope": "span",
+    "key": "unicode",
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "café"
+        }
+      ]
+    }
+  }
+]

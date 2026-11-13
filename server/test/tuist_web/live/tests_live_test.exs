@@ -85,8 +85,9 @@ defmodule TuistWeb.TestsLiveTest do
     {:ok, view, _} = live(conn, base <> "?analytics-test-scheme=nextest&duration-scatter-group-by=scheme")
     html = render_async(view, 5000)
     refute has_element?(view, "#tests-analytics-scheme-dropdown")
-    assert html =~ "cargo nextest run"
-    assert html =~ "cargo nextest run · ci"
+    assert html =~ "Cargo tests"
+    assert html =~ "Cargo tests · ci"
+    refute html =~ "cargo nextest run"
     for id <- ids, do: assert(html =~ id)
 
     expect(Tuist.Tests.Analytics, :test_run_duration_scatter_data, fn project_id, opts ->

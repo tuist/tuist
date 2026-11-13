@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleIdentifier</key><string>dev.tuist.app.preview</string>
+    <key>CFBundleExecutable</key><string>TuistPreview</string>
+    <key>CFBundleName</key><string>TuistPreview</string>
+    <key>CFBundleDisplayName</key><string>Tuist Preview</string>
+    <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict>
+        <key>CFBundleIconFiles</key><array><string>AppIcon60x60</string></array>
+    </dict></dict>
+    <key>CFBundleIcons~ipad</key><dict><key>CFBundlePrimaryIcon</key><dict>
+        <key>CFBundleIconFiles</key><array><string>AppIcon60x60</string><string>AppIcon76x76</string></array>
+    </dict></dict>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleSupportedPlatforms</key><array><string>$(SUPPORTED_PLATFORM)</string></array>
+    <key>DTPlatformName</key><string>$(PLATFORM_NAME)</string>
+    <key>MinimumOSVersion</key><string>17.0</string>
+    <key>LSRequiresIPhoneOS</key><true/>
+    <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
+    <key>UILaunchScreen</key><dict/>
+    <key>CFBundleURLTypes</key><array><dict>
+        <key>CFBundleURLName</key><string>dev.tuist.app.preview.oauth</string>
+        <key>CFBundleURLSchemes</key><array><string>tuist-preview</string></array>
+    </dict></array>
+    <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict></plist>

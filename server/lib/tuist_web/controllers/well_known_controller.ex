@@ -267,7 +267,7 @@ defmodule TuistWeb.WellKnownController do
         details: [
           %{
             appID: app_id,
-            paths: ["/*/*/previews/*"]
+            paths: ["NOT /*/*/previews/latest", "NOT /*/*/previews/*/*", "/*/*/previews/*"]
           }
         ]
       }

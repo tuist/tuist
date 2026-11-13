@@ -1,8 +1,26 @@
 <main class="layout">
-  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} current_path={@current_path} />
+  <input
+    id="mobile-navigation-toggle"
+    data-part="mobile-navigation-toggle"
+    type="checkbox"
+    aria-label={gettext("Toggle navigation")}
+  />
+  <AtlasWeb.AccountMenu.headerbar
+    current_user={@current_user}
+    current_path={@current_path}
+    mobile_navigation?
+  />
   <.line_divider />
   <section class="layout__main">
-    <.sidebar>
+    <.sidebar id="dashboard-sidebar">
+      <label
+        for="mobile-navigation-toggle"
+        data-part="mobile-navigation-close"
+        aria-label={gettext("Close navigation")}
+      >
+        <.icon name="close" />
+        <span>{gettext("Navigation")}</span>
+      </label>
       <.sidebar_group
         id="sidebar-overview"
         label={gettext("Overview")}
@@ -20,6 +38,13 @@
           icon="circle_check"
           navigate={~p"/tasks"}
           selected={@current_path == ~p"/tasks"}
+        />
+        <.sidebar_item
+          id="approvals-link"
+          label={gettext("My approvals")}
+          icon="checkup_list"
+          navigate={~p"/approvals"}
+          selected={String.starts_with?(@current_path, "/approvals")}
         />
         <.sidebar_item
           label={gettext("Orbit")}
@@ -368,6 +393,7 @@
       {@inner_content}
     </div>
   </section>
+  <label for="mobile-navigation-toggle" data-part="mobile-navigation-overlay"></label>
   <.search_palette
     query={@search_palette_query}
     accounts={@search_palette_accounts}

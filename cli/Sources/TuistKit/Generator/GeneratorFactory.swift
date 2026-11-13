@@ -39,7 +39,8 @@ public protocol GeneratorFactorying {
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?,
         schemeName: String?,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        sdkSelection: BinaryCacheSDKSelection
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -105,7 +106,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?,
         schemeName: String? = nil,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        sdkSelection: BinaryCacheSDKSelection = .all
     ) -> Generating {
         let config = config.resolvingCoverage(coverage)
         let contentHasher = ContentHasher()
@@ -120,7 +122,7 @@ public struct GeneratorFactory: GeneratorFactorying {
         )
         let graphMapperFactory = GraphMapperFactory()
 
-        let graphMappers = graphMapperFactory.automation(
+        var graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: testPlan,
             includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
@@ -128,6 +130,9 @@ public struct GeneratorFactory: GeneratorFactorying {
             includedProducts: [.unitTests, .uiTests],
             schemeName: schemeName
         )
+        if sdkSelection == .simulators || sdkSelection == .devices {
+            graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+        }
         let workspaceMappers = workspaceMapperFactory.automation(
             tuist: config
         )
@@ -266,7 +271,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
             schemeName: String?,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -388,7 +394,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
             schemeName: String? = nil,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> Generating {
             let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
@@ -413,7 +420,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 destination: destination,
-                schemeName: schemeName
+                schemeName: schemeName,
+                sdkSelection: sdkSelection
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
             return Generator(

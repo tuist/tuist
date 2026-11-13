@@ -1,0 +1,157 @@
+{{- if ne .Release.Namespace "observability" }}
+{{- fail "gateway must be in observability (CI upgrades only the existing pulse release)" }}
+{{- end }}
+{{- if not (has .Values.environment (list "staging" "canary" "production")) }}
+{{- fail "gateway requires an explicit managed environment" }}
+{{- end }}
+{{- $host := ternary "pulse.tuist.dev" (printf "pulse-%s.tuist.dev" .Values.environment) (eq .Values.environment "production") }}
+{{- define "greptimedb-ingest.configmap" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-greptimedb-gateway
+data:
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    events { worker_connections 1024; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_body;
+      proxy_temp_path /tmp/proxy;
+      fastcgi_temp_path /tmp/fastcgi;
+      uwsgi_temp_path /tmp/uwsgi;
+      scgi_temp_path /tmp/scgi;
+      # Same raw-wire bound as old managed Ingress and PulseWeb.Endpoint.
+      # Old 16 MiB decompression limits were not 16 MiB wire-body allowances.
+      client_max_body_size 4m;
+      server {
+        listen 4000;
+        server_tokens off;
+        proxy_http_version 1.1;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        # A timeout is ambiguous: never replay an acknowledged/partial write.
+        proxy_next_upstream off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 35s;
+        proxy_send_timeout 35s;
+        location = /health { return 200; }
+        {{- $routes := dict "/api/v1/write" "/v1/prometheus/write" "/loki/api/v1/push" "/v1/loki/api/v1/push" "/v1/traces" "/v1/otlp/v1/traces" "/otlp/v1/traces" "/v1/otlp/v1/traces" "/v1/logs" "/v1/otlp/v1/logs" "/otlp/v1/logs" "/v1/otlp/v1/logs" "/v1/metrics" "/v1/otlp/v1/metrics" "/otlp/v1/metrics" "/v1/otlp/v1/metrics" }}
+        {{- range $path, $target := $routes }}
+        location = {{ $path }} {
+          if ($request_method != POST) { return 405; }
+          if ($args != "") { return 400; }
+          proxy_set_header Connection "";
+          proxy_set_header Authorization $http_authorization;
+          proxy_set_header X-Greptime-DB-Name public;
+          proxy_set_header X-Greptime-Pipeline-Name {{ ternary "loki_otlp" (ternary "greptime_trace_v1" "\"\"" (hasSuffix "/traces" $path)) (eq $path "/loki/api/v1/push") }};
+          proxy_set_header X-Greptime-Log-Table-Name opentelemetry_logs;
+          proxy_set_header X-Greptime-Trace-Table-Name opentelemetry_traces;
+          proxy_set_header X-Greptime-Log-Pipeline-Name "";
+          proxy_set_header X-Greptime-Log-Pipeline-Version "";
+          proxy_set_header X-Greptime-Pipeline-Version "";
+          proxy_set_header X-Greptime-Pipeline-Params "";
+          proxy_set_header X-Greptime-Log-Extract-Keys "";
+          proxy_set_header X-Greptime-Insert-Skip-Wal "";
+          proxy_pass http://greptimedb.observability.svc.cluster.local:4000{{ $target }};
+        }
+        {{- end }}
+        location / { return 404; }
+      }
+    }
+{{- end }}
+{{ include "greptimedb-ingest.configmap" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse
+  labels:
+    app.kubernetes.io/name: greptimedb-ingest
+spec:
+  replicas: {{ .Values.replicas }}
+  # Match the old immutable selector. Never overlap the legacy writer on upgrade.
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: pulse, app.kubernetes.io/instance: pulse}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: pulse, app.kubernetes.io/instance: pulse}
+      annotations:
+        checksum/config: {{ include "greptimedb-ingest.configmap" . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: pulse
+      terminationGracePeriodSeconds: 45
+      nodeSelector: {node.cluster.x-k8s.io/pool: general}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: gateway
+          image: {{ .Values.image | quote }}
+          command: [nginx, -g, "daemon off;", -c, /etc/gateway/nginx.conf]
+          ports: [{name: http, containerPort: 4000}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe: {httpGet: {path: /health, port: http}}
+          livenessProbe: {httpGet: {path: /health, port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/gateway, readOnly: true}
+            - {name: scratch, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: pulse-greptimedb-gateway}
+        - name: scratch
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: pulse, app.kubernetes.io/instance: pulse}
+  ports: [{name: http, port: 4000, targetPort: http, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pulse
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: "4m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - secretName: pulse-tls
+      hosts: [{{ $host | quote }}]
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          {{- range list "/api/v1/write" "/loki/api/v1/push" "/v1/traces" }}
+          - path: {{ . }}
+            pathType: Exact
+            backend:
+              service:
+                name: pulse
+                port: {name: http}
+          {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pulse
+automountServiceAccountToken: false

@@ -312,11 +312,13 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
+| `KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS` | Opt-in relaxed durability for client uploads. Unset or `0` fsyncs every write before acknowledging it. A positive value (at most `60000`) acknowledges client uploads once they reach the page cache and fsyncs the active segment, then the metadata WAL, on this interval and at shutdown; replicated applies, deletes and handover records stay fully synced. A process crash or OOM kill loses nothing. A kernel crash or power loss can lose up to one interval of acknowledged uploads, and can leave a manifest whose bytes never reached disk: the blob then reads as present but fails (or returns zeros) when fetched. Dirty segment bytes stay capped at 64 MiB. Failed periodic syncs count on `kura_relaxed_durability_sync_failures_total`. | Yes | unset |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
 | `KURA_ACCELERATED_FILE_SERVING_ENABLED` | Enables the same-port Linux file serving accelerator for eligible plaintext HTTP/1 public artifact downloads. Non-Linux builds, HTTPS, HTTP/2, non-GET requests, inline artifacts, unsupported routes, and denied requests use the normal Axum/Hyper path. | Yes | `true` |
 | `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
 | `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum number of concurrent accelerated transfers per node. Requests above the limit fall back to the normal Axum/Hyper path before any request bytes are consumed. | Yes | `32` |
 | `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
+| `KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY` | Maximum number of `SpliceBlob` verifications that stream chunks at once per node. Further splices queue (up to four per slot) for at most 30 seconds before they are refused with retryable `RESOURCE_EXHAUSTED` carrying `google.rpc.RetryInfo`. | Yes | CPU count, clamped to 4–16 |
 | `KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED` | When true, evicting a CAS blob cascades to the action-cache entries that reference it (removed in the same atomic batch) so an entry never outlives its blobs. Additionally gated on the node's one-time reverse-map backfill completing; the serve-side presence gates stay on regardless as the backstop. | Yes | `true` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
@@ -474,9 +476,14 @@ staged separately; see the [monitoring rollout guide](../infra/helm/k8s-monitori
 and [bounded resource qualification](docs/metrics-cost-controls.md).
 
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
-observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
-`production`, `staging`, or `canary` and is disabled when unset or invalid. The
-controller sets it only for deployment-selected instances. A dedicated thread
+observations to ordinary Kura JSON logs. Equipped pods read only the fixed
+`KURA_CONNECTIVITY_CONFIG_FILE=/etc/kura/connectivity/selection.json` projection.
+The controller selects exact instances through live-Pod annotations with a fixed
+profile and absolute expiry within 24 hours. Sampling expires locally without
+controller/API availability; activation and removal do not roll equipped pods.
+Preparation defaults off and waits for normal image upgrades or creation, after
+establishing the compatible controller rollback floor. Legacy profile env is no
+longer honored by this runtime. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
 Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
@@ -635,7 +642,7 @@ a 5-second total request deadline covering setup, upload, and response.
 
 ByteStream writes do not retain resumable partial uploads across requests. An interrupted upload must restart at offset zero. `QueryWriteStatus` still reports completed artifacts, but returns `UNIMPLEMENTED` when no completed blob is available, allowing clients such as Bazel to fall back to a full restart instead of treating `NOT_FOUND` as a terminal upload failure. Ordinary missing-blob reads and CAS existence checks retain their existing behavior. A Write whose blob the node already stores is read to completion without staging, decoding, storing, or billing it, and is answered exactly as a full write; it is counted as `kura_artifact_writes_total{result="already_present"}`. A restarted upload of a blob that landed meanwhile therefore costs its wire bytes but no disk or CPU. If the blob is evicted while such a write streams, Kura answers `UNAVAILABLE` and the client restarts the upload. The [Bazel upload recovery fixture](test/e2e/bytestream-recovery/README.md) exercises both paths with the real uploader.
 
-Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
+Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`/`GetTree`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
@@ -1000,3 +1007,11 @@ With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON t
 REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.
 
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
+
+Planned legacy thin-storage moves use a destination-bound write bridge before
+changing endpoints. It verifies on the destination every write acknowledged
+since the bridge pinned the feed; records retained from before the pin are
+best-effort cache content either replica may evict. Closing old connections
+alone does not synchronize asynchronous replicas. See
+[thin storage handoff](../infra/kura-controller/thin-migration.md) for protocol
+bounds, pause behavior, safe preparation retry and qualification limits.

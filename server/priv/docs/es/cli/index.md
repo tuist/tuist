@@ -7,13 +7,13 @@
 ---
 # CLI {#cli}
 
-La CLI de Tuist es una de las interfaces para interactuar con Tuist y la más habitual si utilizas <.localized_link href="/guides/features/projects">proyectos generados</.localized_link>. Ofrece comandos para generar proyectos, almacenar binarios en caché, ejecutar tests, compartir previsualizaciones y mucho más.
+La CLI de Tuist es una de las interfaces para interactuar con Tuist, y la más habitual si estás usando <.localized_link href="/guides/features/projects">proyectos generados</.localized_link>. Ofrece comandos para generar proyectos, almacenar binarios en caché, ejecutar tests, compartir previews y mucho más.
 
 ## Primeros pasos {#getting-started}
 
 Si aún no has instalado Tuist, sigue la <.localized_link href="/guides/install-tuist">guía de instalación</.localized_link> para empezar.
 
-Una vez instalado, puedes ejecutar `tuist` en tu terminal para ver una lista de los comandos disponibles:
+Una vez instalada, puedes ejecutar `tuist` en tu terminal para ver una lista de los comandos disponibles:
 
 ```bash
 tuist --help
@@ -25,4 +25,4 @@ El comportamiento de la CLI se puede configurar mediante un archivo `tuist.toml`
 
 ## Solución de problemas {#troubleshooting}
 
-Si encuentras problemas, consulta la <.localized_link href="/cli/debugging">guía de depuración</.localized_link> para obtener herramientas que te ayuden a diagnosticarlos, incluidos los registros de sesión y las grabaciones de red.
+Si tienes problemas, consulta la <.localized_link href="/cli/debugging">guía de depuración</.localized_link> para encontrar herramientas que te ayuden a diagnosticarlos, incluidos registros de sesión y capturas de red.

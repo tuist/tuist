@@ -33,7 +33,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(clusterv2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 }
 
@@ -125,6 +127,7 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -497,6 +500,10 @@ func main() {
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
+	flag.DurationVar(&ovhPoolPrepInterval, "ovh-pool-prep-interval", 5*time.Minute,
+		"How often the OVH pool prep pass looks for boxes named prep-<adoptDisplayNamePrefix> "+
+			"and moves them on. Each pass reads every unclaimed box's displayName; an install "+
+			"takes 20 to 40 minutes. 0 disables it.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -652,12 +659,31 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
+	// controller-runtime's 15s lease / 10s renew deadline makes the manager
+	// exit whenever the apiserver is unreachable for 10s. Replacing a
+	// control-plane Machine (a Kubernetes upgrade) blackholes the in-cluster
+	// apiserver Service for 35s or more per member, so every upgrade
+	// crash-looped this pod. Nothing here is latency-sensitive, so trade
+	// slower failover for riding out a control-plane member swap. Releasing
+	// on cancel keeps rolling deploys from waiting out the longer lease;
+	// main exits as soon as the manager stops.
+	leaseDuration, renewDeadline, retryPeriod := 90*time.Second, 60*time.Second, 10*time.Second
 	mgrOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -668,12 +694,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}
@@ -1044,6 +1068,24 @@ func main() {
 			os.Exit(1)
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		if ovhPoolPrepInterval > 0 {
+			if err := mgr.Add(&linux.OVHPoolPrep{
+				Client:    mgr.GetClient(),
+				APIReader: mgr.GetAPIReader(),
+				OVH:       ovhClient,
+				FleetKey: func(ctx context.Context, fleet string) (string, error) {
+					return linux.FleetPublicKey(ctx, credsManager, fleet)
+				},
+				Recorder:          mgr.GetEventRecorderFor("ovh-pool-prep"),
+				Interval:          ovhPoolPrepInterval,
+				DefaultDatacenter: "vin",
+				DefaultOS:         "ubuntu_24.04",
+				Log:               ctrl.Log.WithName("ovh-pool-prep"),
+			}); err != nil {
+				setupLog.Error(err, "setup OVHPoolPrep")
+				os.Exit(1)
+			}
+		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 

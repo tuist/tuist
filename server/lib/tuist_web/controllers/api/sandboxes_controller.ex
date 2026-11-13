@@ -5,7 +5,11 @@ defmodule TuistWeb.API.SandboxesController do
   alias OpenApiSpex.Schema
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
-  alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Anthropic.Federation
+  alias Tuist.Sandboxes.Commands
+  alias Tuist.Sandboxes.Query
+  alias Tuist.Sandboxes.Schemas, as: SandboxSchemas
+  alias Tuist.Sandboxes.Uploads
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -17,24 +21,54 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Sandboxes execute arbitrary commands and hold Anthropic credentials,
-  # so every action, including the read-only ones, requires an account
-  # administrator.
-  plug AuthorizationPlug, {:account, :account, :update}
+  # Members, and account tokens with `account:sandboxes:write`, create
+  # sandboxes and run commands in them (`:sandboxes_write`). Sandboxes that
+  # serve an agent environment, an Amp integration or remote execution hold
+  # credentials or other people's work, so only admins reach
+  # those, and everything else (agent environments, Orb dispatch, analytics,
+  # archive) stays admin-only.
+  @member_actions [
+    :index,
+    :create,
+    :show,
+    :exec,
+    :start_command,
+    :index_commands,
+    :show_command,
+    :stream_command_logs,
+    :write_command_stdin,
+    :cancel_command,
+    :create_upload,
+    :pause,
+    :resume,
+    :delete
+  ]
+
+  plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
+  plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
+  plug :require_member_sandbox when action in @member_actions
 
   tags ["Sandboxes"]
 
-  @template_pattern "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  @orb_admission_refusals [
+    :no_capacity,
+    :sandbox_concurrency_limit,
+    :sandbox_account_busy,
+    :locked
+  ]
 
   @agent_environment_schema %Schema{
     title: "SandboxAgentEnvironment",
-    description: "An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.",
+    description:
+      "An Anthropic self-hosted environment served by the account's sandboxes: a Claude Managed Agents environment or a Claude Code cloud environment.",
     type: :object,
     properties: %{
       id: %Schema{type: :integer},
+      kind: %Schema{type: :string, enum: ["managed_agents", "claude_code"], default: "managed_agents"},
       anthropic_environment_id: %Schema{type: :string},
       name: %Schema{type: :string, nullable: true},
+      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
       template: %Schema{type: :string},
       vcpus: %Schema{type: :integer},
       memory_mb: %Schema{type: :integer},
@@ -44,7 +78,21 @@ defmodule TuistWeb.API.SandboxesController do
       enabled: %Schema{type: :boolean},
       has_api_key: %Schema{
         type: :boolean,
-        description: "Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions."
+        description:
+          "Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set."
+      },
+      anthropic_organization_id: %Schema{type: :string, nullable: true},
+      anthropic_workspace_id: %Schema{type: :string, nullable: true},
+      anthropic_service_account_id: %Schema{type: :string, nullable: true},
+      anthropic_federation_rule_id: %Schema{type: :string, nullable: true},
+      federation_issuer_url: %Schema{
+        type: :string,
+        description:
+          "The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console."
+      },
+      federation_subject: %Schema{
+        type: :string,
+        description: "The sub claim of the tokens Tuist signs for this environment."
       },
       anthropic_agent_id: %Schema{
         type: :string,
@@ -59,6 +107,7 @@ defmodule TuistWeb.API.SandboxesController do
     required: [
       :id,
       :anthropic_environment_id,
+      :platform,
       :template,
       :vcpus,
       :memory_mb,
@@ -67,6 +116,12 @@ defmodule TuistWeb.API.SandboxesController do
       :pause_grace_seconds,
       :enabled,
       :has_api_key,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
+      :federation_issuer_url,
+      :federation_subject,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
@@ -80,6 +135,28 @@ defmodule TuistWeb.API.SandboxesController do
       type: :string,
       description: "An Anthropic API key with access to the environment's organization. Never returned."
     },
+    anthropic_organization_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key."
+    },
+    anthropic_workspace_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to."
+    },
+    anthropic_service_account_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the service account (svac_...) the tokens act as."
+    },
+    anthropic_federation_rule_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+    },
     agent_model: %Schema{type: :string, minLength: 1, maxLength: 255, description: "The model agent sessions run."},
     agent_system_prompt: %Schema{
       type: :string,
@@ -89,32 +166,7 @@ defmodule TuistWeb.API.SandboxesController do
     }
   }
 
-  @sandbox_schema %Schema{
-    title: "Sandbox",
-    description: "A Firecracker sandbox VM.",
-    type: :object,
-    properties: %{
-      id: %Schema{type: :string, format: "uuid"},
-      state: %Schema{type: :string, enum: Enum.map(Sandbox.states(), &Atom.to_string/1)},
-      template: %Schema{type: :string},
-      template_tag: %Schema{type: :string, nullable: true},
-      vcpus: %Schema{type: :integer},
-      memory_mb: %Schema{type: :integer},
-      workspace_gb: %Schema{type: :integer},
-      node_name: %Schema{type: :string, nullable: true},
-      hostname: %Schema{type: :string, nullable: true},
-      agent_environment_id: %Schema{type: :integer, nullable: true},
-      amp_orb_id: %Schema{type: :string, nullable: true},
-      anthropic_session_id: %Schema{type: :string, nullable: true},
-      residency_work_id: %Schema{type: :string, nullable: true},
-      last_active_at: %Schema{type: :string, format: "date-time", nullable: true},
-      paused_at: %Schema{type: :string, format: "date-time", nullable: true},
-      error_message: %Schema{type: :string, nullable: true},
-      inserted_at: %Schema{type: :string, format: "date-time"},
-      updated_at: %Schema{type: :string, format: "date-time"}
-    },
-    required: [:id, :state, :template, :vcpus, :memory_mb, :workspace_gb, :inserted_at, :updated_at]
-  }
+  @sandbox_schema SandboxSchemas.sandbox()
 
   @exec_result_schema %Schema{
     title: "SandboxExecResult",
@@ -134,12 +186,7 @@ defmodule TuistWeb.API.SandboxesController do
   @sandbox_parameters @account_parameters ++
                         [sandbox_id: [in: :path, type: :string, required: true, description: "The sandbox identifier."]]
 
-  @shape_properties %{
-    template: %Schema{type: :string, pattern: @template_pattern, description: "Sandbox template name."},
-    vcpus: %Schema{type: :integer, enum: [2, 4, 8], description: "With memory_mb, one of 2x4096, 4x8192 or 8x16384."},
-    memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384]},
-    workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
-  }
+  @shape_properties SandboxSchemas.shape()
 
   @error_responses %{
     forbidden: {"Forbidden", "application/json", Error},
@@ -156,7 +203,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:dispatch_amp_orb,
     summary: "Dispatch a self-hosted Amp Orb lifecycle job.",
     description:
-      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.",
+      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; arbitrary OCI images are not imported. A pause with `snapshot_id` saves the Orb's disks as a project snapshot, and a spawn of a new Orb with a saved `snapshot_id` starts from it.",
     operation_id: "dispatchAmpOrb",
     parameters:
       @account_parameters ++
@@ -176,7 +223,12 @@ defmodule TuistWeb.API.SandboxesController do
            Map.merge(@shape_properties, %{
              operation: %Schema{type: :string, enum: ["spawn", "pause", "delete"]},
              orb_token: %Schema{type: :string, minLength: 1, maxLength: 16_384, writeOnly: true},
-             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048}
+             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048},
+             snapshot_id: %Schema{
+               type: :string,
+               pattern: "^[A-Za-z0-9._:-]{1,255}$",
+               description: "Amp's project snapshot identifier (ORB_SNAPSHOT_ID)."
+             }
            }),
          required: [:operation]
        }},
@@ -203,7 +255,7 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
-        {:error, reason} when reason in [:no_capacity, :sandbox_concurrency_limit, :sandbox_account_busy, :locked] ->
+        {:error, reason} when reason in @orb_admission_refusals ->
           conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
 
         {:error, reason} ->
@@ -227,8 +279,22 @@ defmodule TuistWeb.API.SandboxesController do
            @shape_properties
            |> Map.merge(@agent_properties)
            |> Map.merge(%{
-             anthropic_environment_id: %Schema{type: :string, description: "The Anthropic environment identifier."},
-             environment_key: %Schema{type: :string, description: "The Anthropic environment key. Never returned."},
+             kind: %Schema{
+               type: :string,
+               enum: ["managed_agents", "claude_code"],
+               default: "managed_agents",
+               description:
+                 "managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform."
+             },
+             anthropic_environment_id: %Schema{
+               type: :string,
+               description: "The Anthropic environment identifier: env_... or, for claude_code, ccpool_..."
+             },
+             environment_key: %Schema{
+               type: :string,
+               description:
+                 "The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned."
+             },
              name: %Schema{type: :string, maxLength: 100, nullable: true},
              max_idle_seconds: %Schema{type: :integer, minimum: 1, maximum: 3600},
              pause_grace_seconds: %Schema{type: :integer, minimum: 0, maximum: 3600}
@@ -245,12 +311,18 @@ defmodule TuistWeb.API.SandboxesController do
   def create_agent_environment(%{assigns: %{selected_account: account}, body_params: body_params} = conn, _params) do
     attrs =
       Map.take(body_params, [
+        :kind,
         :anthropic_environment_id,
         :environment_key,
         :anthropic_api_key,
         :agent_model,
         :agent_system_prompt,
+        :anthropic_organization_id,
+        :anthropic_workspace_id,
+        :anthropic_service_account_id,
+        :anthropic_federation_rule_id,
         :name,
+        :platform,
         :template,
         :vcpus,
         :memory_mb,
@@ -264,14 +336,14 @@ defmodule TuistWeb.API.SandboxesController do
         conn |> put_status(:created) |> json(serialize_agent_environment(agent_environment))
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
+        sandbox_error(conn, changeset)
     end
   end
 
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -295,7 +367,12 @@ defmodule TuistWeb.API.SandboxesController do
         } = conn,
         _params
       ) do
-    attrs = Map.take(body_params, [:anthropic_api_key, :agent_model, :agent_system_prompt])
+    attrs =
+      Map.take(body_params, [
+        :anthropic_api_key,
+        :agent_model,
+        :agent_system_prompt | AgentEnvironment.federation_fields()
+      ])
 
     with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
          {:ok, agent_environment} <- Sandboxes.update_agent_environment(agent_environment, attrs) do
@@ -357,24 +434,34 @@ defmodule TuistWeb.API.SandboxesController do
 
   operation(:index,
     summary: "List the account's sandboxes.",
+    description: "Newest first by default. Deleted sandboxes are not listed.",
     operation_id: "listSandboxes",
-    parameters: @account_parameters,
+    parameters: SandboxSchemas.parameters(:list),
     responses:
-      Map.put(
-        @error_responses,
-        :ok,
-        {"Sandboxes", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{sandboxes: %Schema{type: :array, items: @sandbox_schema}},
-           required: [:sandboxes]
-         }}
-      )
+      Map.merge(@error_responses, %{
+        ok: {"Sandboxes", "application/json", SandboxSchemas.response(:list)},
+        bad_request: {"Invalid parameters", "application/json", Error}
+      })
   )
 
-  def index(%{assigns: %{selected_account: account}} = conn, _params) do
-    json(conn, %{sandboxes: account |> Sandboxes.list_sandboxes() |> Enum.map(&serialize_sandbox/1)})
-  end
+  def index(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:list, account, string_keys(params)))
+
+  operation(:analytics,
+    summary: "Get the account's sandbox analytics for a time range.",
+    description:
+      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
+    operation_id: "getSandboxAnalytics",
+    parameters: SandboxSchemas.parameters(:analytics),
+    responses:
+      Map.merge(@error_responses, %{
+        ok: {"Sandbox analytics", "application/json", SandboxSchemas.response(:analytics)},
+        bad_request: {"Invalid parameters", "application/json", Error}
+      })
+  )
+
+  def analytics(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:analytics, account, string_keys(params)))
 
   operation(:create,
     summary: "Create a sandbox.",
@@ -395,10 +482,8 @@ defmodule TuistWeb.API.SandboxesController do
   )
 
   def create(%{assigns: %{selected_account: account}, body_params: body_params} = conn, _params) do
-    attrs = Map.take(body_params, [:template, :vcpus, :memory_mb, :workspace_gb])
-
-    case Sandboxes.create_sandbox(account, attrs) do
-      {:ok, sandbox} -> conn |> put_status(:created) |> json(serialize_sandbox(sandbox))
+    case Query.run(:create, account, string_keys(body_params)) do
+      {:ok, sandbox} -> conn |> put_status(:created) |> json(sandbox)
       {:error, reason} -> sandbox_error(conn, reason)
     end
   end
@@ -414,9 +499,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def show(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox -> json(conn, serialize_sandbox(sandbox)) end)
-  end
+  def show(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:show, account, string_keys(params)))
 
   operation(:exec,
     summary: "Run a shell command in a sandbox.",
@@ -463,6 +547,375 @@ defmodule TuistWeb.API.SandboxesController do
     end)
   end
 
+  @command_schema %Schema{
+    title: "SandboxCommand",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, format: :uuid},
+      command: %Schema{type: :string, description: "The shell script the command runs; argv commands appear quoted."},
+      cwd: %Schema{type: :string, nullable: true},
+      stdin: %Schema{type: :boolean, description: "Whether stdin stays open for `POST .../stdin`."},
+      status: %Schema{
+        type: :string,
+        enum: ["running", "exited", "timed_out", "cancelled", "lost"],
+        description: "`lost` means the command's process is gone without an exit code, such as after the guest restarted."
+      },
+      exit_code: %Schema{type: :integer, nullable: true},
+      started_at: %Schema{type: :string, format: "date-time"},
+      deadline_at: %Schema{type: :string, format: "date-time"},
+      finished_at: %Schema{type: :string, format: "date-time", nullable: true}
+    },
+    required: [:id, :command, :stdin, :status, :started_at, :deadline_at]
+  }
+
+  @command_log_line_schema %Schema{
+    title: "SandboxCommandLogLine",
+    description:
+      "One line of the ND-JSON log stream. `stdout` and `stderr` lines carry output and `offset`, the byte offset the stream reached, which a reconnect passes back as `stdout_offset` or `stderr_offset`. The last line is `exit`, with the command's final state, or `error`.",
+    type: :object,
+    properties: %{
+      type: %Schema{type: :string, enum: ["stdout", "stderr", "exit", "error"]},
+      data: %Schema{type: :string},
+      offset: %Schema{type: :integer},
+      status: %Schema{type: :string},
+      exit_code: %Schema{type: :integer, nullable: true},
+      message: %Schema{type: :string}
+    },
+    required: [:type]
+  }
+
+  @command_parameters @sandbox_parameters ++
+                        [command_id: [in: :path, type: :string, required: true, description: "The command identifier."]]
+
+  operation(:start_command,
+    summary: "Start a command in a sandbox.",
+    description:
+      "Starts the command detached in the sandbox, resuming it first, and answers at once. Stream its output with `GET .../commands/:command_id/logs`. A sandbox runs several commands at once; while any runs, it is not paused for idleness. An agent turn holding the sandbox refuses commands with 409.",
+    operation_id: "startSandboxCommand",
+    parameters: @sandbox_parameters,
+    request_body:
+      {"Command params", "application/json",
+       %Schema{
+         title: "StartSandboxCommand",
+         type: :object,
+         properties: %{
+           command: %Schema{
+             type: :string,
+             minLength: 1,
+             description: "A shell script run with `/bin/bash -l`, or the program to run when `args` is given."
+           },
+           args: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "Run `command` with these arguments directly, without shell interpretation."
+           },
+           env: %Schema{
+             type: :object,
+             additionalProperties: %Schema{type: :string},
+             description: "Environment variables for the command. Never stored."
+           },
+           cwd: %Schema{type: :string, description: "Working directory. Defaults to the sandbox's workspace."},
+           stdin: %Schema{
+             type: :boolean,
+             description: "Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin."
+           },
+           timeout_ms: %Schema{
+             type: :integer,
+             minimum: 1,
+             maximum: 21_600_000,
+             description: "Kill the command after this many milliseconds (default one hour)."
+           },
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another."
+           }
+         },
+         required: [:command]
+       }},
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        bad_request: {"The parameters are invalid", "application/json", Error},
+        accepted: {"The command started", "application/json", @command_schema},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def start_command(
+        %{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}, body_params: body_params} = conn,
+        _params
+      ) do
+    with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
+
+      case Commands.start(sandbox, params) do
+        {:ok, command} -> conn |> put_status(:accepted) |> json(command)
+        {:error, reason} -> sandbox_error(conn, reason)
+      end
+    end)
+  end
+
+  operation(:index_commands,
+    summary: "List a sandbox's commands.",
+    description: "The 100 most recent commands, newest first. Finished commands are kept for seven days.",
+    operation_id: "listSandboxCommands",
+    parameters: @sandbox_parameters,
+    responses:
+      Map.merge(@error_responses, %{
+        ok:
+          {"Commands", "application/json",
+           %Schema{
+             title: "SandboxCommands",
+             type: :object,
+             properties: %{commands: %Schema{type: :array, items: @command_schema}},
+             required: [:commands]
+           }},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def index_commands(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, fn sandbox -> json(conn, %{commands: Commands.list(sandbox)}) end)
+  end
+
+  operation(:show_command,
+    summary: "Get a sandbox command.",
+    description: "With `wait_seconds`, waits until the command ends or the time passes.",
+    operation_id: "getSandboxCommand",
+    parameters:
+      @command_parameters ++
+        [
+          wait_seconds: [
+            in: :query,
+            type: :integer,
+            description: "Wait up to this long for the command to end, at most 50."
+          ]
+        ],
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        ok: {"Command", "application/json", @command_schema},
+        not_found: {"The sandbox or command was not found", "application/json", Error}
+      })
+  )
+
+  def show_command(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id} = params} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      case Commands.wait(sandbox, params.command_id, Map.get(params, :wait_seconds, 0)) do
+        {:ok, command} -> json(conn, command)
+        {:error, :not_found} -> not_found(conn, "Command not found.")
+        {:error, reason} -> sandbox_error(conn, reason)
+      end
+    end)
+  end
+
+  operation(:stream_command_logs,
+    summary: "Stream a sandbox command's output.",
+    description:
+      "Streams the command's stdout and stderr as newline-delimited JSON (`application/x-ndjson`) from the given byte offsets until the command ends, then a final `exit` line. The server ends a stream after about 50 minutes without an `exit` line; reconnect with the last offsets to continue.",
+    operation_id: "streamSandboxCommandLogs",
+    parameters:
+      @command_parameters ++
+        [
+          stdout_offset: [in: :query, type: :integer, description: "Byte offset to stream stdout from (default 0)."],
+          stderr_offset: [in: :query, type: :integer, description: "Byte offset to stream stderr from (default 0)."]
+        ],
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        ok: {"Log lines", "application/x-ndjson", @command_log_line_schema},
+        not_found: {"The sandbox or command was not found", "application/json", Error}
+      })
+  )
+
+  # Each read waits at most this long, which keeps every chunk well inside the
+  # ~100 second idle timeout of Cloudflare and other proxies.
+  @log_wait_seconds 25
+  @log_stream_ms to_timeout(minute: 50)
+
+  def stream_command_logs(
+        %{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id} = params} = conn,
+        _params
+      ) do
+    with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      offsets = {Map.get(params, :stdout_offset, 0), Map.get(params, :stderr_offset, 0)}
+
+      # The first read answers before the response starts, so an unknown
+      # command or an unreachable sandbox is a plain error status.
+      case read_logs(sandbox, params.command_id, offsets, 0) do
+        {:ok, read} ->
+          conn =
+            conn
+            |> put_resp_content_type("application/x-ndjson")
+            |> put_resp_header("cache-control", "no-store")
+            |> put_resp_header("x-accel-buffering", "no")
+            |> send_chunked(:ok)
+
+          stream_logs(conn, sandbox, params.command_id, read, System.monotonic_time(:millisecond) + @log_stream_ms)
+
+        {:error, :not_found} ->
+          not_found(conn, "Command not found.")
+
+        {:error, reason} ->
+          sandbox_error(conn, reason)
+      end
+    end)
+  end
+
+  defp read_logs(sandbox, id, {stdout_offset, stderr_offset}, wait),
+    do: Commands.read(sandbox, id, stdout_offset: stdout_offset, stderr_offset: stderr_offset, wait_seconds: wait)
+
+  defp stream_logs(conn, sandbox, id, read, deadline) do
+    case send_lines(conn, log_lines(read)) do
+      {:ok, conn} ->
+        if read.complete or System.monotonic_time(:millisecond) >= deadline,
+          do: conn,
+          else: continue_logs(conn, sandbox, id, read, deadline)
+
+      # The client went away.
+      {:error, _reason} ->
+        conn
+    end
+  end
+
+  defp continue_logs(conn, sandbox, id, read, deadline) do
+    case read_logs(sandbox, id, {read.stdout_offset, read.stderr_offset}, @log_wait_seconds) do
+      {:ok, next} ->
+        stream_logs(conn, sandbox, id, next, deadline)
+
+      {:error, reason} ->
+        message = if reason == :not_found, do: "Command not found.", else: reason |> Query.error() |> elem(1)
+        {_result, conn} = send_lines(conn, [%{type: "error", message: message}])
+        conn
+    end
+  end
+
+  defp log_lines(read) do
+    Enum.filter(
+      [
+        read.stdout != "" && %{type: "stdout", data: read.stdout, offset: read.stdout_offset},
+        read.stderr != "" && %{type: "stderr", data: read.stderr, offset: read.stderr_offset},
+        read.complete && %{type: "exit", status: read.status, exit_code: read.exit_code}
+      ],
+      & &1
+    )
+  end
+
+  defp send_lines(conn, []), do: {:ok, conn}
+  defp send_lines(conn, lines), do: chunk(conn, Enum.map(lines, &[JSON.encode!(&1), ?\n]))
+
+  operation(:write_command_stdin,
+    summary: "Write to a sandbox command's stdin.",
+    description:
+      "Appends the data to the stdin of a command started with `stdin: true`. With `close`, ends its stdin after the data.",
+    operation_id: "writeSandboxCommandStdin",
+    parameters: @command_parameters,
+    request_body:
+      {"Stdin params", "application/json",
+       %Schema{
+         title: "WriteSandboxCommandStdin",
+         type: :object,
+         properties: %{
+           data: %Schema{type: :string, format: :byte, description: "Base64-encoded bytes, at most 256 KiB decoded."},
+           close: %Schema{type: :boolean, description: "End the command's stdin after the data."},
+           offset: %Schema{
+             type: :integer,
+             minimum: 0,
+             description:
+               "The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409."
+           }
+         }
+       }},
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        bad_request: {"The data is not base64 or is too large", "application/json", Error},
+        ok: {"Command", "application/json", @command_schema},
+        not_found: {"The sandbox or command was not found", "application/json", Error}
+      })
+  )
+
+  def write_command_stdin(
+        %{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id} = params, body_params: body_params} =
+          conn,
+        _params
+      ) do
+    # CastAndValidate has already decoded `data` (`format: :byte`) and answered 400 when it is not base64.
+    data = Map.get(body_params, :data) || ""
+
+    with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      case Commands.write_stdin(
+             sandbox,
+             params.command_id,
+             data,
+             Map.get(body_params, :close) == true,
+             Map.get(body_params, :offset)
+           ) do
+        {:ok, command} -> json(conn, command)
+        {:error, :not_found} -> not_found(conn, "Command not found.")
+        {:error, reason} -> sandbox_error(conn, reason)
+      end
+    end)
+  end
+
+  operation(:cancel_command,
+    summary: "Stop a sandbox command.",
+    description: "Sends SIGTERM to the command's process group, then SIGKILL after five seconds.",
+    operation_id: "cancelSandboxCommand",
+    parameters: @command_parameters,
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        ok: {"Command", "application/json", @command_schema},
+        not_found: {"The sandbox or command was not found", "application/json", Error}
+      })
+  )
+
+  def cancel_command(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id} = params} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, fn sandbox ->
+      case Commands.cancel(sandbox, params.command_id) do
+        {:ok, command} -> json(conn, command)
+        {:error, :not_found} -> not_found(conn, "Command not found.")
+        {:error, reason} -> sandbox_error(conn, reason)
+      end
+    end)
+  end
+
+  operation(:create_upload,
+    summary: "Create an upload for a sandbox.",
+    description:
+      "Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.",
+    operation_id: "createSandboxUpload",
+    parameters: @sandbox_parameters,
+    responses:
+      Map.merge(@error_responses, %{
+        ok:
+          {"Upload", "application/json",
+           %Schema{
+             title: "SandboxUpload",
+             type: :object,
+             properties: %{
+               upload_url: %Schema{type: :string, description: "Presigned URL to PUT the file to."},
+               download_url: %Schema{type: :string, description: "Presigned URL to GET the file from in the sandbox."},
+               expires_at: %Schema{type: :string, format: :"date-time"}
+             },
+             required: [:upload_url, :download_url, :expires_at]
+           }},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def create_upload(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, &json(conn, Uploads.create(account, &1)))
+  end
+
   operation(:pause,
     summary: "Pause a sandbox.",
     description: "Snapshots the VM to the node's disk. Refused while a worker or command is running.",
@@ -477,14 +930,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def pause(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.pause(sandbox) do
-        {:ok, sandbox} -> json(conn, serialize_sandbox(sandbox))
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
-  end
+  def pause(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:pause, account, string_keys(params)))
 
   operation(:resume,
     summary: "Resume a paused sandbox.",
@@ -499,14 +946,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def resume(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.resume(sandbox) do
-        {:ok, sandbox} -> json(conn, serialize_sandbox(sandbox))
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
-  end
+  def resume(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:resume, account, string_keys(params)))
 
   operation(:delete,
     summary: "Delete a sandbox.",
@@ -521,14 +962,41 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def delete(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.delete(sandbox) do
-        {:ok, _deleted} -> send_resp(conn, :no_content, "")
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
+  def delete(%{assigns: %{selected_account: account}} = conn, params) do
+    case Query.run(:delete, account, string_keys(params)) do
+      {:ok, _deleted} -> send_resp(conn, :no_content, "")
+      error -> respond(conn, error)
+    end
   end
+
+  operation(:archive,
+    summary: "Archive a paused sandbox.",
+    description:
+      "Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.",
+    operation_id: "archiveSandbox",
+    parameters: @sandbox_parameters,
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        accepted: {"Sandbox", "application/json", @sandbox_schema},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def archive(%{assigns: %{selected_account: account}} = conn, params) do
+    case Query.run(:archive, account, string_keys(params)) do
+      {:ok, sandbox} -> conn |> put_status(:accepted) |> json(sandbox)
+      error -> respond(conn, error)
+    end
+  end
+
+  # CastAndValidate casts the params to atom keys; Query takes the string
+  # keys MCP tools receive.
+  defp string_keys(params), do: Map.new(params, fn {key, value} -> {to_string(key), value} end)
+
+  defp respond(conn, {:ok, data}), do: json(conn, data)
+  defp respond(conn, {:error, reason}), do: sandbox_error(conn, reason)
 
   defp with_sandbox(conn, account, sandbox_id, fun) do
     case Sandboxes.get_sandbox(account, sandbox_id) do
@@ -539,89 +1007,51 @@ defmodule TuistWeb.API.SandboxesController do
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
-  defp sandbox_error(conn, {:invalid_state, state}) do
-    conn |> put_status(:conflict) |> json(%{message: "The sandbox is #{state}."})
+  # A member reaches only the sandboxes they could have created: none that
+  # serves an agent environment, an Amp integration or remote execution. An
+  # account token is never an account administrator, so it is held to the
+  # same limit.
+  defp require_member_sandbox(%{assigns: %{selected_account: account}} = conn, _opts) do
+    subject = TuistWeb.Authentication.authenticated_subject(conn)
+
+    with %{sandbox_id: sandbox_id} <- conn.params,
+         false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok,
+         {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
+         false <- Sandboxes.member_sandbox?(sandbox) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: "Only account administrators can use sandboxes that serve agents, Amp or remote execution."})
+      |> halt()
+    else
+      _ -> conn
+    end
   end
 
-  defp sandbox_error(conn, :no_node) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "No sandbox node with the template ready is connected."})
-  end
-
-  defp sandbox_error(conn, :sandbox_limit) do
-    conn
-    |> put_status(:forbidden)
-    |> json(%{
-      message:
-        "The account has reached its limit of #{Sandboxes.max_live_sandboxes_per_account()} sandboxes. Delete some first."
-    })
-  end
-
-  defp sandbox_error(conn, :sandbox_concurrency_limit) do
-    conn
-    |> put_status(:too_many_requests)
-    |> json(%{
-      message: "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."
-    })
-  end
-
-  defp sandbox_error(conn, :sandbox_account_busy) do
-    conn |> put_status(:conflict) |> json(%{message: "Another sandbox admission is in progress. Retry shortly."})
-  end
-
-  defp sandbox_error(conn, :locked) do
-    conn |> put_status(:conflict) |> json(%{message: "Another operation on the sandbox is in progress."})
-  end
-
-  defp sandbox_error(conn, :no_capacity) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "No sandbox node has memory or disk left for this sandbox."})
-  end
-
-  defp sandbox_error(conn, :not_connected) do
-    conn |> put_status(:service_unavailable) |> json(%{message: "The sandbox's node is not connected."})
-  end
-
-  defp sandbox_error(conn, :node_disconnected) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "The sandbox's node disconnected during the operation."})
-  end
-
-  defp sandbox_error(conn, :timeout) do
-    conn |> put_status(:gateway_timeout) |> json(%{message: "The sandbox's node did not answer in time."})
-  end
-
-  defp sandbox_error(conn, %Ecto.Changeset{} = changeset) do
-    conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
-  end
-
-  defp sandbox_error(conn, reason) when is_binary(reason) do
-    conn |> put_status(:bad_gateway) |> json(%{message: "The sandbox node rejected the operation: #{reason}"})
-  end
+  # Every sandbox 503 comes after the server has already waited for a node or
+  # for capacity, so an immediate retry only repeats that wait. The hint is
+  # longer than any client retry budget (`RetryMiddleware` waits at most 30
+  # seconds per retry, 10 retries at most), so the CLI reports it at once.
+  @service_unavailable_retry_after_seconds 300
 
   defp sandbox_error(conn, reason) do
-    conn |> put_status(:internal_server_error) |> json(%{message: "Sandbox operation failed: #{inspect(reason)}"})
+    {status, message} = Query.error(reason)
+
+    conn |> retry_after(status) |> put_status(status) |> json(%{message: message})
   end
 
-  defp changeset_message(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map_join(", ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
-  end
+  defp retry_after(conn, :service_unavailable),
+    do: put_resp_header(conn, "retry-after", "#{@service_unavailable_retry_after_seconds}")
+
+  defp retry_after(conn, _status), do: conn
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
     agent_environment
     |> Map.take([
       :id,
+      :kind,
       :anthropic_environment_id,
       :name,
+      :platform,
       :template,
       :vcpus,
       :memory_mb,
@@ -629,6 +1059,10 @@ defmodule TuistWeb.API.SandboxesController do
       :max_idle_seconds,
       :pause_grace_seconds,
       :enabled,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
@@ -636,28 +1070,7 @@ defmodule TuistWeb.API.SandboxesController do
       :updated_at
     ])
     |> Map.put(:has_api_key, is_binary(agent_environment.anthropic_api_key))
-  end
-
-  defp serialize_sandbox(%Sandbox{} = sandbox) do
-    Map.take(sandbox, [
-      :id,
-      :state,
-      :template,
-      :template_tag,
-      :vcpus,
-      :memory_mb,
-      :workspace_gb,
-      :node_name,
-      :hostname,
-      :agent_environment_id,
-      :anthropic_session_id,
-      :amp_orb_id,
-      :residency_work_id,
-      :last_active_at,
-      :paused_at,
-      :error_message,
-      :inserted_at,
-      :updated_at
-    ])
+    |> Map.put(:federation_issuer_url, Federation.issuer(agent_environment.account_id))
+    |> Map.put(:federation_subject, Federation.subject(agent_environment))
   end
 end

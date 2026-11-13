@@ -3,11 +3,15 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.SSOLoginDomainVerification
+  alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserPasskey
+  alias Tuist.Accounts.UserToken
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM
@@ -36,8 +40,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     setup %{organization: organization} do
       {:ok, organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
-          sso_organization_id: "company.okta.com",
-          sso_login_domain: "example.com",
+          sso_organization_id: "authsettings-company.okta.com",
+          sso_login_domain: "authsettings-example.com",
           oauth2_client_id: "client",
           oauth2_client_secret: "secret"
         })
@@ -69,8 +73,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       AccountsFixtures.organization_fixture(
         creator: user,
         sso_provider: :okta,
-        sso_organization_id: "other.okta.com",
-        sso_login_domain: "example.com",
+        sso_organization_id: "authsettings-other.okta.com",
+        sso_login_domain: "authsettings-example.com",
         oauth2_client_id: "client",
         oauth2_client_secret: "secret"
       )
@@ -88,8 +92,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       lv
       |> form("#sso-form", %{
         "sso" => %{
-          "okta_domain" => "company.okta.com",
-          "sso_login_domain" => "example.com",
+          "okta_domain" => "authsettings-company.okta.com",
+          "sso_login_domain" => "authsettings-example.com",
           "oauth2_client_id" => "client",
           "oauth2_client_secret" => ""
         }
@@ -120,8 +124,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       lv
       |> form("#sso-form", %{
         "sso" => %{
-          "okta_domain" => "different.okta.com",
-          "sso_login_domain" => "example.com",
+          "okta_domain" => "authsettings-different.okta.com",
+          "sso_login_domain" => "authsettings-example.com",
           "oauth2_client_id" => "client"
         }
       })
@@ -195,25 +199,158 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "displays SSO and SCIM sections for organizations", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Single Sign-On"
     assert html =~ "Enable Single Sign-On"
     assert html =~ "SCIM provisioning"
     assert html =~ "/scim/v2"
+    refute has_element?(lv, "#passkeys-settings")
+    refute has_element?(lv, "#two-factor-settings")
+  end
+
+  test "personal authentication settings expose independent passkey and authenticator management" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    conn =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{"email" => user.email, "password" => AccountsFixtures.valid_user_password()}
+      })
+
+    conn = recycle(conn)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#passkey-add[data-passkey-ceremony='register']", "Add passkey")
+    refute has_element?(view, "#passkey-name")
+    refute has_element?(view, "#add-passkey-modal")
+    refute has_element?(view, "#passkeys-settings a", "Manage passkeys")
+    refute has_element?(view, "#passkeys-settings", "0 passkeys added")
+    refute has_element?(view, "#passkeys-settings", "1 passkey added")
+    assert has_element?(view, "#two-factor-settings button", "Enable 2FA")
+    refute has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#two-factor-settings", "passkeys")
+
+    stub(Environment, :email_auth_enabled?, fn -> false end)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    refute has_element?(view, "#passkeys-settings")
+    assert has_element?(view, "#two-factor-settings")
+  end
+
+  test "passkey action menus open their rename and removal dialogs" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    passkey =
+      Repo.insert!(%UserPasskey{
+        user_id: user.id,
+        name: "MacBook",
+        credential_id: :crypto.strong_rand_bytes(32),
+        public_key: :crypto.strong_rand_bytes(32),
+        user_handle: :crypto.strong_rand_bytes(32),
+        aaguid: :crypto.strong_rand_bytes(16)
+      })
+
+    conn =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{"email" => user.email, "password" => AccountsFixtures.valid_user_password()}
+      })
+
+    {:ok, view, _html} = conn |> recycle() |> live(~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#passkey-actions-#{passkey.id}[aria-label='Actions']")
+
+    rename_modal_id = "rename-passkey-#{passkey.id}"
+    render_click(view, "open-security-modal", %{"id" => rename_modal_id})
+    assert_push_event(view, "open-modal", %{id: ^rename_modal_id})
+
+    remove_modal_id = "remove-passkey-#{passkey.id}"
+    render_click(view, "open-security-modal", %{"id" => remove_modal_id})
+    assert_push_event(view, "open-modal", %{id: ^remove_modal_id})
+  end
+
+  test "authenticator setup starts in settings only after a fresh sign-in", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    now = DateTime.utc_now()
+    stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, -301) end)
+    stale = log_in_user(conn, user)
+    stub(Tuist.Time, :utc_now, fn -> now end)
+    {:ok, view, _} = live(stale, ~p"/#{user.account.name}/settings/authentication")
+    refute has_element?(view, "#passkey-add")
+    assert has_element?(view, "#passkeys-settings", "Add passkey")
+    assert has_element?(view, "#two-factor-settings", "Enable 2FA")
+    assert has_element?(view, "#two-factor-settings form[action^='/users/log_out?return_to=']")
+    refute has_element?(view, "#setup-authenticator-modal")
+    refute UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
+
+    fresh =
+      post(build_conn(), ~p"/users/log_in", %{
+        "user" => %{
+          "email" => user.email,
+          "password" => AccountsFixtures.valid_user_password()
+        }
+      })
+
+    {:ok, view, _} = fresh |> recycle() |> live(~p"/#{user.account.name}/settings/authentication")
+    view |> element("#setup-authenticator-modal > button") |> render_click()
+    document = view |> render() |> Floki.parse_document!()
+    assert Floki.find(document, "#mfa-setup-qr[src^='data:image/png;base64,']") != []
+    assert Floki.find(document, "#mfa-setup-key[readonly]") != []
+    assert Floki.find(document, "#mfa-manual-setup summary") != []
+    assert Floki.attribute(document, "#mfa-code", "placeholder") == ["XXXXXX"]
+    assert Floki.find(document, "form#mfa-enrollment[action='/users/settings/mfa/confirm']") != []
+    assert Floki.attribute(document, "#mfa-enrollment", "data-recovery-modal") == ["mfa-recovery-modal"]
+    assert Floki.find(document, "dialog#mfa-recovery-modal:not([open])") != []
+    assert Floki.find(document, "#mfa-recovery-modal [data-recovery-content] #mfa-recovery-codes") == []
+    refute UserMFA.enabled?(user)
+
+    render_hook(view, "authenticator_modal_change", %{"open" => false})
+    session = Accounts.get_user_session(get_session(fresh, :user_token))
+    refute UserMFA.get_pending_enrollment(user, session)
+  end
+
+  test "expired sessions offer 2FA management rather than implying 2FA is disabled", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    confirmed_at = now |> DateTime.add(-1) |> DateTime.truncate(:second)
+
+    Repo.insert!(%UserMFA{
+      user_id: user.id,
+      secret: NimbleTOTP.secret(),
+      enrollment_session_hash: :crypto.strong_rand_bytes(32),
+      enrollment_expires_at: DateTime.add(now, 300),
+      confirmed_at: confirmed_at
+    })
+
+    token = Accounts.generate_user_session_token(user, %{auth_method: :password, mfa_verified_at: confirmed_at})
+
+    stale_at = now |> DateTime.add(-301) |> DateTime.truncate(:second)
+
+    {1, _} =
+      Repo.update_all(
+        from(token in UserToken, where: token.token == ^token),
+        set: [inserted_at: stale_at]
+      )
+
+    stale = put_session(conn, :user_token, token)
+
+    {:ok, view, _html} = live(stale, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#two-factor-settings button", "Manage 2FA")
+    refute has_element?(view, "#two-factor-settings button", "Sign in again")
+    refute has_element?(view, "#two-factor-settings", "Enable 2FA")
   end
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
-    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    lv |> element("#oidc-configuration-toggle") |> render_click()
-    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    assert has_element?(lv, "#setup-authenticator-modal button", "Enable 2FA")
+    assert has_element?(lv, "#oidc-trust-policy-modal[phx-hook=NooraModal]")
+    assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
+    refute has_element?(lv, "#oidc-configuration-toggle")
     refute has_element?(lv, "#sso-form")
     refute has_element?(lv, "[data-part=scim-card]")
     refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
 
     for event <- ["toggle_sso", "save_sso", "generate_scim_token", "revoke_scim_token"] do
       render_hook(lv, event, %{})
-      assert has_element?(lv, "#oidc-trust-policy-form")
+      assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
       refute has_element?(lv, "#sso-form")
       refute has_element?(lv, "[data-part=scim-card]")
     end
@@ -231,8 +368,10 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "hides provider options when SSO is disabled", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     refute html =~ "SSO provider"
+    # Two-factor authentication is personal, so organizations don't show it.
+    refute has_element?(lv, "[data-part=mfa-card]")
   end
 
   test "shows provider options when SSO is enabled via toggle", %{conn: conn, account: account} do
@@ -264,8 +403,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         organization
         |> Changeset.change(
           sso_provider: unquote(previous_provider),
-          sso_organization_id: "example.com",
-          sso_login_domain: "example.com",
+          sso_organization_id: "authsettings-example.com",
+          sso_login_domain: "authsettings-example.com",
           sso_login_domain_verified_at: if(unquote(verified?), do: DateTime.truncate(DateTime.utc_now(), :second))
         )
         |> Repo.update!()
@@ -275,20 +414,20 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         Accounts.link_oauth_identity_to_user(user, %{
           provider: :google,
           id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
-          provider_organization_id: "example.com"
+          provider_organization_id: "authsettings-example.com"
         })
 
         {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
         render_hook(lv, "select_provider", %{"value" => ["google"]})
 
         lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "authsettings-example.com"}})
         |> render_change()
 
         render_hook(lv, "toggle_sso_enforced")
 
         lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "authsettings-example.com"}})
         |> render_submit()
 
         {:ok, updated} = Accounts.get_organization_by_id(organization.id)
@@ -306,7 +445,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       Accounts.link_oauth_identity_to_user(user, %{
         provider: :google,
         id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
-        provider_organization_id: "example.com"
+        provider_organization_id: "authsettings-example.com"
       })
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
@@ -316,7 +455,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       html =
         lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "authsettings-example.com"}})
         |> render_submit()
 
       assert html =~ "configuration changed"
@@ -340,7 +479,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       html =
         lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "authsettings-example.com"}})
         |> render_submit()
 
       assert html =~ "You must be authenticated with Google"
@@ -355,7 +494,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       Accounts.link_oauth_identity_to_user(user, %{
         provider: :google,
         id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
-        provider_organization_id: "example.com"
+        provider_organization_id: "authsettings-example.com"
       })
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
@@ -365,7 +504,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       html =
         lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "authsettings-example.com"}})
         |> render_submit()
 
       refute html =~ "Failed to configure"
@@ -396,7 +535,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         lv
         |> form("#sso-form", %{
           "sso" => %{
-            "okta_domain" => "company.okta.com",
+            "okta_domain" => "authsettings-company.okta.com",
             "oauth2_client_id" => "test_client_id",
             "oauth2_client_secret" => "test_client_secret"
           }
@@ -414,14 +553,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
-          sso_organization_id: "company.okta.com",
+          sso_organization_id: "authsettings-company.okta.com",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret"
         })
 
       configured_organization
       |> Changeset.change(%{
-        sso_login_domain: "customer.example",
+        sso_login_domain: "authsettings-customer.example",
         sso_login_domain_verification_token: "backfilled-token",
         sso_login_domain_verified_at: nil
       })
@@ -429,27 +568,28 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
-      assert html =~ "customer.example"
+      assert html =~ "authsettings-customer.example"
       assert html =~ "Pending verification"
-      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "_tuist-verification.authsettings-customer.example"
       assert html =~ "tuist-domain-verification=backfilled-token"
     end
 
     test "describes the settings a lapsed verification keeps and still saves the configuration", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
-          sso_organization_id: "company.okta.com",
+          sso_organization_id: "authsettings-company.okta.com",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret"
         })
 
       configured_organization
       |> Changeset.change(%{
-        sso_login_domain: "customer.example",
+        sso_login_domain: "authsettings-customer.example",
         sso_login_domain_verification_token: "verification-token",
         sso_login_domain_verified_at: nil,
         sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
@@ -460,7 +600,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, _lv, html} =
         conn
-        |> init_test_session(%{auth_method: :okta})
+        |> put_session(
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :okta,
+            provider_organization_id: "authsettings-company.okta.com",
+            sso_organization_id: organization.id
+          })
+        )
         |> live(~p"/#{account.name}/settings/authentication")
 
       assert html =~ "Automatic enrollment is paused until the login email domain is verified"
@@ -470,7 +617,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert {:ok, _organization} =
                Accounts.update_sso_configuration(organization.id, :okta, %{
-                 sso_organization_id: "company.okta.com",
+                 sso_organization_id: "authsettings-company.okta.com",
                  oauth2_client_id: "test_client_id",
                  oauth2_client_secret: "rotated_client_secret"
                })
@@ -502,7 +649,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       |> form("#sso-form", %{
         "sso" => %{
           "entra_tenant_id" => "11111111-2222-3333-4444-555555555555",
-          "sso_login_domain" => "example.com",
+          "sso_login_domain" => "authsettings-example.com",
           "oauth2_client_id" => "test_client_id",
           "oauth2_client_secret" => "test_client_secret"
         }
@@ -676,25 +823,25 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         lv
         |> form("#sso-form", %{
           "sso" => %{
-            "oauth2_site" => "https://login.vendor.example",
-            "sso_login_domain" => "Customer.Example.",
+            "oauth2_site" => "https://login.authsettings-vendor.example",
+            "sso_login_domain" => "Authsettings-Customer.Example.",
             "oauth2_client_id" => "test_client_id",
             "oauth2_client_secret" => "test_client_secret",
-            "oauth2_authorize_url" => "https://login.vendor.example/authorize",
-            "oauth2_token_url" => "https://login.vendor.example/token",
-            "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+            "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
+            "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
+            "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
           }
         })
         |> render_submit()
 
       assert html =~ "Pending verification"
-      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "_tuist-verification.authsettings-customer.example"
       assert html =~ "tuist-domain-verification="
       assert has_element?(lv, ~s([data-testid="sso-automatic-enrollment-toggle"][data-disabled]))
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
-      assert updated_organization.sso_organization_id == "https://login.vendor.example"
-      assert updated_organization.sso_login_domain == "customer.example"
+      assert updated_organization.sso_organization_id == "https://login.authsettings-vendor.example"
+      assert updated_organization.sso_login_domain == "authsettings-customer.example"
       refute updated_organization.sso_login_domain_verified_at
       assert updated_organization.sso_login_domain_verification_token
     end
@@ -707,12 +854,12 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       {:ok, _legacy_organization} =
@@ -726,22 +873,32 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       Accounts.link_oauth_identity_to_user(user, %{
         provider: :oauth2,
         id_in_provider: "legacy-admin",
-        provider_organization_id: "https://login.vendor.example"
+        provider_organization_id: "https://login.authsettings-vendor.example"
       })
 
-      conn = put_session(conn, :auth_method, :oauth2)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :oauth2,
+            provider_organization_id: "https://login.authsettings-vendor.example",
+            sso_organization_id: organization.id
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       sso_form =
         form(lv, "#sso-form", %{
           "sso" => %{
-            "oauth2_site" => "https://login.vendor.example",
-            "sso_login_domain" => "customer.example",
+            "oauth2_site" => "https://login.authsettings-vendor.example",
+            "sso_login_domain" => "authsettings-customer.example",
             "oauth2_client_id" => "test_client_id",
             "oauth2_client_secret" => "",
-            "oauth2_authorize_url" => "https://login.vendor.example/authorize",
-            "oauth2_token_url" => "https://login.vendor.example/token",
-            "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+            "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
+            "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
+            "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
           }
         })
 
@@ -754,7 +911,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
       assert updated_organization.sso_automatic_enrollment
-      assert updated_organization.sso_login_domain == "customer.example"
+      assert updated_organization.sso_login_domain == "authsettings-customer.example"
       refute updated_organization.sso_login_domain_verified_at
     end
 
@@ -765,17 +922,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       expect(SSOLoginDomainVerification, :verified?, fn domain, token ->
-        assert domain == "customer.example"
+        assert domain == "authsettings-customer.example"
         assert token == configured_organization.sso_login_domain_verification_token
         true
       end)
@@ -802,13 +959,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, _configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
@@ -820,7 +977,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert has_element?(
                lv,
                ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
-               "No TXT record with the verification value was found at _tuist-verification.customer.example. DNS changes can take a while to propagate"
+               "No TXT record with the verification value was found at _tuist-verification.authsettings-customer.example. DNS changes can take a while to propagate"
              )
 
       assert has_element?(
@@ -838,13 +995,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, _configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
@@ -854,13 +1011,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert has_element?(lv, "#sso-login-domain-verification-error")
 
       lv
-      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "Customer.Example"}})
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "Authsettings-Customer.Example"}})
       |> render_change()
 
       assert has_element?(lv, "#sso-login-domain-verification-error")
 
       lv
-      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "other.example"}})
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "authsettings-other.example"}})
       |> render_change()
 
       refute has_element?(lv, "#sso-login-domain-verification-error")
@@ -873,13 +1030,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
@@ -894,7 +1051,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-record-name-copy-button[phx-hook="Clipboard"][data-clipboard-value="_tuist-verification.customer.example"])
+               ~s(#sso-login-domain-record-name-copy-button[phx-hook="Clipboard"][data-clipboard-value="_tuist-verification.authsettings-customer.example"])
              )
 
       assert has_element?(
@@ -910,20 +1067,20 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       assert {:ok, changed_organization} =
                Accounts.update_organization(configured_organization, %{
-                 sso_login_domain: "other.example"
+                 sso_login_domain: "authsettings-other.example"
                })
 
       reject(SSOLoginDomainVerification, :verified?, 2)
@@ -936,7 +1093,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
                "Save the login domain before verifying it."
              )
 
-      assert changed_organization.sso_login_domain == "other.example"
+      assert changed_organization.sso_login_domain == "authsettings-other.example"
       refute changed_organization.sso_login_domain_verified_at
     end
 
@@ -947,17 +1104,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       expect(SSOLoginDomainVerification, :verified?, fn domain, token ->
-        assert domain == "customer.example"
+        assert domain == "authsettings-customer.example"
         assert token == configured_organization.sso_login_domain_verification_token
         true
       end)
@@ -970,13 +1127,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       lv
       |> form("#sso-form", %{
         "sso" => %{
-          "oauth2_site" => "https://login.vendor.example",
-          "sso_login_domain" => "customer.example",
+          "oauth2_site" => "https://login.authsettings-vendor.example",
+          "sso_login_domain" => "authsettings-customer.example",
           "oauth2_client_id" => "test_client_id",
           "oauth2_client_secret" => "",
-          "oauth2_authorize_url" => "https://login.vendor.example/authorize",
-          "oauth2_token_url" => "https://login.vendor.example/token",
-          "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+          "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
+          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
+          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
         }
       })
       |> render_submit()
@@ -992,13 +1149,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     } do
       {:ok, configured_organization} =
         Accounts.update_sso_configuration(organization.id, :oauth2, %{
-          sso_organization_id: "https://login.vendor.example",
-          sso_login_domain: "customer.example",
+          sso_organization_id: "https://login.authsettings-vendor.example",
+          sso_login_domain: "authsettings-customer.example",
           oauth2_client_id: "test_client_id",
           oauth2_client_secret: "test_client_secret",
-          oauth2_authorize_url: "https://login.vendor.example/authorize",
-          oauth2_token_url: "https://login.vendor.example/token",
-          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+          oauth2_authorize_url: "https://login.authsettings-vendor.example/authorize",
+          oauth2_token_url: "https://login.authsettings-vendor.example/token",
+          oauth2_user_info_url: "https://login.authsettings-vendor.example/userinfo"
         })
 
       expect(SSOLoginDomainVerification, :verified?, fn _domain, token ->
@@ -1014,13 +1171,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       lv
       |> form("#sso-form", %{
         "sso" => %{
-          "oauth2_site" => "https://login.vendor.example",
-          "sso_login_domain" => "customer.example",
+          "oauth2_site" => "https://login.authsettings-vendor.example",
+          "sso_login_domain" => "authsettings-customer.example",
           "oauth2_client_id" => "test_client_id",
           "oauth2_client_secret" => "",
-          "oauth2_authorize_url" => "https://login.vendor.example/authorize",
-          "oauth2_token_url" => "https://login.vendor.example/token",
-          "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+          "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
+          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
+          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
         }
       })
       |> render_submit()
@@ -1033,17 +1190,27 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{
       conn: conn,
       account: account,
-      organization: organization
+      organization: organization,
+      user: user
     } do
       {:ok, _organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "customer.example",
+          sso_organization_id: "authsettings-customer.example",
           sso_enforced: true,
           sso_automatic_enrollment: true
         })
 
-      conn = put_session(conn, :auth_method, :google)
+      conn =
+        put_session(
+          conn,
+          :user_token,
+          Accounts.generate_user_session_token(user, %{
+            auth_method: :google,
+            provider_organization_id: "authsettings-customer.example"
+          })
+        )
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
       render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 
@@ -1053,13 +1220,13 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       lv
       |> form("#sso-form", %{
         "sso" => %{
-          "oauth2_site" => "https://login.vendor.example",
+          "oauth2_site" => "https://login.authsettings-vendor.example",
           "sso_login_domain" => "",
           "oauth2_client_id" => "test_client_id",
           "oauth2_client_secret" => "test_client_secret",
-          "oauth2_authorize_url" => "https://login.vendor.example/authorize",
-          "oauth2_token_url" => "https://login.vendor.example/token",
-          "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+          "oauth2_authorize_url" => "https://login.authsettings-vendor.example/authorize",
+          "oauth2_token_url" => "https://login.authsettings-vendor.example/token",
+          "oauth2_user_info_url" => "https://login.authsettings-vendor.example/userinfo"
         }
       })
       |> render_submit()

@@ -2,28 +2,28 @@
 {
   "title": "Автодополнение команд в оболочке",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Узнайте, как настроить оболочку для автоматического дополнения команд Tuist."
+  "description": "Узнайте, как настроить автодополнение команд Tuist в вашей оболочке."
 }
 ---
-# Автодополнение команд в оболочке
+# Автодополнение команд в оболочке {#shell-completions}
 
-Если Tuist **установлен глобально** (например, через Homebrew), вы можете установить автодополнение для Bash и Zsh, чтобы автоматически дополнять команды и опции.
+Если Tuist **установлен глобально** (например, через Homebrew), вы можете установить автодополнение команд для Zsh, Bash и Fish, чтобы автоматически дополнять команды и опции.
 
-> [!WARNING]
+> [!NOTE]
 > **Что такое глобальная установка**
 >
-> Глобальная установка означает, что программа доступна через переменную окружения `$PATH` вашей оболочки. Это позволяет запускать `tuist` из любого каталога в терминале. Такой способ установки используется по умолчанию при установке через Homebrew.
+> Глобальная установка — это установка, доступная в переменной окружения `$PATH` вашей оболочки. Это означает, что вы можете запускать `tuist` из любого каталога в терминале. Это способ установки по умолчанию для Homebrew.
 
 
-#### Zsh {#zsh}
+## Zsh {#zsh}
 
-Если у вас установлен [oh-my-zsh](https://ohmyz.sh/), у вас уже есть каталог для автоматической загрузки скриптов автодополнения — `.oh-my-zsh/completions`. Скопируйте новый скрипт автодополнения в новый файл с именем `_tuist` в этом каталоге:
+Если у вас установлен [oh-my-zsh](https://ohmyz.sh/), у вас уже есть каталог с автоматически загружаемыми скриптами автодополнения — `.oh-my-zsh/completions`. Скопируйте новый скрипт автодополнения в новый файл в этом каталоге с именем `_tuist`:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-Без `oh-my-zsh` вам нужно добавить путь к скриптам автодополнения в переменную функции и включить автоматическую загрузку скриптов автодополнения. Сначала добавьте следующие строки в `~/.zshrc`:
+Без `oh-my-zsh` вам нужно добавить путь к скриптам автодополнения в переменную function path и включить автоматическую загрузку скриптов автодополнения. Сначала добавьте эти строки в `~/.zshrc`:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -31,27 +31,34 @@ autoload -U compinit
 compinit
 ```
 
-Затем создайте каталог `~/.zsh/completion` и скопируйте скрипт автодополнения в этот новый каталог, снова в файл с именем `_tuist`.
+Затем создайте каталог `~/.zsh/completion` и скопируйте скрипт автодополнения в новый каталог, снова в файл с именем `_tuist`.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash {#bash}
+## Bash {#bash}
 
-Если у вас установлен [bash-completion](https://github.com/scop/bash-completion), вы можете просто скопировать новый скрипт автодополнения в файл `/usr/local/etc/bash_completion.d/_tuist`:
-
-```bash
-tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
-```
-
-Без bash-completion вам нужно будет напрямую подключить скрипт автодополнения. Скопируйте его в каталог, например `~/.bash_completions/`, а затем добавьте следующую строку в `~/.bash_profile` или `~/.bashrc`:
+Если у вас установлен [bash-completion](https://github.com/scop/bash-completion), вы можете просто скопировать новый скрипт автодополнения в каталог bash-completion:
 
 ```bash
-source ~/.bash_completions/example.bash
+tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-#### Fish {#fish}
+Без bash-completion вам нужно будет напрямую подключить скрипт автодополнения. Сохраните его в каталог, например `~/.bash_completions/`:
+
+```bash
+mkdir -p ~/.bash_completions
+tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
+```
+
+Затем добавьте следующую строку в `~/.bash_profile` или `~/.bashrc`:
+
+```bash
+source ~/.bash_completions/tuist.bash
+```
+
+## Fish {#fish}
 
 Если вы используете [fish shell](https://fishshell.com), вы можете скопировать новый скрипт автодополнения в `~/.config/fish/completions/tuist.fish`:
 

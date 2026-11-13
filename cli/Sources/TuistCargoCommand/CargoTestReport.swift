@@ -71,10 +71,14 @@ struct CargoTestReport {
     struct Heading {
         let module: String
         let isDoctest: Bool
+        var binary: String?
     }
 
     let modules: [[String: Any]]
     let duration: Int
+    /// The module each executed test binary belongs to, by the binary's path, so the processes code coverage
+    /// recorded can be told apart.
+    var binaries: [String: String] = [:]
 
     static func read(stdout: Data, stderr: Data, targets: [CargoTestTarget], directory: String) -> Self? {
         guard stdout.count + stderr.count <= 50_000_000,
@@ -119,7 +123,8 @@ struct CargoTestReport {
         }
         guard Set(headings.map(\.module)).count == headings.count,
               modules.contains(where: { !($0["test_cases"] as? [[String: Any]] ?? []).isEmpty }) else { return nil }
-        return Self(modules: modules, duration: duration)
+        let binaries = headings.compactMap { heading in heading.binary.map { ($0, heading.module) } }
+        return Self(modules: modules, duration: duration, binaries: Dictionary(binaries, uniquingKeysWith: { first, _ in first }))
     }
 
     private static func clean(_ string: String) -> String {
@@ -139,7 +144,7 @@ struct CargoTestReport {
         return (1 ..< match.numberOfRanges).compactMap { Range(match.range(at: $0), in: line).map { String(line[$0]) } }
     }
 
-    static func heading(_ line: String, targets: [CargoTestTarget], directory _: String) -> Heading? {
+    static func heading(_ line: String, targets: [CargoTestTarget], directory: String) -> Heading? {
         if line.hasPrefix("Doc-tests ") {
             let name = String(line.dropFirst("Doc-tests ".count))
             let matches = targets.filter { $0.isLibrary && $0.name.replacingOccurrences(of: "-", with: "_") == name }
@@ -155,7 +160,9 @@ struct CargoTestReport {
                 && target.source == source
         }
         guard matches.count == 1, let target = matches.first else { return nil }
-        return Heading(module: target.module, isDoctest: false)
+        return Heading(
+            module: target.module, isDoctest: false, binary: parts[1].hasPrefix("/") ? parts[1] : directory + "/" + parts[1]
+        )
     }
 
     private static func sections(_ lines: [String]) -> [Section]? {

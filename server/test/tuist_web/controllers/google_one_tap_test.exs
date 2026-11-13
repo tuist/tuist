@@ -22,6 +22,9 @@ defmodule TuistWeb.GoogleOneTapTest do
     stub(Environment, :google_auth_enabled?, fn -> true end)
     stub(Environment, :google_oauth_configured?, fn -> true end)
     stub(Environment, :google_oauth_client_id, fn -> "tuist-client" end)
+    # The existing users here registered with a password on an instance that
+    # confirms emails; skipping confirmation refuses to link them by email.
+    stub(Environment, :skip_email_confirmation?, fn -> false end)
     %{claims: %{"sub" => "google-user", "email" => "one-tap@gmail.com", "email_verified" => true}}
   end
 
@@ -30,7 +33,9 @@ defmodule TuistWeb.GoogleOneTapTest do
     assert %{"client_id" => "tuist-client", "nonce" => nonce, "csrf_token" => csrf_token} = json_response(conn, 200)
     assert byte_size(nonce) >= 32
     assert is_binary(csrf_token)
-    assert [%{nonce: ^nonce}] = get_session(conn, :google_one_tap)
+    assert [%{nonce: ^nonce}] = challenges(conn)
+    assert conn.resp_cookies["_tuist_google_one_tap_" <> nonce]
+    refute conn.resp_cookies["_tuist_google_one_tap"]
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
   end
 
@@ -116,9 +121,28 @@ defmodule TuistWeb.GoogleOneTapTest do
 
     assert redirected_to(conn) =~ "/#{user.account.name}"
     assert get_session(conn, :user_token)
-    refute get_session(conn, :google_one_tap)
+    refute challenges(conn)
     assert {:ok, identity} = Tuist.Accounts.get_oauth2_identity(:google, claims["sub"])
     assert identity.user.id == user.id
+  end
+
+  test "each tab's form keeps its return destination when another tab changes the session", %{conn: conn, claims: claims} do
+    AccountsFixtures.user_fixture(email: claims["email"])
+    first = "/first-preview?source=one+tap"
+
+    conn = get(conn, ~p"/users/log_in?#{%{return_to: first}}")
+    [action] = conn |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("#google-one-tap form", "action")
+    conn = conn |> recycle() |> start()
+    %{"nonce" => nonce} = json_response(conn, 200)
+
+    conn = conn |> recycle() |> get(~p"/docs/login?#{%{return_to: "/second-preview"}}")
+    conn = conn |> recycle() |> start()
+    expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
+
+    conn = conn |> recycle() |> post(action, %{credential: "signed-token", nonce: nonce})
+
+    assert get_session(conn, :user_token)
+    assert redirected_to(conn) == first
   end
 
   test "uses the existing username selection for new users and preserves Workspace identity", %{
@@ -131,7 +155,7 @@ defmodule TuistWeb.GoogleOneTapTest do
 
     assert redirected_to(conn) == "/users/choose-username"
     assert %{"uid" => "google-user", "provider_organization_id" => "tuist.dev"} = get_session(conn, :pending_oauth_signup)
-    refute get_session(conn, :google_one_tap)
+    refute challenges(conn)
   end
 
   test "falls back to standard sign-in before linking a third-party email", %{conn: conn, claims: claims} do
@@ -163,7 +187,7 @@ defmodule TuistWeb.GoogleOneTapTest do
     nonce_a = json_response(conn, 200)["nonce"]
     conn = start(recycle(conn))
     nonce_b = json_response(conn, 200)["nonce"]
-    assert [%{nonce: ^nonce_b}, %{nonce: ^nonce_a}] = get_session(conn, :google_one_tap)
+    assert Enum.sort(Enum.map(challenges(conn), & &1.nonce)) == Enum.sort([nonce_a, nonce_b])
 
     conn =
       conn
@@ -171,7 +195,7 @@ defmodule TuistWeb.GoogleOneTapTest do
       |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, signup_claims), nonce: nonce_b})
 
     assert redirected_to(conn) == "/users/choose-username"
-    assert [%{nonce: ^nonce_a}] = get_session(conn, :google_one_tap)
+    assert [%{nonce: ^nonce_a}] = challenges(conn)
   end
 
   test "leaves later tabs' challenges intact when an earlier submission fails", %{
@@ -194,7 +218,7 @@ defmodule TuistWeb.GoogleOneTapTest do
       |> post("/auth/google/one-tap", %{credential: "bad-token", nonce: nonce_a})
 
     assert redirected_to(failed) == "/users/log_in"
-    assert [%{nonce: ^nonce_b}] = get_session(failed, :google_one_tap)
+    assert [%{nonce: ^nonce_b}] = challenges(failed)
 
     completion =
       failed
@@ -202,7 +226,135 @@ defmodule TuistWeb.GoogleOneTapTest do
       |> post("/auth/google/one-tap", %{credential: signed_token(key, nonce_b, claims), nonce: nonce_b})
 
     assert redirected_to(completion) =~ "/#{user.account.name}"
-    refute get_session(completion, :google_one_tap)
+    refute challenges(completion)
+  end
+
+  test "keeps the challenge when a concurrent request rewrites the session cookie", %{conn: conn, claims: claims} do
+    user = AccountsFixtures.user_fixture(email: claims["email"])
+    conn = conn |> get("/users/log_in") |> recycle()
+
+    # A request with changed browser preferences still writes its snapshot of
+    # the session. It can finish after a concurrent One Tap start request.
+    started = start(conn)
+    nonce = json_response(started, 200)["nonce"]
+    passkey_options = conn |> put_req_cookie("user_timezone", "Europe/Madrid") |> post("/users/log_in/passkey/options")
+    assert passkey_options.resp_cookies |> Map.keys() |> Enum.any?(&String.starts_with?(&1, "_tuist_key"))
+
+    expect(Google, :verify_identity_token, fn "signed-token", ^nonce -> {:ok, claims} end)
+
+    # The browser applies each response's cookies in arrival order.
+    conn =
+      started.resp_cookies
+      |> Map.merge(passkey_options.resp_cookies)
+      |> Enum.reduce(build_conn(), fn {name, %{value: value}}, conn -> put_req_cookie(conn, name, value) end)
+      |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
+
+    assert redirected_to(conn) =~ "/#{user.account.name}"
+    assert get_session(conn, :user_token)
+  end
+
+  test "parallel starts and independent completions survive either response arrival order", %{conn: conn, claims: claims} do
+    for reverse? <- [false, true], concurrent_completions? <- [false, true] do
+      # Both requests leave with the very same incoming browser cookies.
+      first = start(conn)
+      second = start(conn)
+      nonce_a = json_response(first, 200)["nonce"]
+      nonce_b = json_response(second, 200)["nonce"]
+      responses = if reverse?, do: [second, first], else: [first, second]
+      jar = Enum.reduce(responses, %{}, &apply_response_cookies/2)
+      pending_jar = jar
+
+      expect(Google, :verify_identity_token, fn "first-token", ^nonce_a -> {:ok, claims} end)
+      expect(Google, :verify_identity_token, fn "second-token", ^nonce_b -> {:ok, claims} end)
+
+      first_completion =
+        jar |> browser_request() |> post("/auth/google/one-tap", %{credential: "first-token", nonce: nonce_a})
+
+      assert redirected_to(first_completion) == "/users/choose-username"
+
+      jar = apply_response_cookies(first_completion, jar)
+      second_jar = if concurrent_completions?, do: pending_jar, else: jar
+
+      second_completion =
+        second_jar |> browser_request() |> post("/auth/google/one-tap", %{credential: "second-token", nonce: nonce_b})
+
+      assert redirected_to(second_completion) == "/users/choose-username"
+
+      jar = apply_response_cookies(second_completion, jar)
+
+      for nonce <- [nonce_a, nonce_b] do
+        replay = jar |> browser_request() |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
+        assert redirected_to(replay) == "/users/log_in"
+      end
+    end
+  end
+
+  @tag :session_compatibility
+  test "retains outstanding legacy challenges alongside independent starts", %{conn: conn, claims: claims} do
+    conn =
+      conn
+      |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+      |> put_resp_cookie("_tuist_google_one_tap", [%{nonce: "legacy", issued_at: System.system_time(:second)}],
+        sign: true
+      )
+      |> recycle()
+      |> start()
+
+    nonce = json_response(conn, 200)["nonce"]
+    refute Map.has_key?(conn.resp_cookies, "_tuist_google_one_tap")
+    expect(Google, :verify_identity_token, fn "legacy-token", "legacy" -> {:ok, claims} end)
+    expect(Google, :verify_identity_token, fn "new-token", ^nonce -> {:ok, claims} end)
+
+    conn = conn |> recycle() |> post("/auth/google/one-tap", %{credential: "legacy-token", nonce: "legacy"})
+    assert redirected_to(conn) == "/users/choose-username"
+    conn = conn |> recycle() |> post("/auth/google/one-tap", %{credential: "new-token", nonce: nonce})
+    assert redirected_to(conn) == "/users/choose-username"
+  end
+
+  test "bounds sequential pending cookies without evicting an active challenge", %{conn: conn} do
+    conn = Enum.reduce(1..10, conn, fn _, conn -> conn |> recycle() |> start() end)
+    assert length(challenges(conn)) == 10
+
+    assert Enum.all?(conn.resp_cookies, fn {name, cookie} ->
+             not String.starts_with?(name, "_tuist_google_one_tap_") or
+               (byte_size(cookie.value) < 512 and cookie.max_age == 3600 and
+                  cookie.path == "/auth/google/one-tap" and cookie.http_only)
+           end)
+
+    limited = conn |> recycle() |> start()
+    assert response(limited, 204) == ""
+    refute Enum.any?(limited.resp_cookies, fn {name, _} -> String.starts_with?(name, "_tuist_google_one_tap_") end)
+  end
+
+  test "rejects independent challenges without the signed browser cookie or after tampering", %{conn: conn} do
+    started = start(conn)
+    nonce = json_response(started, 200)["nonce"]
+    name = "_tuist_google_one_tap_" <> nonce
+    reject(Google, :verify_identity_token, 2)
+
+    for request <- [conn, put_req_cookie(conn, name, started.resp_cookies[name].value <> "tampered")] do
+      result = post(request, "/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
+      assert redirected_to(result) == "/users/log_in"
+      refute get_session(result, :user_token)
+    end
+  end
+
+  test "rejects expired and future-dated independent challenges", %{conn: conn} do
+    nonce = String.duplicate("a", 43)
+    name = "_tuist_google_one_tap_" <> nonce
+    reject(Google, :verify_identity_token, 2)
+
+    for issued_at <- [System.system_time(:second) - 3600, System.system_time(:second) + 3600] do
+      result =
+        conn
+        |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+        |> put_resp_cookie(name, %{nonce: nonce, issued_at: issued_at}, sign: true)
+        |> recycle()
+        |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: nonce})
+
+      assert redirected_to(result) == "/users/log_in"
+      assert result.resp_cookies[name].max_age == 0
+    end
   end
 
   test "rejects credentials without a challenge", %{conn: conn} do
@@ -214,18 +366,20 @@ defmodule TuistWeb.GoogleOneTapTest do
   test "rejects an expired challenge", %{conn: conn} do
     conn =
       conn
-      |> init_test_session(%{google_one_tap: [%{nonce: "old", issued_at: 0}]})
+      |> Map.put(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
+      |> put_resp_cookie("_tuist_google_one_tap", [%{nonce: "old", issued_at: 0}], sign: true)
+      |> recycle()
       |> post("/auth/google/one-tap", %{credential: "signed-token", nonce: "old"})
 
     assert redirected_to(conn) == "/users/log_in"
-    refute get_session(conn, :google_one_tap)
+    refute challenges(conn)
   end
 
   test "consumes the challenge on invalid credentials", %{conn: conn} do
     stub(Google, :verify_identity_token, fn _, _ -> {:error, :invalid_token} end)
     conn = conn |> start() |> complete("bad-token")
     assert redirected_to(conn) == "/users/log_in"
-    refute get_session(conn, :google_one_tap)
+    refute challenges(conn)
     refute get_session(conn, :user_token)
   end
 
@@ -283,6 +437,27 @@ defmodule TuistWeb.GoogleOneTapTest do
   end
 
   defp start(conn), do: post(conn, "/auth/google/one-tap/start")
+
+  defp apply_response_cookies(response, jar) do
+    Enum.reduce(response.resp_cookies, jar, fn {name, options}, jar ->
+      if options[:max_age] == 0, do: Map.delete(jar, name), else: Map.put(jar, name, options.value)
+    end)
+  end
+
+  defp browser_request(jar) do
+    Enum.reduce(jar, build_conn(), fn {name, value}, conn -> put_req_cookie(conn, name, value) end)
+  end
+
+  defp challenges(conn) do
+    challenges =
+      Enum.flat_map(conn.cookies, fn
+        {"_tuist_google_one_tap", challenges} when is_list(challenges) -> challenges
+        {"_tuist_google_one_tap_" <> _, %{nonce: _} = challenge} -> [challenge]
+        _ -> []
+      end)
+
+    if challenges != [], do: challenges
+  end
 
   defp enforce_csrf(conn), do: Plug.Conn.put_private(conn, :plug_skip_csrf_protection, false)
 

@@ -8,6 +8,7 @@
 - Organization SSO updates preserve normal organization authorization, including disabling SSO. Instance-wide login-domain trust adds no administrator allowlist or actor-option restriction; it explicitly trusts all users able to create or administer organizations. Account/project tokens and body-supplied user IDs must not bypass existing authorization.
 - Build/test metadata request schemas and Bazel webhook validation accept 64 total string values, retaining existing per-entry/body limits. Credential-free `GET /api/metadata/limits` advertises only 20 until the receivers-first rollout is complete and explicitly enabled; it must not authenticate clients or accept build data. See `server/docs/build-metadata.md`.
 - `API.OIDCController` exchanges custom workload identities only through account-owned OIDC policies, requiring `account_handle`. Verified policy IDs are reloaded in one account-scoped batch and matched again against their own verified JWKS URL, issuer, audience and exact typed claims before issuance. Custom workload tokens have CI scope and `all_projects: true`, including future projects, and can be exchanged before any projects exist; ordinary ownership checks still prevent access to other accounts. Built-in GitHub Actions/CircleCI/Bitrise providers retain repository authorization and cannot be overridden by custom policies. Never infer a VCS grant from custom workload claims. Missing custom account input is a 400; other custom verification failures share a generic 401. The route uses the existing hosted requester limiter.
+- Amp orb tokens exchange through `account_amp_workspace_connections`: a verified `workspace_id` (and `project_id` for project-limited connections) connected to exactly one account (or to the given `account_handle`) gets an account-wide CI token. Several connected accounts without a handle is a 403 asking for `TUIST_OIDC_ACCOUNT`; never pick by row order. When no connection matches and a handle is given, fall back to that account's custom Amp trust policies, which also cover personal threads.
 - `WellKnownController.tuist_discovery/2` serves public, cookie-free `GET /.well-known/tuist.json` with independent instance-wide `network_trusted_report_publishing` and `network_trusted_cache_access` booleans and `Cache-Control: no-store`. It reveals no account/project data, never enables hosted network trust, and is only client discovery: report endpoints and Kura's authenticated node policy endpoint still enforce the authoritative policy and license.
 - Test-run detail metrics reuse the already-loaded and project-authorized run rather than looking it up again for its persisted reporting version.
 - Xcresult jobs carry the persisted run's `reporting_version` as a parser-work hint, so version-1 jobs skip unsupported coverage parsing. Never take it from client input or use a job hint instead of the persisted shard plan for ingestion behavior; absent hints retain legacy parser behavior.
@@ -28,7 +29,7 @@
 - Mix build reports accept optional bounded dependency-cache observations. Derive project, account and environment attribution from the authorized build request; the client supplies no other project's ID. Optional local/remote I/O source claims describe client-observed operations only; they never create CAS outputs or Kura remote telemetry. Cache-only reports need no compiled files. Accept `local_hit` with reason `up_to_date` for validated existing outputs reused by Mix, without estimated savings or I/O fields; other outcomes cannot use that reason. Validate local/remote outcomes, keys, paired bytes/durations, source/outcome consistency and unique dependency names before storing a build. Shared `Webhooks.ReapiCacheController` accepts signed Bazel/Mix events only when client kind matches the resolved project's build system; it uses the same signature, bounded validation and replay-deduplication path for both.
 - GitHub Enterprise manifest registration posts and redirects the browser to `client_url`, but exchanges the code through the optional signed `api_url` override. Persist both before installation; setup callbacks and webhook identity remain keyed to the canonical browser host.
 - Open Graph project images recheck project identity and public visibility before storage reads or 304 responses. Use `no-cache` even for transient project cards; marketing/docs images remain immutable. Store project cards in their own retention prefix.
-- Google One Tap uses a same-origin start request and a CSRF-protected completion request in `AuthController`. Marketing HTML is shared-cached, so the start request cannot present the page's session-bound CSRF token; the router routes it through the `:same_origin_csrf_exemption` pipeline (`TuistWeb.Plugs.SameOriginCSRFExemptionPlug`), which accepts it when the browser-set `Sec-Fetch-Site` or `Origin` header proves same-origin, and its JSON returns a fresh `csrf_token` for the credential form alongside the nonce. Up to ten pending one-hour challenges support independent browser tabs. The submitted nonce selects and consumes only its matching session challenge before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
+- Google One Tap uses a same-origin start request and a CSRF-protected completion request in `AuthController`. Marketing HTML is shared-cached, so the start request cannot present the page's session-bound CSRF token; the router routes it through the `:same_origin_csrf_exemption` pipeline (`TuistWeb.Plugs.SameOriginCSRFExemptionPlug`), which accepts it when the browser-set `Sec-Fetch-Site` or `Origin` header proves same-origin, and its JSON returns a fresh `csrf_token` for the credential form alongside the nonce. Independent challenge cookies prevent simultaneous starts/completions from overwriting each other; retain legacy aggregate readers and consumption for outstanding challenges, not new starts. Preserve the Google Workspace hosted-domain claim when building the authentication result.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
 
@@ -54,10 +55,11 @@
 - Missing cache-volume metadata returns `delete` until the authenticated agent
   reports state `deleted`, then `forget` to release its durable local journal.
 
-- `API.RunnerVolumesController` exposes dashboard volume data and clearing via
-  `Runners.CacheVolumes.Query`. Reads require runners-read; clearing requires
-  account-update. Keep the runners feature flag and no-store responses. This
-  public controller must not expose privileged agent allocation/report methods.
+- `API.RunnerVolumesController` exposes dashboard volume data and deletion via
+  `Runners.CacheVolumes.Query`. Reads require runners-read; deletion requires
+  account-update. Keep the deprecated `POST .../clear` route for released
+  CLIs, the runners feature flag and no-store responses. This public controller
+  must not expose privileged agent allocation/report methods.
 
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
@@ -69,7 +71,7 @@
 
 - Shared Grafana health routes dispatch by the authorized project build system. Keep the legacy Gradle routes compatible, use build-read authorization, and include the source in dimension cache keys.
 
-- Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
+- Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, Cargo, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
 
 - `RunnerCacheMastersController.index` accepts only the per-machine
   `tuist-runner-host` audience and derives the node from its ServiceAccount; it

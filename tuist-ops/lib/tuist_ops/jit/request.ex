@@ -24,6 +24,7 @@ defmodule TuistOps.JIT.Request do
     field :requester_slack_id, :string
     field :target_group, :string
     field :github_login, :string
+    field :orb_thread_id, :string
     field :intent, :string
     field :ttl_seconds, :integer
     field :status, :string, default: "pending"
@@ -35,6 +36,7 @@ defmodule TuistOps.JIT.Request do
     field :denied_at, :utc_datetime
     field :expires_at, :utc_datetime
     field :failure_reason, :string
+    field :atlas_approval_id, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -44,6 +46,10 @@ defmodule TuistOps.JIT.Request do
   `expires_at` here is the deadline by which a second human must
   approve in Slack (default 10 minutes); the runtime elevation TTL
   lives on the Elevation row instead.
+
+  A request approved in Atlas carries `:atlas_approval_id` instead of
+  the Slack fields, and is always an orb thread elevation. Orb thread
+  elevations only come from Atlas, never from Slack.
   """
   def create_changeset(attrs) do
     %__MODULE__{}
@@ -52,24 +58,33 @@ defmodule TuistOps.JIT.Request do
       :requester_slack_id,
       :target_group,
       :github_login,
+      :orb_thread_id,
       :intent,
       :ttl_seconds,
       :slack_channel_id,
-      :expires_at
+      :expires_at,
+      :atlas_approval_id
     ])
-    |> validate_required([
-      :requester_email,
-      :requester_slack_id,
-      :target_group,
-      :intent,
-      :ttl_seconds,
-      :slack_channel_id,
-      :expires_at
-    ])
+    |> validate_required([:requester_email, :target_group, :intent, :ttl_seconds, :expires_at])
+    |> validate_approval_channel()
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:ttl_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_length(:intent, min: 5, max: 500)
     |> validate_github_login()
+    |> validate_orb_thread_id()
+    |> unique_constraint(:atlas_approval_id)
+  end
+
+  defp validate_approval_channel(changeset) do
+    if get_field(changeset, :atlas_approval_id) do
+      validate_required(changeset, [:orb_thread_id])
+    else
+      changeset
+      |> validate_required([:requester_slack_id, :slack_channel_id])
+      |> validate_change(:orb_thread_id, fn _, _ ->
+        [orb_thread_id: "needs an Atlas approval"]
+      end)
+    end
   end
 
   # GitHub logins: alphanumerics and single inner hyphens, max 39 chars.
@@ -87,6 +102,33 @@ defmodule TuistOps.JIT.Request do
       |> validate_format(:github_login, @github_login_format)
     else
       changeset
+    end
+  end
+
+  # Amp thread IDs, as Atlas's `request_cluster_elevation` takes them
+  # and as the Amp workload identity token's `thread_id` claim carries
+  # them.
+  @orb_thread_id_format ~r/^T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+  def orb_thread_id?(value), do: is_binary(value) and Regex.match?(@orb_thread_id_format, value)
+
+  # A thread elevation only means something for a cluster env.
+  defp validate_orb_thread_id(changeset) do
+    case get_field(changeset, :orb_thread_id) do
+      nil ->
+        changeset
+
+      thread_id ->
+        cond do
+          not orb_thread_id?(thread_id) ->
+            add_error(changeset, :orb_thread_id, "is not an Amp thread ID")
+
+          is_nil(Policy.env_for(get_field(changeset, :target_group))) ->
+            add_error(changeset, :orb_thread_id, "only applies to cluster elevations")
+
+          true ->
+            changeset
+        end
     end
   end
 

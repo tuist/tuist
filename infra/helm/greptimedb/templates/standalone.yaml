@@ -1,0 +1,157 @@
+{{- include "greptimedb.validate" . }}
+{{- if eq .Values.topology "standalone" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: greptimedb-config
+data:
+  config.toml: |
+    mode = "standalone"
+    enable_telemetry = false
+    user_provider = "static_user_provider:file:/etc/greptimedb/auth/passwd"
+    max_in_flight_write_bytes = "64MB"
+    max_concurrent_queries = 4
+    [http]
+    addr = "0.0.0.0:4000"
+    timeout = "30s"
+    [wal]
+    provider = "raft_engine"
+    dir = "/data/greptimedb/wal"
+    [storage]
+    data_home = "/data/greptimedb"
+    type = "S3"
+    bucket = {{ .Values.storage.bucket | quote }}
+    endpoint = {{ .Values.storage.endpoint | quote }}
+    region = {{ .Values.storage.region | quote }}
+    root = {{ .Values.storage.prefix | quote }}
+    [[region_engine]]
+    [region_engine.mito]
+    num_workers = 2
+    auto_flush_interval = "1m"
+    global_write_buffer_size = "128MB"
+    global_write_buffer_reject_size = "256MB"
+    write_cache_size = "1GB"
+    [logging]
+    level = "info"
+    log_format = "json"
+    only_log_to_stdout = true
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: greptimedb-credentials
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: greptimedb-credentials
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID: '{{ "{{ .accessKey | trim }}" }}'
+        GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY: '{{ "{{ .secretKey | trim }}" }}'
+  data:
+    - secretKey: accessKey
+      remoteRef:
+        key: PULSE_S3_CREDENTIALS/access_key_id
+    - secretKey: secretKey
+      remoteRef:
+        key: PULSE_S3_CREDENTIALS/secret_access_key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: greptimedb
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: greptimedb
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: greptimedb
+spec:
+  serviceName: greptimedb
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: greptimedb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: greptimedb
+      annotations:
+        checksum/config: {{ toJson .Values | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
+      securityContext:
+        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+      {{- include "greptimedb.authInit" . | nindent 6 }}
+      containers:
+        - name: greptimedb
+          image: {{ .Values.image | quote }}
+          args: [standalone, start, --config-file, /etc/greptimedb/config/config.toml]
+          ports:
+            - name: http
+              containerPort: 4000
+          securityContext:
+            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: greptimedb-credentials
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: data, mountPath: /data/greptimedb}
+            - {name: scratch, mountPath: /tmp}
+            - {name: config, mountPath: /etc/greptimedb/config, readOnly: true}
+            - {name: auth, mountPath: /etc/greptimedb/auth, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: greptimedb-config}
+        {{- include "greptimedb.authVolumes" . | nindent 8 }}
+        - name: scratch
+          emptyDir: {sizeLimit: 64Mi}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: greptimedb-private
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: greptimedb
+  policyTypes: [Ingress]
+  ingress:
+    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+{{- end }}

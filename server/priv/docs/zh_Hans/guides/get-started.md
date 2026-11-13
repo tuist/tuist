@@ -1,23 +1,25 @@
 ---
 {
-  "title": "Get started",
-  "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, Rust, or Bazel."
+  "title": "入门指南",
+  "titleTemplate": ":title · 入门指南 · 指南 · Tuist",
+  "description": "选择与你的应用当前构建方式相匹配的 Tuist 路径：Xcode、生成的 Xcode 项目、Gradle、Elixir、Rust、Bazel 或 Once。"
 }
 ---
 # 开始使用 {#get-started}
 
-选择与当前应用构建方式匹配的路径。每种路径都会逐步介绍需要安装的内容、如何启用缓存、洞察和测试功能，以及如何端到端地验证设置。你可以单独采用它们，或者在多个平台上发布时组合使用。
+选择与当前应用构建方式匹配的路径。每种路径都会引导你完成安装内容、如何启用缓存、洞察和测试功能，以及如何端到端验证设置。你可以独立采用这些路径，如果在多个平台上交付软件，也可以组合使用。
+
+大多数路径使用 <.localized_link href="/guides/install-tuist">Tuist 命令行界面</.localized_link>。Elixir 使用 Hex 包，Once 通过其原生 Tuist 提供程序连接；两者在集成时都不需要 Tuist CLI。
 
 ## Xcode 项目 {#existing-xcode-project}
 
-保留现有的 Xcode 项目或工作区，并逐一添加 Tuist 功能。无需生成项目。
+保留现有的 Xcode 项目或工作区，并逐个添加 Tuist 功能。无需生成项目。
 
 <.localized_link href="/guides/get-started/existing-xcode-project">Start with an Xcode project →</.localized_link>
 
 ## 生成的 Xcode 项目 {#generated-xcode-project}
 
-让 Tuist 根据 Swift 清单定义并生成你的 Xcode 项目。生成的项目将模块化 Xcode 项目的复杂性压缩为对依赖图的简洁声明式描述，并且是 <.localized_link href="/guides/features/cache/module-cache">模块缓存</.localized_link> 和 <.localized_link href="/guides/features/selective-testing/generated-xcode-project">选择性测试</.localized_link> 的严格要求。
+让 Tuist 从 Swift 清单定义并生成你的 Xcode 项目。生成的项目将模块化 Xcode 项目的复杂性压缩为简洁的声明式图描述，并且是 <.localized_link href="/guides/features/cache/module-cache">模块缓存</.localized_link> 和 <.localized_link href="/guides/features/selective-testing/generated-xcode-project">选择性测试</.localized_link> 的严格要求。
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -45,4 +47,8 @@
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-在进行上述任何操作之前，请先 <.localized_link href="/guides/install-tuist">安装 Tuist 命令行界面</.localized_link>。Elixir 项目是例外：它们只需要 Hex 包。
+## Once 项目 {#once-project}
+
+将 Once 的可缓存脚本和构建图连接到 Tuist，以实现共享缓存、实时构建和测试洞察、托管测试分片以及应用预览。
+
+<.localized_link href="/guides/get-started/once-project">Start with a Once project →</.localized_link>

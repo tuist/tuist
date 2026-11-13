@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,7 +23,7 @@ var sandboxAllocationMu sync.Mutex
 // Sandboxes and queued CI compete for uncommitted capacity. Host reservations
 // still protect a waiting CI shape; a queue elsewhere does not revoke all grants.
 func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, pool *tuistv1.RunnerPool, fleet *fleetAllocation) error {
-	if pool.Spec.OS != "linux" || r.SandboxesNamespace == "" || fleet == nil {
+	if (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || r.SandboxesNamespace == "" || fleet == nil {
 		return nil
 	}
 	// One reporter per fleet; all members still compute the same CI decision.
@@ -47,6 +49,9 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	if err := reader.List(ctx, &pods); err != nil {
 		return err
 	}
+	if pool.Spec.OS == "darwin" {
+		return r.publishMacosGrants(ctx, nodes.Items, pods.Items, fleet, observed)
+	}
 	daemons, err := listSandboxDaemons(ctx, reader, r.SandboxesNamespace)
 	if err != nil {
 		return err
@@ -62,14 +67,14 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 			if err := r.SignalsClient.PublishSandboxAllocation(ctx, allocation); err != nil {
 				return fmt.Errorf("publish sandbox allocation for %s: %w", node.Name, err)
 			}
-			metrics.RecordSandboxAllocation(node.Name, daemon.memory, allocation.MemoryBytes, allocation.FreeBytes, float64(observed.Unix()))
+			metrics.RecordSandboxAllocation(daemon.grantNode(), daemon.memory, allocation.MemoryBytes, allocation.FreeBytes, float64(observed.Unix()))
 		}
 	}
 	return nil
 }
 
 func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev1.Pod, fleet *fleetAllocation) scaling.SandboxAllocation {
-	allocation := scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, Reclaim: fleet == nil || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
+	allocation := scaling.SandboxAllocation{Node: daemon.grantNode(), Pod: daemon.name, Reclaim: fleet == nil || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
 	ready := false
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
@@ -95,7 +100,7 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 		memory := allocationPodMemory(pod)
 		// The target daemon is counted separately using max(requested,
 		// allocated, applied). Other daemon Pods remain ordinary occupancy.
-		if pod.Name == daemon.name && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Name == daemon.name && isSandboxDaemon(pod) {
 			memory = daemon.memory
 		}
 		used += memory
@@ -149,5 +154,83 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 			initPeak = max(initPeak, sidecars+memory)
 		}
 	}
-	return max(app+sidecars, initPeak) + copy.Spec.Overhead.Memory().Value()
+	total := max(app+sidecars, initPeak)
+	// A Pod-level budget replaces the containers' requests on the node.
+	if pod.Spec.Resources != nil {
+		if memory, ok := pod.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
+			total = memory.Value()
+		}
+	}
+	return total + copy.Spec.Overhead.Memory().Value()
+}
+
+// MacosSandboxRoleLabel marks a macOS sandbox host's control Pod and the
+// execution Pods that reserve each sandbox VM's capacity.
+const MacosSandboxRoleLabel = "tuist.dev/macos-sandbox-role"
+
+const macosSandboxRole = MacosSandboxRoleLabel
+const macosSandboxGrant = "tuist.dev/macos-sandbox-grant"
+
+// macOS shares the Linux policy above: queued CI and native sandboxes compete
+// for uncommitted capacity, a host reservation still protects a waiting CI
+// shape, and unknown fleet demand denies every grant.
+func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) error {
+	for i := range nodes {
+		node := &nodes[i]
+		for j := range pods {
+			pod := &pods[j]
+			if pod.Namespace != r.SandboxesNamespace || pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] != "control" {
+				continue
+			}
+			allow := fleet != nil && nodeFilterReason(node) == "" && !isReserved(node) && pod.DeletionTimestamp.IsZero()
+			for _, condition := range node.Status.Conditions {
+				if (condition.Type == corev1.NodeMemoryPressure || condition.Type == corev1.NodeDiskPressure || condition.Type == corev1.NodePIDPressure) && condition.Status != corev1.ConditionFalse {
+					allow = false
+				}
+			}
+			room := nativeSandboxRoom(node, pods, fleet, observed)
+			allow = allow && room.cpu > 0 && room.memory > 0 && room.slots > 0
+			grant, _ := json.Marshal(map[string]any{"cpu_milli": room.cpu, "memory_bytes": room.memory, "slots": room.slots, "node_uid": string(node.UID), "control_uid": string(pod.UID), "observed_at": observed, "allow": allow})
+			before := node.DeepCopy()
+			if node.Annotations == nil {
+				node.Annotations = map[string]string{}
+			}
+			node.Annotations[macosSandboxGrant] = string(grant)
+			// Optimistic locking cannot overwrite a concurrent CI reservation/taint.
+			if err := r.Patch(ctx, node, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Grants include native capacity only: busy CI and other bound workloads are
+// excluded, while reclaimable warm runners may yield. Server placement then
+// subtracts its existing native reservations from this per-host envelope.
+func nativeSandboxRoom(node *corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, now time.Time) nativeFootprint {
+	room := nativeFootprint{node.Status.Allocatable.Cpu().MilliValue(), node.Status.Allocatable.Memory().Value(), 2}
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] == "execution" {
+			continue
+		}
+		reclaimable := false
+		if fleet != nil && pod.DeletionTimestamp.IsZero() {
+			member, ok := fleet.members[pod.Labels["tuist.dev/runner-pool"]]
+			if ok && member.pool != nil && isIdle(pod) && !isStaleRunner(pod, member.pool) && isWarmCapacity(pod, member.pool) {
+				since, warm := warmSince(pod)
+				// A warm sandbox VM exists to be claimed or given up, so it
+				// never hides the room it holds behind the CI grace period.
+				reclaimable = warm && (podtemplate.IsMacosSandboxWarm(member.pool) || now.Sub(since) >= preemptionGrace)
+			}
+		}
+		if !reclaimable {
+			room.subtract(nativePodFootprint(pod))
+		}
+	}
+	room.cpu = max(room.cpu, 0)
+	room.memory = max(room.memory, 0)
+	room.slots = max(room.slots, 0)
+	return room
 }

@@ -1,3 +1,4 @@
+| `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup; see "Guest to host: blob cache". It comes out of `DISK_BUDGET_GIB`: the daemon reports the budget less the cache, so placement never counts on the cache's bytes, and refuses to start unless the cache is smaller. Its usage is reported in `disk.templates_bytes`. `0` disables it. || `BLOB_CACHE_GIB` | `0` | Node cache of remote-execution input blobs under `DATA_DIR/blobs`, emptied at startup and counted in `disk.templates_bytes`; see "Guest to host: blob cache". `0` disables it. |
 # sandboxd
 
 Per-node daemon that runs Firecracker microVM sandboxes for coding-agent
@@ -54,7 +55,14 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced}
+/data/sandboxes/snapshots/<snapshot_id>/
+  vmlinux             hard link to the kernel the source sandbox booted
+  rootfs.ext4         reflink clone of the source sandbox's rootfs
+  workspace.ext4      reflink clone of the source sandbox's workspace
+  disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
+/data/sandboxes/blobs/<scope>/<sha256>-<size>
+                      remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
 ```
 
 The jail directory is the jailer's chroot, so every sandbox sees the same
@@ -84,6 +92,11 @@ rootfstype=ext4 init=/sbin/sbx-init sbx.dns=<ip,ip> sbx.hostname=sandbox`.
 The DNS list is the daemon Pod's own resolvers (cluster DNS), so guests
 resolve both cluster Services and public names through the pod's NAT.
 
+A shape snapshot records the Firecracker version that took it, and startup
+removes shapes another version took, since that version cannot load them; the
+next create rebuilds them. Restored guests keep the boot args baked into their
+memory image until they cold boot.
+
 ## Sandbox lifecycle on the node
 
 - `create {sandbox_id, template, vcpus, memory_mb, workspace_gb, hostname}`:
@@ -107,6 +120,49 @@ resolve both cluster Services and public names through the pod's NAT.
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
   retried resume whose first answer was lost is harmless.
+- `pause {sandbox_id, sync_disks: true}` first runs `/bin/sync` in the
+  guest and records `disks_synced` in the metadata (cleared by the next
+  resume), so the disks alone hold everything written. A failed sync still
+  pauses and leaves the flag unset.
+- `save_disks {sandbox_id, snapshot_id}`: refuse unless the sandbox is
+  paused with `disks_synced`; hard link its kernel and reflink its rootfs
+  and workspace into `snapshots/.tmp-<id>`, write `disk-snapshot.json`,
+  fsync, and rename over `snapshots/<id>`. No memory is kept. Startup
+  removes `.tmp-*` leftovers. `delete_disks {snapshot_id}` removes the
+  directory and succeeds when it is absent. `hello` and `report` list the
+  snapshots under `disk_snapshots`; the disk report counts their exclusive
+  bytes as `snapshots_bytes`.
+- `create {..., from_disk_snapshot}`: link the snapshot's kernel and
+  reflink its disks into the jail instead of the template's (the template
+  name and workspace size must match the snapshot), then cold boot like a
+  `cold_boot` resume. No template shape snapshot is needed, and the guest
+  keeps its workspace. The first pause writes the sandbox's own memory
+  image.
+- `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
+  paused with `disks_synced`, since only the disks are archived; stream
+  `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory image) as one
+  zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  header, file records with data blocks at their offsets, holes and zero
+  blocks left out) cut into `part_size` parts, each PUT to the next
+  presigned UploadPart URL (two parts in memory at most, three attempts per
+  part). Answers the parts' ETags, the object's `bytes` and `sha256`,
+  `stored_bytes` and `disks_synced`. The sandbox stays paused on the node;
+  the server deletes it once the upload is complete. A `resume` or `delete`
+  cancels an archive in flight instead of waiting for it. Transport errors
+  never carry the signed URL.
+- `archive_disks {snapshot_id, part_size, part_urls}`: upload a disk
+  snapshot's kernel, rootfs and workspace in the same archive format and
+  answer the same fields as `archive`. The files are opened under the
+  snapshot lock and streamed after it is released, so a delete or a newer
+  save meanwhile only unlinks them; the server discards an upload whose
+  snapshot changed. The snapshot stays on the node. Any node can then
+  `create` from the object with `from_archive`, which is how a project
+  snapshot reaches a node other than the one that saved it.
+- `create {..., from_archive: {url, bytes, sha256}}`: download the archive
+  (three attempts), check its size and SHA-256, extract it into a fresh
+  jail (the template name and workspace size must match), then cold boot
+  like a disk-snapshot clone. A failure discards the jail; the archive is
+  never touched.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.
@@ -146,6 +202,19 @@ pod namespace drops everything the slot network sends to local processes
 forwarding accepts. A guest can only reach what lies beyond the pod, under
 the pod's NetworkPolicy; its control channel is vsock, never the network.
 
+Every guest shares the daemon Pod's Cilium identity, so the NetworkPolicy
+cannot tell the daemon's traffic from a guest's. What only the daemon needs
+is fenced in the pod namespace instead, again ahead of the forwarding
+accepts: guest traffic to `DAEMON_ONLY_TCP_PORTS` on any address, and to
+each address `SERVER_URL` resolves to (its Service IP and port), is
+dropped. The pod namespace sees guest packets before Cilium translates a
+Service address, so the chart lists both the server Pods' target port and
+the archive store's port, and the daemon resolves `SERVER_URL` at startup.
+Guests reach the Tuist API through its public URL like any client
+(`TUIST_URL` is the app URL); `GUESTS_REACH_SERVER=true`
+(`sandboxes.networkPolicy.guestServerAccess`) lifts the server fence for a
+deployment whose public URL is the in-cluster Service.
+
 ## Host to guest: vsock
 
 `sbx-agent` listens on vsock port 5000 (guest CID 3). The host connects
@@ -184,6 +253,36 @@ mounts the disk only if nothing is mounted there yet. The flush matters
 because the template VM saw an empty disk at the same path and the block
 layer may have cached its first sectors.
 
+## Guest to host: blob cache
+
+With `BLOB_CACHE_GIB` set, a remote-execution guest reads its large inputs
+from the node (`internal/blobcache`), so the CAS sends each blob to a node once
+instead of once per action. The guest connects to vsock port 5001 on the host
+(CID 2), which Firecracker forwards to `<jail root>/v.sock_5001`. The daemon
+listens there only while an action exec runs: `/usr/local/bin/sbx-executor`
+with no arguments, `SBX_EXECUTION_TOKEN` and `SBX_EXECUTION_REQUEST` (its
+`endpoint`, `account` and `instance`), on a VM of the template tag the daemon
+is configured with. The scope comes from that exec, never from the guest.
+
+One request per connection, a JSON line:
+
+```
+{"op":"read","hash":"<sha256>","size":N,"offset":O,"length":L}
+{"op":"seal"}
+```
+
+A read answers `{"ok":true}` and exactly `L` bytes of the blob from `O`, or
+`{"error":"..."}`, and the guest then reads that blob from the CAS. A miss
+downloads the whole blob with the exec's credential, verifies its digest, and
+serves every concurrent request for it from that one download. Blobs are kept
+per CAS scope (endpoint, account, instance), so a hit never serves another
+project's blob. The least recently used are evicted to stay within the
+budget and to leave 20% of the data filesystem free, which the cache shares
+with runner cache volumes, containerd and kubelet (kubelet evicts Pods below
+15%); when nothing is left to evict, the guest reads that blob from the CAS. `seal` ends serving for the exec; the executor sends it before the
+action's command starts, so the build cannot read the project's CAS through
+the host.
+
 ## Node to server: WebSocket
 
 The daemon dials `GET /api/internal/sandboxes/nodes/connect` on the in-cluster
@@ -202,7 +301,7 @@ Node to server:
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
-               "vcpus":2,"memory_mb":4096,"worker_running":false}]}
+               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
@@ -220,17 +319,33 @@ Server to node:
 {"type":"command","id":"c3","op":"pause","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c4","op":"delete","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c5","op":"exec","args":{"sandbox_id":"...","cmd":["/bin/bash","-lc","ls"],"env":{},"cwd":"/workspace","timeout_ms":60000}}
+{"type":"command","id":"c11","op":"exec","args":{"sandbox_id":"...","cmd":["/usr/local/bin/sbx-executor"],"env":{...},"cwd":"/workspace","timeout_ms":780000,"claim":{"nonce_sha256":"<hex>","env":"SBX_EXECUTION_REQUEST","timeout_ms":30000}}}
 {"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c9","op":"reclaim","args":{"target_bytes":N}}
+{"type":"command","id":"c10","op":"archive","args":{"sandbox_id":"...","part_size":N,"part_urls":["https://..."]}}
+{"type":"command","id":"c12","op":"archive_disks","args":{"snapshot_id":"...","part_size":N,"part_urls":["https://..."]}}
 ```
+
+A running sandbox's `cpu_ms` is its Firecracker process's user and system
+time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
+with each new VM process; the server uses it to pause idle Amp Orbs. Paused
+sandboxes, and hosts without `/proc`, omit it.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker
 process is running; `worker_exited` follows as an event. Credentials travel
 only in `start_worker` args, are handed to the guest over vsock, and are never
 written to the node's disk by the daemon.
+
+An `exec` with a `claim` waits up to `claim.timeout_ms` for a caller to post
+`{sandbox_id, nonce, value}` to `POST /v1/claims` on `DIRECT_EXEC_ADDR`
+(advertised as `direct_exec_endpoint` in `hello`). The nonce must hash to
+`claim.nonce_sha256`; the claim is single-use. The command then runs with
+`value` in `claim.env`, its standard output goes only to the caller
+(`{exit_code, stdout}`), and the result carries the exit code. Unclaimed, the
+result is `{"unclaimed": true}` and nothing ran.
 
 The daemon rereads its cgroup's memory limit every 250 ms and sends a
 `report` as soon as it changes, so a resize of its Pod reaches the server's
@@ -250,6 +365,13 @@ reads `ANTHROPIC_SESSION_ID`, `ANTHROPIC_WORK_ID`, `ANTHROPIC_ENVIRONMENT_ID`,
 attaches to the session's event stream, executes tool calls and exits after
 `MaxIdle` following an `end_turn` idle. The work item was already claimed and
 acknowledged by the server's poller; the worker never polls.
+
+With `SBX_CLAUDE_CODE_WORK_ORDER` set, `sbx-worker` instead runs `claude
+self-hosted-runner` for one Claude Code session (capacity 1, Anthropic's git
+proxy, release after `SBX_CLAUDE_CODE_RELEASE_IDLE_MIN` idle minutes) under
+`<workdir>/claude-code`. The work order reaches the runner only as
+`SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET`. On Linux it drops from root to `user`;
+a guest without the pinned binary downloads and checksums it first.
 
 ## Server side
 
@@ -305,12 +427,40 @@ acknowledged by the server's poller; the worker never polls.
   environment id + environment key, stored encrypted with `Tuist.Vault`),
   list and delete sandboxes, and run commands in a sandbox for validation.
 
+## Measured latency
+
+Production, 7 days to 2026-11-08, from the server's `sandboxes: sandbox
+created` and `sandboxes: sandbox resumed` log lines (default 2 vCPU / 4 GiB
+shape on the shared OVH Linux fleet):
+
+| Path | n | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|---|
+| create from the template snapshot (`boot_ms`) | 79 | 147 ms | 200 ms | 208 ms | 264 ms | 264 ms |
+| create from a node-local disk snapshot (cold boot) | 32 | 745 ms | 788 ms | 800 ms | 3.6 s | 3.6 s |
+| create from an archive (cold boot, after download) | 6 | 724 ms | 772 ms | | | 772 ms |
+| resume on the node (`node_call_ms`) | 266 | 144 ms | 319 ms | 438 ms | 788 ms | 1.3 s |
+| resume admission before the node call (`admit_ms`) | 265 | 866 ms | 1.6 s | 1.9 s | 3.1 s | 12.7 s |
+
+The VM is not the bottleneck: half of all resumes spend longer in
+`Capacity.admit/1` (grant check, node lock, carve-out growth) than the
+node takes to restore. A pause shrinks the carve-out, so nearly every
+resume grows it again and waits for the daemon to report the new limit.
+The daemon notices within 250 ms, but these numbers predate the change
+that cut `Tuist.Sandboxes.NodePresence`'s `broadcast_period` from 1.5 s,
+when another replica took up to that long to see the report.
+`boot_ms` and `node_call_ms` exclude the API request and Amp's
+bootstrap; `admit_ms` is logged only by servers since the field was
+added, hence the smaller sample. Reproduce with LogQL quantiles over those
+lines (`regexp "admit_ms=(?P<v>\\d+)" | unwrap v`) on
+`{namespace="tuist", container="server"}`.
+
 ## Not yet
 
 Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
 
-Diff snapshots, userfaultfd restore from object storage, cross-node resume,
-per-account egress policy, non-root execution in the guest, Claude Code
+Diff snapshots, userfaultfd restore from object storage, cross-node resume
+with memory (archived sandboxes and archived disk snapshots restore on any
+node, but cold), per-account egress allowlists, non-root agent execution in the guest, Claude Code
 self-hosted runners.
 
 ## Operations
@@ -345,6 +495,12 @@ agent so the manager runs end to end without KVM).
   sparse workspace of `TEMPLATE_WORKSPACE_GB` (default 10); when a create
   asks for a different size the daemon issues `PATCH /drives/workspace`
   after the load so the guest learns the new capacity before formatting.
+  Bazel templates are the exception: the builder formats and unmounts a pristine
+  workspace before snapshotting and records `workspace_prepared`. Matching-size
+  creates reflink `workspace.empty.ext4` and mount it without formatting; older
+  snapshots and different sizes retain the original path. The optional trusted
+  `/usr/local/bin/sbx-template-prepare` hook runs before unmounting. Never derive
+  this image or memory snapshot from a VM that has received an action or token.
 
 ### Configuration (environment)
 
@@ -354,21 +510,24 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node, since older versions stay on disk across template upgrades. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set and no `EXECUTION_SLOTS`, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
+| `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
-| `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
+| `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
+| `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
+| `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
 
 ### Validation scripts
@@ -402,9 +561,14 @@ existing socket and the jailer's `mknod` fails on an existing node.
 
 Template artifacts are hard-linked into jails (`vmlinux`, `mem`,
 `snapshot`) and must stay world-readable; the daemon never chowns a hard
-link. Firecracker opens the `File` memory backend read-only, so sharing the
-template memfile across sandboxes is safe; the first pause replaces the
-link with the sandbox's own memory file.
+link. The build hands every shape file to root before marking it ready: a
+jail uid is a reused slot, so a template file it owned could be rewritten
+by a later sandbox in that slot for every sandbox restored after it.
+Startup deletes a shape holding any file the daemon does not own, and the
+next create rebuilds it instead of trusting its contents. Firecracker
+opens the `File` memory backend read-only, so sharing the template memfile
+across sandboxes is safe; the first pause replaces the link with the
+sandbox's own memory file.
 
 ### Startup and recovery
 
@@ -422,16 +586,27 @@ journals replayed on mount, and writes still in its page cache (up to ext4's
 5 s commit interval) are lost;
 the next pause writes a fresh pair. A cleanly paused sandbox keeps its
 memory image, because the pause path pauses the VM, snapshots, then kills
-it, so nothing touches the disks afterwards. Jail directories without
+it, so nothing touches the disks afterwards, unless another Firecracker
+version wrote that image (`firecracker_version` in its metadata, empty
+before it was recorded): it is set to `cold_boot` too, because this version
+cannot load it. The daemon exits at startup when it cannot read its own
+Firecracker version. Jail directories without
 `metadata.json` (an interrupted create or template build), `*.building`
-shape directories and every `sbx-*` netns are removed.
+shape directories, shapes another Firecracker version took or built with a
+workspace other than `TEMPLATE_WORKSPACE_GB`, and every `sbx-*` netns are
+removed.
 
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
 Anthropic re-queues the session on its next event) and pauses every running
 sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
-cold booting. Whatever is still running at the deadline takes the cold-boot
+cold booting, except one that changes the Firecracker version. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
+
+Server deployments publish the daemon image as `sha-<commit>` of the last
+commit that changed `infra/sandboxd` (outside its Markdown) or its publisher,
+so other deploys leave the DaemonSet untouched; a server-only re-promotion
+keeps the live daemon. The values-file tags only seed a first install.
 
 Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a
@@ -457,6 +632,9 @@ inside an error.
 `sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
+`sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
+`sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
+but retains files, the instance reference and slot until both succeed.
 
 ### Development
 

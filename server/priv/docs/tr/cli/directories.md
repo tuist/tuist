@@ -1,23 +1,17 @@
 ---
 {
-  "title": "Directories",
+  "title": "Dizinler",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Learn how Tuist organizes its configuration, cache, and state directories."
+  "description": "Tuist'in yapılandırma, önbellek ve durum dizinlerini nasıl organize ettiğini öğrenin."
 }
 ---
 # Dizinler {#directories}
 
-Tuist, [XDG Temel Dizin
-Spesifikasyonu](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)'nu
-izleyerek dosyalarını sisteminizdeki çeşitli dizinler arasında düzenler. Bu,
-yapılandırma, önbellek ve durum dosyalarını yönetmek için temiz ve standart bir
-yol sağlar.
+Tuist, dosyalarını sisteminizdeki birkaç dizinde [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) standardına uygun olarak düzenler. Bu yaklaşım, yapılandırma, önbellek ve durum dosyalarını yönetmek için temiz ve standart bir yol sunar.
 
 ## Desteklenen ortam değişkenleri {#supported-environment-variables}
 
-Tuist hem standart XDG değişkenlerini hem de Tuist'e özgü ön ekli değişkenleri
-destekler. Tuist'e özgü değişkenler ( `TUIST_` ile ön eklenmiş) önceliklidir ve
-Tuist'i diğer uygulamalardan ayrı olarak yapılandırmanıza olanak tanır.
+Tuist hem standart XDG değişkenlerini hem de Tuist’e özel ön ekli varyantları destekler. Tuist’e özel varyantlar (`TUIST_` ön ekiyle) önceliklidir; böylece Tuist’i diğer uygulamalardan bağımsız olarak yapılandırabilirsiniz.
 
 ### Yapılandırma dizini {#configuration-directory}
 
@@ -27,7 +21,7 @@ Tuist'i diğer uygulamalardan ayrı olarak yapılandırmanıza olanak tanır.
 
 **Varsayılan:** `~/.config/tuist`
 
-**Şunun için kullanılır:**
+**Kullanım alanı:**
 - Sunucu kimlik bilgileri (`credentials/{host}.json`)
 
 **Örnek:**
@@ -49,15 +43,15 @@ tuist auth login
 
 **Varsayılan:** `~/.cache/tuist`
 
-**Şunun için kullanılır:**
+**Kullanım alanı:**
 - **Eklentiler**: İndirilen ve derlenen eklenti önbelleği
 - **ProjectDescriptionHelpers**: Derlenmiş proje açıklama yardımcıları
-- **Manifestolar**: Önbelleğe alınmış manifesto dosyaları
-- **Projeler**: Oluşturulan otomasyon proje önbelleği
-- **EditProjects**: Düzenleme komutu için önbellek
-- **Runs**: Run analitik verilerini test edin ve oluşturun
-- **İkililer**: Yapı ikili dosyaları (ortamlar arasında paylaşılamaz)
-- **SelectiveTests**: Seçmeli test önbelleği
+- **Bildirimler**: Önbelleğe alınmış bildirim dosyaları
+- **Projeler**: Oluşturulan otomasyon projesi önbelleği
+- **EditProjects**: edit komutu için önbellek
+- **Çalıştırmalar**: Test ve derleme çalıştırma analiz verileri
+- **İkili Dosyalar**: Derleme çıktı ikili dosyaları (ortamlar arasında paylaşılamaz)
+- **SelectiveTests**: Seçici test önbelleği
 
 **Örnek:**
 ```bash
@@ -70,7 +64,7 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### Eyalet rehberi {#state-directory}
+### Durum dizini {#state-directory}
 
 **Ortam değişkenleri:**
 - `TUIST_XDG_STATE_HOME` (önceliklidir)
@@ -78,8 +72,8 @@ tuist cache
 
 **Varsayılan:** `~/.local/state/tuist`
 
-**Şunun için kullanılır:**
-- **Günlükler**: Günlük dosyaları (`logs/{uuid}.log`)
+**Kullanım alanı:**
+- **Oturumlar**: Oturum günlükleri ve ağ kayıtları (`sessions/{uuid}/`)
 - **Kilitler**: Kimlik doğrulama kilit dosyaları (`{handle}.sock`)
 
 **Örnek:**
@@ -95,25 +89,22 @@ tuist generate
 
 ## Öncelik sırası {#precedence-order}
 
-Hangi dizinin kullanılacağını belirlerken, Tuist aşağıdaki sırayla ortam
-değişkenlerini kontrol eder:
+Hangi dizinin kullanılacağını belirlerken Tuist, ortam değişkenlerini aşağıdaki sırayla kontrol eder:
 
-1. **Tuist'e özgü değişken** (örneğin, `TUIST_XDG_CONFIG_HOME`)
-2. **Standart XDG değişkeni** (örneğin, `XDG_CONFIG_HOME`)
-3. **Varsayılan konum** (örneğin, `~/.config/tuist`)
+1. **Tuist’e özel değişken** (ör. `TUIST_XDG_CONFIG_HOME`)
+2. **Standart XDG değişkeni** (ör. `XDG_CONFIG_HOME`)
+3. **Varsayılan konum** (ör. `~/.config/tuist`)
 
-Bu size şunları sağlar:
-- Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG
-  değişkenlerini kullanın
-- Tuist için farklı konumlara ihtiyacınız olduğunda Tuist'e özgü değişkenlerle
-  geçersiz kılın
-- Herhangi bir yapılandırma olmadan mantıklı varsayılanlara güvenin
+Bu sayede şunları yapabilirsiniz:
+- Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG değişkenlerini kullanın
+- Tuist için farklı konumlara ihtiyaç duyduğunuzda Tuist’e özel değişkenlerle geçersiz kılın
+- Herhangi bir yapılandırma yapmadan mantıklı varsayılanlara güvenin
 
-## Yaygın kullanım durumları {#common-use-cases}
+## Yaygın kullanım senaryoları {#common-use-cases}
 
-### Tuist'in proje başına izole edilmesi {#isolating-tuist-per-project}
+### Tuist’i proje başına izole etme {#isolating-tuist-per-project}
 
-Tuist'in önbelleğini ve durumunu proje başına izole etmek isteyebilirsiniz:
+Tuist’in önbelleğini ve durumunu proje başına izole etmek isteyebilirsiniz:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -146,9 +137,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### Yalıtılmış dizinlerle hata ayıklama {#debugging-with-isolated-directories}
+### İzole dizinlerle hata ayıklama {#debugging-with-isolated-directories}
 
-Hata ayıklarken temiz bir sayfa açmak isteyebilirsiniz:
+Sorunları hata ayıklarken temiz bir başlangıç yapmak isteyebilirsiniz:
 
 ```bash
 # Create temporary directories for debugging

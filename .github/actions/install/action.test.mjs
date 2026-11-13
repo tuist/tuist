@@ -61,7 +61,7 @@ function fixture(t) {
       ...env, TUIST_INSTALL_PROJECT_PATH: outputs['project-path'],
       TUIST_INSTALL_SCRATCH_PATH: outputs['scratch-path'],
       TUIST_INSTALL_CACHE_PATH: outputs['cache-path'],
-      TUIST_INSTALL_MATERIALIZATION: outputs.materialization, ...overrides,
+      TUIST_INSTALL_MATERIALIZATION: outputs.materialization, TUIST_INSTALL_BACKEND: outputs.backend, ...overrides,
     },
   });
   return { root, workspace, bin, write, env, pkg, prepare, install };
@@ -73,7 +73,7 @@ test('root package and default key survive checkout moves, lock changes and CI m
   f.pkg();
   const first = success(f.prepare());
   assert.equal(first['cache-path'], `${f.workspace}/.build/dependency-cache`);
-  assert.equal(first.key, 'tuist-install-v1-generate');
+  assert.equal(first.key, 'install-v1-generate');
   f.write(path.join(f.workspace, 'Package.resolved'), 'changed pins');
   assert.equal(success(f.prepare({ GITHUB_REF: 'another-branch', GITHUB_RUN_ID: '999' })).key, first.key);
   const moved = path.join(f.root, 'other-checkout');
@@ -85,16 +85,31 @@ test('keys separate jobs and package locations, not toolchains or manifest conte
   const f = fixture(t);
   f.pkg();
   const key = success(f.prepare()).key;
-  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'tuist-install-v1-test');
+  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'install-v1-test');
   assert.equal(success(f.prepare({ FAKE_SWIFT_VERSION: 'Swift 7', FAKE_XCODE_VERSION: 'Xcode 28' })).key, key);
   f.write(path.join(f.workspace, 'Package.swift'), 'changed package structure');
   assert.equal(success(f.prepare()).key, key);
   f.pkg('apps/ios app');
   f.write(path.join(f.workspace, 'apps/ios app', 'Tuist.swift'));
-  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'tuist-install-v1-generate-apps/ios-app');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'install-v1-generate-apps/ios-app');
   f.pkg('Tuist');
-  assert.equal(success(f.prepare()).key, 'tuist-install-v1-generate-Tuist');
+  assert.equal(success(f.prepare()).key, 'install-v1-generate-Tuist');
   assert.notEqual(f.prepare({ GITHUB_JOB: 'j'.repeat(200) }).status, 0);
+});
+
+test('default keys pass the tuist/cache-volume key contract', t => {
+  const f = fixture(t);
+  f.pkg();
+  f.pkg('Tuist');
+  const attach = path.join(action, '../cache-volume/attach.sh');
+  for (const job of ['generate', 'build']) {
+    const outputs = success(f.prepare({ GITHUB_JOB: job }));
+    const result = spawnSync('bash', [attach], {
+      cwd: f.root, encoding: 'utf8',
+      env: { ...f.env, TUIST_VOLUME_KEY: outputs.key, TUIST_VOLUME_PATH: outputs['scratch-path'], TUIST_VOLUME_SIZE: '' },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
 });
 
 test('Tuist package takes precedence; nested input locates the project root', t => {
@@ -177,7 +192,7 @@ test('CLI versions without consolidated manifest caching fail; supported release
   }
 });
 
-test('standalone package works outside the source checkout and never overwrites existing output', t => {
+test('standalone package pins nested actions, works outside the source checkout and never overwrites existing output', t => {
   const f = fixture(t);
   f.pkg();
   const output = path.join(f.root, 'standalone action');
@@ -185,6 +200,13 @@ test('standalone package works outside the source checkout and never overwrites 
   success(pack());
   assert.deepEqual(fs.readdirSync(output).sort(), ['LICENSE.md', 'README.md', 'SOURCE_COMMIT', 'action.yml', 'install.sh', 'prepare.sh']);
   assert.match(fs.readFileSync(path.join(output, 'SOURCE_COMMIT'), 'utf8'), /^[a-f0-9]{40}\n$/);
+  // GitHub checks nested actions against the caller's policy even when their steps are skipped.
+  const definition = fs.readFileSync(path.join(output, 'action.yml'), 'utf8');
+  const dependencies = [...definition.matchAll(/^\s+uses:\s+(\S+)/gm)].map(match => match[1]);
+  assert.ok(dependencies.length > 0);
+  for (const dependency of dependencies) {
+    assert.match(dependency, /^[^@\s]+@[a-f0-9]{40}$/, 'nested actions must be allowlistable by immutable SHA');
+  }
   success(f.install(success(f.prepare({}, output)), {}, output));
   assert.notEqual(pack().status, 0);
 });
@@ -243,4 +265,66 @@ test('size reaches the cache volume and never the GitHub archive', () => {
   assert.match(definition, /\n  size:\n    description: [^\n]+\n    default: ""\n/);
   assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
   assert.doesNotMatch(step('archive'), /size/);
+});
+
+test('external cache skips volumes and archives, keeps persisted .build, and symlinks', t => {
+  const f = fixture(t);
+  const pkg = f.pkg();
+  f.write(path.join(pkg, '.build/workspace-state.json'), 'persisted');
+  const outputs = success(f.prepare({ TUIST_INSTALL_CACHE: 'external', RUNNER_OS: '', RUNNER_ARCH: '' }));
+  assert.equal(outputs.backend, 'external');
+  assert.equal(outputs.materialization, 'symlink');
+  assert.equal(outputs['archive-key'], '');
+  assert.equal(outputs['archive-prefix'], '');
+  assert.equal(outputs['cache-path'], `${pkg}/.build/dependency-cache`);
+  success(f.install(outputs));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--force-resolved-versions\0--scratch-path\0[^\0]+\/\.build\0/);
+  assert.match(fs.readFileSync(f.env.CAPTURE_ARGS, 'utf8'), /--cached-directory-materialization=symlink\0/);
+  assert.equal(fs.readFileSync(path.join(pkg, '.build/workspace-state.json'), 'utf8'), 'persisted');
+  fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'external' })).backend, 'external');
+});
+
+test('cache defaults to automatic selection and rejects unknown modes', t => {
+  const f = fixture(t);
+  f.pkg();
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: '' })).backend, 'volume');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_CACHE: 'auto' })).backend, 'volume');
+  for (const mode of ['volume', 'github', 'none', 'External', 'external\nbackend=github']) {
+    const result = f.prepare({ TUIST_INSTALL_CACHE: mode });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cache must be auto or external/);
+    assert.deepEqual(result.outputs, {});
+  }
+});
+
+test('cache input reaches prepare and defaults to auto', () => {
+  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+  const step = id => definition.split(/\n    - /).find(s => s.startsWith(`id: ${id}\n`));
+  assert.match(definition, /\n  cache:\n    description: [^\n]+\n    default: auto\n/);
+  assert.match(step('prepare'), /^        TUIST_INSTALL_CACHE: \$\{\{ inputs\.cache \}\}$/m);
+  assert.match(step('volume'), /^      if: steps\.prepare\.outputs\.backend == 'volume'$/m);
+  assert.match(step('archive'), /^      if: steps\.prepare\.outputs\.backend == 'github'$/m);
+});
+
+test('a volume-backed install bounds the dependency cache by the volume capacity', t => {
+  const f = fixture(t);
+  const pkg = f.pkg();
+  const volume = path.join(f.root, 'volume');
+  fs.mkdirSync(volume);
+  fs.symlinkSync(volume, path.join(pkg, '.build'));
+  const outputs = success(f.prepare());
+  success(f.install(outputs));
+  const capacity = Number(spawnSync('df', ['-Pk', `${volume}/`], { encoding: 'utf8' }).stdout
+    .trim().split('\n')[1].split(/\s+/)[1]) * 1024;
+  const room = Math.min(Math.max(capacity / 5, 2e9), capacity / 2);
+  const budget = Number(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8').match(/^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=(\d+)$/m)[1]);
+  assert.ok(Math.abs(budget - (capacity - room)) <= 1);
+  assert.doesNotMatch(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_INSTALL_/m);
+
+  // An explicit budget wins, and an archive-backed install, with no capacity, sets none.
+  success(f.install(outputs, { TUIST_DEPENDENCIES_CACHE_MAX_BYTES: '123' }));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=123$/m);
+  success(f.install({ ...outputs, backend: 'github' }));
+  assert.doesNotMatch(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=/m);
 });

@@ -1,8 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit. swifterpm's test and e2e fixtures are frozen real-world manifests (Package.swift + Package.resolved) that the resolution tests assert against; Renovate bumping the pins inside them only rewrites test data, so those paths are ignored (the first two ignorePaths entries restate Renovate's defaults, which setting the option replaces). Branches are rebased only on conflict: main requires a review but not an up-to-date branch, so rebasing an automerge PR that waits for review on every commit to main only reruns its CI.",
+  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit. swifterpm's test and e2e fixtures are frozen real-world manifests (Package.swift + Package.resolved) that the resolution tests assert against; Renovate bumping the pins inside them only rewrites test data, so those paths are ignored (the first two ignorePaths entries restate Renovate's defaults, which setting the option replaces). Branches are rebased only on conflict: main requires a review but not an up-to-date branch, so rebasing an automerge PR that waits for review on every commit to main only reruns its CI. The mise-lock workflow deletes `provenance = \"github-attestations\"` lines that Renovate's `mise lock` writes into the root mise.lock and pushes the fix as tuist-automation[bot]; gitIgnoredAuthors keeps Renovate updating those branches.",
   "schedule": ["before 6am on monday"],
   "rebaseWhen": "conflicted",
+  "gitIgnoredAuthors": [
+    "294819955+tuist-automation[bot]@users.noreply.github.com"
+  ],
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Renovate: dependency dashboard",
   "prConcurrentLimit": 25,
@@ -69,6 +72,15 @@
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ghRunnerVersion:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Base images in the server Dockerfile. Each one is an `ARG *_IMAGE` default behind a registry-mirror prefix ARG (`DOCKER_IMAGE_PREFIX`, `DOCKER_OFFICIAL_IMAGE_PREFIX`), which the dockerfile manager skips as `contains-variable`. The tags are literals after the prefix so this manager can read them; a `@sha256:` digest after the tag is kept up to date as well.",
+      "fileMatch": ["^server/Dockerfile$"],
+      "matchStrings": [
+        "ARG [A-Z_]+_IMAGE=\"\\$\\{DOCKER(?:_OFFICIAL)?_IMAGE_PREFIX\\}(?<depName>[a-z0-9._/-]+):(?<currentValue>[^\"@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -143,6 +155,26 @@
       "commitMessagePrefix": "chore(infra):",
       "commitMessageTopic": "mise",
       "automerge": true
+    },
+    {
+      "description": "Server Dockerfile base images. Not automerged: a base image bump changes what ships in the server release.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "commitMessagePrefix": "fix(server):"
+    },
+    {
+      "description": "hexpm/elixir tags are `<elixir>-erlang-<otp>-debian-bookworm-<YYYYMMDD>-slim`. hexpm only rebuilds the newest Elixir patch against the newest patch of each OTP release line when Debian publishes a new date, so an older Elixir/OTP pair stops getting newer Debian dates; the update has to move all three together. Versions order by Elixir minor, Elixir patch, OTP minor, OTP patch, then date, and the OTP major is held as the compatibility key, so an OTP major is a manual change. An Elixir minor shows up as a major update. Keep mise.toml's elixir and erlang pins in step with the tag in the same PR.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "matchPackageNames": ["hexpm/elixir"],
+      "versioning": "regex:^1\\.(?<major>\\d+)\\.(?<minor>\\d+)-erlang-(?<compatibility>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?(?:\\.\\d+)?-debian-bookworm-(?<revision>\\d{8})-slim$"
+    },
+    {
+      "description": "Dated Debian slim tags (`<codename>-<YYYYMMDD>-slim`). They are multi-arch indexes, so the runner base stays reproducible without losing arm64. The codename is the compatibility key, so a Debian major release is a manual change.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["server/Dockerfile"],
+      "matchPackageNames": ["debian"],
+      "versioning": "regex:^(?<compatibility>[a-z]+)-(?<major>\\d{4})(?<minor>\\d{2})(?<patch>\\d{2})-slim$"
     }
   ]
 }

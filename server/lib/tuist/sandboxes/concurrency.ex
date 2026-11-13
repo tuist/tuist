@@ -4,8 +4,12 @@ defmodule Tuist.Sandboxes.Concurrency do
 
   The account row serializes the usage check and reservation across web replicas
   and nodes. Only database work belongs inside `admit/3`; boot, resize and resume
-  commands run after commit. Creating and resuming rows reserve capacity before
-  a guest starts. Paused sandboxes retain disk but release CPU and memory.
+  commands run after commit. Creating and resuming rows reserve CPU and memory
+  before a guest starts; paused sandboxes release them. Execution VMs count
+  against the account's execution concurrency instead.
+
+  Disk is not an account limit: each node budgets it (`Tuist.Sandboxes.Capacity`)
+  and the archive tier frees it.
   """
   import Ecto.Changeset
   import Ecto.Query
@@ -32,7 +36,7 @@ defmodule Tuist.Sandboxes.Concurrency do
   def usage(account_id) do
     Repo.one(
       from s in Sandbox,
-        where: s.account_id == ^account_id and s.state in [:creating, :resuming, :running],
+        where: s.account_id == ^account_id and s.purpose == :agent and s.state in [:creating, :resuming, :running],
         select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
     )
   end
@@ -44,12 +48,10 @@ defmodule Tuist.Sandboxes.Concurrency do
   defp check_limits(account, %{vcpus: vcpus, memory_mb: memory_mb}) do
     used = usage(account.id)
 
-    if used.vcpus + vcpus <= account.sandbox_vcpus_limit and
-         used.memory_mb + memory_mb <= account.sandbox_memory_gb_limit * 1024 do
-      :ok
-    else
-      {:error, :sandbox_concurrency_limit}
-    end
+    if used.vcpus + vcpus > account.sandbox_vcpus_limit or
+         used.memory_mb + memory_mb > account.sandbox_memory_gb_limit * 1024,
+       do: {:error, :sandbox_concurrency_limit},
+       else: :ok
   end
 
   def admit(account_id, requested, reserve) do

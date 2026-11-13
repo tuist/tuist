@@ -424,8 +424,10 @@ import TuistHTTP
         fileprivate init(_ sample: MachineMetricSample) {
             self.init(
                 cpu_usage_percent: sample.cpuUsagePercent,
+                disk_available_bytes: sample.diskAvailableBytes,
                 disk_bytes_read: sample.diskBytesRead,
                 disk_bytes_written: sample.diskBytesWritten,
+                disk_total_bytes: sample.diskTotalBytes,
                 memory_total_bytes: sample.memoryTotalBytes,
                 memory_used_bytes: sample.memoryUsedBytes,
                 network_bytes_in: sample.networkBytesIn,

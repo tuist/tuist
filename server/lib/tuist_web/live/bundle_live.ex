@@ -8,6 +8,7 @@ defmodule TuistWeb.BundleLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.TrendBadge
   import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Runs.ProjectWithTags
 
   alias Noora.Filter
   alias Tuist.Authorization

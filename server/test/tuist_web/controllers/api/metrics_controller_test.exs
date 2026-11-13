@@ -38,7 +38,7 @@ defmodule TuistWeb.API.MetricsControllerTest do
       end
     end
 
-    for system <- [:xcode, :gradle, :bazel, :once] do
+    for system <- [:xcode, :gradle, :bazel, :once, :cargo] do
       test "dispatches #{system} metrics and dimensions through the project", %{conn: conn, user: user} do
         project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: unquote(system))
         conn = Authentication.put_current_user(conn, user)
@@ -62,6 +62,60 @@ defmodule TuistWeb.API.MetricsControllerTest do
 
         assert %{"values" => []} = json_response(response, 200)
       end
+    end
+
+    test "Cargo public health and dimensions exclude legacy reports and other projects", %{conn: conn, user: user} do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
+      other = ProjectsFixtures.project_fixture(build_system: :cargo)
+      start_at = DateTime.new!(Date.utc_today(), ~T[00:00:00])
+      from = DateTime.to_unix(start_at)
+      to = from + 86_400
+
+      for {project_id, command, status, branch} <- [
+            {project.id, "build", "success", "main"},
+            {project.id, "check", "failure", "main"},
+            {project.id, "nextest", "failure", "legacy"},
+            {other.id, "private", "failure", "private"}
+          ] do
+        Tuist.IngestRepo.insert!(%Tuist.Cargo.Build{
+          id: UUIDv7.generate(),
+          project_id: project_id,
+          account_id: user.account.id,
+          command: command,
+          status: status,
+          duration_ms: 1000,
+          is_ci: false,
+          git_branch: branch,
+          inserted_at: DateTime.to_naive(start_at)
+        })
+      end
+
+      conn = Authentication.put_current_user(conn, user)
+
+      response =
+        get(
+          conn,
+          ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health?from=#{from}&to=#{to}&view=total"
+        )
+
+      assert %{
+               "totals" => %{
+                 "builds" => 2,
+                 "successful_builds" => 1,
+                 "failed_builds" => 1,
+                 "success_rate" => 50.0,
+                 "cache_time_saved" => nil,
+                 "cache_work_avoided" => nil
+               }
+             } = json_response(response, 200)
+
+      response =
+        get(
+          conn,
+          ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/health/dimensions/workload/values"
+        )
+
+      assert %{"values" => ["build", "check"]} = json_response(response, 200)
     end
 
     test "requires build read access for the shared endpoint", %{conn: conn, project: project} do

@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 )
 
@@ -18,17 +18,23 @@ const MetadataFile = "metadata.json"
 
 // Metadata is the on-disk record of one sandbox, kept in its jail root.
 type Metadata struct {
-	ID          string    `json:"id"`
-	Template    string    `json:"template"`
-	Tag         string    `json:"tag"`
-	VCPUs       int       `json:"vcpus"`
-	MemoryMB    int       `json:"memory_mb"`
-	WorkspaceGB int       `json:"workspace_gb"`
-	Hostname    string    `json:"hostname"`
-	State       string    `json:"state"`
-	Slot        int       `json:"slot"`
-	Generation  int       `json:"generation"`
-	ColdBoot    bool      `json:"cold_boot,omitempty"`
+	ID          string `json:"id"`
+	Template    string `json:"template"`
+	Tag         string `json:"tag"`
+	VCPUs       int    `json:"vcpus"`
+	MemoryMB    int    `json:"memory_mb"`
+	WorkspaceGB int    `json:"workspace_gb"`
+	Hostname    string `json:"hostname"`
+	State       string `json:"state"`
+	Slot        int    `json:"slot"`
+	Generation  int    `json:"generation"`
+	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// FirecrackerVersion wrote the memory image beside the disks; another
+	// version cannot load it, so recovery turns a mismatch into a cold boot.
+	FirecrackerVersion string `json:"firecracker_version,omitempty"`
+	// DisksSynced records that the last pause flushed the guest page cache
+	// to the disks, so they can be saved without the memory image.
+	DisksSynced bool      `json:"disks_synced,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Error       string    `json:"error,omitempty"`

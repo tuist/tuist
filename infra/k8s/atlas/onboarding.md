@@ -240,6 +240,10 @@ GHCR pull secret block. Adding a new app secret means: add an item in
 | `atlas-sentry`                    | `dsn`           | Sentry project DSN (from Sentry → Project Settings → Client Keys)    |
 | `atlas-slack-company`             | `credential`    | Slack bot token for the company Tuist Atlas Slack app                |
 | `atlas-slack-company`             | `password`      | Slack signing secret for the company Tuist Atlas Slack app           |
+| `atlas-slack-company`             | `client_id`     | Slack OAuth client ID for personal account connections               |
+| `atlas-slack-company`             | `client_secret` | Slack OAuth client secret for personal account connections           |
+| `atlas-github-app`                | `client_id`     | Existing GitHub App OAuth client ID                                  |
+| `atlas-github-app`                | `client_secret` | GitHub App OAuth client secret, not its private key                   |
 | `atlas-hive-inference-token`      | `credential`    | Hive inference token for Atlas language-model requests               |
 | `atlas-hive-embedding-token`      | `credential`    | Hive token for Atlas document embedding requests                     |
 | `atlas-granola-api-key`           | `credential`    | Granola API key for meeting-note ingestion                           |
@@ -284,6 +288,51 @@ If we ever rotate often enough that this becomes a footgun, install
 [stakater/Reloader](https://github.com/stakater/Reloader) and annotate
 the Deployment — it watches Secret data and rolls Deployments
 automatically. Not worth the extra controller for the current cadence.
+
+### Personal account connections
+
+**Provision or verify the source fields before deploying the mappings** in
+`infra/helm/atlas/values-managed-production.yaml`. In particular, Slack's
+`client_id`/`client_secret` and GitHub's `client_secret` are required source-field
+names, not confirmation that those fields already exist in 1Password. A missing
+field prevents reconciliation of the entire shared `atlas-app` Secret. Keep client
+secrets concealed in 1Password; never put their values in Helm, Git or native builds.
+
+The server reads `ATLAS_SLACK_CLIENT_ID`/`ATLAS_SLACK_CLIENT_SECRET`,
+`ATLAS_GITHUB_APP_CLIENT_ID`/`ATLAS_GITHUB_APP_CLIENT_SECRET`, and
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. Google reuses the existing
+`atlas-google-oauth` credentials. Slack's bot token/signing secret and the GitHub
+App's private key do not replace the personal OAuth client credentials.
+
+Register these additional redirect URLs on the corresponding existing OAuth apps,
+preserving their sign-in, installation and webhook settings:
+
+- Slack: `https://atlas.tuist.dev/connections/slack/callback`. Enable the user scopes
+  `search:read` and `chat:write`; the personal flow stores a user token, not a bot token.
+- GitHub App: `https://atlas.tuist.dev/connections/github/callback`. User authorization
+  uses the App's registered permissions, not a new OAuth scope grant.
+- Google web OAuth client: `https://atlas.tuist.dev/connections/google/callback`.
+  Enable the Drive and Calendar APIs and configure consent for identity,
+  `drive.file` and `calendar.readonly`. Gmail read is separate explicit browser
+  consent and is not required for the native app's default connection.
+
+The provider redirects to the server, which returns to the native app at the fixed
+`dev.tuist.atlas://connections-callback` URL. Do not register the custom scheme as
+the provider callback or substitute the native Atlas sign-in callback.
+
+After provisioning and an approved deployment, use approved access to the separate
+Atlas cluster to verify a fresh successful `atlas-app` ExternalSecret sync before
+rolling the application. Do not read Kubernetes Secret values. An old Ready condition
+alone does not prove the new fields synced. Wait for rollout/readiness, then open
+Profile → Connections in the native app and complete each provider's browser consent.
+Confirm Connected persists after leaving and reopening the page. `Not connected`
+means a personal grant is absent; `Not enabled on this server` means the server's
+client ID or client secret is missing. Provider setup never connects users automatically.
+
+`bash infra/helm/atlas/test-connections-config.sh` checks all six rendered credential
+references, runtime/migration Secret inheritance, lack of environment shadowing,
+and standalone/demo isolation without credentials. It does not verify 1Password
+field existence, provider registrations or real-account consent.
 
 Generate the GHCR pull-secret payload:
 

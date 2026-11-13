@@ -164,6 +164,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Every deploy leg needs this job, so a version collision from two
+      # PRs merged independently stops before canary migrates.
+      - name: Check migration versions are unique
+        run: .github/scripts/server-migration-versions.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff jq"
@@ -275,7 +279,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|\.github/scripts/sandbox-(image-version|image-exists|template-tag)\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|condukt/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|infra/claude-code-runners/|infra/sandboxd/|\.github/scripts/sandbox-(image-version|image-exists|live-image-tag)\.sh$|\.github/scripts/sandboxd-image-version\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image|sandboxd-image)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"
@@ -511,6 +515,10 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runners-controller:latest
+          # Same scopes as runners-controller-image.yml, which builds these
+          # images on main, so releases reuse its layers.
+          cache-from: type=gha,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller
 
       - name: Build and push cache volume agent
         uses: docker/build-push-action@v6
@@ -523,6 +531,8 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runner-cache-volumes:latest
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes
 
   release-stable-egress-controller:
     name: Release stable-egress-controller
@@ -1100,6 +1110,25 @@ jobs:
     with:
       commit_sha: ${{ github.sha }}
 
+  build-sandboxd:
+    name: Publish sandboxd
+    needs: [check-releases]
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    uses: ./.github/workflows/sandboxd-image.yml
+    with:
+      commit_sha: ${{ github.sha }}
+
   build:
     name: Build server image
     needs: [check-releases]
@@ -1207,7 +1236,6 @@ jobs:
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ github.sha }}
       - name: Export production project builds
         id: project-export
         if: steps.project-cache.outcome == 'success'
@@ -1348,12 +1376,12 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, build-images, build-sandbox-template, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    needs: [check-releases, build, build-images, build-sandbox-template, build-sandboxd, build-xcresult-processor-release, tag-infra-releases, kura-release]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-sandboxd.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -1370,6 +1398,7 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
@@ -1463,7 +1492,8 @@ jobs:
       # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
       # (see Project.swift): the EE suite this job has always run, which covers
       # caching, module cache and selective testing against canary, plus
-      # TuistServerAcceptanceTests, which covers build and test result ingestion.
+      # TuistServerAcceptanceTests, which covers build and test result ingestion
+      # and a sharded Xcode build (plan, upload, then a shard run from the upload).
       # Ingestion had no coverage here at all, which is how a change that killed
       # 100% of build ingestion promoted to production green on 2026-09-09, and
       # one that killed 100% of xcresult processing on 2026-09-23.
@@ -1702,6 +1732,7 @@ jobs:
         build,
         build-images,
         build-sandbox-template,
+        build-sandboxd,
         build-xcresult-processor-release,
         canary,
         acceptance-tests,
@@ -1715,6 +1746,7 @@ jobs:
       needs.build.result == 'success' &&
       needs.build-images.result == 'success' &&
       needs.build-sandbox-template.result == 'success' &&
+      needs.build-sandboxd.result == 'success' &&
       needs.build-xcresult-processor-release.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       needs.canary.result == 'success' &&
@@ -1737,6 +1769,7 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
@@ -1750,8 +1783,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, build-images, build-sandbox-template, build-xcresult-processor-release, tag-infra-releases, kura-release]
-    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, build-images, build-sandbox-template, build-sandboxd, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-sandboxd.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
@@ -1766,8 +1799,30 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
       install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
+    secrets: inherit
+
+  # Remote execution is its own Helm release. It runs after production so the
+  # runners controller that recognises its workers is already deployed, and
+  # reuses the template and sandboxd images that deploy published. It is a
+  # no-op while values-managed-production.yaml says `enabled: false`.
+  remote-execution:
+    name: Remote execution (production)
+    needs: [build-sandbox-template, build-sandboxd, production, production-hotfix]
+    if: >-
+      always() &&
+      (needs.production.result == 'success' || needs.production-hotfix.result == 'success')
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/remote-execution-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+      template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
     secrets: inherit

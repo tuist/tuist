@@ -32,6 +32,31 @@ defmodule TuistWeb.APIControllerTest do
       assert html =~ "<title>API Documentation · Tuist</title>"
     end
 
+    test "does not embed a token for a session that skipped enforced single sign-on", %{user: user} do
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
+
+      organization
+      |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "api-example.com")
+      |> Tuist.Repo.update!()
+
+      token = fn auth ->
+        html =
+          build_conn()
+          |> init_test_session(%{})
+          |> put_session(:user_token, Tuist.Accounts.generate_user_session_token(user, auth))
+          |> get("/api/docs")
+          |> html_response(200)
+
+        {:ok, document} = Floki.parse_document(html)
+        [configuration] = Floki.attribute(document, "#api-reference", "data-configuration")
+        JSON.decode!(configuration)["authentication"]["http"]["bearer"]["token"]
+      end
+
+      assert token.(%{auth_method: :password}) == ""
+      assert token.(%{auth_method: :google, provider_organization_id: "api-example.com"}) != ""
+    end
+
     test "includes the designed Open Graph card when hosted", %{conn: conn} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 

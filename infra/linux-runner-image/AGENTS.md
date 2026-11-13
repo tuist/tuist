@@ -30,7 +30,17 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  guest-wide memory (`/proc/meminfo`), cgroup memory
+  guest-wide memory (`/proc/meminfo`: total and available, then anon,
+  page cache, shmem, dirty/writeback and slab), the dind sidecar's
+  cgroup (`dind.*`, job containers included; `tuist-cache-volume`'s
+  `dind` and `mount-server` modes write it to the shared
+  `/var/run/tuist-dind-memory` every 3s, so pools without cache volumes
+  omit it, and `dind.age.s` exposes a stale sample), the guest's
+  OOM-kill count (`vm.oom_kill`, `/proc/vmstat`, any container) and,
+  once the kernel has killed something, its victim (`oom.victim`,
+  `oom.victim.anon.kb`, read by the sidecar from the kernel log, which
+  the runner cannot read, plus `oom.victim.container`/`.image`, or
+  `docker-build` for a build step), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest
@@ -40,6 +50,34 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   (guest OOM vs CPU/memory starvation), which is otherwise invisible
   from outside the guest. Interval via
   `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
+- `/usr/local/bin/memory-report.sh` — the GitHub job-completed hook
+  (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`, exported by `run-job.sh`). It
+  annotates a job the guest kernel killed a process in with an
+  `::error` naming the victim, and a job whose lowest `MemAvailable`
+  (which `vitals.sh` records in `/tmp/tuist-runner-memory-low`) fell
+  under 5% of the VM with a `::warning`; both suggest using less memory
+  or a larger runner, naming the JVM heap only when the victim was
+  `java`. It always exits 0: a
+  failing job-completed hook fails the job. Covered by
+  `memory-report_test.sh`.
+- The same `tuist-cache-volume` sidecar modes raise every process in
+  dockerd's cgroup tree (`0::/docker/...`: job and service containers,
+  BuildKit steps) to `oom_score_adj` 1000, sweeping every second. The
+  kernel log cannot name a victim's container (Docker's cgroups here
+  have no memory controller, and its PIDs are from a namespace the
+  sidecar cannot see), so the sweep remembers each container process's
+  name and memory, and the victim is the same-named process that a
+  sweep before the kill saw and one after it does not. Never match by
+  memory size alone: a runaway process grows by gigabytes per second.
+  `metrics-sampler.sh` reads the report through a read-only mount on
+  cache-volume pools and sends the victim with the job's metrics.
+  Docker starts containers at 0 while the Pod's processes run at the
+  kubelet's ~870, so a VM filled by container JVMs used to kill the
+  runner ("lost communication") and then dockerd. Now the largest
+  container process goes first, its step exits 137 and the runner
+  survives to run the hook above. Pools without cache volumes run
+  dockerd directly and keep the old order; adding the sweep there
+  would change the sidecar command and replace every Pod.
 - `/usr/local/bin/metrics-sampler.sh` — machine-metrics sampler for
   the job detail page's Metrics tab. Unlike `vitals.sh` (which logs to
   stdout from the runner container), this POSTs structured
@@ -72,9 +110,18 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
-- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
-  such as `erlef/setup-beam` read it to pick a prebuilt binary and
-  fail without it. Change it together with the `ubuntu:22.04` base.
+- One image per Ubuntu release a Runner Profile can pick:
+  `OS_VERSION` (`ubuntu-24.04` default, `ubuntu-22.04`) selects the
+  Dockerfile's base stage, published as `<semver>` and
+  `<semver>-ubuntu-22-04`. See `image-rollout.md` "Ubuntu releases".
+- `ImageOS=ubuntu24` / `ubuntu22`, as GitHub-hosted runners set it, from
+  each base stage. Setup actions such as `erlef/setup-beam` read it to
+  pick a prebuilt binary and fail without it.
+  The default base matches the Amp orb template's Ubuntu release, so
+  native builds share Mix dependency cache keys with orbs; Tuist's own CI
+  stays on it. `runner` is UID 1000 on every base (24.04's `ubuntu` user
+  is removed): cached checkouts and Docker data roots from earlier jobs,
+  possibly on another release, are owned by it.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -208,7 +255,7 @@ without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
 flow).
 
 `pull_request` also syntax-checks every shell script and runs
-`metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
+`metrics-sampler_test.sh` inside `ubuntu:24.04` — the image's own
 base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
 
@@ -423,9 +470,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `changed`). Before that, when the agent's `/docker-merge` offers the saved head
   another job published since the mount, a changed data root is merged with it:
   a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
-  socket, no networking), the images only one side keeps are copied into the
-  other with `docker save | docker load` (`planDockerMerge`: whichever moves
-  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  socket, no networking), the images one side added since the mount and the
+  other lacks are copied into the other with `docker save | docker load`
+  (`planDockerMerge`: whichever moves fewer bytes; an image of the mount that
+  either side removed is never brought back), the ledgers are merged, and the report names `merged_generation`
   and `merged_into` (`branch` or `head`) and describes the merged root. Any
   failure leaves the data root as the job left it. Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
@@ -444,8 +492,11 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   volume drivers/options are refused. Snapshot their tree metadata without
   following symlinks, bounded by teardown's context and one million entries.
   Default upstream setup with a random name and `keep-state: false` is ephemeral.
-- Merge different BuildKit volume keys, selecting this job's complete state for
-  a key it changed, otherwise the head's state. Never splice BuildKit databases.
+- Merge BuildKit volume keys three ways against the mount (`planBuildkitMerge`):
+  this job's complete state for a key it changed or added, otherwise the head's;
+  a key one side removed stays removed unless the other side changed it. Never
+  bring back a builder a job's prune or retention deleted, and skip copying
+  identical states. Never splice BuildKit databases.
   If the daemon's embedded build cache changed, merge images into the branch so
   that new build work survives; concurrent embedded caches use last-writer state.
   Stop/remove BuildKit containers before copying their volume state. A failed
@@ -460,3 +511,14 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   publication eligibility and removal of ordinary service volumes for both
   drivers. CI keeps its timing log; these are controlled integration measurements,
   not production or end-to-end job benchmarks.
+
+## API jobs
+
+Jobs created through the Tuist runners API are staged as `<jit>.api-job.json`
+(macOS: `/tmp/tuist-api-job.json`) and run by `tuist-job-runner`
+(`job-runner/`, stdlib only, built for both images). It fetches only the job's
+commit, scopes the clone token to the repository origin through git's
+URL-matched config (never the remote URL, argv or the script's environment),
+masks secret values, streams logs with Buildkite-style timestamp markers and
+stops the process group on cancel or timeout. Job outcomes exit 0. Validate with
+`GOWORK=off go test -race ./...` from `job-runner/` and `api-dispatch_test.sh`.

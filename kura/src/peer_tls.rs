@@ -489,7 +489,11 @@ mod tests {
         let factory = PeerClientFactory::from_config(&ctx.state.config)
             .await
             .unwrap();
-        ctx.state.client.store(Arc::new(factory.build().unwrap()));
+        // The server only owns 127.0.0.1:<port>; an unpinned `localhost` can
+        // reach an unrelated listener on [::1]:<port>, such as a Bazel server.
+        ctx.state.client.store(Arc::new(
+            factory.build_resolving("localhost", addr).unwrap(),
+        ));
         for (provider, canonical) in [
             ("ovh", "https://public.invalid:7443".to_owned()),
             ("vultr", private_url),

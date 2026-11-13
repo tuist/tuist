@@ -28,6 +28,7 @@ permissions:
   contents: read
 
 env:
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/app/mise.toml
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}

@@ -116,12 +116,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   comes from ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
-  production. A deploy holds each pool on its current image until every
-  Ready, schedulable Node holding the current image's golden label also
+  production as the release publishes each image. A deploy holds each pool
+  on its current image until every Ready, schedulable Node holding the
+  current image's golden label also
   holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
   `server-deployment.yml` before the chart upgrade), and `announce` waits for
   the same before it dispatches the release's deploy. Both give up an hour
-  after the announcement (`tuist.dev/runner-image-announced-at`), and a
+  after the latest announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
   (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
   to 30 minutes for staging, ignoring the hour, and fails closed, so runners
@@ -233,7 +234,14 @@ workflow code runs in the guest. Never expose host credentials or masters.
   creation. Count remaining growth for running VMs and recover it from journals.
   Master prefetch runs one download at a time from a bounded, deduplicated queue:
   masters a job asked for but did not get within its 25 seconds first, then the
-  custom HEADs the server lists for the host class (free space only, no eviction).
+  custom HEADs the server places on this host (free space only, no eviction),
+  in the server's order: `prewarm` (idle volumes several workflow runs used this week)
+  before `recent`. `tuist_runner_cache_volume_prefetched_bytes_total{reason}` adds
+  the saved head's used bytes for each installed master (`job`, `refresh` for a
+  newer HEAD of a local master, `prewarm`, `recent`; an unknown listing reason
+  counts as `recent`). Hosts of every environment report it, so filter by `env`.
+  Checkout HEADs in the list go to `PrefetchCheckout` (see the checkout notes) and
+  are not counted there.
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`. A Pod waits for GitHub's job
@@ -281,6 +289,14 @@ workflow code runs in the guest. Never expose host credentials or masters.
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
 
+- A runner guest that writes `logd-wedged` into its status share is stopped by
+  the host (`stopWedgedGuest`), in the background, and its runner is published
+  terminated with reason `LogdWedged` and exit code 1. The guest restarts a
+  wedged logd itself (`infra/runner-image/logd-watchdog.sh`) and writes the
+  file only when that fails. It cannot halt itself then, so without the stop
+  its job hangs until the job's timeout and the VM keeps its host after that. Find them with
+  `{job="tuist-macos-tart-kubelet"} |= "wedged logd"`.
+
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
   (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in
   `internal/podagent/readiness.go` on its own goroutine against the guest IP
@@ -325,7 +341,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the LFS filter.
 - A master whose tip moved (a default-branch commit, or a started lineage) is
   published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
-  one); a cold host with a HEAD restores it in the background instead. A cold
+  one); a cold host with a HEAD restores it in the background instead, and the
+  prefetch poller restores the checkout HEADs the server places on this host
+  ahead of any job (`PrefetchCheckout`, a `Spare` restore from free space only). A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the
   server's stable `volume_key` to the current scope and drops the previous
@@ -342,6 +360,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   for an hour.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
+
+## macOS sandboxes
+
+For flag-controlled native sandbox placement, capacity, recovery and rollout,
+read [macOS sandbox operation](macos-sandboxes.md). Pods and RunnerPools
+labelled `tuist.dev/macos-sandbox-warm=true` belong to the sandbox service:
+podagent, the prewarmer and image GC must never launch or stage them as CI.
+Keep sandbox save/restore work outside the single Pod reconcile worker, and never
+treat a suspend CLI exit or snapshot file alone as released capacity.
 
 ## Tart versions
 
@@ -367,6 +394,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   content store (`~/.tart/cache/content`). Deleting a local VM leaves the
   store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
   before it re-measures free space under disk pressure.
+- The macOS sandbox store is seeded from the CI store's files (`macosandbox/seed.go`):
+  a cached image is `cache/OCIs/<host, ':' as %3A>/<repository>/sha256:<hex>/`
+  (`config.json`, `nvram.bin`, `manifest.json`; `disk.img` when standalone),
+  its manifest names each stacked disk file by the
+  `org.cirruslabs.tart.disk-file-content-digest` layer annotation, the file is
+  `cache/content/sha256/<hex>`, and `prune --gc` deletes content under an
+  exclusive `flock` on `cache/content/.gc.lock`. `tart get` opens only local
+  VMs; a cached image is found in `tart list`. A Tart release that changes
+  any of this makes seeding fall back to a pull.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

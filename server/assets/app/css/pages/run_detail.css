@@ -108,6 +108,8 @@
           & > [data-part="command"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }

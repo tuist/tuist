@@ -10,8 +10,40 @@ defmodule Tuist.Docs do
   alias Tuist.Docs.Loader
   alias Tuist.Docs.Paths
 
-  def pages, do: static_pages() ++ cli_pages()
+  def pages(locale) when is_binary(locale) do
+    cli_pages = Enum.filter(cli_pages(), &(&1.slug == "/#{locale}" or String.starts_with?(&1.slug, "/#{locale}/")))
+    static_pages(locale) ++ cli_pages
+  end
+
+  # Translations that are near-empty remnants of their English page (under 15%
+  # of its text). Arabic is no longer translated, so they won't catch up on
+  # their own. Readers can still open them, but they point search engines at
+  # the English page and stay out of the sitemap and hreflang alternates.
+  @near_empty_translations MapSet.new([
+                             "/ar/guides/features/agentic-coding/mcp",
+                             "/ar/guides/features/cache/xcode-cache",
+                             "/ar/guides/integrations/gitforge/github"
+                           ])
+
   def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))
+
+  @doc """
+  Slugs worth indexing: every page except near-empty translations.
+  """
+  def indexable_slugs, do: Enum.reject(slugs(), &MapSet.member?(@near_empty_translations, &1))
+
+  @doc """
+  The slug search engines should index for `slug`: the English page for a
+  near-empty translation, otherwise the slug itself.
+  """
+  def canonical_slug(slug) do
+    if MapSet.member?(@near_empty_translations, slug) do
+      [_locale | rest] = String.split(slug, "/", trim: true)
+      "/" <> Enum.join(["en" | rest], "/")
+    else
+      slug
+    end
+  end
 
   def validate_page!(source_path) when is_binary(source_path) do
     Loader.validate_page!(source_path)

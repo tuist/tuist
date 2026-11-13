@@ -19,10 +19,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	"golang.org/x/crypto/ssh"
@@ -128,12 +127,12 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
 
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -167,10 +166,16 @@ func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	return r.reconcileNormal(ctx, machine, patchHelper)
+	// The kubelet a fresh join installs follows the CAPI Machine's version,
+	// which the fleet's MachineDeployment sets (ovhFleets.<key>.kubernetesVersion).
+	machineVersion := ""
+	if ownerMachine != nil && ownerMachine.Spec.Version != nil {
+		machineVersion = *ownerMachine.Spec.Version
+	}
+	return r.reconcileNormal(ctx, machine, machineVersion, patchHelper)
 }
 
-func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, patchHelper *patch.Helper) (ctrl.Result, error) {
+func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.OVHDedicatedMachine, machineVersion string, patchHelper *patch.Helper) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	datacenter := firstNonEmpty(machine.Spec.Datacenter, r.DefaultDatacenter)
 
@@ -224,7 +229,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
 			// Persist inside the lock: the deferred patch flushes only after the
 			// lock is released, which would reopen the window it exists to close.
-			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+			if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil {
 				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.Name, patchErr)
 			}
 			// Requeue rather than bootstrapping inline: the next reconcile
@@ -241,7 +246,8 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		// Adoption is claim + self-join, never install. The operator owns putting a
 		// valid box into rotation: install it (Ubuntu + the fleet key + ubuntu
 		// passwordless sudo) and verify it is reachable BEFORE setting its adoption
-		// displayName (`mise run baremetal:prep-ovh`), so a claimed box is already
+		// displayName (`mise run baremetal:prep-ovh`, or OVHPoolPrep for a box
+		// named prep-<prefix>), so a claimed box is already
 		// up — the same shape as a Scaleway mini that is already running. Keeping
 		// the OS install off this path is what makes adoption a ~2-5 min self-join,
 		// so the fleet MachineDeployment goes Ready quickly and never wedges helm
@@ -267,7 +273,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if pwErr != nil {
 			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
 		}
-		opts := r.hostOptions(machine)
+		opts := r.hostOptions(machine, machineVersion)
 		opts.KubeconfigYAML = kubeconfigYAML
 		opts.ClusterCAPEM = identity.CA
 		opts.ClusterDNS = discoverClusterDNS(ctx, r.APIReader)
@@ -370,13 +376,13 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, ovhBootstrapUser, machine.Spec.KataRuntime, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
-			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kataErr != nil {
+			if requeue, kataErr := reconcileLinuxKataRuntimeDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); kataErr != nil {
 				logger.Error(kataErr, "kata runtime repair failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -385,12 +391,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			// Not a return path for its own failures: a host that cannot
 			// offer nested guests still serves every other Pod, and the
 			// drift checks after this one must keep running for it.
-			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); kvmErr != nil {
+			if requeue, kvmErr := reconcileLinuxKataKVM(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); kvmErr != nil {
 				logger.Error(kvmErr, "kata nested virtualization repair failed; will retry")
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
-			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine), node); quotaErr != nil {
+			if requeue, quotaErr := reconcileLinuxContainerdQuotaDrift(ctx, r.Client, r.CredentialsManager, machine, machine.Name, fleet, r.hostOptions(machine, node.Status.NodeInfo.KubeletVersion), node); quotaErr != nil {
 				logger.Error(quotaErr, "containerd quota lift failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -411,10 +417,15 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 // converge a node onto a capability it knows the machine asked for, so a future
 // bootstrap-time field added to the render must land in both — and here it does
 // so by construction rather than by remembering to update two call sites.
-func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
+//
+// kubeletVersion picks the kubelet minor: the Machine's version for a fresh
+// join, and the Node's own kubelet for a repair, so a repair never renders for
+// a kubelet the box does not run. Without one it is the provider's default.
+func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine, kubeletVersion string) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
-		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
+		K8sMinor:      kubeletMinor(kubeletVersion, firstNonEmpty(r.KubernetesMinor, "v1.34")),
 		Taints:        machine.Spec.NodeTaints,
 		KataRuntime:   machine.Spec.KataRuntime,
 		BootstrapUser: ovhBootstrapUser,
@@ -581,13 +592,9 @@ func (r *OVHDedicatedMachineReconciler) reinstallAlreadyInFlight(ctx context.Con
 // Fire-and-forget: it kicks the install off and returns.
 func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.OVHDedicatedMachine) error {
 	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	publicKey, keyErr := FleetPublicKey(ctx, r.CredentialsManager, fleet)
 	if keyErr != nil {
 		return keyErr
-	}
-	signer, signErr := ssh.ParsePrivateKey(privateKey)
-	if signErr != nil {
-		return fmt.Errorf("parse fleet ssh key: %w", signErr)
 	}
 	template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
 	if tmplErr != nil {
@@ -596,14 +603,27 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     machine.Name,
-		// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
-		// newline, and OVH reads that trailing byte as a second, empty key:
-		// "only 1 single SSH key can be provided". That 400 is returned on every
-		// retry, so the release wedges the Machine in Deleting forever and the box
-		// is never returned to the pool. The adopt path never hit it because prep
-		// passes the key read straight from 1Password, which carries no newline.
-		SSHKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))),
+		SSHKey:       publicKey,
 	})
+}
+
+// FleetPublicKey is the authorized-keys line of the fleet's SSH key, which an
+// OVH install authorizes so the fleet's self-join can dial the box.
+func FleetPublicKey(ctx context.Context, creds *credentials.Manager, fleet string) (string, error) {
+	privateKey, err := creds.EnsureFleetSSHKey(ctx, fleet)
+	if err != nil {
+		return "", err
+	}
+	signer, err := ssh.ParsePrivateKey(privateKey)
+	if err != nil {
+		return "", fmt.Errorf("parse fleet ssh key: %w", err)
+	}
+	// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
+	// newline, and OVH reads that trailing byte as a second, empty key: "only 1
+	// single SSH key can be provided". That 400 is returned on every retry, so a
+	// release would wedge the Machine in Deleting forever and the box would never
+	// return to the pool.
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))), nil
 }
 
 func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachine, reason, format string, args ...any) {

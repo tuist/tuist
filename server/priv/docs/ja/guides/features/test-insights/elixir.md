@@ -1,58 +1,60 @@
 ---
 {
-  "title": "Elixir Test Insights",
-  "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
-  "description": "Track the tests of your Elixir project in the Tuist dashboard to monitor test performance."
+  "title": "Elixirテストインサイト",
+  "titleTemplate": ":title · テストインサイト · 機能 · ガイド · Tuist",
+  "description": "TuistダッシュボードでElixirプロジェクトのテストを追跡し、テストパフォーマンスを監視します。"
 }
 ---
-# Elixir テストインサイト {#elixir-test-insights}
+# Elixirのテストインサイト {#elixir-test-insights}
 
-Tuist の Hex パッケージは、各テスト実行後に Elixir プロジェクトのテスト結果をアップロードし、Tuist ダッシュボードでテストのパフォーマンスや flaky なテストを可視化します。
+TuistのHexパッケージは、各テスト実行後にElixirプロジェクトのテスト結果をアップロードし、Tuistダッシュボードでテストのパフォーマンスと不安定なテストを可視化します。
 
-> [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/get-started/elixir-project">Elixir を使い始める</.localized_link>を完了してください
+> [!IMPORTANT]
+> **要件**
+>
+> - <.localized_link href="/guides/get-started/elixir-project">Elixirを使い始める</.localized_link>を完了する
 
 ## テスト実行を報告する {#report-your-test-runs}
 
-共有セットアップによりテスト統合がインストールされます。`mix test`をこれまでと同じ引数、出力、終了コードで使用し続けてください：
+共有セットアップによりテスト統合がインストールされます。`mix test`をこれまでと同じ引数、出力、終了コードで使用してください:
 
 ```bash
 mix test test/my_app_test.exs:12 --trace
 ```
 
-Tuist は実行が完了した時点でレポートを送信するため、追加のテストエイリアスは不要です。
+Tuistは実行が完了するとレポートを送信します。追加のテストエイリアスは不要です。
 
-Tuist ダッシュボードでテストインサイトにアクセスし、時間経過とともにどのように変化するかを確認できます：
+Tuistダッシュボードでテストインサイトにアクセスし、時間経過に伴う変化を確認できます:
 
-![Phoenix アプリケーションのテストダッシュボード](/images/guides/features/elixir/tests-dashboard.png)
+![Phoenixアプリケーションのテストダッシュボード](/images/guides/features/elixir/tests-dashboard.png)
 
-## 追跡対象 {#what-is-tracked}
+## 収集される情報 {#what-is-tracked}
 
-このパッケージは ExUnit の結果を収集します。含まれる項目：
+このパッケージはExUnitの結果を収集します。対象には以下が含まれます:
 - 個々のテストの合否ステータスと実行時間
-- 各テストが属するモジュールおよび `describe` ブロック
-- 各失敗のメッセージと場所
-- 複数回の実行にわたる flaky なテストの検出
-- ブランチとコミット、および継続的インテグレーションではプロバイダーと実行
-- 継続的インテグレーションでは、チェックアウトの [Git 履歴](#git-history)
+- 各テストが属するモジュールと`describe`ブロック
+- 各失敗のメッセージと発生箇所
+- 複数回の実行にわたる不安定なテストの検出
+- ブランチとコミット、およびCI環境ではプロバイダーと実行情報
+- CI環境では、チェックアウトの[Git履歴](#git-history)
 
-Doctest は他のテストと同様に報告されます。`--cover`を使用すると、実行の行カバレッジもアップロードされます：<.localized_link href="/guides/features/test-code-coverage/elixir">Elixir コードカバレッジ</.localized_link>をご覧ください。
+Doctestも他のテストと同様に報告されます。`--cover`を使用すると、その実行のカバレッジもアップロードされます。<.localized_link href="/guides/features/test-code-coverage/elixir">Elixirのコードカバレッジ</.localized_link>をご覧ください。
 
 > [!NOTE]
-> このパッケージは、すでに使用しているフォーマッターに加えて ExUnit フォーマッターを追加することでレポートを行います。コマンドラインで `--formatter`を指定すると、Mix がリスト全体を置き換えるため、実行は報告されず、タスクから警告が表示されます。
+> このパッケージは、既存のフォーマッターに加えてExUnitフォーマッターを追加してレポートを送信します。コマンドラインで`--formatter`を指定すると、Mixがフォーマッターのリスト全体を置き換えるため、実行は報告されず、タスクから警告が表示されます。
 
-### Git 履歴 {#git-history}
+### Git履歴 {#git-history}
 
-継続的インテグレーションでは、このパッケージはチェックアウトのコミット履歴（コミット SHA、その親コミット、コミット日時、および実行とそのプルリクエストのベースブランチ）もアップロードします。ファイルの内容、コミットメッセージ、または作者はアップロードされません。これにより、Tuist はどのコミットがデフォルトブランチにマージされたか（たとえばマージキューでテストされたコミット）を把握できます。パッケージはチェックアウトにすでに存在する履歴を読み取り、チェックアウトにベースブランチがない場合は、リモートに対して最新のコミットを要求します（`git ls-remote`）。コードカバレッジ（`--cover`）以外の場合、履歴は取得しません。
+CI環境では、このパッケージはチェックアウトのコミット履歴（コミットSHA、親コミット、コミット日時、実行およびプルリクエストのベースブランチ）もアップロードします。ファイルの内容、コミットメッセージ、著者はアップロードされません。これにより、Tuistはデフォルトブランチにマージされたコミット（例えばマージキューでテストされたもの）を識別できます。パッケージはチェックアウトに既存の履歴を読み取り、ベースブランチがない場合はリモートに対して最新のコミットを問い合わせます（`git ls-remote`）。コードカバレッジ（`--cover`）以外の場合、履歴のフェッチは行いません。
 
 | 変数 | 効果 |
 | --- | --- |
-| `TUIST_GIT_UPLOAD_ENABLED=false` | Git 履歴の読み取りまたはアップロードを行いません。 |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Git履歴の読み取りやアップロードを行いません。 |
 | `TUIST_GIT_UNSHALLOW_ENABLED=false` | リモートに接続せず、チェックアウトのみを読み取ります。 |
 
 ## トラブルシューティング {#troubleshooting}
 
-レポート送信はテストの結果を変更しません：レポートを送信できない場合、実行は通常通り終了し、何も出力されません。レポートが送信されなかった理由を確認するには、`TUIST_DEBUG=1`を設定してください：
+レポート送信はテストの結果を変更しません。レポートを送信できない場合、実行は通常通り終了し、何も出力されません。レポートが送信されない理由を確認するには、`TUIST_DEBUG=1`を設定してください:
 
 ```bash
 TUIST_DEBUG=1 mix test

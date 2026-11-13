@@ -81,6 +81,35 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "abcdef1"
   end
 
+  test "renders a running job before the outbox has replayed it to ClickHouse", %{conn: conn, account: account} do
+    fleet_name = Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_051,
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repository: "tuist/cli",
+        workflow_run_id: 310_510,
+        workflow_name: "CLI",
+        run_attempt: 2,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued(fleet_name, [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_051, "tuist-runner-x", claimed_at)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310510/jobs/31051")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "tuist-runner-x"
+    assert html =~ "Running"
+  end
+
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
@@ -792,6 +821,42 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "https://github.com/acme/mobile"
     refute html =~ "steps-card"
     refute html =~ "job-secret"
+  end
+
+  test "Bitrise jobs link to their build and point to Bitrise for logs", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.Bitrise.Build{
+        account_id: account.id,
+        build_slug: "3da87d70-71cd-48c0-8780-157e8c1c5801",
+        app_slug: "5782983d-2bc1-4627-a9b7-af2f2f390ed3",
+        stack_identifier: "agent-pool-a0c641c0",
+        build_number: 2
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "bitrise",
+        fleet_name: "linux-amd64",
+        repository: "Hello-World",
+        workflow_run_id: 2,
+        workflow_name: "primary",
+        job_name: "primary",
+        head_branch: "master"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/2/jobs/#{mapping.workflow_job_id}")
+    build_url = "https://app.bitrise.io/build/3da87d70-71cd-48c0-8780-157e8c1c5801"
+
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Bitrise")
+    assert has_element?(lv, ~s(a[href="#{build_url}"]), "Open the build on Bitrise")
+    assert html =~ "Logs for Bitrise builds stay on Bitrise."
+    refute html =~ "https://github.com/Hello-World"
+    refute html =~ "steps-card"
   end
 
   describe "Buildkite jobs" do
@@ -1867,6 +1932,63 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "CPU I/O Wait"
     assert html =~ "Storage"
     assert html =~ "runner-job-metrics-cpu"
+  end
+
+  test "reports a job whose runner ran out of memory and names what it stopped", %{conn: conn, account: account} do
+    victim = %{
+      oom_victim_process: "java",
+      oom_victim_memory_bytes: 27_917_287_424,
+      oom_victim_container: "gradle-build",
+      oom_victim_image: "gradle:8-jdk21"
+    }
+
+    for {workflow_job_id, samples} <- [
+          {31_830, [%{oom_kill_count: 0}, Map.put(victim, :oom_kill_count, 2)]},
+          {31_831, [%{oom_kill_count: 0}, %{oom_kill_count: 0}]}
+        ] do
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "tuist/tuist",
+          workflow_run_id: workflow_job_id * 10,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Test",
+          head_branch: "main",
+          head_sha: "abc"
+        })
+
+      :ok =
+        JobMetrics.record(
+          workflow_job_id,
+          account.id,
+          samples
+          |> Enum.with_index()
+          |> Enum.map(fn {sample, index} ->
+            Map.merge(sample, %{
+              timestamp: 1_750_000_000.0 + index * 15,
+              memory_used_bytes: 33_000_000_000,
+              memory_total_bytes: 34_000_000_000
+            })
+          end)
+        )
+    end
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318300/jobs/31830")
+    assert has_element?(lv, "#runner-job-out-of-memory-alert")
+    assert html =~ "Ran out of memory"
+    assert html =~ "the system stopped 2 processes to free it"
+    assert html =~ "The last one was java, which was using 27.9 GB, in the container gradle-build (gradle:8-jdk21)."
+    assert html =~ "org.gradle.jvmargs"
+    # The memory chart marks the sample that reported the kills.
+    assert html =~ "Out of memory"
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/318310/jobs/31831")
+    refute has_element?(lv, "#runner-job-out-of-memory-alert")
   end
 
   test "shows the metrics empty state when a job has no samples", %{conn: conn, account: account} do

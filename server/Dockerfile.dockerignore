@@ -28,6 +28,11 @@
 !tuist_ex/**
 !noora/
 !noora/**
+!condukt/mix.exs
+!condukt/lib/
+!condukt/lib/**
+!condukt/priv/
+!condukt/priv/**
 !skills/skills/
 !skills/skills/**
 !examples/xcode/

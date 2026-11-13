@@ -12,6 +12,9 @@ Monitoring cost controls must preserve metric identity and operator audit record
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+The runner queue-time p90 rule is in `k8s-monitoring/runner-queue-time-alert-rules.json`,
+tested by `test-runner-queue-time-alert.sh`; it reads a server histogram, so
+renaming its `limit_held` or `platform` tags breaks the rule.
 Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
 `test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
 freshness expressions with promtool. Keep the four `macos_host_*` metric families
@@ -19,6 +22,28 @@ in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
 Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
+
+- `kuraVolumesCSI` deploys the `kura-volumes.tuist.dev` CSI driver
+  (`tuist/templates/kura-volumes-csi.yaml`, see `../kura-volumes-csi/AGENTS.md`) and
+  the `kura-encrypted-nvme` StorageClass. Its node plugin runs on the pools
+  `tuist.kuraCachePools` lists, the same list the quota exporter uses, and
+  excludes delegated rack pools, whose plugin belongs to the independent
+  `rack-nodes` release. The `kura-volumes` namespace and the
+  `kura-volumes-csi-node` ServiceAccount are fixed: the server's key endpoint
+  authorizes by that TokenReview username. Explicit driver upgrades require
+  `kuraVolumesCSI.image.digest`; the tag fallback preserves older installations.
+  Server deployments preserve the driver independently of controller tags.
+  Every managed overlay enables the driver and root sync; canary and
+  production install it only through a digest-pinned deploy. An account's
+  instances use encryption when their region is LVM-enrolled or its legacy
+  policy permits the `:kura_encrypted_volumes` feature flag. Root keys are
+  synced by `server.config.kuraVolumeRootKeys.enabled` from the env's
+  `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`). Missing wrapping keys fail
+  closed.
+  Its objects are `helm.sh/resource-policy: keep`, so a release without them
+  (a rollback, or a staging deploy of an older branch) leaves the driver
+  running: only it can unmount, close and delete existing volumes. Remove it
+  by hand once no `kura-encrypted-nvme` PV is left.
 
 - `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
   while the provider withdraws runner policies and host addresses. Reservations
@@ -113,12 +138,19 @@ Helm-installed resource; publishing it is a separate rollout step.
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
+- Cilium policy inspection uses the same read tier, limited to
+  `ciliumnetworkpolicies`, `ciliumclusterwidenetworkpolicies` and
+  `ciliumegressgatewaypolicies` in `cilium.io`. This grant includes no policy
+  writes, other Cilium resources, Secret reads or live-debug access.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
   `tuist-fleet-unwedge` role. Do not aggregate it into `edit` or extend it to
   templates, status, create, update or delete. RBAC does not restrict fields;
   scope each repair to the diagnosed drift (for example, backfilling a live
   Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
-  Staging has standing write access; canary/production require human elevation.
+  `patch vultrmachines` follows the same rules; it exists to annotate one
+  replacement VultrMachine `tuist.dev/kura-storage-layout: lvm-v1` before it
+  converts. Staging has standing write access; canary/production require human
+  elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
 - Production's `node.cluster.x-k8s.io/pool: processor` nodes are untainted and have no memory beyond what the processor's rollout surge needs. Pin other production workloads, in any chart, to `node.cluster.x-k8s.io/pool: general` with a `nodeSelector`. A workload left unpinned can land there and deadlock the processor rollout, and helm then rolls back the whole release. The general pool's limit is CPU requests, not memory: keep one node with room for the server's 1-CPU surge pod, and resize `md-0` in `k8s/clusters/workloads/production/cluster.yaml` rather than squeezing that out.
 - Deploys wait on the tuist, k8s-monitoring and platform releases (Helm 4's
@@ -158,7 +190,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
-  **Runner cache volumes** group (four Loki rules and one Postgres rule,
+  **Runner cache volumes** group (five Loki rules and one Postgres rule,
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
@@ -240,10 +272,31 @@ Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server)
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
+- `kuraVolumesCSI.lvmRegions` renders `TUIST_KURA_LVM_REGIONS` on the server.
+  It defaults empty and must be enabled per environment only with the matching
+  node-layout rollout. Both `kura-lvm-nvme` and `kura-encrypted-nvme` need the CSI
+  driver retained across rollback.
+- `kuraVolumesCSI.thinRegions` renders `TUIST_KURA_THIN_REGIONS` and requires
+  `kuraVolumesCSI.enabled`. It only makes a region thin-capable; accounts move
+  through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
+  until a region has `tuist.dev/kura-thin-ready=true` nodes.
+- `kuraVolumesCSI.thinEnrolledRegions` renders `TUIST_KURA_THIN_ENROLLED_REGIONS`:
+  every account in a listed region moves to thin without the flag. Existing
+  instances still move only through the source-node gate. Enroll a region only
+  while converting it host by host with enough thin-ready capacity, since new
+  instances and claim growth there are admitted only against thin-ready nodes.
+
+- Kura CSI's retained admission policies constrain its pod-bound identity to
+  its own node's PV lifecycle and disk capacity, and preserve PVC ownership.
+  Claim writes/events are a `kura` Role. Run the disposable real-API admission
+  test and Helm tests in `../kura-volumes-csi/security/` when changing these
+  rules. Do not install the test's intentionally broad role in hosted clusters.
 - Linux runners use one host pool and the existing regional Kura Service for
   every account. No alternate pools, account-path flag or WAN relay are needed.
   Canary and production fleet templates declare vRack enrollment; existing
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
+
+- The immutable `kura-thin-encrypted-nvme` class requires thin topology. Thin opt-in is per node through `/data/kura-volumes/thin-pool.json` plus a restart of that node's CSI pod. Global `kuraVolumesCSI.thin` overrides are for homogeneous prepared deployments; leave them empty for mixed fleets. `podInfoOnMount` supplies the UID needed to fence grant operations. See `../kura-volumes-csi/thin/interface.md`.
 
 - Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

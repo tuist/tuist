@@ -62,6 +62,15 @@ defmodule TuistWeb.ProjectAutomationLive do
 
   def recovery_summary(%{recovery_enabled: false}), do: dgettext("dashboard_projects", "Disabled")
 
+  def recovery_summary(%{recovery_config: %{"condition" => "no_new_matches"} = recovery_config} = automation) do
+    dgettext(
+      "dashboard_projects",
+      "Enabled after %{window} %{without_matches}",
+      window: window_summary(recovery_config),
+      without_matches: ProjectAutomationsLive.without_new_matches_summary(automation.monitor_type)
+    )
+  end
+
   def recovery_summary(%{recovery_config: recovery_config}) do
     dgettext(
       "dashboard_projects",

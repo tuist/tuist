@@ -21,6 +21,11 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
       assert get_resp_header(conn, "vary") == []
       assert get_resp_header(conn, "set-cookie") == []
       assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
+
+      assert get_resp_header(conn, "link") == [
+               ~s(<#{Tuist.Environment.app_url(path: path)}>; rel="canonical")
+             ]
+
       assert [tokens] = get_resp_header(conn, "x-markdown-tokens")
       assert String.to_integer(tokens) > 0
     end
@@ -46,6 +51,7 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
 
       assert response(conn, 404) == "Page not found"
       assert get_resp_header(conn, "cache-control") == ["no-store"]
+      assert get_resp_header(conn, "link") == []
     end
   end
 
@@ -55,6 +61,7 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
       assert response(conn, 200) == MarketingMarkdown.source("/" <> path)
       refute conn.resp_body == MarketingMarkdown.get("/" <> path)
       assert get_resp_header(conn, "content-language") == ["en"]
+      assert get_resp_header(conn, "link") == []
     end
 
     conn = get(build_conn(), "/marketing-markdown/source/cache")

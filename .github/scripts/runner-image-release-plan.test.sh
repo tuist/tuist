@@ -13,6 +13,7 @@ new="sha256:$(printf 'b%.0s' {1..64})"
 mkdir -p "$scratch/bin" "$scratch/repo/infra/runner-image"
 echo '["26.6", "27.1"]' > "$scratch/repo/infra/runner-image/profiles.json"
 echo '{}' > "$scratch/repo/infra/runner-image/base-xcode-versions.json"
+echo '{"builder-a": ["26.6", "27.1"], "builder-b": []}' > "$scratch/repo/infra/runner-image/stacked-builders.json"
 
 # `git tag -l` lists $scratch/tags, `git diff` prints $scratch/changed.
 cat > "$scratch/bin/git" <<BASH
@@ -88,10 +89,9 @@ expect build-count 0 "a source change without standalone images"
 expect carry '["26.6","27.1"]' "a source change without standalone images"
 expect manifest "[{\"xcode\":\"26.6\",\"base_digest\":\"$new\",\"standalone_base_digest\":\"$old\",\"stacked\":true},{\"xcode\":\"27.1\",\"base_digest\":\"$old\",\"standalone_base_digest\":\"$old\",\"stacked\":true}]" \
   "standalone images carried over a moved base"
-if [ "$(sed -n '/^stacked-bases<<EOF$/,/^EOF$/p' "$scratch/output" | sed '1d;$d')" != "$(printf 'ghcr.io/tuist/macos-tahoe-xcode@%s\nghcr.io/tuist/macos-tahoe-xcode@%s' "$new" "$old")" ]; then
-  echo "Expected the stacked bases in build order." >&2
-  exit 1
-fi
+# Each build keeps its own base first, then the other bases of its builder.
+expect stacked-matrix "{\"include\":[{\"xcode\":\"26.6\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\",\"builder\":\"builder-a\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\\nghcr.io/tuist/macos-tahoe-xcode@$old\"},{\"xcode\":\"27.1\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\",\"builder\":\"builder-a\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\\nghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" \
+  "builds on the builder stacked-builders.json names"
 
 plan true true
 expect build-count 2 "a release that builds standalone images"
@@ -101,7 +101,8 @@ expect carry '[]' "a release that builds standalone images"
 plan false false
 expect release true "a moved base"
 expect version 0.50.1 "a moved base"
-expect stacked-matrix "{\"include\":[{\"xcode\":\"26.6\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" "a moved base"
+expect stacked-matrix "{\"include\":[{\"xcode\":\"26.6\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\",\"builder\":\"builder-a\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\\nghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" \
+  "a moved base, keeping the carried profile's base"
 expect stacked-carry '["27.1"]' "a moved base"
 expect build-count 0 "a moved base"
 
@@ -126,7 +127,8 @@ plan true false
 expect build-count 1 "a new profile backed by an RC"
 expect stacked-build-count 1 "a new profile backed by an RC"
 expect matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" "a new profile backed by an RC"
-expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" "the same RC base in both image variants"
+expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\",\"builder\":\"builder-b\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$new\"}]}" \
+  "the same RC base in both image variants, on the builder with the fewest profiles"
 expect carry '["26.6","27.1"]' "a new profile backed by an RC"
 expect stacked-carry '["26.6","27.1"]' "a new profile backed by an RC"
 
@@ -134,9 +136,11 @@ expect stacked-carry '["26.6","27.1"]' "a new profile backed by an RC"
 output manifest > "$scratch/previous-manifest.json"
 echo macos-27-2-0.50.0 >> "$scratch/published"
 echo '{}' > "$scratch/repo/infra/runner-image/base-xcode-versions.json"
+echo '{"builder-a": ["26.6", "27.1"], "builder-b": []}' > "$scratch/repo/infra/runner-image/stacked-builders.json"
 echo "$old" > "$scratch/base-27-2"
 plan false false
-expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" "the final base without changing the profile"
+expect stacked-matrix "{\"include\":[{\"xcode\":\"27.2\",\"base\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\",\"builder\":\"builder-b\",\"keep\":\"ghcr.io/tuist/macos-tahoe-xcode@$old\"}]}" \
+  "the final base without changing the profile"
 expect stacked-carry '["26.6","27.1"]' "the final base without changing the profile"
 
 echo "The runner image release plan rebuilds what it should."

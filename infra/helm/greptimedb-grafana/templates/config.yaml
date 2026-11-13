@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: GreptimeDB Staging Metrics
+        uid: greptime-staging-metrics
+        type: prometheus
+        access: proxy
+        url: {{ printf "%s/v1/prometheus" .Values.backend.url | quote }}
+        basicAuth: true
+        basicAuthUser: dashboard
+        isDefault: true
+        editable: false
+        jsonData:
+          httpMethod: POST
+          httpHeaderName1: x-greptime-db-name
+        secureJsonData:
+          basicAuthPassword: $GREPTIME_DASHBOARD_PASSWORD
+          httpHeaderValue1: public
+      - name: GreptimeDB Staging SQL Logs Traces
+        uid: greptime-staging-sql
+        type: info8fcc-greptimedb-datasource
+        access: proxy
+        url: {{ .Values.backend.url | quote }}
+        basicAuth: true
+        basicAuthUser: dashboard
+        editable: false
+        jsonData:
+          host: {{ .Values.backend.url | quote }}
+          defaultDatabase: public
+          queryTimeout: "30"
+          httpHeaderName1: x-greptime-db-name
+          logs:
+            defaultDatabase: public
+            defaultTable: opentelemetry_logs
+            timeColumn: timestamp
+            messageColumn: body
+            levelColumn: severity_text
+            traceIdColumn: trace_id
+            selectContextColumns: true
+            contextColumns: [trace_id, span_id, resource_attributes]
+          traces:
+            defaultDatabase: public
+            defaultTable: opentelemetry_traces
+            startTimeColumn: timestamp
+            traceIdColumn: trace_id
+            spanIdColumn: span_id
+            parentSpanIdColumn: parent_span_id
+            serviceNameColumn: service_name
+            operationNameColumn: span_name
+            durationColumn: duration_nano
+            durationUnit: nanoseconds
+        secureJsonData:
+          basicAuthPassword: $GREPTIME_DASHBOARD_PASSWORD
+          httpHeaderValue1: public
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: staging
+        type: file
+        disableDeletion: true
+        allowUiUpdates: false
+        options:
+          path: /etc/grafana/staging-dashboards
+  staging.json: |
+{{ .Files.Get "dashboards/staging.json" | indent 4 }}

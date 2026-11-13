@@ -6,8 +6,31 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
-  listed by `VolumePrefetch`) under the use that published it.
+  from any node: hosts prefetch a custom HEAD (`prefetch_heads/4`, listed by
+  `VolumePrefetch`) under the use that published it.
+- `prefetch_heads/4` lists, for a macOS host of a class or a Linux host of a
+  fleet (Linux job shapes share its nodes), first up to 32
+  `prewarm` HEADs (volumes at least two workflow runs used in the last seven
+  days and unused for four hours) and then up to 8 `recent` HEADs (used in the
+  last day). Each list takes the accounts in turn, most recently active first,
+  and each account's volumes most recently used first. An idle volume's HEAD
+  cannot change before its next job, so one download per host covers the whole
+  idle period, including a weekend. Two runs leave out keys one run made for
+  itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
+  host gets only the repositories `VolumePlacement` places on it: every volume of
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
+  hashing weighted by advertised cache capacity, and the caps apply per host.
+  Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
+  schedule learned per
+  weekday and UTC hour covered none of the customer first-of-day starts from
+  2026-10-08 to 10-22, whose start times move by hours from day to day. The
+  `reason` reaches the hosts' `tuist_runner_cache_volume_prefetched_bytes_total`
+  metric. macOS hosts ask `GET /api/internal/runners/cache-masters` with their
+  per-machine token; the Linux agent asks
+  `GET /api/internal/runners/cache-volumes/masters?node_name=` with the agent
+  token every Linux node shares, which only answers for Linux fleets.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
@@ -32,6 +55,11 @@ these schemas persist volume identities and per-job uses.
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
+- A cold report's `cold_reason` records why the host had no copy of a warm use's
+  volume (runner-cache's `Cold*` reasons: `downloading`, `not_on_host`,
+  `evicted_<eviction reason>`). Only a known reason on a `warm: false` report of
+  a use with a base is kept, and the first one stays. `cold_reason_description/1`
+  adds it to the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
@@ -62,6 +90,36 @@ these schemas persist volume identities and per-job uses.
   `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
+- The one job-supplied input that may bind a session is a GitHub Actions OIDC
+  token the job minted for the `tuist-runner-cache` audience
+  (`Runners.ExecutionTokens`). The job-started hook requests it when the
+  workflow grants `id-token: write`, before any attach, and the agent forwards it
+  unread to `/runners/cache-volumes/execution`. Its `check_run_id` must be a
+  GitHub job of the session's account in the claimed repository, not yet
+  completed and bound to no other session, and the session must not be bound to
+  another job: a token names no runner, so it never overrides GitHub's report.
+  The check and the bind run under the per-account lock GitHub's reports take. With `FeatureFlags.runner_oidc_execution_enabled?/1`
+  it binds through `Dispatch.record_execution/3`; without it the job is only
+  logged (`execution token names a job (not binding)`) beside the session's
+  binding. Never accept any other claim or variable from the job this way.
+  A token that binds also stores its claims on the session
+  (`execution_identity`, tied to the job it named), which `Identity.resolve/1`
+  reads only while the account has the flag. It takes a
+  push, schedule or workflow_dispatch job's identity from them without reading
+  the run; only the default branch comes from GitHub's repository (cached for
+  five minutes), or from the volumes' recorded `default_branch` when GitHub cannot
+  answer. Only a `refs/heads/` ref saves as the default branch; a tag of the same
+  name never does. A pull request job still reads the run to tell a fork apart, and when
+  GitHub cannot answer it attaches read-only (`same_repository` false, no writer
+  branch), so its custom volumes and checkout still read and its Docker volume
+  stays unavailable. A checkout needs a known default branch.
+- GitLab's identity is captured right after the job is acquired, by
+  `Workers.CaptureGitLabIdentityWorker` (`Identity.capture_gitlab/1`,
+  `runner_gitlab_jobs.cache_volume_identity`), so allocation does not call
+  GitLab; it resolves live only when that capture has not landed, and uses the
+  stored identity only while the assignment holds its payload. The worker is
+  enqueued in the assignment's transaction; keep GitLab calls out of the
+  acquisition itself: a GitLab failure there must never fail the job.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
@@ -86,8 +144,9 @@ these schemas persist volume identities and per-job uses.
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  the capacity chosen for the job (`full?/2`) once a use cloned from that head
-  reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
+  the capacity chosen for the job (`full?/2`) once a use cloned from that head, or
+  from the head's own parent (a sibling that saved replaced the head the others
+  filled), reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
   same generation bump as deletion, then sizes the use as for an empty volume.
   The decision precedes the host-maximum check, so a refused job changes nothing.
   Unknown sizes never clear. The dashboard warns on heads nearly full at the
@@ -169,7 +228,11 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `prefetch_heads` lists checkout HEADs in a list of their own (`@checkout_limit`,
+  after the custom volumes' lists, so they never take a custom volume's place), as
+  `kind: "checkout"` with the `checkout_generation`, `clone_url`, `default_branch`,
+  `uid` and `volume_key` a host restores the master with. A host without the
+  master still answers a job cold and restores it in the background.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
@@ -207,12 +270,12 @@ these schemas persist volume identities and per-job uses.
   inventory is validated and stored on the use as `docker_images`, describes the
   volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
   decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
-  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
-  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+  runner-cache's `DockerGrowthBytes`. Docker and checkout storage is not billed:
+  `Tuist.Runners.CacheVolumeBilling` leaves out `unbilled_keys/0`, every reserved key.
 - `image/3` with the `rebase` operation (Docker volumes only) moves a successful
   job's use that may still publish onto the lineage's current HEAD, named by
   `generation` and its `content_digest`, once its host reports the guest merged
   the job's images with that HEAD; publication then fast-forwards it. Anything
   but the current HEAD is a conflict.
 
-- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion.
+- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion. They are what storage is billed on: `Tuist.Runners.CacheVolumeBilling` weights each volume's saved head by how long it was held (unmeasured heads count as nothing), so a volume counts once however many copies hosts retain. Changing what is recorded here changes invoices.

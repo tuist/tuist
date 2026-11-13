@@ -384,12 +384,14 @@ defmodule Tuist.RunnersTest do
         {:ok, %{"head_repository" => %{"full_name" => repo}, "repository" => %{"full_name" => repo}}}
       end)
 
-      expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
-        send(test_pid, {:jit_labels, labels})
-        send(test_pid, {:jit_runner_name, runner_name})
-        send(test_pid, {:jit_login, login})
-        {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
-      end)
+      if Keyword.get(opts, :github_jit, true) do
+        expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
+          send(test_pid, {:jit_labels, labels})
+          send(test_pid, {:jit_runner_name, runner_name})
+          send(test_pid, {:jit_login, login})
+          {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
+        end)
+      end
 
       expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, runner_name_prefix)
@@ -535,7 +537,7 @@ defmodule Tuist.RunnersTest do
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid)
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
+      stub(CacheGrant, :mint, fn _account_id, _opts -> "signed-grant-token" end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
         send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
@@ -555,7 +557,9 @@ defmodule Tuist.RunnersTest do
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
-      expect(CacheGrant, :mint, fn account_id ->
+      expect(CacheGrant, :mint, fn account_id, opts ->
+        assert Keyword.has_key?(opts, :site)
+        assert Keyword.has_key?(opts, :platform)
         assert account_id == account.id
         "signed-grant-token"
       end)
@@ -564,6 +568,34 @@ defmodule Tuist.RunnersTest do
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
       refute Map.has_key?(result, :volume_head)
+    end
+
+    test "signs the storage site of the actual Linux node, ignoring guest claims" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "linux-storage-node")
+      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+
+      expect(K8sClient, :get_node, fn "linux-storage-node", _ ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "labels" => %{
+               "node.cluster.x-k8s.io/shard-storage-site" => "gra",
+               "tuist.dev/private-network" => "pn-2024093"
+             }
+           }
+         }}
+      end)
+
+      expect(CacheGrant, :mint, fn id, opts ->
+        assert id == account.id
+        assert opts == [site: "gra", platform: :linux]
+        "signed-grant"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1", %{site: "attacker"})
     end
 
     test "withholds the cache signing grant from an untrusted fork job" do
@@ -582,7 +614,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
@@ -591,13 +623,31 @@ defmodule Tuist.RunnersTest do
       refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
     end
 
+    test "gives a Bitrise build the cache signing grant" do
+      account = account_fixture()
+      candidate = account |> candidate_with_label("tuist-default") |> Map.put(:provider, "bitrise")
+      stub_dispatch_path(account, candidate, self(), github_jit: false)
+
+      stub(Tuist.Runners.Bitrise, :mint_acquisition, fn _account_id, _workflow_job_id ->
+        {:ok, %{intro_secret: "intro", report_token: "report"}}
+      end)
+
+      expect(CacheGrant, :mint, fn account_id, _opts ->
+        assert account_id == account.id
+        "signed-grant-token"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
       stub(GitHubClient, :get_workflow_run, fn _ -> {:error, "boom"} end)
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil

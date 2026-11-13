@@ -25,4 +25,4 @@ tuist --help
 
 ## 故障排除 {#troubleshooting}
 
-如果遇到问题，请查看<.localized_link href="/cli/debugging">调试指南</.localized_link>，其中提供了诊断问题的工具，包括会话日志和网络记录。
+如果遇到问题，请查阅<.localized_link href="/cli/debugging">调试指南</.localized_link>，其中包含用于诊断问题的工具，包括会话日志和网络记录。

@@ -131,6 +131,190 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "get_run_report/1" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        project: project,
+        git_ref: "refs/heads/reused",
+        git_commit_sha: "1234567890abcdef",
+        git_remote_url_origin: nil,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}/qr-code.svg" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test-runs/#{test_run.id}" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end
+      }
+
+      %{project: project, params: params}
+    end
+
+    test "matches every result category by exact project and SHA independently of refs", %{
+      project: project,
+      params: params
+    } do
+      other_project = ProjectsFixtures.project_fixture()
+      previous_sha = "abcdef1234567890"
+
+      results =
+        [
+          {:branch, project, params.git_commit_sha, params.git_ref, "Branch"},
+          {:head, project, params.git_commit_sha, "refs/pull/1/head", "Shared"},
+          {:merge, project, params.git_commit_sha, "refs/pull/1/merge", "Merge"},
+          {:previous_branch, project, previous_sha, params.git_ref, "Shared"},
+          {:previous_pr, project, previous_sha, "refs/pull/1/head", "Stale"},
+          {:other_project, other_project, params.git_commit_sha, params.git_ref, "Other"}
+        ]
+        |> Enum.with_index()
+        |> Enum.map(fn {{key, result_project, sha, ref, name}, index} ->
+          # Nonmatching results are newer, including a reused name on the old commit.
+          inserted_at = NaiveDateTime.add(~N[2024-04-30 01:00:00], index)
+
+          attrs = [
+            project_id: result_project.id,
+            account_id: result_project.account_id,
+            git_commit_sha: sha,
+            git_ref: ref,
+            inserted_at: inserted_at
+          ]
+
+          preview =
+            AppBuildsFixtures.preview_fixture([project: result_project, display_name: name] ++ attrs)
+
+          {:ok, xcode_test} =
+            RunsFixtures.test_fixture([scheme: "#{name} Xcode", test_modules: []] ++ attrs)
+
+          {:ok, gradle_test} =
+            RunsFixtures.test_fixture([scheme: "#{name} Gradle", build_system: "gradle", test_modules: []] ++ attrs)
+
+          {:ok, xcode_build} = RunsFixtures.build_fixture([scheme: name] ++ attrs)
+          gradle_build_id = GradleFixtures.build_fixture([root_project_name: name] ++ attrs)
+
+          bundle =
+            BundlesFixtures.bundle_fixture(
+              [project: result_project, name: name, git_branch: "reused"] ++
+                Keyword.put(attrs, :inserted_at, DateTime.from_naive!(inserted_at, "Etc/UTC"))
+            )
+
+          urls = [
+            "https://tuist.dev/previews/#{preview.id}",
+            "https://tuist.dev/test-runs/#{xcode_test.id}",
+            "https://tuist.dev/test-runs/#{gradle_test.id}",
+            "https://tuist.dev/build-runs/#{xcode_build.id}",
+            "https://tuist.dev/build-runs/#{gradle_build_id}",
+            "https://tuist.dev/bundles/#{bundle.id}"
+          ]
+
+          {key, urls}
+        end)
+
+      body = VCS.get_run_report(params)
+
+      for {key, urls} <- results, url <- urls do
+        if key in [:branch, :head, :merge] do
+          assert body =~ "](#{url})"
+        else
+          refute body =~ "](#{url})"
+        end
+      end
+
+      for heading <- ["#### Previews 📦", "#### Tests 🧪", "#### Builds 🔨", "#### Bundles 🧰"] do
+        assert body =~ heading
+      end
+
+      assert body =~ "`123456789`"
+      refute body =~ "/commit/"
+      refute body =~ previous_sha
+
+      repository_url = "https://github.com/tuist/tuist"
+      commit_link = "[123456789](#{repository_url}/commit/#{params.git_commit_sha})"
+
+      assert VCS.get_run_report(%{params | git_remote_url_origin: repository_url}) ==
+               String.replace(body, "`123456789`", commit_link)
+
+      assert VCS.get_run_report(Map.delete(params, :git_ref)) == body
+      assert VCS.get_run_report(%{params | git_commit_sha: "no-results-for-this-commit"}) == nil
+
+      # Without a SHA, retain PR head/merge aggregation. Non-Xcode tests keep
+      # their existing latest-commit roll-up rather than mixing commits.
+      ref_params = params |> Map.delete(:git_commit_sha) |> Map.put(:git_ref, "refs/pull/1/merge")
+      ref_body = VCS.get_run_report(ref_params)
+
+      for {key, urls} <- results, {url, index} <- Enum.with_index(urls) do
+        if key in [:head, :merge, :previous_pr] and (index != 2 or key == :previous_pr) do
+          assert ref_body =~ "](#{url})"
+        else
+          refute ref_body =~ "](#{url})"
+        end
+      end
+
+      assert VCS.get_run_report(Map.put(ref_params, :git_commit_sha, nil)) == ref_body
+    end
+
+    test "includes only matching failed and flaky tests without requiring a connected repository", %{
+      project: project,
+      params: params
+    } do
+      for {name, sha, ref, inserted_at} <- [
+            {"current", params.git_commit_sha, "refs/pull/2/head", ~N[2024-04-30 01:00:00]},
+            {"previous", "abcdef1234567890", params.git_ref, ~N[2024-04-30 02:00:00]}
+          ] do
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_ref: ref,
+            git_commit_sha: sha,
+            inserted_at: inserted_at,
+            scheme: "ReportTests",
+            status: "failure",
+            test_modules: []
+          )
+
+        failed_run =
+          RunsFixtures.test_case_run_fixture(
+            project_id: project.id,
+            test_run_id: test_run.id,
+            name: "failed_#{name}",
+            status: "failure"
+          )
+
+        RunsFixtures.test_case_failure_fixture(
+          test_case_run_id: failed_run.id,
+          message: "expected true",
+          path: "Tests/ReportTests.swift",
+          line_number: 42
+        )
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_run_id: test_run.id,
+          name: "flaky_#{name}",
+          status: "success",
+          is_flaky: true
+        )
+      end
+
+      body = VCS.get_run_report(params)
+
+      assert body =~ "#### Failed Tests ❌"
+      assert body =~ "failed_current"
+      assert body =~ "`Tests/ReportTests.swift:42`: expected true"
+      assert body =~ "#### Flaky Tests ⚠️"
+      assert body =~ "flaky_current"
+      refute body =~ "failed_previous"
+      refute body =~ "flaky_previous"
+      refute body =~ "/commit/"
+      refute body =~ "github.com"
+    end
+
+    test "returns nil when there are no results", %{params: params} do
+      assert VCS.get_run_report(params) == nil
+      assert VCS.get_run_report(Map.delete(params, :git_commit_sha)) == nil
+    end
+  end
+
   describe "post_vcs_pull_request_comment/1" do
     @git_ref "refs/pull/1/merge"
     @git_remote_url_origin "https://github.com/tuist/tuist"
@@ -184,7 +368,7 @@ defmodule Tuist.VCSTest do
         submission_auth: "network_trusted"
       )
 
-      for system <- ["xcode", "gradle", "bazel", "mix"] do
+      for system <- ["xcode", "gradle", "bazel", "mix", "cargo"] do
         RunsFixtures.test_fixture(
           project_id: project.id,
           scheme: "Trusted-#{system}",
@@ -569,6 +753,87 @@ defmodule Tuist.VCSTest do
         preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
         preview_qr_code_url: fn %{preview: preview, project: project} ->
           "https://tuist.dev/#{project.name}/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment with a run command for command-line previews" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      cli_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "tuist",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _cli_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: cli_preview,
+          type: :executable,
+          supported_platforms: [:macos]
+        )
+
+      app_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 01:00:00]
+        )
+
+      _app_build = AppBuildsFixtures.app_build_fixture(preview: app_preview)
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{app_preview.id}) | #{commit_link} |
+        | [tuist](https://tuist.dev/previews/#{cli_preview.id})<br/>`tuist run https://tuist.dev/previews/#{cli_preview.id}` | #{commit_link} |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
         end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
@@ -1786,6 +2051,57 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "includes successful Cargo tests in the PR rollup" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          build_system: "cargo",
+          scheme: "cargo test",
+          test_modules: [
+            %{
+              name: "example::lib",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "parses input", status: "success", duration: 0},
+                %{name: "writes output", status: "success", duration: 0},
+                %{name: "slow integration", status: "skipped", duration: 0}
+              ]
+            }
+          ]
+        )
+
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ "#### Tests 🧪"
+
+        assert opts[:json].body =~
+                 "| [cargo test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | 0 | 1 |"
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: run} -> "https://tuist.dev/test_runs/#{run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
     test "creates a comment with mixed xcode and gradle test runs" do
       # Given
       project =
@@ -2214,6 +2530,72 @@ defmodule Tuist.VCSTest do
         bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
+    end
+
+    test "uses runner-neutral Cargo labels in failure and flaky summaries without rewriting reports" do
+      project =
+        ProjectsFixtures.project_fixture(
+          build_system: :cargo,
+          vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+        )
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          build_system: "cargo",
+          scheme: "cargo nextest run · ci",
+          status: "failure",
+          test_modules: [
+            %{
+              name: "rust::lib",
+              status: "failure",
+              duration: 30,
+              test_cases: [
+                %{name: "failed", test_suite_name: "tests", status: "failure", duration: 10},
+                %{
+                  name: "flaky",
+                  test_suite_name: "tests",
+                  status: "success",
+                  duration: 20,
+                  repetitions: [
+                    %{repetition_number: 1, name: "flaky", status: "failure", duration: 10},
+                    %{repetition_number: 2, name: "flaky", status: "success", duration: 10}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+      stub(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: []}} end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json].body
+        assert body =~ "**Cargo tests · ci**: 1 flaky test"
+        assert body =~ "**Cargo tests · ci**: 1 failed test"
+        refute body =~ "nextest"
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+
+      assert {:ok, stored_run} = Tests.get_test(test_run.id)
+      assert stored_run.scheme == "cargo nextest run · ci"
     end
 
     test "creates a comment with flaky tests" do

@@ -1,0 +1,4036 @@
+[
+  {
+    "query": "{ span.http.route !~ \"/health\" } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "prefix/health/suffix"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "prefix/health/suffix"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.route !~ \".*health.*\" } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.route != \"/health\" } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "prefix/health/suffix"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "prefix/health/suffix"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ status = error || span.http.response.status_code \u003e= 500 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "503"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "503"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "500"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "500"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "503"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "503"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.route !~ \"/health\" \u0026\u0026 duration \u003e 500ms } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "prefix/health/suffix"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "prefix/health/suffix"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ (status = error || span.http.response.status_code \u003e= 500) \u0026\u0026 resource.service.name = \"frontend\" } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "frontend"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "frontend"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "500"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "frontend"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "500"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "frontend"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "503"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "frontend"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "503"
+                      }
+                    },
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "frontend"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ status = ok || status = unset } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "8",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "107000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "107000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "107000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "500000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "500000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span:status != error } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "8",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "107000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "107000000000",
+                "durationNanos": "1000000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "107000000000",
+                  "durationNanos": "1000000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "500000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "500000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "unset"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "unset"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ duration = 500ms } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "500000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "500000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span:duration \u003e= 500.000001ms } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "8",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "107000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "107000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "107000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ duration \u003c 1.5s } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "8",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "107000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "107000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "107000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "100000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "100000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "4",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "103000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "500000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "500000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "3",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ duration \u003e 1s \u0026\u0026 resource.service.name = \"frontend\" } with (most_recent=true)",
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "query": "{ span.http.response.status_code = 9007199254740993 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.response.status_code = 9007199254740992 } with (most_recent=true)",
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "query": "{ span.http.response.status_code != 503 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "200"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "200"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "500"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "500"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "200"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "200"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.response.status_code \u003c 504 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "106000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "200"
+                    }
+                  }
+                ]
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "503"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "106000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "200"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "503"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "500"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "500"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "503"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "503"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "200"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "200"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.response.status_code \u003e 503 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.route = \"/work\" || span.http.route = \"/health\" \u0026\u0026 status = ok } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/health"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/health"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ (span.http.route = \"/work\" || span.http.route = \"/health\") \u0026\u0026 status = ok } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/health"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/health"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ resource.service.name = \"worker\" || status = ok } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "worker"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "service.name",
+                      "value": {
+                        "stringValue": "worker"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ status = error || span.http.response.status_code \u003e= 9000 } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ (status = error \u0026\u0026 span.http.response.status_code \u003e= 9000) || span.http.route = \"/work\" } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.response.status_code",
+                    "value": {
+                      "intValue": "9007199254740993"
+                    }
+                  },
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.response.status_code",
+                      "value": {
+                        "intValue": "9007199254740993"
+                      }
+                    },
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  },
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    },
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ status = ok || (status = error \u0026\u0026 duration \u003e 500ms) } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "error"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 100,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "100000000",
+                "attributes": [
+                  {
+                    "key": "status",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "100000000",
+                  "attributes": [
+                    {
+                      "key": "status",
+                      "value": {
+                        "stringValue": "ok"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{ span.http.route !~ \"/health\" \u0026\u0026 duration \u003e 0.5s } with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "7",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "106000000000",
+          "durationMs": 2600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "108000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "108000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            },
+            "worker": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "6",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "105000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "105000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "105000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "5",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "104000000000",
+          "durationMs": 500,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "104000000000",
+                "durationNanos": "500000001",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "prefix/health/suffix"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "104000000000",
+                  "durationNanos": "500000001",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "prefix/health/suffix"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "2",
+          "rootServiceName": "frontend",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 600,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "600000000",
+                "attributes": [
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/work"
+                    }
+                  }
+                ]
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "600000000",
+                  "attributes": [
+                    {
+                      "key": "http.route",
+                      "value": {
+                        "stringValue": "/work"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "frontend": {
+              "spanCount": 1,
+              "errorCount": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+]

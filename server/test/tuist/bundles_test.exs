@@ -21,6 +21,42 @@ defmodule Tuist.BundlesTest do
     :ok
   end
 
+  describe "project_bundle_tags/2" do
+    test "returns sorted distinct recent tags from only the selected project" do
+      project = ProjectsFixtures.project_fixture()
+      assert Bundles.project_bundle_tags(project) == []
+
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["production", "debug"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["production"])
+      BundlesFixtures.bundle_fixture(custom_tags: ["other-project"])
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        custom_tags: ["expired"],
+        inserted_at: ~U[2023-08-09 00:00:00Z]
+      )
+
+      assert Bundles.project_bundle_tags(project) == ["debug", "production"]
+      assert Bundles.project_bundle_tags(project, "ROD") == ["production"]
+      assert Bundles.project_bundle_tags(project, "%") == []
+    end
+
+    test "searches all recent tags before limiting results" do
+      project = ProjectsFixtures.project_fixture()
+
+      for group <- Enum.chunk_every(1..1000, 10) do
+        BundlesFixtures.bundle_fixture(project: project, custom_tags: Enum.map(group, &"a-tag-#{&1}"))
+      end
+
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["z-production"])
+
+      initial_tags = Bundles.project_bundle_tags(project)
+      assert length(initial_tags) == 1000
+      refute "z-production" in initial_tags
+      assert Bundles.project_bundle_tags(project, "PROD") == ["z-production"]
+    end
+  end
+
   describe "create_bundle/1" do
     test "creates a bundle" do
       # Given

@@ -5,6 +5,7 @@ defmodule TuistWeb.API.AgentSessionsController do
   alias OpenApiSpex.Schema
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentSession
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -39,6 +40,12 @@ defmodule TuistWeb.API.AgentSessionsController do
       repository_ref: %Schema{type: :string, nullable: true},
       model: %Schema{type: :string, nullable: true},
       budget_cents: %Schema{type: :integer, nullable: true},
+      platform: %Schema{
+        type: :string,
+        enum: ["linux", "darwin"],
+        nullable: true,
+        description: "The OS the session runs on. Null runs the agent environment's platform."
+      },
       status: %Schema{
         type: :string,
         nullable: true,
@@ -144,7 +151,7 @@ defmodule TuistWeb.API.AgentSessionsController do
   operation(:create,
     summary: "Start an agent session.",
     description:
-      "Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.",
+      "Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.",
     operation_id: "createSandboxAgentSession",
     parameters: @account_parameters,
     request_body:
@@ -178,6 +185,13 @@ defmodule TuistWeb.API.AgentSessionsController do
              nullable: true,
              description: "Hard list-cost ceiling for the session in USD cents."
            },
+           platform: %Schema{
+             type: :string,
+             enum: ["linux", "darwin"],
+             nullable: true,
+             description:
+               "The OS to run the session on. Defaults to the agent environment's platform; any other platform runs with that platform's default shape."
+           },
            agent_id: %Schema{
              type: :string,
              nullable: true,
@@ -205,6 +219,7 @@ defmodule TuistWeb.API.AgentSessionsController do
         :repository_ref,
         :model,
         :budget_cents,
+        :platform,
         :agent_id
       ])
 
@@ -395,10 +410,22 @@ defmodule TuistWeb.API.AgentSessionsController do
     conn |> put_status(:bad_request) |> json(%{message: "The after cursor is not one this API returned."})
   end
 
-  defp agent_session_error(conn, :missing_api_key) do
+  defp agent_session_error(conn, :missing_credentials) do
     conn
     |> put_status(:bad_request)
-    |> json(%{message: "The agent environment has no Anthropic API key. Set one with PATCH on the agent environment."})
+    |> json(%{
+      message:
+        "The agent environment has no Anthropic credentials. Set an API key or the four federation ids with PATCH on the agent environment."
+    })
+  end
+
+  defp agent_session_error(conn, {:federation_rejected, %{status: status, message: message}}) do
+    conn
+    |> put_status(:bad_gateway)
+    |> json(%{
+      message:
+        "Anthropic rejected the federated token exchange (#{status}: #{message}). Check that the federation rule matches the issuer and subject in the agent environment and names its service account; the reason for each rejection is on #{Federation.authentication_history_url()}"
+    })
   end
 
   defp agent_session_error(conn, %{status: status, message: message}) do
@@ -438,6 +465,7 @@ defmodule TuistWeb.API.AgentSessionsController do
       :repository_ref,
       :model,
       :budget_cents,
+      :platform,
       :inserted_at,
       :updated_at
     ])

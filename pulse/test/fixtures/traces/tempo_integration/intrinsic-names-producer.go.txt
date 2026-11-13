@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Replays Grafana Tempo's public vocabulary helper; no Pulse code participates.
+// Run from the verified Tempo checkout documented in README.md.
+package main
+
+import (
+	"encoding/json"
+	"os"
+	"sort"
+
+	"github.com/grafana/tempo/v3/pkg/search"
+)
+
+func main() {
+	names := search.GetVirtualIntrinsicValues()
+	sort.Strings(names)
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(names); err != nil {
+		panic(err)
+	}
+}

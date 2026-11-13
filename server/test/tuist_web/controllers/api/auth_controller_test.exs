@@ -2,11 +2,13 @@ defmodule TuistWeb.API.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Ecto.Query
   import TelemetryTest
 
   alias Tuist.Accounts
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Authentication.RefreshReplays
+  alias Tuist.OAuth.Apple
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit.Auth
@@ -29,6 +31,20 @@ defmodule TuistWeb.API.AuthControllerTest do
     end
 
     :ok
+  end
+
+  describe "POST /api/auth/device_codes" do
+    test "starts a device sign-in with a secret device code and a short user code", %{conn: conn} do
+      response = conn |> post(~p"/api/auth/device_codes") |> json_response(:ok)
+
+      assert %{"device_code" => device_code, "user_code" => user_code, "expires_in" => 300, "interval" => 1} = response
+      assert response["verification_uri"] =~ ~r{/auth/device$}
+      assert user_code =~ ~r/^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/
+      assert byte_size(device_code) >= 43
+      assert Accounts.get_device_code(device_code).user_code == String.replace(user_code, "-", "")
+
+      assert json_response(get(build_conn(), ~p"/api/auth/device_code/#{device_code}"), :accepted) == %{}
+    end
   end
 
   describe "GET /api/auth/device_code" do
@@ -55,6 +71,29 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :accepted)
       assert response == %{}
+    end
+
+    test "issues nothing for a code a mailbox proof revoked while the poll ran", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "apiauth-example.com" end)
+
+      squatter =
+        AccountsFixtures.user_fixture(email: "poll-race-#{System.unique_integer([:positive])}@apiauth-example.com")
+
+      device_code = Accounts.create_device_code("RACE-#{squatter.id}")
+      Accounts.authenticate_device_code(device_code.code, squatter)
+
+      # The owner's proof commits after the poll read the code, before it reads the user.
+      expect(Accounts, :get_user!, fn id, opts ->
+        {:ok, _} = Accounts.record_mailbox_proof(Repo.get!(Accounts.User, id))
+        call_original(Accounts, :get_user!, [id, opts])
+      end)
+
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code.code}")
+
+      refute json_response(conn, :bad_request)["access_token"]
+      assert Repo.aggregate(from(t in "guardian_tokens", where: t.sub == ^to_string(squatter.id)), :count) == 0
     end
 
     test "returns bad request response if device code is expired", %{conn: conn} do
@@ -120,7 +159,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
-      html_response(conn, 302)
+      html_response(conn, 200)
       assert Accounts.get_device_code(device_code).code == device_code
     end
 
@@ -134,7 +173,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
-      html_response(conn, 302)
+      html_response(conn, 200)
       assert length(Repo.all(DeviceCode)) == 1
     end
   end
@@ -207,7 +246,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       refresh_token = "refresh_token"
 
-      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}] ->
+      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}, sso_claims: nil] ->
         {:error, :expired_token}
       end)
 
@@ -220,6 +259,14 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :unauthorized)
       assert response["message"] == "The refresh token is expired or invalid"
+    end
+
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth/refresh_token")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
     end
 
     test "returns unautheticated if the refresh token is invalid", %{conn: conn} do
@@ -447,9 +494,228 @@ defmodule TuistWeb.API.AuthControllerTest do
                "message" => "The refresh token is expired or invalid"
              }
     end
+
+    test "rejects refresh tokens of deactivated users", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      user |> Ecto.Changeset.change(active: false) |> Repo.update!()
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      assert json_response(conn, :unauthorized) == %{"message" => "The refresh token is expired or invalid"}
+    end
+
+    test "a refresh racing a password reset yields no usable credentials", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      reset_token = reset_password_token(user)
+
+      # The reset commits after the refresh verified the old token and before
+      # it signs the new one, so the reset cannot see the new stored row.
+      expect(Tuist.Authentication, :encode_and_sign, fn subject, claims, opts ->
+        {:ok, _} = Accounts.reset_user_password(reset_token, %{password: "new valid password"})
+        call_original(Tuist.Authentication, :encode_and_sign, [subject, claims, opts])
+      end)
+
+      # The refresh issues its tokens under the account's credential lock, so
+      # the reset that landed meanwhile refuses them outright.
+      assert conn
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+             |> json_response(:unauthorized)
+    end
+  end
+
+  describe "device codes and credential revocation" do
+    test "a device code approved before a password reset grants nothing after it", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      device_code = Accounts.create_device_code("RESET-#{System.unique_integer([:positive])}")
+      Accounts.authenticate_device_code(device_code.code, user, session(user, %{auth_method: :password}))
+
+      {:ok, _} = Accounts.reset_user_password(reset_password_token(user), %{password: "new valid password"})
+
+      assert conn |> get(~p"/api/auth/device_code/#{device_code.code}") |> json_response(:accepted) == %{}
+    end
+  end
+
+  describe "POST /api/auth/refresh_token with SSO enforcement" do
+    test "tokens from a device code approved without SSO keep refreshing for users no organization enforces it for",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+
+      %{"refresh_token" => refresh_token} = device_code_tokens(conn, user, session(user, %{auth_method: :password}))
+
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refresh_token, %{"typ" => "refresh"})
+      refute Map.has_key?(claims, "sso")
+      assert %{"refresh_token" => _} = refresh(build_conn(), refresh_token)
+    end
+
+    test "tokens issued before they carried SSO proof keep refreshing for users no organization enforces it for",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      # The claims every CLI token had before this change.
+      {:ok, refresh_token, _claims} =
+        Tuist.Authentication.encode_and_sign(user, %{email: user.email, preferred_username: "legacy"},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      assert %{"refresh_token" => _} = refresh(conn, refresh_token)
+    end
+
+    test "tokens issued before they carried SSO proof take the identity the user linked through the provider",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      organization = enforce_sso_for(user)
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "apiauth-example.com"
+      )
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
+
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "apiauth-example.com"}} = claims} =
+               Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+
+      assert claims["sso"]["organization_id"] == organization.id
+      refute Map.has_key?(claims, "sso_grace_until")
+      assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
+    end
+
+    test "an identity linked to another provider tenant is no proof", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      enforce_sso_for(user)
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "other.apiauth-example.com"
+      )
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(conn, refresh_token)
+
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+      refute Map.has_key?(claims, "sso")
+      assert is_integer(claims["sso_grace_until"])
+    end
+
+    test "tokens without SSO proof refresh for a grace period that starts at their first refresh and never extends",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      enforce_sso_for(user)
+      now = DateTime.to_unix(DateTime.utc_now())
+
+      %{"refresh_token" => first} = refresh(conn, refresh_token)
+      assert {:ok, %{"sso_grace_until" => grace_until} = claims} = Tuist.Authentication.decode_and_verify(first)
+      refute Map.has_key?(claims, "sso")
+      assert_in_delta grace_until, now + 28 * 24 * 60 * 60, 60
+
+      %{"refresh_token" => second} = refresh(build_conn(), first)
+      assert {:ok, %{"sso_grace_until" => ^grace_until}} = Tuist.Authentication.decode_and_verify(second)
+    end
+
+    test "tokens whose grace period ended stop refreshing, and are not spent", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      enforce_sso_for(user)
+
+      {:ok, refresh_token, _claims} =
+        Tuist.Authentication.encode_and_sign(
+          user,
+          %{"sso_grace_until" => DateTime.to_unix(DateTime.utc_now()) - 1},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Existing CLIs answer 401 by removing the credentials and showing this.
+      assert %{"message" => "Your organization requires single sign-on. Run `tuist auth login`" <> _} =
+               json_response(conn, :unauthorized)
+
+      # The refused token is not spent: signing in through the provider
+      # links the identity that lets it refresh again.
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "apiauth-example.com"
+      )
+
+      assert %{"refresh_token" => _} = refresh(build_conn(), refresh_token)
+    end
+
+    test "tokens from a device code approved through the organization's SSO keep its proof and keep refreshing",
+         %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      enforce_sso_for(user)
+      sso_session = session(user, %{auth_method: :google, provider_organization_id: "apiauth-example.com"})
+
+      %{"access_token" => access_token, "refresh_token" => refresh_token} = device_code_tokens(conn, user, sso_session)
+
+      for token <- [access_token, refresh_token] do
+        assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "apiauth-example.com"}}} =
+                 Tuist.Authentication.decode_and_verify(token)
+      end
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
+
+      # The proof carries over to the rotated token, so later refreshes pass too.
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "apiauth-example.com"}}} =
+               Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+
+      assert %{"refresh_token" => _} = refresh(build_conn(), refreshed_refresh_token)
+    end
+
+    test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      organization = enforce_sso_for(user)
+      sso_session = session(user, %{auth_method: :google, provider_organization_id: "apiauth-example.com"})
+      %{"refresh_token" => refresh_token} = device_code_tokens(conn, user, sso_session)
+
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.apiauth-example.com") |> Repo.update!()
+
+      %{"refresh_token" => refreshed_refresh_token} = refresh(build_conn(), refresh_token)
+      assert {:ok, claims} = Tuist.Authentication.decode_and_verify(refreshed_refresh_token)
+      refute Map.has_key?(claims, "sso")
+      assert is_integer(claims["sso_grace_until"])
+    end
   end
 
   describe "POST /api/auth" do
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
+    end
+
+    test "refuses members of an organization that enforces single sign-on", %{conn: conn} do
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password)
+      enforce_sso_for(user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: password})
+
+      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :unauthorized)
+    end
+
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()
@@ -589,14 +855,35 @@ defmodule TuistWeb.API.AuthControllerTest do
   end
 
   describe "POST /api/auth/apple" do
+    test "returns bad request if the request has no body", %{conn: conn} do
+      # When
+      conn = post(conn, "/api/auth/apple")
+
+      # Then
+      assert json_response(conn, :bad_request) == %{"message" => "Missing header: content-type"}
+    end
+
+    test "refuses members of an organization that enforces single sign-on", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      enforce_sso_for(user)
+      stub(Apple, :verify_apple_identity_token_and_create_user, fn _token, _code -> {:ok, user} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/apple", %{identity_token: "identity-token", authorization_code: "authorization-code"})
+
+      assert %{"message" => "Your organization requires single sign-on." <> _} = json_response(conn, :unauthorized)
+    end
+
     test "returns access and refresh tokens when Apple authentication succeeds", %{conn: conn} do
       # Given
       identity_token = "identity-token"
       authorization_code = "authorization-code"
-      email = "my-apple@example.com"
+      email = "my-apple@apiauth-example.com"
       user = AccountsFixtures.user_fixture(email: email)
 
-      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
+      expect(Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
         {:ok, user}
       end)
 
@@ -639,5 +926,32 @@ defmodule TuistWeb.API.AuthControllerTest do
     |> put_req_header("content-type", "application/json")
     |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
     |> json_response(:ok)
+  end
+
+  defp session(user, auth) do
+    user |> Accounts.generate_user_session_token(auth) |> Accounts.get_user_session()
+  end
+
+  defp reset_password_token(user) do
+    {token, user_token} = Accounts.UserToken.build_email_token(user, "reset_password")
+    Repo.insert!(user_token)
+    token
+  end
+
+  defp device_code_tokens(conn, user, session) do
+    device_code = Accounts.create_device_code("SSO-#{System.unique_integer([:positive])}")
+    Accounts.authenticate_device_code(device_code.code, user, session)
+
+    conn |> get(~p"/api/auth/device_code/#{device_code.code}") |> json_response(:ok)
+  end
+
+  defp enforce_sso_for(user) do
+    organization = AccountsFixtures.organization_fixture()
+    :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+    # Enabling enforcement through `Accounts` also requires a verified login
+    # email domain, which is not what these tests are about.
+    organization
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "apiauth-example.com")
+    |> Repo.update!()
   end
 end

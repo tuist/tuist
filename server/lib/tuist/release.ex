@@ -8,7 +8,9 @@ defmodule Tuist.Release do
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
 
   require Logger
 
@@ -170,6 +172,36 @@ defmodule Tuist.Release do
     else
       Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
     end
+  end
+
+  @doc """
+  Queues the backfill of `test_run_selections`, the per-run test selection
+  effectiveness the dashboards read
+  (`Tuist.Tests.Workers.RunSelectionsBackfillWorker`), for one project or
+  every project with runs to fill. The migration that ships the table queues
+  it on its own; this queues it again, on a live node. Repeating it rewrites
+  each run's row with the same counts:
+
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections()"
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections(<project id>)"
+  """
+  def backfill_test_run_selections(project_id \\ nil) do
+    args = if project_id, do: %{project_ids: [project_id]}, else: %{}
+    {:ok, _job} = args |> RunSelectionsBackfillWorker.new() |> Oban.insert()
+    :ok
+  end
+
+  @doc """
+  Brings runner jobs that predate `runner_workflow_jobs` into it from
+  ClickHouse (`Tuist.Runners.Workers.BackfillWorkflowJobsWorker`). The
+  migration that ships the worker queues it on its own; this runs it
+  again by hand, on a live node, and rewrites nothing that is current:
+
+      bin/tuist rpc "Tuist.Release.backfill_runner_workflow_jobs()"
+  """
+  def backfill_runner_workflow_jobs do
+    %{inserted: inserted, archive_markers: archive_markers} = BackfillWorkflowJobsWorker.backfill(1_000)
+    Logger.info("Backfilled #{inserted} runner lifecycle rows and #{archive_markers} archive markers")
   end
 
   @doc """

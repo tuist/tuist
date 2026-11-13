@@ -9,7 +9,9 @@
 
 The Tuist Hex package includes built-in support for sharding the tests of an Elixir project. It uses the Tuist server to create balanced shard plans based on historical timing data, and it compiles your project once so every runner can go straight to running tests.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link> before configuring your CI shard jobs
 
 ## How it works {#how-it-works}
@@ -18,6 +20,9 @@ Test sharding follows a two-phase workflow:
 
 1. **Build phase:** Tuist compiles your project for testing, enumerates your test files, and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase uploads the build and outputs a **shard matrix** that your CI system uses to spawn parallel runners.
 2. **Test phase:** Each CI runner receives a **shard index**, downloads the build, and executes only the tests assigned to that shard.
+
+> [!NOTE]
+> On enrolled Tuist Linux runners, shard builds can use local artifact storage. All shards consuming such a build must run on enrolled runners at the same site; rerun the build with local storage disabled when moving the workflow to other runners.
 
 Tests are distributed by file: every test in a file runs on the same shard. Tests that Tuist has not seen yet get an estimate, so the first plans of a project are less balanced than later ones.
 

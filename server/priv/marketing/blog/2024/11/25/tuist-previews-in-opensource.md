@@ -23,7 +23,7 @@ Ideally, the issue author would test changes from the PR to confirm the issue is
 
 ![Github PR comment](/marketing/images/blog/2024/11/25/tuist-previews-in-opensource/github-pr-comment.png)
 
-Now, they can just click a link to see the changes on their simulator. The only prerequisite is to have Xcode and the [Tuist macOS app](https://tuist.dev/en/docs/guides/features/previews#tuist-macos-app) installed. Contributors can then use the macOS app to test changes in multiple environments, such as iPhone or Apple TV:
+Now, they can just click a link to see the changes on their simulator. The only prerequisite is to have Xcode and the [Tuist macOS app](https://tuist.dev/en/docs/guides/features/previews/run/macos) installed. Contributors can then use the macOS app to test changes in multiple environments, such as iPhone or Apple TV:
 
 <img src="/marketing/images/blog/2024/11/25/tuist-previews-in-opensource/tuist-macos-app.png" width=300px alt="Tuist macOS app screenshot" />
 
@@ -53,7 +53,7 @@ let config = Config(
 
 6. `tuist project update {organization-name}/{project-name} --repository-url {your-repository-url} --visibility public` – connect your Tuist project with the GitHub repository and make its visibility public to make it accessible to developers outside of your Tuist organization.
 7. `tuist project tokens create {organization-name}/{project-name}` – create a token for your project. This token will be used to authenticate with Tuist in your CI – copy this token and set it as a secret in your repository.
-8. Install the [Tuist GitHub app](https://github.com/marketplace/tuist) in your repository to get [PR comments](https://tuist.dev/en/docs/guides/features/previews#pullmerge-request-comments).
+8. Install the [Tuist GitHub app](https://github.com/marketplace/tuist) in your repository to get [PR comments](https://tuist.dev/en/docs/guides/features/previews/xcode#pullmerge-request-comments).
 9. Add `tuist share NameOfYourApp --configuration Debug --platforms iOS` to your CI script to share a Tuist Preview. This needs to be done _after_ you build the app. You can find an example of a CI script with `tuist share` in the [IcySky repository](https://github.com/Dimillian/IcySky/blob/6f1e92bc4a3f1b8c83f1e61230ebef7034dca142/.github/workflows/icy_sky.yml). Ensure that the CI steps with `tuist share` has the `TUIST_CONFIG_TOKEN` environment variable defined with the value from step 6.
 10. [Add a badge](https://tuist.dev/en/docs/guides/features/previews#readme-badge) to your README, so that you and contributors can easily download the latest version.
 

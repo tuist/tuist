@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Tests for ts_of_min_over_time and ts_of_max_over_time using a mix of floats and histograms
+load 10s
+  metric 1 2 3 4 5 6
+  metric_histogram{type="only_histogram"} {{schema:1 sum:2 count:3}}x6
+  metric_histogram{type="mix"} 5 2 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 6
+  metric_histogram{type="mix_end"} 5 2 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 1
+  metric_histogram{type="mix_middle"} 10 2 60 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 10
+
+eval instant at 60s ts_of_min_over_time(metric[60s])
+  {} 10
+  expect no_info
+
+eval instant at 60s ts_of_max_over_time(metric[60s])
+  {} 50
+  expect no_info
+
+eval instant at 60s ts_of_min_over_time(metric_histogram{type="mix"}[60s])
+  {type="mix"} 20
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+eval instant at 60s ts_of_max_over_time(metric_histogram{type="mix"}[60s])
+  {type="mix"} 50
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+eval instant at 60s ts_of_min_over_time(metric_histogram{type="mix_end"}[60s])
+  {type="mix_end"} 50
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+eval instant at 60s ts_of_max_over_time(metric_histogram{type="mix_end"}[60s])
+  {type="mix_end"} 10
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+eval instant at 60s ts_of_min_over_time(metric_histogram{type="mix_middle"}[60s])
+  {type="mix_middle"} 10
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+eval instant at 60s ts_of_max_over_time(metric_histogram{type="mix_middle"}[60s])
+  {type="mix_middle"} 20
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+
+clear
+

@@ -25,6 +25,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
@@ -34,11 +35,19 @@ defmodule Tuist.Runners.CacheVolumes do
   @checkout_key "checkout"
   @docker_key "docker"
   @reserved_keys [@checkout_key, @docker_key]
+  @history_retention_days 90
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
   @publication_operations ["upload", "upload_parts", "complete", "publish"]
   @max_parts 10_000
   @max_part_links 64
+  @prefetch_history_days 7
+  @prewarm_runs 2
+  @prewarm_idle_seconds 4 * 60 * 60
+  @prewarm_limit 32
+  @recent_use_seconds 24 * 60 * 60
+  @recent_limit 8
+  @checkout_limit 16
   @checkout_reserved_bytes 8_000_000_000
   @docker_growth_reserved_bytes 20_000_000_000
   @unmeasured_reserved_bytes 5_000_000_000
@@ -131,6 +140,9 @@ defmodule Tuist.Runners.CacheVolumes do
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
+         # A checkout builds from the default branch; an identity GitHub could
+         # not complete has none.
+         true <- is_binary(Map.get(identity, :default_branch)),
          {:ok, allocation} <-
            allocate_for_job(job, identity, %{
              pod_name: pod,
@@ -153,8 +165,7 @@ defmodule Tuist.Runners.CacheVolumes do
          # A pull request from a branch or fork named like the default branch is not one.
          default_branch_job: identity.trusted,
          may_start_master: may_start_master?(identity, profile),
-         # Stable across clears, so a host can drop the copies of a cleared generation.
-         volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
+         volume_key: checkout_volume_key(usage.volume_id)
        })}
     else
       {:error, :pending} -> {:error, :pending}
@@ -170,6 +181,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc "The reserved name of a repository's Docker data root, which no job can request."
   def docker_key, do: @docker_key
+
+  @doc "The keys whose storage is not billed: every reserved key."
+  def unbilled_keys, do: @reserved_keys
+
+  @doc "The days of saved-size history `prune_history/0` keeps, beyond one baseline per volume."
+  def saved_size_retention_days, do: @history_retention_days
 
   @doc """
   Allocates the Docker data root of the GitHub repository a Linux pod is running a
@@ -451,7 +468,7 @@ defmodule Tuist.Runners.CacheVolumes do
     volume_bytes = allocation_volume_bytes(volume, saved_head, requested)
 
     reset? =
-      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head.id)
+      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head)
 
     {saved_head, volume_bytes} =
       if reset?,
@@ -712,11 +729,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def out_of_space?(_size, _capacity), do: false
 
-  defp clone_ran_out_of_space?(head_id) do
+  # Clones of the head's own parent count too: when concurrent jobs start from
+  # one snapshot, a sibling that saved replaces the head the others filled, and
+  # checking only the new head would let every save restart the wait while jobs
+  # keep running out of space.
+  defp clone_ran_out_of_space?(head) do
+    parents = Enum.reject([head.id, head.parent_id], &is_nil/1)
+
     Repo.exists?(
       from(u in Usage,
         where:
-          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+          u.parent_id in ^parents and u.capacity_bytes > 0 and
             u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
       )
     )
@@ -728,6 +751,24 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
+
+  @doc """
+  Why a use's runner host had no copy of its volume, so the job started empty,
+  as a sentence, or nil when the host did not say.
+  """
+  def cold_reason_description(%Usage{cold_reason: "downloading"}),
+    do: "The job started empty because its runner host was still downloading the saved copy."
+
+  def cold_reason_description(%Usage{cold_reason: "not_on_host"}),
+    do: "The job started empty because its runner host had no copy of the volume."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_expired"}),
+    do: "The job started empty because its runner host removed its copy after seven days without use."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_" <> _}),
+    do: "The job started empty because its runner host removed its copy to free disk space or replace it."
+
+  def cold_reason_description(_usage), do: nil
 
   @doc """
   Whether a Docker use's guest could not mount the saved data root and started
@@ -801,6 +842,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp mounted_generation(_usage, _params), do: nil
 
+  # Why a host had no copy of a warm use's volume, from runner-cache's Cold*
+  # reasons. Only a known reason on a cold report is kept; anything else is
+  # ignored rather than failing an otherwise valid report.
+  @cold_reasons ~w(downloading not_on_host) ++
+                  Enum.map(~w(idle in_use speculative superseded expired no_metadata head_conflict), &("evicted_" <> &1))
+
+  defp cold_reason(%Usage{base_generation: base}, %{"warm" => false, "cold_reason" => reason})
+       when is_integer(base) and base > 0 and reason in @cold_reasons, do: reason
+
+  defp cold_reason(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -856,6 +908,7 @@ defmodule Tuist.Runners.CacheVolumes do
           last_reported_at: now,
           warm: params["warm"],
           mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
+          cold_reason: usage.cold_reason || cold_reason(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status),
           docker_images: docker_images || usage.docker_images
@@ -1051,27 +1104,199 @@ defmodule Tuist.Runners.CacheVolumes do
   defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
-  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
-  `since`, most recently used first. Each is the identity a host restores and
-  then retains its master under: the use that published the HEAD.
-  """
-  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
-    since = DateTime.truncate(since, :second)
+  The saved HEADs of the `platform` custom volumes jobs used on `node_names` in
+  the week before `now`, most wanted first. Each is the identity a host restores and
+  then retains its master under (the use that published the HEAD), with the
+  `reason` it is listed for:
 
-    from(u in Usage,
-      join: v in Volume,
-      on: v.id == u.volume_id,
-      where:
-        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at) and
-          v.key != ^@checkout_key,
-      group_by: v.id,
-      order_by: [desc: max(u.inserted_at)],
-      limit: ^limit,
-      select: v
+    * `"prewarm"`: used by at least two workflow runs in the last seven days and
+      not for four hours, which leaves out keys a single run made for itself. Its HEAD cannot change before its next job, so a host that
+      downloads it while the account is idle still holds the right copy when
+      the account's next working day starts.
+    * `"recent"`: used in the last day, and not listed to prewarm.
+
+  Each list takes the accounts in turn, most recently active first, and each
+  account's volumes most recently used first, so the volumes of one busy account
+  never crowd out another account's.
+
+  Checkout volumes follow the same two rules in a list of their own, after the
+  others, so they never take a custom volume's place. A host restores a checkout
+  master once per lineage and then keeps it current from jobs' exports, so each
+  costs one download per host. Their entries (`kind: "checkout"`) also carry what
+  the host restores the master with, as `allocate_checkout/1` does.
+
+  With `node:`, the lists are those of that one of `node_names`: only the
+  repositories `VolumePlacement` places on it, every volume of a repository on
+  the same Nodes, and the caps apply to that Node's lists. A repository is held
+  by half again as many Nodes as its jobs ran on at once over the week
+  (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
+  equal when absent).
+  """
+  def prefetch_heads(platform, node_names, %DateTime{} = now, opts \\ []) when platform in ["macos", "linux"] do
+    now = DateTime.truncate(now, :second)
+    since = DateTime.add(now, -@prefetch_history_days * 24 * 60 * 60, :second)
+    idle_since = DateTime.add(now, -@prewarm_idle_seconds, :second)
+    recent_since = DateTime.add(now, -@recent_use_seconds, :second)
+
+    candidates =
+      Repo.all(
+        from(u in Usage,
+          join: v in Volume,
+          on: v.id == u.volume_id,
+          where:
+            u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
+              is_nil(v.deleted_at),
+          group_by: v.id,
+          select: %{
+            volume: v,
+            last_used_at: max(u.inserted_at),
+            runs: count(u.workflow_run_id, :distinct)
+          }
+        )
+      )
+
+    candidates =
+      case Keyword.fetch(opts, :node) do
+        {:ok, node} ->
+          weights = Keyword.get_lazy(opts, :weights, fn -> Map.new(node_names, &{&1, 1}) end)
+          placed_on(candidates, node, weights, peak_concurrency(platform, node_names, since, now))
+
+        :error ->
+          candidates
+      end
+
+    {checkouts, custom} = Enum.split_with(candidates, &(&1.volume.key == @checkout_key))
+    {prewarm, recent} = prefetch_reasons(custom, idle_since, recent_since)
+    {checkout_prewarm, checkout_recent} = prefetch_reasons(checkouts, idle_since, recent_since)
+
+    listed_heads(prewarm, "prewarm", @prewarm_limit) ++
+      listed_heads(recent, "recent", @recent_limit) ++
+      Enum.take(
+        listed_heads(checkout_prewarm, "prewarm", @checkout_limit) ++
+          listed_heads(checkout_recent, "recent", @checkout_limit),
+        @checkout_limit
+      )
+  end
+
+  defp placed_on(candidates, node, weights, peaks) do
+    Enum.filter(candidates, fn %{volume: volume} ->
+      group = {volume.account_id, volume.repository}
+      count = VolumePlacement.replicas(Map.get(peaks, group, 0), map_size(weights))
+      node in VolumePlacement.holders(placement_key(group), weights, count)
+    end)
+  end
+
+  @doc "The key `VolumePlacement` places an account's repository by."
+  def placement_key({account_id, repository}), do: "#{account_id}/#{repository}"
+
+  # The most jobs of each account's repository that held a volume use on
+  # `node_names` at the same time over the week: a sweep over every job's span,
+  # from its first use's allocation to its last use's end.
+  defp peak_concurrency(platform, node_names, since, now) do
+    jobs =
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        where:
+          u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
+            is_nil(v.deleted_at),
+        group_by: [v.account_id, v.repository, u.workflow_job_id],
+        select: %{
+          account_id: v.account_id,
+          repository: v.repository,
+          started_at: type(min(u.inserted_at), :utc_datetime),
+          ended_at:
+            type(
+              max(
+                coalesce(
+                  u.finished_at,
+                  coalesce(u.deleted_at, coalesce(u.last_reported_at, type(u.inserted_at, :utc_datetime_usec)))
+                )
+              ),
+              :utc_datetime_usec
+            )
+        }
+      )
+
+    starts =
+      from(j in subquery(jobs),
+        select: %{
+          account_id: j.account_id,
+          repository: j.repository,
+          at: type(j.started_at, :utc_datetime_usec),
+          delta: 1
+        }
+      )
+
+    ends =
+      from(j in subquery(jobs), select: %{account_id: j.account_id, repository: j.repository, at: j.ended_at, delta: -1})
+
+    levels =
+      from(e in subquery(union_all(starts, ^ends)),
+        select: %{
+          account_id: e.account_id,
+          repository: e.repository,
+          level:
+            over(sum(e.delta),
+              partition_by: [e.account_id, e.repository],
+              order_by: [asc: e.at, desc: e.delta]
+            )
+        }
+      )
+
+    from(l in subquery(levels),
+      group_by: [l.account_id, l.repository],
+      select: {{l.account_id, l.repository}, type(max(l.level), :integer)}
     )
     |> Repo.all()
-    |> Enum.flat_map(&head_identity/1)
+    |> Map.new()
   end
+
+  defp prefetch_reasons(candidates, idle_since, recent_since) do
+    {prewarm, rest} =
+      Enum.split_with(candidates, fn candidate ->
+        candidate.runs >= @prewarm_runs and DateTime.compare(candidate.last_used_at, idle_since) != :gt
+      end)
+
+    {prewarm, Enum.filter(rest, &(DateTime.compare(&1.last_used_at, recent_since) != :lt))}
+  end
+
+  # Each account's most recently used volume first: those are the keys its next
+  # jobs attach, ahead of keys it stopped using.
+  defp listed_heads(candidates, reason, limit) do
+    candidates
+    |> Enum.group_by(& &1.volume.account_id)
+    |> Enum.map(fn {_account_id, volumes} -> Enum.sort_by(volumes, &DateTime.to_unix(&1.last_used_at), :desc) end)
+    |> Enum.sort_by(fn [latest | _] -> {-DateTime.to_unix(latest.last_used_at), latest.volume.account_id} end)
+    |> take_turns()
+    |> Stream.flat_map(&prefetch_head(&1.volume))
+    |> Stream.map(&Map.put(&1, :reason, reason))
+    |> Enum.take(limit)
+  end
+
+  defp prefetch_head(%Volume{key: @checkout_key, provider: "github", default_branch: branch} = volume)
+       when is_binary(branch) do
+    for head <- head_identity(volume) do
+      Map.merge(head, %{
+        kind: @checkout_key,
+        checkout_generation: volume.generation,
+        clone_url: "https://github.com/" <> volume.repository,
+        default_branch: branch,
+        uid: volume.uid,
+        volume_key: checkout_volume_key(volume.id)
+      })
+    end
+  end
+
+  defp prefetch_head(%Volume{key: @checkout_key}), do: []
+  defp prefetch_head(volume), do: head_identity(volume)
+
+  # Stable across clears, so a host can drop the copies of a cleared generation.
+  defp checkout_volume_key(volume_id), do: :sha256 |> :crypto.hash(volume_id) |> Base.encode16(case: :lower)
+
+  defp take_turns([]), do: []
+
+  defp take_turns(lists), do: Enum.map(lists, &hd/1) ++ take_turns(for [_ | rest] <- lists, rest != [], do: rest)
 
   defp head_identity(volume) do
     with %{generation: generation, tree_digest: digest, content_digest: content}
@@ -1594,7 +1819,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp inventory_query(account_id, search, opts) do
     query =
       from(v in Volume,
-        where: v.account_id == ^account_id
+        where: v.account_id == ^account_id and is_nil(v.deleted_at)
       )
 
     query =
@@ -1888,7 +2113,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Cross-tenant maintenance: prune deleted copies.
   def prune_history do
-    threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
+    threshold = DateTime.add(DateTime.utc_now(), -@history_retention_days, :day)
     Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
     # Keep one baseline per volume so an unchanged cache survives the retention boundary.
     Repo.query!(

@@ -55,3 +55,11 @@ production.
 Keep adaptive background, foreground, and monochrome layers aligned. Render source
 SVGs with `rsvg-convert` at mdpi=108, hdpi=162, xhdpi=216, xxhdpi=324, xxxhdpi=432.
 Only add one-line comments when they explain something non-obvious.
+
+## Localization
+
+User-facing copy lives in `app/src/main/res/values/strings.xml`; read it with
+`stringResource` or `Context.getString`. Write values in Android's quoted form
+(`"Sign in"`), the only form Glossia extracts; `<plurals>` and string arrays are not
+supported. The Glossia GitHub App owns `values-*/strings.xml`; never edit them.
+`L10N.md` configures it, and `validate-localizations.mjs` checks its output.

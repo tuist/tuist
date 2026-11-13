@@ -371,6 +371,37 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:account_cache_create, subject, account) == :ok
   end
 
+  test "cannot.create.account.cache when an account token writes to another account" do
+    # Given
+    token_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    subject = %AuthenticatedAccount{account: token_account, scopes: ["account:cache:write"], all_projects: true}
+
+    # Then
+    assert Authorization.authorize(:account_cache_create, subject, token_account) == :ok
+    assert Authorization.authorize(:account_cache_create, subject, other_account) == {:error, :forbidden}
+  end
+
+  test "can.create.account.cache only when the issuer of a user-issued token may write to the account" do
+    # Given
+    viewer = AccountsFixtures.user_fixture(preload: [:account])
+    member = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture(preload: [:account])
+    Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+    Accounts.add_user_to_organization(member, organization, role: :user)
+
+    token_for = fn user ->
+      %AuthenticatedAccount{account: user.account, issued_by: user, scopes: ["account:cache:write"], all_projects: true}
+    end
+
+    # Then
+    assert Authorization.authorize(:account_cache_create, token_for.(viewer), organization.account) ==
+             {:error, :forbidden}
+
+    assert Authorization.authorize(:account_cache_create, token_for.(member), organization.account) == :ok
+  end
+
   test "cannot.create.project.cache when a user-issued account token writes to a token-restricted account" do
     # Given
     user = AccountsFixtures.user_fixture()
@@ -855,6 +886,23 @@ defmodule Tuist.AuthorizationTest do
 
     for scopes <- [["account:runners:read"], ["mcp"]] do
       assert Authorization.authorize(:runners_update, %{subject | scopes: scopes}, account) == {:error, :forbidden}
+    end
+  end
+
+  test "can.use.account.sandboxes when an account token has the sandboxes write scope for that account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:sandboxes:write"]}
+
+    assert Authorization.authorize(:sandboxes_write, subject, account) == :ok
+    assert Authorization.authorize(:sandboxes_write, subject, other_account) == {:error, :forbidden}
+
+    for action <- [:sandboxes_read, :sandboxes_update, :account_update] do
+      assert Authorization.authorize(action, subject, account) == {:error, :forbidden}
+    end
+
+    for scopes <- [["account:runners:write"], ["ci"], ["mcp"]] do
+      assert Authorization.authorize(:sandboxes_write, %{subject | scopes: scopes}, account) == {:error, :forbidden}
     end
   end
 

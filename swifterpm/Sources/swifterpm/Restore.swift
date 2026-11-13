@@ -51,29 +51,42 @@ enum WorkspaceRestorer {
         let sourcePins = resolved.pins.filter { PinKind.isSourceControl($0.kind) }
         let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
         let skipped = resolved.pins.count - sourcePins.count - registryPins.count
+        let trash = ScratchTrash(scratchDir: scratchDir)
+        let sourceResults: [(String, URL)]
+        let registryResults: [(String, URL)]
+        do {
+            (sourceResults, registryResults) = try await PhaseTiming.measure("restoring package sources") {
+                async let restoredSources = restoreSourcePins(
+                    sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
+                    ownedCheckouts: resolved.nativeOwnedCheckouts, trash: trash
+                )
+                async let restoredRegistry = restoreRegistryPins(
+                    registryPins,
+                    scratchDir: scratchDir,
+                    cache: cache,
+                    registryConfig: registryConfig,
+                    trash: trash
+                )
+                return try await (restoredSources, restoredRegistry)
+            }
 
-        async let restoredSources = restoreSourcePins(
-            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors,
-            ownedCheckouts: resolved.nativeOwnedCheckouts
-        )
-        async let restoredRegistry = restoreRegistryPins(
-            registryPins,
-            registryDownloads: registryDownloads,
-            cache: cache,
-            registryConfig: registryConfig
-        )
-
-        let (sourceResults, registryResults) = try await (restoredSources, restoredRegistry)
-
-        try await restoreBinaryArtifacts(
-            scratchDir: scratchDir,
-            packageDir: packageDir,
-            cache: cache,
-            mirrors: mirrors,
-            resolved: resolved,
-            disableSandbox: disableSandbox,
-            progress: progress
-        )
+            try await PhaseTiming.measure("restoring binary artifacts") {
+                try await restoreBinaryArtifacts(
+                    scratchDir: scratchDir,
+                    packageDir: packageDir,
+                    cache: cache,
+                    mirrors: mirrors,
+                    resolved: resolved,
+                    disableSandbox: disableSandbox,
+                    progress: progress,
+                    trash: trash
+                )
+            }
+        } catch {
+            await trash.purge()
+            throw error
+        }
+        await trash.purge()
 
         guard let progress else { return }
         for (identity, source) in sourceResults {
@@ -98,7 +111,8 @@ enum WorkspaceRestorer {
         mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool,
-        progress: RestoreProgressReporter?
+        progress: RestoreProgressReporter?,
+        trash: ScratchTrash
     ) async throws {
         let contexts = try await packageContexts(
             packageDir: packageDir,
@@ -131,7 +145,8 @@ enum WorkspaceRestorer {
                     scratchDir: scratchDir,
                     cache: cache,
                     mirrors: mirrors,
-                    progress: progress
+                    progress: progress,
+                    trash: trash
                 )
             }
         }
@@ -143,46 +158,27 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         cache: Cache,
         mirrors: MirrorConfig,
-        progress: RestoreProgressReporter?
+        progress: RestoreProgressReporter?,
+        trash: ScratchTrash
     ) async throws {
+        let identity = context.packageRef["identity"] ?? target.name
+        let checksum: String
+        let materialize: (URL) async throws -> Void
         switch target.source {
-        case let .remote(url, checksum):
-            let identity = context.packageRef["identity"] ?? target.name
-            let cachedArtifact = cache.binaryArtifactDirectory(
-                identity: identity,
-                targetName: target.name,
-                checksum: checksum
-            )
-            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
-                let lock = try await cache.lock(namespace: "artifacts", key: cachedArtifact.path)
-                defer { withExtendedLifetime(lock) {} }
-                if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
-                    try await downloadBinaryArtifact(
-                        identity: identity,
-                        targetName: target.name,
-                        url: url,
-                        downloadURL: mirrors.effectiveLocation(for: url),
-                        checksum: checksum,
-                        cache: cache,
-                        destination: cachedArtifact,
-                        progress: progress
-                    )
-                }
+        case let .remote(url, remoteChecksum):
+            checksum = remoteChecksum
+            materialize = { destination in
+                try await downloadBinaryArtifact(
+                    identity: identity,
+                    targetName: target.name,
+                    url: url,
+                    downloadURL: mirrors.effectiveLocation(for: url),
+                    checksum: remoteChecksum,
+                    cache: cache,
+                    destination: destination,
+                    progress: progress
+                )
             }
-
-            let scratchArtifact = artifactDirectory(
-                scratchDir: scratchDir,
-                packageIdentity: identity,
-                targetName: target.name
-            )
-            try await replaceScratchArtifact(
-                source: cachedArtifact,
-                destination: scratchArtifact
-            )
-
-            progress?.restoredBinaryArtifact(
-                identity: identity, target: target.name, path: cachedArtifact.path
-            )
         case let .local(path):
             let artifactPath = binaryTargetPath(
                 path,
@@ -190,36 +186,48 @@ enum WorkspaceRestorer {
                 canonicalize: context.canonicalizeLocalBinaryPaths
             )
             guard artifactPath.pathExtension.lowercased() == "zip" else { return }
-            let identity = context.packageRef["identity"] ?? target.name
-            let checksum = try Hashing.sha256Hex(fileAt: artifactPath)
-            let cachedArtifact = cache.binaryArtifactDirectory(
-                identity: identity,
-                targetName: target.name,
-                checksum: checksum
-            )
-            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
+            let localChecksum = try Hashing.sha256Hex(fileAt: artifactPath)
+            checksum = localChecksum
+            materialize = { destination in
                 try await extractBinaryArtifactArchive(
                     archivePath: artifactPath,
-                    destination: cachedArtifact,
-                    checksum: checksum
+                    destination: destination,
+                    checksum: localChecksum
                 )
             }
-            let scratchArtifact = artifactDirectory(
-                scratchDir: scratchDir,
-                packageIdentity: identity,
-                targetName: target.name
-            )
-            try await replaceScratchArtifact(
-                source: cachedArtifact,
-                destination: scratchArtifact
-            )
-            progress?.restoredBinaryArtifact(
-                identity: identity, target: target.name, path: cachedArtifact.path
-            )
         }
+        let cachedArtifact = cache.binaryArtifactDirectory(
+            identity: identity,
+            targetName: target.name,
+            checksum: checksum
+        )
+        let scratchArtifact = artifactDirectory(
+            scratchDir: scratchDir,
+            packageIdentity: identity,
+            targetName: target.name
+        )
+        let link = {
+            try await replaceScratchArtifact(source: cachedArtifact, destination: scratchArtifact, trash: trash)
+        }
+        if try await cache.withEntryInUse(
+            namespace: "artifacts", cachedArtifact,
+            isUsable: { try await cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) },
+            body: link
+        ) == nil {
+            let lock = try await cache.lock(namespace: "artifacts", key: cachedArtifact.path)
+            defer { withExtendedLifetime(lock) {} }
+            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
+                try await materialize(cachedArtifact)
+            }
+            await Cache.markUsed(cachedArtifact)
+            try await link()
+        }
+        progress?.restoredBinaryArtifact(
+            identity: identity, target: target.name, path: cachedArtifact.path
+        )
     }
 
-    private static func replaceScratchArtifact(source: URL, destination: URL) async throws {
+    private static func replaceScratchArtifact(source: URL, destination: URL, trash: ScratchTrash) async throws {
         let lock = try await PathLock.acquire(
             at: destination.deletingLastPathComponent()
                 .appendingPathComponent(".\(destination.lastPathComponent).lock")
@@ -227,7 +235,8 @@ enum WorkspaceRestorer {
         defer { _ = lock }
         try await fileSystem.replaceWithSymlinkedDirectory(
             source: source,
-            destination: destination
+            destination: destination,
+            trash: trash
         )
     }
 
@@ -247,37 +256,32 @@ enum WorkspaceRestorer {
             url: url,
             checksum: checksum
         )
-        // A valid cached archive has already been hashed and verified by
-        // `validCachedBinaryArtifactArchive`, so extract it directly. Only a
-        // freshly downloaded archive needs the (single) verification hash;
-        // re-hashing a known-good multi-hundred-MB archive is pure waste.
+        // The archive is only an intermediate: it is deleted once extracted, so the cache keeps
+        // the extracted artifact alone. One left behind by an older version or an interrupted
+        // extraction has been verified by `validCachedBinaryArtifactArchive` and is extracted
+        // directly. The lock spans the extraction because the archive goes away after it.
+        let lock = try await cache.lock(namespace: "artifact-archives", key: archivePath.path)
+        defer { _ = lock }
         if try await !validCachedBinaryArtifactArchive(
             archivePath,
             expectedChecksum: checksum
         ) {
-            let lock = try await cache.lock(namespace: "artifact-archives", key: archivePath.path)
-            defer { _ = lock }
-            if try await !validCachedBinaryArtifactArchive(
-                archivePath,
-                expectedChecksum: checksum
-            ) {
-                try? await fileSystem.removePath(archivePath)
-                let remoteURL = try artifactURL(downloadURL)
-                progress?.downloadingBinaryArtifact(identity: identity, target: targetName)
-                try await HTTPClient.download(
-                    url: remoteURL,
-                    destination: archivePath,
-                    headers: try await HTTPClient.binaryArtifactHeaders(for: remoteURL)
-                )
+            try? await fileSystem.removePath(archivePath)
+            let remoteURL = try artifactURL(downloadURL)
+            progress?.downloadingBinaryArtifact(identity: identity, target: targetName)
+            try await HTTPClient.download(
+                url: remoteURL,
+                destination: archivePath,
+                headers: try await HTTPClient.binaryArtifactHeaders(for: remoteURL)
+            )
 
-                let actualChecksum = try Hashing.sha256Hex(fileAt: archivePath)
-                guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
-                    try? await fileSystem.removePath(archivePath)
-                    throw ToolError.message(
-                        "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
-                            + "expected \(checksum), got \(actualChecksum)"
-                    )
-                }
+            let actualChecksum = try Hashing.sha256Hex(fileAt: archivePath)
+            guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
+                try? await fileSystem.removePath(archivePath)
+                throw ToolError.message(
+                    "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
+                        + "expected \(checksum), got \(actualChecksum)"
+                )
             }
         }
 
@@ -286,6 +290,7 @@ enum WorkspaceRestorer {
             destination: destination,
             checksum: checksum
         )
+        try? await fileSystem.removePath(archivePath)
     }
 
     private static func validCachedBinaryArtifactArchive(
@@ -444,9 +449,12 @@ enum WorkspaceRestorer {
         let pinnedPackages = resolved.pins.filter {
             PinKind.isSourceControl($0.kind) || PinKind.isRegistry($0.kind)
         }
+        let registryPaths = try await RegistryDownloadPaths(pins: pinnedPackages, scratchDir: scratchDir)
         contexts.append(
             contentsOf: try await ConcurrentTasks.map(pinnedPackages) { pin in
-                let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
+                let packagePath = try packagePathForPin(
+                    scratchDir: scratchDir, pin: pin, mirrors: mirrors, registryPaths: registryPaths
+                )
                 return PackageContext(
                     packageRef: try await packageRef(
                         pin,
@@ -558,11 +566,16 @@ enum WorkspaceRestorer {
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
+    private static func packagePathForPin(
+        scratchDir: URL,
+        pin: ResolvedPin,
+        mirrors: MirrorConfig,
+        registryPaths: RegistryDownloadPaths
+    ) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return try scratchDir
                 .appendingPathComponent("registry/downloads")
-                .appendingPathComponent(PinKind.registryDownloadSubpath(pin))
+                .appendingPathComponent(registryPaths.subpath(for: pin))
         }
         return scratchDir
             .appendingPathComponent("checkouts")
@@ -668,7 +681,8 @@ enum WorkspaceRestorer {
         checkouts: URL,
         cache: Cache,
         mirrors: MirrorConfig,
-        ownedCheckouts: Set<String>
+        ownedCheckouts: Set<String>,
+        trash: ScratchTrash
     ) async throws -> [(String, URL)] {
         let results = try await ConcurrentTasks.map(pins) { pin in
             let location = mirrors.effectiveLocation(of: pin)
@@ -677,20 +691,25 @@ enum WorkspaceRestorer {
                     PinKind.checkoutDirectoryName(pin, mirrors: mirrors)
                 )
                 let cached = try cache.sourcePath(pin: pin)
-                if fileSystem.existsIncludingSymlinks(cached.appendingPathComponent(".git")) {
-                    try await restoreLegacyGitSource(
-                        source: cached, checkout: checkout, pin: pin, location: location,
-                        owned: ownedCheckouts.contains(checkout.lastPathComponent)
-                    )
+                let owned = ownedCheckouts.contains(checkout.lastPathComponent)
+                if try await cache.withEntryInUse(
+                    namespace: "sources", cached,
+                    isUsable: { fileSystem.existsIncludingSymlinks(cached.appendingPathComponent(".git")) },
+                    body: {
+                        try await restoreLegacyGitSource(
+                            source: cached, checkout: checkout, pin: pin, location: location, owned: owned
+                        )
+                    }
+                ) != nil {
                     return (pin.identity, checkout)
                 }
-                let source = try await ensureSource(cache: cache, pin: pin, location: location)
-                try await assertCheckoutCanBeReplaced(
-                    checkout, revision: pin.revision(), owned: ownedCheckouts.contains(checkout.lastPathComponent)
-                )
-                try await fileSystem.replaceWithSymlinkedDirectory(
-                    source: source, destination: checkout
-                )
+                let source = try await ensureSource(cache: cache, pin: pin, location: location) { source in
+                    try await assertCheckoutCanBeReplaced(checkout, revision: pin.revision(), owned: owned)
+                    try await fileSystem.replaceWithSymlinkedDirectory(
+                        source: source, destination: checkout, trash: trash
+                    )
+                    return source
+                }
                 return (pin.identity, source)
             } catch {
                 throw sourceRestoreError(pin: pin, location: location, error: error)
@@ -728,6 +747,7 @@ enum WorkspaceRestorer {
             if !fileSystem.existsIncludingSymlinks(destination.appendingPathComponent(".git")),
                try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision)
             {
+                await Cache.markUsed(destination)
                 try await replaceNativeCheckout(checkout, withCachedSource: destination)
                 return
             }
@@ -783,6 +803,7 @@ enum WorkspaceRestorer {
                         try await fileSystem.removePath(destination)
                     }
                     try await fileSystem.move(from: snapshot.absolutePath, to: destination.absolutePath)
+                    await Cache.markUsed(destination)
                     try await replaceNativeCheckout(checkout, withCachedSource: destination)
                 }
                 try await fileSystem.removePath(staging)
@@ -888,20 +909,24 @@ enum WorkspaceRestorer {
 
     private static func restoreRegistryPins(
         _ pins: [ResolvedPin],
-        registryDownloads: URL,
+        scratchDir: URL,
         cache: Cache,
-        registryConfig: RegistryConfig
+        registryConfig: RegistryConfig,
+        trash: ScratchTrash
     ) async throws -> [(String, URL)] {
+        let registryPaths = try await RegistryDownloadPaths(pins: pins, scratchDir: scratchDir)
         let results = try await ConcurrentTasks.map(pins) { pin in
+            let download = try scratchDir
+                .appendingPathComponent("registry/downloads")
+                .appendingPathComponent(registryPaths.subpath(for: pin))
             let source = try await ensureRegistrySource(
                 cache: cache, registryConfig: registryConfig, pin: pin
-            )
-            let download = try registryDownloads.appendingPathComponent(
-                PinKind.registryDownloadSubpath(pin)
-            )
-            try await fileSystem.replaceWithRegistryDownloadDirectory(
-                source: source, destination: download
-            )
+            ) { source in
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: download, trash: trash
+                )
+                return source
+            }
             return (pin.identity, source)
         }
         return results.sorted { $0.0 < $1.0 }
@@ -911,16 +936,32 @@ enum WorkspaceRestorer {
     /// Package.resolved records, so adding or changing a mirror keeps the cached sources; the
     /// revision already pins their contents.
     static func ensureSource(cache: Cache, pin: ResolvedPin, location: String) async throws -> URL {
+        try await ensureSource(cache: cache, pin: pin, location: location) { $0 }
+    }
+
+    /// Runs `use` on the cached entry while it holds the entry's lock, so `CachePruner` cannot
+    /// evict it before `use` has linked it into a checkout.
+    static func ensureSource<T>(
+        cache: Cache,
+        pin: ResolvedPin,
+        location: String,
+        use: (URL) async throws -> T
+    ) async throws -> T {
         let destination = try cache.sourcePath(pin: pin)
         let expectedRevision = try pin.revision()
-        if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
-            return destination
+        if let result = try await cache.withEntryInUse(
+            namespace: "sources", destination,
+            isUsable: { try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) },
+            body: { try await use(destination) }
+        ) {
+            return result
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         defer { withExtendedLifetime(lock) {} }
         if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
-            return destination
+            await Cache.markUsed(destination)
+            return try await use(destination)
         }
         if try await fileSystem.exists(destination.absolutePath) {
             try await fileSystem.remove(destination.absolutePath)
@@ -945,17 +986,17 @@ enum WorkspaceRestorer {
             do {
                 try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
             } catch {
-                if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
-                    try? await fileSystem.remove(temp.absolutePath)
-                    return destination
+                guard try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) else {
+                    throw error
                 }
-                throw error
+                try? await fileSystem.remove(temp.absolutePath)
             }
         } catch {
             try? await fileSystem.remove(temp.absolutePath)
             throw error
         }
-        return destination
+        await Cache.markUsed(destination)
+        return try await use(destination)
     }
 
     static let sourceRevisionMarkerFilename = ".swifterpm-source-sha"
@@ -1020,6 +1061,16 @@ enum WorkspaceRestorer {
     static func ensureRegistrySource(cache: Cache, registryConfig: RegistryConfig, pin: ResolvedPin)
         async throws -> URL
     {
+        try await ensureRegistrySource(cache: cache, registryConfig: registryConfig, pin: pin) { $0 }
+    }
+
+    /// Runs `use` on the cached release while it holds the entry's lock; see `ensureSource`.
+    static func ensureRegistrySource<T>(
+        cache: Cache,
+        registryConfig: RegistryConfig,
+        pin: ResolvedPin,
+        use: (URL) async throws -> T
+    ) async throws -> T {
         let version = try pin.versionString()
         let archive = try await RegistryClient.sourceArchive(
             registryConfig: registryConfig,
@@ -1031,14 +1082,19 @@ enum WorkspaceRestorer {
             version: version,
             registryURL: archive.registryURL.absoluteString
         )
-        if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
-            return destination
+        if let result = try await cache.withEntryInUse(
+            namespace: "sources", destination,
+            isUsable: { try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) },
+            body: { try await use(destination) }
+        ) {
+            return result
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         defer { withExtendedLifetime(lock) {} }
         if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
-            return destination
+            await Cache.markUsed(destination)
+            return try await use(destination)
         }
         if try await fileSystem.exists(destination.absolutePath) {
             try await fileSystem.remove(destination.absolutePath)
@@ -1063,12 +1119,12 @@ enum WorkspaceRestorer {
         } catch {
             try? await fileSystem.remove(temp.absolutePath)
             try HTTPClient.requireFallbackAllowed(after: error)
-            if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
-                return destination
+            guard try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) else {
+                throw error
             }
-            throw error
         }
-        return destination
+        await Cache.markUsed(destination)
+        return try await use(destination)
     }
 
     /// Makes registry downloads created by native SwiftPM available to future SwifterPM
@@ -1088,9 +1144,11 @@ enum WorkspaceRestorer {
         resolved: ResolvedPins
     ) async throws {
         let downloads = scratchDir.appendingPathComponent("registry/downloads")
-        try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isRegistry($0.kind) }) { pin in
+        let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
+        let registryPaths = try await RegistryDownloadPaths(pins: registryPins, scratchDir: scratchDir)
+        try await ConcurrentTasks.forEach(registryPins) { pin in
             let download = try downloads.appendingPathComponent(
-                PinKind.registryDownloadSubpath(pin)
+                registryPaths.subpath(for: pin)
             )
             guard fileSystem.isDirectoryAndNotSymlink(download),
                   try await fileSystem.exists(
@@ -1112,16 +1170,22 @@ enum WorkspaceRestorer {
                 version: version,
                 registryURL: archive.registryURL.absoluteString
             )
-            if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
-                try await fileSystem.replaceWithRegistryDownloadDirectory(
-                    source: destination, destination: download
-                )
+            if try await cache.withEntryInUse(
+                namespace: "sources", destination,
+                isUsable: { try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) },
+                body: {
+                    try await fileSystem.replaceWithRegistryDownloadDirectory(
+                        source: destination, destination: download
+                    )
+                }
+            ) != nil {
                 return
             }
 
             let lock = try await cache.lock(namespace: "sources", key: destination.path)
             defer { withExtendedLifetime(lock) {} }
             if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
+                await Cache.markUsed(destination)
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
                     source: destination, destination: download
                 )
@@ -1134,6 +1198,7 @@ enum WorkspaceRestorer {
 
             try await writeRegistryChecksumMarker(directory: download, checksum: archive.checksum)
             try await fileSystem.move(from: download.absolutePath, to: destination.absolutePath)
+            await Cache.markUsed(destination)
             do {
                 try await fileSystem.replaceWithRegistryDownloadDirectory(
                     source: destination, destination: download
@@ -1230,25 +1295,25 @@ enum WorkspaceRestorer {
     ) async throws {
         let revision = try pin.revision()
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
+        // Deleted once extracted, like binary artifact archives; see `downloadBinaryArtifact`.
+        let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
+        defer { withExtendedLifetime(lock) {} }
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
-            let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
-            defer { withExtendedLifetime(lock) {} }
-            if try !(await fileSystem.exists(archivePath.absolutePath)) {
-                var headers = ["User-Agent": "swifterpm/0.1"]
-                if let token = await GitHubAuth.token() {
-                    headers["Authorization"] = "Bearer \(token)"
-                }
-                let url = URL(
-                    string:
-                    "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tarball/\(revision)"
-                )!
-                try await HTTPClient.download(url: url, destination: archivePath, headers: headers)
+            var headers = ["User-Agent": "swifterpm/0.1"]
+            if let token = await GitHubAuth.token() {
+                headers["Authorization"] = "Bearer \(token)"
             }
+            let url = URL(
+                string:
+                "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tarball/\(revision)"
+            )!
+            try await HTTPClient.download(url: url, destination: archivePath, headers: headers)
         }
 
         try await SystemProcess.run(
             "/usr/bin/tar", ["-xzf", archivePath.path, "-C", destination.path]
         )
+        try? await fileSystem.removePath(archivePath)
         try await fileSystem.flattenSingleDirectory(destination)
         try await rejectArchiveWithSubmodules(destination)
     }
@@ -1261,19 +1326,18 @@ enum WorkspaceRestorer {
     ) async throws {
         let revision = try pin.revision()
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
+        let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
+        defer { withExtendedLifetime(lock) {} }
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
-            let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
-            defer { withExtendedLifetime(lock) {} }
-            if try !(await fileSystem.exists(archivePath.absolutePath)) {
-                try await GitLabAPI.downloadArchive(
-                    repo: repo, revision: revision, destination: archivePath
-                )
-            }
+            try await GitLabAPI.downloadArchive(
+                repo: repo, revision: revision, destination: archivePath
+            )
         }
 
         try await SystemProcess.run(
             "/usr/bin/tar", ["-xzf", archivePath.path, "-C", destination.path]
         )
+        try? await fileSystem.removePath(archivePath)
         try await fileSystem.flattenSingleDirectory(destination)
         try await rejectArchiveWithSubmodules(destination)
     }
@@ -1294,10 +1358,12 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
+                // These repositories are stripped below; detached maintenance must not
+                // keep creating and deleting objects while we remove their Git metadata.
                 do {
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "--depth=1", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 } catch {
@@ -1308,7 +1374,7 @@ enum WorkspaceRestorer {
                     }
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 }
@@ -1345,7 +1411,7 @@ enum WorkspaceRestorer {
         guard try await !submodulePaths(in: destination).isEmpty else {
             return
         }
-        var arguments = ["-C", destination.path]
+        var arguments = ["-C", destination.path, "-c", "maintenance.auto=false"]
         if allowFileProtocol {
             arguments.append(contentsOf: ["-c", "protocol.file.allow=always"])
         }
@@ -1425,6 +1491,7 @@ enum WorkspaceRestorer {
     ) async throws {
         try await assertNoEditedDependencies(scratchDir: scratchDir)
         var dependencies: [[String: Any]] = []
+        let registryPaths = try await RegistryDownloadPaths(pins: resolved.pins, scratchDir: scratchDir)
 
         for pin in resolved.pins {
             if PinKind.isSourceControl(pin.kind) {
@@ -1434,7 +1501,9 @@ enum WorkspaceRestorer {
                 let ref = try await packageRef(
                     pin,
                     mirrors: mirrors,
-                    packagePath: packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors),
+                    packagePath: packagePathForPin(
+                        scratchDir: scratchDir, pin: pin, mirrors: mirrors, registryPaths: registryPaths
+                    ),
                     disableSandbox: disableSandbox
                 )
                 dependencies.append([
@@ -1461,7 +1530,7 @@ enum WorkspaceRestorer {
                     "basedOn": NSNull(),
                     "packageRef": ref,
                     "state": state,
-                    "subpath": PinKind.registryDownloadSubpath(pin),
+                    "subpath": registryPaths.subpath(for: pin),
                 ])
             }
         }
@@ -1524,7 +1593,7 @@ enum WorkspaceRestorer {
             to: scratchDir.appendingPathComponent("workspace-state.json")
         )
         var retainedPackages = try resolved.pins.map {
-            try packagePathForPin(scratchDir: scratchDir, pin: $0, mirrors: mirrors)
+            try packagePathForPin(scratchDir: scratchDir, pin: $0, mirrors: mirrors, registryPaths: registryPaths)
         } + localPackages.map(\.packagePath)
         if let sourceCacheDirectory {
             retainedPackages += resolved.pins.compactMap { try? Cache.sourcePath(root: sourceCacheDirectory, pin: $0) }
@@ -1532,7 +1601,7 @@ enum WorkspaceRestorer {
         try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
     }
 
-    private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
+    static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
         let statePath = scratchDir.appendingPathComponent("workspace-state.json")
         guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
 

@@ -25,6 +25,7 @@ import Noora from "noora";
 import "./app.css";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
+import PageFavicon from "./js/PageFavicon.mjs";
 import JSONInput from "./js/JSONInput.mjs";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
@@ -49,10 +50,14 @@ import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
 import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
+import { trackBrowserSessionPath } from "./js/BrowserSessionPath.mjs";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
+import { initPasskeys, PasskeyLogin } from "./js/Passkeys.js";
 import { initAnalytics } from "../shared/js/analytics.js";
+import { registerNavigationTools, registerWebMCPTools } from "../shared/js/webmcp.mjs";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -60,6 +65,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let Hooks = {};
 Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
+Hooks.PageFavicon = PageFavicon;
 Hooks.JSONInput = JSONInput;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
@@ -83,6 +89,7 @@ Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 Hooks.Turnstile = Turnstile;
+Hooks.PasskeyLogin = PasskeyLogin;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -98,14 +105,16 @@ const liveSocketFallbackMs = 30000;
 // up on WebSocket too quickly and pins itself to longpoll, which then loops
 // into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
 // https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
+const browserSessionPath = trackBrowserSessionPath(window);
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : liveSocketFallbackMs,
-  params: {
+  params: () => ({
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
     user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
-  },
+    tuist_return_to: browserSessionPath(),
+  }),
   hooks: { ...Hooks, ...Noora.Hooks },
 });
 
@@ -145,7 +154,83 @@ liveSocket.connect();
 
 setupQueryMemory();
 
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  const modal = document.getElementById(form.dataset.recoveryModal);
+  if (!modal?.showModal) return;
+  event.preventDefault();
+  const status = form.querySelector("[data-enrollment-status]");
+  const button = event.submitter;
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
+  status.textContent = "";
+  try {
+    // Keep the controller's CSRF protection, session rotation and no-store
+    // response. Plaintext codes live only in the response and this dialog,
+    // never in a LiveView session, URL or browser storage.
+    const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
+    const responseDocument = new DOMParser().parseFromString(await response.text(), "text/html");
+    if (!response.ok) {
+      status.textContent = responseDocument.querySelector(".noora-alert")?.textContent || form.dataset.error;
+      if (button) button.disabled = false;
+      return;
+    }
+    const content = responseDocument.querySelector("#user-security-settings");
+    if (!content?.querySelector("#mfa-recovery-codes")) {
+      window.location.assign(response.url);
+      return;
+    }
+    // The factor change revoked the socket's session. Keep the settings
+    // backdrop frozen until the acknowledgement link loads the new session.
+    liveSocket.disconnect();
+    const sourceModal = document.getElementById(form.dataset.sourceModal);
+    delete sourceModal.dataset.onOpenChange;
+    window.dispatchEvent(new CustomEvent("phx:close-modal", { detail: { id: sourceModal.id } }));
+    modal.querySelector("[data-recovery-content]").replaceChildren(content);
+    modal.addEventListener("cancel", (event) => event.preventDefault());
+    modal.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") event.preventDefault();
+    });
+    modal.showModal();
+  } catch {
+    status.textContent = form.dataset.error;
+    if (button) button.disabled = false;
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-copy-setup-key], [data-copy-recovery-codes]");
+  if (!button) return;
+  const key = document.getElementById("mfa-setup-key");
+  const codes = document.getElementById("mfa-recovery-codes");
+  const status = document.querySelector("[data-copy-status]");
+  const text = button.hasAttribute("data-copy-setup-key")
+    ? key.value
+    : Array.from(codes.querySelectorAll("code"), (code) => code.textContent).join("\n");
+  status.textContent = "";
+  try {
+    await copyTextToClipboard(text, { container: button.closest("dialog") || document.body });
+    status.textContent = button.dataset.copySuccess;
+    button.setAttribute("aria-label", button.dataset.copySuccess);
+  } catch {
+    if (button.hasAttribute("data-copy-setup-key")) {
+      key.focus();
+      key.select();
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents(codes);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+    status.textContent = button.dataset.copyFailure;
+  }
+});
+
 initAnalytics();
+initPasskeys();
+
+registerWebMCPTools();
+registerNavigationTools();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.

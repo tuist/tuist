@@ -107,6 +107,8 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.APIJobs
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
@@ -1007,8 +1009,13 @@ defmodule Tuist.Runners do
   end
 
   defp handle_serve_claim({:error, {mint_failure, exclusion_scope}}, context)
-       when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] and
-              exclusion_scope in [:account, :repository, :workflow_job] do
+       when mint_failure in [
+              :github_mint_failed,
+              :buildkite_mint_failed,
+              :gitlab_mint_failed,
+              :bitrise_mint_failed,
+              :api_job_mint_failed
+            ] and exclusion_scope in [:account, :repository, :workflow_job] do
     retry_claim_and_serve(context, exclusion_scope)
   end
 
@@ -1140,34 +1147,50 @@ defmodule Tuist.Runners do
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
-    with {:ok, candidates} <-
-           Jobs.pick_queued_top_k(
-             fleet_name,
-             excluded_account_ids,
-             excluded_repositories,
-             excluded_workflow_job_ids,
-             volume_affinity_top_k()
-           ),
-         [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
-      if volume_affinity_enabled?(fleet_name) do
-        select_affine_candidate(candidates, node_name)
+    result =
+      with {:ok, candidates} <-
+             Jobs.pick_queued_top_k(
+               fleet_name,
+               excluded_account_ids,
+               excluded_repositories,
+               excluded_workflow_job_ids,
+               volume_affinity_top_k()
+             ),
+           [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
+        if volume_affinity_enabled?(fleet_name) do
+          select_affine_candidate(candidates, fleet_name, node_name)
+        else
+          # No volumes on this fleet: hand out the plain oldest-queued head, no
+          # affinity scoring or reordering. A nil outcome means "affinity never
+          # ran here", which is what suppresses the metric for this fleet.
+          {:ok, List.first(candidates), nil}
+        end
       else
-        # No volumes on this fleet: hand out the plain oldest-queued head, no
-        # affinity scoring or reordering. A nil outcome means "affinity never
-        # ran here", which is what suppresses the metric for this fleet.
-        {:ok, List.first(candidates), nil}
+        {:error, :empty} -> {:error, :empty}
+        [] -> {:error, :empty}
       end
-    else
-      {:error, :empty} -> {:error, :empty}
-      [] -> {:error, :empty}
+
+    note_poll(fleet_name, node_name, result)
+    result
+  end
+
+  # Whether this Node's runner is waiting for work is what lets other Nodes leave
+  # it the jobs whose volumes it holds (`VolumeAffinities.note_idle/2`).
+  defp note_poll(fleet_name, node_name, result) do
+    if volume_affinity_enabled?(fleet_name) do
+      case result do
+        {:ok, %{}, _outcome} -> VolumeAffinities.note_busy(fleet_name, node_name)
+        _ -> VolumeAffinities.note_idle(fleet_name, node_name)
+      end
     end
   end
 
-  defp select_affine_candidate(candidates, node_name) do
+  defp select_affine_candidate(candidates, fleet_name, node_name) do
     case VolumeAffinities.select_candidate(candidates, node_name,
-           tolerance_seconds: volume_affinity_age_tolerance_seconds()
+           tolerance_seconds: volume_affinity_age_tolerance_seconds(),
+           fleet_name: fleet_name
          ) do
-      nil -> {:ok, nil, nil}
+      nil -> {:error, :empty}
       {candidate, outcome} -> {:ok, candidate, outcome}
     end
   end
@@ -1236,7 +1259,7 @@ defmodule Tuist.Runners do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job gets the
           # account's cache-signing grant. Trust is determined fail-closed.
           trusted = job_trusted?(candidate, account)
-          assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
+          assigned_job? = provider(candidate) in ["api", "buildkite", "gitlab"]
 
           # Stamped only now that dispatch has fully committed. See
           # stamp_account_label/3.
@@ -1278,6 +1301,8 @@ defmodule Tuist.Runners do
             Claims.record_execution(runner_name, candidate.workflow_job_id, candidate.account_id)
           end
 
+          if provider(candidate) == "api", do: dispatch_api_job_started(candidate.workflow_job_id)
+
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -1299,7 +1324,14 @@ defmodule Tuist.Runners do
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
+             cache_signing_grant:
+               if(trusted,
+                 do:
+                   CacheGrant.mint(candidate.account_id,
+                     site: runner_grant_site(fleet_name, context),
+                     platform: Catalog.fleet_platform(fleet_name)
+                   )
+               )
            }}
         else
           {:error, reason} = err ->
@@ -1315,6 +1347,13 @@ defmodule Tuist.Runners do
 
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
+    end
+  end
+
+  defp runner_grant_site(fleet_name, context) do
+    case Catalog.fleet_platform(fleet_name) do
+      :linux -> Sites.shard_storage_site(Map.get(context, :node_name))
+      _ -> Map.get(context, :site)
     end
   end
 
@@ -1406,7 +1445,9 @@ defmodule Tuist.Runners do
   # warmth, never correctness.
   defp job_trusted?(candidate, account) do
     case provider(candidate) do
+      "api" -> false
       "gitlab" -> false
+      "bitrise" -> true
       "buildkite" -> Buildkite.job_trusted?(account.id, candidate.workflow_job_id)
       _github -> github_job_trusted?(candidate, account)
     end
@@ -1490,6 +1531,12 @@ defmodule Tuist.Runners do
   # claimed. Buildkite mints a token against one job UUID, so it cannot.
   defp mint_credential(account, candidate, name_prefix, dispatch_label, runner_labels) do
     case provider(candidate) do
+      "api" ->
+        mint_api_acquisition(account, candidate, name_prefix)
+
+      "bitrise" ->
+        mint_bitrise_acquisition(account, candidate, name_prefix)
+
       "gitlab" ->
         mint_gitlab_acquisition(account, candidate, name_prefix)
 
@@ -1512,6 +1559,36 @@ defmodule Tuist.Runners do
     case GitLab.mint_acquisition(account.id, candidate.workflow_job_id) do
       {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :gitlab), runner_name(name_prefix)}
       {:error, reason} -> {:error, {:gitlab_mint_failed, mint_failure_scope(reason)}}
+    end
+  end
+
+  defp mint_api_acquisition(account, candidate, name_prefix) do
+    case APIJobs.mint_acquisition(account.id, candidate.workflow_job_id) do
+      {:ok, job} -> {:ok, %{kind: :api, job: job}, runner_name(name_prefix)}
+      # A missing payload is that one job settling (cancelled or expired) while
+      # it was being claimed, so only it is passed over.
+      {:error, _reason} -> {:error, {:api_job_mint_failed, :workflow_job}}
+    end
+  end
+
+  # Best effort, after the dispatch committed: a lost event costs the caller
+  # the started notification, never the job.
+  defp dispatch_api_job_started(workflow_job_id) do
+    APIJobs.dispatch_started(workflow_job_id)
+  rescue
+    exception ->
+      Logger.warning("runners: api job started event failed",
+        workflow_job_id: workflow_job_id,
+        reason: inspect(exception.__struct__)
+      )
+
+      :ok
+  end
+
+  defp mint_bitrise_acquisition(account, candidate, name_prefix) do
+    case Bitrise.mint_acquisition(account.id, candidate.workflow_job_id) do
+      {:ok, acquisition} -> {:ok, Map.put(acquisition, :kind, :bitrise), runner_name(name_prefix)}
+      {:error, reason} -> {:error, {:bitrise_mint_failed, mint_failure_scope(reason)}}
     end
   end
 
@@ -1645,7 +1722,7 @@ defmodule Tuist.Runners do
   # Customers read the runner name in GitHub's runner list and in a job's
   # "Set up job" step, so a catalog macOS runner is named after what the
   # job runs on: the guest's macOS version, the pool's Xcode version and
-  # the shape, e.g. `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`. The
+  # the shape, e.g. `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-<hex>`. The
   # Pod name carries the Xcode version alone, as `27-0`, which reads as a
   # macOS version. The macOS version is the one the guest reports, so an
   # image on a newer macOS names itself; a guest that reports none gets

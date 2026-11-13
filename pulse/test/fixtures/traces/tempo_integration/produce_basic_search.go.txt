@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Run as a test in pinned Tempo's tempodb/encoding/vparquet4 package.
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"math"
+	"os"
+	"sort"
+	"testing"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	cv "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	rv "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tv "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+)
+
+func TestPulseBasicSearch(t *testing.T) {
+	dir := "/tmp/pulse-tempo-basic-search"
+	if err := os.MkdirAll(dir, 0755); err != nil { t.Fatal(err) }
+	sv := func(s string) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue:s}} }
+	iv := func(n int64) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue:n}} }
+	dv := func(n float64) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_DoubleValue{DoubleValue:n}} }
+	bv := func(b bool) *cv.AnyValue { return &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue:b}} }
+	kv := func(k string, v *cv.AnyValue) *cv.KeyValue { return &cv.KeyValue{Key:k, Value:v} }
+	floats := []*cv.AnyValue{dv(456.78), iv(456), sv("456.78"), bv(false), nil, dv(math.Copysign(0,-1)), dv(9007199254740992), iv(9007199254740993), dv(math.NaN()), dv(math.Inf(1)), dv(math.Inf(-1)), dv(456.79)}
+	bools := []*cv.AnyValue{bv(false), bv(true), sv("false"), iv(0), nil, dv(0), bv(false), bv(true), nil, nil, nil, bv(false)}
+	all := &tempopb.Trace{}
+	var rows []*Trace
+	for i := range floats {
+		tid, sid := make([]byte,16), make([]byte,8)
+		tid[15], sid[7] = byte(i+1), 1
+		name := "other"
+		if i == 0 { name = "hello" }
+		if i == 4 { name = "" }
+		s := &tv.Span{TraceId:tid, SpanId:sid, Name:name, Kind:tv.Span_SpanKind(i%6), StartTimeUnixNano:uint64(100+i)*1e9, EndTimeUnixNano:uint64(100+i)*1e9+1e6, Status:&tv.Status{}}
+		if floats[i] != nil { s.Attributes = append(s.Attributes, kv("float",floats[i])) }
+		if bools[i] != nil { s.Attributes = append(s.Attributes, kv("bool",bools[i])) }
+		// An attribute called name/kind must not replace either intrinsic.
+		s.Attributes = append(s.Attributes, kv("name",sv("Bob")), kv("kind",sv("client")))
+		spans := []*tv.Span{s}
+		if i == 0 {
+			for _, id := range []byte{2,3} {
+				childID := make([]byte,8); childID[7] = id
+				spans = append(spans, &tv.Span{TraceId:tid, SpanId:childID, ParentSpanId:sid, Name:"child", Kind:tv.Span_SPAN_KIND_CLIENT, StartTimeUnixNano:s.StartTimeUnixNano+uint64(id)*1e6, EndTimeUnixNano:s.StartTimeUnixNano+uint64(id+1)*1e6, Status:&tv.Status{}})
+			}
+		}
+		r := &tv.ResourceSpans{Resource:&rv.Resource{Attributes:[]*cv.KeyValue{kv("service.name",sv("basic")),kv("float",dv(456.78)),kv("bool",bv(false))}}, ScopeSpans:[]*tv.ScopeSpans{{Spans:spans}}}
+		tr := &tempopb.Trace{ResourceSpans:[]*tv.ResourceSpans{r}}
+		all.ResourceSpans = append(all.ResourceSpans,r)
+		row,_ := traceToParquet(&backend.BlockMeta{},tid,tr,nil)
+		rows = append(rows,row)
+	}
+	block := makeBackendBlockWithTraces(t,rows)
+	// The first seven predicates are unchanged TestBackendBlockSearchTraceQL
+	// basic-type table rows. name/kind and empty searches use its intrinsic /
+	// empty-request rows with a small deterministic OTLP producer instead.
+	queries := []string{
+		`{.float = 456.78}`, `{.float != 456.79}`, `{.float > 456.7}`, `{.float >= 456.78}`, `{.float < 456.781}`, `{.bool = false}`, `{.bool != true}`,
+		`{name = "hello"}`, `{kind = client}`, `{}`,
+		`{span:name != "hello"}`, `{name =~ "h.*"}`, `{span:name !~ "h.*"}`, `{name = ""}`, `{.name = "Bob"}`,
+		`{span:kind != client}`, `{kind = unspecified}`, `{kind = internal}`, `{kind = server}`, `{kind = producer}`, `{kind = consumer}`,
+		`{span.float = 456.78}`, `{span.float != 456.78}`, `{span.float <= 456.78}`, `{span.float > 456.78}`, `{span.float >= 456.78}`, `{span.float < 456.78}`,
+		`{span.float = 456}`, `{span.float != 456}`, `{span.float = 0.0}`, `{span.float = -0.0}`, `{span.float = 9007199254740993.0}`, `{span.float = 9007199254740993}`,
+		`{resource.float = 456.78}`, `{resource.bool = false}`, `{span.bool = false}`, `{span.bool != false}`, `{.bool = true || name = "hello"}`, `{.float = 456.78 || kind = client}`,
+		`{} > {}`, `{name = "hello"} >> {}`, `{} < {name = "hello"}`, `{} ~ {}`, `{} | select(name, kind)`,
+		`{span.float = 4.5678e+2}`, `{span.float > -1e-3}`, `{span.float = .0}`, `{span.float = 0.}`,
+	}
+	type Case struct { Query string `json:"query"`; Response json.RawMessage `json:"response"` }
+	cases := []Case{}
+	for _,q := range queries {
+		q += " with (most_recent=true)"
+		resp,err := traceql.NewEngine().ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query:q, Start:99,End:200,Limit:100,SpansPerSpanSet:3},traceql.NewSpansetFetcherWrapper(func(ctx context.Context,req traceql.FetchSpansRequest)(traceql.FetchSpansResponse,error){ return block.Fetch(ctx,req,common.DefaultSearchOptions()) }))
+		if err != nil { t.Fatalf("%s: %v",q,err) }
+		resp.Metrics = nil
+		for _,tr := range resp.Traces { for _,ss := range tr.SpanSets { for _,sp := range ss.Spans { sort.Slice(sp.Attributes,func(i,j int)bool{ a,b := sp.Attributes[i],sp.Attributes[j]; if a.Key != b.Key { return a.Key < b.Key }; return a.Value.String() < b.Value.String() }) } } }
+		out,err := (&jsonpb.Marshaler{}).MarshalToString(resp); if err != nil { t.Fatal(err) }
+		cases = append(cases,Case{q,json.RawMessage(out)})
+	}
+	wire,err := proto.Marshal(all); if err != nil { t.Fatal(err) }
+	if err = os.WriteFile(dir+"/basic-search-input.protobuf",wire,0644); err != nil { t.Fatal(err) }
+	out,err := json.MarshalIndent(cases,"","  "); if err != nil { t.Fatal(err) }
+	if err = os.WriteFile(dir+"/basic-search-oracle.json",append(out,'\n'),0644); err != nil { t.Fatal(err) }
+	t.Logf("public engine / Parquet cases=%d traces=%d spans=14",len(cases),len(rows))
+}

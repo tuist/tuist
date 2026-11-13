@@ -76,10 +76,67 @@ reply. The native iOS/Android Orbit inbox groups prioritized conversations under
 Now, Today and Later. Configure sources through API/MCP; a source configuration
 UI is not included.
 
+## Search your Gmail and Slack from MCP clients
+
+After connecting in Settings → Connections, Atlas's MCP server offers three
+caller-only tools: `search_my_gmail` (Gmail search syntax, up to 25 messages),
+`get_my_gmail_message` (one message with a plain-text body bounded to 20,000
+characters) and `search_my_slack` (Slack search syntax, newest first, up to 50
+matches visible to you). They always use the calling person's own grant, are
+hidden from shared Slack identities, are never mounted in Pip threads or
+workflows, and their queries are not stored in the audit trail. Gmail tools need
+**Allow Gmail access**; Slack search uses the `search:read` user scope.
+
+When Gmail refuses a request, the error says why. An expired or revoked grant
+asks you to reconnect; Atlas first refreshes a rejected token once. A Google
+403, such as the Gmail API being disabled for Atlas's Google Cloud project or a
+Workspace policy, names Google's reason and needs an administrator, because
+reconnecting cannot fix it.
+
+`get_my_gmail_message` also lists the message's attachments, each with a
+`part_id`. `save_my_gmail_attachment` copies one of them into the document
+library and returns its `document_id`, for example to attach a receipt to a
+finance transaction with `finance_add_transaction_attachment`. The saved
+document is visible to everyone with document access, so this tool also needs
+the `documents:write` scope, and it is processed like any other upload.
+
+## Prepare and send Gmail drafts
+
+Choose **Allow Gmail drafts** in Settings → Connections to grant the separate
+[`gmail.compose`](https://developers.google.com/workspace/gmail/api/auth/scopes)
+scope. It is opt-in, like Gmail access, and the two consents are kept together
+when you reconnect. MCP clients then get four caller-only tools:
+
+- `create_my_gmail_draft` creates a plain-text draft from `to`, optional `cc`,
+  `subject` and `body`. Recipients are plain email addresses. An optional
+  `reply_to_message_id` (from `search_my_gmail`) files the draft in that thread
+  and sets `In-Reply-To` and `References`; it also needs Gmail access.
+- `get_my_gmail_draft` reads a draft by `draft_id`: recipients, subject, reply
+  headers, attachment names and a plain-text body.
+- `update_my_gmail_draft` replaces a draft's recipients, subject and body. It
+  keeps the draft's thread unless you pass a new `reply_to_message_id`.
+- `send_my_gmail_draft` sends a draft once you approve it. The first call files
+  a request and returns a link to that request under My approvals
+  (`/approvals`), which shows the draft's current recipients, subject, body and
+  attachments as Gmail holds them. Only you can see your requests there.
+  **Approve send** pins a digest of that content. Repeating the call then sends
+  the draft once. The approval expires after an hour and is spent by one send.
+  Choose **Edit** to change the recipients, subject or body first: **Save and
+  approve send** writes your version to Gmail and approves exactly that. Edit
+  is offered only for plain-text drafts without attachments or Bcc, because
+  saving rewrites the draft as plain text. If the draft changes after the
+  request, Atlas refuses to send it until you edit and approve it or the agent
+  asks again.
+
+Like the read tools, these are hidden from shared Slack identities and never
+mounted in Pip threads or workflows. Sending only works over your own Atlas MCP
+session. Atlas stores no draft content: tool audits omit arguments, and the
+approval and its audit events keep only the draft ID and the content digest.
+
 ## Monitor personal Gmail and Slack
 
 Connect your personal account in Settings → Connections. For Gmail, choose
-**Allow Gmail monitoring** to grant separate read-only email access; the ordinary
+**Allow Gmail access** to grant separate read-only email access; the ordinary
 Google connection does not request it. Nothing is scanned just by connecting.
 
 Add `polling` to `create_signal_source` instead of `event_receiver`:
@@ -100,7 +157,7 @@ Optional `subjects` and `topics` arrays attach stable account/service identifier
 and expertise tags for the same business-profile routing used by signed events.
 Enable the source explicitly after configuring its pinned policy. Gmail needs
 the [read-only Gmail scope](https://developers.google.com/workspace/gmail/api/auth/scopes);
-no sending, mailbox writes or attachments are supported.
+monitors never write to the mailbox or read attachments.
 
 Polls begin at source creation, with a short overlap for delayed search indexing;
 they do not scan older mailbox history. Pages checkpoint durably with admission,

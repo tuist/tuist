@@ -444,17 +444,19 @@ defmodule Tuist.Tests.Coverage.Commits do
            Repo.one(
              from(c in Tuist.GitHistory.Commit,
                where: c.repository_id == ^repository_id and c.sha == ^sha,
-               select: %{ref_id: c.ref_id, position: c.position, committed_at: c.committed_at}
+               select: c.committed_at
              )
            ) do
       nil ->
         %{ref_id: nil, position: nil, committed_at: ran_at, ran_at: ran_at}
 
-      commit ->
+      committed_at ->
+        {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
+
         %{
-          ref_id: commit.ref_id,
-          position: commit.position,
-          committed_at: usec(commit.committed_at),
+          ref_id: ref_id,
+          position: position,
+          committed_at: usec(committed_at),
           ran_at: ran_at
         }
     end

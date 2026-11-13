@@ -14,6 +14,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
+  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
   plug(
@@ -78,9 +79,11 @@ defmodule TuistWeb.API.OIDCController do
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- OIDC.claims(token, Map.get(conn.body_params, :account_handle)),
-         {:ok, account, project_scope} <- authorized_account(claims),
-         {:ok, access_token} <- generate_token(account, project_scope) do
+    account_handle = Map.get(conn.body_params, :account_handle)
+
+    with {:ok, claims} <- OIDC.claims(token, account_handle),
+         {:ok, account, grant} <- authorized_account(claims, token, account_handle),
+         {:ok, access_token} <- generate_token(account, grant) do
       conn
       |> put_status(:ok)
       |> json(%{
@@ -148,6 +151,22 @@ defmodule TuistWeb.API.OIDCController do
           message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
         })
 
+      {:error, :amp_workspace_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace or project is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
+        })
+
+      {:error, :ambiguous_amp_workspace, account_handles} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace is connected to several Tuist accounts (#{Enum.join(account_handles, ", ")}). Set TUIST_OIDC_ACCOUNT to the account to authenticate as."
+        })
+
       {:error, :ambiguous_repository, repository, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -163,6 +182,35 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
+  defp authorized_account(%{amp_workspace_id: workspace_id, amp_project_id: project_id}, token, account_handle) do
+    result =
+      if workspace_id,
+        do: Accounts.amp_workspace_account(workspace_id, project_id, account_handle),
+        else: {:error, :amp_workspace_not_connected}
+
+    case result do
+      # An Orb of a connected workspace works like a member of the account, so
+      # it can also start sandboxes and run commands in them, such as a Mac to
+      # build on. Custom Amp trust policies stay CI-only, like other workload
+      # policies.
+      {:ok, account} ->
+        {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
+
+      {:error, :amp_workspace_not_connected} = error when is_binary(account_handle) ->
+        with {:ok, identity} <- OIDC.amp_policy_claims(token, account_handle),
+             {:ok, _account, _grant} = authorized <- authorized_account(identity) do
+          authorized
+        else
+          _ -> error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
+
   defp authorized_account(%{provider: :oidc} = identity) do
     with {:ok, account} <- Accounts.oidc_account_by_grants(identity) do
       {:ok, account, %{"all_projects" => true}}
@@ -170,7 +218,12 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   defp authorized_account(%{repository: repository} = identity) do
-    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
+    # Built-in providers only prove github.com repositories, so a GitHub
+    # Enterprise Server link with the same handle must not match.
+    case Projects.projects_by_vcs_repository_full_handle(repository,
+           preload: [:account],
+           client_url: VCS.default_client_url()
+         ) do
       [] ->
         {:error, :no_projects}
 
@@ -192,8 +245,8 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp generate_token(account, project_scope) do
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, project_scope)
+  defp generate_token(account, grant) do
+    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, grant)
 
     case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}

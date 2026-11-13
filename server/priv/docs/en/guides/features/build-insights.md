@@ -2,12 +2,12 @@
 {
   "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Build Insights."
+  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, Rust, and Once projects with Tuist Build Insights."
 }
 ---
 # Build Insights {#build-insights}
 
-Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, Elixir, and Rust.
+Use Build Insights to track local and CI build performance. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once. For a step-by-step investigation of slow builds and rising CI costs, see [Slow builds](https://tuist.dev/solutions/slow-builds) and [CI costs](https://tuist.dev/solutions/ci-costs).
 
 <.home_cards>
   <.home_card
@@ -39,5 +39,10 @@ Use Build Insights to track local and CI build performance. It currently support
     title="Rust"
     details="Track Cargo command duration, observed rustc invocations, and compiler diagnostics with the Tuist CLI."
     link="/guides/features/build-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Follow runs live and inspect graph actions, durations, failures, and cache decisions."
+    link="/guides/features/build-insights/once"
 />
 </.home_cards>

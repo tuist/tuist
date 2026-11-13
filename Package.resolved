@@ -1,5 +1,5 @@
 {
-  "originHash" : "6f530f5db15c1378248db6d6b2b79a67cb1356fa2cc5c28416e7fd8fb4429b61",
+  "originHash" : "b01f0d57643a2a2df227afe2811e492e421cdcf9d85b23c372210df0a38814b5",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -649,7 +649,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tadija/AEXML.git",
       "state" : {
-        "version" : "4.7.0"
+        "version" : "4.7.3"
       }
     },
     {
@@ -703,11 +703,19 @@
       }
     },
     {
+      "identity" : "tuist.TestCoverageAttribution",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.5.0"
+      }
+    },
+    {
       "identity" : "tuist.XcodeProj",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.17.5"
+        "version" : "9.17.8"
       }
     },
     {

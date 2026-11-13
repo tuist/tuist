@@ -1,3 +1,13 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cloudflare-operator
+  namespace: flux-system
+spec:
+  interval: 1m
+  type: oci
+  url: oci://ghcr.io/tuist/charts
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -10,18 +20,16 @@ spec:
   storageNamespace: cloudflare-operator
   chart:
     spec:
-      chart: ./infra/helm/cloudflare-operator
-      interval: 10m
-      reconcileStrategy: Revision
+      chart: cloudflare-operator
+      # CI publishes 0.2.<workflow-run-number>-<attempt>, with an immutable
+      # image digest inside each chart. Include these prerelease versions;
+      # selecting a new artifact never needs an image-bump commit in Git.
+      version: ">=0.2.0-0 <0.3.0-0"
+      interval: 1m
       sourceRef:
-        kind: GitRepository
-        name: flux-system
+        kind: HelmRepository
+        name: cloudflare-operator
         namespace: flux-system
-      # GitRepository-backed value files are resolved from the source root,
-      # not from the chart directory.
-      valuesFiles:
-        - ./infra/helm/cloudflare-operator/values.yaml
-        - ./infra/helm/cloudflare-operator/values-mgmt.yaml
   install:
     createNamespace: true
     remediation:

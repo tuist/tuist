@@ -1,4 +1,8 @@
-<div id="gradle-task-execution">
+<div
+  id="gradle-task-execution"
+  phx-hook="PageFavicon"
+  data-favicon-status={%{"executed" => "success", "failed" => "failure"}[@task.outcome]}
+>
   <.button
     label={@build.root_project_name}
     data-part="back-button"

@@ -1,45 +1,29 @@
 ---
 {
-  "title": "Implicit imports",
-  "titleTemplate": ":title · Inspect · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist to find implicit imports."
+  "title": "隱式匯入",
+  "titleTemplate": ":title · 檢查 · 專案 · 功能 · 指南 · Tuist",
+  "description": "了解如何使用 Tuist 找出隱式匯入。"
 }
 ---
-# Implicit imports {#implicit-imports}
+# 隱式匯入 {#implicit-imports}
 
-To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
-project, Apple designed the build system in a way that allows dependencies to be
-implicitly defined. This means that a product, for example an app, can depend on
-a framework, even without declaring the dependency explicitly. At a small scale,
-this is fine, but as the project graph grows in complexity, the implicitness
-might manifest as unreliable incremental builds or editor-based features such as
-previews or code completion.
+為咗減輕用原始 Xcode 專案維護 Xcode 專案圖嘅複雜性，Apple 設計咗一個允許隱式定義依賴關係嘅構建系統。即係話，一個產品（例如一個 app）可以依賴某個 framework，即使冇明確聲明呢個依賴關係。喺小規模情況下，咁做冇問題，但隨著專案圖變得更加複雜，隱式依賴可能會導致增量構建不穩定，或者影響基於編輯器嘅功能，例如預覽或代碼補全。
 
-The problem is that you can't prevent implicit dependencies from happening. Any
-developer can add an `import` statement to their Swift code, and the implicit
-dependency will be created. This is where Tuist comes in. Tuist provides a
-command to inspect the implicit dependencies by statically analyzing the code in
-your project. The following command will output the implicit dependencies of
-your project:
+問題在於你無法阻止隱式依賴發生。任何開發者都可以喺佢哋嘅 Swift 代碼中加入 `import` 語句，從而創建隱式依賴。呢個時候就輪到 Tuist 出場。Tuist 提供咗一個命令，透過靜態分析你專案中嘅代碼嚟檢查隱式依賴。以下命令會輸出你專案嘅隱式依賴：
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
-If the command detects any implicit imports, it exits with an exit code other
-than zero.
+如果命令檢測到任何隱式匯入，佢會以非零嘅退出碼結束。
 
 > [!TIP]
-> **Validate In Ci**
+> **喺 CI 中驗證**
 >
-> We strongly recommend to run this command as part of your
-> <LocalizedLink href="/guides/integrations/continuous-integration">continuous integration</LocalizedLink> command every time new code is pushed upstream.
+> 我哋強烈建議每次有新代碼推送 upstream 時，都將此命令作為你 <.localized_link href="/guides/integrations/continuous-integration">持續整合</.localized_link> 流程嘅一部分嚟執行。
 
 
 > [!WARNING]
-> **Not All Implicit Cases Are Detected**
+> **並非所有隱式情況都會被檢測到**
 >
-> Since Tuist relies on static code analysis to detect implicit dependencies, it
-> might not catch all cases. For example, Tuist is unable to understand
-> conditional imports through compiler directives in code.
-
+> 由於 Tuist 依靠靜態代碼分析嚟檢測隱式依賴，佢可能無法捕捉所有情況。例如，Tuist 無法理解代碼中透過編譯器指令實現嘅條件匯入。

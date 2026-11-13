@@ -1,4 +1,4 @@
-<div id="test-run-detail">
+<div id="test-run-detail" phx-hook="PageFavicon" data-favicon-status={@run.status}>
   <.button
     label={dgettext("dashboard_tests", "Test Runs")}
     data-part="back-button"
@@ -216,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data}
+      :if={@has_selective_testing_data || @run.test_impact_run_id}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -465,6 +465,54 @@
                 {Tuist.Utilities.DateFormatter.format_with_timezone(
                   @command_event.ran_at,
                   @user_timezone
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@selection_run}
+      title={dgettext("dashboard_tests", "Selective Testing")}
+      icon="filter"
+      data-part="test-selection-card"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View selection")}
+          variant="secondary"
+          size="small"
+          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+        />
+      </:actions>
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Selected tests")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
+                  selected: @selection_run.selected_count,
+                  requested: @selection_run.requested_count
+                )}
+              </span>
+            </div>
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped tests")}</div>
+              <span data-part="value">{@selection_run.skipped_count}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skip rate")}</div>
+              <span data-part="value">{"#{Tuist.Tests.Selections.skip_rate(@selection_run)}%"}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped modules")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{skipped} of %{total} modules",
+                  skipped: map_size(@selection_run.skipped_modules),
+                  total: Tuist.Tests.Selections.module_counts(@selection_run).total
                 )}
               </span>
             </div>
@@ -1070,7 +1118,7 @@
                           }
                           data-part="test-run-link"
                         >
-                          {run.scheme}
+                          {test_run_label(@selected_project, run.scheme)}
                           <.link_icon />
                         </.link>
                       </div>
@@ -1768,8 +1816,62 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
+  <div
+    :if={
+      @selected_tab == "test-optimizations" &&
+        (@has_selective_testing_data || @run.test_impact_run_id)
+    }
+    data-part="selective-testing"
+  >
+    <RunTab.expired_selection :if={@selection_expired?} />
+    <RunTab.coverage_selection
+      :if={@selection_run && !hash_only_selection?(@selection_run, @has_selective_testing_data)}
+      selection_run={@selection_run}
+      summary={@selection_summary}
+      diff={@selection_diff}
+      plan={@selection_plan}
+      baseline_coverage?={@selection_baseline_coverage?}
+      operator?={@selection_operator?}
+      tab={@selection_tab}
+      uri={@uri}
+      project={@selected_project}
+      account={@selected_account}
+      filters={@selection_filters}
+      tests={@selection_tests}
+      tests_meta={@selection_tests_meta}
+      files={@selection_files}
+      files_meta={@selection_files_meta}
+      targets={@selection_targets}
+      modules_count={
+        if @has_selective_testing_data, do: @selective_testing_analytics[:total_modules_count]
+      }
+    >
+      <:modules :if={@has_selective_testing_data}>
+        <.selective_testing_tab
+          title={dgettext("dashboard_tests", "Modules")}
+          summary?={false}
+          selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
+          project={@selected_project}
+          selective_testing_analytics={@selective_testing_analytics}
+          selective_testing_filter={@selective_testing_filter}
+          selective_testing_page={@selective_testing_page}
+          selective_testing_page_count={@selective_testing_page_count}
+          selective_testing_sort_by={@selective_testing_sort_by}
+          selective_testing_sort_order={@selective_testing_sort_order}
+          expanded_target_names={@expanded_target_names}
+          uri={@uri}
+          run={@command_event}
+          available_filters={@selective_testing_available_filters}
+          selective_testing_active_filters={@selective_testing_active_filters}
+        />
+      </:modules>
+    </RunTab.coverage_selection>
     <.selective_testing_tab
+      :if={
+        @has_selective_testing_data &&
+          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run) ||
+             hash_only_selection?(@selection_run, @has_selective_testing_data))
+      }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
@@ -2161,7 +2263,7 @@
                       }
                       data-part="test-run-link"
                     >
-                      {run.scheme}
+                      {test_run_label(@selected_project, run.scheme)}
                       <.link_icon />
                     </.link>
                   </div>

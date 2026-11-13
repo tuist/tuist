@@ -4,7 +4,7 @@
   & [data-part="backdrop"] {
     position: fixed;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
     z-index: var(--noora-z-index-11);
     backdrop-filter: blur(2.5px);
     background: var(--noora-surface-overlay);
@@ -147,7 +147,7 @@
 
     & [data-part="actions"] {
       display: flex;
-      gap: var(--noora-spacing-5);
+      gap: var(--noora-spacing-4);
     }
 
     &[data-type="stretch"] {

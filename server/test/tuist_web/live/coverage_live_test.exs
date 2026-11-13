@@ -242,6 +242,12 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-analytics']")
+
+      assert has_element?(
+               lv,
+               "[data-part='empty-analytics'] a[href='https://tuist.dev/en/docs/guides/features/test-code-coverage']"
+             )
+
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
 
       stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
@@ -271,6 +277,17 @@ defmodule TuistWeb.CoverageLiveTest do
       assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       end
+    end
+  end
+
+  describe "sidebar" do
+    test "lists Code Coverage for a Cargo project", %{conn: conn, organization: organization} do
+      cargo_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :cargo)
+      base = ~p"/#{organization.account.name}/#{cargo_project.name}/tests/coverage"
+
+      {:ok, lv, _html} = live(conn, base)
+
+      assert has_element?(lv, "a[href='#{base}']", "Code Coverage")
     end
   end
 

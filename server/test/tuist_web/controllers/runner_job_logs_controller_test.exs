@@ -6,7 +6,6 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Runners.Jobs
-  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -40,10 +39,6 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
         head_branch: "main",
         head_sha: "abc"
       })
-
-    # ClickHouse learns about the job through the transition outbox, and
-    # this controller reads the archive marker from there.
-    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 
   test "404s when the job's log archive has not been built yet", %{conn: conn, account: account} do
@@ -70,6 +65,45 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
     assert redirected_to(conn) == "https://s3.example.com/signed-archive-url"
   end
 
+  test "redirects before the outbox has replayed the job to ClickHouse", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 32_251,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 322_510
+      })
+
+    :ok = Jobs.set_log_archived_at(32_251, DateTime.utc_now())
+
+    stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3.example.com/fresh-archive-url" end)
+
+    conn = get(conn, ~p"/#{account.name}/runners/runs/322510/jobs/32251/logs/download")
+
+    assert redirected_to(conn) == "https://s3.example.com/fresh-archive-url"
+  end
+
+  test "404s when the run id does not match a job that has not reached ClickHouse yet", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 32_261,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 322_610
+      })
+
+    :ok = Jobs.set_log_archived_at(32_261, DateTime.utc_now())
+
+    assert_raise NotFoundError, fn ->
+      get(conn, ~p"/#{account.name}/runners/runs/999999/jobs/32261/logs/download")
+    end
+  end
+
   test "serves the archive to signed-out visitors when the account is public", %{account: account} do
     {:ok, account} = Accounts.update_account_visibility(account, :public)
     enqueue(account, 32_301, 323_010)
@@ -88,7 +122,8 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
     conn = get(build_conn(), ~p"/#{account.name}/runners/runs/324010/jobs/32401/logs/download")
 
-    assert redirected_to(conn) == ~p"/users/log_in"
+    assert redirected_to(conn) ==
+             ~p"/users/log_in?#{%{return_to: "/#{account.name}/runners/runs/324010/jobs/32401/logs/download"}}"
   end
 
   test "404s when the job belongs to another account", %{conn: conn, account: account} do

@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for irate().
+load 5m
+	http_requests_total{path="/foo"}	0+10x10
+	http_requests_total{path="/bar"}	0+10x5 0+10x5
+	http_requests_nan{}               1 NaN NaN 5 11
+	http_requests_histogram{path="/a"} {{sum:2 count:2}}+{{sum:3 count:3}}x5
+	http_requests_histogram{path="/b"} 0 0 {{sum:1 count:1}} {{sum:4 count:4}}
+	http_requests_histogram{path="/c"} 0 0 {{sum:1 count:1}} {{sum:4 count:4 counter_reset_hint:gauge}}
+	http_requests_histogram{path="/d"} 0 0 {{sum:1 count:1 counter_reset_hint:gauge}} {{sum:4 count:4}}
+	http_requests_histogram{path="/e"} 0 1 2 {{sum:4 count:4}}
+	http_requests_histogram{path="/f"} 0 0 {{sum:1 count:1}} {{schema:-53 sum:3 count:3 custom_values:[5 10] buckets:[3]}}
+	http_requests_histogram{path="/g"} 0 0 {{schema:-53 sum:3 count:3 custom_values:[1] buckets:[3]}} {{schema:-53 sum:3 count:3 custom_values:[5 10] buckets:[3]}}
+
+eval instant at 50m irate(http_requests_total[50m])
+  	expect no_warn
+	{path="/foo"} .03333333333333333333
+	{path="/bar"} .03333333333333333333
+
+# Counter reset.
+eval instant at 30m irate(http_requests_total[50m])
+  	expect no_warn
+	{path="/foo"} .03333333333333333333
+	{path="/bar"} 0
+
+eval range from 0 to 20m step 5m irate(http_requests_nan[15m1s])
+  	expect no_warn
+	{} _ NaN NaN NaN 0.02
+
+eval instant at 20m irate(http_requests_histogram{path="/a"}[20m])
+  	expect no_warn
+	{path="/a"} {{sum:0.01 count:0.01 counter_reset_hint:gauge}}
+
+eval instant at 20m irate(http_requests_histogram{path="/b"}[20m])
+  	expect no_warn
+	{path="/b"} {{sum:0.01 count:0.01 counter_reset_hint:gauge}}
+
+eval instant at 20m irate(http_requests_histogram{path="/b"}[6m])
+  	expect no_warn
+
+eval instant at 20m irate(http_requests_histogram{path="/c"}[20m])
+	expect warn msg: PromQL warning: this native histogram metric is not a counter: "http_requests_histogram" (1:7)
+	{path="/c"} {{sum:0.01 count:0.01 counter_reset_hint:gauge}}
+
+eval instant at 20m irate(http_requests_histogram{path="/d"}[20m])
+	expect warn msg: PromQL warning: this native histogram metric is not a counter: "http_requests_histogram" (1:7)
+	{path="/d"} {{sum:0.01 count:0.01 counter_reset_hint:gauge}}
+
+eval instant at 20m irate(http_requests_histogram{path="/e"}[20m])
+  expect warn msg: PromQL warning: encountered a mix of histograms and floats for metric name "http_requests_histogram" (1:7)
+
+eval instant at 20m irate(http_requests_histogram{path="/f"}[20m])
+  	expect no_warn
+	{path="/f"} {{schema:-53 sum:0.01 count:0.01 custom_values:[5 10] buckets:[0.01]}}
+
+eval instant at 20m irate(http_requests_histogram{path="/g"}[20m])
+  	expect no_warn
+	{path="/g"} {{schema:-53 counter_reset_hint:gauge}}
+
+clear

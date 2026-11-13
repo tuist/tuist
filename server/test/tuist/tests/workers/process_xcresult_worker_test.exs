@@ -2,7 +2,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Processor.XCResultNIF
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -876,6 +879,54 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end
   end
 
+  describe "job timeouts" do
+    @job_timeout_error "** (Oban.TimeoutError) Tuist.Tests.Workers.ProcessXcresultWorker timed out after 1500000ms"
+
+    # Lifeline (config/runtime.exs) puts an executing job back after 30
+    # minutes while the first copy keeps running, so a longer job runs twice.
+    test "times a job out before Lifeline would run it a second time" do
+      assert ProcessXcresultWorker.timeout(%Oban.Job{}) < to_timeout(minute: 30)
+    end
+
+    test "processes the bundle again after one timeout", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+      job = oban_job(job_args(test_run_id, account.id, project.id), 2, 20)
+      job = %{job | errors: [%{"attempt" => 1, "error" => @job_timeout_error}]}
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, :parse_failed} end)
+      reject(&Tuist.Tests.create_test/1)
+
+      assert {:error, :parse_failed} = ProcessXcresultWorker.perform(job)
+    end
+
+    test "marks the run failed without downloading it again after a second timeout", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+      job = oban_job(job_args(test_run_id, account.id, project.id), 3, 20)
+
+      job = %{
+        job
+        | errors: [
+            %{"attempt" => 1, "error" => @job_timeout_error},
+            %{"attempt" => 2, "error" => @job_timeout_error}
+          ]
+      }
+
+      reject(&Tuist.Storage.download_to_file/3)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:cancel, :job_timeout} = ProcessXcresultWorker.perform(job)
+    end
+  end
+
   describe "backoff/1" do
     test "spaces processing retries and enters finalization immediately after the fifth failure" do
       assert [30, 120, 300, 600, 1] ==
@@ -889,6 +940,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         attempt: 1,
         max_attempts: 20,
         errors: [%{"attempt" => 1, "error" => "** (Oban.PerformError) ... failed with {:error, :parse_timeout}"}]
+      }
+
+      assert 900 == ProcessXcresultWorker.backoff(job)
+    end
+
+    test "waits out the in-flight parses before retrying a job that timed out" do
+      job = %Oban.Job{
+        attempt: 1,
+        max_attempts: 20,
+        errors: [
+          %{
+            "attempt" => 1,
+            "error" => "** (Oban.TimeoutError) Tuist.Tests.Workers.ProcessXcresultWorker timed out after 1500000ms"
+          }
+        ]
       }
 
       assert 900 == ProcessXcresultWorker.backoff(job)
@@ -1128,6 +1194,81 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       assert shard_0.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
       assert shard_1.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+    end
+  end
+
+  describe "perform/1 with a crashed test case" do
+    @tag :tmp_dir
+    test "stores the parsed crash report linked to its uploaded .ips attachment", %{
+      account: account,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      test_run_id = Ecto.UUID.generate()
+      ips_path = Path.join(tmp_dir, "App-2026-11-02-101500.ips")
+      File.write!(ips_path, "ips")
+      frames = "0  libsystem_kernel.dylib  __pthread_kill + 8\n1  AppTests  AppTests.testCrash() + 52"
+
+      expect(Tuist.Storage, :download_to_file, fn _key, path, _account ->
+        {:ok, _} = :zip.create(~c"#{path}", [{~c"Test.xcresult/Info.plist", "plist"}])
+        {:ok, :done}
+      end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+        {:ok,
+         %{
+           "test_plan_name" => "AppTests",
+           "status" => "failure",
+           "duration" => 1500,
+           "test_modules" => [
+             %{
+               "name" => "AppTests",
+               "status" => "failure",
+               "duration" => 1500,
+               "test_suites" => [%{"name" => "CrashTests", "status" => "failure", "duration" => 1500}],
+               "test_cases" => [
+                 %{
+                   "name" => "testCrash",
+                   "test_suite_name" => "CrashTests",
+                   "status" => "failure",
+                   "duration" => 1500,
+                   "failures" => [
+                     %{"message" => "Crash: AppTests (12345) at __pthread_kill", "issue_type" => "error_thrown"}
+                   ],
+                   "attachments" => [
+                     %{"file_path" => ips_path, "file_name" => "App-2026-11-02-101500.ips", "repetition_number" => nil}
+                   ],
+                   "crash_report" => %{
+                     "exception_type" => "EXC_CRASH",
+                     "signal" => "SIGABRT",
+                     "exception_subtype" => "KERN_INVALID_ADDRESS",
+                     "file_path" => ips_path,
+                     "triggered_thread_frames" => frames
+                   }
+                 }
+               ]
+             }
+           ]
+         }}
+      end)
+
+      expect(Tuist.Storage, :upload_file, fn ^ips_path, _key, :system, _opts -> {:ok, :uploaded} end)
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+
+      [test_case_run_id] =
+        ClickHouseRepo.all(from(r in TestCaseRun, where: r.test_run_id == ^test_run_id, select: r.id))
+
+      {:ok, test_case_run} =
+        Tuist.Tests.get_test_case_run_by_id(test_case_run_id, preload: [crash_report: :test_case_run_attachment])
+
+      assert %{
+               exception_type: "EXC_CRASH",
+               signal: "SIGABRT",
+               exception_subtype: "KERN_INVALID_ADDRESS",
+               triggered_thread_frames: ^frames,
+               test_case_run_attachment: %{file_name: "App-2026-11-02-101500.ips", test_case_run_id: ^test_case_run_id}
+             } = test_case_run.crash_report
     end
   end
 end

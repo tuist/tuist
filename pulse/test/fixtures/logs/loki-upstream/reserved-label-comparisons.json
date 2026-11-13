@@ -1,0 +1,477 @@
+{
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "rows": [
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e= 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c= 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ != 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ == 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ = 0",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e= 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c= 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ != 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ == 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ = 1s",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e= 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003c= 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ != 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ == 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ = 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ = ip(\"127.0.0.1\")",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ != ip(\"127.0.0.1\")",
+      "reject": true,
+      "error_contains": [
+        "__error__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e= 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c= 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ != 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ == 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ = 0",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e= 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c= 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ != 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ == 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ = 1s",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003e= 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ \u003c= 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ != 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ == 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ = 1MB",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ = ip(\"127.0.0.1\")",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__ != ip(\"127.0.0.1\")",
+      "reject": true,
+      "error_contains": [
+        "__error_details__",
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | foo \u003e 1 and __error__ \u003e 0",
+      "reject": true
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e 0 and foo \u003e 1",
+      "reject": true
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | foo \u003e 1 or __error__ \u003e 0",
+      "reject": true
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__ \u003e 0 and __error_details__ \u003e 0",
+      "reject": true
+    },
+    {
+      "query": "count_over_time({app=\"foo\"} | logfmt | __error__ \u003e 0 [5m])",
+      "reject": true
+    },
+    {
+      "query": "label_replace(count_over_time({app=\"foo\"} | logfmt | __error__ \u003e 0 [5m]), \"foo\", \"bar\", \"src\", \"dst\")",
+      "reject": true
+    },
+    {
+      "query": "sum_over_time({app=\"foo\"} | logfmt | unwrap bytes | __error__ \u003e 0 [5m])",
+      "reject": true,
+      "error_contains": [
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "avg_over_time({app=\"foo\"} | logfmt | unwrap duration(latency) | __error_details__ \u003e 1s [5m])",
+      "reject": true,
+      "error_contains": [
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "sum_over_time({app=\"foo\"} | logfmt | unwrap bytes | __error__ != ip(\"127.0.0.1\") [5m])",
+      "reject": true,
+      "error_contains": [
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "quantile_over_time(0.99, {app=\"foo\"} | logfmt | unwrap bytes | __error_details__ \u003e= 1MB [5m])",
+      "reject": true,
+      "error_contains": [
+        "cannot be compared"
+      ]
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__=\"\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__!=\"\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__=~\".+\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__!~\".+\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error__=\"JSONParserErr\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | __error_details__=\"\"",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | latency \u003e 1s",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | latency \u003c= 1s",
+      "reject": false
+    },
+    {
+      "query": "{app=\"foo\"} | logfmt | size == 1MB",
+      "reject": false
+    },
+    {
+      "query": "sum_over_time({app=\"foo\"} | logfmt | unwrap bytes [5m])",
+      "reject": false
+    },
+    {
+      "query": "sum_over_time({app=\"foo\"} | logfmt | unwrap bytes | __error__=\"\" [5m])",
+      "reject": false
+    },
+    {
+      "query": "sum_over_time({app=\"foo\"} | logfmt | unwrap bytes | bytes \u003e 1MB [5m])",
+      "reject": false
+    }
+  ],
+  "selection_sha256": "8ea521448046f7250640073322aad458a9792311992061bec98722505277c5aa",
+  "source": "pkg/logql/syntax/parser_test.go",
+  "source_sha256": "0a8466fd5d9cab3f852f9a18a52dc54b7b1a1ab0c9c6af53ca1df21d9f38ce99",
+  "test": "TestParseExpr_ShouldValidateLabelComparison"
+}

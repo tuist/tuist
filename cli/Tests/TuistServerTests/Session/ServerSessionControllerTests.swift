@@ -1,5 +1,7 @@
 import Foundation
+import HTTPTypes
 import Mockable
+import OpenAPIRuntime
 import TuistOpener
 import TuistSupport
 import TuistUniqueIDGenerator
@@ -13,6 +15,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     private var opener: MockOpening!
     private var serverURL: URL!
     private var getAuthTokenService: MockGetAuthTokenServicing!
+    private var deviceCodeTransport: DeviceCodeTransport!
     private var uniqueIDGenerator: MockUniqueIDGenerating!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var subject: ServerSessionController!
@@ -22,12 +25,16 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         credentialsStore = .init()
         serverURL = URL.test()
         getAuthTokenService = MockGetAuthTokenServicing()
+        deviceCodeTransport = DeviceCodeTransport()
         uniqueIDGenerator = MockUniqueIDGenerating()
         serverAuthenticationController = MockServerAuthenticationControlling()
         opener = MockOpening()
         subject = ServerSessionController(
             opener: opener,
             getAuthTokenService: getAuthTokenService,
+            createDeviceCodeService: CreateDeviceCodeService(makeClient: { [deviceCodeTransport] url in
+                Client(serverURL: url, transport: deviceCodeTransport!)
+            }),
             uniqueIDGenerator: uniqueIDGenerator,
             serverAuthenticationController: serverAuthenticationController
         )
@@ -41,44 +48,176 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         credentialsStore = nil
         opener = nil
         serverURL = nil
+        deviceCodeTransport = nil
         uniqueIDGenerator = nil
         serverAuthenticationController = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_authenticate_when_tokenAndAccountParametersAreIncluded() async throws {
+    func test_authenticate_showsUserCodeOpensVerificationURLAndPollsWithDeviceCode() async throws {
+        try await withMockedDependencies {
+            // Given
+            // Fields the server may add later, like `verification_uri_complete`, must not break decoding.
+            deviceCodeTransport.response = (.ok, """
+            {
+              "device_code": "device-secret",
+              "user_code": "WDJB-MJHT",
+              "verification_uri": "https://tuist.example/auth/device",
+              "verification_uri_complete": "https://tuist.example/auth/device?code=WDJB-MJHT",
+              "expires_in": 300,
+              "interval": 1
+            }
+            """)
+            given(getAuthTokenService)
+                .getAuthToken(serverURL: .any, deviceCode: .any)
+                .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+            let verificationURL = try XCTUnwrap(URL(string: "https://tuist.example/auth/device"))
+
+            // When
+            var events: [String] = []
+            try await subject.authenticate(
+                serverURL: serverURL,
+                deviceCodeType: .cli,
+                onUserCode: { events.append("userCode:\($0)") },
+                onOpeningBrowser: { events.append("openingBrowser:\($0.absoluteString)") },
+                onAuthWaitBegin: { events.append("waitBegin") }
+            )
+
+            // Then
+            XCTAssertEqual(events, [
+                "userCode:WDJB-MJHT",
+                "openingBrowser:https://tuist.example/auth/device",
+                "waitBegin",
+            ])
+            XCTAssertEqual(deviceCodeTransport.requests, ["POST /api/auth/device_codes"])
+            verify(opener).open(url: .value(verificationURL)).called(1)
+            verify(getAuthTokenService)
+                .getAuthToken(serverURL: .value(serverURL), deviceCode: .value("device-secret"))
+                .called(1)
+            verify(uniqueIDGenerator).uniqueID().called(0)
+            verify(serverCredentialsStore)
+                .store(
+                    credentials: .value(ServerCredentials(accessToken: "access-token", refreshToken: "refresh-token")),
+                    serverURL: .value(serverURL)
+                )
+                .called(1)
+        }
+    }
+
+    func test_authenticate_fallsBackToLinkFlow_when_serverRespondsNotFound() async throws {
+        try await assertFallsBackToLinkFlow(status: .notFound)
+    }
+
+    func test_authenticate_fallsBackToLinkFlow_when_serverRespondsMethodNotAllowed() async throws {
+        try await assertFallsBackToLinkFlow(status: .methodNotAllowed)
+    }
+
+    private func assertFallsBackToLinkFlow(status: HTTPResponse.Status) async throws {
+        try await withMockedDependencies {
+            // Given
+            deviceCodeTransport.response = (status, #"{"message":"Not found"}"#)
+            given(getAuthTokenService)
+                .getAuthToken(serverURL: .any, deviceCode: .any)
+                .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
+            given(uniqueIDGenerator).uniqueID().willReturn("id")
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+
+            // When
+            var userCode: String?
+            var authURLOpened: URL?
+            try await subject.authenticate(
+                serverURL: serverURL,
+                deviceCodeType: .cli,
+                onUserCode: { userCode = $0 },
+                onOpeningBrowser: { authURLOpened = $0 },
+                onAuthWaitBegin: {}
+            )
+
+            // Then
+            XCTAssertNil(userCode)
+            XCTAssertEqual(authURLOpened, authURL())
+            XCTAssertEqual(deviceCodeTransport.requests, ["POST /api/auth/device_codes"])
+            verify(opener).open(url: .value(authURL())).called(1)
+            verify(getAuthTokenService)
+                .getAuthToken(serverURL: .value(serverURL), deviceCode: .value("id"))
+                .called(1)
+            verify(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).called(1)
+        }
+    }
+
+    func test_authenticate_throwsWithoutFallingBack_when_creatingTheDeviceCodeFailsWithAServerError() async throws {
         // Given
+        deviceCodeTransport.response = (.internalServerError, #"{"message":"Internal server error"}"#)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticate(
+                serverURL: serverURL,
+                deviceCodeType: .cli,
+                onUserCode: { _ in },
+                onOpeningBrowser: { _ in },
+                onAuthWaitBegin: {}
+            ),
+            CreateDeviceCodeServiceError.unknownError(500)
+        )
+        verify(opener).open(url: .any).called(0)
+        verify(getAuthTokenService).getAuthToken(serverURL: .any, deviceCode: .any).called(0)
+    }
+
+    func test_authenticate_stopsPolling_when_theDeviceCodeExpires() async throws {
+        // Given
+        deviceCodeTransport.response = (.ok, """
+        {"device_code": "device-secret", "user_code": "WDJB-MJHT",
+         "verification_uri": "https://tuist.example/auth/device", "expires_in": 0, "interval": 1}
+        """)
         given(getAuthTokenService)
             .getAuthToken(serverURL: .any, deviceCode: .any)
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token", refreshToken: "refresh-token"
-                )
-            )
-        given(uniqueIDGenerator).uniqueID().willReturn("id")
-        given(credentialsStore)
-            .read(serverURL: .value(serverURL))
-            .willReturn(
-                ServerCredentials(
-                    accessToken: "access-token", refreshToken: "refresh-token"
-                )
-            )
-        given(credentialsStore)
-            .store(credentials: .any, serverURL: .value(serverURL))
-            .willReturn()
+            .willReturn(nil)
 
-        // When
-        var authURLOpened: URL?
-        try await subject.authenticate(
-            serverURL: serverURL,
-            deviceCodeType: .cli,
-            onOpeningBrowser: { authURLOpened = $0 },
-            onAuthWaitBegin: {}
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticate(
+                serverURL: serverURL,
+                deviceCodeType: .cli,
+                onUserCode: { _ in },
+                onOpeningBrowser: { _ in },
+                onAuthWaitBegin: {}
+            ),
+            ServerSessionControllerError.deviceCodeExpired
         )
+        verify(getAuthTokenService)
+            .getAuthToken(serverURL: .value(serverURL), deviceCode: .value("device-secret"))
+            .called(1)
+    }
 
-        // Then
-        XCTAssertEqual(authURLOpened, authURL())
+    func test_authenticate_usesLinkFlow_when_deviceCodeTypeIsApp() async throws {
+        try await withMockedDependencies {
+            // Given
+            given(getAuthTokenService)
+                .getAuthToken(serverURL: .any, deviceCode: .any)
+                .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
+            given(uniqueIDGenerator).uniqueID().willReturn("id")
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+
+            // When
+            var authURLOpened: URL?
+            try await subject.authenticate(
+                serverURL: serverURL,
+                deviceCodeType: .app,
+                onUserCode: { _ in },
+                onOpeningBrowser: { authURLOpened = $0 },
+                onAuthWaitBegin: {}
+            )
+
+            // Then
+            XCTAssertEqual(authURLOpened, authURL(type: "app"))
+            XCTAssertEqual(deviceCodeTransport.requests, [])
+        }
     }
 
     func test_whoami_when_logged_in() async throws {
@@ -183,12 +322,29 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         }
     }
 
-    fileprivate func authURL() -> URL {
+    fileprivate func authURL(type: String = "cli") -> URL {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
-        components.path = "/auth/device_codes/\(uniqueIDGenerator.uniqueID())"
+        components.path = "/auth/device_codes/id"
         components.queryItems = [
-            URLQueryItem(name: "type", value: "cli"),
+            URLQueryItem(name: "type", value: type),
         ]
         return components.url!
+    }
+}
+
+private final class DeviceCodeTransport: ClientTransport, @unchecked Sendable {
+    var response: (HTTPResponse.Status, String) = (.notFound, "")
+    private(set) var requests: [String] = []
+
+    func send(
+        _ request: HTTPRequest,
+        body _: HTTPBody?,
+        baseURL _: URL,
+        operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        requests.append("\(request.method.rawValue) \(request.path ?? "")")
+        var httpResponse = HTTPResponse(status: response.0)
+        httpResponse.headerFields[.contentType] = "application/json"
+        return (httpResponse, HTTPBody(response.1))
     }
 }

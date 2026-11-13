@@ -23,6 +23,7 @@ import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
 import TuistRunnerCommand
+import TuistSandboxCommand
 import TuistShareCommand
 import TuistSupport
 import TuistTestCommand
@@ -75,6 +76,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RegistryCommand.self,
                         RunCommand.self,
                         RunnerCommand.self,
+                        SandboxCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
                         TeardownCommand.self,
@@ -111,6 +113,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     GenerateCommand.self,
                     RunCommand.self,
                     RunnerCommand.self,
+                    SandboxCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]
@@ -419,6 +422,6 @@ public struct TuistCommand: AsyncParsableCommand {
 
     public static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(Environment.current.arguments)
-        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
+        return CommandLineArguments.removingGlobalFlags(arguments)
     }
 }

@@ -1,0 +1,213 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/aggregators.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+load 5m
+  http_requests{job="api-server", instance="0", group="production"} 0+10x10
+  http_requests{job="api-server", instance="1", group="production"} 0+20x10
+  http_requests{job="api-server", instance="0", group="canary"}   0+30x10
+  http_requests{job="api-server", instance="1", group="canary"}   0+40x10
+  http_requests{job="app-server", instance="0", group="production"} 0+50x10
+  http_requests{job="app-server", instance="1", group="production"} 0+60x10
+  http_requests{job="app-server", instance="0", group="canary"}   0+70x10
+  http_requests{job="app-server", instance="1", group="canary"}   0+80x10
+# Standard deviation and variance.
+eval instant at 50m stddev(http_requests)
+  {} 229.12878474779
+
+eval instant at 50m stddev by (instance)(http_requests)
+  {instance="0"} 223.60679774998
+  {instance="1"} 223.60679774998
+
+eval instant at 50m stdvar(http_requests)
+  {} 52500
+
+eval instant at 50m stdvar by (instance)(http_requests)
+  {instance="0"} 50000
+  {instance="1"} 50000
+
+# Float precision test for standard deviation and variance
+clear
+load 5m
+  http_requests{job="api-server", instance="0", group="production"} 0+1.33x10
+  http_requests{job="api-server", instance="1", group="production"} 0+1.33x10
+  http_requests{job="api-server", instance="0", group="canary"} 0+1.33x10
+
+eval instant at 50m stddev(http_requests)
+  {} 0.0
+
+eval instant at 50m stdvar(http_requests)
+  {} 0.0
+clear
+
+# Test stddev produces consistent results regardless the order the data is loaded in.
+load 5m
+	series{label="a"} 1
+	series{label="b"} 2
+	series{label="c"} {{schema:1 sum:15 count:10 buckets:[3 2 5 7 9]}}
+
+# The histogram is ignored here so the result doesn't change but it has an info annotation now.
+eval instant at 0m stddev(series)
+	expect info
+	{} 0.5
+
+eval instant at 0m stdvar(series)
+	expect info
+	{} 0.25
+
+# The histogram is ignored here so there is no result but it has an info annotation now.
+eval instant at 0m stddev({label="c"})
+  expect info
+
+eval instant at 0m stdvar({label="c"})
+  expect info
+
+eval instant at 0m stddev by (label) (series)
+	expect info
+	{label="a"} 0
+	{label="b"} 0
+
+eval instant at 0m stdvar by (label) (series)
+	expect info
+	{label="a"} 0
+	{label="b"} 0
+
+clear
+
+load 5m
+	series{label="a"} {{schema:1 sum:15 count:10 buckets:[3 2 5 7 9]}}
+	series{label="b"} 1
+	series{label="c"} 2
+
+eval instant at 0m stddev(series)
+	expect info
+	{} 0.5
+
+eval instant at 0m stdvar(series)
+	expect info
+	{} 0.25
+
+eval instant at 0m stddev by (label) (series)
+	expect info
+	{label="b"} 0
+	{label="c"} 0
+
+eval instant at 0m stdvar by (label) (series)
+	expect info
+	{label="b"} 0
+	{label="c"} 0
+
+clear
+
+load 5m
+	series{label="a"} 1
+	series{label="b"} 2
+	series{label="c"} NaN
+
+eval instant at 0m stddev(series)
+	{} NaN
+
+eval instant at 0m stdvar(series)
+	{} NaN
+
+eval instant at 0m stddev by (label) (series)
+	{label="a"} 0
+	{label="b"} 0
+	{label="c"} NaN
+
+eval instant at 0m stdvar by (label) (series)
+	{label="a"} 0
+	{label="b"} 0
+	{label="c"} NaN
+
+clear
+
+load 5m
+	series{label="a"} NaN
+	series{label="b"} 1
+	series{label="c"} 2
+
+eval instant at 0m stddev(series)
+	{} NaN
+
+eval instant at 0m stdvar(series)
+	{} NaN
+
+eval instant at 0m stddev by (label) (series)
+	{label="a"} NaN
+	{label="b"} 0
+	{label="c"} 0
+
+eval instant at 0m stdvar by (label) (series)
+	{label="a"} NaN
+	{label="b"} 0
+	{label="c"} 0
+
+clear
+
+load 5m
+	series NaN
+
+eval instant at 0m stddev(series)
+	{} NaN
+
+eval instant at 0m stdvar(series)
+	{} NaN
+
+clear
+
+load 5m
+	series{label="a"} 1
+	series{label="b"} 2
+	series{label="c"} inf
+
+eval instant at 0m stddev (series)
+	{} NaN
+
+eval instant at 0m stdvar (series)
+	{} NaN
+
+eval instant at 0m stddev by (label) (series)
+	{label="a"} 0
+	{label="b"} 0
+	{label="c"} NaN
+
+eval instant at 0m stdvar by (label) (series)
+	{label="a"} 0
+	{label="b"} 0
+	{label="c"} NaN
+
+clear
+
+load 5m
+	series{label="a"} inf
+	series{label="b"} 1
+	series{label="c"} 2
+
+eval instant at 0m stddev(series)
+	{} NaN
+
+eval instant at 0m stdvar(series)
+	{} NaN
+
+eval instant at 0m stddev by (label) (series)
+	{label="a"} NaN
+	{label="b"} 0
+	{label="c"} 0
+
+eval instant at 0m stdvar by (label) (series)
+	{label="a"} NaN
+	{label="b"} 0
+	{label="c"} 0
+
+clear
+
+load 5m
+	series inf
+
+eval instant at 0m stddev(series)
+	{} NaN
+
+eval instant at 0m stdvar(series)
+	{} NaN

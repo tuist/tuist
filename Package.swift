@@ -61,6 +61,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistShareCommand",
     "TuistRunCommand",
     "TuistRunnerCommand",
+    "TuistSandboxCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -89,6 +90,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistServer",
     "TuistCI",
+    "TuistGit",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -120,7 +122,6 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
     "TuistServer",
-    "TuistOIDC",
     "TuistEnvKey",
     "TuistCAS",
     "TuistEncodable",
@@ -151,11 +152,14 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistLogging",
     "TuistHTTP",
+    "TuistOIDC",
     "TuistThreadSafe",
     "TuistOpener",
     "TuistUniqueIDGenerator",
     "TuistSupport",
     "TuistSimulator",
+    "TuistGit",
+    "TuistAlert",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -193,6 +197,7 @@ var tuistREAPIDependencies: [Target.Dependency] = [
     fileSystemDependency,
     .product(name: "libzstd", package: "facebook.zstd"),
     pathDependency,
+    "TuistConstants",
     "TuistEnvironment",
     "TuistHTTP",
     .product(name: "NIOCore", package: "apple.swift-nio"),
@@ -425,6 +430,17 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistEnvironment",
     "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistHTTP",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistSandboxCommandDependencies: [Target.Dependency] = [
+    argumentParserDependency,
+    pathDependency,
+    "TuistProcess",
+    "TuistServer",
+    "TuistEnvironment",
     "TuistConfigLoader",
     "TuistHTTP",
     "TuistNooraExtension",
@@ -1017,6 +1033,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistSandboxCommand",
+        dependencies: tuistSandboxCommandDependencies,
+        path: "cli/Sources/TuistSandboxCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1298,6 +1322,22 @@ var targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Tests/TuistRunnerCommandTests"
+    ),
+    .testTarget(
+        name: "TuistSandboxCommandTests",
+        dependencies: [
+            "TuistSandboxCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistHTTP",
+            "TuistNooraTesting",
+            "TuistServer",
+            argumentParserDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistSandboxCommandTests"
     ),
     .testTarget(
         name: "TuistInitCommandTests",
@@ -1933,6 +1973,10 @@ targets.append(
             "Mockable": .staticFramework,
             "Subprocess": .staticFramework,
             "_NIOFileSystem": .staticFramework,
+            // Dynamic, so the observer registers when a test bundle loads even when the bundle
+            // references nothing in it; a static framework would be dropped by the linker.
+            "TestCoverageAttribution": .framework,
+            "TestCoverageAttributionObserver": .framework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -2064,7 +2108,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.5")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.8")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -2109,6 +2153,8 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
+        // Per-test coverage evidence for the unit and acceptance test targets (Module.swift).
+        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.5.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),

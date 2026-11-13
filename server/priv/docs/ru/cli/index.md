@@ -21,8 +21,8 @@ tuist --help
 
 ## Конфигурация {#configuration}
 
-Поведение CLI можно настроить через файл `tuist.toml`. См. <.localized_link href="/references/tuist-toml">справочник по tuist.toml</.localized_link> для всех доступных опций.
+Поведение CLI можно настроить через файл `tuist.toml`. См. <.localized_link href="/references/tuist-toml">справочник по tuist.toml</.localized_link> со всеми доступными опциями.
 
 ## Устранение неполадок {#troubleshooting}
 
-Если возникают проблемы, обратитесь к <.localized_link href="/cli/debugging">руководству по отладке</.localized_link>: там описаны инструменты для диагностики, включая логи сессий и сетевые дампы.
+Если возникнут проблемы, обратитесь к <.localized_link href="/cli/debugging">руководству по отладке</.localized_link>, где описаны инструменты для диагностики, включая логи сессий и сетевые дампы.

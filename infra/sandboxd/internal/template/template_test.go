@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,9 +15,9 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 func TestShapeParsing(t *testing.T) {
@@ -91,11 +92,29 @@ func TestStoreDiscovery(t *testing.T) {
 
 func TestBuildID(t *testing.T) {
 	id := BuildID(Template{Name: "default", Tag: "sha-abc.1"}, Shape{VCPUs: 2, MemoryMB: 4096})
-	if id != "tmpl-default-sha-abc-1-2x4096" {
+	if !strings.HasPrefix(id, "tmpl-") || len(id) != 37 {
 		t.Fatalf("got %q", id)
 	}
 	if err := vm.ValidateID(BuildID(Template{Name: strings.Repeat("n", 40), Tag: strings.Repeat("t", 40)}, Shape{VCPUs: 2, MemoryMB: 4096})); err != nil {
 		t.Fatal(err)
+	}
+	tmpl := Template{Name: "bazel", Tag: "sha-" + strings.Repeat("a", 40)}
+	shape := Shape{VCPUs: 2, MemoryMB: 4096}
+	id = BuildID(tmpl, shape)
+	if socket := filepath.Join(vm.RootDir("/data/sandboxes/jail", id), firecracker.APISocketPath); len(socket) >= 108 {
+		t.Fatalf("full image pin exceeds Unix socket limit: %s", socket)
+	}
+	if id != BuildID(tmpl, shape) {
+		t.Fatal("template ID is not stable")
+	}
+	for _, other := range []string{
+		BuildID(Template{Name: "bazel", Tag: tmpl.Tag + "b"}, shape),
+		BuildID(Template{Name: "other", Tag: tmpl.Tag}, shape),
+		BuildID(tmpl, Shape{VCPUs: 4, MemoryMB: 4096}),
+	} {
+		if id == other {
+			t.Fatal("distinct template identities collided")
+		}
 	}
 }
 
@@ -337,25 +356,96 @@ func TestBuilderEnsureCallerCancellationDoesNotAbortBuild(t *testing.T) {
 	}
 }
 
+func TestRemoveStaleTagsKeepsCurrentAndInUseTags(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	for _, tag := range []string{"old", "paused", "current"} {
+		seedTemplate(t, dir, "default", tag)
+	}
+	other := seedTemplate(t, dir, "bazel", "old")
+	// An interrupted seed leaves a tag directory without a rootfs.
+	if err := os.MkdirAll(filepath.Join(dir, "default", "partial"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := store.RemoveStaleTags("default", "current", func(tag string) bool { return tag == "paused" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(removed, ",") != "old,partial" {
+		t.Fatalf("removed %v, want [old partial]", removed)
+	}
+	list, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, tmpl := range list {
+		left = append(left, tmpl.Name+"/"+tmpl.Tag)
+	}
+	if strings.Join(left, ",") != "bazel/old,default/current,default/paused" {
+		t.Fatalf("left %v", left)
+	}
+	if !vm.Exists(other.Rootfs()) {
+		t.Fatal("another template's tags must be left alone")
+	}
+}
+
 func TestCleanPartialBuilds(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
 	ready := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 4096})
 	partial := tmpl.ShapeDir(Shape{VCPUs: 4, MemoryMB: 8192})
 	staging := partial + buildSuffix
-	for _, d := range []string{ready, partial, staging} {
+	// Built by an older Firecracker, whose snapshot format the current one
+	// cannot load.
+	stale := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 16384})
+	// Built with a workspace of another size than creates now ask for.
+	resized := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 8192})
+	for _, d := range []string{ready, partial, staging, stale, resized} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(ready, ReadyFile), nil, 0o644); err != nil {
-		t.Fatal(err)
+	for dir, meta := range map[string]string{
+		ready:   `{"firecracker_version":"v1.16.2","workspace_gb":30}`,
+		stale:   `{"firecracker_version":"v1.16.1","workspace_gb":30}`,
+		resized: `{"firecracker_version":"v1.16.2","workspace_gb":10}`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, ReadyFile), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, MetadataFile), []byte(meta), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	store := &Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(); err != nil {
+	if err := store.CleanPartialBuilds("v1.16.2", 30); err != nil {
 		t.Fatal(err)
 	}
-	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) {
+	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) {
 		t.Fatal("clean removed the wrong directories")
+	}
+}
+
+func TestBazelTemplatePreparesAndUnmountsPristineWorkspace(t *testing.T) {
+	dataDir := t.TempDir()
+	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "bazel", "t1")
+	launcher := &fakevm.Launcher{}
+	b := newBuilder(t, dataDir, launcher, &fakevm.Network{}, &eventSink{})
+	artifacts, err := b.Ensure(context.Background(), tmpl, Shape{VCPUs: 2, MemoryMB: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !artifacts.Meta.WorkspacePrepared || vm.FileSize(artifacts.Workspace) != 10<<30 {
+		t.Fatalf("missing pristine workspace: %+v", artifacts)
+	}
+	requests := launcher.Last().Agent.RequestsOf("configure")
+	if len(requests) != 1 || requests[0]["format_workspace"] != true {
+		t.Fatalf("template must format once: %v", requests)
+	}
+	execs := launcher.Last().Agent.RequestsOf("exec")
+	if len(execs) != 1 || execs[0]["cwd"] != "/" || !strings.Contains(fmt.Sprint(execs[0]["cmd"]), "exec /bin/umount /workspace") {
+		t.Fatalf("template must unmount before snapshot: %v", execs)
 	}
 }

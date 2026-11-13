@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )

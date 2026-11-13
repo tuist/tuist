@@ -51,7 +51,7 @@ func metadataHeaderSetting(t *testing.T, base, overlay map[string]interface{}, c
 
 func TestKuraIngressPreservesREAPIMetadata(t *testing.T) {
 	base := platformIngressValues(t, "values.yaml")
-	for _, overlayName := range []string{"values.yaml", "values-hetzner.yaml", "values-tuist.yaml", "values-tuist-staging.yaml", "values-tuist-canary.yaml", "values-tuist-preview.yaml", "values-tuist-pentest.yaml"} {
+	for _, overlayName := range []string{"values.yaml", "values-hetzner.yaml", "values-tuist.yaml", "values-tuist-staging.yaml", "values-tuist-canary.yaml", "values-tuist-pentest.yaml"} {
 		t.Run(overlayName, func(t *testing.T) {
 			overlay := platformIngressValues(t, overlayName)
 			controllers := 0

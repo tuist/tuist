@@ -26,7 +26,7 @@ data class TaskExecutionTelemetry(
  * listener registry. Nested cache operations finish before their owning task:
  * carry their metadata up the operation tree without retaining every operation.
  */
-internal class BuildExecutionTelemetry {
+internal class BuildExecutionTelemetry(rootDir: String? = null) {
     private data class CacheWork(
         val key: String? = null,
         val size: Long? = null,
@@ -47,7 +47,7 @@ internal class BuildExecutionTelemetry {
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
-    val failures = BuildFailureTelemetry()
+    val failures = BuildFailureTelemetry(rootDir)
     val cacheSavings = BuildCacheSavingsTelemetry()
     val tasks = mutableListOf<TaskOutcomeData>()
     var lastTaskAt: Long? = null
@@ -113,7 +113,8 @@ internal class BuildExecutionTelemetry {
                 startedAt = startedAt, remoteCacheMiss = work.lookup == "miss", remoteCacheStored = work.stored,
                 execution = TaskExecutionTelemetry(details.buildPath,
                     details.taskClass.name.removeSuffix("_Decorated"), cacheability,
-                    result.isIncremental, work.lookup, work.downloadMs, work.uploadMs)
+                    result.isIncremental, work.lookup, work.downloadMs, work.uploadMs),
+                failure = failures.report(event.failure)
             ))
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {

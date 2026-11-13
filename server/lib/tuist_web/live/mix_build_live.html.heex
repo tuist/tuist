@@ -1,4 +1,9 @@
-<div id="build-run" data-build-system="mix">
+<div
+  id="build-run"
+  data-build-system="mix"
+  phx-hook="PageFavicon"
+  data-favicon-status={@run.status}
+>
   <.button
     label={dgettext("dashboard_builds", "Builds")}
     data-part="back-button"
@@ -367,6 +372,9 @@
       source="mix"
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
+      }
+      trace_url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
       }
     />
   </section>

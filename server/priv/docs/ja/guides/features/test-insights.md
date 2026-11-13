@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Test Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Test Insights."
+  "title": "テストインサイト",
+  "titleTemplate": ":title · 機能 · ガイド · Tuist",
+  "description": "Tuist Test Insights を使用して、Xcode、Gradle、Bazel、Elixir、Rust、Once プロジェクトの不安定なテストや低速なテストを特定します。"
 }
 ---
 # テストインサイト {#test-insights}
 
-Test Insights を使用して、低速なテストの特定、不安定なテストの追跡、失敗した CI 実行の迅速な理解により、テストスイートの健全性を監視します。現在、Xcode、Gradle、Bazel、Elixir、および Rust をサポートしています。
+Test Insights を使用して、低速なテストの特定、不安定なテストの追跡、失敗した CI 実行の迅速な理解により、テストスイートの健全性を監視します。現在、Xcode、Gradle、Bazel、Elixir、Rust、Once をサポートしています。利用可能な結果とタイミングはランナーによって異なります。サポートされているビルドシステムでテストがどのコードを実行するかを追跡するには、<.localized_link href="/guides/features/test-code-coverage">コードカバレッジ</.localized_link>を参照してください。
 
 <.home_cards>
   <.home_card
@@ -32,7 +32,12 @@ Test Insights を使用して、低速なテストの特定、不安定なテス
 />
   <.home_card
     title="Rust"
-    details="通常のテストコマンドを使用して、Cargo テストの結果、スイートの実行時間、および doctest を追跡します。"
+    details="通常のテストコマンドを使用して Cargo テストの結果、スイートの実行時間、および doctest を追跡します。"
     link="/guides/features/test-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Once のネイティブ統合を通じて、報告されたテストターゲット、スイート、ケース、失敗、および再試行回数を追跡します。"
+    link="/guides/features/test-insights/once"
 />
 </.home_cards>

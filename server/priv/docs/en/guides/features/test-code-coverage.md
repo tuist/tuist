@@ -11,8 +11,23 @@ Code coverage tells you which lines of your code your tests executed. Tuist uplo
 
 <.home_cards>
   <.home_card
+    title="Xcode"
+    details="Upload the code coverage of Xcode projects tested with tuist xcodebuild test."
+    link="/guides/features/test-code-coverage/xcode"
+/>
+  <.home_card
+    title="Generated projects"
+    details="Measure code coverage in Tuist generated projects with tuist test, the binary cache, and selective testing."
+    link="/guides/features/test-code-coverage/generated-xcode-project"
+/>
+  <.home_card
     title="Elixir"
     details="Upload the line coverage of Elixir projects tested with mix test --cover."
     link="/guides/features/test-code-coverage/elixir"
+/>
+  <.home_card
+    title="Rust"
+    details="Upload the line coverage of Rust projects tested with cargo test."
+    link="/guides/features/test-code-coverage/rust"
 />
 </.home_cards>

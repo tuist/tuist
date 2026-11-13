@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Test edge cases for quantile_over_time.
+load 1m
+  metric{case="floats"} 1 2
+  metric{case="NaN at end"} 1 NaN
+  metric{case="NaN at start"} NaN 2
+  metric{case="all NaN"} NaN NaN
+  metric{case="Inf at start"} 1 Inf
+  metric{case="Inf at end"} Inf 2
+  metric{case="all Inf"} Inf Inf
+  metric{case="-Inf at start"} 1 -Inf
+  metric{case="-Inf at end"} -Inf 2
+  metric{case="all -Inf"} -Inf -Inf
+
+eval instant at 1m quantile_over_time(0.5, metric[1m1s])
+  {case="floats"} 1.5
+  {case="NaN at end"} NaN
+  {case="NaN at start"} NaN
+  {case="all NaN"} NaN
+  {case="Inf at start"} Inf
+  {case="Inf at end"} Inf
+  {case="all Inf"} Inf
+  {case="-Inf at start"} -Inf
+  {case="-Inf at end"} -Inf
+  {case="all -Inf"} -Inf
+
+clear
+
+load 1m
+  quantile _ 0.2 0.5 0.3
+  metric   1 4   9   16
+
+eval range from 1m to 3m step 1m quantile_over_time(scalar(quantile), metric[1m1s])
+  {} 1.6 6.5 11.1
+

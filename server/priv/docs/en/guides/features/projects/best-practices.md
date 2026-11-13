@@ -26,7 +26,7 @@ Build configurations were designed to embody different build settings, and proje
 - **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
 
 > [!NOTE]
-> **Non-standard Configurations**
+> **Non-standard configurations**
 >
 > While Tuist supports non-standard configurations and makes them easier to manage compared to vanilla Xcode projects, you'll receive warnings if configurations are not consistent throughout the dependency graph. This helps ensure build reliability and prevents configuration-related issues.
 
@@ -48,15 +48,21 @@ We recommend adopting buildable folders instead of traditional `Target.sources` 
 ::: code-group
 
 ```swift [With buildable folders]
-let target = Target(
+let target: Target = .target(
   name: "App",
+  destinations: .iOS,
+  product: .app,
+  bundleId: "dev.tuist.App",
   buildableFolders: ["App/Sources", "App/Resources"]
 )
 ```
 
 ```swift [Without buildable folders]
-let target = Target(
+let target: Target = .target(
   name: "App",
+  destinations: .iOS,
+  product: .app,
+  bundleId: "dev.tuist.App",
   sources: ["App/Sources/**"],
   resources: ["App/Resources/**"]
 )
@@ -166,3 +172,7 @@ Each worktree resolves Swift packages independently. On a project with a large d
 #### Give agents access to project insights {#worktrees-mcp}
 
 Once builds and tests are running across many worktrees, the most useful thing an agent can do is reason about *which* of those runs regressed, which tests are flaky, or how the bundle size has changed. Tuist exposes that data through the <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> and the <.localized_link href="/guides/features/agentic-coding/skills">Skills</.localized_link> package. Pick one per workflow and stick to it; mixing both for the same task tends to produce inconsistent agent behavior.
+
+## Related {#related}
+
+Read [how Monzo keeps a growing modular project consistent with Tuist](https://tuist.dev/customers/monzo) for a team's experience applying generated projects at scale.

@@ -27,6 +27,19 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     end
   end
 
+  test "execution VMs count against the account's execution concurrency, not its sandbox limits" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
+    account = account_fixture()
+    agent = sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
+
+    account
+    |> then(&sandbox_fixture(account: &1, state: :running, workspace_gb: 10, memory_mb: 4096))
+    |> Ecto.Changeset.change(purpose: :remote_execution)
+    |> Repo.update!()
+
+    assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus, memory_mb: 4096}
+  end
+
   test "in-flight starts reserve quota on different nodes; paused and failed starts release it" do
     account = account_fixture()
     {:ok, _} = Concurrency.update_limits(account, %{sandbox_vcpus_limit: 4, sandbox_memory_gb_limit: 8})

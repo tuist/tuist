@@ -1,6 +1,10 @@
 defmodule Tuist.MixProject do
   use Mix.Project
 
+  # Threads uses Tuist's remote sandboxes, never Condukt's native backends.
+  System.put_env("CONDUKT_BASHKIT_DISABLE", "1")
+  System.put_env("CONDUKT_MICROSANDBOX_DISABLE", "1")
+
   def project do
     [
       app: :tuist,
@@ -12,7 +16,12 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
-      tuist: [project: "tuist/server", cache: true],
+      tuist: [
+        project: "tuist/server",
+        # The lumis and mdex_native NIFs exceed the 64 MiB snapshot limit. Their
+        # builders still let the dependents (mdex) be cached.
+        cache: [portable: true, builders: cache_builders(), exclude: [:lumis, :mdex_native]]
+      ],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
@@ -26,7 +35,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh, :inets]
     ]
   end
 
@@ -59,13 +68,17 @@ defmodule Tuist.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4"},
-      {:finch, "~> 0.21.0"},
+      {:bamboo_ses, "~> 0.5.0"},
+      {:finch, "~> 0.24.0", override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.12.0", override: true},
+      # Keep the production WebSocket adapter while qualifying storage changes;
+      # upgrading this otherwise re-resolved transitive dependency is separate.
+      {:websock_adapter, "0.6.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -101,6 +114,9 @@ defmodule Tuist.MixProject do
       {:ueberauth_google, "~> 0.12"},
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
+      {:condukt, path: "../condukt", override: true},
+      # Earlier ReqLLM releases use newer Finch APIs without declaring the dependency.
+      {:req_llm, "~> 1.26.0", override: true},
       {:telemetry_test, "~> 0.1.2"},
       {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
@@ -126,6 +142,8 @@ defmodule Tuist.MixProject do
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
+      {:nimble_totp, "~> 1.0"},
+      {:wax_, "~> 0.7"},
       {:yaml_elixir, "~> 2.11"},
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
@@ -268,11 +286,112 @@ defmodule Tuist.MixProject do
   # without requiring an SDK module before a cold worker has loaded it.
   defp compile(args) do
     if "--no-compile" not in args do
-      Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+      compile_tuist_ex()
     end
 
     Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
     Mix.Task.run("tuist.compile", args)
+  end
+
+  # `deps.compile` rebuilds every dependency it is given, and a rebuilt fetched
+  # dependency makes Mix recompile the whole project. Give it only what
+  # `deps.loadpaths` would compile: dependencies that are not ok, and local ones.
+  defp compile_tuist_ex do
+    deps =
+      ["tuist_ex"]
+      |> Mix.Dep.filter_by_name(Mix.Dep.load_and_cache(), include_children: true)
+      |> Enum.reject(&(Mix.Dep.ok?(&1) and &1.scm.fetchable?()))
+      |> Enum.map(&Atom.to_string(&1.app))
+
+    if deps != [], do: Mix.Task.run("deps.compile", deps)
+  end
+
+  # Audited compile steps that tuist_ex cannot model on its own. Only
+  # bcrypt_elixir and muontrap run a native toolchain. Re-audit when one of these
+  # dependencies is updated.
+  defp cache_builders do
+    precompiled_nif_env = ~w(RUSTLER_PRECOMPILED_FORCE_BUILD_ALL TARGET_ARCH TARGET_VENDOR TARGET_OS TARGET_ABI)
+
+    [
+      # The compile alias copies installer/templates/phx_web/components/core_components.ex.eex
+      # over priv/templates/phx.gen.live/core_components.ex.eex; the package ships both identical.
+      phoenix: [native: false, outputs: []],
+      # The compile alias runs `mix format` on published sources that are already formatted.
+      peep: [native: false, outputs: []],
+      # The compile.app alias creates an empty priv directory.
+      minio_server: [native: false, outputs: [], generated: ["priv"]],
+      # rebar3 evaluates src/gproc.app.src.script, which only rewrites a "zomp" vsn.
+      gproc: [native: false, outputs: []],
+      # rebar3 loads the rebar3_ex_doc plugin from `plugins`, which only adds a docs provider.
+      otel_http: [native: false, outputs: []],
+      # The asn1_compiler dependency generates these from asn1/*.asn1 with OTP's asn1ct.
+      wax_: [
+        native: false,
+        outputs: [],
+        generated: for(v <- 1..3, ext <- ~w(erl hrl asn1db), do: "src/AndroidKeyAttestationV#{v}.#{ext}")
+      ],
+      # RustlerPrecompiled downloads the checksum-pinned NIF for the target triple and NIF
+      # version into priv/native; these variables select the target, variant or a source build.
+      lumis: [
+        native: false,
+        outputs: ["priv/native"],
+        generated: ["priv/native"],
+        env: ~w(LUMIS_BUILD LUMIS_USE_LEGACY_ARTIFACTS) ++ precompiled_nif_env
+      ],
+      mdex_native: [
+        native: false,
+        outputs: ["priv/native"],
+        generated: ["priv/native"],
+        env: ~w(MDEX_NATIVE_BUILD MDEX_NATIVE_USE_LEGACY_ARTIFACTS) ++ precompiled_nif_env
+      ]
+    ] ++
+      case :os.type() do
+        # The :file_system compiler builds a C listener on macOS only.
+        {:unix, :darwin} -> []
+        _ -> [file_system: [native: false, outputs: []]]
+      end ++
+      if System.get_env("QUIC_BUILD_NIF") == "1" do
+        []
+      else
+        # The rebar3 pre_hooks run c_src/build_nif.sh, which builds the optional NIF
+        # only when QUIC_BUILD_NIF=1 and otherwise exits without writing anything.
+        [quic: [native: false, outputs: [], env: ["QUIC_BUILD_NIF"]]]
+      end ++
+      if String.upcase(System.get_env("VIX_COMPILATION_MODE", "PRECOMPILED_NIF_AND_LIBVIPS")) ==
+           "PRECOMPILED_NIF_AND_LIBVIPS" do
+        # elixir_make extracts the NIF and libvips verified against checksum.exs
+        # for the target triple and NIF version; other modes compile C.
+        [vix: [native: false, outputs: ["priv/vix.so"], env: ~w(VIX_COMPILATION_MODE TARGET_ARCH TARGET_OS TARGET_ABI)]]
+      else
+        []
+      end ++
+      case native_platform() do
+        nil ->
+          []
+
+        platform ->
+          # Plain C builds through elixir_make: cc and make are keyed by their bytes.
+          [
+            bcrypt_elixir: [platform: platform, outputs: ["priv/bcrypt_nif.so"], tools: ["cc", "make"]],
+            muontrap: [platform: platform, outputs: ["priv/muontrap"], tools: ["cc", "make"]]
+          ]
+      end
+  end
+
+  # The Linux distribution release, which fixes the C library and system headers
+  # native dependencies compile against, and the architecture. Elsewhere native
+  # dependencies are not cached.
+  defp native_platform do
+    with {:unix, :linux} <- :os.type(),
+         {:ok, os_release} <- File.read("/etc/os-release"),
+         %{"ID" => id, "VERSION_ID" => version} <-
+           ~r/^(ID|VERSION_ID)="?([^"\n]*)"?$/m
+           |> Regex.scan(os_release, capture: :all_but_first)
+           |> Map.new(&List.to_tuple/1) do
+      "#{id}-#{version}-#{:erlang.system_info(:system_architecture)}"
+    else
+      _ -> nil
+    end
   end
 
   defp releases do

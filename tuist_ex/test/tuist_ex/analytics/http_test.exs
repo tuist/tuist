@@ -11,6 +11,33 @@ defmodule TuistEx.Analytics.HTTPTest do
     :ok
   end
 
+  test "sends a dispatch grant to shard requests but never reports" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "TUIST_CACHE_SIGNING_GRANT" -> "signed.runner.grant"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "access-token"} end)
+
+    expect(HTTP, :request, fn :post, _, _, headers ->
+      assert {"x-tuist-runner-grant", "signed.runner.grant"} in headers
+      assert {"authorization", "Bearer access-token"} in headers
+      {:ok, 200, %{}}
+    end)
+
+    assert {:ok, %{}} =
+             AnalyticsHTTP.project_request(:post, "/tests/shards", %{}, environment: environment)
+
+    expect(HTTP, :request, fn :post, _, _, headers ->
+      refute List.keymember?(headers, "x-tuist-runner-grant", 0)
+      {:ok, 200, %{}}
+    end)
+
+    assert :ok = AnalyticsHTTP.submit_test_run(%{}, environment: environment)
+  end
+
   test "POSTs the payload to /api/projects/:acc/:proj/tests with a bearer token" do
     environment = fn
       "TUIST_URL" -> "https://tuist.example"
