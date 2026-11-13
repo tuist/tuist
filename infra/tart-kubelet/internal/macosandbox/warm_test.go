@@ -229,27 +229,3 @@ func TestClaimReusesTheWorkspaceVolumeOnlyAtItsSize(t *testing.T) {
 		})
 	}
 }
-
-// A host stops advertising itself for warm Pods while its sandbox service is
-// not ready or its disk has no room for another VM, so the scheduler places
-// them elsewhere instead of on a host that refuses each one.
-func TestWarmHostLabelFollowsReadinessAndDiskRoom(t *testing.T) {
-	dir := t.TempDir()
-	binary := filepath.Join(dir, "tart")
-	if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ \"$1\" = list ] && echo '[]'\nexit 0\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: dir}}
-	s := &Service{manager: &Manager{Runtime: runtime}}
-	labels, err := s.WarmHostLabels(t.Context())
-	if err != nil || len(labels) != 0 {
-		t.Fatalf("a host whose sandbox service is not ready advertised warm Pods: %v %v", labels, err)
-	}
-	s.ready = true
-	// A template root disk larger than the filesystem never fits.
-	runtime.rootfs.Store(1 << 62)
-	labels, err = s.WarmHostLabels(t.Context())
-	if err != nil || len(labels) != 0 {
-		t.Fatalf("a host without disk room advertised warm Pods: %v %v", labels, err)
-	}
-}

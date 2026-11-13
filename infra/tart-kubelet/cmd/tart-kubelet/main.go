@@ -388,6 +388,7 @@ func main() {
 		nodeLabels = map[string]string{}
 	}
 	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
+	nodeLabels[macosandbox.WarmHostLabel] = "v1"
 	// The CI client inherits Tart's default store, as the CLI resolves it.
 	ciStore := os.Getenv("TART_HOME")
 	if ciStore == "" {
@@ -538,8 +539,6 @@ func main() {
 		},
 		DynamicLabels: []nodeagent.LabelAdvertisement{
 			{Name: "golden-images", Labels: goldenLabelProvider},
-			// Warm sandbox Pods select hosts that can boot one now.
-			{Name: "macos-sandbox-warm-host", Labels: sandboxService.WarmHostLabels},
 			// The custom volume lineages this host holds a master of, so dispatch
 			// can prefer it for jobs that attach them.
 			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {

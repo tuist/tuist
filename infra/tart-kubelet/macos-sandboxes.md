@@ -151,11 +151,7 @@ skips its clone and boot, leaving the workspace volume (`macOS sandbox boot
 phases` and `claim phases` in the kubelet log time each step).
 
 tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
-only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. A host
-advertises it only while its sandbox service is ready and its disk has room
-for one more 8 GiB VM (checked every node heartbeat), so warm Pods are not
-scheduled onto a host that would refuse each one, and a warm boot checks the
-room before it clones. The VM is
+only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
 named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
 instead of waiting when the host lacks room, the template or disk. A create of
 the same template, image and shape claims a ready VM under the same
