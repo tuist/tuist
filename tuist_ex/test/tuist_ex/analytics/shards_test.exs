@@ -411,7 +411,7 @@ defmodule TuistEx.Analytics.ShardsTest do
            ) == {:error, :no_build}
   end
 
-  test "retries a build download that fails to connect, then gives up after three attempts" do
+  test "retries a build download that fails to connect, then gives up after nine attempts" do
     stub(TuistEx.Analytics.Report, :debug, fn _ -> :ok end)
 
     timeout =
@@ -429,10 +429,82 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert_received {:slept, 500}
     assert_received {:slept, 1000}
 
-    expect(TuistEx.HTTP, :download, 3, fn _url, _archive -> {:error, timeout} end)
+    expect(TuistEx.HTTP, :download, 9, fn _url, _archive -> {:error, timeout} end)
 
     assert Shards.download_build("http://shard-storage/build", "/nowhere", sleep: fn _ -> :ok end) ==
              {:error, timeout}
+  end
+
+  test "retries a shard lookup the server could not answer, but not one it does not know" do
+    parent = self()
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :get, "/tests/shards/run-1/0", nil, _ ->
+      {:error, {:http, 500, %{"message" => "storage unavailable"}}}
+    end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :get, "/tests/shards/run-1/0", nil, _ ->
+      {:ok, %{"modules" => ["ATest"]}}
+    end)
+
+    assert Shards.fetch("run-1", 0, sleep: &send(parent, {:slept, &1})) ==
+             {:ok, %{"modules" => ["ATest"]}}
+
+    assert_received {:slept, 500}
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :get, _, nil, _ ->
+      {:error, {:http, 404, %{}}}
+    end)
+
+    assert Shards.fetch("run-1", 9, sleep: fn _ -> flunk("must not retry") end) ==
+             {:error, {:http, 404, %{}}}
+  end
+
+  test "retries starting and completing a build upload while the store restarts", %{
+    directory: directory
+  } do
+    build = Path.join(directory, "_build")
+    File.mkdir_p!(Path.join(build, "test/lib/app/ebin"))
+    File.write!(Path.join(build, "test/lib/app/ebin/app.app"), "{application, app, []}.")
+    refused = {:error, {:failed_connect, [{:inet, [:inet], :econnrefused}]}}
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :post,
+                                                        "/tests/shards/upload/start",
+                                                        _,
+                                                        _ ->
+      refused
+    end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :post,
+                                                        "/tests/shards/upload/start",
+                                                        _,
+                                                        _ ->
+      {:ok, %{"data" => %{"upload_id" => "upload-1"}}}
+    end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :post,
+                                                        "/tests/shards/upload/generate-url",
+                                                        %{upload_id: "upload-1", part_number: 1},
+                                                        _ ->
+      {:ok, %{"data" => %{"url" => "http://shard-storage/part-1"}}}
+    end)
+
+    expect(TuistEx.HTTP, :put_binary, fn "http://shard-storage/part-1", _chunk ->
+      {:ok, "etag-1"}
+    end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, 2, fn :post,
+                                                           "/tests/shards/upload/complete",
+                                                           body,
+                                                           _ ->
+      assert body.parts == [%{part_number: 1, etag: "etag-1"}]
+
+      if Process.put(:completed, true),
+        do: {:ok, %{"status" => "success"}},
+        else: {:error, {:http, 500, %{"message" => "storage unavailable"}}}
+    end)
+
+    assert {:ok, size} = Shards.upload_build("run-1", build, sleep: fn _ -> :ok end)
+    assert size > 0
   end
 
   test "writes the shard matrix where GitHub Actions reads job outputs", %{directory: directory} do
