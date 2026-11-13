@@ -89,6 +89,12 @@ type Record struct {
 	// WorkspaceVolumeGB is the quota of the workspace volume the VM already
 	// has, 0 before it has one. Warm VMs add it before a sandbox claims them.
 	WorkspaceVolumeGB int `json:"workspace_volume_gb,omitempty"`
+	// CheckoutShare is the VM's checkout share, bound when it first boots, or
+	// empty for a VM that booted without one (checkout.go).
+	CheckoutShare string `json:"checkout_share,omitempty"`
+	// Checkout is the grant of the session whose export the host takes at the
+	// VM's next fence.
+	Checkout *protocol.CheckoutGrant `json:"checkout,omitempty"`
 }
 
 // Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
@@ -125,6 +131,8 @@ type Manager struct {
 	Capacity      Capacity
 	Emit          func(protocol.Event)
 	Grace         time.Duration
+	// Checkouts is nil on a host without the runner cache.
+	Checkouts Checkouts
 	// The same gate is used by the CI launcher. TryLock there avoids putting
 	// a slow checkpoint or restore on the single Pod reconcile worker.
 	Gate    sync.Mutex
@@ -329,7 +337,7 @@ func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *wa
 		return err
 	}
 	now := time.Now().UTC()
-	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, WorkspaceVolumeGB: w.rec.WorkspaceVolumeGB, Resident: true, CreatedAt: now, IdleAt: now}
+	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CheckoutShare: w.rec.CheckoutShare, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, WorkspaceVolumeGB: w.rec.WorkspaceVolumeGB, Resident: true, CreatedAt: now, IdleAt: now}
 	m.records[a.SandboxID] = r
 	if err := m.begin(r, "claim"); err != nil {
 		delete(m.records, a.SandboxID)
@@ -430,6 +438,7 @@ func (m *Manager) evict(ctx context.Context, r *Record) error {
 	if err := m.Runtime.Save(ctx, r); err != nil {
 		return m.finish(r, err)
 	}
+	m.collectCheckout(r)
 	r.State = "paused"
 	r.Resident = false
 	r.PID = 0
@@ -730,6 +739,15 @@ func (m *Manager) Exec(ctx context.Context, a protocol.ExecArgs, out func(protoc
 	return m.Runtime.Exec(ctx, &copy, a, out)
 }
 func (m *Manager) Worker(ctx context.Context, id, action string, env map[string]string) (WorkerStatus, error) {
+	return m.worker(ctx, id, action, env, nil)
+}
+
+// StartWorker starts a worker whose session has a checkout grant (checkout.go).
+func (m *Manager) StartWorker(ctx context.Context, id string, env map[string]string, checkout *protocol.CheckoutGrant) (WorkerStatus, error) {
+	return m.worker(ctx, id, "start", env, checkout)
+}
+
+func (m *Manager) worker(ctx context.Context, id, action string, env map[string]string, checkout *protocol.CheckoutGrant) (WorkerStatus, error) {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	r, err := m.get(id)
@@ -756,6 +774,7 @@ func (m *Manager) Worker(ctx context.Context, id, action string, env map[string]
 			return WorkerStatus{}, errors.New("another worker owns the sandbox")
 		}
 		r.WorkerID = work // Persist before sending credentials; retries use the same identity.
+		env = m.checkoutEnv(ctx, r, env, checkout)
 		if err = m.persist(r); err != nil {
 			return WorkerStatus{}, err
 		}

@@ -27,6 +27,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
@@ -245,6 +246,17 @@ func main() {
 			}
 		},
 	}
+	// The node's runner-cache agent seeds workers' repositories from its
+	// checkout masters and takes their exports. It authorizes this Pod by
+	// name and address; without either, workers clone as before.
+	var checkouts checkout.Agent
+	if agentURL := os.Getenv("CHECKOUT_AGENT_URL"); agentURL != "" {
+		if elastic.PodName == "" {
+			logger.Warn("CHECKOUT_AGENT_URL is set without POD_NAME; checkouts stay off")
+		} else {
+			checkouts = &checkout.Client{URL: agentURL, PodName: elastic.PodName, HTTP: checkout.NewHTTPClient()}
+		}
+	}
 	manager := sandbox.New(sandbox.Config{
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
@@ -253,7 +265,7 @@ func main() {
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
-		Blobs: blobs,
+		Blobs: blobs, Checkouts: checkouts,
 	})
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)

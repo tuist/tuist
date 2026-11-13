@@ -20,6 +20,7 @@ type fakeRuntime struct {
 	memory                   map[string]string
 	busy                     bool
 	worker                   WorkerStatus
+	workerEnv                map[string]string
 	saveErr, errorRecovery   error
 	createErr                error
 	saveStarted, saveRelease chan struct{}
@@ -123,9 +124,10 @@ func (f *fakeRuntime) Exec(_ context.Context, r *Record, _ protocol.ExecArgs, _ 
 	}
 	return protocol.ExecResult{}, nil
 }
-func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, _ map[string]string) (WorkerStatus, error) {
+func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, env map[string]string) (WorkerStatus, error) {
 	if action == "start" {
 		f.worker = WorkerStatus{Running: true, ID: r.WorkerID}
+		f.workerEnv = env
 	}
 	if action == "stop" {
 		f.worker.Running = false
