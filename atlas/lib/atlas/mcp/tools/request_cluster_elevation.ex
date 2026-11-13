@@ -5,7 +5,7 @@ defmodule Atlas.MCP.Tools.RequestClusterElevation do
 
   This is the only way to elevate an orb thread; Slack `/elevate` does not
   take threads. The first call files an approval request and returns a link to
-  `/admin/mcps`; the person approves it from their browser session; the
+  `/approvals`; the person approves it from their browser session; the
   identical call then asks
   tuist-ops (`Atlas.TuistOps`) to grant the elevation, as that person. tuist-ops
   still requires an engineering tailnet role, and the elevation only counts
@@ -59,7 +59,7 @@ defmodule Atlas.MCP.Tools.RequestClusterElevation do
   alias Atlas.TuistOps
   alias Atlas.Users.User
 
-  # Recorded under this name at /admin/mcps and in the approval audit events.
+  # Recorded under this name at /approvals and in the approval audit events.
   @server "tuist-ops"
   @approval_tool "request-cluster-elevation"
 
@@ -106,7 +106,7 @@ defmodule Atlas.MCP.Tools.RequestClusterElevation do
         {:error,
          "Elevating #{args["thread_id"]} on #{args["env"]} needs a person's approval for this exact call. " <>
            "Ask the person you are working for to approve request #{approval.id} at " <>
-           "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+           "#{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
            "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
            "Never approve it yourself."}
     end

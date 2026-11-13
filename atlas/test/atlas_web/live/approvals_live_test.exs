@@ -8,6 +8,7 @@ defmodule AtlasWeb.ApprovalsLiveTest do
   alias Atlas.Connections.Config
   alias Atlas.Connections.Connection
   alias Atlas.Connections.Gmail
+  alias Atlas.MCP
   alias Atlas.Repo
 
   setup do
@@ -63,6 +64,41 @@ defmodule AtlasWeb.ApprovalsLiveTest do
 
     {:ok, view, _html} = live(other_conn, ~p"/approvals/#{foreign.id}")
     assert has_element?(view, "#gmail-approval-#{foreign.id}")
+  end
+
+  test "a person without admin access decides their own gated MCP calls, such as a cluster elevation", %{conn: conn} do
+    {conn, user} = log_in_user(conn)
+    {_other_conn, other} = log_in_user(build_conn())
+    elevation = %{"env" => "canary", "thread_id" => "T-1", "intent" => "Uncordon a runner", "duration_minutes" => 30}
+
+    assert {:approval_required, approval} =
+             MCP.authorize_tool_call(user, "tuist-ops", "request-cluster-elevation", elevation)
+
+    assert {:approval_required, foreign} =
+             MCP.authorize_tool_call(other, "tuist-ops", "request-cluster-elevation", elevation)
+
+    {:ok, view, _html} = live(conn, ~p"/approvals")
+    assert has_element?(view, "#tool-approval-tool-#{approval.id}", "tuist-ops/request-cluster-elevation")
+    assert has_element?(view, "#tool-approval-arguments-#{approval.id}", ~s("intent": "Uncordon a runner"))
+    refute has_element?(view, "#tool-approval-#{foreign.id}")
+    refute has_element?(view, "#approvals-empty")
+
+    # Someone else's request reads as not pending and cannot be decided.
+    {:ok, foreign_view, _html} = live(conn, ~p"/approvals/#{foreign.id}")
+    assert has_element?(foreign_view, "#approval-not-pending")
+    refute has_element?(foreign_view, "#tool-approval-#{approval.id}")
+
+    {:ok, view, _html} = live(conn, ~p"/approvals/#{approval.id}")
+    view |> element("#tool-approval-approve-#{approval.id}") |> render_click()
+    assert Repo.reload!(approval).status == "approved"
+    assert Repo.reload!(foreign).status == "pending"
+    assert has_element?(view, "#flash-info", "Approved")
+    assert has_element?(view, "#approval-not-pending")
+
+    assert %{interface: "dashboard", actor_id: actor_id} =
+             Repo.get_by!(Activity, action: "mcp_tool_approval.approved", target_id: approval.id)
+
+    assert actor_id == user.id
   end
 
   test "shows an empty state when nothing is waiting", %{conn: conn} do
