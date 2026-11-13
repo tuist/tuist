@@ -39,6 +39,7 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
+      - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/pulse-render-contract.jq
       - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
@@ -60,6 +61,7 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
+      - .github/scripts/tart-kubelet-rollout-gate*
       - .github/scripts/pulse-render-contract.jq
       - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
@@ -312,6 +314,8 @@ jobs:
         run: bash .github/scripts/helm-adopt-release-objects.test.sh
       - name: Deploys move objects only from the release that owns them
         run: bash .github/scripts/helm-move-release-objects.test.sh
+      - name: Canary waits for its macOS hosts to run the operator's tart-kubelet
+        run: bash .github/scripts/tart-kubelet-rollout-gate.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.
