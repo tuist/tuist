@@ -35,10 +35,10 @@ These are desired configuration, **not a record of provisioned resources**:
 - The management cluster is separate: it still runs the last Elixir Pulse
   chart (1.39.0) through `infra/flux/pulse-management`, with its own private
   `tuist-pulse-management` bucket and the `PULSE_SECRET_KEY_BASE`, `PULSE_TOKEN`
-  and `PULSE_S3_CREDENTIALS` items in the **`tuist-k8s-mgmt`** vault.
-  `mgmt-cluster-apply.yml` keeps management collectors Cloud-only until that
-  Deployment is available and its ExternalSecret is ready. Its source is gone, so
-  it can be reconciled from the published chart but not changed.
+  and `PULSE_S3_CREDENTIALS` items in the **`tuist-k8s-mgmt`** vault. Its
+  collectors no longer write to it, and its source is gone, so it can be
+  reconciled from the published chart but not changed. Removing it is a
+  separate decision; its bucket history is kept either way.
 
 ## Topologies
 

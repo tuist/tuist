@@ -95,13 +95,14 @@ customer provisioning is introduced by this import. Before exporting, establish
 the verified tenant and select records belonging to the requesting subject;
 an operational tenant can contain telemetry from multiple accounts.
 
-Prepared collector changes add management metrics in the independent
-`tuist-pulse-management` bucket and, only if the legacy pentest cluster still
-exists, telemetry in `tuist-pulse-pentest`. They also copy external NixOS cache
-metrics/logs/traces into the matching workload environment's existing bucket and
-generate service-graph counters/histograms from trace service relationships and
-timings. These derived metrics use the same tenant manifests/Parquet storage,
-observe-only retention and subject-filtered export process below. Trace sampling
+Management metrics in the independent `tuist-pulse-management` bucket and, if
+the legacy pentest cluster wrote any, telemetry in `tuist-pulse-pentest` are
+retained, but no collector writes to either any more. External NixOS cache
+hosts copy metrics/logs/traces into the matching workload environment's existing
+bucket while that environment's legacy `pulse` release is installed. Retained
+legacy objects, including service-graph counters/histograms derived from trace
+service relationships and timings, use the same tenant manifests/Parquet
+storage, observe-only retention and subject-filtered export process below. Trace sampling
 differs from Cloud, so a Cloud export is not a complete Pulse export. Include
 every verified environment/source relevant to the subject; these shared stores
 introduce no account-to-tenant mapping. Bootstrap/deployment and managed-bucket
