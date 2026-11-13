@@ -1,5 +1,31 @@
 # AGENTS.md
 
+## Tuist fork
+
+This directory is Pulse, Tuist's fork of GreptimeDB. [`FORK.md`](FORK.md) records
+the upstream tag and commit, what the import left out, every Tuist change, and
+how releases reach the clusters. The rest of this file is upstream's guidance.
+
+- Keep Tuist changes small and listed in `FORK.md`, and add a
+  `// Modified by Tuist; see pulse/FORK.md.` line under the license header of
+  each upstream file you change. New files carry the Apache-2.0 header with
+  Tuist's copyright.
+- Never add files under the GreptimeDB Enterprise License or enable the
+  `enterprise` feature.
+- Parse PromQL with `sql::nesting::parse_promql`, never
+  `promql_parser::parser::parse`, outside tests.
+- Upstream's CI does not run here. `.github/workflows/pulse.yml` is the CI; run
+  `cargo test -p sql --lib` for the nesting limits. Build scripts call `protoc`
+  outside the repository, so set `PROTOC` to a real binary rather than a mise
+  shim. `cargo fmt` needs the enterprise modules stubbed; `pulse.yml` shows how.
+- Upstream's guidance below overrides nothing above. `make clippy` and
+  `make check` enable `--all-features`, which turns on `enterprise` and fails on
+  the missing files: run `cargo clippy --workspace --all-targets -- -D warnings`
+  and `cargo check --workspace --all-targets` instead. Skip every enterprise step
+  (`--features enterprise`, `make check-enterprise-license`, enterprise headers).
+
+## Upstream guidance
+
 Guidance for coding agents (Claude Code, Codex, ...) and contributors working in
 this repository. `CLAUDE.md` is a symlink to this file. If `.local/AGENTS.md` or
 `.local/CLAUDE.md` is present, you **MUST** read it as well — it holds personal

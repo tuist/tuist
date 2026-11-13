@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! prom supply the prometheus HTTP API Server compliance
 
 use std::borrow::Borrow;
@@ -246,7 +248,7 @@ pub async fn format_query(
     Form(form_params): Form<InstantQuery>,
 ) -> PrometheusJsonResponse {
     let query = params.query.or(form_params.query).unwrap_or_default();
-    match promql_parser::parser::parse(&query) {
+    match sql::nesting::parse_promql(&query) {
         Ok(expr) => {
             let pretty = expr.prettify();
             PrometheusJsonResponse::success(PrometheusResponse::FormatQuery(pretty))
@@ -2049,7 +2051,7 @@ fn split_selectors_by_label_use(matches: &[String]) -> Result<(Vec<String>, Vec<
     let mut with_labels = Vec::new();
 
     for selector in matches {
-        let expr = promql_parser::parser::parse(selector)
+        let expr = sql::nesting::parse_promql(selector)
             .map_err(|reason| InvalidQuerySnafu { reason }.build())?;
         let PromqlExpr::VectorSelector(vector_selector) = expr else {
             return InvalidQuerySnafu {
@@ -2136,7 +2138,7 @@ async fn retrieve_table_names(
     let name_matchers = matches
         .iter()
         .map(|selector| {
-            let expr = promql_parser::parser::parse(selector)
+            let expr = sql::nesting::parse_promql(selector)
                 .map_err(|reason| InvalidQuerySnafu { reason }.build())?;
             let PromqlExpr::VectorSelector(selector) = expr else {
                 return InvalidQuerySnafu {
@@ -2397,7 +2399,7 @@ async fn retrieve_schema_names(
 }
 
 fn retrieve_exact_metric_name_from_promql(query: &str) -> Option<String> {
-    let PromqlExpr::VectorSelector(selector) = promql_parser::parser::parse(query).ok()? else {
+    let PromqlExpr::VectorSelector(selector) = sql::nesting::parse_promql(query).ok()? else {
         return None;
     };
     if let Some(name) = selector.name {
@@ -2584,7 +2586,7 @@ pub async fn parse_query(
 ) -> PrometheusJsonResponse {
     if let Some(query) = params.query.or(form_params.query) {
         let ast = try_call_return_response!(
-            promql_parser::parser::parse(&query),
+            sql::nesting::parse_promql(&query),
             StatusCode::InvalidArguments
         );
         PrometheusJsonResponse::success(PrometheusResponse::ParseResult(ast))

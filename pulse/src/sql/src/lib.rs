@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod ast;
 pub mod dialect;
 pub mod error;
+pub mod nesting;
 pub mod parser;
 pub mod parsers;
 pub mod partition;
