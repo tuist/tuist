@@ -785,6 +785,43 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
 }
 
 @Suite(.coverageAttribution)
+struct GenerateAcceptanceTestAppWithSPMCTargetCoreData {
+    /// A versioned Core Data model inside a C target's source root keeps its version group, shared by the
+    /// target (code generation) and its resource bundle (compilation), like SwiftPM's PIF builder.
+    /// https://github.com/tuist/tuist/issues/15697
+    @Test(.withFixture("generated_app_with_spm_c_target_core_data"), .inTemporaryDirectory)
+    func app_with_spm_c_target_core_data() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
+        )
+        let versionGroup = try #require(xcodeproj.pbxproj.versionGroups.first { $0.path == "Example.xcdatamodeld" })
+        let currentVersion = try #require(versionGroup.currentVersion)
+        #expect(currentVersion.path == "Example.xcdatamodel")
+        #expect(versionGroup.children.map(\.uuid) == [currentVersion.uuid])
+
+        let target = try TuistAcceptanceTest.requireTarget("CLib", in: xcodeproj)
+        let bundle = try #require(xcodeproj.pbxproj.nativeTargets.first { $0.productType == .bundle })
+        for nativeTarget in [target, bundle] {
+            #expect(try nativeTarget.sourcesBuildPhase()?.files?.contains { $0.file?.uuid == versionGroup.uuid } == true)
+        }
+
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme", "App", "-destination", "platform=macOS",
+            "-derivedDataPath", temporaryDirectory.appending(component: "DerivedData").pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+        ])
+    }
+}
+
+@Suite(.coverageAttribution)
 struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     /// Duplicate basenames retain their directory hierarchy. Consumers resolve <nanopb/pb.h>
     /// through the original public include root without copying or flattening either wrapper.

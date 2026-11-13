@@ -97,6 +97,42 @@ struct SwiftPackageHeaderGenerationTests {
         #expect(files.folderReferences[root] != nil)
     }
 
+    /// Like SwiftPM's PIF builder, a model shares one navigator element between the module (code generation) and its
+    /// resource bundle, so it needs its version group even when it lives inside the header tree.
+    @Test func coreDataModelsInsideHeaderTreesKeepTheirVersionGroup() throws {
+        let root: AbsolutePath = "/Package/Sources/CLib"
+        let model = root.appending(components: "Resources", "Example.xcdatamodeld")
+        let version = model.appending(component: "Example.xcdatamodel")
+        let target = Target.test(
+            name: "CLib",
+            coreDataModels: [CoreDataModel(path: model, versions: [version], currentVersion: "Example")],
+            headers: .test(sourceLayout: .init(
+                root: root, publicHeaders: root.appending(component: "include"),
+                moduleMap: root.appending(components: "include", "module.modulemap"),
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            ))
+        )
+        let project = Project.test(
+            path: "/Package",
+            sourceRootPath: "/Package",
+            xcodeProjPath: "/Derived/CLib/CLib.xcodeproj",
+            targets: [target]
+        )
+        let files = ProjectFileElements()
+        let pbx = PBXProj()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbx)
+        try files.generateProjectFiles(
+            project: project,
+            graphTraverser: GraphTraverser(graph: .test(projects: [project.path: project])),
+            groups: groups,
+            pbxproj: pbx
+        )
+
+        let versionGroup = try #require(files.group(path: model) as? XCVersionGroup)
+        let versionReference = try #require(files.file(path: version))
+        #expect(versionGroup.children == [versionReference])
+    }
+
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
