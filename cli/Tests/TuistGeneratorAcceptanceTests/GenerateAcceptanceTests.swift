@@ -818,6 +818,13 @@ struct GenerateAcceptanceTestAppWithSPMCTargetCoreData {
             "-derivedDataPath", temporaryDirectory.appending(component: "DerivedData").pathString,
             "CODE_SIGNING_ALLOWED=NO",
         ])
+
+        // A version compiled on its own leaves a `.mom` beside the `.momd`, which breaks `mergedModel(from:)`.
+        let bundleResources = temporaryDirectory.appending(
+            components: "DerivedData", "Build", "Products", "Debug", try #require(bundle.product?.path), "Contents", "Resources"
+        )
+        #expect(try await FileSystem().exists(bundleResources.appending(component: "Example.momd")))
+        #expect(try await !FileSystem().exists(bundleResources.appending(component: "Example.mom")))
     }
 }
 
