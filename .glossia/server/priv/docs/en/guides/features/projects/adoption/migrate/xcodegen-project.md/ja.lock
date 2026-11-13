@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "afdf91539f8bfff814a93fd9a65755cd21bef5f6b42b0f6e3d35f3980c6e5a08",
+  "hash": "b2b659ca103a0b9355addcd8847e7edd1c32ee20cd3a2e645abf0be39ab56c84",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Migrate an XcodeGen project {#migrate-an-xcodegen-project}": {
-                  "content_hash": "b5a556044a0a85ae61cca3124938480d2420905080f35d5912526b25773652f0"
+                  "content_hash": "696ce819e7905a11300a6fda418bbf6c15a1b38148c5b61633e8fca2d87c3bc8"
                 },
                 "## Project generation {#project-generation}": {
                   "content_hash": "24c6ef43e811a61be54983ebc1db39b0302590f6f75435391494e8f2e6e0a6c8"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "7367d1449d3c18b46df83f4f55fc51296920080c3974635a7a480542760a5ff4",
+          "hash": "b1381bdc0767ea396e3617808e551627cbdff0048f00ffc6f71091b36b6f06c0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
           "metadata": {
-            "content_hash": "38084a99c8ec3d3cd21594816a3ad78d6957af65a02a422ef69e4c58fc41b9f5"
+            "content_hash": "e02cd9a86cdd1a0213d3b7d4dffd0095cd507623b55e2993f8a384771e6cac8c"
           }
         },
         {
@@ -230,14 +230,14 @@
         }
       ],
       "details": {},
-      "hash": "afdf91539f8bfff814a93fd9a65755cd21bef5f6b42b0f6e3d35f3980c6e5a08",
+      "hash": "b2b659ca103a0b9355addcd8847e7edd1c32ee20cd3a2e645abf0be39ab56c84",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "be1e52b6ab810ac885b3ea848c737f288d64aff265204ea7c3d6a047a23b8872",
+  "output_hash": "4025dd846a9eb125a867fc26bd0a7f908f39382582192a10b80a8721f0640f2d",
   "output_path": "server/priv/docs/ja/guides/features/projects/adoption/migrate/xcodegen-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "14465c1a9f3a7dabec6b6fe48d0f5ffc0f8bfe99",
   "source_path": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
-  "translated_at": "2026-11-06T18:38:51.566161Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-13T16:27:24.347668Z",
+  "translation_session_id": "01a1d5ba-5f82-7922-807e-0ca1e2c420e5"
 }

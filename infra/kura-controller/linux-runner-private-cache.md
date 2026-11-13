@@ -69,7 +69,7 @@ They do not establish the final same-instance production performance.
 
 ## Staging
 
-Staging advertises `scw-fr-par-runners,eu-west,ca-east`. Its EU-West capacity is
+Staging advertises `eu-west,ca-east`. Its EU-West capacity is
 `ns3220989.ip-162-19-86.eu`, adopted under the `gra-runners-cache` fleet
 identity and labelled `kura-dedibox`. The host also runs the staging shard
 store and holds the migrated RISE-S fixtures and retained recovery archives: do

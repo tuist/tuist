@@ -113,10 +113,10 @@ func TestNodePluginsLiveInTheUnwaitedReleaseWithOneHostContract(t *testing.T) {
 	}
 	rackNodes := filepath.Join(root, "rack-nodes")
 	render := func(chart, release string, extra ...string) map[string]appsv1.DaemonSet {
-		args := []string{"template", release, chart, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "kuraFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true", "--set", "kuraVolumesCSI.image.tag=test-pinned", "--set", "kuraVolumesCSI.rackPools[0]=rack-storage-ber1", "--set", "server.appUrl=https://staging.tuist.dev"}
+		args := []string{"template", release, chart, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "ovhFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true", "--set", "kuraVolumesCSI.image.tag=test-pinned", "--set", "kuraVolumesCSI.rackPools[0]=rack-storage-ber1", "--set", "server.appUrl=https://staging.tuist.dev"}
 		return renderDaemonSets(t, append(args, extra...)...)
 	}
-	out, err := exec.Command("helm", "template", "tuist", isolated, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "kuraFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true").CombinedOutput()
+	out, err := exec.Command("helm", "template", "tuist", isolated, "-f", filepath.Join(root, "tuist/values.yaml"), "--set", "ovhFleet.enabled=true", "--set", "kuraVolumesCSI.enabled=true").CombinedOutput()
 	if err != nil {
 		t.Fatalf("helm: %v\n%s", err, out)
 	}
@@ -162,7 +162,7 @@ func TestNodePluginsLiveInTheUnwaitedReleaseWithOneHostContract(t *testing.T) {
 	if !reflect.DeepEqual(pa.Containers, pb.Containers) || !reflect.DeepEqual(pa.Volumes, pb.Volumes) {
 		t.Fatal("rack storage/key/mount contract drifted from rented plugin")
 	}
-	if !reflect.DeepEqual(poolsOf(rack), []string{"rack-storage-ber1"}) || !reflect.DeepEqual(poolsOf(rented), []string{"kura-scw-fr-par"}) {
+	if !reflect.DeepEqual(poolsOf(rack), []string{"rack-storage-ber1"}) || !reflect.DeepEqual(poolsOf(rented), []string{"kura-ovh"}) {
 		t.Fatal("wrong pool ownership")
 	}
 	tolerates := func(tolerations []corev1.Toleration) bool {
@@ -177,7 +177,7 @@ func TestNodePluginsLiveInTheUnwaitedReleaseWithOneHostContract(t *testing.T) {
 		t.Fatal("only the rack plugin tolerates rack storage")
 	}
 	// Moving the last rented pool to a rack must never leave two plugins on one node.
-	moved := render(rackNodes, "tuist-rack-nodes", "--set", "kuraVolumesCSI.rackPools[1]=kura-scw-fr-par")
+	moved := render(rackNodes, "tuist-rack-nodes", "--set", "kuraVolumesCSI.rackPools[1]=kura-ovh")
 	if _, ok := moved["kura-volumes-csi-node"]; ok || len(moved) != 1 {
 		t.Fatal("rented plugin still schedules on a delegated pool")
 	}

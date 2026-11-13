@@ -264,8 +264,8 @@ server:
     # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
     # rack's minis; only the accounts the runner_site_cache flag enables get a
     # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
-    # fleet, is retired (Tuist.Kura.Regions): the reconciler tears down its
-    # leftovers on the kuraFleet nodes whether or not it is listed here.
+    # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
+    # or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
@@ -1041,14 +1041,6 @@ xcresultProcessor:
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
 
-# The Scaleway Elastic Metal runner-cache pool (kura-scw-fr-par) is retired with
-# the scw-fr-par-runners Kura region (Tuist.Kura.Regions). Disabling the fleet
-# deletes its Machines; the provider releases each box back to the
-# tuist-kura-em- pool (reinstall), and the box stays ordered until it is
-# deleted in the Scaleway console.
-kuraFleet:
-  enabled: false
-
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.
 vultrFleet:
@@ -1663,9 +1655,9 @@ rackFleet:
   # every image rather than one per image, so it does not need moving as
   # customers move between Xcodes. At three, 27.1's 10-job fan-outs left
   # 9 to 23% of its jobs a day over the 10 s queue-time target in the week
-  # to 2026-11-13; eight covers the p90 burst of every image but 26.3's
-  # nightly 12, and the in-use pools are funded first when floors sum past
-  # the rack's seats.
+  # to 2026-11-13; eight covers the p90 burst of every image but 27.1's 11
+  # (raised below) and 26.3's nightly 12, and the in-use pools are funded
+  # first when floors sum past the rack's seats.
   #
   # 26.6 also keeps one runner whatever its history, since a new account's
   # first job lands there and `tuist-macos` resolves there.
@@ -1692,6 +1684,16 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
+          maxReplicas: 32
+      # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
+      # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
+      # first while it is the most recently used pool, so on a full rack the
+      # extra three come out of other pools' idle floors, never their jobs.
+      "27.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxLearnedWarmPoolFloor: 11
           maxReplicas: 32
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
@@ -1927,7 +1929,7 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
@@ -2423,6 +2425,12 @@ runnersFleetLinux:
     actionsCache:
       enabled: true
   name: runners-linux
+  # Run the kvm-nri-plugin DaemonSet ahead of exclusive CPUs. It injects
+  # /dev/kvm only into Pods the controller annotates, which it does only for
+  # exclusive-CPU pools, so until then every Pod keeps the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail

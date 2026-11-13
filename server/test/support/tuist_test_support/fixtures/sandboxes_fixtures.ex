@@ -25,6 +25,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       anthropic_federation_rule_id: Keyword.get(opts, :anthropic_federation_rule_id),
       agent_model: Keyword.get(opts, :agent_model, "claude-sonnet-5"),
       agent_system_prompt: Keyword.get(opts, :agent_system_prompt),
+      setup_script: Keyword.get(opts, :setup_script),
       name: Keyword.get(opts, :name, "environment"),
       platform: Keyword.get(opts, :platform, :linux),
       template: Keyword.get(opts, :template, "default"),
@@ -74,6 +75,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
     account = Keyword.get_lazy(opts, :account, fn -> AccountsFixtures.account_fixture() end)
 
     Repo.insert!(%Sandbox{
+      id: Keyword.get(opts, :id),
       account_id: account.id,
       agent_environment_id: Keyword.get(opts, :agent_environment_id),
       anthropic_session_id: Keyword.get(opts, :anthropic_session_id),
@@ -113,10 +115,18 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
   def disk_snapshot_fixture(opts \\ []) do
     account = Keyword.get_lazy(opts, :account, fn -> AccountsFixtures.account_fixture() end)
 
+    agent_environment_id = Keyword.get(opts, :agent_environment_id)
+
     Repo.insert!(%DiskSnapshot{
       account_id: account.id,
-      amp_snapshot_id: Keyword.get(opts, :amp_snapshot_id, "snapshot-#{TuistTestSupport.Utilities.unique_integer()}"),
+      amp_snapshot_id:
+        Keyword.get_lazy(opts, :amp_snapshot_id, fn ->
+          if is_nil(agent_environment_id), do: "snapshot-#{TuistTestSupport.Utilities.unique_integer()}"
+        end),
       lineage_id: Keyword.get(opts, :lineage_id),
+      agent_environment_id: agent_environment_id,
+      repository: Keyword.get(opts, :repository),
+      setup_sha256: Keyword.get(opts, :setup_sha256),
       source_sandbox_id: Keyword.get(opts, :source_sandbox_id),
       node_name: Keyword.get(opts, :node_name, "node-a"),
       template: Keyword.get(opts, :template, "default"),

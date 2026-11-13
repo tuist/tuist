@@ -639,14 +639,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# The Scaleway Elastic Metal runner-cache pool (kura-scw-fr-par) is retired with
-# the scw-fr-par-runners Kura region (Tuist.Kura.Regions). Disabling the fleet
-# deletes its Machines; the provider releases each box back to the
-# tuist-kura-em- pool (reinstall), and the box stays ordered until it is
-# deleted in the Scaleway console.
-kuraFleet:
-  enabled: false
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in

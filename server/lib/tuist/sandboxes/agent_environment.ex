@@ -10,7 +10,10 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
   environment) stores its environment secret in `environment_key`; a
   provider workload runs its on-demand orchestrator, and each session's
   runner starts in the session's sandbox (`Tuist.Sandboxes.ClaudeCodeRunners`).
-  Its `max_idle_seconds` is how long an idle session keeps its runner.
+  Its `max_idle_seconds` is how long an idle session keeps its runner, and
+  its optional `setup_script` makes a repository's sandboxes repo-ready: a
+  builder sandbox runs it on the repository and saves the disks, and new
+  sessions boot from that snapshot (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
 
   `anthropic_api_key` (also Cloak-encrypted) is the organization API key
   the server uses to start sessions on the environment. Instead of a key, an
@@ -43,6 +46,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     field :anthropic_agent_id, :string
     field :agent_model, :string, default: "claude-sonnet-5"
     field :agent_system_prompt, :string
+    field :setup_script, :string
     field :name, :string
     field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :template, :string, default: "default"
@@ -67,6 +71,10 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   def federation_fields, do: @federation_fields
 
+  # The script travels as one argument of the guest command, and Linux caps
+  # a single argument at 128 KiB.
+  @setup_script_max_bytes 65_536
+
   def create_changeset(agent_environment, attrs) do
     agent_environment
     |> cast(attrs, [
@@ -78,6 +86,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
       :anthropic_api_key,
       :agent_model,
       :agent_system_prompt,
+      :setup_script,
       :name,
       :anthropic_organization_id,
       :anthropic_workspace_id,
@@ -106,7 +115,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   def update_changeset(agent_environment, attrs) do
     agent_environment
-    |> cast(attrs, [:anthropic_api_key, :agent_model, :agent_system_prompt | @federation_fields])
+    |> cast(attrs, [:anthropic_api_key, :agent_model, :agent_system_prompt, :setup_script | @federation_fields])
     |> validate_required([:agent_model])
     |> validate_agent_fields()
     |> reset_cached_agent()
@@ -144,7 +153,18 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> validate_length(:anthropic_api_key, min: 1)
     |> validate_length(:agent_model, min: 1, max: 255)
     |> validate_length(:agent_system_prompt, max: 100_000)
+    |> validate_length(:setup_script, max: @setup_script_max_bytes, count: :bytes)
+    |> validate_setup_script()
     |> validate_federation_fields()
+  end
+
+  # Only Claude Code runners start from a repository's snapshot, and only
+  # Linux nodes save one.
+  defp validate_setup_script(changeset) do
+    if get_field(changeset, :setup_script) in [nil, ""] or
+         (get_field(changeset, :kind) == :claude_code and get_field(changeset, :platform) == :linux),
+       do: changeset,
+       else: add_error(changeset, :setup_script, "is only supported by Linux Claude Code environments")
   end
 
   # The token exchange needs every id, so a partial set is rejected rather

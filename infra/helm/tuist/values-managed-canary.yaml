@@ -626,14 +626,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# The Scaleway Elastic Metal runner-cache pool (kura-scw-fr-par) is retired with
-# the scw-fr-par-runners Kura region (Tuist.Kura.Regions). Disabling the fleet
-# deletes its Machines; the provider releases each box back to the
-# tuist-kura-em- pool (reinstall), and the box stays ordered until it is
-# deleted in the Scaleway console.
-kuraFleet:
-  enabled: false
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
@@ -785,7 +777,7 @@ macosFleet:
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
@@ -896,7 +888,9 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  diskGiB: 50
+  # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
+  # checkout workspaces, on the runner node's ~410 GiB data disk.
+  diskGiB: 100
   checkoutWorkspacesGiB: 10
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
@@ -924,6 +918,12 @@ runnersController:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
+  # Run the kvm-nri-plugin DaemonSet ahead of exclusive CPUs. It injects
+  # /dev/kvm only into Pods the controller annotates, which it does only for
+  # exclusive-CPU pools, so until then every Pod keeps the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`, minus the

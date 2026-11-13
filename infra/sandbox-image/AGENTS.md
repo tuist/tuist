@@ -31,7 +31,12 @@ to the version `sbx-worker` expects; keep the two and
 `infra/claude-code-runners/Dockerfile` in step. `agent-browser` (pinned by
 `AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
 globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
-browser's system libraries from apt.
+browser's system libraries from apt. Amp Desktop's stack is baked in too:
+`/opt/amp-wayland` (labwc and waymote, one layer of Amp's orb image fetched by
+`AMP_WAYLAND_LAYER` digest) and the apt packages Amp's custom-image contract
+lists. Nothing of it runs until Amp starts the Desktop session, and Amp
+installs Google Chrome on that first start. `sbx-init` creates `/run/lock`,
+which Amp's app installer locks.
 
 Agents get the project's Tuist data without setup. The Tuist CLI is at
 `/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
@@ -88,7 +93,7 @@ tags and the `System` interface. The Dockerfile builds the binaries natively
 and cross-compiles them, assembles the Ubuntu 24.04 guest under emulation when
 the host is not amd64, and formats the rootfs natively with `mkfs.ext4 -d`.
 Build args: `KERNEL_URL` (Firecracker CI 6.1.155 by default), `KERNEL_SHA256`
-(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `AGENT_BROWSER_VERSION`, `ROOTFS_SIZE`,
+(verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `AGENT_BROWSER_VERSION`, `AMP_WAYLAND_LAYER`,
 `VERSION` (stamped into `sbx-agent`'s `agent_version`), `AMP_VERSION` (pinned
 Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 `TUIST_SHA256` (the release's `tuist-linux-x86_64.tar.gz` and its line in
@@ -96,21 +101,28 @@ Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 
 ## Template init container
 
-The final stage is Alpine with GNU coreutils and carries `/template/vmlinux`,
-`/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 12 GiB) and
+The final stage is Alpine with GNU coreutils and e2fsprogs and carries
+`/template/vmlinux`, `/template/vmlinux.config`, `/template/rootfs.ext4` and
 `/template/metadata.json`, which records the guest `user`'s `runner_uid` and
 `runner_gid` for sandboxd's prepared checkout workspaces. sandboxd's DaemonSet runs it as an init container
 with the node's `/data/sandboxes` mounted at `/host` and `TEMPLATE_TAG` set
 (`TEMPLATE_NAME` defaults to `default`, `TEMPLATE_DIR` to
-`/host/templates/<name>/<tag>`). `install-template.sh` copies the files with
-`cp --sparse=always` only when `rootfs.ext4` is missing from the target, each
-under a temporary name that is renamed into place with the rootfs last, then
-writes `metadata.json` with `tag` added. sandboxd boots the template, snapshots
-it and writes the `ready` marker itself.
+`/host/templates/<name>/<tag>`, `ROOTFS_SIZE` to `12G`; the tuist chart sets
+`sandboxes.rootfsGiB`, 20, and remote execution's `bazel` template keeps the
+default). `install-template.sh` copies the files with `cp --sparse=always`
+only when `rootfs.ext4` is missing from the target, each under a temporary
+name that is renamed into place with the rootfs last, then writes
+`metadata.json` with `tag` and the installed `rootfs_bytes` added. sandboxd
+boots the template, snapshots it and writes the `ready` marker itself.
 
-The rootfs travels dense inside the image layer (the registry compresses the
-zeros away, but a pull materialises the full 12 GiB in the node's image store);
-the sparse copy keeps the per-template footprint on `/data` at the used size.
+The rootfs travels dense inside the image layer, so the build sizes it to its
+contents plus a quarter and 1 GiB, and a pull costs the node's image store
+only that. The installer then grows the copy to `ROOTFS_SIZE` with `truncate`
+and `resize2fs`, which leaves the file sparse at its used size on `/data`.
+`RESIZE2FS_FORCE_ITABLE_INIT=1` zeroes the new inode tables as holes and marks
+them initialised; without it the guest kernel's lazy init would write those
+zeros, a few hundred MiB, into every sandbox's rootfs clone. A new size applies
+to template tags installed afterwards; existing sandboxes keep their rootfs.
 
 ## Deliberately not installed yet
 
@@ -119,7 +131,7 @@ tooling. Language runtimes beyond system Python 3 and Node.js 22 are expected
 to come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
-workspace, required egress and rollout. Amp Desktop dependencies are not installed.
+workspace, required egress, Desktop and rollout.
 REAPI commands run as UID/GID 1000; preserve explicit command environments,
 `no_new_privs`, and host-only vsock access so actions cannot obtain the root
 worker's scoped CAS credential. See [remote execution](remote-execution.md)

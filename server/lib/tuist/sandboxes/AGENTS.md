@@ -217,7 +217,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   master only to it; anything else only adds objects. The node seeds the
   guest from its master and takes the export behind the VM's fence
   (`infra/tart-kubelet/internal/macosandbox/checkout.go`, sandboxd's
-  "Guest to host: checkout").
+  "Guest to host: checkout"). A new Linux sandbox of such a session goes
+  first to the nodes where the account's sandboxes used that checkout in the
+  last 6 hours (`CacheVolumes.recent_sandbox_checkout_nodes/4`
+  into `Capacity.place/3`'s `prefer:`): they hold its master and, for
+  sandboxd's `CHECKOUT_WORKSPACES_TTL`, the workspace prepared from that seed.
+  Only the plain reservation prefers them; a full one is passed over, never
+  reclaimed or grown for.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -271,6 +277,32 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   is the first thing `Archives.make_node_room/2` gives up. Copies go with their snapshot
   (expiry, supersede), after 24 hours unused, after 45 minutes stuck
   copying, and when their node stops listing them.
+  A Claude Code repository snapshot has no Amp id: it is keyed by
+  `agent_environment_id`, `repository` and `setup_sha256`, saved from a
+  paused builder sandbox (`save_build/2`), and replaces the environment's
+  older ready snapshots of the repository. `find_ready_for_repository/3`
+  only returns one whose `template_tag` a connected node creates new
+  sandboxes with, so a template rollout (which ships `sbx-worker`) is not
+  held back by snapshots. A build is a row of the key in state `building`
+  (no node, so it reserves no disk), `failed` once it failed; a partial
+  unique index keeps one of either per key, so concurrent sessions start
+  one build and a failed script waits an hour. `delete_expired/0` drops
+  builds older than 90 minutes with their builder and failed rows after an
+  hour.
+- `Tuist.Sandboxes.ClaudeCodeSnapshots`: a Linux `claude_code` environment's
+  optional `setup_script`. `ClaudeCodeRunners` creates a session's sandbox
+  from the repository's snapshot; a new session without one starts on the
+  template and, after its worker started, requests a build. Nothing runs
+  in a session's sandbox before its runner, so the spawn lease never limits
+  the script. `BuildRepositorySnapshotWorker` snoozes through the build:
+  a builder sandbox with the build's id (`create_sandbox/3`'s `id:`) runs
+  one `Commands` command with the build's id too (an hour at most) that
+  clones as `user` with a contents-read token in its environment, unsets
+  it and runs the script as `user` in a login shell with
+  `Sandboxes.tuist_env/2`. Exit 0 pauses the builder (syncing its disks),
+  saves and deletes it; anything else logs the output's tail, deletes the
+  builder and fails the build. Never save a sandbox a session used: every
+  later session of the environment boots from the snapshot.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
   unset), or the least recently paused one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most
@@ -300,7 +332,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   and `tail_sha256`, and the writing node's `compat`, its hello's
   `snapshot_compat`: CPU model and flags, host kernel version and
   Firecracker version) is placed only on nodes with the same
-  `snapshot_compat`, waiting for room on them, and resumes warm: the node
+  `snapshot_compat`, waiting for room on them, and on the node it was
+  archived from (`archive_memory.node`) only when no other of them can take
+  it (`Capacity.place/3`'s `avoid:`), and resumes warm: the node
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
   them while a fill fetches the rest (sandboxd `internal/uffd`). It cold

@@ -1638,7 +1638,7 @@ documented here, and update this rule's description. These documentation edits
 do not publish Grafana changes. During a mixed server rollout, `max` can report
 the new line while an old replica still refuses under the old one.
 
-The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
+The private runner-cache regions (`ber1-runners`, `larch-runners`) report
 the gauge too. Before they did, the plugin polled it over the same public-only
 region list as the lifecycle gauges, so a full runner-cache box had neither
 operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
@@ -1648,9 +1648,8 @@ operand, still cover public regions only, so a private region whose server does
 not emit the headroom gauge has no row.
 
 The same `< 32` holds for them. A private region's candidate is claim x its own
-replica count, so 32 GiB is one enterprise instance at its starting claim in
-`scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
-Both are a single box, so the remedy is freeing reservations or giving the
+replica count, so 32 GiB is two enterprise instances at their starting claim
+in a site region such as `ber1-runners` (one replica). Each is a single box, so the remedy is freeing reservations or giving the
 site another storage node rather than adding a node to a pool. Runner-cache
 claims grow well past their starting claim (16 to 100 GiB on the rack in
 October 2026), so a single-box private region is effectively out of room for
@@ -5385,7 +5384,7 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 - Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
 - Desired zero is excluded. One Ready replica is degraded but does not fire.
 - StatefulSets created in the last ten minutes are excluded. Runner-region
-  instances (ber1, scw-fr-par) run one replica, so a new instance has zero
+  instances (ber1, larch) run one replica, so a new instance has zero
   Ready until its initial region passes settle (about 2.5 minutes for a new
   ber1 instance on 2026-10-21, which paged as incident #130).
   A new or recreated instance still unready after ten minutes fires at twelve.
@@ -5501,7 +5500,7 @@ still usable but needs the summary rewritten rather than left interpolating
 nothing.
 
 **Single-replica instances are handled by the expression, not by an exception.**
-The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
+The private runner-cache regions run `replicas: 1` (`kura-*-ber1`, `kura-*-larch`), and
 `1 - 1` is `0` like any other healthy instance. A scaled-to-zero or
 being-deleted StatefulSet is `0 - 0`.
 
@@ -5920,7 +5919,7 @@ It also read a new box as a reversal of the burn, which hid eu-west's queued
 claim growth taking about 440 GiB of its fifth box within a day of it joining
 on 2026-10-15. Reserved disk does not move when a box joins, leaves, or is
 evacuated, so its slope is the burn alone. The private runner-cache regions
-(`ber1-runners`, `scw-fr-par-runners`) report headroom but no reserved series,
+(`ber1-runners`, `larch-runners`) report headroom but no reserved series,
 so they fall through the `or` to the headroom trend.
 
 Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
@@ -6191,9 +6190,9 @@ saturated, and that box's tenants are shaped regardless. The `scope` and
 
 **Boxes without an advertised budget are out of scope by construction.** The
 join on `kube_node_status_capacity{resource="tuist_dev_egress_mbps"}` drops
-them, which today means the runner-cache box (scw-fr-par-runners): its
-traffic stays on the Scaleway private network, no budget is advertised for it
-and the egress-tree agent does not run there, and it is deliberately excluded.
+them, which today means the rack sites' runner-cache storage nodes
+(`rack-storage-<site>`): their traffic stays on the site's network, no budget
+is advertised for them, and they are deliberately excluded.
 A box that should be governed and is not shows up in **Kura egress shaping
 integrity** below, not here.
 

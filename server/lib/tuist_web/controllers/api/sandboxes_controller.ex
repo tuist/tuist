@@ -101,6 +101,7 @@ defmodule TuistWeb.API.SandboxesController do
       },
       agent_model: %Schema{type: :string},
       agent_system_prompt: %Schema{type: :string, nullable: true},
+      setup_script: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
@@ -125,6 +126,7 @@ defmodule TuistWeb.API.SandboxesController do
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
+      :setup_script,
       :inserted_at,
       :updated_at
     ]
@@ -163,6 +165,12 @@ defmodule TuistWeb.API.SandboxesController do
       maxLength: 100_000,
       nullable: true,
       description: "System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt."
+    },
+    setup_script: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
     }
   }
 
@@ -317,6 +325,7 @@ defmodule TuistWeb.API.SandboxesController do
         :anthropic_api_key,
         :agent_model,
         :agent_system_prompt,
+        :setup_script,
         :anthropic_organization_id,
         :anthropic_workspace_id,
         :anthropic_service_account_id,
@@ -343,7 +352,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -371,7 +380,8 @@ defmodule TuistWeb.API.SandboxesController do
       Map.take(body_params, [
         :anthropic_api_key,
         :agent_model,
-        :agent_system_prompt | AgentEnvironment.federation_fields()
+        :agent_system_prompt,
+        :setup_script | AgentEnvironment.federation_fields()
       ])
 
     with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
@@ -1066,6 +1076,7 @@ defmodule TuistWeb.API.SandboxesController do
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
+      :setup_script,
       :inserted_at,
       :updated_at
     ])

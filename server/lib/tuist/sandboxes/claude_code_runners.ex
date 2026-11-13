@@ -22,6 +22,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   after the session has been idle for the environment's `max_idle_seconds`,
   which ends the residency and pauses the sandbox; the session's next message
   resumes the same sandbox, checkout included.
+
+  When the environment has a setup script, a new Linux sandbox boots from
+  the repository's snapshot, where the runner finds its clone in place and
+  only fetches what changed since. A new session that finds no snapshot
+  starts on the template and has one built for the sessions after it
+  (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
   """
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -30,10 +36,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Sandbox
 
   require Logger
+
+  @prepared_workspace_seconds 6 * 60 * 60
 
   def spawn(%AgentEnvironment{kind: :claude_code} = agent_environment, %{session_id: session_id} = order) do
     received_at = System.monotonic_time()
@@ -89,6 +98,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
     work_id = "claude-code-" <> (:sha256 |> :crypto.hash(order_id) |> Base.encode16(case: :lower) |> binary_part(0, 32))
 
     repository = repository(Map.get(order, :repository_url))
+    snapshot = repository && ClaudeCodeSnapshots.find(agent_environment, repository)
 
     started_at = System.monotonic_time()
 
@@ -97,7 +107,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
       Sandboxes.with_sandbox_lock(
         "claude-code:#{agent_environment.id}:#{session_id}",
         fn ->
-          with {:ok, sandbox, created?} <- Router.find_or_create_sandbox(agent_environment, session_id),
+          with {:ok, sandbox, created?} <-
+                 Router.find_or_create_sandbox(agent_environment, session_id,
+                   from_disk_snapshot: snapshot,
+                   prefer_nodes: checkout_nodes(agent_environment, repository)
+                 ),
                placement_ms = milliseconds_since(started_at),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
                {:ok, _data} <-
@@ -106,6 +120,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
                    worker_env(agent_environment, sandbox, work_id, work_order),
                    checkout(sandbox, repository, work_id)
                  ) do
+            if (created? and repository) && is_nil(snapshot),
+              do: ClaudeCodeSnapshots.request_build(agent_environment, repository)
+
             {:ok, sandbox, placement_ms}
           end
         end,
@@ -154,6 +171,18 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   end
 
   defp repository(_url), do: nil
+
+  # A new Linux sandbox goes first to a node where one of the account's
+  # sandboxes recently used the repository's checkout: that node holds its
+  # master and, while sandboxd keeps it (CHECKOUT_WORKSPACES_TTL, 6 hours),
+  # the workspace prepared from that seed, which the guest starts from
+  # instead of copying the tree.
+  defp checkout_nodes(%AgentEnvironment{platform: :linux, account_id: account_id}, %{owner: owner, name: name}) do
+    since = DateTime.add(DateTime.utc_now(), -@prepared_workspace_seconds, :second)
+    CacheVolumes.recent_sandbox_checkout_nodes(account_id, "#{owner}/#{name}", "linux", since)
+  end
+
+  defp checkout_nodes(_agent_environment, _repository), do: []
 
   # The session's checkout grant, or nil: a session without one clones.
   defp checkout(_sandbox, nil, _work_id), do: nil

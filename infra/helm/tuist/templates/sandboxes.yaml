@@ -210,6 +210,8 @@ spec:
               value: {{ $templateTag | quote }}
             - name: TEMPLATE_DIR
               value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
+            - name: ROOTFS_SIZE
+              value: "{{ .Values.sandboxes.rootfsGiB }}G"
           volumeMounts:
             - name: data
               mountPath: /host

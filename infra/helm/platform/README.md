@@ -215,9 +215,8 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 
 ## Runner Kura gateway
 
-`kura-runners-ingress-nginx` served the retired `scw-fr-par-runners` region on the
-`kura-scw-fr-par` pool and is disabled in every environment; the rack sites run
-their own gateways (`kura-<site>-runners-ingress-nginx`) the same way. It reuses the shared Kura streaming configuration and
+Each rack site runs its own runner Kura gateway
+(`kura-<site>-runners-ingress-nginx`). It reuses the shared Kura streaming configuration and
 terminates TLS for per-account private hostnames. Its listeners bind the host
 interfaces; HTTP and gRPC access is restricted by each Ingress's source allowlist.
 It does not trust forwarded headers, PROXY protocol or real-IP rewriting.

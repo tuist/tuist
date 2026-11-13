@@ -3,6 +3,7 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
   use Mimic
 
   import Ecto.Query
+  import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Environment
@@ -79,6 +80,107 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       reject(&Nodes.call/4)
       assert :ok = DiskSnapshots.reconcile_node_report("node-a", %{"sandboxes" => []})
       assert Repo.reload(snapshot)
+    end
+  end
+
+  describe "Claude Code repository snapshots" do
+    setup do
+      account = account_fixture()
+
+      agent_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01")
+
+      stub(Nodes, :connected_nodes, fn ->
+        [
+          %{
+            name: "node-a",
+            disk: %{},
+            default_template: "default",
+            default_template_tag: "sha-new",
+            templates: [
+              %{name: "default", ready: true, tag: "sha-old", rootfs_bytes: 1},
+              %{name: "default", ready: true, tag: "sha-new", rootfs_bytes: 1}
+            ]
+          },
+          %{name: "node-b", disk: %{}, templates: [%{name: "default", ready: true, tag: "sha-b", rootfs_bytes: 1}]}
+        ]
+      end)
+
+      %{account: account, agent_environment: agent_environment}
+    end
+
+    defp repository_snapshot(account, agent_environment, opts) do
+      at = DateTime.add(DateTime.utc_now(), Keyword.get(opts, :age_seconds, 0) * -1, :second)
+
+      [account: account, agent_environment_id: agent_environment.id, repository: "acme/app", setup_sha256: "s1"]
+      |> Keyword.merge(Keyword.delete(opts, :age_seconds))
+      |> disk_snapshot_fixture()
+      |> backdate_inserted_at(at)
+    end
+
+    defp backdate_inserted_at(snapshot, at) do
+      at = DateTime.truncate(at, :second)
+      Repo.update_all(from(s in DiskSnapshot, where: s.id == ^snapshot.id), set: [inserted_at: at])
+      Repo.reload!(snapshot)
+    end
+
+    test "find_ready_for_repository/3 picks the newest ready snapshot of the script on a tag nodes create with", %{
+      account: account,
+      agent_environment: agent_environment
+    } do
+      # node-b creates with its only tag.
+      newest_usable = repository_snapshot(account, agent_environment, template_tag: "sha-b", age_seconds: 20)
+      _older = repository_snapshot(account, agent_environment, template_tag: "sha-new", age_seconds: 30)
+      # Newer, but each unusable for one reason.
+      _old_image = repository_snapshot(account, agent_environment, template_tag: "sha-old", age_seconds: 1)
+      _old_script = repository_snapshot(account, agent_environment, setup_sha256: "s0", template_tag: "sha-new")
+      _saving = repository_snapshot(account, agent_environment, state: :saving, template_tag: "sha-new")
+      _other_repository = repository_snapshot(account, agent_environment, repository: "acme/web", template_tag: "sha-new")
+      _other_size = repository_snapshot(account, agent_environment, workspace_gb: 20, template_tag: "sha-new")
+
+      other_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_02")
+
+      _other_environment = repository_snapshot(account, other_environment, template_tag: "sha-new")
+
+      assert DiskSnapshots.find_ready_for_repository(agent_environment, "acme/app", "s1").id == newest_usable.id
+
+      stub(Nodes, :connected_nodes, fn -> [] end)
+      assert DiskSnapshots.find_ready_for_repository(agent_environment, "acme/app", "s1") == nil
+    end
+
+    test "save_build/2 saves the builder's paused disks and replaces the environment's older snapshots of the repository",
+         %{account: account, agent_environment: agent_environment} do
+      older = repository_snapshot(account, agent_environment, setup_sha256: "s0", age_seconds: 60)
+      other_repository = repository_snapshot(account, agent_environment, repository: "acme/web", age_seconds: 60)
+      amp = disk_snapshot_fixture(account: account)
+      {:ok, build} = DiskSnapshots.start_build(agent_environment, "acme/app", "s1")
+      {:ok, other_build} = DiskSnapshots.start_build(agent_environment, "acme/app", "s2")
+
+      sandbox =
+        sandbox_fixture(
+          account: account,
+          id: build.id,
+          agent_environment_id: agent_environment.id,
+          state: :paused,
+          node_name: "node-a",
+          template_tag: "sha-new"
+        )
+
+      expect(Nodes, :call, fn "node-a", "save_disks", %{sandbox_id: id}, _opts when id == sandbox.id ->
+        {:ok, %{"duration_ms" => 3}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "delete_disks", %{snapshot_id: id}, _opts when id == older.id -> {:ok, %{}} end)
+
+      assert {:ok, %DiskSnapshot{state: :ready, repository: "acme/app", setup_sha256: "s1", template_tag: "sha-new"}} =
+               DiskSnapshots.save_build(build, sandbox)
+
+      refute Repo.reload(build)
+      refute Repo.reload(older)
+      assert Repo.reload(other_build)
+      assert Repo.reload(other_repository)
+      assert Repo.reload(amp)
     end
   end
 

@@ -59,7 +59,7 @@ func defaultHTTPClient() *http.Client {
 		TLSHandshakeTimeout:   30 * time.Second,
 		ResponseHeaderTimeout: 2 * time.Minute,
 		IdleConnTimeout:       90 * time.Second,
-		MaxIdleConnsPerHost:   4,
+		MaxIdleConnsPerHost:   16,
 	}}
 }
 

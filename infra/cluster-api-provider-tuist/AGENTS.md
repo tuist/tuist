@@ -58,10 +58,6 @@ machine kinds:
   operator creates with its CAPI Machine, joined over their own tailnet address with a kubeadm
   `system:node` identity and kept converged. See "Rack-owned Linux hosts"
   below.
-- `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
-  `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
-  has no user-data channel); adopts a pre-ordered box and
-  **reinstalls it (wipe) on release**.
 - `OVHDedicatedMachine` — OVHcloud bare metal (including eu-west, us-east, us-west,
   and ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
@@ -69,9 +65,16 @@ machine kinds:
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The Linux kinds share the
 `controllers/linux` package and bind that identity to `system:node`;
-Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
-designed in `docs/scaleway-elastic-metal-support.md`; the sections below
-detail the Apple Silicon kind.
+Apple Silicon uses the `tart-kubelet` role. The sections below detail the
+Apple Silicon kind.
+
+Scaleway Elastic Metal support (`ScalewayElasticMetalMachine`, its template
+and the `kura-scw-fr-par` runner-cache pool) was removed in November 2026;
+Scaleway remains only for Apple Silicon. Helm does not delete installed CRDs,
+so once a provider without that controller is deployed to an environment,
+delete them there by hand (cluster-admin, as in "Renaming a machine kind"
+below, including the CAPI core restart):
+`kubectl delete crd scalewayelasticmetalmachines.infrastructure.cluster.x-k8s.io scalewayelasticmetalmachinetemplates.infrastructure.cluster.x-k8s.io`.
 
 `VultrMachine` manages the Chicago and Santiago bare-metal cache fleets. It
 adopts preordered hosts and performs the disk conversion the provider installer
@@ -94,7 +97,6 @@ private-network guide above.
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
-| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
@@ -2325,7 +2327,6 @@ infra/cluster-api-provider-tuist/
 ├── api/v1alpha1/
 │   ├── groupversion_info.go
 │   ├── scalewayapplesiliconmachine_types.go (+ …template)
-│   ├── scalewayelasticmetalmachine_types.go (+ …template)
 │   ├── ovhdedicatedmachine_types.go (+ …template)
 │   ├── racklinuxhost_types.go / racklinuxmachine_types.go / racklinuxcandidate_types.go
 │   ├── tuistcluster_types.go
@@ -2358,9 +2359,8 @@ infra/cluster-api-provider-tuist/
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
 │   ├── orphan_reclaimer.go
-│   └── linux/      # the Linux fleet kinds (OVH / Elastic Metal / Vultr / rack)
+│   └── linux/      # the Linux fleet kinds (OVH / Vultr / rack)
 │       ├── ovhdedicatedmachine_controller.go
-│       ├── scalewayelasticmetalmachine_controller.go
 │       ├── racklinuxhost_*.go       # rack hosts: install, Machine, AMT, power, retirement
 │       ├── racklinuxmachine_controller.go / rack_linux_converge.go  # rack join + converge
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
@@ -2488,8 +2488,8 @@ all three of these, or it inherits the trap:
    turns "no Pod ever schedules" into "every Pod wedged in ContainerCreating",
    which is harder to diagnose and burns the job instead of queueing it.
 
-Note the trap is not OVH-specific. `ScalewayElasticMetalMachine`
-shares this renderer and the same once-at-bootstrap property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
+Note the trap is not OVH-specific. `VultrMachine` shares this renderer and
+the same once-at-bootstrap property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
@@ -2585,16 +2585,6 @@ see the quantity in question:
   machine's `EgressBudgetMbps` (see below); Vultr takes the spec value directly.
   The helper treats zero as "withdraw the capacity", so both kinds can retire
   a budget.
-
-  Elastic Metal has no `EgressBudgetMbps` and is deliberately outside this path.
-  It backs only the private runner-cache pool, whose tenants reach it over the
-  Scaleway Private Network (10 Gbit/s on the B-series, 25 Gbit/s on the I-series)
-  rather than over the 1 Gbit/s public bandwidth every offer includes. That
-  public figure is the one the other kinds advertise, and on this pool it
-  describes no path in use: it is the mirror of the vRack over-commit the OVH
-  fleet values warn about. Arbitration on the private path is the per-tenant
-  Cilium ceiling instead, so the pool also stays out of
-  `egressTreeAgent.nodePools`.
 - `tuist.dev/memory-ceiling-mib` — a bounded multiple
   (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
   Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
@@ -2832,15 +2822,8 @@ Day-1 operator runbook:
 
    - `AppleSiliconFullAccess` — order/release Mac minis, list server
      types and OS images (the Apple Silicon fleets).
-   - `ElasticMetalFullAccess` — list/order/release Elastic Metal
-     servers (the kura runner-cache fleet). Elastic Metal is a
-     **separate Scaleway product** from Apple Silicon; without this
-     set the EM reconciler 403s on its first `list elastic metal
-     servers` call and never orders a node, so the cache stays down
-     and a deploy waiting on the fleet hangs.
    - `PrivateNetworksFullAccess` — attach servers to the runner-cache
      Private Network (find-or-created by name).
-   - `IPAMReadOnly` — read the PN-assigned address the self-join uses.
    - `SSHKeysFullAccess` — register the per-fleet Ed25519 public key
      the operator generates on first reconcile. **Do not use
      `IAMManager`** despite the name suggesting it covers SSH keys;
@@ -3011,7 +2994,7 @@ node-local volume is lost and the host key rotates, so the next claim re-TOFUs i
 these clusters. The `Cluster` has no control plane Machines, so Machine deletion
 skips the drain, and with it every `MachineDrainRule`, and goes straight to the
 infrastructure Machine (the CAPI controller logs `Skipping deletion of Kubernetes
-Node ... cause="no control plane members"`). The OVH, Vultr and Elastic Metal
+Node ... cause="no control plane members"`). The OVH and Vultr
 releases therefore start by cordoning the box's Node and requeue every 30s, with
 a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
 `tuist-runners` on it has not finished (`holdReleaseForRunnerJobs` in
@@ -3021,7 +3004,7 @@ terminating Pod on an unreachable Node does not. No other Pod is waited on. See
 "Replacing a runner box without killing CI jobs" in
 [runners-controller](../runners-controller/AGENTS.md).
 
-**A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
+**A failing step waits out its requeue.** The OVH and Vultr
 machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
 every pass patches status (a bootstrap attempt counted, a phase set) and that
 patch would otherwise trigger the next pass at once, skipping the
@@ -3029,18 +3012,17 @@ patch would otherwise trigger the next pass at once, skipping the
 started deletion still wake them. Before it, the staging GRA box that refused
 the fleet key took 30,043 SSH logins in about 11 hours (2026-10-05).
 
-**A reinstall already in flight is a completed release, not a failure.** OVH and Elastic Metal
-reach the provider before dropping the finalizer, so a controller restart
+**A reinstall already in flight is a completed release, not a failure.** OVH
+reaches the provider before dropping the finalizer, so a controller restart
 between a successful install call and the finalizer patch — or two Machines on one
 box — has the release ask for a second wipe of a box already being wiped. Every
 provider rejects that for the whole ~30 minute install, and retrying on it holds
 the Machine in `Deleting`: the MachineDeployment stays a replica above spec and a
 `helm upgrade --atomic` rollback waiting on that count runs out its step ceiling
-(2026-09-03, 13 minutes on `ns3048220`). Each kind therefore reads the box's own
-install state and releases when a wipe is already running — OVH gates on
+(2026-09-03, 13 minutes on `ns3048220`). It therefore reads the box's own
+install state and releases when a wipe is already running, gating on
 `Client::BadRequest::TaskAlreadyExists` plus an install-function task in the task
-list, Elastic Metal on the install status the API reports, since its API
-does not name the collision. A failure that is not that retries on a bounded
+list. A failure that is not that retries on a bounded
 interval rather than controller-runtime's default backoff, which doubles to a
 1000s cap and idles the Machine long after the provider frees the box.
 
@@ -3124,16 +3106,6 @@ lost by leaving it idle, since the cache lives on the larger group either way.
 
 `StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
 than falling back to the provider's default single-root install.
-
-Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
-which exposes the offer layout directly: `GetDefaultPartitioningSchema`
-returns the offer's own layout to transform, so the planner never guesses the
-disk count, device naming, or whether the OS is mirrored, and
-`ValidatePartitioningSchema` checks the result against the real offer WITHOUT
-touching a server. `PartitioningSchemaFor` runs both before either install path
-posts, so a schema the provider would reject stops the install rather than
-wiping a box to discover it. `PlanSchema` takes /data out of root's partition
-and mirrors it exactly as the default mirrors root.
 
 
 **Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
@@ -3381,7 +3353,7 @@ local state. Fix what the condition names and let the repair land.
 ### Make `kubectl logs`/`exec` work on a fleet node
 
 The apiserver dials the kubelet at the node's InternalIP:10250. When
-`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Elastic Metal / OVH / Vultr), the error says which piece is off:
+`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (OVH / Vultr), the error says which piece is off:
 
 | `kubectl logs <fleet-pod>` error | Fix |
 |---|---|
@@ -3396,16 +3368,7 @@ check the node picked it up (the stamped hash appears once the re-push ran):
 kubectl get node <fleet-node> -o jsonpath='{.metadata.annotations.tuist\.dev/kubelet-config-hash}'
 ```
 
-`kubectl delete machine <name>` re-provisions to force it. On **Elastic Metal**,
-two things bite:
-
-- The re-push SSHes in with the fleet key, so the box must be authorized with it.
-  `ssh: unable to authenticate … [none publickey]` means it isn't, and the box is
-  re-keyed only at reinstall with the key of `machine.Spec.FleetName`. An empty
-  `fleetName` uses a per-machine key that mismatches, so make sure it's set.
-- A reinstalled box can fail apt (`exited with status 100`) when PN DHCP writes
-  `/etc/resolv.conf` with only `nameserver 169.254.169.254`, which the box
-  firewalls off. SSH in as `ubuntu` and swap it for `nameserver 1.1.1.1`.
+`kubectl delete machine <name>` re-provisions to force it.
 
 Emergency bypass for a wedged CP: add `InternalIP` to
 `--kubelet-preferred-address-types` in
@@ -3538,8 +3501,8 @@ landing capacity; no managed pool opts in by
 default. Cache taints alone retain the full shared-XFS data disk. Annotating a
 joined host does not convert it.
 
-Explicitly enrolled rented Linux cache hosts (both `tuist.dev/kura-cache` and
-`tuist.dev/runner-cache` taints) convert their installer's empty XFS `/data` md
+Explicitly enrolled rented Linux cache hosts (the `tuist.dev/kura-cache`
+taint) convert their installer's empty XFS `/data` md
 filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
 When the installer omits the data mount/fstab entry, bootstrap accepts exactly
 one unmounted XFS md filesystem and inspects it read-only; ambiguous devices,

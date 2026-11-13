@@ -209,29 +209,27 @@ func Download(ctx context.Context, client *http.Client, target string, size int6
 
 // DownloadRange is Download of the size bytes from offset on, such as the
 // disk stream of an archive that holds a memory image ahead of it.
+//
+// A range longer than one segment is fetched as downloadStreams ranged GETs
+// at a time and handed to consume in order, so a restore is not held to one
+// connection's throughput while the hash and the extraction still read one
+// sequential stream. A segment that fails is fetched again on its own.
 func DownloadRange(ctx context.Context, client *http.Client, target string, offset, size int64, sum string, consume func(io.Reader) error) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	if err != nil {
-		return redact(err)
-	}
-	status := http.StatusOK
-	if offset > 0 {
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+size-1))
-		status = http.StatusPartialContent
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return redact(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != status {
-		return fmt.Errorf("object storage answered %d", resp.StatusCode)
-	}
-	if resp.ContentLength >= 0 && resp.ContentLength != size {
-		return fmt.Errorf("archive is %d bytes, expected %d", resp.ContentLength, size)
+	var body io.Reader
+	if size > downloadSegment {
+		segmented := newSegmentedBody(ctx, client, target, offset, size)
+		defer segmented.close()
+		body = segmented
+	} else {
+		resp, err := get(ctx, client, target, offset, size, offset > 0)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		body = resp.Body
 	}
 	hasher := sha256.New()
-	counted := &countingReader{r: io.TeeReader(io.LimitReader(resp.Body, size+1), hasher)}
+	counted := &countingReader{r: io.TeeReader(io.LimitReader(body, size+1), hasher)}
 	if err := consume(counted); err != nil {
 		return redact(err)
 	}
@@ -245,6 +243,158 @@ func DownloadRange(ctx context.Context, client *http.Client, target string, offs
 		return fmt.Errorf("archive checksum %s does not match %s", got, sum)
 	}
 	return nil
+}
+
+// Segmented downloads hold at most downloadStreams segments in memory: the
+// ones in flight and the ones waiting for consume.
+var (
+	downloadSegment int64 = 8 << 20
+	downloadStreams       = 8
+	// getRetryBackoff is a variable so tests do not wait it out.
+	getRetryBackoff = time.Second
+)
+
+const segmentAttempts = 3
+
+// get GETs size bytes from offset, with a Range header when ranged, and
+// checks the status and the announced length.
+func get(ctx context.Context, client *http.Client, target string, offset, size int64, ranged bool) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, redact(err)
+	}
+	status := http.StatusOK
+	if ranged {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+size-1))
+		status = http.StatusPartialContent
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, redact(err)
+	}
+	if resp.StatusCode != status {
+		resp.Body.Close()
+		return nil, &statusError{code: resp.StatusCode}
+	}
+	if resp.ContentLength >= 0 && resp.ContentLength != size {
+		resp.Body.Close()
+		return nil, fmt.Errorf("archive is %d bytes, expected %d", resp.ContentLength, size)
+	}
+	return resp, nil
+}
+
+type statusError struct{ code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("object storage answered %d", e.code) }
+
+// segmentedBody reads a range as consecutive segments that downloadStreams
+// workers fetch ahead of the reader. A worker takes a buffer from free, and
+// the reader returns it once it has read past that segment, so the buffers
+// bound both the requests in flight and the memory held.
+type segmentedBody struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	results []chan segment
+	free    chan []byte
+	next    int
+	cur     []byte
+	buf     []byte
+}
+
+type segment struct {
+	data []byte
+	err  error
+}
+
+func newSegmentedBody(ctx context.Context, client *http.Client, target string, offset, size int64) *segmentedBody {
+	ctx, cancel := context.WithCancel(ctx)
+	count := int((size + downloadSegment - 1) / downloadSegment)
+	b := &segmentedBody{ctx: ctx, cancel: cancel, results: make([]chan segment, count), free: make(chan []byte, downloadStreams)}
+	for i := range b.results {
+		b.results[i] = make(chan segment, 1)
+	}
+	for range downloadStreams {
+		b.free <- nil
+	}
+	go func() {
+		for i := range count {
+			var buf []byte
+			select {
+			case buf = <-b.free:
+			case <-ctx.Done():
+				return
+			}
+			start := int64(i) * downloadSegment
+			length := min(downloadSegment, size-start)
+			if buf == nil {
+				buf = make([]byte, downloadSegment)
+			}
+			go func() {
+				data, err := fetchSegment(ctx, client, target, offset+start, buf[:length])
+				b.results[i] <- segment{data: data, err: err}
+			}()
+		}
+	}()
+	return b
+}
+
+func (b *segmentedBody) Read(p []byte) (int, error) {
+	for len(b.cur) == 0 {
+		if b.buf != nil {
+			b.free <- b.buf
+			b.buf = nil
+		}
+		if b.next == len(b.results) {
+			return 0, io.EOF
+		}
+		select {
+		case s := <-b.results[b.next]:
+			if s.err != nil {
+				return 0, s.err
+			}
+			b.buf, b.cur = s.data[:cap(s.data)], s.data
+			b.next++
+		case <-b.ctx.Done():
+			return 0, b.ctx.Err()
+		}
+	}
+	n := copy(p, b.cur)
+	b.cur = b.cur[n:]
+	return n, nil
+}
+
+// close stops the workers; requests in flight end with the context.
+func (b *segmentedBody) close() { b.cancel() }
+
+// fetchSegment fills buf from offset, trying segmentAttempts times when the
+// transfer fails or storage answers 5xx or 429.
+func fetchSegment(ctx context.Context, client *http.Client, target string, offset int64, buf []byte) ([]byte, error) {
+	var last error
+	for attempt := 1; attempt <= segmentAttempts; attempt++ {
+		if attempt > 1 {
+			select {
+			case <-time.After(time.Duration(attempt-1) * getRetryBackoff):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		resp, err := get(ctx, client, target, offset, int64(len(buf)), true)
+		if err != nil {
+			var status *statusError
+			if errors.As(err, &status) && status.code < 500 && status.code != http.StatusTooManyRequests {
+				return nil, err
+			}
+			last = err
+			continue
+		}
+		_, err = io.ReadFull(resp.Body, buf)
+		resp.Body.Close()
+		if err == nil {
+			return buf, nil
+		}
+		last = redact(err)
+	}
+	return nil, fmt.Errorf("archive bytes %d-%d: %w", offset, offset+int64(len(buf))-1, last)
 }
 
 type countingReader struct {
