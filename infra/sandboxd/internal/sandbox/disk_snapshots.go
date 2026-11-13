@@ -179,7 +179,7 @@ func (m *Manager) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (r
 	}
 	defer os.RemoveAll(tmp)
 	log := m.log.With("snapshot", args.SnapshotID)
-	header, err := m.downloadArchive(ctx, src, tmp, args.Template, args.WorkspaceGB, log)
+	header, err := m.downloadArchive(ctx, src, tmp, args.Template, args.WorkspaceGB, 0, log)
 	if err != nil {
 		return res, err
 	}
