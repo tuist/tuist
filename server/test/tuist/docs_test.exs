@@ -468,8 +468,9 @@ defmodule Tuist.DocsTest do
     test "renders the compatibility matrix from the canonical ClickHouse version" do
       page = Docs.get_page("/en/guides/server/self-host/server")
 
-      assert page.body =~
-               ~s(<td>ClickHouse</td><td>#{ClickHouseVersions.minimum_supported_version()}</td>)
+      version = Regex.escape(ClickHouseVersions.minimum_supported_version())
+
+      assert page.body =~ ~r/<td>ClickHouse<\/td>\s*<td>#{version}<\/td>/
     end
 
     test "does not cache missing pages" do
