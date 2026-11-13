@@ -84,7 +84,7 @@ line under its license header, or a `Tuist:` comment at the change.
 - [`pulse-release.yml`](../.github/workflows/pulse-release.yml) publishes
   `ghcr.io/tuist/pulse:<version>` and the `pulse@<version>` tag when `pulse/`
   changes on main. Versions are the upstream version plus a fork revision, such
-  as `1.3.0-tuist.1`. The image is built with upstream's
+  as `1.3.0-1`. The image is built with upstream's
   `docker/buildx/ubuntu/Dockerfile` and release profile (`nightly`), without
   the embedded web dashboard (`servers/dashboard`).
 - Publishing deploys nothing. In each cluster's `observability` namespace the
@@ -94,7 +94,7 @@ line under its license header, or a `Tuist:` comment at the change.
   dispatched. Moving to a new release means changing that pin and the one in
   `infra/helm/greptimedb/test-managed.sh`, then dispatching the deployment.
   `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
-  accepts any `ghcr.io/tuist/pulse:<version>-tuist.<n>` image.
+  accepts any `ghcr.io/tuist/pulse:<version>-<n>` image.
 
 ## Moving to a newer upstream version
 

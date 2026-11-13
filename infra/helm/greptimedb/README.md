@@ -153,7 +153,7 @@ The server's collector readiness gate (`pulse-readiness.sh`) follows the live
 workloads. With no `pulse` release installed it passes, and collectors still
 deploy to Grafana Cloud. Otherwise every workload of the installed topology must
 be Helm-owned by `pulse`, fully rolled out and Ready, and run a published
-`ghcr.io/tuist/pulse:<version>-tuist.<n>` image; legacy `pulso` writers still
+`ghcr.io/tuist/pulse:<version>-<n>` image; legacy `pulso` writers still
 fail closed. The observability concurrency lane serializes these dispatches and
 routine collector upgrades.
 

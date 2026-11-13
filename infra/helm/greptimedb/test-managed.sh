@@ -15,7 +15,7 @@ jq -e '
     .spec.template.spec.automountServiceAccountToken == false and
     .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"} and
     .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-tuist.1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-1" and
     .spec.template.spec.containers[0].readinessProbe.httpGet.path == "/health" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   any(.[]; .kind == "ConfigMap" and
@@ -87,7 +87,7 @@ jq -e '
     (.spec.template.spec.containers[0].image | test("^docker.io/apache/kafka:[0-9.]+@sha256:[0-9a-f]{64}$"))) and
   (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-tuist.1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-1" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   (one("Deployment"; "pulse-frontend") | .spec.replicas == 2 and spread("frontend") and
     .spec.template.spec.initContainers[0].name == "combine-auth") and

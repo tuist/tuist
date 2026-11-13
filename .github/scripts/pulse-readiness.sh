@@ -28,7 +28,7 @@ for entry in ${workloads:-}; do
     .status.updatedReplicas == .spec.replicas and .status.readyReplicas == .spec.replicas and
     ((.metadata.name | test("-(etcd|kafka)$")) or
       ([.spec.template.spec.containers[].image] | length == 1 and
-        all(test("^ghcr\\.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+-tuist\\.[0-9]+$"))))
+        all(test("^ghcr\\.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+$"))))
   ' >/dev/null
 done
 if [[ -n "$topology" ]]; then

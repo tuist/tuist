@@ -74,7 +74,7 @@ if (scenario === 'standalone scaled up') replicas += 1;
 const value = {
   kind:kind === 'statefulset' ? 'StatefulSet' : 'Deployment',
   metadata:{name,generation:2,annotations:{'meta.helm.sh/release-name':'pulse','meta.helm.sh/release-namespace':'observability'}},
-  spec:{replicas,template:{spec:{containers:[{image:/-(etcd|kafka)$/.test(name) ? 'docker.io/apache/kafka:4.3.2' : 'ghcr.io/tuist/pulse:1.3.0-tuist.12'}]}}},
+  spec:{replicas,template:{spec:{containers:[{image:/-(etcd|kafka)$/.test(name) ? 'docker.io/apache/kafka:4.3.2' : 'ghcr.io/tuist/pulse:1.3.0-12'}]}}},
   status:{observedGeneration:2,updatedReplicas:replicas,readyReplicas:replicas,currentRevision:'r2',updateRevision:'r2'}
 };
 const image = value.spec.template.spec.containers;

@@ -2,7 +2,7 @@ name: Pulse Release
 
 # Publishes the GreptimeDB fork in pulse/ as ghcr.io/tuist/pulse:<version>,
 # tagged pulse@<version>. Versions are the upstream version the fork is based on
-# plus a fork revision, such as 1.3.0-tuist.1.
+# plus a fork revision, such as 1.3.0-1.
 #
 # This only publishes. Nothing deploys a release: the clusters' pulse release
 # runs the image pinned in infra/helm/greptimedb/values.yaml, and
@@ -47,15 +47,15 @@ jobs:
           set -euo pipefail
           upstream=$(sed -nE '/^\[workspace\.package\]/,/^\[/ s/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' pulse/Cargo.toml)
           [[ "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          previous=$(git tag -l "pulse@${upstream}-tuist.*" | grep -E "^pulse@${upstream//./\\.}-tuist\.[0-9]+$" \
-            | sort -t. -k4 -n | tail -n1 || true)
+          previous=$(git tag -l "pulse@${upstream}-*" | grep -E "^pulse@${upstream//./\\.}-[0-9]+$" \
+            | sort -t- -k2 -n | tail -n1 || true)
           revision=1
           should=true
           if [[ -n "$previous" ]]; then
-            revision=$(( ${previous##*.} + 1 ))
+            revision=$(( ${previous##*-} + 1 ))
             if git diff --quiet "$previous" HEAD -- pulse; then should=false; fi
           fi
-          version="${upstream}-tuist.${revision}"
+          version="${upstream}-${revision}"
           printf 'upstream:  %s\nprevious:  %s\nnext:      pulse@%s\nrelease?   %s\n' \
             "$upstream" "${previous:-<none>}" "$version" "$should"
           {
@@ -92,7 +92,7 @@ jobs:
       - name: Refuse to replace a published version
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-tuist\.[0-9]+$ ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
           [[ "$TAG" == "pulse@$VERSION" ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
