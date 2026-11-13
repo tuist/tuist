@@ -402,7 +402,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seconds, so the node shim leaves jobs on GitHub's cache during an outage.
 - `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
   filesystem until `Run` copies them to the store (a presigned PUT bound to the
-  SHA-256) and the server commits them; a failed copy drops the entry. It writes
+  SHA-256) and the server commits them; a failed copy drops the entry. A block
+  list commits by hard-linking its synced blocks into `parts/` in list order
+  and hashing them; the copy streams the parts. Never reassemble them into one
+  file before answering: the job waits on it, seconds per GB. It writes
   through the same 16 MiB writeback bound, at most four streams at a time, and
   admits only above the reserve. Staging never evicts masters; uploads idle for
   an hour are removed.
