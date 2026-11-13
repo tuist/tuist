@@ -70,6 +70,7 @@ defmodule Tuist do
       Bundles.BundleSizeApprover,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
+      DashboardSearch,
       Cache,
       Cache.Analytics,
       CacheEndpoints,

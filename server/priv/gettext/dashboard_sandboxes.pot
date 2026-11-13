@@ -137,7 +137,7 @@ msgstr ""
 msgid "Sandbox deleted."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:545
+#: lib/tuist_web/components/dashboard_navigation.ex:42
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
@@ -408,7 +408,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:553
+#: lib/tuist_web/components/dashboard_navigation.ex:45
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12

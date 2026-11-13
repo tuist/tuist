@@ -477,6 +477,7 @@ config :phoenix, :filter_parameters, [
   "credential",
   "mfa_code",
   "installation_receipt",
+  "search_query",
   "arguments"
 ]
 

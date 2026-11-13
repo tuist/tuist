@@ -841,6 +841,13 @@ defmodule TuistWeb.Router do
     post "/accounts/:account_handle", WebMCPController, :account
   end
 
+  scope "/api/dashboard-search", TuistWeb do
+    # The same browser-session, CSRF, SSO and requester limits as WebMCP reads.
+    pipe_through [:webmcp]
+
+    post "/:account_handle", DashboardSearchController, :search
+  end
+
   scope "/scim/v2", TuistWeb.SCIM do
     pipe_through [:scim_api]
 

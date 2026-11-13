@@ -1,0 +1,333 @@
+.dashboard-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--noora-spacing-3);
+  cursor: pointer;
+  box-shadow: var(--noora-border-light-default);
+  border: 0;
+  border-radius: var(--noora-radius-3);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-small);
+
+  & svg {
+    display: block;
+    flex-shrink: 0;
+    width: 1lh;
+    height: 1lh;
+  }
+  & kbd {
+    margin-inline-start: auto;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-3);
+    padding: 0 var(--noora-spacing-2);
+    font: inherit;
+  }
+
+  /* Same feedback as Noora's text input, which this trigger looks like. */
+  &:hover {
+    background: var(--noora-surface-background-secondary);
+  }
+  &:active,
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--noora-border-light-focus);
+  }
+}
+
+.noora-sidebar .dashboard-search-trigger {
+  padding-block: var(--noora-spacing-4);
+  width: 100%;
+}
+
+/* Project content uses a 20px top gutter; account content and its sidebar
+   already share the 32px gutter. Keep the search aligned with each layout. */
+.noora-sidebar:has(.dashboard-search-trigger):has(+ .layout__content:not(.layout__content--account))
+  > [data-part="viewport"] {
+  padding-block-start: var(--noora-spacing-7);
+}
+
+#dashboard-search button:focus-visible,
+#dashboard-search a:focus-visible {
+  outline: 2px solid var(--noora-purple-500);
+  outline-offset: 2px;
+}
+
+#dashboard-search {
+  & dialog {
+    box-sizing: border-box;
+    margin-inline: auto;
+    margin-block: 0;
+    inset-block-start: min(12vh, 100px);
+    box-shadow: 0 24px 80px rgb(0 0 0 / 24%);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: 12px;
+    background: var(--noora-surface-background-primary);
+    padding: 0;
+    width: min(640px, calc(100vw - 32px));
+    max-height: calc(100dvh - min(12vh, 100px) - 24px);
+    overflow: hidden;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  & dialog::backdrop {
+    background: rgb(15 16 28 / 45%);
+  }
+  & [data-part="search-row"] {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--noora-content-divider-line);
+    padding: 16px;
+    & > svg {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+  & input {
+    flex: 1;
+    outline: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    min-width: 0;
+    color: inherit;
+    font: inherit;
+    font-size: 16px;
+    line-height: 20px;
+    &::placeholder {
+      color: var(--noora-surface-label-secondary);
+    }
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+  & button {
+    cursor: pointer;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    padding: 4px;
+    color: var(--noora-surface-label-secondary);
+    font: inherit;
+    & svg {
+      display: block;
+      width: 20px;
+      height: 20px;
+    }
+    &:hover {
+      background: var(--noora-button-neutral-background-hover);
+      color: var(--noora-surface-label-primary);
+    }
+  }
+  & [hidden] {
+    display: none !important;
+  }
+  & [data-part="picker-heading"] {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--noora-content-divider-line);
+    padding: 12px 16px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+  & [data-part="search-validation"] {
+    padding: 12px 16px;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+  }
+  & [data-part="search-status"] {
+    padding: 8px 16px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+  & [data-part="search-status"]:empty {
+    display: none;
+  }
+  & [data-part="search-status"][data-empty],
+  & [data-part="search-status"][data-loading]:not([data-visible]) {
+    position: absolute;
+    clip-path: inset(50%);
+    padding: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  /* Fades in after a beat so fast responses never flash it. */
+  & [data-part="search-status"][data-visible] {
+    animation: dashboard-search-fade-in 150ms ease-out 250ms both;
+    padding: 24px 16px;
+    text-align: center;
+  }
+  & [data-part="search-empty"] {
+    padding: 8px 16px 16px;
+    text-align: center;
+
+    & [data-part="title"] {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+  & [role="listbox"] {
+    padding: 0 8px 8px;
+    min-height: 80px;
+    max-height: 55dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  & .dashboard-search-group {
+    margin: 0;
+    padding: 10px 8px 4px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+  & [role="option"] {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    padding: 6px 8px;
+    width: 100%;
+    color: inherit;
+    text-align: start;
+    text-decoration: none;
+    & .dashboard-search-result-text {
+      display: flex;
+      flex: 1;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+    }
+    & strong {
+      font: inherit;
+    }
+    & strong,
+    & small,
+    & .dashboard-search-hierarchy {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    & .dashboard-search-hierarchy {
+      flex-shrink: 0;
+      max-width: 45%;
+      color: var(--noora-surface-label-secondary);
+    }
+    & small {
+      flex: 1;
+      margin-inline-start: 6px;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+    &[aria-selected="true"] {
+      background: light-dark(var(--noora-purple-50), var(--noora-neutral-dark-800));
+    }
+    /* Reserve the slot on every row so selection never shifts the layout. */
+    & .dashboard-search-enter {
+      flex-shrink: 0;
+      visibility: hidden;
+      width: 16px;
+      height: 16px;
+      color: var(--noora-surface-label-secondary);
+      & svg {
+        display: block;
+        width: 16px;
+        height: 16px;
+      }
+    }
+    &[aria-selected="true"] .dashboard-search-enter {
+      visibility: visible;
+    }
+  }
+  & .dashboard-search-project {
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    max-width: 45%;
+    & > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  & .dashboard-search-result-icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    color: var(--noora-surface-label-secondary);
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  & [data-part="search-error"] {
+    border-top: 1px solid var(--noora-content-divider-line);
+    padding: 12px 16px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+  & [data-retry] {
+    margin-inline-start: 8px;
+    color: light-dark(var(--noora-purple-600), var(--noora-purple-400));
+  }
+  & footer {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    border-top: 1px solid var(--noora-content-divider-line);
+    background: var(--noora-surface-background-secondary);
+    padding: 12px 16px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+
+    & > * {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+  }
+  & kbd {
+    display: inline-block;
+    margin-inline-end: 3px;
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: 4px;
+    padding: 0 4px;
+    font: inherit;
+  }
+
+  @media (max-width: 600px) {
+    & dialog {
+      inset-block-start: 16px;
+      max-height: calc(100dvh - 32px);
+    }
+    & footer {
+      gap: 8px;
+      font-size: 11px;
+    }
+  }
+}
+
+@keyframes dashboard-search-fade-in {
+  from {
+    opacity: 0;
+  }
+}

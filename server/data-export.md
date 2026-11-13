@@ -28,6 +28,22 @@ Data is provided in a single compressed archive containing:
 
 Sensitive authentication data (passwords, tokens) are excluded from exports.
 
+Dashboard search remembers the last visited project name in browser localStorage,
+under `tuist:dashboard-project:<user_id>:<account_id>`, to prioritize account-level
+project shortcuts. Project-level searches use the current project unless an explicit
+`project:` filter selects another authorized project.
+It is overwritten on project visits, retained until browser site data is cleared,
+and checked against currently authorized projects before use. It is not synchronized
+or stored in PostgreSQL/ClickHouse and is not part of server-side exports; a user can
+retrieve or remove it through their browser's site storage. Search queries and query
+history are not persisted by dashboard search. It also retains up to five recently
+visited dashboard page paths under the same key with a `:pages` suffix, scoped to
+the same user and account, until replaced by newer visits or browser site data is
+cleared. Only paths from the current navigation catalog are recorded; suggestions
+are resolved against the freshly authorized catalog before displaying them. These
+browser-only paths can be retrieved or removed through site storage and are not
+included in server-side exports.
+
 Atlas label-printing data lives in its separate PostgreSQL database:
 owner-scoped `label_sessions`, exact preview PNGs and approval/dispatch/results
 in `label_jobs`, plus related audit activities. Export by verified Atlas owner,

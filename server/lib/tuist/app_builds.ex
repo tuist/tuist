@@ -185,6 +185,11 @@ defmodule Tuist.AppBuilds do
     Repo.exists?(from(p in Preview, where: p.project_id == ^project_id))
   end
 
+  def project_ids_with_previews(projects) do
+    ids = Enum.map(projects, & &1.id)
+    Repo.all(from(p in Preview, where: p.project_id in ^ids, select: p.project_id, distinct: true))
+  end
+
   def list_preview_tracks(%Project{id: project_id}) do
     tracks =
       Repo.all(
