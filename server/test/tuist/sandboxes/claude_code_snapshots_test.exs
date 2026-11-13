@@ -134,6 +134,26 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert ClaudeCodeSnapshots.find(agent_environment, %{owner: "acme", name: "app"}).id == snapshot.id
   end
 
+  test "a builder another admission of the account kept out is created on a later check", %{
+    build: build,
+    test_pid: test_pid
+  } do
+    stub(Sandboxes, :create_sandbox, fn account, attrs, opts ->
+      call_original(Sandboxes, :create_sandbox, [account, attrs, opts])
+    end)
+
+    expect(Sandboxes, :create_sandbox, fn _account, _attrs, [id: id] when id == build.id ->
+      {:error, :sandbox_account_busy}
+    end)
+
+    assert {:snooze, 60} = advance(build)
+    assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
+
+    stub_node(test_pid)
+    assert {:snooze, 30} = advance(build)
+    assert [{:create, _create}, {:exec, _start}] = node_calls()
+  end
+
   test "a failed script deletes the builder and keeps the script from building the repository for a while", %{
     agent_environment: agent_environment,
     build: build,

@@ -43,8 +43,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # `Tuist.Sandboxes.Workers.CommandWatchWorker` records the command's end
   # within 15 seconds.
   @poll_seconds 30
-  @capacity_retry_seconds 60
-  @capacity_errors [:no_capacity, :no_node, :sandbox_concurrency_limit]
+  @retry_seconds 60
+  # Refusals that pass: no room yet, or another admission of the account
+  # holding its row (two builds starting together).
+  @retryable_errors [:no_capacity, :no_node, :sandbox_concurrency_limit, :sandbox_account_busy]
 
   # Clones beside the final path as the runner's user, so a clone cut short
   # never looks like the runner's repository, then drops the token and runs
@@ -165,7 +167,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
 
     case Sandboxes.create_sandbox(agent_environment.account, attrs, id: build.id) do
       {:ok, sandbox} -> start_command(build, agent_environment, sandbox)
-      {:error, reason} when reason in @capacity_errors -> {:snooze, @capacity_retry_seconds}
+      {:error, reason} when reason in @retryable_errors -> {:snooze, @retry_seconds}
       {:error, reason} -> fail(build, Sandboxes.get_sandbox_by_id(build.id), reason)
     end
   end
@@ -190,7 +192,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
            timeout_ms: @build_timeout_ms
          }) do
       {:ok, _command} -> {:snooze, @poll_seconds}
-      {:error, reason} when reason in @capacity_errors -> {:snooze, @capacity_retry_seconds}
+      {:error, reason} when reason in @retryable_errors -> {:snooze, @retry_seconds}
       {:error, reason} -> fail(build, sandbox, reason)
     end
   end
