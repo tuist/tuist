@@ -7,6 +7,8 @@ defmodule Tuist.Tests.LegacySuiteIdentityTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage.TestSources
+  alias Tuist.Tests.CoverageTestSource
   alias Tuist.Tests.LegacySuiteIdentity
   alias Tuist.Tests.TestCaseEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -73,6 +75,42 @@ defmodule Tuist.Tests.LegacySuiteIdentityTest do
 
       assert event_types(new_id) == event_types(legacy_id)
       assert Enum.count(event_types(new_id), &(&1 == "first_run")) == 1
+    end
+
+    test "carries the legacy ID's coverage versions over, so selection and carry keep its evidence", %{
+      project: project,
+      account: account
+    } do
+      {:ok, _} = create_test(project, account, "Inner", "main")
+      legacy_id = Tests.generate_test_case_id(project.id, "b()", "LibTests", "Inner")
+      run_id = UUIDv7.generate()
+      ran_at = ~N[2026-11-01 10:00:00.000000]
+
+      IngestRepo.insert_all(CoverageTestSource, [
+        %{
+          project_id: project.id,
+          git_repository_id: 7,
+          test_case_id: legacy_id,
+          fingerprint: "abc",
+          paths: ["Sources/Lib/B.swift"],
+          unlined_paths: [],
+          passed: true,
+          test_run_id: run_id,
+          git_commit_sha: "sha",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        }
+      ])
+
+      {:ok, _} = create_test(project, account, "Outer/Inner", "main")
+      {:ok, _} = create_test(project, account, "Outer/Inner", "main")
+
+      new_id = Tests.generate_test_case_id(project.id, "b()", "LibTests", "Outer/Inner")
+
+      assert %{^new_id => [%{fingerprint: "abc", paths: ["Sources/Lib/B.swift"], passed: true, run_id: ^run_id}]} =
+               TestSources.versions(project.id, 7, [new_id])
+
+      assert [_] = TestSources.versions(project.id, 7, [legacy_id])[legacy_id]
     end
 
     test "leaves the legacy ID's state in place for clients that still report the innermost suite", %{

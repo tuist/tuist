@@ -14,7 +14,10 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
   under a nested suite, the ledgers its state is derived from (`test_case_events`
   and `automation_alert_events`) are copied from the old ID, keeping their
   timestamps. Its mute, skip, flaky flag and automation status then resolve
-  exactly as they did. Run history stays on the old ID.
+  exactly as they did. So are its coverage versions (`coverage_test_sources`),
+  which coverage carry and test selection look up by ID: without them the test
+  would have no evidence until a run recorded it again. Run history stays on
+  the old ID.
 
   The old ID's rows are left as they are: CLIs older than this change still
   parse results locally under the innermost suite and match muted tests by it.
@@ -25,6 +28,7 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.CoverageTestSource
   alias Tuist.Tests.TestCaseEvent
 
   @doc """
@@ -60,8 +64,45 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
       legacy_ids = Map.keys(legacy_to_new)
       events = copy_test_case_events(project_id, legacy_ids, legacy_to_new)
       alert_events = copy_alert_events(legacy_ids, legacy_to_new)
+      copy_coverage_versions(project_id, legacy_ids, legacy_to_new)
       MapSet.union(events, alert_events)
     end
+  end
+
+  # A version is keyed by its test case and fingerprint and keeps its latest
+  # run, so a copy written twice, or beside a version a newer run recorded for
+  # the new ID, collapses into one row.
+  defp copy_coverage_versions(project_id, legacy_ids, legacy_to_new) do
+    rows =
+      ClickHouseRepo.all(
+        from(s in CoverageTestSource,
+          where: s.project_id == ^project_id,
+          where: fragment("? IN (?)", s.test_case_id, type(^legacy_ids, {:array, Ecto.UUID})),
+          select: %{
+            project_id: s.project_id,
+            git_repository_id: s.git_repository_id,
+            test_case_id: s.test_case_id,
+            fingerprint: s.fingerprint,
+            paths: s.paths,
+            unlined_paths: s.unlined_paths,
+            passed: s.passed,
+            test_run_id: s.test_run_id,
+            git_commit_sha: s.git_commit_sha,
+            ran_at: s.ran_at,
+            inserted_at: s.inserted_at
+          }
+        ),
+        multipart: true
+      )
+
+    copies =
+      for row <- rows, new_id <- Map.fetch!(legacy_to_new, row.test_case_id) do
+        %{row | test_case_id: new_id}
+      end
+
+    copies
+    |> Enum.chunk_every(2_000)
+    |> Enum.each(&IngestRepo.insert_all(CoverageTestSource, &1))
   end
 
   defp copy_test_case_events(project_id, legacy_ids, legacy_to_new) do
