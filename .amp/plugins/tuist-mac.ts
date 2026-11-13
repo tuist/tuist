@@ -6,7 +6,7 @@
 // Setup, including how to install this file as a workspace, personal or project plugin:
 // https://tuist.dev/en/docs/guides/features/sandboxes/amp#remote-mac
 //
-// - Needs a Tuist CLI with `tuist sandbox sync` (4.218.0 or later) where Amp runs.
+// - Needs the Tuist CLI where Amp runs.
 // - Authentication is the CLI's: in an orb of an Amp workspace connected to the Tuist account it
 //   signs in on its own; otherwise `tuist auth login` or `TUIST_TOKEN`. TUIST_MAC_TOKEN, an account
 //   token with the `account:sandboxes:write` scope, takes precedence over TUIST_TOKEN for these
@@ -68,7 +68,7 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 The tools' errors say what is missing. Setup is described at ${DOCS}.
 
 - **Account**: when the repository has no \`tuist.toml\` with \`project = "<account>/<project>"\`, call \`tuist_mac_start\` with \`account\`: the account part of \`fullHandle\` in \`Tuist.swift\`, or ask the user for their Tuist account handle.
-- **CLI missing or too old**: install a Tuist CLI that has \`tuist sandbox sync\` (4.218.0 or later), for example \`mise use -g tuist@<version>\`, and tell the user to add it to the environment's setup script.
+- **CLI missing or too old**: install the latest Tuist CLI, for example \`mise use -g tuist@latest\`, and tell the user to add it to the environment's setup script.
 - **Authentication**: in an Amp orb, a workspace admin connects the Amp workspace to the Tuist account (Tuist dashboard, Settings, Integrations, Amp). Elsewhere, \`tuist auth login\`, or a \`TUIST_MAC_TOKEN\` secret with an account token that has the \`account:sandboxes:write\` scope. Ask the user; don't work around it.
 `
 
@@ -374,11 +374,11 @@ function checkCLI(cwd: string): Promise<void> {
 		cliChecked = runCLI(['sandbox', '--help'], { cwd }).then(
 			(help) => {
 				if (!/^\s+sync\s/m.test(help.output)) {
-					throw new Error(`This Tuist CLI (${CLI}) has no \`tuist sandbox sync\`. Install Tuist 4.218.0 or later; see ${DOCS}.`)
+					throw new Error(`This Tuist CLI (${CLI}) has no \`tuist sandbox sync\`. Install the latest Tuist release; see ${DOCS}.`)
 				}
 			},
 			(error: NodeJS.ErrnoException) => {
-				throw error.code === 'ENOENT' ? new Error(`The Tuist CLI (${CLI}) is not installed. Install Tuist 4.218.0 or later; see ${DOCS}.`) : error
+				throw error.code === 'ENOENT' ? new Error(`The Tuist CLI (${CLI}) is not installed. Install the latest Tuist release; see ${DOCS}.`) : error
 			},
 		)
 		cliChecked.catch(() => {
