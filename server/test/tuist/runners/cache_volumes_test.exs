@@ -2950,6 +2950,48 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.allocate_sandbox_checkout(%{sandbox | platform: :linux}, "Org/Repo", "work")
     end
 
+    test "recent_sandbox_checkout_nodes/4 lists the nodes sandboxes recently used the checkout on, newest first", %{
+      account: account,
+      job: job,
+      sandbox: sandbox
+    } do
+      linux = %{sandbox | platform: :linux}
+      now = DateTime.utc_now()
+
+      # A CI job's use leaves a master on its node but no prepared workspace.
+      {:ok, _ci} =
+        CacheVolumes.allocate_for_job(
+          job,
+          %{repository_id: 123, trusted: true, default_branch: "trunk", writer_branch: "trunk"},
+          %{
+            pod_name: "ci-pod",
+            pod_uid: "ci-uid",
+            node_name: "ci-node",
+            key: "checkout",
+            architecture: "amd64",
+            platform: "linux",
+            uid: 1000
+          }
+        )
+
+      {:ok, old} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "old-node"}, "Org/Repo", "w1")
+      {:ok, earlier} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "earlier-node"}, "Org/Repo", "w2")
+      {:ok, _latest} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "latest-node"}, "Org/Repo", "w3")
+      {:ok, _mac} = CacheVolumes.allocate_sandbox_checkout(sandbox, "Org/Repo", "w4")
+
+      for {use, hours} <- [{old, 7}, {earlier, 1}] do
+        at = DateTime.add(now, -hours * 60 * 60, :second)
+        Repo.update_all(from(u in Usage, where: u.id == ^use.id), set: [inserted_at: at])
+      end
+
+      since = DateTime.add(now, -6 * 60 * 60, :second)
+
+      assert CacheVolumes.recent_sandbox_checkout_nodes(account.id, "ORG/repo", "linux", since) ==
+               ["latest-node", "earlier-node"]
+
+      assert CacheVolumes.recent_sandbox_checkout_nodes(account.id, "org/other", "linux", since) == []
+    end
+
     test "is unavailable for a repository the installation cannot read", %{account: account, sandbox: sandbox} do
       stub(GitHubClient, :get_repository, fn _, _ -> {:error, "Not Found"} end)
 

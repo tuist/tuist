@@ -663,8 +663,15 @@ defmodule Tuist.Sandboxes.Capacity do
   the macOS hosts that have not refused the create yet.
   """
   def place(%Sandbox{platform: :darwin} = sandbox, node_filter), do: MacosCapacity.place(sandbox, node_filter)
+  def place(%Sandbox{} = sandbox, node_filter), do: place(sandbox, node_filter, [])
 
-  def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter) do
+  @doc """
+  `place/2` that tries the nodes in `prefer:` first, ahead of the ranking by
+  free memory, such as the nodes holding the session repository's checkout.
+  A preferred node only wins when it can take the sandbox like any other
+  would; a full one is passed over, never waited for.
+  """
+  def place(%Sandbox{node_name: nil, template: template} = sandbox, node_filter, opts) do
     ready =
       fn ->
         case ready_nodes(template) do
@@ -686,7 +693,7 @@ defmodule Tuist.Sandboxes.Capacity do
         {:error, :no_capacity}
 
       true ->
-        place_on(candidates, sandbox)
+        place_on(candidates, sandbox, Keyword.get(opts, :prefer, []))
     end
   end
 
@@ -709,15 +716,18 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp place_on(candidates, sandbox) do
+  # Only the plain reservation tries preferred nodes first: pausing idle
+  # sandboxes or growing a carve-out still goes where it frees the most.
+  defp place_on(candidates, sandbox, prefer \\ []) do
     charge = charge_bytes(sandbox)
     ranked = rank(candidates)
+    {preferred, others} = Enum.split_with(ranked, &(&1.name in prefer))
 
     reserve = fn node ->
       reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn -> disk_room?(node, sandbox) end)
     end
 
-    case Enum.find(ranked, fn node -> reserve.(node) == :ok end) do
+    case Enum.find(preferred ++ others, fn node -> reserve.(node) == :ok end) do
       %{name: node_name} ->
         {:ok, node_name}
 

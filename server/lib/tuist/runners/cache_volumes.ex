@@ -1160,6 +1160,36 @@ defmodule Tuist.Runners.CacheVolumes do
   def recent_job_volumes(_account_id, _repository, _since), do: %{}
 
   @doc """
+  The nodes on which a sandbox used `repository`'s `platform` checkout volume
+  since `since`, most recently first. Such a node keeps the master it seeded
+  the sandbox from and, on Linux, the workspace sandboxd prepared from that
+  seed, so a new session of the repository starts fastest there. The
+  repository is matched without case: it comes from the session's URL, not
+  from GitHub.
+  """
+  def recent_sandbox_checkout_nodes(account_id, repository, platform, %DateTime{} = since)
+      when is_integer(account_id) and is_binary(repository) and platform in ["macos", "linux"] do
+    Repo.all(
+      from(v in checkout_volumes(account_id, repository, platform),
+        join: u in Usage,
+        on: u.volume_id == v.id,
+        where: u.inserted_at >= ^since and like(u.pod_name, "sandbox-%") and not is_nil(u.node_name),
+        group_by: u.node_name,
+        order_by: [desc: max(u.inserted_at)],
+        select: u.node_name
+      )
+    )
+  end
+
+  defp checkout_volumes(account_id, repository, platform) do
+    from(v in Volume,
+      where:
+        v.account_id == ^account_id and fragment("lower(?)", v.repository) == ^String.downcase(repository) and
+          v.key == ^@checkout_key and v.platform == ^platform and is_nil(v.deleted_at)
+    )
+  end
+
+  @doc """
   The cache disk room the custom volumes that `workflow_job_ids` allocated on
   `node_names` hold, as `%{{node_name, workflow_job_id} => %{volume_id =>
   bytes}}`. A use the host deleted holds nothing.

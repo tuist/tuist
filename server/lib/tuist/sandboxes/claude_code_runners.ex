@@ -35,6 +35,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
 
   require Logger
 
+  @prepared_workspace_seconds 6 * 60 * 60
+
   def spawn(%AgentEnvironment{kind: :claude_code} = agent_environment, %{session_id: session_id} = order) do
     received_at = System.monotonic_time()
     agent_environment = Repo.preload(agent_environment, :account)
@@ -97,7 +99,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
       Sandboxes.with_sandbox_lock(
         "claude-code:#{agent_environment.id}:#{session_id}",
         fn ->
-          with {:ok, sandbox, created?} <- Router.find_or_create_sandbox(agent_environment, session_id),
+          with {:ok, sandbox, created?} <-
+                 Router.find_or_create_sandbox(agent_environment, session_id,
+                   prefer_nodes: checkout_nodes(agent_environment, repository)
+                 ),
                placement_ms = milliseconds_since(started_at),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
                {:ok, _data} <-
@@ -154,6 +159,18 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   end
 
   defp repository(_url), do: nil
+
+  # A new Linux sandbox goes first to a node where one of the account's
+  # sandboxes recently used the repository's checkout: that node holds its
+  # master and, while sandboxd keeps it (CHECKOUT_WORKSPACES_TTL, 6 hours),
+  # the workspace prepared from that seed, which the guest starts from
+  # instead of copying the tree.
+  defp checkout_nodes(%AgentEnvironment{platform: :linux, account_id: account_id}, %{owner: owner, name: name}) do
+    since = DateTime.add(DateTime.utc_now(), -@prepared_workspace_seconds, :second)
+    CacheVolumes.recent_sandbox_checkout_nodes(account_id, "#{owner}/#{name}", "linux", since)
+  end
+
+  defp checkout_nodes(_agent_environment, _repository), do: []
 
   # The session's checkout grant, or nil: a session without one clones.
   defp checkout(_sandbox, nil, _work_id), do: nil

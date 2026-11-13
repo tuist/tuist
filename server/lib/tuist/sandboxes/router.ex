@@ -140,9 +140,11 @@ defmodule Tuist.Sandboxes.Router do
 
   @doc """
   The session's sandbox, created from the environment when it has none or
-  only one that died, with whether this call created it.
+  only one that died, with whether this call created it. A created one
+  goes to the `prefer_nodes:` first when they have room
+  (`Tuist.Sandboxes.create_sandbox/3`).
   """
-  def find_or_create_sandbox(agent_environment, session_id) do
+  def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
         {:ok, sandbox, false}
@@ -154,26 +156,30 @@ defmodule Tuist.Sandboxes.Router do
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
         with {:ok, _deleted} <- Sandboxes.delete(sandbox) do
-          create_sandbox(agent_environment, session_id)
+          create_sandbox(agent_environment, session_id, opts)
         end
 
       nil ->
-        create_sandbox(agent_environment, session_id)
+        create_sandbox(agent_environment, session_id, opts)
     end
   end
 
-  defp create_sandbox(agent_environment, session_id) do
+  defp create_sandbox(agent_environment, session_id, opts) do
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
-           Sandboxes.create_sandbox(account, %{
-             agent_environment_id: agent_environment.id,
-             anthropic_session_id: session_id,
-             platform: agent_environment.platform,
-             template: agent_environment.template,
-             vcpus: agent_environment.vcpus,
-             memory_mb: agent_environment.memory_mb,
-             workspace_gb: agent_environment.workspace_gb
-           }) do
+           Sandboxes.create_sandbox(
+             account,
+             %{
+               agent_environment_id: agent_environment.id,
+               anthropic_session_id: session_id,
+               platform: agent_environment.platform,
+               template: agent_environment.template,
+               vcpus: agent_environment.vcpus,
+               memory_mb: agent_environment.memory_mb,
+               workspace_gb: agent_environment.workspace_gb
+             },
+             Keyword.take(opts, [:prefer_nodes])
+           ) do
       {:ok, sandbox, true}
     end
   end

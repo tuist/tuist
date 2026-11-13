@@ -540,6 +540,10 @@ defmodule Tuist.Sandboxes do
   sandbox, no longer holds the copy, or the clone fails, an archived
   snapshot is restored from object storage on any node with room; the
   sandbox boots from the template when there is no archive or that fails.
+
+  `prefer_nodes:` names nodes a template boot tries first when they have
+  room, such as the nodes holding the session repository's checkout
+  (`Capacity.place/3`).
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -554,11 +558,11 @@ defmodule Tuist.Sandboxes do
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
       Events.record(sandbox, "created")
-      boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
+      boot(sandbox, Keyword.get(opts, :from_disk_snapshot), Keyword.get(opts, :prefer_nodes, []))
     end
   end
 
-  defp boot(%Sandbox{} = sandbox, source) do
+  defp boot(%Sandbox{} = sandbox, source, prefer \\ []) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
     started_at = System.monotonic_time(:millisecond)
 
@@ -571,11 +575,12 @@ defmodule Tuist.Sandboxes do
       hostname: hostname
     }
 
-    case place_and_create(sandbox, args, source) do
+    case place_and_create(sandbox, args, source, prefer) do
       {:ok, node_name, data} ->
         Logger.info("sandboxes: sandbox created",
           sandbox_id: sandbox.id,
           node: node_name,
+          preferred_node: node_name in prefer,
           template: sandbox.template,
           disk_snapshot_id: data["disk_snapshot_id"],
           disk_snapshot_copy: data["disk_snapshot_copy"],
@@ -644,17 +649,25 @@ defmodule Tuist.Sandboxes do
   defp boot_source(_source, %{"warm" => true}), do: "warm"
   defp boot_source(_source, _data), do: "template"
 
-  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, nil), do: create_on_macos_host(sandbox, args, [])
+  defp place_and_create(sandbox, args, source, prefer \\ [])
 
-  defp place_and_create(sandbox, args, nil) do
-    with {:ok, node_name} <- Capacity.place(sandbox),
+  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, nil, _prefer),
+    do: create_on_macos_host(sandbox, args, [])
+
+  defp place_and_create(sandbox, args, nil, prefer) do
+    placed =
+      if prefer == [],
+        do: Capacity.place(sandbox),
+        else: Capacity.place(sandbox, fn _node -> true end, prefer: prefer)
+
+    with {:ok, node_name} <- placed,
          sandbox = Repo.reload!(sandbox),
          {:ok, data} <- node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
       {:ok, node_name, data}
     end
   end
 
-  defp place_and_create(sandbox, args, {:archive, source}) do
+  defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
     with {:ok, node_name} <- place_restore(sandbox),
          {:ok, data} <-
            Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
@@ -669,7 +682,7 @@ defmodule Tuist.Sandboxes do
   # out if it is popular; otherwise, or when that fails too, the template
   # boots. A failed clone of a snapshot without an archive keeps the node's
   # reservation, so the template boot retries on the same node.
-  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot) do
+  defp place_and_create(sandbox, args, %DiskSnapshot{} = disk_snapshot, _prefer) do
     case DiskSnapshots.held_nodes(disk_snapshot) do
       [] -> create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
       held -> create_from_held_disk_snapshot(sandbox, args, disk_snapshot, held)

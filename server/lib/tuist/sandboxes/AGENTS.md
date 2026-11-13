@@ -217,7 +217,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   master only to it; anything else only adds objects. The node seeds the
   guest from its master and takes the export behind the VM's fence
   (`infra/tart-kubelet/internal/macosandbox/checkout.go`, sandboxd's
-  "Guest to host: checkout").
+  "Guest to host: checkout"). A new Linux sandbox of such a session goes
+  first to the nodes where the account's sandboxes used that checkout in the
+  last 6 hours (`CacheVolumes.recent_sandbox_checkout_nodes/4`
+  into `Capacity.place/3`'s `prefer:`): they hold its master and, for
+  sandboxd's `CHECKOUT_WORKSPACES_TTL`, the workspace prepared from that seed.
+  Only the plain reservation prefers them; a full one is passed over, never
+  reclaimed or grown for.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
