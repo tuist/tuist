@@ -40,9 +40,9 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
     deinit { free(response) }
 
     func urlSession(
-        _ session: URLSession, task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void
+        _: URLSession, task _: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest, completionHandler: @escaping (URLRequest?) -> Void
     ) {
         completionHandler(nil)
     }
@@ -61,7 +61,8 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                 if status == errSecItemNotFound {
                     result = ["value": NSNull()]
                 } else if status == errSecSuccess, let data = value as? Data,
-                          let text = String(data: data, encoding: .utf8) {
+                          let text = String(data: data, encoding: .utf8)
+                {
                     result = ["value": text]
                 } else {
                     throw AppClientError(message: String(localized: "Your saved profiles could not be read."))
@@ -76,7 +77,9 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                     status = SecItemAdd(item as CFDictionary, nil)
                 }
                 guard status == errSecSuccess else {
-                    throw AppClientError(message: String(localized: "Your saved profiles could not be updated. Please try again."))
+                    throw AppClientError(
+                        message: String(localized: "Your saved profiles could not be updated. Please try again.")
+                    )
                 }
                 result = ["ok": true]
             case "http":
@@ -214,7 +217,7 @@ final class AppClient: NSObject, ObservableObject, ASWebAuthenticationPresentati
         }
     }
 
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
         #if os(iOS)
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
                 .flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
