@@ -24,6 +24,7 @@ type fakeRuntime struct {
 	createErr                error
 	saveStarted, saveRelease chan struct{}
 	creates, warms           int
+	claimedVolumeGB          int
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
 	cpuPermille int64
@@ -46,6 +47,7 @@ func (f *fakeRuntime) Warm(_ context.Context, r *Record) error {
 	defer f.mu.Unlock()
 	f.warms++
 	f.states[r.VMName()] = "warm"
+	r.WorkspaceVolumeGB = r.WorkspaceGB
 	return nil
 }
 func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
@@ -54,6 +56,7 @@ func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
 	if f.states[r.VMName()] != "warm" {
 		return errors.New("not warm")
 	}
+	f.claimedVolumeGB = r.WorkspaceVolumeGB
 	delete(f.states, r.VMName())
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"

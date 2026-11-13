@@ -2,12 +2,18 @@ package macosandbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -84,6 +90,9 @@ func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
 	if runtime.creates != 0 {
 		t.Fatal("a matching warm VM was available but the sandbox cold-booted")
 	}
+	if runtime.claimedVolumeGB != 10 {
+		t.Fatalf("the claim did not receive the warm VM's 10 GB workspace volume: %d", runtime.claimedVolumeGB)
+	}
 	if got := m.records[a.SandboxID].VM; got != warmVMPrefix+string(pod.UID) {
 		t.Fatalf("claimed record runs on %q", got)
 	}
@@ -157,5 +166,66 @@ func TestWarmPodForAnotherImageFailsInsteadOfBooting(t *testing.T) {
 	pod := waitWarmPhase(t, s, warmPod(t, s, "ghcr.io/tuist/tuist-runner@sha256:other", "8Gi"), corev1.PodFailed)
 	if pod.Status.Reason != "WarmVMUnsupported" || runtime.warms != 0 {
 		t.Fatalf("reason=%q warms=%d", pod.Status.Reason, runtime.warms)
+	}
+}
+
+// A claim at the warmed size runs no guest command. Any other size replaces
+// the volume, because APFS cannot change a quota.
+func TestClaimReusesTheWorkspaceVolumeOnlyAtItsSize(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		volume, claim int
+		replace       bool
+	}{
+		{"warmed size", 10, 10, false},
+		{"other size", 10, 30, true},
+		{"no volume yet", 0, 30, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			binary := filepath.Join(dir, "tart")
+			if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ \"$1\" = exec ] && printf '%s\\n---\\n' \"$5\" >> \"$TART_HOME/exec.log\"\nexit 0\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: dir}}
+			r := &Record{VM: "sbw-claim", WorkspaceVolumeGB: tc.volume}
+			r.SandboxID, r.WorkspaceGB = uuid.NewString(), tc.claim
+			vm := runtime.directory(r)
+			if err := os.MkdirAll(vm, 0700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			go func() { // The runtime answers its status call.
+				for ctx.Err() == nil {
+					var request struct{ ID string }
+					if data, err := os.ReadFile(filepath.Join(vm, "sandbox-request.json")); err == nil && json.Unmarshal(data, &request) == nil {
+						reply, _ := json.Marshal(map[string]any{"id": request.ID, "action": "status", "instance": uuid.NewString(), "pid": 1, "state": "running"})
+						_ = os.WriteFile(filepath.Join(vm, "sandbox-reply.json"), reply, 0600)
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+			if err := runtime.Claim(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+			log, _ := os.ReadFile(filepath.Join(dir, "exec.log"))
+			commands := string(log)
+			if tc.volume == tc.claim {
+				if commands != "" {
+					t.Fatalf("a claim at the warmed size ran a guest command:\n%s", commands)
+				}
+				return
+			}
+			if strings.Count(commands, "---") != 1 || !strings.Contains(commands, fmt.Sprintf("-quota %dg -mountpoint /Users/runner/work", tc.claim)) {
+				t.Fatalf("the claim did not add one %d GB workspace volume:\n%s", tc.claim, commands)
+			}
+			if strings.Contains(commands, "deleteVolume") != tc.replace {
+				t.Fatalf("replace the existing volume = %v, script:\n%s", tc.replace, commands)
+			}
+			if r.WorkspaceVolumeGB != tc.claim {
+				t.Fatalf("the record still lists a %d GB volume", r.WorkspaceVolumeGB)
+			}
+		})
 	}
 }

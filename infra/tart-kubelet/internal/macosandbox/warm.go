@@ -146,8 +146,13 @@ func (m *Manager) warmRecord(pod *corev1.Pod) (*Record, string) {
 		template = runtime.Template
 	}
 	return &Record{VM: warmVMPrefix + string(pod.UID), RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, NodeUID: m.NodeUID,
-		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: m.TemplateTag, VCPUs: vcpus, MemoryMB: memoryMB}}, ""
+		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: m.TemplateTag, VCPUs: vcpus, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB}}, ""
 }
+
+// warmWorkspaceGB is the workspace a warm VM gets before it is claimed: the
+// size Amp Orbs and agent environments request. A claim for another size
+// replaces the volume.
+const warmWorkspaceGB = 10
 
 // admitWarm charges the warm Pod like a CI launch: under the launch gate,
 // after repairing sandbox reservations, every bound Pod (this one included)

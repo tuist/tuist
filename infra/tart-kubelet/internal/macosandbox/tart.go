@@ -139,6 +139,12 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	probes, err := t.waitGuestReady(ctx, r, h)
 	lap("guest_ready")
 	phases = append(phases, "probes", strings.Join(probes, ","))
+	if err != nil {
+		return err
+	}
+	// Adding the volume takes 1 to 2 s, so it happens before a claim waits.
+	err = t.addWorkspace(ctx, r)
+	lap("workspace")
 	return err
 }
 
@@ -146,20 +152,38 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 // sandbox's own, and the status call pins the runtime instance and PID.
 func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
 	start := time.Now()
-	c := t.client(r)
-	// The image's sandbox boot mode disables runner dispatch before its halt
-	// trap is armed. No runner service-account credential is shared with it.
-	if _, err := c.Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
-container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
-/usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
-/usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, r.WorkspaceGB)); err != nil {
-		return err
+	if r.WorkspaceVolumeGB != r.WorkspaceGB {
+		if err := t.addWorkspace(ctx, r); err != nil {
+			return err
+		}
 	}
 	workspace := time.Since(start)
 	_, err := t.control(ctx, r, "status")
 	slog.Info("macOS sandbox claim phases", "sandbox_id", r.SandboxID, "vm", r.VMName(), "workspace_ms", workspace.Milliseconds(), "status_ms", (time.Since(start) - workspace).Milliseconds())
 	return err
 }
+
+// addWorkspace mounts a volume with the sandbox's quota at the workspace.
+// APFS cannot change an existing volume's quota, so a VM that already has a
+// volume of another size replaces it.
+func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
+	replace := ""
+	if r.WorkspaceVolumeGB != 0 {
+		replace = `/usr/bin/sudo -n /usr/sbin/diskutil apfs deleteVolume "$(/usr/sbin/diskutil info -plist /Users/runner/work | /usr/bin/plutil -extract DeviceIdentifier raw -o - -)"
+`
+	}
+	// The image's sandbox boot mode disables runner dispatch before its halt
+	// trap is armed. No runner service-account credential is shared with it.
+	if _, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
+%scontainer=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
+/usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
+/usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, replace, r.WorkspaceGB)); err != nil {
+		return err
+	}
+	r.WorkspaceVolumeGB = r.WorkspaceGB
+	return nil
+}
+
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	if r.Resident {
 		start := time.Now()
