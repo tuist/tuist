@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,6 +46,8 @@ type ActionsStore struct {
 	// archiveWritebackBytes of dirty pages.
 	writes chan struct{}
 	once   sync.Once
+	// unflushed counts bytes staged since the last fsync, by every stream.
+	unflushed atomic.Int64
 }
 
 func (s *ActionsStore) init() {
@@ -294,9 +297,28 @@ func (s *ActionsStore) room(n uint64) error {
 	return nil
 }
 
+// flush writes file's dirty pages out and, once the store's streams staged
+// archiveWritebackBytes since the last fsync, fsyncs it. Writeback alone does
+// not bound dirty memory on the loop-mounted cache: the pages move to the
+// backing file, still charged to the agent, until an fsync flushes the loop
+// device. An fsync per block would cost the clients that send 1 MiB blocks one
+// at a time (buildx) 11 ms each, against 0.2 ms for writeback. Staged bytes
+// need no durability: copies are queued in memory, so after a crash none is
+// copied, and the store checks every copy against its SHA-256.
+func (s *ActionsStore) flush(file *os.File, n int64) error {
+	if err := startWriteback(file); err != nil {
+		return err
+	}
+	if s.unflushed.Add(n) < archiveWritebackBytes {
+		return nil
+	}
+	s.unflushed.Store(0)
+	return file.Sync()
+}
+
 // write streams body to path through a temporary file, asking for room every
-// actionsRoomPerPass bytes, flushing every archiveWritebackBytes and syncing
-// the result. With digest it also writes the SHA-256 beside it.
+// actionsRoomPerPass bytes and flushing it every archiveWritebackBytes and at
+// the end. With digest it also writes the SHA-256 beside it.
 func (s *ActionsStore) write(ctx context.Context, path string, body io.Reader, digest bool) (int64, error) {
 	s.init()
 	select {
@@ -313,7 +335,9 @@ func (s *ActionsStore) write(ctx context.Context, path string, body io.Reader, d
 	defer os.Remove(tmp)
 	defer file.Close()
 	var sum hash.Hash
-	var dst io.Writer = newWritebackWriter(file)
+	writeback := &writebackWriter{dst: file}
+	writeback.sync = func() error { return s.flush(file, archiveWritebackBytes) }
+	var dst io.Writer = writeback
 	if digest {
 		sum = sha256.New()
 		dst = io.MultiWriter(dst, sum)
@@ -350,7 +374,7 @@ func (s *ActionsStore) write(ctx context.Context, path string, body io.Reader, d
 			return written, readErr
 		}
 	}
-	if err := file.Sync(); err != nil {
+	if err := s.flush(file, int64(writeback.pending)); err != nil {
 		return written, err
 	}
 	if err := file.Close(); err != nil {
