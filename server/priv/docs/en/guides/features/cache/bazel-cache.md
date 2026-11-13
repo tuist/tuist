@@ -41,7 +41,15 @@ To see how one command used the cache, open it from **Invocations**. The invocat
 
 ## Remote execution {#remote-execution}
 
-When remote execution is enabled for your account, `tuist bazel setup` also points Bazel at Tuist's executor in `.bazelrc.tuist`. It sets `--jobs` to twice the number of remote actions your account can run at once, so each one has the next action waiting. Without that, Bazel runs as many actions in parallel as the machine has cores, and a 2-core CI runner keeps only two remote actions in flight.
+Tuist can also run your Bazel actions on its Linux executors, so cache misses run remotely instead of on the local machine or CI runner. Pass `--remote-execution` to setup:
+
+```bash
+tuist bazel setup --remote-execution
+```
+
+Setup then points Bazel at Tuist's executor in `.bazelrc.tuist`, next to the remote cache. It looks up the current executor and image each time it runs, so rerun setup rather than copying the generated values. Actions run with the executor's Linux toolchain, not the tools installed on your machine, so declare the toolchains your actions need in the workspace.
+
+Setup also sets `--jobs` to twice the number of remote actions your account can run at once, so each one has the next action waiting. Without that, Bazel runs as many actions in parallel as the machine has cores, and a 2-core CI runner keeps only two remote actions in flight.
 
 To use a different value, pass `--jobs` on the command line, or set it in `.bazelrc` after the `try-import` line. Bazel uses the last value it reads, so a `--jobs` before that line is replaced by the generated one.
 
