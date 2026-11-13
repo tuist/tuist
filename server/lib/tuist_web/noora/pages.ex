@@ -41,6 +41,7 @@ defmodule TuistWeb.Noora.Pages do
        Pages.PaginationGroup,
        Pages.Popover,
        Pages.ProgressBar,
+       Pages.Radio,
        Pages.Select,
        Pages.ShortcutKey,
        Pages.Sidebar,
