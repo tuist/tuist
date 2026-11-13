@@ -918,9 +918,9 @@ runnersController:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  # Run the kvm-nri-plugin DaemonSet ahead of exclusive CPUs. It injects
-  # /dev/kvm only into Pods the controller annotates, which it does only for
-  # exclusive-CPU pools, so until then every Pod keeps the device plugin.
+  # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
+  # injects the device only into Pods the controller annotates, which it does
+  # only for exclusive-CPU pools; odd shapes keep the device plugin.
   nestedVirtualization:
     nri:
       enabled: true
@@ -934,12 +934,15 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
-  # Keep the container-level budget while nested KVM is enabled. Pod-level
-  # admission skips device allocation and concurrent starts panic kubelet
-  # (kubernetes/kubernetes#143490). Re-enable only after a verified upstream
-  # fix has reached every host; this does not repair an existing checkpoint.
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # These Pods get /dev/kvm from the kvm-nri-plugin DaemonSet above, not the
+  # device plugin, whose allocation panics kubelet next to a Pod-level budget
+  # (kubernetes/kubernetes#143490). A kubelet restart with exclusive Pods
+  # running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
   exclusiveCPUs:
-    defaultEnabled: false
+    defaultEnabled: true
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
