@@ -116,8 +116,53 @@ defmodule Tuist.Sandboxes do
   def workspace(%{platform: :darwin}), do: "/Users/runner/work"
   def workspace(_sandbox), do: "/workspace"
 
+  @doc """
+  The Tuist environment an agent in `sandbox` gets: `TUIST_URL`, and
+  `TUIST_CACHE_ENDPOINT` when the account has an in-cluster cache, the same
+  URL a runner on the sandbox's Node would use (absent without one). It
+  holds no credential: Tuist clients in the guest sign in by exchanging the
+  agent's own identity token (an Amp Orb's, or a Claude Code session's).
+  """
+  def tuist_env(%Account{} = account, %Sandbox{} = sandbox) do
+    env = %{"TUIST_URL" => Tuist.Environment.app_url()}
+    platform = if sandbox.platform == :darwin, do: :macos, else: :linux
+
+    # Clients treat the endpoint as a hard override, so it is only handed to a
+    # platform whose hosts reach the cluster network, as CI dispatch does.
+    with true <- platform in Tuist.Environment.runners_cluster_network_platforms(),
+         url when is_binary(url) and url != "" <-
+           Tuist.Kura.runner_cache_endpoint_url(account, platform, Sites.node_site(sandbox.node_name)) do
+      Map.put(env, "TUIST_CACHE_ENDPOINT", url)
+    else
+      _ -> env
+    end
+  end
+
   def list_agent_environments(%Account{id: account_id}) do
     Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id, order_by: [asc: e.id])
+  end
+
+  @doc """
+  The account whose enabled Claude Code environment is `environment_id`
+  (`ccpool_...`), for exchanging its sessions' identity tokens. Connecting
+  the environment for sandboxes is what lets its sessions use the account's
+  Tuist cache, as connecting an Amp workspace does for Orbs.
+  """
+  def claude_code_environment_account(environment_id) when is_binary(environment_id) do
+    query =
+      from e in AgentEnvironment,
+        where: e.anthropic_environment_id == ^environment_id and e.kind == :claude_code and e.enabled,
+        preload: [:account]
+
+    case Repo.one(query) do
+      %AgentEnvironment{account: account} ->
+        if Tuist.FeatureFlags.sandboxes_enabled?(account),
+          do: {:ok, account},
+          else: {:error, :claude_code_environment_not_connected}
+
+      nil ->
+        {:error, :claude_code_environment_not_connected}
+    end
   end
 
   def list_enabled_agent_environments(kind) do
@@ -1229,13 +1274,21 @@ defmodule Tuist.Sandboxes do
 
   defp utf8(output), do: String.replace_invalid(output)
 
-  def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env)
+  @doc """
+  Starts the sandbox's worker. `checkout`, a repository checkout volume the
+  server allocated for the session (`Tuist.Runners.CacheVolumes`), lets the
+  node start the worker from its master of the repository.
+  """
+  def start_worker(sandbox, env, checkout \\ nil)
+
+  def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env, checkout)
       when is_binary(node_name) and is_map(env) do
-    node_call(sandbox, "start_worker", %{sandbox_id: sandbox.id, env: env}, [])
+    args = %{sandbox_id: sandbox.id, env: env}
+    node_call(sandbox, "start_worker", if(checkout, do: Map.put(args, :checkout, checkout), else: args), [])
   end
 
-  def start_worker(%Sandbox{state: :running}, _env), do: {:error, :no_node}
-  def start_worker(%Sandbox{state: state}, _env), do: {:error, {:invalid_state, state}}
+  def start_worker(%Sandbox{state: :running}, _env, _checkout), do: {:error, :no_node}
+  def start_worker(%Sandbox{state: state}, _env, _checkout), do: {:error, {:invalid_state, state}}
 
   def stop_worker(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
     node_call(sandbox, "stop_worker", %{sandbox_id: sandbox.id}, [])

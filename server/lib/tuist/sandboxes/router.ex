@@ -303,8 +303,8 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(_value), do: nil
 
   @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
-  def start_worker(sandbox, env) do
-    case Sandboxes.start_worker(sandbox, env) do
+  def start_worker(sandbox, env, checkout \\ nil) do
+    case Sandboxes.start_worker(sandbox, env, checkout) do
       {:ok, _data} = ok ->
         ok
 

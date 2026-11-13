@@ -150,6 +150,14 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert env["TUIST_URL"] == Environment.app_url()
   end
 
+  test "hands the cache endpoint only to a platform whose hosts reach the cluster network", %{account: account} do
+    stub(Kura, :runner_cache_endpoint_url, fn _account, _platform, _site -> "http://kura.svc.cluster.local:4000" end)
+    stub(Environment, :runners_cluster_network_platforms, fn -> [:linux] end)
+
+    assert %{"TUIST_CACHE_ENDPOINT" => _} = Sandboxes.tuist_env(account, %Sandbox{platform: :linux})
+    assert Sandboxes.tuist_env(account, %Sandbox{platform: :darwin}) == %{"TUIST_URL" => Environment.app_url()}
+  end
+
   test "pause is repeatable and only releases residency after a successful snapshot", %{account: account} do
     sandbox =
       sandbox_fixture(

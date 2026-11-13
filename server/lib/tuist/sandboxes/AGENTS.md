@@ -199,7 +199,24 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
   the sandbox, records the residency with `created:` like the router, and
   starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
-  the runner's credential: keep it out of rows and logs.
+  the runner's credential: keep it out of rows and logs. The worker also gets
+  `Sandboxes.tuist_env/2` (as Amp Orbs do); with it, `sbx-worker` runs
+  itself as the runner's `--exec-path` session wrapper and hands each
+  session's `CLAUDE_CODE_SESSION_ACCESS_TOKEN` to Tuist clients as
+  `TUIST_OIDC_TOKEN`, which `Tuist.OIDC` accepts (`sk-ant-cc-` prefix,
+  ES256 against Anthropic's JWKS, `ccr:role` `session_worker`, `aud`
+  containing `ccr:pool_id`) for an enabled `claude_code` environment of an
+  account with sandboxes, as a CI token that never outlives the session
+  token. For the spawn hook's `repository_url`, each worker start allocates
+  the repository's CI checkout volume
+  (`Runners.CacheVolumes.allocate_sandbox_checkout/3`, one use per work id)
+  and sends it as `start_worker`'s `checkout` with the guest path
+  `<base-dir>/<owner>/<repo>`. The commit is the default branch's head from
+  GitHub at allocation, never the guest's, so a session's export moves the
+  master only to it; anything else only adds objects. The node seeds the
+  guest from its master and takes the export behind the VM's fence
+  (`infra/tart-kubelet/internal/macosandbox/checkout.go`, sandboxd's
+  "Guest to host: checkout").
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was

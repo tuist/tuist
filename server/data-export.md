@@ -1033,7 +1033,9 @@ The archive contains everything needed to understand the account's complete data
   account-scoped exports and retention are unchanged.
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
-  generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
+  generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs (null for a
+  Claude Code sandbox session's checkout use, whose pod name is `sandbox-<work id>` and pod
+  UID its work id), pod name/UID,
   node name, a legacy commit intent column that is no longer read (`auto` for new uses), branch the job ran on, from verified push, schedule, dispatch or same-repository pull-request metadata (nullable), whether it was the repository's default branch, ID of the runner profile whose branch list applied (nullable), publication permission, lifecycle status, warm/cold result, the older saved generation a job mounted when its base was not on its host (nullable), why a job's host had no copy of its volume and the job started empty (`cold_reason`: `downloading`, `not_on_host` or `evicted_<reason>`, nullable), the capacity in bytes the server allocated for the use's copy (nullable for uses allocated before it was recorded), logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
@@ -1113,7 +1115,15 @@ The archive contains everything needed to understand the account's complete data
   hosts are removed after seven days without a job mount, on disk pressure, or when the
   volume is cleared (its clear generation changes), and saved masters follow the custom
   volume retention and clearing. History removed from GitHub persists in a master until the
-  volume is cleared. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
+  volume is cleared. Claude Code sandbox sessions of the account whose primary repository the
+  account's GitHub app reads use the same volume: the session's sandbox gets a copy of the
+  host's master (macOS, through a per-VM directory
+  `<runner-cache-root>/custom/sandbox-checkouts/<VM>/` that holds the copy until the guest
+  takes it and the session's export until the host takes it after the VM stops, removed with
+  the sandbox; Linux, streamed over vsock from the cache agent), and after the session the
+  objects of the default branch's commit GitHub reported at the session's start go to
+  `.incoming/sandbox-<use UUID>` and are built from like a default-branch job's export. A
+  session's own commits and branches never reach a master. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
   host uses, not customer data.
 
 - **Docker cache volumes** (Linux hosts, `<cache filesystem>/images/<use UUID>.img` and

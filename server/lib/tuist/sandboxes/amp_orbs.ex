@@ -22,10 +22,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   since a snapshot needs the disks on a node.
   """
 
-  alias Tuist.Environment
-  alias Tuist.Kura
   alias Tuist.Repo
-  alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Events
@@ -332,17 +329,6 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # The guest gets no Tuist credential. The Tuist clients in it sign in by
   # exchanging the Orb's Amp identity token, which works only for an Amp
   # workspace an account connected (`Tuist.Accounts.AmpWorkspaceConnections`),
-  # so what an agent can do in Tuist is the account's explicit choice. The
-  # endpoint is the in-cluster cache a Linux runner on the same Node would use,
-  # absent when the account has none.
-  defp tuist_env(account, sandbox) do
-    env = %{"TUIST_URL" => Environment.app_url()}
-
-    platform = if sandbox.platform == :darwin, do: :macos, else: :linux
-
-    case Kura.runner_cache_endpoint_url(account, platform, Sites.node_site(sandbox.node_name)) do
-      url when is_binary(url) and url != "" -> Map.put(env, "TUIST_CACHE_ENDPOINT", url)
-      _ -> env
-    end
-  end
+  # so what an agent can do in Tuist is the account's explicit choice.
+  defp tuist_env(account, sandbox), do: Sandboxes.tuist_env(account, sandbox)
 end
