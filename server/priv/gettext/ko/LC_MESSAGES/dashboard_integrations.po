@@ -18,8 +18,10 @@ msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "Add new project connection"
 msgstr "새 프로젝트 연결 추가"
 
-#: lib/tuist_web/components/amp_integration.ex:233
-#: lib/tuist_web/components/amp_integration.ex:274
+#: lib/tuist_web/components/amp_integration.ex:228
+#: lib/tuist_web/components/amp_integration.ex:269
+#: lib/tuist_web/components/amp_workspaces.ex:214
+#: lib/tuist_web/components/claude_integration.ex:593
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -191,8 +193,11 @@ msgstr "Buildkite"
 msgid "Cluster agent token"
 msgstr "클러스터 에이전트 토큰"
 
-#: lib/tuist_web/components/amp_integration.ex:129
-#: lib/tuist_web/components/amp_integration.ex:240
+#: lib/tuist_web/components/amp_integration.ex:124
+#: lib/tuist_web/components/amp_integration.ex:235
+#: lib/tuist_web/components/amp_workspaces.ex:221
+#: lib/tuist_web/components/claude_integration.ex:344
+#: lib/tuist_web/components/claude_integration.ex:600
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -213,9 +218,10 @@ msgstr "Buildkite 연결"
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr "Buildkite 클러스터의 에이전트 토큰에서 에이전트 토큰을 생성하세요. 작업은 러너 프로필 이름으로 지정된 자체 호스팅 큐에서 가져옵니다."
 
-#: lib/tuist_web/components/amp_integration.ex:121
-#: lib/tuist_web/components/amp_integration.ex:249
-#: lib/tuist_web/components/amp_integration.ex:281
+#: lib/tuist_web/components/amp_integration.ex:116
+#: lib/tuist_web/components/amp_integration.ex:244
+#: lib/tuist_web/components/amp_integration.ex:276
+#: lib/tuist_web/components/amp_workspaces.ex:133
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #: lib/tuist_web/live/integrations_live.html.heex:997
@@ -233,7 +239,7 @@ msgstr "조직 슬러그"
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr "Tuist 러너에서 Buildkite 작업을 실행하세요. Tuist는 클러스터의 자체 호스팅 큐를 모니터링하고 발견된 작업을 실행합니다."
 
-#: lib/tuist_web/components/amp_integration.ex:224
+#: lib/tuist_web/components/amp_integration.ex:219
 #: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
@@ -249,7 +255,7 @@ msgstr "조직"
 msgid "Buildkite connection saved."
 msgstr "Buildkite 연결이 저장되었습니다."
 
-#: lib/tuist_web/components/amp_integration.ex:169
+#: lib/tuist_web/components/amp_integration.ex:164
 #: lib/tuist_web/live/integrations_live.html.heex:656
 #: lib/tuist_web/live/integrations_live.html.heex:722
 #, elixir-autogen, elixir-format
@@ -424,12 +430,12 @@ msgstr "API 액세스 토큰"
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
 msgstr "병합 요청 파이프라인이 캐시 볼륨을 저장할 수 있도록 허용합니다. read_api 권한 범위가 필요합니다."
 
-#: lib/tuist_web/components/amp_integration.ex:178
+#: lib/tuist_web/components/amp_integration.ex:173
 #, elixir-autogen, elixir-format
 msgid "Connect Amp"
 msgstr "Amp 연결"
 
-#: lib/tuist_web/components/amp_integration.ex:207
+#: lib/tuist_web/components/amp_integration.ex:202
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
 msgstr "프로바이더 토큰을 복사하여 아래에 붙여넣으세요. Tuist가 이 계정의 프로바이더를 실행합니다."
@@ -439,13 +445,13 @@ msgstr "프로바이더 토큰을 복사하여 아래에 붙여넣으세요. Tui
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
 msgstr "연결을 저장하지 못했습니다. 프로바이더 토큰, 계정 권한, 그리고 이 프로바이더가 이미 다른 계정에 연결되어 있는지 확인하세요."
 
-#: lib/tuist_web/components/amp_integration.ex:201
+#: lib/tuist_web/components/amp_integration.ex:196
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
 msgstr "Amp에서 Workspace Settings → Orbs를 열고 Orb 프로바이더를 추가하세요."
 
-#: lib/tuist_web/components/amp_integration.ex:161
-#: lib/tuist_web/components/amp_integration.ex:218
+#: lib/tuist_web/components/amp_integration.ex:156
+#: lib/tuist_web/components/amp_integration.ex:213
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
 msgstr "Orb 프로바이더 토큰"
@@ -455,17 +461,17 @@ msgstr "Orb 프로바이더 토큰"
 msgid "You no longer have permission to disconnect this integration."
 msgstr "이 통합을 연결 해제할 권한이 더 이상 없습니다."
 
-#: lib/tuist_web/components/amp_integration.ex:114
+#: lib/tuist_web/components/amp_integration.ex:109
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes."
 msgstr "Tuist 샌드박스에서 Amp 워크스페이스의 Orbs를 실행하세요."
 
-#: lib/tuist_web/components/amp_integration.ex:149
+#: lib/tuist_web/components/amp_integration.ex:144
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
 msgstr "Tuist가 제공자를 준비하거나 중지할 수 없습니다. 자동으로 재시도합니다."
 
-#: lib/tuist_web/components/amp_integration.ex:251
+#: lib/tuist_web/components/amp_integration.ex:246
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr "이 작업은 새로운 작업을 중단하고 이 통합의 실행 중인 Orbs를 일시 정지합니다. 저장된 디스크는 삭제할 때까지 유지됩니다. Tuist에 저장된 토큰은 제거됩니다."
@@ -675,3 +681,308 @@ msgstr "전체 저장소 로딩 중…"
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your Entire and Tuist integration setup."
 msgstr "저장소에 대한 접근 권한은 전체 설정과 Tuist 통합 구성에 따라 달라집니다."
+
+#: lib/tuist_web/components/amp_workspaces.ex:143
+#, elixir-autogen, elixir-format
+msgid "Connect an Amp workspace"
+msgstr "Amp 워크스페이스 연결"
+
+#: lib/tuist_web/components/amp_workspaces.ex:104
+#, elixir-autogen, elixir-format
+msgid "Connect workspace"
+msgstr "워크스페이스 연결"
+
+#: lib/tuist_web/components/amp_workspaces.ex:126
+#, elixir-autogen, elixir-format
+msgid "Connected %{time}"
+msgstr "%{time}에 연결됨"
+
+#: lib/tuist_web/components/amp_workspaces.ex:174
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "명령어 복사"
+
+#: lib/tuist_web/components/amp_workspaces.ex:59
+#, elixir-autogen, elixir-format
+msgid "This Amp workspace is already connected."
+msgstr "이 Amp 워크스페이스는 이미 연결되어 있습니다."
+
+#: lib/tuist_web/components/amp_workspaces.ex:118
+#, elixir-autogen, elixir-format
+msgid "Workspace %{id}"
+msgstr "워크스페이스 %{id}"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1201
+#, elixir-autogen, elixir-format
+msgid "Connect your Amp workspaces to Tuist."
+msgstr "Amp 워크스페이스를 Tuist에 연결하세요."
+
+#: lib/tuist_web/components/amp_workspaces.ex:95
+#, elixir-autogen, elixir-format
+msgid "Let Orbs in your Amp workspaces sign in to Tuist without a stored token. They get CI access, including cache uploads, to every project in this account."
+msgstr "저장된 토큰 없이 Amp 워크스페이스의 Orbs가 Tuist에 로그인할 수 있습니다. 이 계정의 모든 프로젝트에 대한 캐시 업로드를 포함한 CI 액세스 권한을 부여받습니다."
+
+#: lib/tuist_web/components/amp_integration.ex:107
+#, elixir-autogen, elixir-format
+msgid "Orb provider"
+msgstr "Orb 제공자"
+
+#: lib/tuist_web/components/amp_workspaces.ex:93
+#, elixir-autogen, elixir-format
+msgid "Workspace sign-in"
+msgstr "워크스페이스 로그인"
+
+#: lib/tuist_web/components/amp_workspaces.ex:62
+#, elixir-autogen, elixir-format
+msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000."
+msgstr "123e4567-e89b-12d3-a456-426614174000과 같은 UUID 형식의 워크스페이스 ID를 입력하세요."
+
+#: lib/tuist_web/components/amp_workspaces.ex:191
+#: lib/tuist_web/components/claude_integration.ex:497
+#, elixir-autogen, elixir-format
+msgid "Workspace ID"
+msgstr "워크스페이스 ID"
+
+#: lib/tuist_web/components/amp_workspaces.ex:124
+#, elixir-autogen, elixir-format
+msgid "All projects"
+msgstr "모든 프로젝트"
+
+#: lib/tuist_web/components/amp_workspaces.ex:65
+#, elixir-autogen, elixir-format
+msgid "Enter the project ID as a UUID, or leave it empty for the whole workspace."
+msgstr "프로젝트 ID를 UUID로 입력하거나, 전체 워크스페이스를 대상으로 하려면 비워두세요."
+
+#: lib/tuist_web/components/amp_workspaces.ex:160
+#, elixir-autogen, elixir-format
+msgid "In a thread of the workspace that runs in an Orb, print its workspace and project IDs:"
+msgstr "Orb에서 실행되는 워크스페이스 스레드에서 워크스페이스 및 프로젝트 ID를 출력합니다:"
+
+#: lib/tuist_web/components/amp_workspaces.ex:203
+#, elixir-autogen, elixir-format
+msgid "Optional. Leave empty for every project in the workspace."
+msgstr "선택 사항. 워크스페이스의 모든 프로젝트를 대상으로 하려면 비워두세요."
+
+#: lib/tuist_web/components/amp_workspaces.ex:181
+#, elixir-autogen, elixir-format
+msgid "Paste the workspace ID below. Add the project ID to limit access to that Amp project's Orbs. Those Orbs get CI access, including cache uploads, to every project in this account."
+msgstr "아래에 워크스페이스 ID를 붙여넣으세요. 프로젝트 ID를 추가하면 해당 Amp 프로젝트의 Orb에만 접근 권한을 제한할 수 있습니다. 이러한 Orb는 이 계정의 모든 프로젝트에 대한 CI 접근 권한(캐시 업로드 포함)을 갖게 됩니다."
+
+#: lib/tuist_web/components/amp_workspaces.ex:122
+#, elixir-autogen, elixir-format
+msgid "Project %{id}"
+msgstr "프로젝트 %{id}"
+
+#: lib/tuist_web/components/amp_workspaces.ex:201
+#, elixir-autogen, elixir-format
+msgid "Project ID"
+msgstr "프로젝트 ID"
+
+#: lib/tuist_web/components/claude_integration.ex:251
+#: lib/tuist_web/components/claude_integration.ex:384
+#, elixir-autogen, elixir-format
+msgid "API key"
+msgstr "API 키"
+
+#: lib/tuist_web/components/claude_integration.ex:222
+#, elixir-autogen, elixir-format
+msgid "Anthropic answered %{status}: %{message}"
+msgstr "Anthropic 응답: %{status}: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:186
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the request: %{message}"
+msgstr "Anthropic이 요청을 거부했습니다: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:469
+#, elixir-autogen, elixir-format
+msgid "Audience"
+msgstr "대상"
+
+#: lib/tuist_web/components/claude_integration.ex:374
+#, elixir-autogen, elixir-format
+msgid "Connect Claude Managed Agents"
+msgstr "Claude Managed Agents 연결"
+
+#: lib/tuist_web/components/claude_integration.ex:345
+#, elixir-autogen, elixir-format
+msgid "Connect environment"
+msgstr "환경 연결"
+
+#: lib/tuist_web/components/claude_integration.ex:601
+#, elixir-autogen, elixir-format
+msgid "Connecting…"
+msgstr "연결 중…"
+
+#: lib/tuist_web/components/claude_integration.ex:302
+#, elixir-autogen, elixir-format
+msgid "Copy %{label}"
+msgstr "%{label} 복사"
+
+#: lib/tuist_web/components/claude_integration.ex:88
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment. It may already be connected."
+msgstr "환경을 연결할 수 없습니다. 이미 연결되어 있을 수 있습니다."
+
+#: lib/tuist_web/components/claude_integration.ex:226
+#, elixir-autogen, elixir-format
+msgid "Could not reach Anthropic. Try again."
+msgstr "Anthropic에 연결할 수 없습니다. 다시 시도하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:558
+#, elixir-autogen, elixir-format
+msgid "Environment ID"
+msgstr "환경 ID"
+
+#: lib/tuist_web/components/claude_integration.ex:568
+#, elixir-autogen, elixir-format
+msgid "Environment key"
+msgstr "환경 키"
+
+#: lib/tuist_web/components/claude_integration.ex:525
+#, elixir-autogen, elixir-format
+msgid "Federation rule ID"
+msgstr "페더레이션 규칙 ID"
+
+#: lib/tuist_web/components/claude_integration.ex:459
+#, elixir-autogen, elixir-format
+msgid "Issuer URL"
+msgstr "발행자 URL"
+
+#: lib/tuist_web/components/claude_integration.ex:252
+#, elixir-autogen, elixir-format
+msgid "No credentials"
+msgstr "인증 정보 없음"
+
+#: lib/tuist_web/components/claude_integration.ex:419
+#, elixir-autogen, elixir-format
+msgid "Open the authentication history"
+msgstr "인증 기록 열기"
+
+#: lib/tuist_web/components/claude_integration.ex:483
+#, elixir-autogen, elixir-format
+msgid "Organization ID"
+msgstr "조직 ID"
+
+#: lib/tuist_web/components/claude_integration.ex:576
+#: lib/tuist_web/components/claude_integration.ex:581
+#, elixir-autogen, elixir-format
+msgid "Sandbox shape"
+msgstr "샌드박스 형태"
+
+#: lib/tuist_web/components/claude_integration.ex:474
+#, elixir-autogen, elixir-format
+msgid "Scope"
+msgstr "범위"
+
+#: lib/tuist_web/components/claude_integration.ex:511
+#, elixir-autogen, elixir-format
+msgid "Service account ID"
+msgstr "서비스 계정 ID"
+
+#: lib/tuist_web/components/claude_integration.ex:464
+#, elixir-autogen, elixir-format
+msgid "Subject prefix"
+msgstr "주체 접두사"
+
+#: lib/tuist_web/components/claude_integration.ex:430
+#, elixir-autogen, elixir-format
+msgid "Anthropic API key"
+msgstr "Anthropic API 키"
+
+#: lib/tuist_web/components/claude_integration.ex:197
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the API key. Check that you copied all of it."
+msgstr "Anthropic이 API 키를 거부했습니다. 전체 키를 복사했는지 확인하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:331
+#, elixir-autogen, elixir-format
+msgid "Run Claude Managed Agents sessions on Tuist sandboxes."
+msgstr "Tuist 샌드박스에서 Claude Managed Agents 세션을 실행합니다."
+
+#: lib/tuist_web/components/claude_integration.ex:391
+#, elixir-autogen, elixir-format
+msgid "Federated identity"
+msgstr "연합 신원"
+
+#: lib/tuist_web/components/claude_integration.ex:215
+#, elixir-autogen, elixir-format
+msgid "Anthropic has no environment with this ID in the credential's workspace. Check the ID, and that the credential belongs to the environment's workspace."
+msgstr "Anthropic의 자격 증명 워크스페이스에 이 ID를 가진 환경이 없습니다. ID와 자격 증명이 환경의 워크스페이스에 속하는지 확인하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:208
+#, elixir-autogen, elixir-format
+msgid "Anthropic refused the federated token. Set the federation rule's scope to workspace:developer."
+msgstr "Anthropic이 연합 토큰을 거부했습니다. 연합 규칙의 범위를 workspace:developer로 설정하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:179
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the token. Check that the rule uses the issuer URL and subject prefix above and names this service account. The authentication history in the Claude Console shows the reason."
+msgstr "Anthropic이 토큰을 거부했습니다. 규칙이 위의 발급자 URL과 주제 접두사를 사용하고 이 서비스 계정을 지정하는지 확인하세요. Claude Console의 인증 기록에 이유가 표시됩니다."
+
+#: lib/tuist_web/components/claude_integration.ex:89
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment."
+msgstr "환경에 연결할 수 없습니다."
+
+#: lib/tuist_web/components/claude_integration.ex:436
+#, elixir-autogen, elixir-format
+msgid "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
+msgstr "환경 워크스페이스에서 개발자 역할이 필요합니다. 암호화되어 저장됩니다. 의존하는 환경에는 페더레이션 ID를 사용하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:540
+#, elixir-autogen, elixir-format
+msgid "Self-hosted environment"
+msgstr "셀프 호스팅 환경"
+
+#: lib/tuist_web/components/claude_integration.ex:201
+#, elixir-autogen, elixir-format
+msgid "This API key cannot read the environment. Use a key with the developer role in the environment's workspace."
+msgstr "이 API 키는 환경을 읽을 수 없습니다. 환경 워크스페이스에서 개발자 역할이 있는 키를 사용하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:190
+#, elixir-autogen, elixir-format
+msgid "This environment is not self-hosted. Create a self-hosted environment in the Claude Console."
+msgstr "이 환경은 셀프 호스팅되지 않았습니다. Claude Console에서 셀프 호스팅 환경을 생성하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:109
+#: lib/tuist_web/components/claude_integration.ex:121
+#, elixir-autogen, elixir-format
+msgid "can't be blank"
+msgstr "비워둘 수 없습니다"
+
+#: lib/tuist_web/components/claude_integration.ex:551
+#, elixir-autogen, elixir-format
+msgid "Claude Console"
+msgstr "Claude Console"
+
+#: lib/tuist_web/components/claude_integration.ex:544
+#, elixir-autogen, elixir-format
+msgid "Create one in the %{link}, open it and click Generate environment key."
+msgstr "%{link}에서 하나를 생성하고, 열어 환경 키 생성을 클릭하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:447
+#, elixir-autogen, elixir-format
+msgid "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace."
+msgstr "%{link}에서 이러한 값을 사용하여 Custom OIDC 워크로드를 연결하고 서비스 계정을 환경 워크스페이스에 추가하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:454
+#, elixir-autogen, elixir-format
+msgid "Workload identity"
+msgstr "워크로드 아이덴티티"
+
+#: lib/tuist_web/components/claude_integration.ex:485
+#, elixir-autogen, elixir-format
+msgid "Settings → Organization in the Claude Console."
+msgstr "Claude 콘솔의 설정 → 조직."
+
+#: lib/tuist_web/components/claude_integration.ex:499
+#, elixir-autogen, elixir-format
+msgid "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
+msgstr "Claude 콘솔의 설정 → 워크스페이스. 환경을 실행하는 워크스페이스를 사용하세요."
+
+#: lib/tuist_web/components/claude_integration.ex:513
+#: lib/tuist_web/components/claude_integration.ex:527
+#, elixir-autogen, elixir-format
+msgid "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
+msgstr "Connect 워크로드가 완료될 때와 워크로드 아이덴티티의 페더레이션 규칙 페이지에 표시됩니다."

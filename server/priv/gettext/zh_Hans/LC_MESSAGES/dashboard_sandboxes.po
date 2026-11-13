@@ -12,57 +12,21 @@ msgid ""
 msgstr "Language: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:132
-#: lib/tuist_web/live/sandboxes_live.ex:437
+#: lib/tuist_web/live/sandboxes_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "活跃"
 
-#: lib/tuist_web/live/sandboxes_live.ex:299
-#, elixir-autogen, elixir-format
-msgid "An admin can connect it"
-msgstr "管理员可以连接它"
-
-#: lib/tuist_web/live/sandbox_live.html.heex:161
-#: lib/tuist_web/live/sandboxes_live.html.heex:66
+#: lib/tuist_web/live/sandbox_live.html.heex:165
+#: lib/tuist_web/live/sandboxes_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Choose an agent to connect:"
-msgstr "选择要连接的代理："
-
-#: lib/tuist_web/live/sandboxes_live.ex:308
-#, elixir-autogen, elixir-format
-msgid "Claude Managed Agents"
-msgstr "Claude 托管代理"
-
-#: lib/tuist_web/live/sandboxes_live.ex:313
-#: lib/tuist_web/live/sandboxes_live.ex:329
-#, elixir-autogen, elixir-format
-msgid "Coming soon"
-msgstr "即将推出"
-
-#: lib/tuist_web/live/sandboxes_live.ex:295
-#, elixir-autogen, elixir-format
-msgid "Connect"
-msgstr "连接"
-
-#: lib/tuist_web/live/sandboxes_live.html.heex:15
-#, elixir-autogen, elixir-format
-msgid "Connect an agent and every task it starts gets its own sandbox. Sandboxes pause when the agent goes idle and resume where they left off."
-msgstr "连接代理后，其启动的每个任务都将拥有独立的沙盒。当代理空闲时，沙盒会暂停；恢复活动时，将从上次中断处继续。"
-
-#: lib/tuist_web/live/sandboxes_live.ex:289
-#, elixir-autogen, elixir-format
-msgid "Connected"
-msgstr "已连接"
-
 #: lib/tuist_web/live/sandbox_instances_live.ex:170
-#: lib/tuist_web/live/sandbox_live.html.heex:117
-#: lib/tuist_web/live/sandboxes_live.ex:413
-#: lib/tuist_web/live/sandboxes_live.html.heex:308
+#: lib/tuist_web/live/sandbox_live.html.heex:121
+#: lib/tuist_web/live/sandboxes_live.ex:861
+#: lib/tuist_web/live/sandboxes_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr "已创建"
@@ -72,13 +36,13 @@ msgstr "已创建"
 msgid "Delete"
 msgstr "删除"
 
-#: lib/tuist_web/live/sandbox_live.html.heex:146
-#: lib/tuist_web/live/sandbox_live.html.heex:169
+#: lib/tuist_web/live/sandbox_live.html.heex:150
+#: lib/tuist_web/live/sandbox_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Delete sandbox"
 msgstr "删除沙盒"
 
-#: lib/tuist_web/live/sandboxes_live.ex:445
+#: lib/tuist_web/live/sandboxes_live.ex:895
 #, elixir-autogen, elixir-format
 msgid "Deleting"
 msgstr "正在删除"
@@ -88,49 +52,37 @@ msgstr "正在删除"
 msgid "Deleting…"
 msgstr "正在删除…"
 
-#: lib/tuist_web/live/sandbox_live.html.heex:113
-#: lib/tuist_web/live/sandboxes_live.ex:188
-#: lib/tuist_web/live/sandboxes_live.ex:397
+#: lib/tuist_web/live/sandbox_live.html.heex:117
+#: lib/tuist_web/live/sandboxes_live.ex:845
 #, elixir-autogen, elixir-format
 msgid "Disk"
 msgstr "磁盘"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:138
-#: lib/tuist_web/live/sandboxes_live.ex:444
+#: lib/tuist_web/live/sandboxes_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "失败"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:4
-#, elixir-autogen, elixir-format
-msgid "Get started"
-msgstr "开始使用"
-
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
-#: lib/tuist_web/live/sandboxes_live.ex:439
+#: lib/tuist_web/live/sandboxes_live.ex:889
 #, elixir-autogen, elixir-format
 msgid "Idle"
 msgstr "空闲"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
-#: lib/tuist_web/live/sandbox_live.html.heex:123
-#: lib/tuist_web/live/sandboxes_live.ex:402
+#: lib/tuist_web/live/sandbox_live.html.heex:127
+#: lib/tuist_web/live/sandboxes_live.ex:850
 #, elixir-autogen, elixir-format
 msgid "Last active"
 msgstr "最后活跃时间"
 
-#: lib/tuist_web/live/sandbox_live.html.heex:109
-#: lib/tuist_web/live/sandboxes_live.ex:176
-#: lib/tuist_web/live/sandboxes_live.ex:394
+#: lib/tuist_web/live/sandbox_live.html.heex:113
+#: lib/tuist_web/live/sandboxes_live.ex:171
+#: lib/tuist_web/live/sandboxes_live.ex:842
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "内存"
-
-#: lib/tuist_web/live/sandbox_instances_live.ex:172
-#: lib/tuist_web/live/sandboxes_live.ex:381
-#, elixir-autogen, elixir-format
-msgid "Name"
-msgstr "名称"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:27
 #, elixir-autogen, elixir-format
@@ -138,8 +90,8 @@ msgid "Pause"
 msgstr "暂停"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:136
-#: lib/tuist_web/live/sandbox_live.html.heex:129
-#: lib/tuist_web/live/sandboxes_live.ex:442
+#: lib/tuist_web/live/sandbox_live.html.heex:133
+#: lib/tuist_web/live/sandboxes_live.ex:892
 #, elixir-autogen, elixir-format
 msgid "Paused"
 msgstr "已暂停"
@@ -155,7 +107,7 @@ msgid "Resume"
 msgstr "恢复"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:135
-#: lib/tuist_web/live/sandboxes_live.ex:441
+#: lib/tuist_web/live/sandboxes_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Resuming"
 msgstr "正在恢复"
@@ -170,12 +122,7 @@ msgstr "恢复将超出此账户的 vCPU 或内存限制。"
 msgid "Resuming…"
 msgstr "正在恢复…"
 
-#: lib/tuist_web/live/sandboxes_live.ex:284
-#, elixir-autogen, elixir-format
-msgid "Retrying"
-msgstr "正在重试"
-
-#: lib/tuist_web/live/sandboxes_live.html.heex:12
+#: lib/tuist_web/live/sandboxes_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Run agents in sandboxes"
 msgstr "在沙盒中运行代理"
@@ -190,37 +137,27 @@ msgstr "沙盒 ID"
 msgid "Sandbox deleted."
 msgstr "沙盒已删除。"
 
-#: lib/tuist_web/components/app_layout_components.ex:545
+#: lib/tuist_web/components/dashboard_navigation.ex:42
 #: lib/tuist_web/live/sandbox_live.ex:41
-#: lib/tuist_web/live/sandboxes_live.ex:34
+#: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
 msgstr "沙盒"
 
-#: lib/tuist_web/live/sandboxes_live.ex:277
-#, elixir-autogen, elixir-format
-msgid "Self-hosted Orbs"
-msgstr "自托管 Orbs"
-
 #: lib/tuist_web/live/sandbox_live.ex:112
-#: lib/tuist_web/live/sandbox_live.ex:148
+#: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
 msgstr "出错了。请重试。"
 
-#: lib/tuist_web/live/sandboxes_live.ex:324
-#, elixir-autogen, elixir-format
-msgid "Start sandboxes from your terminal"
-msgstr "从终端启动沙盒"
-
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
-#: lib/tuist_web/live/sandboxes_live.ex:440
+#: lib/tuist_web/live/sandboxes_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Starting"
 msgstr "正在启动"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:128
-#: lib/tuist_web/live/sandboxes_live.ex:387
+#: lib/tuist_web/live/sandboxes_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "状态"
@@ -230,7 +167,7 @@ msgstr "状态"
 msgid "The machine running it reported an error."
 msgstr "运行该沙盒的机器报告了错误。"
 
-#: lib/tuist_web/live/sandbox_live.ex:146
+#: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
 msgstr "运行此沙盒的机器无法访问。请重试。"
@@ -245,7 +182,7 @@ msgstr "沙盒在此期间状态已变更，请重试。"
 msgid "The sandbox is busy with an agent task and was not paused."
 msgstr "沙盒正在执行代理任务，无法暂停。"
 
-#: lib/tuist_web/live/sandbox_live.html.heex:148
+#: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
 msgstr "沙盒将停止并丢弃其磁盘，未推送的工作将丢失。"
@@ -255,198 +192,193 @@ msgstr "沙盒将停止并丢弃其磁盘，未推送的工作将丢失。"
 msgid "This sandbox failed"
 msgstr "此沙盒失败"
 
-#: lib/tuist_web/live/sandbox_live.ex:157
+#: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
 msgstr "此沙盒已被删除。"
 
-#: lib/tuist_web/live/sandboxes_live.ex:322
-#, elixir-autogen, elixir-format
-msgid "Tuist CLI"
-msgstr "Tuist CLI"
-
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
-#: lib/tuist_web/live/sandbox_live.html.heex:105
-#: lib/tuist_web/live/sandboxes_live.ex:164
-#: lib/tuist_web/live/sandboxes_live.ex:391
+#: lib/tuist_web/live/sandbox_live.html.heex:109
+#: lib/tuist_web/live/sandboxes_live.ex:159
+#: lib/tuist_web/live/sandboxes_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
 msgstr "vCPU"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
-#: lib/tuist_web/live/sandbox_live.html.heex:135
-#: lib/tuist_web/live/sandboxes_live.ex:443
+#: lib/tuist_web/live/sandbox_live.html.heex:139
+#: lib/tuist_web/live/sandboxes_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr "已归档"
 
-#: lib/tuist_web/live/sandboxes_live.ex:166
-#: lib/tuist_web/live/sandboxes_live.ex:178
+#: lib/tuist_web/live/sandboxes_live.ex:161
+#: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
 msgstr "当前使用 %{count} / %{limit}"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:90
+#: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr "分析"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:75
+#: lib/tuist_web/live/sandboxes_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "应用"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:119
+#: lib/tuist_web/live/sandboxes_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Avg. session duration"
 msgstr "平均会话时长"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:320
+#: lib/tuist_web/live/sandboxes_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
 msgstr "并发数"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:57
+#: lib/tuist_web/live/sandboxes_live.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "自定义"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:123
+#: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
 msgstr "沙盒在暂停、归档、删除或失败前的运行时长。"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:54
+#: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "过去 12 个月"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:39
+#: lib/tuist_web/live/sandboxes_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "过去 24 小时"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:49
+#: lib/tuist_web/live/sandboxes_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "过去 30 天"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:44
+#: lib/tuist_web/live/sandboxes_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "过去 7 天"
 
-#: lib/tuist_web/live/sandboxes_live.ex:216
+#: lib/tuist_web/live/sandboxes_live.ex:199
 #, elixir-autogen, elixir-format
 msgid "Limit"
 msgstr "限制"
 
-#: lib/tuist_web/live/sandboxes_live.ex:184
+#: lib/tuist_web/live/sandboxes_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Peak memory (GB)"
 msgstr "峰值内存 (GB)"
 
-#: lib/tuist_web/live/sandboxes_live.ex:172
+#: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
 msgstr "峰值 vCPU"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:100
+#: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
 msgstr "在所选时间窗口内启动的沙箱代理。"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:97
+#: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
 msgstr "已创建沙箱"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:118
+#: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
 msgstr "p50 会话时长"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:117
+#: lib/tuist_web/live/sandboxes_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
 msgstr "p90 会话时长"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:116
+#: lib/tuist_web/live/sandboxes_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
 msgstr "p99 会话时长"
 
-#: lib/tuist_web/live/sandboxes_live.ex:134
+#: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr "自上月以来"
 
-#: lib/tuist_web/live/sandboxes_live.ex:133
+#: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr "自上一周期以来"
 
-#: lib/tuist_web/live/sandboxes_live.ex:131
+#: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "自上周以来"
 
-#: lib/tuist_web/live/sandboxes_live.ex:132
+#: lib/tuist_web/live/sandboxes_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "自去年以来"
 
-#: lib/tuist_web/live/sandboxes_live.ex:130
+#: lib/tuist_web/live/sandboxes_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr "自昨天以来"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:216
+#: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
 msgstr "Tuist 启动沙盒所需的时间，无论是从模板、项目快照还是通过从归档恢复。不包括设置时间。"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:174
+#: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
 msgstr "在从模板启动的 Amp Orb 中，项目的 .agents/setup 所需的时间。从项目快照启动的 Orb 会跳过此步骤，因此这里体现的是你自己的设置工作量。"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:169
+#: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Avg. Setup"
 msgstr "平均设置时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:211
+#: lib/tuist_web/live/sandboxes_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Avg. Time to start"
 msgstr "平均启动时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:170
+#: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "p50 Setup"
 msgstr "p50 设置时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:212
+#: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
 msgstr "p50 启动时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:168
+#: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
 msgstr "p90 设置时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:210
+#: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
 msgstr "p90 启动时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:167
+#: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
 msgstr "p99 设置时间"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:209
+#: lib/tuist_web/live/sandboxes_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "p99 Time to start"
 msgstr "p99 启动时间"
@@ -466,17 +398,17 @@ msgstr "第 %{page} 页，共 %{total} 页"
 msgid "Prev"
 msgstr "上一页"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:362
+#: lib/tuist_web/live/sandboxes_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
 msgstr "最近的沙盒"
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:370
+#: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "查看更多"
 
-#: lib/tuist_web/components/app_layout_components.ex:553
+#: lib/tuist_web/components/dashboard_navigation.ex:45
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -484,16 +416,6 @@ msgstr "查看更多"
 #, elixir-autogen, elixir-format
 msgid "Instances"
 msgstr "实例"
-
-#: lib/tuist_web/live/sandboxes_live.ex:190
-#, elixir-autogen, elixir-format
-msgid "%{count} of %{limit} on nodes now"
-msgstr "当前节点使用 %{count} / %{limit}"
-
-#: lib/tuist_web/live/sandboxes_live.ex:196
-#, elixir-autogen, elixir-format
-msgid "Peak disk (GB)"
-msgstr "磁盘峰值 (GB)"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -505,7 +427,7 @@ msgstr "账户中的所有沙盒。"
 msgid "Filter"
 msgstr "筛选"
 
-#: lib/tuist_web/live/sandboxes_live.ex:422
+#: lib/tuist_web/live/sandboxes_live.ex:870
 #, elixir-autogen, elixir-format
 msgid "No sandboxes found"
 msgstr "未找到沙盒"
@@ -515,15 +437,10 @@ msgstr "未找到沙盒"
 msgid "Sort by:"
 msgstr "排序方式："
 
-#: lib/tuist_web/live/sandboxes_live.ex:423
+#: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
 msgstr "尝试其他搜索或筛选条件。"
-
-#: lib/tuist_web/live/sandbox_instances_live.html.heex:23
-#, elixir-autogen, elixir-format
-msgid "Search by name or ID..."
-msgstr "按名称或 ID 搜索..."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -545,7 +462,24 @@ msgstr "归档已开始。沙盒磁盘上传完成后将显示为已归档。"
 msgid "Archiving…"
 msgstr "正在归档…"
 
-#: lib/tuist_web/live/sandbox_live.ex:143
+#: lib/tuist_web/live/sandboxes_live.html.heex:7
 #, elixir-autogen, elixir-format
-msgid "This account's archive storage is full. Delete archived sandboxes to make room."
-msgstr "此账户的归档存储空间已满。请删除已归档的沙盒以释放空间。"
+msgid "Start your first sandbox from your terminal by running:"
+msgstr "在终端中运行以下命令以启动你的第一个沙盒："
+
+#: lib/tuist_web/live/sandbox_live.html.heex:105
+#: lib/tuist_web/live/sandboxes_live.ex:836
+#, elixir-autogen, elixir-format
+msgid "Created by"
+msgstr "创建者"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:172
+#: lib/tuist_web/live/sandboxes_live.ex:826
+#, elixir-autogen, elixir-format
+msgid "Instance"
+msgstr "实例"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Search by instance..."
+msgstr "按实例搜索..."

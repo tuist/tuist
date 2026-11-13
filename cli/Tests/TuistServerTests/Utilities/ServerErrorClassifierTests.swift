@@ -72,6 +72,20 @@ struct ServerErrorClassifierTests {
         #expect(!ServerErrorClassifier.isTransient(NSError(domain: "Test", code: 1)))
     }
 
+    @Test func shardRejectionsAreNotRetryableButStorageFailuresAre() {
+        let rejections: [Error] = [
+            GetShardServiceError.notFound("Not found"),
+            StartShardUploadServiceError.forbidden("Forbidden"),
+            MultipartUploadGenerateURLShardsServiceError.unauthorized("Unauthorized"),
+            MultipartUploadCompleteShardsServiceError.badRequest("Bad request"),
+        ]
+        for rejection in rejections {
+            #expect(!ServerErrorClassifier.isRetryable(rejection))
+        }
+        #expect(ServerErrorClassifier.isRetryable(MultipartUploadCompleteShardsServiceError.unknownError(500)))
+        #expect(ServerErrorClassifier.isRetryable(GetShardServiceError.unknownError(503)))
+    }
+
     @Test func permissionAndAuthenticationErrorsAreNotRetryable() {
         #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.forbidden("Forbidden")))
         #expect(!ServerErrorClassifier.isRetryable(GetCacheServiceError.unauthorized("Unauthorized")))

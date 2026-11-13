@@ -467,7 +467,7 @@ msgstr "失敗"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:651
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:199
 #, elixir-autogen, elixir-format
@@ -861,7 +861,7 @@ msgstr "失敗的測試案例數量。"
 msgid "Other"
 msgstr "其他"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:579
+#: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:59
 #: lib/tuist_web/live/test_case_live.html.heex:151
 #: lib/tuist_web/live/test_case_run_live.html.heex:101
@@ -1250,7 +1250,7 @@ msgstr "測試模組"
 msgid "Test Run"
 msgstr "測試執行"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:583
+#: lib/tuist_web/live/coverage_detail_live.ex:584
 #: lib/tuist_web/live/coverage_detail_live.html.heex:477
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
@@ -1447,7 +1447,7 @@ msgid "Tuist version"
 msgstr "Tuist 版本"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:179
-#: lib/tuist_web/helpers/test_labels.ex:64
+#: lib/tuist_web/helpers/test_labels.ex:66
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128
@@ -2184,7 +2184,7 @@ msgstr "此目標的執行器未產生 test.xml，因此無法提供個別案例
 msgid "Code Coverage"
 msgstr "程式碼涵蓋率"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:430
+#: lib/tuist_web/live/coverage_detail_live.ex:431
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
@@ -2225,8 +2225,8 @@ msgid "Executions"
 msgstr "執行次數"
 
 #: lib/tuist_web/live/coverage/components.ex:103
-#: lib/tuist_web/live/coverage_detail_live.ex:431
-#: lib/tuist_web/live/coverage_detail_live.ex:582
+#: lib/tuist_web/live/coverage_detail_live.ex:432
+#: lib/tuist_web/live/coverage_detail_live.ex:583
 #: lib/tuist_web/live/coverage_detail_live.html.heex:234
 #: lib/tuist_web/live/coverage_detail_live.html.heex:270
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:174
@@ -2268,7 +2268,7 @@ msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "測試至少執行一次的檔案可執行行數比例。"
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/helpers/test_labels.ex:50
+#: lib/tuist_web/helpers/test_labels.ex:51
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:41
 #: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2276,7 +2276,7 @@ msgid "Target"
 msgstr "目標"
 
 #: lib/tuist_web/helpers/test_labels.ex:20
-#: lib/tuist_web/helpers/test_labels.ex:53
+#: lib/tuist_web/helpers/test_labels.ex:55
 #, elixir-autogen, elixir-format
 msgid "Targets"
 msgstr "目標"
@@ -2287,13 +2287,13 @@ msgid "Unavailable"
 msgstr "無法使用"
 
 #: lib/tuist_web/live/coverage/components.ex:275
-#: lib/tuist_web/live/coverage_detail_live.ex:519
+#: lib/tuist_web/live/coverage_detail_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "Full"
 msgstr "完整"
 
 #: lib/tuist_web/live/coverage/components.ex:274
-#: lib/tuist_web/live/coverage_detail_live.ex:520
+#: lib/tuist_web/live/coverage_detail_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Partial"
 msgstr "部分"
@@ -2334,7 +2334,7 @@ msgid "Once version"
 msgstr "一次性版本"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
-#: lib/tuist_web/live/coverage_detail_live.ex:515
+#: lib/tuist_web/live/coverage_detail_live.ex:516
 #: lib/tuist_web/live/coverage_detail_live.html.heex:535
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
@@ -2373,7 +2373,7 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count} 個檔案"
 
 #: lib/tuist_web/live/coverage/components.ex:339
-#: lib/tuist_web/live/coverage_detail_live.ex:573
+#: lib/tuist_web/live/coverage_detail_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
 msgstr "分支 %{name}"
@@ -2398,7 +2398,7 @@ msgid "Code coverage is not enabled for this account."
 msgstr "此帳號未啟用程式碼涵蓋率。"
 
 #: lib/tuist_web/live/coverage/components.ex:341
-#: lib/tuist_web/live/coverage_detail_live.ex:571
+#: lib/tuist_web/live/coverage_detail_live.ex:572
 #: lib/tuist_web/live/coverage_file_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
@@ -2409,7 +2409,7 @@ msgstr "提交 %{name}"
 msgid "Commit %{sha} has no coverage for this file"
 msgstr "提交 %{sha} 在此檔案中沒有涵蓋率"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:580
+#: lib/tuist_web/live/coverage_detail_live.ex:581
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Commits"
@@ -2443,7 +2443,7 @@ msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "此執行方案的所有測試皆已執行，因此完整測量了該方案。"
 
 #: lib/tuist_web/live/coverage/components.ex:662
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "File coverage"
 msgstr "檔案涵蓋率"
@@ -2577,7 +2577,7 @@ msgstr "在 %{schemes} 中，至少執行過一次的測試所涵蓋的可執行
 msgid "Status:"
 msgstr "狀態："
 
-#: lib/tuist_web/live/coverage_detail_live.ex:406
+#: lib/tuist_web/live/coverage_detail_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "Target name"
 msgstr "目標名稱"
@@ -2671,7 +2671,7 @@ msgstr "應用程式"
 msgid "Application name"
 msgstr "應用程式名稱"
 
-#: lib/tuist_web/helpers/test_labels.ex:52
+#: lib/tuist_web/helpers/test_labels.ex:53
 #, elixir-autogen, elixir-format
 msgid "Applications"
 msgstr "應用程式"
@@ -3261,3 +3261,18 @@ msgstr "選擇性測試保留的所有模組皆已執行。"
 #, elixir-autogen, elixir-format
 msgid "The average of the period's runs' skip rates. A run without a baseline counts the share of modules selective testing skipped."
 msgstr "該期間所有執行的跳過率平均值。沒有基準的執行會計算選擇性測試跳過的模組比例。"
+
+#: lib/tuist_web/helpers/test_labels.ex:50
+#, elixir-autogen, elixir-format
+msgid "Package"
+msgstr "套件"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "Package name"
+msgstr "套件名稱"
+
+#: lib/tuist_web/helpers/test_labels.ex:54
+#, elixir-autogen, elixir-format
+msgid "Packages"
+msgstr "套件"

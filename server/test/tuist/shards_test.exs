@@ -2745,5 +2745,35 @@ defmodule Tuist.ShardsTest do
       assert :ok =
                Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
     end
+
+    test "succeeds when a replayed completion finds the upload gone and the object present" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-3")
+      key = Shards.bundle_object_key(account, project, plan.id)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        {:error, :multipart_upload_not_found}
+      end)
+
+      expect(Tuist.Storage, :object_exists?, fn ^key, _account -> true end)
+
+      assert :ok = Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
+    end
+
+    test "fails when the upload is gone and the object was never written" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-4")
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        {:error, :multipart_upload_not_found}
+      end)
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+
+      assert {:error, :multipart_upload_not_found} =
+               Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
+    end
   end
 end

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5da8af075575fe9110d7a99346238194f518df79784be0a46a61fa6b65d581bc",
+  "hash": "167bae84857e82bcac2e7b83972547d22a075d72d9e36d86425e24ff3fb691ac",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "948786e15bda6e2b70dac565241cd528f4c59cca2e7ae4ed23822a5e44c0ce84"
                 },
                 "## effect: edit them in PO (.po) files instead.": {
-                  "content_hash": "c1e42884d6b1eacaaefe5bdced6d48ff5516f2980a42c897845ed004de95e877"
+                  "content_hash": "af73d1604feee87c7c423ec99381234c56c9a8dee33f7bc291d0de22da59a8b0"
                 },
                 "## messages that can't be statically extracted.": {
                   "content_hash": "953b56d83f9504088c6b842f692f07f39d9f70ba2c334466776a5a6efc791c48"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "e3fcc2931408928a53af2e1618dc82dddf35c9054cc4bfd13cb0b167617aa9f8",
+          "hash": "cb658e9ab12ca31bdb15cd891f1e136ebac012d847ab02fd106d560fc129b51c",
           "kind": "source",
           "label": "server/priv/gettext/dashboard_pulse.pot",
           "metadata": {
-            "content_hash": "c7c8d1c007f80a00e0fe9d2c234fcae392bf3a379239a3040cda47c366a3c122"
+            "content_hash": "3271c2073157465410a38a8d17b7f32452774d26c3727cd14a85e2188c563c5f"
           }
         },
         {
@@ -207,14 +207,14 @@
         }
       ],
       "details": {},
-      "hash": "5da8af075575fe9110d7a99346238194f518df79784be0a46a61fa6b65d581bc",
+      "hash": "167bae84857e82bcac2e7b83972547d22a075d72d9e36d86425e24ff3fb691ac",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_pulse.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b3ceb9e70c0f4f1946bfd7a1868f3b25d9d954f2966b46082fbc99c18d7127e5",
+  "output_hash": "7e90d2b7d7ecfdbe5547f45876c3f760cca66273f67bbabac7191c94f7dad744",
   "output_path": "server/priv/gettext/yue_Hant/LC_MESSAGES/dashboard_pulse.po",
   "po_units": {
     "07283babc4e6d1f2e7a340b3bfa381b33aa9aaf719425e72a4619c7c607b1a6e": "c2a113182753a8a8da308d7068d45b46c9fd60c3ce3674040badcdbaa92f7e3f",
@@ -266,6 +266,7 @@
     "7c4b455bafe33bd615c58551a4529351b9e3e3c6139a4c271bec393297eb33fe": "f105b6c19d85e47ff06e87fe3a20e018156272e107a68b42365d1bb0bf6cbef8",
     "7de5bece2104759d2de949d66b6ca9605a715203caaed50cf43a285194767e3c": "23af62a102dab10e1ba39f694f7fb1184992be0014663a07b42c4151642bb9c5",
     "826f4b1c0d3e056f0112876fae5d62c006c1bae9a625378c0479c2af63350bed": "64fbe4a2a3d5044c1c1ddcc798a164cc411daa309f14ef4eb99df8d612eeb2e8",
+    "83c9b4f3795918374a5d76489205372d8fc58517cded909f440906ccfff260f2": "f8c8ebcceadd0239685e21b619518cd6cd1c7341cc094f6857ff0279d5abcf57",
     "83f131514199e149d1e39a25ee1a81f26eed147fdf884098c5bb31dacc7c7d04": "c4a4fef004ad12ddb84efff55bdb220bc85bdce6e1de0966934e79d7aec7fe43",
     "8444525a9d59a01fe3316554abef3b03b51e3b3bb789e4918d8c84c37eb9d0ab": "6d54ce881abae59b8924d61175fabbe120fc8fbf22619485480e52a5bfa88093",
     "8460acb4dc2726636fc3b203aa93c5ac03ac2f343068a322e1dbc7692327a480": "30b9523544e41c906fb69ed2de99fbb05baf9474f043a6a8a2f6758abce8bd64",
@@ -338,8 +339,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8f7933fe8972241f7a6c52eb98e3b72e0fe65dbd",
+  "source_commit_sha": "491cf48e316f9e5a7062a4c3bb316165c6673312",
   "source_path": "server/priv/gettext/dashboard_pulse.pot",
-  "translated_at": "2026-11-07T09:10:38.493914Z",
-  "translation_session_id": "01a1b534-eddc-7391-8ac6-9f3a957602c6"
+  "translated_at": "2026-11-13T17:20:36.641924Z",
+  "translation_session_id": "01a1d5eb-46b2-7ad7-9188-860a70ad009b"
 }

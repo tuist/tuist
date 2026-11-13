@@ -418,7 +418,7 @@ msgstr "压缩大小"
 msgid "Compressed Size (MB)"
 msgstr "压缩大小（MB）"
 
-#: lib/tuist_web/components/build_timeline.ex:339
+#: lib/tuist_web/components/build_timeline.ex:346
 #: lib/tuist_web/live/build_run_live.html.heex:242
 #: lib/tuist_web/live/xcode_build_runs_live.ex:211
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:73
@@ -501,7 +501,7 @@ msgstr "下载结果"
 msgid "Download throughput"
 msgstr "下载吞吐量"
 
-#: lib/tuist_web/components/build_timeline.ex:251
+#: lib/tuist_web/components/build_timeline.ex:258
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
@@ -578,9 +578,9 @@ msgid "External"
 msgstr "外部"
 
 #: lib/tuist_web/components/build_status_filter.ex:44
-#: lib/tuist_web/components/build_timeline.ex:269
-#: lib/tuist_web/components/build_timeline.ex:314
-#: lib/tuist_web/components/build_timeline.ex:351
+#: lib/tuist_web/components/build_timeline.ex:276
+#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
 #: lib/tuist_web/live/build_entity_live.ex:517
@@ -706,7 +706,7 @@ msgstr "验证嵌入二进制文件 %{path} 失败"
 msgid "Failed writing auxiliary file %{path}"
 msgstr "写入辅助文件 %{path} 失败"
 
-#: lib/tuist_web/components/build_timeline.ex:237
+#: lib/tuist_web/components/build_timeline.ex:244
 #: lib/tuist_web/helpers/build_entity_labels.ex:18
 #: lib/tuist_web/live/build_run_live.html.heex:625
 #: lib/tuist_web/live/build_run_live.html.heex:641
@@ -765,7 +765,7 @@ msgstr "请求头"
 #: lib/tuist_web/live/mix_build_live.html.heex:257
 #: lib/tuist_web/live/run_detail_live.ex:351
 #: lib/tuist_web/live/run_detail_live.ex:384
-#: lib/tuist_web/live/test_run_live.ex:1431
+#: lib/tuist_web/live/test_run_live.ex:1436
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "命中"
@@ -816,7 +816,7 @@ msgstr "键"
 #: lib/tuist_web/live/mix_build_live.ex:352
 #: lib/tuist_web/live/run_detail_live.ex:356
 #: lib/tuist_web/live/run_detail_live.ex:389
-#: lib/tuist_web/live/test_run_live.ex:1436
+#: lib/tuist_web/live/test_run_live.ex:1441
 #: lib/tuist_web/live/xcode_builds_live.ex:400
 #: lib/tuist_web/live/xcode_builds_live.ex:403
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
@@ -849,7 +849,7 @@ msgstr "Mac 设备"
 #: lib/tuist_web/live/mix_build_live.ex:370
 #: lib/tuist_web/live/run_detail_live.ex:357
 #: lib/tuist_web/live/run_detail_live.ex:390
-#: lib/tuist_web/live/test_run_live.ex:1437
+#: lib/tuist_web/live/test_run_live.ex:1442
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr "未命中"
@@ -1028,7 +1028,7 @@ msgstr "产品"
 msgid "Product name"
 msgstr "产品名称"
 
-#: lib/tuist_web/components/build_timeline.ex:232
+#: lib/tuist_web/components/build_timeline.ex:239
 #: lib/tuist_web/helpers/build_entity_labels.ex:88
 #: lib/tuist_web/live/build_entity_live.ex:606
 #: lib/tuist_web/live/build_entity_live.ex:609
@@ -1096,13 +1096,13 @@ msgstr "近期构建"
 #: lib/tuist_web/live/mix_build_live.ex:361
 #: lib/tuist_web/live/run_detail_live.ex:355
 #: lib/tuist_web/live/run_detail_live.ex:388
-#: lib/tuist_web/live/test_run_live.ex:1435
+#: lib/tuist_web/live/test_run_live.ex:1440
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "远程"
 
-#: lib/tuist_web/components/build_timeline.ex:336
-#: lib/tuist_web/components/build_timeline.ex:344
+#: lib/tuist_web/components/build_timeline.ex:343
+#: lib/tuist_web/components/build_timeline.ex:351
 #: lib/tuist_web/components/runs/module_cache_tab.ex:371
 #, elixir-autogen, elixir-format
 msgid "Resources"
@@ -1249,7 +1249,7 @@ msgstr "摘要"
 msgid "Swift version"
 msgstr "Swift 版本"
 
-#: lib/tuist_web/components/build_timeline.ex:238
+#: lib/tuist_web/components/build_timeline.ex:245
 #: lib/tuist_web/live/build_entity_live.ex:598
 #: lib/tuist_web/live/build_entity_live.ex:605
 #: lib/tuist_web/live/build_entity_live.ex:607
@@ -1399,7 +1399,7 @@ msgstr "尝试更新搜索条件"
 msgid "Tuist version"
 msgstr "Tuist 版本"
 
-#: lib/tuist_web/components/build_timeline.ex:243
+#: lib/tuist_web/components/build_timeline.ex:250
 #: lib/tuist_web/components/cargo_cache_inspection.ex:228
 #: lib/tuist_web/components/cargo_cache_inspection.ex:275
 #: lib/tuist_web/components/reapi_cache_outputs.ex:209
@@ -1421,7 +1421,7 @@ msgstr "类型"
 msgid "Type:"
 msgstr "类型："
 
-#: lib/tuist_web/components/build_timeline.ex:72
+#: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
 #: lib/tuist_web/live/build_entity_live.html.heex:607
@@ -1889,61 +1889,61 @@ msgstr "本次运行上传到远程缓存的数据总量（%{count} 个构件）
 msgid "Additional hashing inputs"
 msgstr "额外的哈希输入"
 
-#: lib/tuist_web/components/build_timeline.ex:199
+#: lib/tuist_web/components/build_timeline.ex:206
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
 msgstr "构建步骤。拖动时间范围以聚焦。按 Escape 取消拖动。使用左右箭头键检查步骤。使用加号和减号缩放，按 Home 重置。"
 
-#: lib/tuist_web/components/build_timeline.ex:309
-#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:316
+#: lib/tuist_web/components/build_timeline.ex:327
 #, elixir-autogen, elixir-format
 msgid "Compilation"
 msgstr "编译"
 
-#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:328
 #, elixir-autogen, elixir-format
 msgid "Linking"
 msgstr "链接"
 
-#: lib/tuist_web/components/build_timeline.ex:154
+#: lib/tuist_web/components/build_timeline.ex:161
 #, elixir-autogen, elixir-format
 msgid "No timeline available"
 msgstr "暂无时间线数据"
 
-#: lib/tuist_web/components/build_timeline.ex:313
-#: lib/tuist_web/components/build_timeline.ex:350
+#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:357
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "其他"
 
-#: lib/tuist_web/components/build_timeline.ex:258
+#: lib/tuist_web/components/build_timeline.ex:265
 #, elixir-autogen, elixir-format
 msgid "Outcome"
 msgstr "结果"
 
-#: lib/tuist_web/components/build_timeline.ex:322
+#: lib/tuist_web/components/build_timeline.ex:329
 #, elixir-autogen, elixir-format
 msgid "Scripts"
 msgstr "脚本"
 
-#: lib/tuist_web/components/build_timeline.ex:297
+#: lib/tuist_web/components/build_timeline.ex:304
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets"
 msgstr "搜索步骤或目标"
 
-#: lib/tuist_web/components/build_timeline.ex:301
+#: lib/tuist_web/components/build_timeline.ex:308
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets…"
 msgstr "搜索步骤或目标…"
 
-#: lib/tuist_web/components/build_timeline.ex:247
+#: lib/tuist_web/components/build_timeline.ex:254
 #: lib/tuist_web/live/cargo_build_live.ex:133
 #: lib/tuist_web/live/cargo_build_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "开始于"
 
-#: lib/tuist_web/components/build_timeline.ex:263
+#: lib/tuist_web/components/build_timeline.ex:270
 #: lib/tuist_web/helpers/build_entity_labels.ex:104
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
@@ -1957,105 +1957,105 @@ msgstr "成功"
 msgid "Timeline"
 msgstr "时间线"
 
-#: lib/tuist_web/components/build_timeline.ex:88
+#: lib/tuist_web/components/build_timeline.ex:90
 #, elixir-autogen, elixir-format
 msgid "elapsed"
 msgstr "耗时"
 
-#: lib/tuist_web/components/build_timeline.ex:83
-#: lib/tuist_web/components/build_timeline.ex:89
+#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:91
 #, elixir-autogen, elixir-format
 msgid "steps"
 msgstr "步骤"
 
-#: lib/tuist_web/components/build_timeline.ex:93
+#: lib/tuist_web/components/build_timeline.ex:95
 #, elixir-autogen, elixir-format
 msgid "targets"
 msgstr "目标"
 
 #: lib/tuist_web/components/build_timeline.ex:21
 #: lib/tuist_web/components/build_timeline.ex:28
-#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:87
 #, elixir-autogen, elixir-format
 msgid "Build Timeline"
 msgstr "构建时间线"
 
-#: lib/tuist_web/components/build_timeline.ex:289
+#: lib/tuist_web/components/build_timeline.ex:296
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
 msgstr "在此时间范围内没有符合筛选条件的步骤。"
 
-#: lib/tuist_web/components/build_timeline.ex:78
+#: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "Loading log…"
 msgstr "正在加载日志…"
 
-#: lib/tuist_web/components/build_timeline.ex:277
+#: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
 msgid "Log"
 msgstr "日志"
 
-#: lib/tuist_web/components/build_timeline.ex:79
+#: lib/tuist_web/components/build_timeline.ex:81
 #, elixir-autogen, elixir-format
 msgid "No log recorded for this step."
 msgstr "此步骤未记录日志。"
 
-#: lib/tuist_web/components/build_timeline.ex:281
+#: lib/tuist_web/components/build_timeline.ex:288
 #, elixir-autogen, elixir-format
 msgid "This log was truncated."
 msgstr "此日志已被截断。"
 
-#: lib/tuist_web/components/build_timeline.ex:81
+#: lib/tuist_web/components/build_timeline.ex:83
 #, elixir-autogen, elixir-format
 msgid "Unable to load the log. Select the step again to retry."
 msgstr "无法加载日志。请重新选择该步骤以重试。"
 
-#: lib/tuist_web/components/build_timeline.ex:220
+#: lib/tuist_web/components/build_timeline.ex:227
 #, elixir-autogen, elixir-format
 msgid "Resize step details"
 msgstr "调整步骤详情"
 
-#: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/components/build_timeline.ex:119
 #, elixir-autogen, elixir-format
 msgid "Disk I/O"
 msgstr "磁盘 I/O"
 
 #: lib/tuist_web/components/build_timeline.ex:60
-#: lib/tuist_web/components/build_timeline.ex:127
+#: lib/tuist_web/components/build_timeline.ex:130
 #, elixir-autogen, elixir-format
 msgid "In"
 msgstr "入站"
 
-#: lib/tuist_web/components/build_timeline.ex:115
+#: lib/tuist_web/components/build_timeline.ex:117
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "内存"
 
-#: lib/tuist_web/components/build_timeline.ex:116
+#: lib/tuist_web/components/build_timeline.ex:118
 #, elixir-autogen, elixir-format
 msgid "Network"
 msgstr "网络"
 
 #: lib/tuist_web/components/build_timeline.ex:61
-#: lib/tuist_web/components/build_timeline.ex:130
+#: lib/tuist_web/components/build_timeline.ex:135
 #, elixir-autogen, elixir-format
 msgid "Out"
 msgstr "出站"
 
 #: lib/tuist_web/components/build_timeline.ex:62
-#: lib/tuist_web/components/build_timeline.ex:128
+#: lib/tuist_web/components/build_timeline.ex:131
 #, elixir-autogen, elixir-format
 msgid "Read"
 msgstr "读取"
 
 #: lib/tuist_web/components/build_timeline.ex:63
-#: lib/tuist_web/components/build_timeline.ex:131
+#: lib/tuist_web/components/build_timeline.ex:136
 #: lib/tuist_web/helpers/build_entity_labels.ex:111
 #, elixir-autogen, elixir-format
 msgid "Write"
 msgstr "写入"
 
-#: lib/tuist_web/components/build_timeline.ex:156
+#: lib/tuist_web/components/build_timeline.ex:163
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
 msgstr "此构建没有记录的步骤耗时。记录的步骤保留 90 天。"
@@ -2101,74 +2101,74 @@ msgstr "依赖哈希"
 msgid "No direct target dependencies recorded"
 msgstr "未记录直接目标依赖"
 
-#: lib/tuist_web/components/build_timeline.ex:331
+#: lib/tuist_web/components/build_timeline.ex:338
 #, elixir-autogen, elixir-format
 msgid "Analysis/setup"
 msgstr "分析/设置"
 
-#: lib/tuist_web/components/build_timeline.ex:340
+#: lib/tuist_web/components/build_timeline.ex:347
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
 msgstr "制品转换"
 
-#: lib/tuist_web/components/build_timeline.ex:68
+#: lib/tuist_web/components/build_timeline.ex:70
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
 msgstr "缓存命中"
 
-#: lib/tuist_web/components/build_timeline.ex:330
+#: lib/tuist_web/components/build_timeline.ex:337
 #, elixir-autogen, elixir-format
 msgid "Fetching"
 msgstr "拉取中"
 
-#: lib/tuist_web/components/build_timeline.ex:329
+#: lib/tuist_web/components/build_timeline.ex:336
 #, elixir-autogen, elixir-format
 msgid "File preparation"
 msgstr "文件准备"
 
-#: lib/tuist_web/components/build_timeline.ex:66
+#: lib/tuist_web/components/build_timeline.ex:68
 #, elixir-autogen, elixir-format
 msgid "Local cache hit"
 msgstr "本地缓存命中"
 
-#: lib/tuist_web/components/build_timeline.ex:71
+#: lib/tuist_web/components/build_timeline.ex:73
 #: lib/tuist_web/helpers/build_entity_labels.ex:114
 #, elixir-autogen, elixir-format
 msgid "No source"
 msgstr "无源码"
 
-#: lib/tuist_web/components/build_timeline.ex:338
+#: lib/tuist_web/components/build_timeline.ex:345
 #, elixir-autogen, elixir-format
 msgid "Packaging"
 msgstr "打包"
 
-#: lib/tuist_web/components/build_timeline.ex:67
+#: lib/tuist_web/components/build_timeline.ex:69
 #, elixir-autogen, elixir-format
 msgid "Remote cache hit"
 msgstr "远程缓存命中"
 
-#: lib/tuist_web/components/build_timeline.ex:299
+#: lib/tuist_web/components/build_timeline.ex:306
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories"
 msgstr "搜索步骤、目标或类别"
 
-#: lib/tuist_web/components/build_timeline.ex:303
+#: lib/tuist_web/components/build_timeline.ex:310
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories…"
 msgstr "搜索步骤、目标或类别…"
 
-#: lib/tuist_web/components/build_timeline.ex:70
+#: lib/tuist_web/components/build_timeline.ex:72
 #: lib/tuist_web/helpers/build_entity_labels.ex:113
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "已跳过"
 
-#: lib/tuist_web/components/build_timeline.ex:337
+#: lib/tuist_web/components/build_timeline.ex:344
 #, elixir-autogen, elixir-format
 msgid "Testing"
 msgstr "测试"
 
-#: lib/tuist_web/components/build_timeline.ex:69
+#: lib/tuist_web/components/build_timeline.ex:71
 #: lib/tuist_web/helpers/build_entity_labels.ex:112
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
@@ -2258,22 +2258,22 @@ msgstr "Mix 环境"
 msgid "OTP version"
 msgstr "OTP 版本"
 
-#: lib/tuist_web/components/build_timeline.ex:312
+#: lib/tuist_web/components/build_timeline.ex:319
 #, elixir-autogen, elixir-format
 msgid "Other compilers"
 msgstr "其他编译器"
 
-#: lib/tuist_web/components/build_timeline.ex:298
+#: lib/tuist_web/components/build_timeline.ex:305
 #, elixir-autogen, elixir-format
 msgid "Search files or modules"
 msgstr "搜索文件或模块"
 
-#: lib/tuist_web/components/build_timeline.ex:302
+#: lib/tuist_web/components/build_timeline.ex:309
 #, elixir-autogen, elixir-format
 msgid "Search files or modules…"
 msgstr "搜索文件或模块…"
 
-#: lib/tuist_web/components/build_timeline.ex:310
+#: lib/tuist_web/components/build_timeline.ex:317
 #, elixir-autogen, elixir-format
 msgid "Type checking"
 msgstr "类型检查"
@@ -2288,7 +2288,7 @@ msgstr "编译 Elixir 文件 %{path} 时出现警告"
 msgid "Warnings / Errors"
 msgstr "警告 / 错误"
 
-#: lib/tuist_web/components/build_timeline.ex:311
+#: lib/tuist_web/components/build_timeline.ex:318
 #, elixir-autogen, elixir-format
 msgid "Writing to disk"
 msgstr "写入磁盘"
@@ -3307,7 +3307,7 @@ msgstr "记录的 rustc 调用，而非按文件编译或缓存命中。仅包�
 msgid "Search crates..."
 msgstr "搜索 crate..."
 
-#: lib/tuist_web/components/build_timeline.ex:103
+#: lib/tuist_web/components/build_timeline.ex:105
 #, elixir-autogen, elixir-format
 msgid "Download trace"
 msgstr "下载追踪数据"
@@ -3316,3 +3316,23 @@ msgstr "下载追踪数据"
 #, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr "状态："
+
+#: lib/tuist_web/components/build_timeline.ex:120
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:235
+#, elixir-autogen, elixir-format
+msgid "Disk space"
+msgstr "磁盘空间"
+
+#: lib/tuist_web/components/build_timeline.ex:65
+#: lib/tuist_web/components/build_timeline.ex:137
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:243
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr "总计"
+
+#: lib/tuist_web/components/build_timeline.ex:64
+#: lib/tuist_web/components/build_timeline.ex:132
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:242
+#, elixir-autogen, elixir-format
+msgid "Used"
+msgstr "已用"

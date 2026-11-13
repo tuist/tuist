@@ -467,7 +467,7 @@ msgstr "Fallos"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:651
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:199
 #, elixir-autogen, elixir-format
@@ -861,7 +861,7 @@ msgstr "Número de casos de test que fallaron."
 msgid "Other"
 msgstr "Otros"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:579
+#: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:59
 #: lib/tuist_web/live/test_case_live.html.heex:151
 #: lib/tuist_web/live/test_case_run_live.html.heex:101
@@ -1250,7 +1250,7 @@ msgstr "Módulos de tests"
 msgid "Test Run"
 msgstr "Ejecución de tests"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:583
+#: lib/tuist_web/live/coverage_detail_live.ex:584
 #: lib/tuist_web/live/coverage_detail_live.html.heex:477
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
@@ -1447,7 +1447,7 @@ msgid "Tuist version"
 msgstr "Versión de Tuist"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:179
-#: lib/tuist_web/helpers/test_labels.ex:64
+#: lib/tuist_web/helpers/test_labels.ex:66
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128
@@ -2187,7 +2187,7 @@ msgstr "El runner para este objetivo no generó test.xml, por lo que los detalle
 msgid "Code Coverage"
 msgstr "Cobertura de código"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:430
+#: lib/tuist_web/live/coverage_detail_live.ex:431
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
@@ -2228,8 +2228,8 @@ msgid "Executions"
 msgstr "Ejecuciones"
 
 #: lib/tuist_web/live/coverage/components.ex:103
-#: lib/tuist_web/live/coverage_detail_live.ex:431
-#: lib/tuist_web/live/coverage_detail_live.ex:582
+#: lib/tuist_web/live/coverage_detail_live.ex:432
+#: lib/tuist_web/live/coverage_detail_live.ex:583
 #: lib/tuist_web/live/coverage_detail_live.html.heex:234
 #: lib/tuist_web/live/coverage_detail_live.html.heex:270
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:174
@@ -2271,7 +2271,7 @@ msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "Porcentaje de líneas ejecutables del archivo que los tests ejecutaron al menos una vez."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/helpers/test_labels.ex:50
+#: lib/tuist_web/helpers/test_labels.ex:51
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:41
 #: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2279,7 +2279,7 @@ msgid "Target"
 msgstr "Objetivo"
 
 #: lib/tuist_web/helpers/test_labels.ex:20
-#: lib/tuist_web/helpers/test_labels.ex:53
+#: lib/tuist_web/helpers/test_labels.ex:55
 #, elixir-autogen, elixir-format
 msgid "Targets"
 msgstr "Objetivos"
@@ -2290,13 +2290,13 @@ msgid "Unavailable"
 msgstr "No disponible"
 
 #: lib/tuist_web/live/coverage/components.ex:275
-#: lib/tuist_web/live/coverage_detail_live.ex:519
+#: lib/tuist_web/live/coverage_detail_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "Full"
 msgstr "Completo"
 
 #: lib/tuist_web/live/coverage/components.ex:274
-#: lib/tuist_web/live/coverage_detail_live.ex:520
+#: lib/tuist_web/live/coverage_detail_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Partial"
 msgstr "Parcial"
@@ -2337,7 +2337,7 @@ msgid "Once version"
 msgstr "Una vez"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
-#: lib/tuist_web/live/coverage_detail_live.ex:515
+#: lib/tuist_web/live/coverage_detail_live.ex:516
 #: lib/tuist_web/live/coverage_detail_live.html.heex:535
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
@@ -2377,7 +2377,7 @@ msgstr[0] "%{count} archivo"
 msgstr[1] "%{count} archivos"
 
 #: lib/tuist_web/live/coverage/components.ex:339
-#: lib/tuist_web/live/coverage_detail_live.ex:573
+#: lib/tuist_web/live/coverage_detail_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
 msgstr "Rama %{name}"
@@ -2402,7 +2402,7 @@ msgid "Code coverage is not enabled for this account."
 msgstr "La cobertura de código no está activada para esta cuenta."
 
 #: lib/tuist_web/live/coverage/components.ex:341
-#: lib/tuist_web/live/coverage_detail_live.ex:571
+#: lib/tuist_web/live/coverage_detail_live.ex:572
 #: lib/tuist_web/live/coverage_file_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
@@ -2413,7 +2413,7 @@ msgstr "Commit %{name}"
 msgid "Commit %{sha} has no coverage for this file"
 msgstr "El commit %{sha} no tiene cobertura para este archivo"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:580
+#: lib/tuist_web/live/coverage_detail_live.ex:581
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Commits"
@@ -2447,7 +2447,7 @@ msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "Se ejecutaron todos los tests del esquema de la ejecución, por lo que se midió el esquema completo."
 
 #: lib/tuist_web/live/coverage/components.ex:662
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "File coverage"
 msgstr "Cobertura de archivo"
@@ -2581,7 +2581,7 @@ msgstr "Porcentaje de líneas ejecutables que los tests de alguna ejecución cub
 msgid "Status:"
 msgstr "Estado:"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:406
+#: lib/tuist_web/live/coverage_detail_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "Target name"
 msgstr "Nombre del target"
@@ -2676,7 +2676,7 @@ msgstr "Aplicación"
 msgid "Application name"
 msgstr "Nombre de la aplicación"
 
-#: lib/tuist_web/helpers/test_labels.ex:52
+#: lib/tuist_web/helpers/test_labels.ex:53
 #, elixir-autogen, elixir-format
 msgid "Applications"
 msgstr "Aplicaciones"
@@ -3267,3 +3267,18 @@ msgstr "Se ejecutó cada test en los módulos que quedaron fuera de los tests se
 #, elixir-autogen, elixir-format
 msgid "The average of the period's runs' skip rates. A run without a baseline counts the share of modules selective testing skipped."
 msgstr "El promedio de las tasas de omisión de las ejecuciones del periodo. Una ejecución sin línea base cuenta la proporción de módulos omitidos por los tests selectivos."
+
+#: lib/tuist_web/helpers/test_labels.ex:50
+#, elixir-autogen, elixir-format
+msgid "Package"
+msgstr "Paquete"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "Package name"
+msgstr "Nombre del paquete"
+
+#: lib/tuist_web/helpers/test_labels.ex:54
+#, elixir-autogen, elixir-format
+msgid "Packages"
+msgstr "Paquetes"

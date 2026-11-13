@@ -467,7 +467,7 @@ msgstr "실패"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:651
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:199
 #, elixir-autogen, elixir-format
@@ -861,7 +861,7 @@ msgstr "실패한 테스트 케이스 수입니다."
 msgid "Other"
 msgstr "기타"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:579
+#: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:59
 #: lib/tuist_web/live/test_case_live.html.heex:151
 #: lib/tuist_web/live/test_case_run_live.html.heex:101
@@ -1250,7 +1250,7 @@ msgstr "테스트 모듈"
 msgid "Test Run"
 msgstr "테스트 실행"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:583
+#: lib/tuist_web/live/coverage_detail_live.ex:584
 #: lib/tuist_web/live/coverage_detail_live.html.heex:477
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
@@ -1447,7 +1447,7 @@ msgid "Tuist version"
 msgstr "Tuist 버전"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:179
-#: lib/tuist_web/helpers/test_labels.ex:64
+#: lib/tuist_web/helpers/test_labels.ex:66
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128
@@ -2184,7 +2184,7 @@ msgstr "이 타겟의 러너가 test.xml을 생성하지 않아 테스트 케이
 msgid "Code Coverage"
 msgstr "코드 커버리지"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:430
+#: lib/tuist_web/live/coverage_detail_live.ex:431
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
@@ -2225,8 +2225,8 @@ msgid "Executions"
 msgstr "실행"
 
 #: lib/tuist_web/live/coverage/components.ex:103
-#: lib/tuist_web/live/coverage_detail_live.ex:431
-#: lib/tuist_web/live/coverage_detail_live.ex:582
+#: lib/tuist_web/live/coverage_detail_live.ex:432
+#: lib/tuist_web/live/coverage_detail_live.ex:583
 #: lib/tuist_web/live/coverage_detail_live.html.heex:234
 #: lib/tuist_web/live/coverage_detail_live.html.heex:270
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:174
@@ -2268,7 +2268,7 @@ msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "테스트가 한 번 이상 실행된 파일의 실행 가능 라인 비율입니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/helpers/test_labels.ex:50
+#: lib/tuist_web/helpers/test_labels.ex:51
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:41
 #: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2276,7 +2276,7 @@ msgid "Target"
 msgstr "타겟"
 
 #: lib/tuist_web/helpers/test_labels.ex:20
-#: lib/tuist_web/helpers/test_labels.ex:53
+#: lib/tuist_web/helpers/test_labels.ex:55
 #, elixir-autogen, elixir-format
 msgid "Targets"
 msgstr "타겟"
@@ -2287,13 +2287,13 @@ msgid "Unavailable"
 msgstr "사용 불가"
 
 #: lib/tuist_web/live/coverage/components.ex:275
-#: lib/tuist_web/live/coverage_detail_live.ex:519
+#: lib/tuist_web/live/coverage_detail_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "Full"
 msgstr "전체"
 
 #: lib/tuist_web/live/coverage/components.ex:274
-#: lib/tuist_web/live/coverage_detail_live.ex:520
+#: lib/tuist_web/live/coverage_detail_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Partial"
 msgstr "부분"
@@ -2334,7 +2334,7 @@ msgid "Once version"
 msgstr "한 번만"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
-#: lib/tuist_web/live/coverage_detail_live.ex:515
+#: lib/tuist_web/live/coverage_detail_live.ex:516
 #: lib/tuist_web/live/coverage_detail_live.html.heex:535
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
@@ -2373,7 +2373,7 @@ msgid_plural "%{count} files"
 msgstr[0] "%{count}개 파일"
 
 #: lib/tuist_web/live/coverage/components.ex:339
-#: lib/tuist_web/live/coverage_detail_live.ex:573
+#: lib/tuist_web/live/coverage_detail_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
 msgstr "브랜치 %{name}"
@@ -2398,7 +2398,7 @@ msgid "Code coverage is not enabled for this account."
 msgstr "이 계정에는 코드 커버리지가 활성화되어 있지 않습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:341
-#: lib/tuist_web/live/coverage_detail_live.ex:571
+#: lib/tuist_web/live/coverage_detail_live.ex:572
 #: lib/tuist_web/live/coverage_file_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
@@ -2409,7 +2409,7 @@ msgstr "커밋 %{name}"
 msgid "Commit %{sha} has no coverage for this file"
 msgstr "커밋 %{sha}는 이 파일에 대한 커버리지가 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:580
+#: lib/tuist_web/live/coverage_detail_live.ex:581
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Commits"
@@ -2443,7 +2443,7 @@ msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "실행의 스킴에 포함된 모든 테스트가 실행되어 스킴 전체를 측정했습니다."
 
 #: lib/tuist_web/live/coverage/components.ex:662
-#: lib/tuist_web/live/coverage_detail_live.ex:465
+#: lib/tuist_web/live/coverage_detail_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "File coverage"
 msgstr "파일 커버리지"
@@ -2577,7 +2577,7 @@ msgstr "%{schemes} 스킴에서 일부 테스트 실행이 한 번 이상 실행
 msgid "Status:"
 msgstr "상태:"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:406
+#: lib/tuist_web/live/coverage_detail_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "Target name"
 msgstr "타겟 이름"
@@ -2671,7 +2671,7 @@ msgstr "애플리케이션"
 msgid "Application name"
 msgstr "애플리케이션 이름"
 
-#: lib/tuist_web/helpers/test_labels.ex:52
+#: lib/tuist_web/helpers/test_labels.ex:53
 #, elixir-autogen, elixir-format
 msgid "Applications"
 msgstr "애플리케이션"
@@ -3261,3 +3261,18 @@ msgstr "선택적 테스팅을 거친 나머지 모듈의 모든 테스트가 �
 #, elixir-autogen, elixir-format
 msgid "The average of the period's runs' skip rates. A run without a baseline counts the share of modules selective testing skipped."
 msgstr "해당 기간 실행의 평균 건너뛰기 비율입니다. 기준선이 없는 실행은 선택적 테스팅에서 건너뛴 모듈의 비율을 계산합니다."
+
+#: lib/tuist_web/helpers/test_labels.ex:50
+#, elixir-autogen, elixir-format
+msgid "Package"
+msgstr "패키지"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "Package name"
+msgstr "패키지 이름"
+
+#: lib/tuist_web/helpers/test_labels.ex:54
+#, elixir-autogen, elixir-format
+msgid "Packages"
+msgstr "패키지"

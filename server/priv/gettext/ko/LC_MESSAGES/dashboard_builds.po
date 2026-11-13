@@ -418,7 +418,7 @@ msgstr "압축 크기"
 msgid "Compressed Size (MB)"
 msgstr "압축 크기(MB)"
 
-#: lib/tuist_web/components/build_timeline.ex:339
+#: lib/tuist_web/components/build_timeline.ex:346
 #: lib/tuist_web/live/build_run_live.html.heex:242
 #: lib/tuist_web/live/xcode_build_runs_live.ex:211
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:73
@@ -501,7 +501,7 @@ msgstr "다운로드 결과"
 msgid "Download throughput"
 msgstr "다운로드 처리량"
 
-#: lib/tuist_web/components/build_timeline.ex:251
+#: lib/tuist_web/components/build_timeline.ex:258
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
@@ -578,9 +578,9 @@ msgid "External"
 msgstr "외부"
 
 #: lib/tuist_web/components/build_status_filter.ex:44
-#: lib/tuist_web/components/build_timeline.ex:269
-#: lib/tuist_web/components/build_timeline.ex:314
-#: lib/tuist_web/components/build_timeline.ex:351
+#: lib/tuist_web/components/build_timeline.ex:276
+#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
 #: lib/tuist_web/live/build_entity_live.ex:517
@@ -706,7 +706,7 @@ msgstr "임베디드 바이너리 %{path} 유효성 검사 실패"
 msgid "Failed writing auxiliary file %{path}"
 msgstr "보조 파일 %{path} 쓰기 실패"
 
-#: lib/tuist_web/components/build_timeline.ex:237
+#: lib/tuist_web/components/build_timeline.ex:244
 #: lib/tuist_web/helpers/build_entity_labels.ex:18
 #: lib/tuist_web/live/build_run_live.html.heex:625
 #: lib/tuist_web/live/build_run_live.html.heex:641
@@ -765,7 +765,7 @@ msgstr "헤더"
 #: lib/tuist_web/live/mix_build_live.html.heex:257
 #: lib/tuist_web/live/run_detail_live.ex:351
 #: lib/tuist_web/live/run_detail_live.ex:384
-#: lib/tuist_web/live/test_run_live.ex:1431
+#: lib/tuist_web/live/test_run_live.ex:1436
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "히트"
@@ -816,7 +816,7 @@ msgstr "키"
 #: lib/tuist_web/live/mix_build_live.ex:352
 #: lib/tuist_web/live/run_detail_live.ex:356
 #: lib/tuist_web/live/run_detail_live.ex:389
-#: lib/tuist_web/live/test_run_live.ex:1436
+#: lib/tuist_web/live/test_run_live.ex:1441
 #: lib/tuist_web/live/xcode_builds_live.ex:400
 #: lib/tuist_web/live/xcode_builds_live.ex:403
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
@@ -849,7 +849,7 @@ msgstr "Mac 기기"
 #: lib/tuist_web/live/mix_build_live.ex:370
 #: lib/tuist_web/live/run_detail_live.ex:357
 #: lib/tuist_web/live/run_detail_live.ex:390
-#: lib/tuist_web/live/test_run_live.ex:1437
+#: lib/tuist_web/live/test_run_live.ex:1442
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr "누락됨"
@@ -1028,7 +1028,7 @@ msgstr "제품"
 msgid "Product name"
 msgstr "제품 이름"
 
-#: lib/tuist_web/components/build_timeline.ex:232
+#: lib/tuist_web/components/build_timeline.ex:239
 #: lib/tuist_web/helpers/build_entity_labels.ex:88
 #: lib/tuist_web/live/build_entity_live.ex:606
 #: lib/tuist_web/live/build_entity_live.ex:609
@@ -1096,13 +1096,13 @@ msgstr "최근 빌드"
 #: lib/tuist_web/live/mix_build_live.ex:361
 #: lib/tuist_web/live/run_detail_live.ex:355
 #: lib/tuist_web/live/run_detail_live.ex:388
-#: lib/tuist_web/live/test_run_live.ex:1435
+#: lib/tuist_web/live/test_run_live.ex:1440
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "원격"
 
-#: lib/tuist_web/components/build_timeline.ex:336
-#: lib/tuist_web/components/build_timeline.ex:344
+#: lib/tuist_web/components/build_timeline.ex:343
+#: lib/tuist_web/components/build_timeline.ex:351
 #: lib/tuist_web/components/runs/module_cache_tab.ex:371
 #, elixir-autogen, elixir-format
 msgid "Resources"
@@ -1249,7 +1249,7 @@ msgstr "요약"
 msgid "Swift version"
 msgstr "Swift 버전"
 
-#: lib/tuist_web/components/build_timeline.ex:238
+#: lib/tuist_web/components/build_timeline.ex:245
 #: lib/tuist_web/live/build_entity_live.ex:598
 #: lib/tuist_web/live/build_entity_live.ex:605
 #: lib/tuist_web/live/build_entity_live.ex:607
@@ -1399,7 +1399,7 @@ msgstr "검색을 업데이트해 보세요"
 msgid "Tuist version"
 msgstr "Tuist 버전"
 
-#: lib/tuist_web/components/build_timeline.ex:243
+#: lib/tuist_web/components/build_timeline.ex:250
 #: lib/tuist_web/components/cargo_cache_inspection.ex:228
 #: lib/tuist_web/components/cargo_cache_inspection.ex:275
 #: lib/tuist_web/components/reapi_cache_outputs.ex:209
@@ -1421,7 +1421,7 @@ msgstr "유형"
 msgid "Type:"
 msgstr "유형:"
 
-#: lib/tuist_web/components/build_timeline.ex:72
+#: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
 #: lib/tuist_web/live/build_entity_live.html.heex:607
@@ -1889,61 +1889,61 @@ msgstr "이번 실행 중 원격 캐시에 업로드된 총 데이터(%{count}�
 msgid "Additional hashing inputs"
 msgstr "추가 해싱 입력"
 
-#: lib/tuist_web/components/build_timeline.ex:199
+#: lib/tuist_web/components/build_timeline.ex:206
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
 msgstr "빌드 단계. 시간 범위를 드래그하여 집중하세요. 드래그를 취소하려면 Esc 키를 누르세요. 좌우 방향키로 단계를 확인하고, +와 -로 확대/축소하며, Home 키로 초기화하세요."
 
-#: lib/tuist_web/components/build_timeline.ex:309
-#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:316
+#: lib/tuist_web/components/build_timeline.ex:327
 #, elixir-autogen, elixir-format
 msgid "Compilation"
 msgstr "컴파일"
 
-#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:328
 #, elixir-autogen, elixir-format
 msgid "Linking"
 msgstr "링크"
 
-#: lib/tuist_web/components/build_timeline.ex:154
+#: lib/tuist_web/components/build_timeline.ex:161
 #, elixir-autogen, elixir-format
 msgid "No timeline available"
 msgstr "타임라인 없음"
 
-#: lib/tuist_web/components/build_timeline.ex:313
-#: lib/tuist_web/components/build_timeline.ex:350
+#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:357
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "기타"
 
-#: lib/tuist_web/components/build_timeline.ex:258
+#: lib/tuist_web/components/build_timeline.ex:265
 #, elixir-autogen, elixir-format
 msgid "Outcome"
 msgstr "결과"
 
-#: lib/tuist_web/components/build_timeline.ex:322
+#: lib/tuist_web/components/build_timeline.ex:329
 #, elixir-autogen, elixir-format
 msgid "Scripts"
 msgstr "스크립트"
 
-#: lib/tuist_web/components/build_timeline.ex:297
+#: lib/tuist_web/components/build_timeline.ex:304
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets"
 msgstr "단계 또는 타겟 검색"
 
-#: lib/tuist_web/components/build_timeline.ex:301
+#: lib/tuist_web/components/build_timeline.ex:308
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets…"
 msgstr "단계 또는 타겟 검색…"
 
-#: lib/tuist_web/components/build_timeline.ex:247
+#: lib/tuist_web/components/build_timeline.ex:254
 #: lib/tuist_web/live/cargo_build_live.ex:133
 #: lib/tuist_web/live/cargo_build_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "시작 시간 이후"
 
-#: lib/tuist_web/components/build_timeline.ex:263
+#: lib/tuist_web/components/build_timeline.ex:270
 #: lib/tuist_web/helpers/build_entity_labels.ex:104
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
@@ -1957,105 +1957,105 @@ msgstr "성공"
 msgid "Timeline"
 msgstr "타임라인"
 
-#: lib/tuist_web/components/build_timeline.ex:88
+#: lib/tuist_web/components/build_timeline.ex:90
 #, elixir-autogen, elixir-format
 msgid "elapsed"
 msgstr "경과 시간"
 
-#: lib/tuist_web/components/build_timeline.ex:83
-#: lib/tuist_web/components/build_timeline.ex:89
+#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:91
 #, elixir-autogen, elixir-format
 msgid "steps"
 msgstr "단계"
 
-#: lib/tuist_web/components/build_timeline.ex:93
+#: lib/tuist_web/components/build_timeline.ex:95
 #, elixir-autogen, elixir-format
 msgid "targets"
 msgstr "타겟"
 
 #: lib/tuist_web/components/build_timeline.ex:21
 #: lib/tuist_web/components/build_timeline.ex:28
-#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:87
 #, elixir-autogen, elixir-format
 msgid "Build Timeline"
 msgstr "빌드 타임라인"
 
-#: lib/tuist_web/components/build_timeline.ex:289
+#: lib/tuist_web/components/build_timeline.ex:296
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
 msgstr "이 시간 범위의 단계가 필터와 일치하지 않습니다."
 
-#: lib/tuist_web/components/build_timeline.ex:78
+#: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "Loading log…"
 msgstr "로그 로딩 중…"
 
-#: lib/tuist_web/components/build_timeline.ex:277
+#: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
 msgid "Log"
 msgstr "로그"
 
-#: lib/tuist_web/components/build_timeline.ex:79
+#: lib/tuist_web/components/build_timeline.ex:81
 #, elixir-autogen, elixir-format
 msgid "No log recorded for this step."
 msgstr "이 단계에 대한 로그가 기록되지 않았습니다."
 
-#: lib/tuist_web/components/build_timeline.ex:281
+#: lib/tuist_web/components/build_timeline.ex:288
 #, elixir-autogen, elixir-format
 msgid "This log was truncated."
 msgstr "이 로그는 일부가 생략되었습니다."
 
-#: lib/tuist_web/components/build_timeline.ex:81
+#: lib/tuist_web/components/build_timeline.ex:83
 #, elixir-autogen, elixir-format
 msgid "Unable to load the log. Select the step again to retry."
 msgstr "로그를 로드할 수 없습니다. 단계를 다시 선택하여 재시도하세요."
 
-#: lib/tuist_web/components/build_timeline.ex:220
+#: lib/tuist_web/components/build_timeline.ex:227
 #, elixir-autogen, elixir-format
 msgid "Resize step details"
 msgstr "단계 세부 정보 크기 조정"
 
-#: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/components/build_timeline.ex:119
 #, elixir-autogen, elixir-format
 msgid "Disk I/O"
 msgstr "디스크 I/O"
 
 #: lib/tuist_web/components/build_timeline.ex:60
-#: lib/tuist_web/components/build_timeline.ex:127
+#: lib/tuist_web/components/build_timeline.ex:130
 #, elixir-autogen, elixir-format
 msgid "In"
 msgstr "입력"
 
-#: lib/tuist_web/components/build_timeline.ex:115
+#: lib/tuist_web/components/build_timeline.ex:117
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "메모리"
 
-#: lib/tuist_web/components/build_timeline.ex:116
+#: lib/tuist_web/components/build_timeline.ex:118
 #, elixir-autogen, elixir-format
 msgid "Network"
 msgstr "네트워크"
 
 #: lib/tuist_web/components/build_timeline.ex:61
-#: lib/tuist_web/components/build_timeline.ex:130
+#: lib/tuist_web/components/build_timeline.ex:135
 #, elixir-autogen, elixir-format
 msgid "Out"
 msgstr "출력"
 
 #: lib/tuist_web/components/build_timeline.ex:62
-#: lib/tuist_web/components/build_timeline.ex:128
+#: lib/tuist_web/components/build_timeline.ex:131
 #, elixir-autogen, elixir-format
 msgid "Read"
 msgstr "읽기"
 
 #: lib/tuist_web/components/build_timeline.ex:63
-#: lib/tuist_web/components/build_timeline.ex:131
+#: lib/tuist_web/components/build_timeline.ex:136
 #: lib/tuist_web/helpers/build_entity_labels.ex:111
 #, elixir-autogen, elixir-format
 msgid "Write"
 msgstr "쓰기"
 
-#: lib/tuist_web/components/build_timeline.ex:156
+#: lib/tuist_web/components/build_timeline.ex:163
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
 msgstr "이 빌드에는 기록된 단계 시간이 없습니다. 기록된 단계는 90일 동안 보관됩니다."
@@ -2101,74 +2101,74 @@ msgstr "의존성 해시"
 msgid "No direct target dependencies recorded"
 msgstr "직접적인 타겟 의존성이 기록되지 않음"
 
-#: lib/tuist_web/components/build_timeline.ex:331
+#: lib/tuist_web/components/build_timeline.ex:338
 #, elixir-autogen, elixir-format
 msgid "Analysis/setup"
 msgstr "분석/설정"
 
-#: lib/tuist_web/components/build_timeline.ex:340
+#: lib/tuist_web/components/build_timeline.ex:347
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
 msgstr "아티팩트 변환"
 
-#: lib/tuist_web/components/build_timeline.ex:68
+#: lib/tuist_web/components/build_timeline.ex:70
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
 msgstr "캐시 히트"
 
-#: lib/tuist_web/components/build_timeline.ex:330
+#: lib/tuist_web/components/build_timeline.ex:337
 #, elixir-autogen, elixir-format
 msgid "Fetching"
 msgstr "가져오는 중"
 
-#: lib/tuist_web/components/build_timeline.ex:329
+#: lib/tuist_web/components/build_timeline.ex:336
 #, elixir-autogen, elixir-format
 msgid "File preparation"
 msgstr "파일 준비"
 
-#: lib/tuist_web/components/build_timeline.ex:66
+#: lib/tuist_web/components/build_timeline.ex:68
 #, elixir-autogen, elixir-format
 msgid "Local cache hit"
 msgstr "로컬 캐시 히트"
 
-#: lib/tuist_web/components/build_timeline.ex:71
+#: lib/tuist_web/components/build_timeline.ex:73
 #: lib/tuist_web/helpers/build_entity_labels.ex:114
 #, elixir-autogen, elixir-format
 msgid "No source"
 msgstr "소스 없음"
 
-#: lib/tuist_web/components/build_timeline.ex:338
+#: lib/tuist_web/components/build_timeline.ex:345
 #, elixir-autogen, elixir-format
 msgid "Packaging"
 msgstr "패키징"
 
-#: lib/tuist_web/components/build_timeline.ex:67
+#: lib/tuist_web/components/build_timeline.ex:69
 #, elixir-autogen, elixir-format
 msgid "Remote cache hit"
 msgstr "원격 캐시 히트"
 
-#: lib/tuist_web/components/build_timeline.ex:299
+#: lib/tuist_web/components/build_timeline.ex:306
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories"
 msgstr "단계, 타겟 또는 카테고리 검색"
 
-#: lib/tuist_web/components/build_timeline.ex:303
+#: lib/tuist_web/components/build_timeline.ex:310
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories…"
 msgstr "단계, 타겟 또는 카테고리 검색…"
 
-#: lib/tuist_web/components/build_timeline.ex:70
+#: lib/tuist_web/components/build_timeline.ex:72
 #: lib/tuist_web/helpers/build_entity_labels.ex:113
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "생략됨"
 
-#: lib/tuist_web/components/build_timeline.ex:337
+#: lib/tuist_web/components/build_timeline.ex:344
 #, elixir-autogen, elixir-format
 msgid "Testing"
 msgstr "테스팅"
 
-#: lib/tuist_web/components/build_timeline.ex:69
+#: lib/tuist_web/components/build_timeline.ex:71
 #: lib/tuist_web/helpers/build_entity_labels.ex:112
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
@@ -2258,22 +2258,22 @@ msgstr "Mix 환경"
 msgid "OTP version"
 msgstr "OTP 버전"
 
-#: lib/tuist_web/components/build_timeline.ex:312
+#: lib/tuist_web/components/build_timeline.ex:319
 #, elixir-autogen, elixir-format
 msgid "Other compilers"
 msgstr "기타 컴파일러"
 
-#: lib/tuist_web/components/build_timeline.ex:298
+#: lib/tuist_web/components/build_timeline.ex:305
 #, elixir-autogen, elixir-format
 msgid "Search files or modules"
 msgstr "파일 또는 모듈 검색"
 
-#: lib/tuist_web/components/build_timeline.ex:302
+#: lib/tuist_web/components/build_timeline.ex:309
 #, elixir-autogen, elixir-format
 msgid "Search files or modules…"
 msgstr "파일 또는 모듈 검색…"
 
-#: lib/tuist_web/components/build_timeline.ex:310
+#: lib/tuist_web/components/build_timeline.ex:317
 #, elixir-autogen, elixir-format
 msgid "Type checking"
 msgstr "타입 검사"
@@ -2288,7 +2288,7 @@ msgstr "Elixir 파일 %{path} 컴파일 중 경고"
 msgid "Warnings / Errors"
 msgstr "경고 / 오류"
 
-#: lib/tuist_web/components/build_timeline.ex:311
+#: lib/tuist_web/components/build_timeline.ex:318
 #, elixir-autogen, elixir-format
 msgid "Writing to disk"
 msgstr "디스크에 쓰기"
@@ -3307,7 +3307,7 @@ msgstr "기록된 rustc 호출로, 파일별 컴파일이나 캐시 히트가 �
 msgid "Search crates..."
 msgstr "크레이트 검색..."
 
-#: lib/tuist_web/components/build_timeline.ex:103
+#: lib/tuist_web/components/build_timeline.ex:105
 #, elixir-autogen, elixir-format
 msgid "Download trace"
 msgstr "추적 다운로드"
@@ -3316,3 +3316,23 @@ msgstr "추적 다운로드"
 #, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr "상태:"
+
+#: lib/tuist_web/components/build_timeline.ex:120
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:235
+#, elixir-autogen, elixir-format
+msgid "Disk space"
+msgstr "디스크 공간"
+
+#: lib/tuist_web/components/build_timeline.ex:65
+#: lib/tuist_web/components/build_timeline.ex:137
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:243
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr "전체"
+
+#: lib/tuist_web/components/build_timeline.ex:64
+#: lib/tuist_web/components/build_timeline.ex:132
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:242
+#, elixir-autogen, elixir-format
+msgid "Used"
+msgstr "사용량"
