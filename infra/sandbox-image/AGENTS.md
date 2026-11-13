@@ -31,7 +31,12 @@ to the version `sbx-worker` expects; keep the two and
 `infra/claude-code-runners/Dockerfile` in step. `agent-browser` (pinned by
 `AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
 globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
-browser's system libraries from apt.
+browser's system libraries from apt. Amp Desktop's stack is baked in too:
+`/opt/amp-wayland` (labwc and waymote, one layer of Amp's orb image fetched by
+`AMP_WAYLAND_LAYER` digest) and the apt packages Amp's custom-image contract
+lists. Nothing of it runs until Amp starts the Desktop session, and Amp
+installs Google Chrome on that first start. `sbx-init` creates `/run/lock`,
+which Amp's app installer locks.
 
 Agents get the project's Tuist data without setup. The Tuist CLI is at
 `/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
@@ -119,7 +124,7 @@ tooling. Language runtimes beyond system Python 3 and Node.js 22 are expected
 to come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
-workspace, required egress and rollout. Amp Desktop dependencies are not installed.
+workspace, required egress, Desktop and rollout.
 REAPI commands run as UID/GID 1000; preserve explicit command environments,
 `no_new_privs`, and host-only vsock access so actions cannot obtain the root
 worker's scoped CAS credential. See [remote execution](remote-execution.md)

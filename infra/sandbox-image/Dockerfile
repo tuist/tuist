@@ -19,6 +19,17 @@ ARG NODE_MAJOR=22
 ARG ANT_VERSION=1.30.0
 ARG AMP_VERSION=0.0.1793104576-gc52692
 ARG AGENT_BROWSER_VERSION=0.38.1
+# Amp Desktop's compositor and streamer (labwc, waymote) as Amp's x64 orb image
+# ships them in /opt/amp-wayland. That image builds the directory in its own
+# layer, so the template fetches only that blob (about 6 MB), pinned by its
+# digest, rather than the 1.8 GB image. To update, read the newest
+# amp-orb:latest amd64 manifest and take the layer whose history line is
+# `COPY /opt/amp-wayland /opt/amp-wayland`. Its only GPL component is labwc
+# 0.9.8 (GPL-2.0, source at https://github.com/labwc/labwc/tree/0.9.8); the
+# rest is MIT: wlroots, wayland, libdrm, pixman, libdisplay-info, libliftoff
+# and waymote (https://github.com/rockorager/waymote). Update this note with
+# the digest.
+ARG AMP_WAYLAND_LAYER=sha256:b58c683ff7705c1c59a29d579ff837ed87093da83c33c3a6b7f19fda29e888ff
 # Keep with claudeCodeVersion and its checksums in cmd/sbx-worker/claude_code.go:
 # sbx-worker uses this copy only when it is that exact build.
 ARG CLAUDE_CODE_VERSION=2.1.311
@@ -50,6 +61,20 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/ ./cmd/...
 
+FROM --platform=$BUILDPLATFORM alpine:3.21 AS amp-wayland
+RUN apk add --no-cache curl jq tar
+ARG AMP_WAYLAND_LAYER
+RUN set -eu; \
+    registry=us-central1-docker.pkg.dev; repository=amp-prod-0/amp-orb/amp-orb; \
+    token=$(curl -fsS --retry 3 "https://$registry/v2/token?scope=repository:$repository:pull&service=$registry" | jq -r .token); \
+    curl -fsSL --retry 3 -H "Authorization: Bearer $token" -o /tmp/layer.tgz \
+        "https://$registry/v2/$repository/blobs/${AMP_WAYLAND_LAYER}"; \
+    echo "${AMP_WAYLAND_LAYER#sha256:}  /tmp/layer.tgz" | sha256sum -c -; \
+    mkdir /out && tar -xzf /tmp/layer.tgz -C /out opt/amp-wayland; \
+    test -x /out/opt/amp-wayland/bin/labwc; \
+    test -x /out/opt/amp-wayland/bin/waymote-gateway; \
+    test -x /out/opt/amp-wayland/libexec/waymote-streamd
+
 FROM ubuntu:24.04 AS guest
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -59,6 +84,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
         ffmpeg imagemagick \
     && rm -rf /var/lib/apt/lists/*
+
+# Amp Desktop: the packages Amp's custom-image contract lists next to
+# /opt/amp-wayland, plus the libraries its labwc links (about 40 MiB). Nothing
+# starts at boot: Amp starts the session when the Desktop tab or the agent asks,
+# so the template snapshot and an orb that never opens Desktop are unchanged.
+# Amp installs Google Chrome on the session's first start.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        dbus-x11 fonts-dejavu-core foot gsettings-desktop-schemas libglib2.0-bin \
+        libegl1 libgles2 libgtk-3-0t64 libinput10 liblcms2-2 libseat1 libxcb-composite0 \
+        libxcb-ewmh2 libxcb-icccm4 libxcb-render0 libxcb-res0 libxcb-xfixes0 libxkbcommon0 \
+        libxml2 libnss3-tools pulseaudio swaybg wlr-randr xsettingsd xwayland \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=amp-wayland /out/opt/amp-wayland /opt/amp-wayland
+RUN LD_LIBRARY_PATH=/opt/amp-wayland/lib/x86_64-linux-gnu:/opt/amp-wayland/lib \
+        sh -c '! ldd /opt/amp-wayland/bin/labwc /opt/amp-wayland/libexec/waymote-streamd | grep "not found"' \
+    && /opt/amp-wayland/bin/labwc --version
 
 # Node.js from nodesource and the GitHub CLI from its own repo; both signed.
 ARG NODE_MAJOR
