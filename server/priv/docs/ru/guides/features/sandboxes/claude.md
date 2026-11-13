@@ -2,7 +2,7 @@
 {
   "title": "Claude",
   "titleTemplate": ":title · Песочницы · Возможности · Руководства · Tuist",
-  "description": "Запускайте сессии Claude Managed Agents и облачные сессии Claude Code (claude.ai, настольные и мобильные приложения, а также claude --cloud) в песочницах Tuist на Linux или macOS."
+  "description": "Запускайте сессии Claude Managed Agents и облачные сессии Claude Code (claude.ai, десктопные и мобильные приложения, а также claude --cloud) в песочницах Tuist на Linux или macOS."
 }
 ---
 # Claude {#claude}
@@ -10,16 +10,16 @@
 > [!IMPORTANT]
 > **Только по приглашениям**
 >
-> Песочницы Tuist для Linux и macOS сейчас доступны только по приглашениям. [Свяжитесь с нами](mailto:contact@tuist.dev) или напишите нам в [Slack-сообществе](https://slack.tuist.dev), чтобы запросить доступ к вашему аккаунту.
+> Песочницы Tuist, как для Linux, так и для macOS, сейчас доступны только по приглашениям. [Свяжитесь с нами](mailto:contact@tuist.dev) или напишите нам в [Slack-сообществе](https://slack.tuist.dev), чтобы запросить доступ для вашего аккаунта.
 
-Anthropic запускает цикл агента Claude, а *самостоятельно размещаемая среда* определяет, где работают инструменты Claude. Подключите такую среду к Tuist, и каждая сессия в ней получит собственную <.localized_link href="/guides/features/sandboxes">песочницу</.localized_link> Tuist на Linux или macOS. Tuist запускает необходимые воркеры и раннеры, поэтому вам не нужно ничего хостить самостоятельно.
+Anthropic управляет циклом работы агента Claude, а *среда на собственном хостинге* определяет, где запускаются инструменты Claude. Подключите такую среду к Tuist, и каждая сессия в ней получит свою собственную <.localized_link href="/guides/features/sandboxes">песочницу</.localized_link> Tuist на Linux или macOS. Tuist запускает необходимые воркеры и раннеры для этих сред, поэтому вам не нужно ничего размещать самостоятельно.
 
-Есть два типа сред — по одной для каждого продукта Claude:
+Существует два типа сред, по одной для каждого продукта Claude:
 
-- **[Claude Managed Agents](#managed-agents)**: сессии, которые вы запускаете через API Claude или API agent-sessions от Tuist. Вы создаёте среду (`env_…`) в [Claude Console](https://platform.claude.com/environments), и каждая сессия может выбрать Linux или macOS.
-- **[Claude Code](#claude-code)**: облачные сессии, которые разработчики запускают с claude.ai, из десктопных и мобильных приложений Claude, а также через `claude --cloud`. Владелец организации Claude Team или Enterprise создаёт среды (`ccpool_…`) в настройках администратора claude.ai — по одной для каждой платформы, а разработчики выбирают Linux или macOS, выбирая соответствующую среду.
+- **[Claude Managed Agents](#managed-agents)**: сессии, которые вы запускаете через API Claude или API агентских сессий Tuist. Вы создаете среду (`env_…`) в [Claude Console](https://platform.claude.com/environments), и каждая сессия может выбирать между Linux и macOS.
+- **[Claude Code](#claude-code)**: облачные сессии, которые разработчики запускают из claude.ai, десктопных и мобильных приложений Claude, а также через `claude --cloud`. Владелец команды или предприятия Claude создает среды (`ccpool_…`) в настройках администратора claude.ai, по одной для каждой платформы, а разработчики выбирают Linux или macOS, выбирая соответствующую среду.
 
-Обе среды подключаются через API Tuist администратором аккаунта. Выполните аутентификацию с помощью `tuist auth login`, затем:
+Оба типа подключаются через API Tuist администратором аккаунта. Выполните аутентификацию с помощью `tuist auth login`, затем:
 
 ```bash
 export TUIST_TOKEN=$(tuist auth token)
@@ -29,28 +29,45 @@ export TUIST_TOKEN=$(tuist auth token)
 
 ### Подключение среды {#managed-agents-connect}
 
-1. В [Claude Console](https://platform.claude.com/environments) нажмите **Create environment** и в разделе **Hosting** выберите **Self-hosted**. Откройте среду, нажмите **Generate environment key** и скопируйте ID среды `env_…` и ключ. Подробности см. в руководстве Anthropic по [самостоятельно размещаемым песочницам](https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes).
-2. Подключите её к своему аккаунту Tuist:
+Подключитесь через раздел вашего аккаунта **Settings → Integrations → Claude**. Форма запрашивает среду на собственном хостинге и учетные данные, с которыми Tuist запускает свои сессии:
 
-   ```bash
-   curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
-     -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
-     -d '{
-       "anthropic_environment_id": "env_...",
-       "environment_key": "<environment key>",
-       "anthropic_api_key": "<Anthropic API key>"
-     }'
-   ```
+1. **Создайте среду.** В Claude Console создайте среду на собственном хостинге на странице [Environments](https://platform.claude.com/environments), откройте её и нажмите **Generate environment key**. Anthropic генерирует ключи среды только в Console.
+2. **Выберите учетные данные** с помощью селектора в верхней части формы (см. ниже).
+3. **Вставьте ID среды и ключ** и выберите платформу и конфигурацию песочниц этой среды.
 
-   `anthropic_api_key` необязателен. Он позволяет запускать сессии через API Tuist, как описано ниже. Tuist хранит оба ключа в зашифрованном виде и никогда не возвращает их.
+Tuist получает данные среды с использованием учетных данных перед сохранением, поэтому неверные учетные данные, ID или рабочая область вызовут ошибку в форме. Ключи хранятся в зашифрованном виде и больше не отображаются. В течение минуты Tuist начинает обслуживать сессии этой среды. См. <.localized_link href="/guides/features/sandboxes#platforms">Linux и macOS</.localized_link> для описания конфигураций.
 
-В течение минуты Tuist начнёт обслуживать сессии этой среды. Среда работает на Linux, если вы не передадите `"platform": "darwin"`. Также можно передать `vcpus`, `memory_mb` и `workspace_gb`, чтобы изменить конфигурацию песочниц; см. <.localized_link href="/guides/features/sandboxes#platforms">Linux и macOS</.localized_link>.
+#### С использованием API-ключа {#managed-agents-connect-api-key}
+
+Это вариант по умолчанию и самый быстрый способ попробовать песочницы. Вставьте API-ключ с ролью разработчика в рабочей области среды. Интеграция помечает среды, использующие API-ключ; прежде чем полагаться на такой ключ, подключите среду через федеративную идентификацию, чтобы Tuist не хранил долгоживущий ключ.
+
+#### С использованием федеративной идентификации {#managed-agents-connect-federated}
+
+Tuist выполняет аутентификацию через [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) от Anthropic, поэтому вам не нужно предоставлять ему API-ключ Anthropic. Вам нужна роль администратора в вашей организации Anthropic.
+
+1. **Доверьтесь Tuist.** Форма показывает URL эмитента и префикс субъекта вашего аккаунта. В Claude Console откройте раздел [Workload identity](https://platform.claude.com/settings/workload-identity-federation), нажмите **Connect workload**, выберите **Custom OIDC** и введите эти данные со скоупом `workspace:developer`. Добавьте сервисный аккаунт, созданный мастером настройки, в рабочую область среды.
+2. **Введите ID.** ID организации находится в разделе **Settings → Organization**, а ID рабочей области — в **Settings → Workspaces**. После завершения подключения рабочей нагрузки отображаются ID сервисного аккаунта и правила федерации, а страница правила в разделе Workload identity показывает их снова. Ни один из них не является секретом. Если Anthropic отклоняет токен Tuist, причина отображается в [журнале аутентификации](https://platform.claude.com/settings/workload-identity-federation?tab=history) Console.
+
+#### Через API {#managed-agents-connect-api}
+
+Для подключения из автоматизации создайте среду на собственном хостинге в [Claude Console](https://platform.claude.com/environments), сгенерируйте её ключ и отправьте оба значения в Tuist:
+
+```bash
+curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
+  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "anthropic_environment_id": "env_...",
+    "environment_key": "<environment key>"
+  }'
+```
+
+Чтобы запускать сессии через API Tuist, также отправьте либо четыре ID федерации (см. [Подключение без API-ключа](#managed-agents-federation)), либо `anthropic_api_key`. Среда работает на Linux, если вы не передадите `"platform": "darwin"`; параметры `vcpus`, `memory_mb` и `workspace_gb` изменяют конфигурацию её песочниц.
 
 ### Запуск сессии {#managed-agents-sessions}
 
-Каждая сессия работает на платформе среды, если сессия явно не запрашивает другую.
+Каждая сессия выполняется на платформе среды, если сессия не запрашивает другую.
 
-**Через API Claude** создайте сессию как обычно, указав ID среды, и установите `tuist_platform` в метаданных сессии в значение `macos` или `linux`:
+**Через API Claude** создайте сессию как обычно, указав ID среды, и установите для `tuist_platform` в метаданных сессии значение `macos` или `linux`:
 
 ```bash
 curl https://api.anthropic.com/v1/sessions \
@@ -68,9 +85,9 @@ curl https://api.anthropic.com/v1/sessions \
   }'
 ```
 
-`repository_url` и, опционально, `repository_ref` (ветка или коммит) заставляют Tuist клонировать публичный репозиторий в песочницу до первого хода агента.
+`repository_url` и, опционально, `repository_ref` (ветка или коммит) заставляют Tuist клонировать публичный репозиторий в песочницу перед первым ходом агента.
 
-**Через API agent-sessions от Tuist** Tuist сам создаёт агента и сессию, а также клонирует приватные репозитории GitHub, подключённые к вашему аккаунту Tuist:
+**Через API агентских сессий Tuist** Tuist создает агента и сессию за вас, а также клонирует приватные репозитории GitHub, подключенные к вашему аккаунту Tuist:
 
 ```bash
 curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
@@ -83,22 +100,32 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
   }'
 ```
 
-Если у аккаунта больше одной среды, передайте `agent_environment_id`. Вы можете отслеживать сессию через `GET /agent-sessions/{id}/events`, отвечать через `POST /agent-sessions/{id}/messages` и завершать её через `POST /agent-sessions/{id}/archive`.
+Если у аккаунта более одной среды, передайте `agent_environment_id`. Вы можете отслеживать сессию через `GET /agent-sessions/{id}/events`, отвечать через `POST /agent-sessions/{id}/messages` и завершать её через `POST /agent-sessions/{id}/archive`.
 
 Репозиторий проверяется в `/workspace` на Linux и в `/Users/runner/work` на macOS. Песочница сессии приостанавливается после завершения хода агента и возобновляется при следующем сообщении.
 
 > [!WARNING]
-> Любой, кто может создавать сессии в рабочем пространстве Claude, владеющем средой, может запускать сессии в вашем аккаунте Tuist и запрашивать macOS через метаданные сессии. Ограничьте доступ к этому рабочему пространству соответствующим образом.
+> Любой, кто может создавать сессии в рабочей области Claude, владеющей средой, может запускать сессии в вашем аккаунте Tuist и запрашивать macOS через метаданные сессии. Ограничьте доступ к этой рабочей области соответствующим образом.
+
+### Подключение без API-ключа {#managed-agents-federation}
+
+Дашборд настраивает это за вас. Через API Tuist работает аналогично: каждый аккаунт имеет свой собственный эмитент OpenID Connect в Tuist, `https://tuist.dev/oidc/accounts/<account id>`, и подписывает короткоживущий токен для каждого вызова к Anthropic, который обменивается на токен доступа Anthropic, действующий несколько минут. Правило федерации, доверяющее вашему эмитенту, никогда не принимает токены, подписанные Tuist для других аккаунтов.
+
+- Каждый ответ среды агента включает `federation_issuer_url` и `federation_subject` (`account:123:agent-environment:456`). В мастере Custom OIDC в Console используйте URL эмитента и либо этот точный субъект, чтобы разрешить доступ только этой среде, либо `account:123:*`, чтобы разрешить доступ всем средам аккаунта. Проверки настройки дашборда используют субъект `account:123:setup`, который принимается только по префиксу. Используйте скоуп `workspace:developer`.
+- Отправьте ID организации, рабочей области, сервисного аккаунта и правила как `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` и `anthropic_federation_rule_id` при создании или через `PATCH /agent-environments/{id}`. Если у среды есть и ID, и API-ключ, Tuist использует федерацию.
+
+> [!NOTE]
+> Anthropic получает ключи эмитента по HTTPS на порту 443 с публичного хоста. Если ваш самостоятельно размещенный сервер Tuist недоступен из интернета, выберите источник JWKS **inline** в Console и вставьте набор ключей, который ваш сервер отдает по адресу `<issuer>/jwks.json`. Повторяйте эту операцию при каждой смене ключа подписи Tuist, что происходит при изменении `TUIST_SECRET_KEY_TOKENS` сервера (или, если он не задан, `TUIST_SECRET_KEY_BASE`).
 
 ## Claude Code {#claude-code}
 
-Облачные сессии Claude Code — это те, которые разработчики запускают с [claude.ai/code](https://claude.ai/code), из десктопных и мобильных приложений Claude, а также через `claude --cloud`. Они выбирают, где будет работать сессия, через среду, поэтому подключите по одной среде для каждой платформы, которую хотите предложить.
+Облачные сессии Claude Code — это те, которые разработчики запускают с [claude.ai/code](https://claude.ai/code), из десктопных и мобильных приложений Claude, а также через `claude --cloud`. Они выбирают место запуска сессии через среду, поэтому подключите по одной среде для каждой платформы, которую хотите предложить.
 
 ### Подключение сред {#claude-code-connect}
 
-1. Владелец организации Claude включает **Allow self-hosted environments** на странице администрирования [Cloud environments](https://claude.ai/admin-settings/cloud-environments). Для этого нужен план Team или Enterprise; см. руководство Anthropic по [самостоятельно размещаемым средам](https://code.claude.com/docs/en/self-hosted-environments).
-2. На той же странице создайте самостоятельно размещаемую среду для каждой платформы с именем, которое увидят разработчики, например **Tuist Linux** и **Tuist macOS**. Скопируйте ID каждой среды `ccpool_…` и её ключ среды, который показывается только один раз.
-3. Подключите каждую среду к своему аккаунту Tuist, установив `kind` в значение `claude_code` и указав платформу:
+1. Владелец организации Claude включает опцию **Allow self-hosted environments** на странице администрирования [Cloud environments](https://claude.ai/admin-settings/cloud-environments). Для этого требуется план Team или Enterprise; см. руководство Anthropic по [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments).
+2. На той же странице создайте самостоятельно размещенную среду для каждой платформы с именем, которое увидят разработчики, например **Tuist Linux** и **Tuist macOS**. Скопируйте ID каждой среды `ccpool_…` и её ключ среды, который показывается только один раз.
+3. Подключите каждую среду к вашему аккаунту Tuist, установив `kind` в значение `claude_code` и указав платформу:
 
    ```bash
    curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
@@ -112,20 +139,37 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
      }'
    ```
 
-   Повторите с `"platform": "linux"` и ID и ключом другой среды.
+   Повторите то же самое с `"platform": "linux"`, ID и ключом другой среды.
 
-В течение минуты среды будут готовы принимать сессии. Неактивная сессия держит свою песочницу запущенной 30 минут, затем приостанавливает её; следующее сообщение сессии возобновляет ту же песочницу. Измените время ожидания через `max_idle_seconds` (до 3600).
+В течение минуты среды будут готовы принимать сессии. Неактивная сессия держит свою песочницу запущенной 30 минут, затем приостанавливает её; следующее сообщение сессии возобновляет работу той же песочницы. Измените время ожидания через `max_idle_seconds` (до 3600).
 
 ### Выбор Linux или macOS {#claude-code-choose}
 
 Разработчики выбирают среду, а вместе с ней и платформу, при запуске облачной сессии:
 
-- **claude.ai, десктопные и мобильные приложения:** выберите **Tuist Linux** или **Tuist macOS** в выборе среды при создании новой сессии.
-- **Claude Code CLI:** выполните `/remote-env` в `claude` и выберите среду по имени. Затем `claude --cloud "<task>"` будет работать в ней. Чтобы выбрать среду для одной сессии, передайте её ID: `claude --cloud "<task>" --environment ccpool_...`.
-- **Для всей команды или репозитория:** установите ID среды по умолчанию в [настройках](https://code.claude.com/docs/en/settings) Claude Code, например в `.claude/settings.json` репозитория:
+- **claude.ai, десктопные и мобильные приложения:** выберите **Tuist Linux** или **Tuist macOS** в селекторе среды при создании новой сессии.
+- **Claude Code CLI:** выполните `/remote-env` в `claude` и выберите среду по имени. Затем на ней выполняется `claude --cloud "<task>"`. Чтобы выбрать среду для одной сессии, передайте её ID: `claude --cloud "<task>" --environment ccpool_...`.
+- **Вся команда или репозиторий:** установите ID среды по умолчанию в [settings](https://code.claude.com/docs/en/settings) Claude Code, например в файле `.claude/settings.json` репозитория:
 
   ```json
   { "remote": { "defaultEnvironmentId": "ccpool_..." } }
   ```
 
-Сессии в этих средах используют квоты Claude Code вашей организации как обычно, а их песочницы учитываются в вашем аккаунте Tuist.
+Сессии в этих средах используют квоты Claude Code вашей организации как обычно, а их песочницы учитываются в лимитах вашего аккаунта Tuist.
+
+### Более быстрый запуск сессий и сборок {#claude-code-caching}
+
+- **Кэш Tuist:** сессии получают `TUIST_URL` и, если у вашего аккаунта есть кэш в той же стойке, `TUIST_CACHE_ENDPOINT`. CLI Tuist и задачи Mix `tuist_ex` в сессии самостоятельно входят в систему, используя токен идентичности сессии. См. раздел <.localized_link href="/guides/server/authentication#claude-code-sessions">Claude Code sessions</.localized_link> в руководстве по аутентификации.
+- **Кэшированные проверки:** если приложение Tuist GitHub вашего аккаунта может читать репозиторий сессии, новая сессия начинается с того же кэшированного состояния, которое используют ваши раннеры Tuist, поэтому она загружает только отсутствующие коммиты вместо полного клонирования. По завершении сессия возвращает объекты последнего коммита ветки по умолчанию, что поддерживает актуальность кэша даже для репозиториев, не запускающих CI на Tuist. Обновление происходит только по коммиту, который GitHub сообщает для ветки по умолчанию; собственные ветки сессии никогда не вызывают обновление. Отключите песочницы или удалите приложение, чтобы остановить этот процесс.
+- **macOS:** Mac разделяет сборки сессий Claude Code с каждой ВМ, поэтому новой сессии не нужно их скачивать.
+
+## Использование Mac из любой сессии Claude Code {#remote-mac}
+
+Сессии Claude Code, работающие на Linux, такие как облачные сессии в среде, размещенной Anthropic, все равно могут собирать и тестировать код для платформ Apple на песочнице Tuist macOS, как описано в разделе <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. В отличие от среды **Tuist macOS**, здесь ничего не нужно подключать, и сессия сохраняет свою собственную среду. Для облачных сессий:
+
+1. Сделайте <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> Tuist доступным для сессий: добавьте `https://tuist.dev/mcp` как коннектор в claude.ai и включите его для сессии или объявите его в закомиченном файле `.mcp.json` репозитория.
+2. Установите CLI Tuist в [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts) среды, например с помощью `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`.
+3. Создайте <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> со скоупом `account:sandboxes:write` и добавьте его в [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) среды как `TUIST_TOKEN`. Все пользователи среды могут его читать, поэтому не назначайте ему других скоупов.
+4. Разрешите среде обращаться к Tuist. Сетевой доступ Anthropic по умолчанию **Trusted** не включает `tuist.dev`, поэтому выберите **Custom**, оставьте домены по умолчанию и добавьте `tuist.dev` в **Allowed domains**. CLI загружает файлы сессии на Mac через `tuist.dev`, поэтому другие домены не нужны.
+
+Claude удаляет Mac после завершения задачи. Оставленный без дела Mac приостанавливается и удаляется после 14 дней простоя. Macs, созданные таким образом, учитываются в лимитах вашего аккаунта Tuist так же, как и любые другие песочницы.

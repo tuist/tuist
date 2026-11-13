@@ -7,22 +7,22 @@
 ---
 # Análisis de tests {#test-insights}
 
-Usa el análisis de tests para supervisar la salud de tu suite de tests identificando tests lentos, rastreando tests inestables y comprendiendo rápidamente las ejecuciones de CI fallidas. Actualmente es compatible con Xcode, Gradle, Bazel, Elixir, Rust y Once. Los resultados y los tiempos disponibles dependen de tu runner. Para saber qué código ejecutan tus tests en los sistemas de compilación compatibles, consulta <.localized_link href="/guides/features/test-code-coverage">Cobertura de código</.localized_link>.
+Usa el Análisis de tests para supervisar la salud de tu suite de tests identificando tests lentos, rastreando tests inestables y comprendiendo rápidamente las ejecuciones de CI fallidas. Actualmente es compatible con Xcode, Gradle, Bazel, Elixir, Rust y Once. Los resultados y los tiempos disponibles dependen de tu runner. Para saber qué código ejecutan tus tests en los sistemas de compilación compatibles, consulta <.localized_link href="/guides/features/test-code-coverage">Cobertura de código</.localized_link>. Para obtener orientación sobre [tests lentos](https://tuist.dev/solutions/slow-tests) y [tests inestables](https://tuist.dev/solutions/flaky-tests), consulta las guías de soluciones.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Rastrea las métricas de tests de Xcode usando post-acciones del esquema y la CLI de Tuist."
+    details="Rastrea las analíticas de tests de Xcode mediante post-acciones del esquema y la CLI de Tuist."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
     title="Gradle"
-    details="Rastrea las métricas de tests de Gradle con el plugin de Gradle de Tuist."
+    details="Rastrea las analíticas de tests de Gradle con el plugin de Tuist para Gradle."
     link="/guides/features/test-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Rastrea las métricas de tests de Bazel ejecutando tests mediante tuist bazel test."
+    details="Rastrea las analíticas de tests de Bazel ejecutando tests a través de tuist bazel test."
     link="/guides/features/test-insights/bazel"
 />
   <.home_card

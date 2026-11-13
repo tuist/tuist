@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7772cbf7d4d39e91f4f9954ea36068a76bb9b656c982911f3ac65406ed705991",
+  "hash": "265cd1835ab461278cc08c03a20e165518fb4a29686e14a49cd18e34f3aad72e",
   "hash_tree": {
     "root": {
       "children": [
@@ -19,17 +19,35 @@
                 "## Claude Managed Agents {#managed-agents}": {
                   "content_hash": "9893f82bf527103cfadbb774955c188f9fbf7fefd9bfc72811e0bcd0eef75323"
                 },
+                "## Use a Mac from any Claude Code session {#remote-mac}": {
+                  "content_hash": "b23a15fa5cf9616ed00978c908d47d4c4d1d02dd4123f2b177d198a5063f0a5b"
+                },
                 "### Choose Linux or macOS {#claude-code-choose}": {
-                  "content_hash": "761f37598407e4964cede403cd096c8c15ce904d19f357a813019fd7d4705cfa"
+                  "content_hash": "b96f4121af699e6a5e19a191a8a9636f52d9ea87d037774894cff1abac20e5c3"
                 },
                 "### Connect an environment {#managed-agents-connect}": {
-                  "content_hash": "d12a1958fa16ca65ceb9287c00ebbaf1bf4acb2914677fe952406929d458849a"
+                  "content_hash": "340635768a0d6a66b99f7beb92355fd7215ca2641e69cb80c39bb384937cbc0e"
                 },
                 "### Connect environments {#claude-code-connect}": {
                   "content_hash": "55ea9e385ac238d468dc54ce22c222439ac0643c63bb53a771ad07e5f6c1ba82"
                 },
+                "### Connect without an API key {#managed-agents-federation}": {
+                  "content_hash": "7b9c160bb90a18423dcf62dd4805b6f768ae55b85f12d3804734614df53486ea"
+                },
+                "### Faster session starts and builds {#claude-code-caching}": {
+                  "content_hash": "dae74f72682b29d2d5fdc72c8845201b61028da17151332ee8db098733f18f31"
+                },
                 "### Start a session {#managed-agents-sessions}": {
                   "content_hash": "f8501169b15999ed3f7edb437b6b2253432cc6e64fff5221623ebd5907499dda"
+                },
+                "#### With a federated identity {#managed-agents-connect-federated}": {
+                  "content_hash": "4a15ec49af461556b8fcc90b3a38686306f54a1be4187afdac767fd62af48c95"
+                },
+                "#### With an API key {#managed-agents-connect-api-key}": {
+                  "content_hash": "ea183dac6ba170cfc5b5b092e44fd536f5856888999e12e31a157facaf93f2ff"
+                },
+                "#### With the API {#managed-agents-connect-api}": {
+                  "content_hash": "34b81e6fe02c98993a3789ca5bc7844203740ce0adf3a729e9eaa3a556ec1432"
                 },
                 "Preamble": {
                   "content_hash": "d37d26aa1961324eda6fe69c2cece459b9858b4edda1c5e27da1a4efe29a5393"
@@ -38,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ae9333f4ee5857168d81abec05b124a43fcba756bb216ebc88742f7ca2e89555",
+          "hash": "97fed0ded5f2eec522a26bdc8ec16241fac731fdbc714fe93a629eec50f0eb72",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
           "metadata": {
-            "content_hash": "ce5950811d048dc322eb66e1606a290dd23ec94267c527a5d78957f27d7dfdce"
+            "content_hash": "05c89692f86fa5702e777dd0c45fb42048cec40a347657b9750f0af6a2aa9954"
           }
         },
         {
@@ -239,14 +257,14 @@
         }
       ],
       "details": {},
-      "hash": "7772cbf7d4d39e91f4f9954ea36068a76bb9b656c982911f3ac65406ed705991",
+      "hash": "265cd1835ab461278cc08c03a20e165518fb4a29686e14a49cd18e34f3aad72e",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/claude.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b56dcdc6f6ff81563f384030fd4b3c344e754e5e2b7cfe3b738add8c23f14699",
+  "output_hash": "8206f193db02ed93ee31faf30fb09186a7dddd78ce06bbbd98546670eaf5aeab",
   "output_path": "server/priv/docs/ka/guides/features/sandboxes/claude.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +284,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/claude.md",
-  "translated_at": "2026-11-06T21:23:41.932997Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T16:38:12.612535Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

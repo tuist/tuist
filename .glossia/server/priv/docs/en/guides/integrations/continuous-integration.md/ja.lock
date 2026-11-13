@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0ed467ef99f26027c138fac3e825f9925bc6b218ff96e9e08ea770d0c86a5d86",
+  "hash": "d5914c5996e6c061a78cbecf7331e846ce0064ebf92b962ba2d9d461186871d2",
   "hash_tree": {
     "root": {
       "children": [
@@ -28,20 +28,23 @@
                 "## Run report {#run-report}": {
                   "content_hash": "711c495689009b1d1af98fbbfc5595cf9759514ad1c4f54cf670f2af15d03be7"
                 },
+                "## xcodebuild output formatting {#xcodebuild-output-formatting}": {
+                  "content_hash": "6353ef824b3bbc0476f888046b2350404956bb33f719845103ff1af3619c0a2c"
+                },
                 "### Appcircle {#appcircle}": {
                   "content_hash": "2b5e3475238dc7b40ba831e94ccc26ba8b70aa483c251c71c1e788780cfa8e36"
                 },
                 "### Bitrise {#bitrise}": {
-                  "content_hash": "b54c9ad507819837561d2a66bcc3184611d2b383b5989ef4f18c8950422083b6"
+                  "content_hash": "3406ad4d2fdc9195e2ac83a9fa3bffaec4eb252168f12e223caba598ed51fdec"
                 },
                 "### CircleCI {#circleci}": {
-                  "content_hash": "87cc51563bdb3130b53d3792ef6d68fe03e564763b70c270b139f4295ff33817"
+                  "content_hash": "47cea16f33b5c89135d2e33cab0e5aa0ad05156974e6f7d1087ba40ba1096399"
                 },
                 "### Codemagic {#codemagic}": {
                   "content_hash": "2bafabf4ef2c8f9a8b76ad163d1d3c360cf91ff7405fb759a66e88e0ee9d7940"
                 },
                 "### GitHub Actions {#github-actions}": {
-                  "content_hash": "6cae6c8ed48e47e7fbfc4d25784a1444d3bc1261bec3258b009fe77ecb1a75ec"
+                  "content_hash": "9d30e9f785b9f8e81ac14b7ae49b76bde4bbfcbc1b60385b7a4a5aaca33c416f"
                 },
                 "### Xcode Cloud {#xcode-cloud}": {
                   "content_hash": "1744369dfc39d98c6834a386d1ddf7739277d1a875d83707795c5da77fc9c58c"
@@ -53,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "bcfe94ebd30689a59ba70ab4ea21dc5797c58d629ee9a9a995bf77f3f09a98e0",
+          "hash": "a7f8c554277c0a0d5ff1e563608e83730880b9c31d4aa96e8f974dedf05f0d20",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/continuous-integration.md",
           "metadata": {
-            "content_hash": "c672ddea4481be2f2ea9026880f58fb345ab7ade2b2310cdc7682e4eb2f5e452"
+            "content_hash": "a951c7ad4d028ce4f673d18b63e27c7bfd1a8eef549d716fac3f96901b7ed8df"
           }
         },
         {
@@ -272,14 +275,14 @@
         }
       ],
       "details": {},
-      "hash": "0ed467ef99f26027c138fac3e825f9925bc6b218ff96e9e08ea770d0c86a5d86",
+      "hash": "d5914c5996e6c061a78cbecf7331e846ce0064ebf92b962ba2d9d461186871d2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/continuous-integration.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "59e13164781db437c0674074f5e7d15640d50aed13e6c915039e274bd818c8a7",
+  "output_hash": "a211c8c00607fede92b2ccb0331f363c83db3fa176688a43ac3a8654d95b2fb0",
   "output_path": "server/priv/docs/ja/guides/integrations/continuous-integration.md",
   "protection_state": "recorded",
   "provider": "",
@@ -302,8 +305,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/integrations/continuous-integration.md",
-  "translated_at": "2026-11-06T22:13:54.727695Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-13T16:38:14.955673Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

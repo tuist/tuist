@@ -685,6 +685,10 @@ defmodule Tuist.Runners do
       when it had no job in the last day (`LearnedWarmFloors`). The
       controller keeps up to that many runners idle above load, capped per
       pool by `maxLearnedWarmPoolFloor`.
+    * `hours_with_jobs` — how many hours of the last 14 days had one of
+      this fleet's jobs, or 0 when it had no job in the last day
+      (`LearnedWarmFloors`). The controller funds idle pools' floors on a
+      full fleet in this order, most used first.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -711,6 +715,7 @@ defmodule Tuist.Runners do
       withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
       learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
+      hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
       preferred_nodes: preferred_nodes(fleet_name)
     }
   end

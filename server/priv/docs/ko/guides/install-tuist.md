@@ -2,7 +2,7 @@
 {
   "title": "Tuist 설치",
   "titleTemplate": ":title · 가이드 · Tuist",
-  "description": "mise 또는 Homebrew를 사용하여 macOS나 Linux에 Tuist 명령줄 인터페이스를 설치하고, 팀과 지속적 통합을 위해 버전을 고정합니다."
+  "description": "mise 또는 Homebrew를 사용하여 macOS나 Linux에 Tuist 명령줄 인터페이스를 설치하고, 팀과 지속적 통합을 위해 버전을 고정하세요."
 }
 ---
 # Tuist 설치 {#install-tuist}
@@ -12,7 +12,7 @@ Tuist 명령줄 인터페이스는 **macOS**와 **Linux**에서 실행되며 Xco
 ## Mise {#recommended-mise}
 
 > [!NOTE]
-> Mise가 설치되어 있지 않다면 먼저 [시작 가이드](https://mise.jdx.dev/getting-started.html)를 따르세요. 다양한 환경에서 도구의 결정론적 버전을 보장해야 하는 팀이나 조직이라면 [Homebrew](https://brew.sh) 대신 Mise를 사용하는 것이 좋습니다.
+> Mise가 설치되어 있지 않다면 먼저 [시작 가이드](https://mise.jdx.dev/getting-started.html)를 따르세요. 다양한 환경에서 도구의 결정론적 버전을 보장해야 하는 팀이나 조직이라면 [Homebrew](https://brew.sh) 대신 Mise를 사용하는 것이 권장됩니다.
 
 
 전역적으로 단일 버전의 도구를 설치하고 활성화하는 Homebrew와 같은 도구와 달리, **Mise는 버전을 고정**하며 전역 또는 프로젝트 범위로 지정할 수 있습니다. Tuist를 설치하고 활성화하려면 `mise use`를 실행하세요:
@@ -24,20 +24,20 @@ mise use -g tuist@x.y.z       # Install and pin tuist-x.y.z as the global defaul
 mise use -g tuist@system       # Use the system's tuist as the global default
 ```
 
-`mise.toml`에 이미 Tuist 버전이 고정된 프로젝트를 클론한 경우, `mise install`를 실행하여 설치하세요.
+`mise.toml`에 Tuist 버전이 이미 고정된 프로젝트를 클론한 경우, `mise install`를 실행하여 설치하세요.
 
 > [!TIP]
-> `tuist@latest`는 최신 **안정** 릴리스로 해결됩니다. Tuist는 프리릴리스 카나리 및 릴리스 후보 빌드도 게시하지만, 이러한 빌드는 명시적으로 선택해야 하며 `latest`로는 절대 해결되지 않습니다. 신뢰할 수 있는 안정 라인을 고정하는 방법과 프리릴리스에 참여하는 방법은 <.localized_link href="/cli/release/channels">릴리스 채널</.localized_link>을 참조하세요.
+> `tuist@latest`는 최신 **안정** 릴리스로 해결됩니다. Tuist는 프리릴리스 카나리 및 릴리스 후보 빌드도 배포하지만, 이는 명시적으로 선택해야 하며 `latest`로는 절대 해결되지 않습니다. 신뢰할 수 있는 안정 라인을 고정하는 방법과 프리릴리스에 참여하는 방법은 <.localized_link href="/cli/release/channels">릴리스 채널</.localized_link>을 참조하세요.
 
 <details>
 <summary>Linux 지원</summary>
 
-Linux에서는 Tuist를 exclusively Mise를 통해 사용할 수 있습니다. Xcode에 의존하는 명령어(예: `tuist generate`)는 Linux에서 사용할 수 없지만, `tuist inspect bundle`와 같은 플랫폼 독립적인 명령어는 예상대로 작동합니다.
+Linux에서는 Tuist가 Mise를 통해서만 사용할 수 있습니다. Xcode에 의존하는 명령(예: `tuist generate`)은 Linux에서 사용할 수 없지만, `tuist inspect bundle`와 같은 플랫폼 독립적인 명령은 예상대로 작동합니다.
 
 </details>
 
 
-## Homebrew (macOS 전용) {#recommended-homebrew}
+## Homebrew(macOS 전용) {#recommended-homebrew}
 
 [Homebrew](https://brew.sh)와 [우리의 포뮬러](https://github.com/tuist/homebrew-tuist)를 사용하여 Tuist를 설치할 수 있습니다:
 
@@ -50,7 +50,7 @@ brew install --formula tuist@x.y.z
 > [!TIP]
 > **바이너리의 진위 확인**
 >
-> 다음 명령어를 실행하여 설치된 바이너리가 우리가 빌드한 것인지 확인할 수 있으며, 이 명령어는 인증서의 팀이 `U6LC622NKF`인지 확인합니다:
+> 다음 명령을 실행하여 인증서의 팀이 `U6LC622NKF`인지 확인함으로써 설치된 바이너리가 우리가 빌드한 것인지 검증할 수 있습니다:
 >
 > ```bash
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
@@ -58,4 +58,9 @@ brew install --formula tuist@x.y.z
 
 ## HTTP 프록시 {#http-proxy}
 
-네트워크가 아웃바운드 트래픽을 HTTP 프록시를 통해 라우팅하는 경우, <.localized_link href="/guides/integrations/http-proxy">HTTP 프록시 가이드</.localized_link>를 참조하세요.
+네트워크가 HTTP 프록시를 통해 아웃바운드 트래픽을 라우팅하는 경우, <.localized_link href="/guides/integrations/http-proxy">HTTP 프록시 가이드</.localized_link>를 참조하세요.
+
+## 다음 단계 {#next-steps}
+
+- 프로젝트를 Tuist에 연결하려면 <.localized_link href="/guides/get-started">시작 가이드</.localized_link>를 따르세요.
+- 더 넓은 제품 컨텍스트를 위해 [엔지니어링 팀과 코딩 에이전트를 위한 Tuist의 빌드 인프라](https://tuist.dev)를 탐색하세요.

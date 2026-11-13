@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "65d53a165acdf88535fa99e6dd349c3b546ca2ff3df9c528ee679ed1ba8d70e1",
+  "hash": "9d046eed512079fc99c593841c2533947ed050dca605b0c4a8e38a3b7d86055d",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Code Coverage {#code-coverage}": {
-                  "content_hash": "372cdbd005105d283d976e94f5813fa184b152b39ae20336c038354b9ddadee2"
+                  "content_hash": "9b474f9216c4d51af36458165358501396c80426377abc60ce0ecdf22b269d93"
                 },
                 "Preamble": {
                   "content_hash": "a8523182723617d01fbb621e27e1ac3ddea37185e1981cc83f1253acadfa1e74"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "f55b3f9008b6fe05f0af36ec4d845045fade0919d2cfc3eefd2c04b9722f4f8a",
+          "hash": "4c4870c0d599e18d9bc47f1b2ae5b754bbb9e3b389d1482abca5fcb00c1ca884",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage.md",
           "metadata": {
-            "content_hash": "eac879bb6054429e1afef9c01a2b45883452746efae4dac3530977670b15b31f"
+            "content_hash": "0a493340cc7f222a531151daa9a8c1f0197a94ee5d0166932a74a8a03a8293ed"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "65d53a165acdf88535fa99e6dd349c3b546ca2ff3df9c528ee679ed1ba8d70e1",
+      "hash": "9d046eed512079fc99c593841c2533947ed050dca605b0c4a8e38a3b7d86055d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "72e3159b52ae4ad516e2509432e19b291e4d189c8a13a978c46f1fa2e9c463a0",
+  "output_hash": "d65f046f2e3253a980a997a156f8c242cd300fb09a06efe432359bb2725cebed",
   "output_path": "server/priv/docs/ru/guides/features/test-code-coverage.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage.md",
-  "translated_at": "2026-11-06T21:25:51.691564Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T16:38:13.069786Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }
