@@ -71,8 +71,13 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
   private network. Without one the save is refused and the job uses GitHub's
   cache. Lookups only match entries the node's site can read. An entry commits
   only once its store holds the object.
+- Production serves an account only with `:runner_actions_cache`
+  (`FeatureFlags.runner_actions_cache_enabled?/1`). `enabled/1` answers the
+  host's health check per job, so a job without it keeps GitHub's cache; lookup
+  and reserve refuse it too. Gate there, never in lookup alone: a job sent to
+  the mirror and refused would miss instead of restoring from GitHub.
 - `sweep/1` (hourly) deletes abandoned reservations, entries unused for seven
-  days, a repository's least recently used entries beyond 50 GB, and a store's
+  days, a repository's least recently used entries beyond 200 GB, and a store's
   beyond 90% of its `actions_cache_bytes`, so the Garage quota stays a backstop.
   An entry's row goes only after its object was deleted, except in a store that
   is no longer configured.

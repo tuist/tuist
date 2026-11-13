@@ -2423,6 +2423,11 @@ runnersFleetLinux:
     # returns every Linux Pod to the plain dockerd sidecar.
     dockerCache:
       enabled: true
+    # Hosts serve the GitHub Actions cache from the gra shard store only to
+    # accounts with the `:runner_actions_cache` flag; every other job keeps
+    # GitHub's cache. Turning this off returns every job to GitHub's cache.
+    actionsCache:
+      enabled: true
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with

@@ -88,6 +88,14 @@ func (i *actionsIndex) Lookup(ctx context.Context, caller cachevolumes.ActionsCa
 	return result.Entry, err
 }
 
+func (i *actionsIndex) Enabled(ctx context.Context, caller cachevolumes.ActionsCaller) (bool, error) {
+	var result struct {
+		Enabled bool `json:"enabled"`
+	}
+	err := i.post(ctx, "enabled", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID}, &result)
+	return result.Enabled && err == nil, err
+}
+
 func (i *actionsIndex) Reserve(ctx context.Context, caller cachevolumes.ActionsCaller, id, key, version string) error {
 	return i.post(ctx, "reserve", map[string]any{"pod_name": caller.PodName, "pod_uid": caller.PodUID, "id": id, "key": key, "version": version}, nil)
 }
