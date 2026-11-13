@@ -449,10 +449,9 @@ defmodule Tuist.Tests.CoverageTest do
     end
   end
 
-  describe "the xcode_coverage feature flag" do
-    test "drops the coverage of an account that does not have it", %{project: project, account: account} do
-      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
-
+  describe "build systems without coverage" do
+    test "drop the coverage a run reports", %{account: account} do
+      project = ProjectsFixtures.project_fixture(account_id: account.id, build_system: :gradle)
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 
       assert CoverageFixtures.run_summary(project.id, test.id) == nil

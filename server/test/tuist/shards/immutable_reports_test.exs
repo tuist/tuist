@@ -38,7 +38,6 @@ defmodule Tuist.Shards.ImmutableReportsTest do
   @tag capture_log: true
   test "coverage enabled after enrollment cannot publish stale coverage or lose test results", %{project: project} do
     %{plan: plan} = plan(project, 1)
-    stub(FeatureFlags, :coverage_enabled?, fn _, _ -> true end)
 
     assert {:ok, run} =
              report(project, plan, 0,

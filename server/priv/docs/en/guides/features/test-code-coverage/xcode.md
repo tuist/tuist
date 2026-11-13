@@ -7,9 +7,9 @@
 ---
 # Xcode code coverage {#xcode-code-coverage}
 
-<!-- @snippet: ./_xcode-early-access -->
-
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every test run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
+
+<!-- @snippet: ./_xcode-requirements -->
 
 > [!TIP]
 > If you generate your project with Tuist, follow the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">generated project guide</.localized_link> instead: it measures the code that comes from the binary cache and carries forward the coverage of the test targets selective testing skips.

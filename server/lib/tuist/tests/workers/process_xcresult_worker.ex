@@ -29,7 +29,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     ]
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Projects
   alias Tuist.Storage
@@ -284,7 +283,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         case download do
           {:ok, _} ->
-            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args, account))
+            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args))
 
           {:error, _} = error ->
             error
@@ -295,7 +294,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp processor_options(test_run_id, args, account) do
+  defp processor_options(test_run_id, args) do
     [
       test_run_id: test_run_id,
       source_test_run_id: Map.get(args, "source_test_run_id") || test_run_id,
@@ -306,7 +305,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       account_handle: args["account_handle"],
       project_handle: args["project_handle"],
       s3_bucket: Environment.s3_bucket_name(),
-      read_coverage: Map.get(args, "reporting_version", 0) != 1 and FeatureFlags.xcode_coverage_enabled?(account)
+      read_coverage: Map.get(args, "reporting_version", 0) != 1
     ]
   end
 
@@ -345,7 +344,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           {:ok, _} ->
             opts =
               test_run_id
-              |> processor_options(args, account)
+              |> processor_options(args)
               |> Keyword.put(:artifact, :stress)
               |> Keyword.put(:read_coverage, false)
 

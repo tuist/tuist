@@ -7,6 +7,7 @@ defmodule TuistWeb.DashboardNavigation do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
+  alias Tuist.Tests.Coverage
   alias TuistWeb.API.BuildEntityResources
   alias TuistWeb.Helpers.BuildEntityLabels
 
@@ -157,7 +158,7 @@ defmodule TuistWeb.DashboardNavigation do
         dgettext("dashboard", "Code Coverage"),
         root <> "/tests/coverage",
         project.name,
-        project.build_system in [:xcode, :mix] and FeatureFlags.coverage_enabled?(account, project)
+        Coverage.supported?(project)
       ),
       page(
         dgettext("dashboard", "Test Selection"),

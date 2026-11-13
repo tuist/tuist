@@ -1,6 +1,6 @@
 # Code coverage
 
-How Tuist collects, stores and shows code coverage today. Mix and Cargo projects have it in every account; every other build system is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`. `Tuist.FeatureFlags.coverage_enabled?/3` decides per project.
+How Tuist collects, stores and shows code coverage today. Xcode, Mix and Cargo projects have it in every account. `Tuist.Tests.Coverage.supported?/1` decides per project from its build system, and the ingestion, the API, the MCP tools, the pages and the sidebar all follow it; a build system joins the list there once its client reports coverage.
 
 ## Immutable shard plans
 

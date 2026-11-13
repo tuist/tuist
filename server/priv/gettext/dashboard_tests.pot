@@ -2181,7 +2181,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.ex:47
 #: lib/tuist_web/live/coverage_detail_live.ex:127
 #: lib/tuist_web/live/coverage_detail_live.html.heex:107
-#: lib/tuist_web/live/coverage_file_live.ex:243
+#: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
@@ -2191,7 +2191,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
-#: lib/tuist_web/live/coverage_file_live.ex:205
+#: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:79
 #: lib/tuist_web/live/coverage_live.html.heex:137
@@ -2203,7 +2203,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage/components.ex:782
 #: lib/tuist_web/live/coverage/components.ex:932
 #: lib/tuist_web/live/coverage_detail_live.html.heex:119
-#: lib/tuist_web/live/coverage_file_live.ex:203
+#: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Covered lines"
@@ -2221,7 +2221,7 @@ msgstr ""
 msgid "Executable lines the tests ran at least once."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_file_live.ex:204
+#: lib/tuist_web/live/coverage_file_live.ex:203
 #: lib/tuist_web/live/coverage_file_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Executions"
@@ -2237,7 +2237,7 @@ msgstr ""
 msgid "Files"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_file_live.ex:201
+#: lib/tuist_web/live/coverage_file_live.ex:200
 #: lib/tuist_web/live/coverage_file_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Function"
@@ -2254,7 +2254,7 @@ msgstr ""
 msgid "Functions the compiler instrumented in the file."
 msgstr ""
 
-#: lib/tuist_web/live/coverage_file_live.ex:202
+#: lib/tuist_web/live/coverage_file_live.ex:201
 #: lib/tuist_web/live/coverage_file_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Line"
@@ -2394,16 +2394,9 @@ msgstr ""
 msgid "Change"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_detail_live.ex:42
-#: lib/tuist_web/live/coverage_file_live.ex:34
-#: lib/tuist_web/live/coverage_live.ex:47
-#, elixir-autogen, elixir-format
-msgid "Code coverage is not enabled for this account."
-msgstr ""
-
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:572
-#: lib/tuist_web/live/coverage_file_live.ex:236
+#: lib/tuist_web/live/coverage_file_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
 msgstr ""
@@ -3281,4 +3274,11 @@ msgstr ""
 #: lib/tuist_web/helpers/test_labels.ex:54
 #, elixir-autogen, elixir-format
 msgid "Packages"
+msgstr ""
+
+#: lib/tuist_web/live/coverage_detail_live.ex:42
+#: lib/tuist_web/live/coverage_file_live.ex:33
+#: lib/tuist_web/live/coverage_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Code coverage isn't available for this project's build system."
 msgstr ""
