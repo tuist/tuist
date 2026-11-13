@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::ops::ControlFlow;
@@ -445,7 +447,7 @@ fn extract_tables_from_tql(tql: &Tql, names: &mut HashSet<ObjectName>) -> bool {
         Tql::Analyze(analyze) => &analyze.query,
     };
 
-    let Ok(expr) = promql_parser::parser::parse(promql) else {
+    let Ok(expr) = crate::nesting::parse_promql(promql) else {
         return false;
     };
     extract_tables_from_prom_expr(&expr, names)

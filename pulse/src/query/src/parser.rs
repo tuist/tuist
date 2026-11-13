@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -143,7 +145,7 @@ impl QueryLanguageParser {
     pub fn parse_promql(query: &PromQuery, _query_ctx: &QueryContextRef) -> Result<QueryStatement> {
         let _timer = PARSE_PROMQL_ELAPSED.start_timer();
 
-        let expr = promql_parser::parser::parse(&query.query)
+        let expr = sql::nesting::parse_promql(&query.query)
             .map_err(|msg| BoxedError::new(PlainError::new(msg, StatusCode::InvalidArguments)))
             .context(QueryParseSnafu {
                 query: &query.query,

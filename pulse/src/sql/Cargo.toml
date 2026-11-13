@@ -1,3 +1,4 @@
+# Modified by Tuist; see pulse/FORK.md.
 [package]
 name = "sql"
 version.workspace = true
@@ -38,6 +39,7 @@ serde_json.workspace = true
 snafu.workspace = true
 sqlparser.workspace = true
 sqlparser_derive = "0.1"
+stacker = "0.1"
 table.workspace = true
 uuid.workspace = true
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -24,6 +26,7 @@ use sqlparser::tokenizer::{Token, TokenWithSpan};
 
 use crate::ast::{Expr, ObjectName};
 use crate::error::{self, InvalidSqlSnafu, Result, SyntaxSnafu};
+use crate::nesting;
 use crate::parsers::tql_parser;
 use crate::statements::kill::Kill;
 use crate::statements::statement::Statement;
@@ -73,6 +76,24 @@ impl ParserContext<'_> {
         dialect: &dyn Dialect,
         opts: ParseOptions,
     ) -> Result<Vec<Statement>> {
+        // Tuist: parse on a stack sized to the input, and reject statements nested
+        // too deeply for the steps after parsing (see `crate::nesting`).
+        nesting::with_sql_parse_stack(sql.len(), || {
+            Self::create_with_dialect_inner(sql, dialect, opts)
+        })
+        .unwrap_or_else(|| {
+            InvalidSqlSnafu {
+                msg: "SQL text is too large to parse",
+            }
+            .fail()
+        })
+    }
+
+    fn create_with_dialect_inner(
+        sql: &str,
+        dialect: &dyn Dialect,
+        opts: ParseOptions,
+    ) -> Result<Vec<Statement>> {
         let mut stmts: Vec<Statement> = Vec::new();
 
         let mut parser_ctx = ParserContext::new(dialect, sql)?;
@@ -93,6 +114,7 @@ impl ParserContext<'_> {
             }
 
             let statement = parser_ctx.parse_statement()?;
+            nesting::check_sql(&statement).map_err(|msg| InvalidSqlSnafu { msg }.build())?;
             stmts.push(statement);
             expecting_statement_delimiter = true;
         }
