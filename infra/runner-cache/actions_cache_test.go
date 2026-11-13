@@ -270,22 +270,27 @@ func TestActionsCacheAssemblesStagedBlocksInListOrder(t *testing.T) {
 	h := newActionsHarness(t)
 	created := h.twirp("CreateCacheEntry", map[string]any{"key": "layer", "version": "v1"})
 	upload := created["signed_upload_url"].(string)
-	first, second := base64.StdEncoding.EncodeToString([]byte("block-1")), base64.StdEncoding.EncodeToString([]byte("block-2"))
-	for id, content := range map[string]string{second: "world", first: "hello "} {
+	first, second, unlisted := base64.StdEncoding.EncodeToString([]byte("block-1")), base64.StdEncoding.EncodeToString([]byte("block-2")), base64.StdEncoding.EncodeToString([]byte("block-3"))
+	for id, content := range map[string]string{second: "world", first: "hello ", unlisted: "dropped"} {
 		if response := h.do(http.MethodPut, upload+"&comp=block&blockid="+url.QueryEscape(id), []byte(content), nil); response.StatusCode != http.StatusCreated {
 			t.Fatalf("block answered %d", response.StatusCode)
 		}
 	}
-	list := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?><BlockList><Latest>%s</Latest><Latest>%s</Latest></BlockList>`, first, second)
+	// A list may name a block twice and leave staged blocks out.
+	list := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?><BlockList><Latest>%s</Latest><Latest>%s</Latest><Latest>%s</Latest></BlockList>`, first, second, first)
 	if response := h.do(http.MethodPut, upload+"&comp=blocklist", []byte(list), nil); response.StatusCode != http.StatusCreated {
 		t.Fatalf("block list answered %d", response.StatusCode)
 	}
-	if answer := h.twirp("FinalizeCacheEntryUpload", map[string]any{"key": "layer", "version": "v1", "size_bytes": 11}); answer["ok"] != true {
+	if answer := h.twirp("FinalizeCacheEntryUpload", map[string]any{"key": "layer", "version": "v1", "size_bytes": 17}); answer["ok"] != true {
 		t.Fatalf("finalize refused: %v", answer)
 	}
 	h.settle()
-	if _, data := h.restore("layer", nil); string(data) != "hello world" {
+	// The store refuses a PUT whose body does not match the digest.
+	if _, data := h.restore("layer", nil); string(data) != "hello worldhello " {
 		t.Fatalf("restored %q", data)
+	}
+	if uploads, _ := os.ReadDir(filepath.Join(h.cache.Store.Root, "uploads")); len(uploads) != 0 {
+		t.Fatalf("kept %d staged uploads after the copy", len(uploads))
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"log/slog"
@@ -77,7 +78,10 @@ func (s *ActionsStore) PutBlock(ctx context.Context, id, block string, body io.R
 	return s.write(ctx, s.blockPath(id, block), body, false)
 }
 
-// CommitBlocks assembles entry id from its staged blocks, in order.
+// CommitBlocks ends the upload of entry id as its staged blocks, in list
+// order. The blocks stay where they are, already synced: they are linked into
+// `parts/` in order and only read to hash them, never rewritten into one file.
+// Unlisted blocks go.
 func (s *ActionsStore) CommitBlocks(ctx context.Context, id string, blocks []string) error {
 	if !actionsEntryID.MatchString(id) || !s.uploading(id) || len(blocks) == 0 || len(blocks) > actionsMaxBlocks {
 		return ErrActionsUpload
@@ -93,22 +97,28 @@ func (s *ActionsStore) CommitBlocks(ctx context.Context, id string, blocks []str
 	if total > actionsMaxEntry {
 		return ErrActionsUpload
 	}
-	readers := make([]io.Reader, 0, len(blocks))
-	var files []*os.File
-	defer func() {
-		for _, file := range files {
-			file.Close()
-		}
-	}()
-	for _, block := range blocks {
-		file, err := os.Open(s.blockPath(id, block))
-		if err != nil {
+	parts := s.parts(id)
+	if err := os.RemoveAll(parts); err != nil {
+		return err
+	}
+	if err := os.Mkdir(parts, 0o700); err != nil {
+		return err
+	}
+	paths := make([]string, len(blocks))
+	for i, block := range blocks {
+		// A link, not a rename: a list may name a block more than once.
+		paths[i] = filepath.Join(parts, fmt.Sprintf("%05d", i))
+		if err := os.Link(s.blockPath(id, block), paths[i]); err != nil {
 			return err
 		}
-		files = append(files, file)
-		readers = append(readers, file)
 	}
-	if _, err := s.write(ctx, s.blob(id), io.MultiReader(readers...), true); err != nil {
+	sum := sha256.New()
+	content := &partsReader{paths: paths}
+	defer content.Close()
+	if _, err := io.Copy(sum, readerWithContext{ctx, content}); err != nil {
+		return err
+	}
+	if err := os.WriteFile(s.blob(id)+".sha256", []byte(hex.EncodeToString(sum.Sum(nil))), 0o600); err != nil {
 		return err
 	}
 	return os.RemoveAll(filepath.Join(s.upload(id), "blocks"))
@@ -120,8 +130,19 @@ func (s *ActionsStore) Seal(id string, size int64) (string, error) {
 	if !actionsEntryID.MatchString(id) {
 		return "", ErrActionsUpload
 	}
-	info, err := os.Stat(s.blob(id))
-	if err != nil || info.Size() != size {
+	paths, err := s.content(id)
+	if err != nil {
+		return "", ErrActionsUpload
+	}
+	var total int64
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			return "", ErrActionsUpload
+		}
+		total += info.Size()
+	}
+	if total != size {
 		return "", ErrActionsUpload
 	}
 	sum, err := os.ReadFile(s.blob(id) + ".sha256")
@@ -135,11 +156,35 @@ func (s *ActionsStore) Seal(id string, size int64) (string, error) {
 }
 
 // Open opens the sealed upload of entry id for copying to its store.
-func (s *ActionsStore) Open(id string) (*os.File, error) {
+func (s *ActionsStore) Open(id string) (io.ReadCloser, error) {
 	if !actionsEntryID.MatchString(id) || s.uploading(id) {
 		return nil, os.ErrNotExist
 	}
-	return os.Open(s.blob(id))
+	paths, err := s.content(id)
+	if err != nil {
+		return nil, err
+	}
+	return &partsReader{paths: paths}, nil
+}
+
+// content lists the files holding entry id in order: its single-request blob,
+// else the parts its block list committed.
+func (s *ActionsStore) content(id string) ([]string, error) {
+	if _, err := os.Stat(s.blob(id)); err == nil {
+		return []string{s.blob(id)}, nil
+	}
+	entries, err := os.ReadDir(s.parts(id))
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, os.ErrNotExist
+	}
+	paths := make([]string, len(entries))
+	for i, entry := range entries {
+		paths[i] = filepath.Join(s.parts(id), entry.Name())
+	}
+	return paths, nil
 }
 
 // Remove deletes the upload of entry id.
@@ -175,6 +220,62 @@ func (s *ActionsStore) uploading(id string) bool {
 
 func (s *ActionsStore) blockPath(id, block string) string {
 	return filepath.Join(s.upload(id), "blocks", hex.EncodeToString([]byte(block)))
+}
+
+func (s *ActionsStore) parts(id string) string { return filepath.Join(s.upload(id), "parts") }
+
+// partsReader reads files one after another, holding one open at a time: a
+// block list can name 50,000 blocks.
+type partsReader struct {
+	paths []string
+	file  *os.File
+}
+
+func (r *partsReader) Read(p []byte) (int, error) {
+	for {
+		if r.file == nil {
+			if len(r.paths) == 0 {
+				return 0, io.EOF
+			}
+			file, err := os.Open(r.paths[0])
+			if err != nil {
+				return 0, err
+			}
+			r.file, r.paths = file, r.paths[1:]
+		}
+		n, err := r.file.Read(p)
+		if err == io.EOF {
+			r.file.Close()
+			r.file = nil
+			if n == 0 {
+				continue
+			}
+			err = nil
+		}
+		return n, err
+	}
+}
+
+func (r *partsReader) Close() error {
+	r.paths = nil
+	if r.file == nil {
+		return nil
+	}
+	err := r.file.Close()
+	r.file = nil
+	return err
+}
+
+type readerWithContext struct {
+	ctx context.Context
+	io.Reader
+}
+
+func (r readerWithContext) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.Reader.Read(p)
 }
 
 // room admits n more bytes above the reserve.
