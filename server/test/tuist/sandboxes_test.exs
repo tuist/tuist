@@ -840,6 +840,41 @@ defmodule Tuist.SandboxesTest do
     end
   end
 
+  describe "release_removed_nodes/0" do
+    test "releases the Linux sandboxes of a disconnected node whose Kubernetes Node is gone" do
+      account = account_fixture()
+      on_gone = &sandbox_fixture(Keyword.merge([account: account, node_name: "node-gone"], &1))
+
+      running = on_gone.(state: :running, amp_orb_id: "amp-1", residency_work_id: "amp:amp-1", residency_epoch: 2)
+      paused = on_gone.(state: :paused, paused_at: DateTime.utc_now())
+      restoring = on_gone.(state: :creating, archived_at: DateTime.utc_now(), archive_key: "sandbox-archives/x.sbxa")
+      macos = on_gone.(state: :paused, platform: :darwin)
+      execution = on_gone.(state: :running, purpose: :remote_execution)
+      away = sandbox_fixture(account: account, state: :running, node_name: "node-away")
+      unknown = sandbox_fixture(account: account, state: :running, node_name: "node-api-down")
+      live = sandbox_fixture(account: account, state: :running, node_name: "node-live")
+
+      stub(Nodes, :connected?, fn name -> name == "node-live" end)
+
+      stub(Tuist.Kubernetes.Client, :get_node, fn
+        "node-gone", _opts -> {:error, :not_found}
+        "node-away", _opts -> {:ok, %{"metadata" => %{"name" => "node-away"}}}
+        "node-api-down", _opts -> {:error, :timeout}
+      end)
+
+      Sandboxes.release_removed_nodes()
+
+      assert %Sandbox{state: :error, node_name: nil, residency_work_id: nil, residency_epoch: 3} = Repo.reload!(running)
+      assert %Sandbox{state: :error, node_name: nil} = Repo.reload!(paused)
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(restoring)
+      assert %Sandbox{state: :paused, node_name: "node-gone"} = Repo.reload!(macos)
+      assert %Sandbox{state: :running, node_name: "node-gone"} = Repo.reload!(execution)
+      assert %Sandbox{state: :running, node_name: "node-away"} = Repo.reload!(away)
+      assert %Sandbox{state: :running, node_name: "node-api-down"} = Repo.reload!(unknown)
+      assert %Sandbox{state: :running, node_name: "node-live"} = Repo.reload!(live)
+    end
+  end
+
   describe "pause_idle/2" do
     test "pauses a running sandbox with no residency and matching epoch" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 4)

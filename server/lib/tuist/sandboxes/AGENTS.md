@@ -481,6 +481,13 @@ socket, the poller and the caller share a replica:
   has been stuck for 150 s: a `resuming` row takes the state the node
   reports, a `creating` row the node does not list becomes `error`. A
   node reporting a sandbox in `error` errors the row with its reason.
+- A node that left the cluster never reports again. Every minute
+  `ReleaseRemovedNodesWorker` (`Sandboxes.release_removed_nodes/0`) errors
+  the Linux agent rows of a node that is not connected and whose Kubernetes
+  Node answers 404, with `node_name` nil, so spawns and routers start them
+  afresh; an interrupted restore reverts to `archived`. Any other answer
+  leaves them alone. macOS rows are left to recovery: tart hosts are virtual
+  Nodes that can deregister and return with their VMs.
 - `environment_key` is `Tuist.Vault.Binary` encrypted and never
   serialized by the API. It travels only inside `start_worker` args.
 - `anthropic_api_key` is `Tuist.Vault.Binary` encrypted, never

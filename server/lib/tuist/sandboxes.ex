@@ -15,6 +15,7 @@ defmodule Tuist.Sandboxes do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
+  alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
@@ -1695,6 +1696,64 @@ defmodule Tuist.Sandboxes do
   end
 
   def reconcile_node_report(_node_name, _report), do: :ok
+
+  @doc """
+  Releases the Linux sandboxes of nodes that left the cluster: a node that
+  is not connected and whose Kubernetes Node is gone took its VMs and disks
+  with it, so no report will ever settle their rows. A running row would
+  otherwise keep refusing turns as if its node were full and keep charging
+  the account's quota; a paused one could never resume. Each row becomes
+  `error` with no node, which spawns and session routers replace with a
+  fresh sandbox; an interrupted restore goes back to its archive. Any other
+  answer from Kubernetes (an unreachable API, a server outside a cluster)
+  leaves the rows alone. macOS hosts are virtual Nodes that can deregister
+  and come back with their VMs, so their rows are left to recovery.
+  """
+  def release_removed_nodes do
+    from(s in Sandbox,
+      where:
+        s.platform == :linux and s.purpose == :agent and not is_nil(s.node_name) and
+          s.state in ^[:creating, :resuming, :running, :paused, :error],
+      distinct: true,
+      select: s.node_name
+    )
+    |> Repo.all()
+    |> Enum.reject(&Nodes.connected?/1)
+    |> Enum.filter(&(KubernetesClient.get_node(&1, timeout: 5_000) == {:error, :not_found}))
+    |> Enum.each(&release_removed_node/1)
+  end
+
+  defp release_removed_node(node_name) do
+    from(s in Sandbox, where: s.node_name == ^node_name and s.platform == :linux and s.purpose == :agent)
+    |> where([s], s.state in ^[:creating, :resuming, :running, :paused, :error])
+    |> Repo.all()
+    |> Enum.each(fn sandbox ->
+      Logger.warning("sandboxes: releasing a sandbox whose node left the cluster",
+        sandbox_id: sandbox.id,
+        node: node_name,
+        state: sandbox.state
+      )
+
+      if sandbox.state == :creating and sandbox.archived_at do
+        Archives.revert_restore(sandbox.id)
+      else
+        {released, _} =
+          Repo.update_all(
+            from(s in Sandbox, where: s.id == ^sandbox.id and s.node_name == ^node_name and s.state == ^sandbox.state),
+            set: [
+              state: :error,
+              node_name: nil,
+              error_message: "node left the cluster",
+              residency_work_id: nil,
+              updated_at: now()
+            ],
+            inc: [residency_epoch: 1]
+          )
+
+        if released == 1 and sandbox.state != :error, do: Events.record(sandbox, "failed")
+      end
+    end)
+  end
 
   defp reconcile_missing(node_name, reported_ids, generation) do
     stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
