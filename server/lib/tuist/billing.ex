@@ -638,6 +638,27 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Whether a Stripe customer already has the name, email and address an
+  invoice-billed Enterprise subscription needs, so `upgrade_to_enterprise/2`
+  can run with `%{}` instead of asking for them.
+  """
+  def billing_details_complete?(%{address: %{} = address} = customer) do
+    Enum.all?(
+      [
+        Map.get(customer, :name),
+        Map.get(customer, :email),
+        address.line1,
+        address.city,
+        address.postal_code,
+        address.country
+      ],
+      &(is_binary(&1) and &1 != "")
+    )
+  end
+
+  def billing_details_complete?(_customer), do: false
+
+  @doc """
   Puts an account with no live subscription on the open source plan.
 
   The subscription carries only the open source Prices, both $0. It carries

@@ -52,6 +52,7 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.AccountPlans,
       Ops.FeatureFlags,
       Ops.RunnerConcurrencyLimits,
       Observability,

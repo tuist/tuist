@@ -1419,6 +1419,9 @@ defmodule TuistWeb.Router do
         AtlasAccountsController,
         :update_runner_concurrency_limits
 
+    get "/atlas/accounts/:account_id/plan", AtlasAccountsController, :plan
+    put "/atlas/accounts/:account_id/plan", AtlasAccountsController, :update_plan
+
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
