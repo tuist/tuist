@@ -70,7 +70,7 @@ kube_secret_metadata_resource_version{namespace="default",secret="ignored"} 1
             config = next(item["data"]["config.alloy"] for item in manifests
                           if item.get("kind") == "ConfigMap"
                           and item["metadata"]["name"].endswith("-alloy-metrics"))
-            for destination in ["grafana_cloud_metrics"]:
+            for destination in ["grafana_cloud_metrics", "pulse_metrics"]:
                 port = unused_port()
                 writer = block(config, f'prometheus.remote_write "{destination}"')
                 for prefix in ["headers = {", "basic_auth {", "tls_config {"]:
