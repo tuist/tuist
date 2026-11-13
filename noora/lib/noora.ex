@@ -36,6 +36,7 @@ defmodule Noora do
       import Noora.PaginationGroup
       import Noora.Popover
       import Noora.ProgressBar
+      import Noora.Radio
       import Noora.Select
       import Noora.ShortcutKey
       import Noora.Sidebar
