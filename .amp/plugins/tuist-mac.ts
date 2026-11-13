@@ -53,7 +53,7 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 
 1. \`tuist_mac_start\` once per thread. It creates the Mac (or reuses the thread's), mirrors the worktree and reports the macOS and Xcode versions.
 2. \`tuist_mac_shell\` for every command. It runs bash in the repository root on the Mac (or \`cwd\`, relative to it) and streams output however long the command takes. Sync is one way: never edit tracked files on the Mac, because the next sync overwrites them. Ignored files the Mac creates, such as \`DerivedData\`, survive, so builds stay incremental.
-3. \`tuist_mac_screenshot\` returns the booted simulator (or \`target: "screen"\`) as an image.
+3. \`tuist_mac_screenshot\` returns the booted simulator (or \`target: "screen"\`) as an image, followed by its URL. When you call it from code_exec, the image does not reach you or the transcript: open the URL with view_media to see it, and embed it as a Markdown image (\`![Simulator](URL)\`) to show the user.
 4. \`tuist_mac_download\` copies a file or directory, such as a built \`.app\` or an \`.xcresult\`, back here.
 5. \`tuist_mac_stop\` when the task is done, so the Mac does not hold capacity. Tuist pauses an idle Mac and the next command resumes it, so stop only when the work is finished.
 
@@ -68,8 +68,8 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 The tools' errors say what is missing. Setup is described at ${DOCS}.
 
 - **Account**: when the repository has no \`tuist.toml\` with \`project = "<account>/<project>"\`, call \`tuist_mac_start\` with \`account\`: the account part of \`fullHandle\` in \`Tuist.swift\`, or ask the user for their Tuist account handle.
-- **CLI missing or too old**: install the latest Tuist CLI, for example \`mise use -g tuist@latest\`, and tell the user to add it to the environment's setup script.
-- **Authentication**: in an Amp orb, a workspace admin connects the Amp workspace to the Tuist account (Tuist dashboard, Settings, Integrations, Amp). Elsewhere, \`tuist auth login\`, or a \`TUIST_MAC_TOKEN\` secret with an account token that has the \`account:sandboxes:write\` scope. Ask the user; don't work around it.
+- **CLI missing or too old**: install Tuist 4.218.0 or later, for example \`mise use -g tuist@latest\` (mise skips releases from the last day, so pin \`tuist@<version>\` when that is too old), and tell the user to add it to the environment's setup script.
+- **Authentication**: in an Amp orb, a workspace admin connects the Amp workspace to the Tuist account (Tuist dashboard, Settings, Integrations, Amp). A connection limited to one Amp project signs in only that project's orbs; \`tuist auth login\` shows the server's reason. Elsewhere, \`tuist auth login\`, or a \`TUIST_MAC_TOKEN\` secret with an account token that has the \`account:sandboxes:write\` scope. Ask the user; don't work around it.
 `
 
 interface SessionRecord {
@@ -310,7 +310,10 @@ export default async function (amp: PluginAPI) {
 				const data = await readFile(join(local, basename(shot)))
 				try {
 					const { url } = await amp.attachments.upload({ data, mimeType: 'image/jpeg' })
-					return [{ type: 'image', mimeType: 'image/jpeg', url }]
+					return [
+						{ type: 'image', mimeType: 'image/jpeg', url },
+						{ type: 'text', text: `Screenshot: ${url}` },
+					]
 				} catch {
 					return [{ type: 'image', mimeType: 'image/jpeg', data: data.toString('base64') }]
 				}
@@ -374,11 +377,11 @@ function checkCLI(cwd: string): Promise<void> {
 		cliChecked = runCLI(['sandbox', '--help'], { cwd }).then(
 			(help) => {
 				if (!/^\s+sync\s/m.test(help.output)) {
-					throw new Error(`This Tuist CLI (${CLI}) has no \`tuist sandbox sync\`. Install the latest Tuist release; see ${DOCS}.`)
+					throw new Error(`This Tuist CLI (${CLI}) has no \`tuist sandbox sync\`. Install Tuist 4.218.0 or later; see ${DOCS}.`)
 				}
 			},
 			(error: NodeJS.ErrnoException) => {
-				throw error.code === 'ENOENT' ? new Error(`The Tuist CLI (${CLI}) is not installed. Install the latest Tuist release; see ${DOCS}.`) : error
+				throw error.code === 'ENOENT' ? new Error(`The Tuist CLI (${CLI}) is not installed. Install Tuist 4.218.0 or later; see ${DOCS}.`) : error
 			},
 		)
 		cliChecked.catch(() => {
@@ -433,10 +436,10 @@ function hint(output: string): string {
 	if (output.includes('Pass --account')) {
 		return '\nCall tuist_mac_start with `account`: the account part of `fullHandle` in Tuist.swift, or the Tuist account handle the user gives you.'
 	}
-	if (/need to be authenticated|not authorized|auth login/i.test(output)) {
+	if (/need to be authenticated|notAuthenticated|not logged in|not authorized|auth login/i.test(output)) {
 		return (
-			'\nThe Tuist CLI cannot use this account\'s sandboxes. In an Amp orb, a workspace admin connects the Amp workspace to the Tuist account; ' +
-			`elsewhere, run \`tuist auth login\` or set TUIST_MAC_TOKEN to an account token with the account:sandboxes:write scope. See ${DOCS}.`
+			'\nThe Tuist CLI cannot use this account\'s sandboxes. In an Amp orb, a workspace admin connects the Amp workspace to the Tuist account, without a project limit unless this thread runs on that Amp project; `tuist auth login` shows why sign-in failed. ' +
+			`Elsewhere, run \`tuist auth login\` or set TUIST_MAC_TOKEN to an account token with the account:sandboxes:write scope. See ${DOCS}.`
 		)
 	}
 	return ''
