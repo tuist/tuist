@@ -29,6 +29,8 @@ ARG ROOTFS_SIZE=12G
 ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
+# sbx-worker's checkout tests build and export real repositories.
+RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
