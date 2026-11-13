@@ -37,8 +37,8 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # The first release that signs in with the sandbox's workload identity (#15541)
 # without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
 # release's SHASUMS256.txt.
-ARG TUIST_VERSION=4.218.0-canary.35
-ARG TUIST_SHA256=1bb7ef00f5c11deaac657bd9a0fbb20491bf9eeb27230eacc466967e5d2e55fb
+ARG TUIST_VERSION=4.218.0-canary.36
+ARG TUIST_SHA256=fc016a00e0d16537a0d35a977a3e8870c0cdc56d574ef03f70bb7085acfb77ad
 ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
