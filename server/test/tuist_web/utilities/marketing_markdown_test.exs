@@ -15,6 +15,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"codemagic", "Codemagic"},
     {"depot", "Depot"},
     {"develocity", "Develocity"},
+    {"engflow", "EngFlow"},
     {"namespace", "Namespace"},
     {"runs-on", "RunsOn"},
     {"ubicloud", "Ubicloud"},
@@ -26,7 +27,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}]
   @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
-    "/build-systems" | Enum.map(["xcode", "gradle", "bazel", "elixir", "once"], &"/build-systems/#{&1}")
+    "/build-systems"
+    | Enum.map(["xcode", "gradle", "bazel", "elixir", "once", "bazel-vs-gradle"], &"/build-systems/#{&1}")
   ]
 
   test "covers every marketing landing page with an authored guide" do
@@ -51,6 +53,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/previews",
                  "/pricing",
                  "/security",
+                 "/solutions/bazel-github-actions",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
@@ -143,6 +146,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
              Enum.sort(
                [
                  "/compare",
+                 "/solutions/bazel-github-actions",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
@@ -268,7 +272,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
-    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
+    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs", "bazel-github-actions"] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
@@ -424,7 +428,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for path <-
           ["/", "/cache", "/compute", "/pricing"] ++
             Enum.reject(@comparison_paths, &(Path.basename(&1) in @featured_providers)) ++
-            ["/solutions/slow-builds", "/solutions/slow-tests", "/solutions/flaky-tests", "/solutions/ci-costs"] do
+            [
+              "/solutions/slow-builds",
+              "/solutions/slow-tests",
+              "/solutions/flaky-tests",
+              "/solutions/ci-costs",
+              "/solutions/bazel-github-actions"
+            ] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
       assert markdown =~ "environment", path

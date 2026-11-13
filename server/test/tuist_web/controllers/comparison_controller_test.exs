@@ -63,7 +63,7 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
     end
 
     for slug <-
-          ~w(appcircle bitrise blacksmith buildbuddy buildjet circleci cirun codemagic depot runs-on ubicloud warpbuild) do
+          ~w(appcircle bitrise blacksmith buildbuddy buildjet circleci cirun codemagic depot engflow runs-on ubicloud warpbuild) do
       assert ("/compare/" <> slug) in links
     end
   end
