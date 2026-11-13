@@ -36,22 +36,36 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   require Logger
 
   def spawn(%AgentEnvironment{kind: :claude_code} = agent_environment, %{session_id: session_id} = order) do
+    received_at = System.monotonic_time()
     agent_environment = Repo.preload(agent_environment, :account)
 
-    if agent_environment.enabled and FeatureFlags.sandboxes_enabled?(agent_environment.account) do
-      case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-        %Sandbox{residency_work_id: work_id} when is_binary(work_id) ->
-          {:ok, :running}
+    result =
+      if agent_environment.enabled and FeatureFlags.sandboxes_enabled?(agent_environment.account) do
+        case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
+          %Sandbox{residency_work_id: work_id} when is_binary(work_id) ->
+            {:ok, :running}
 
-        %Sandbox{platform: :darwin, state: :error} ->
-          {:error, :sandbox_recovery_required}
+          %Sandbox{platform: :darwin, state: :error} ->
+            {:error, :sandbox_recovery_required}
 
-        _sandbox ->
-          admit(agent_environment, order)
+          _sandbox ->
+            admit(agent_environment, Map.put(order, :received_at, received_at))
+        end
+      else
+        {:error, :disabled}
       end
-    else
-      {:error, :disabled}
-    end
+
+    # The request log samples successful responses, so this line is what times
+    # a session's spawn request: it is logged when the answer is ready, and
+    # duration_ms is the admission time since the request reached this module.
+    Logger.info("sandboxes: claude code spawn request",
+      agent_environment_id: agent_environment.id,
+      session_id: session_id,
+      spawn_result: result |> elem(1) |> to_string(),
+      duration_ms: milliseconds_since(received_at)
+    )
+
+    result
   end
 
   defp admit(agent_environment, order) do
@@ -76,12 +90,15 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
 
     repository = repository(Map.get(order, :repository_url))
 
+    started_at = System.monotonic_time()
+
     # A re-request while an earlier one still boots the VM finds the lock taken.
     result =
       Sandboxes.with_sandbox_lock(
         "claude-code:#{agent_environment.id}:#{session_id}",
         fn ->
           with {:ok, sandbox, created?} <- Router.find_or_create_sandbox(agent_environment, session_id),
+               placement_ms = milliseconds_since(started_at),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
                {:ok, _data} <-
                  Router.start_worker(
@@ -89,31 +106,41 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
                    worker_env(agent_environment, sandbox, work_id, work_order),
                    checkout(sandbox, repository, work_id)
                  ) do
-            {:ok, sandbox}
+            {:ok, sandbox, placement_ms}
           end
         end,
         wait: false
       )
 
     case result do
-      {:ok, sandbox} ->
+      # placement_ms covers placing the sandbox (with any carve-out growth it
+      # waits for) and creating or resuming its VM; spawn_ms runs from the
+      # spawn request to the started worker.
+      {:ok, sandbox, placement_ms} ->
         Logger.info("sandboxes: claude code runner started",
           sandbox_id: sandbox.id,
           node: sandbox.node_name,
           agent_environment_id: agent_environment.id,
-          session_id: session_id
+          session_id: session_id,
+          placement_ms: placement_ms,
+          spawn_ms: milliseconds_since(Map.get(order, :received_at, started_at))
         )
 
-      {:error, reason} ->
+        {:ok, sandbox}
+
+      {:error, reason} = error ->
         Logger.warning("sandboxes: claude code runner not started",
           agent_environment_id: agent_environment.id,
           session_id: session_id,
           reason: inspect(reason)
         )
-    end
 
-    result
+        error
+    end
   end
+
+  defp milliseconds_since(monotonic_time),
+    do: System.convert_time_unit(System.monotonic_time() - monotonic_time, :native, :millisecond)
 
   # The runner's checkout directory names come from the URL, so only exact
   # `https://github.com/<owner>/<repo>` URLs name a checkout.

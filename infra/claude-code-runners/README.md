@@ -42,6 +42,9 @@ environment.
 `Tuist.Sandboxes.ClaudeCodeReconciler` keeps one Deployment per connected
 environment (`claude-code-<id>` in the Amp provider namespace) running this
 image: `claude self-hosted-runner orchestrator` with the environment secret.
+An orchestrator polls for spawn requests every 5 s (fixed, with 20% jitter),
+so the Deployment runs two replicas to shorten the wait for the next poll;
+Anthropic hands each request to one of them.
 When a session needs a runner, the orchestrator's `hooks/spawn-runner` posts the
 work order to `/api/internal/claude-code-runners/spawn` with the Deployment's
 projected service-account token (audience `tuist-claude-code-runners`). The
@@ -57,6 +60,23 @@ Dockerfile, `sbx-worker` and tart-kubelet (`internal/macosandbox/tools.go`,
 whose test checks the pin against `sbx-worker`). macOS hosts download and
 verify the pinned build once and share it with their VMs; a session copies
 it from the share, and downloads it only when the host has not fetched it yet.
+
+## Timing a session's start
+
+- The orchestrator's container log has its polls, dispatches and hook
+  outcomes (`[runner:orchestrator] ok ... (<n>ms)`), with session IDs and
+  email addresses replaced by `-`. Its `/metrics` on port 8080, scraped by
+  annotation, has `claude_code_self_hosted_orchestrator_session_queue_wait_seconds`
+  (from the session's queueing to the orchestrator claiming its spawn request)
+  and `..._spawn_hook_duration_seconds`.
+- The server logs `sandboxes: claude code spawn request` when it answers
+  (`spawn_result`, admission `duration_ms`), and `sandboxes: claude code
+  runner started` with `placement_ms` (placement, carve-out growth and the
+  VM's create or resume) and `spawn_ms` (request to started worker). The
+  request log keeps only a sample of successful responses, so do not look
+  for the spawn there.
+- sandboxd logs the runner's own lines (`Registered`, `Picked up session`,
+  `child spawned`, `a turn started`) as the worker's guest output.
 
 ## Startup and caches
 
