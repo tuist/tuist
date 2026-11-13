@@ -95,8 +95,9 @@ kura-ca-east-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+# The scw-fr-par-runners gateway, retired with its kura-scw-fr-par pool.
 kura-runners-ingress-nginx:
-  enabled: true
+  enabled: false
 
 ipv4OptionsTcpDrop:
   enabled: true

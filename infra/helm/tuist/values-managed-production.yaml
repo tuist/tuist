@@ -319,9 +319,8 @@ server:
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
       value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
-    # resolves to the node-port form (http://<node PN address>:<NodePort>
-    # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # resolves to its rack site's private gateway (ber1-runners), and jobs
+    # at no site fall back to the public cache. linux resolves through
     # the public-region fallback (`runner_cache_endpoint_url/2` tier 2):
     # prod has no Linux private cache region, and the public ingress is
     # unreachable from runner pods (its host is a cluster node IP, which
@@ -540,12 +539,8 @@ kuraController:
       # either and reroll.
       item: kura-sentry-atlas
 
-# Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
-# Private Network, not the 1 Gbit/s public bandwidth every budget here is
-# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
-# nothing for a tree to rate its root against. Each tenant is still ceilinged
-# on that path by the Cilium bandwidth manager (egress_burst_mbps).
+# Only the shared mesh cache pools are listed: every budget here is denominated
+# in their public bandwidth.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
@@ -1046,21 +1041,13 @@ xcresultProcessor:
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
 
-# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
-# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
-# the runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint. The control
-# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
-# bootstraps the node itself.
+# The Scaleway Elastic Metal runner-cache pool (kura-scw-fr-par) is retired with
+# the scw-fr-par-runners Kura region (Tuist.Kura.Regions). Disabling the fleet
+# deletes its Machines; the provider releases each box back to the
+# tuist-kura-em- pool (reinstall), and the box stays ordered until it is
+# deleted in the Scaleway console.
 kuraFleet:
-  enabled: true
-  replicas: 2
-  machine:
-    # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
-    # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
-    # capacity are the per-account density limiters here, not PN bandwidth or
-    # CPU, so we pay for memory + disk rather than a bigger NIC.
-    offerType: EM-I220E-NVME
+  enabled: false
 
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.

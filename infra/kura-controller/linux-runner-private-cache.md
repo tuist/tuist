@@ -115,3 +115,11 @@ to start as a writer. Temporary copy pods, their NetworkPolicy and the pod
 finalizer used during the cold move were removed. Host release wipes local
 disks, so the retained archives are the preservation copies after retirement.
 Removing the Machine does not cancel the OVH monthly contract.
+
+On 2026-11-13, before the staging Scaleway Elastic Metal node retired,
+`kura-spec98-final` ordinal 1 moved off it: a live tar of its volume
+(`final-1-frpar-volume-20261113.tar`, recorded in `rise-s-retirement-backups`)
+went to the same archive PVC, its PV was set to `Retain`, and the instance's
+node selector now names the Gravelines `kura-dedibox` pool. The controller holds
+template changes on this activated fixture, so the StatefulSet template was
+patched directly before ordinal 1 was recreated there.

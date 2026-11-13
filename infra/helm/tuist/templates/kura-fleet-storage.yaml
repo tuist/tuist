@@ -247,19 +247,20 @@ spec:
         privileged: true
 {{- end }}
 
-{{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
+{{- if and .Values.capi.enabled (gt (len (include "tuist.kuraCachePools" . | fromJsonArray)) 0) }}
 {{- /*
-local-path-provisioner for the kura runner-cache Elastic Metal pool. Elastic
-Metal can't attach scw-bssd block volumes, so per-account cache PVCs live on the
+local-path-provisioner for the bare-metal Kura cache pools (tuist.kuraCachePools).
+Their boxes have no network block storage, so per-account cache PVCs live on the
 node's local NVMe: each becomes a hostPath-backed PV under
 /opt/local-path-provisioner. The StorageClass name `scw-local-nvme` is
-load-bearing — the `scw-fr-par-runners` kura region spec provisions PVCs with
-exactly this class (server/lib/tuist/kura/regions.ex, storage_class).
+load-bearing — the bare-metal Kura region specs provision PVCs with exactly
+this class (server/lib/tuist/kura/regions.ex, storage_class).
 
 This used to be a manual per-cluster bootstrap (infra/k8s/mgmt/bootstrap/), which
-meant a cluster could enable the kura fleet but silently lack the StorageClass
+meant a cluster could enable a cache fleet but silently lack the StorageClass
 its cache PVCs need (the pod hangs Pending). It now ships with the chart, gated
-on the same kuraFleet.enabled flag as the fleet itself, so the two can't drift.
+on there being a cache pool at all, so the two can't drift. It must not follow
+any single fleet's flag: every region's volumes use this class.
 
 The provisioner controller is deliberately NOT pinned to the EM pool (unlike the
 old bootstrap manifest): it only watches PVCs and launches a short-lived helper
