@@ -468,3 +468,100 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 		}
 	}
 }
+
+func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	root := vm.RootDir(h.jailBase, "src")
+	// Writes in three chunks of the sparse workspace, one straddling two.
+	workspace, err := os.OpenFile(filepath.Join(root, "workspace.ext4"), os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []int64{0, 300<<20 + 7, 4<<20 - 3} {
+		if _, err := workspace.WriteAt(bytes.Repeat([]byte(fmt.Sprintf("disk@%d ", at)), 100), at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace.Close()
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "src", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	wantWorkspace, _ := os.ReadFile(filepath.Join(root, "workspace.ext4"))
+	wantRootfs, _ := os.ReadFile(filepath.Join(root, "rootfs.ext4"))
+
+	archiveArgs := archiveArgs(server, "src")
+	archiveArgs.Memory, archiveArgs.LazyDisks = true, true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.LazyDisks || res.TailOffset <= 0 {
+		t.Fatalf("archive result %+v does not describe lazy disks", res)
+	}
+	// The disk stream holds the kernel, the VM state and the indexes, not
+	// the disks.
+	if tail := res.Bytes - res.TailOffset; tail > 64<<10 {
+		t.Fatalf("the disk stream is %d bytes; it must not hold the disks", tail)
+	}
+	if err := h.m.Delete(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256, LazyDisks: true}
+
+	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}} {
+		other := node(tc.compat)
+		restore := args
+		restore.SandboxID, restore.FromArchive = tc.id, source
+		created, err := other.m.Create(ctx, restore)
+		if err != nil {
+			t.Fatalf("%s restore: %v", tc.id, err)
+		}
+		if tc.id == "warm" {
+			if !created.MemoryPending {
+				t.Fatal("a warm restore must report its memory as pending")
+			}
+			other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second)
+		}
+		restored := vm.RootDir(other.jailBase, tc.id)
+		gotWorkspace, _ := os.ReadFile(filepath.Join(restored, "workspace.ext4"))
+		gotRootfs, _ := os.ReadFile(filepath.Join(restored, "rootfs.ext4"))
+		if !bytes.Equal(gotWorkspace, wantWorkspace) || !bytes.Equal(gotRootfs, wantRootfs) {
+			t.Fatalf("%s: the restored disks differ from the archived ones", tc.id)
+		}
+		for _, name := range []string{"workspace.ext4.fill", "rootfs.ext4.fill", "workspace.ext4.index", "rootfs.ext4.index"} {
+			if vm.Exists(filepath.Join(restored, name)) {
+				t.Fatalf("%s: %s left in the jail", tc.id, name)
+			}
+		}
+		if _, err := other.m.Pause(ctx, tc.id); err != nil {
+			t.Fatalf("%s: pause after the restore: %v", tc.id, err)
+		}
+	}
+
+	// A daemon that does not know the archive has lazy disks finds no disks
+	// in its stream and refuses it.
+	old := node("zen5")
+	stale := *source
+	stale.LazyDisks = false
+	restore := args
+	restore.SandboxID, restore.FromArchive = "stale", &stale
+	if _, err := old.m.Create(ctx, restore); err == nil {
+		t.Fatal("an archive with lazy disks must not restore as one without")
+	}
+	_ = store
+}

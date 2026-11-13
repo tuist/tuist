@@ -50,8 +50,8 @@ const (
 	EventWorkerExited  = "worker_exited"
 	EventSandboxDied   = "sandbox_died"
 	EventTemplateReady = "template_ready"
-	// EventMemoryLoaded: a sandbox restored with its memory from an archive
-	// holds all of it on the node, so the archive may go.
+	// EventMemoryLoaded: a sandbox restored from an archive holds all of
+	// its memory and disks on the node, so the archive may go.
 	EventMemoryLoaded = "memory_loaded"
 )
 
@@ -190,6 +190,9 @@ type Hello struct {
 	// SnapshotCompat is equal on nodes that can restore each other's
 	// memory snapshots; an archive with memory restores warm only on them.
 	SnapshotCompat string `json:"snapshot_compat,omitempty"`
+	// LazyDisks: the daemon restores archives written with lazy disks
+	// (ArchiveArgs.LazyDisks), serving their disks by range.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
 }
 
 type Result struct {
@@ -302,6 +305,11 @@ type ArchiveArgs struct {
 	// Memory asks for the memory image too, when it is current; the
 	// answer's TailOffset then locates the disk stream for the restore.
 	Memory bool `json:"memory,omitempty"`
+	// LazyDisks asks, with Memory, for the rootfs and workspace to be
+	// chunked like the memory image, so a restore reads them by range as
+	// the guest touches them. Only daemons whose hello sets LazyDisks can
+	// restore such an archive; the answer's LazyDisks says it was written so.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
 }
 
 // ArchiveDisksArgs asks for a disk snapshot's kernel and disks to be
@@ -332,6 +340,9 @@ type ArchiveSource struct {
 	// stream of an archive that holds a memory image ahead of it.
 	TailOffset int64  `json:"tail_offset,omitempty"`
 	TailSHA256 string `json:"tail_sha256,omitempty"`
+	// LazyDisks: the disk stream holds the disks' chunk indexes, not the
+	// disks, which are read from the object by range.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
 }
 
 type ExecArgs struct {
@@ -406,8 +417,8 @@ const (
 
 type CreateResult struct {
 	BootMs int64 `json:"boot_ms"`
-	// MemoryPending: the sandbox resumed from an archive's memory image,
-	// which it still reads from the archive until EventMemoryLoaded.
+	// MemoryPending: the sandbox still reads its memory image or its disks
+	// from the archive it was restored from, until EventMemoryLoaded.
 	MemoryPending bool `json:"memory_pending,omitempty"`
 }
 
@@ -446,6 +457,8 @@ type ArchiveResult struct {
 	TailSHA256  string `json:"tail_sha256,omitempty"`
 	Compat      string `json:"compat,omitempty"`
 	MemoryBytes int64  `json:"memory_bytes,omitempty"`
+	// LazyDisks: the disks were chunked (ArchiveArgs.LazyDisks).
+	LazyDisks bool `json:"lazy_disks,omitempty"`
 }
 
 type ExecResult struct {

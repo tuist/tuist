@@ -58,10 +58,25 @@ type MemoryChunk struct {
 	Sum    [32]byte
 }
 
+// An archive written with lazy disks puts the rootfs and the workspace
+// after the memory the same way, chunk by chunk, each with an index in the
+// disk stream (DiskIndexName) instead of the file itself, so a restore can
+// serve them by range too (internal/lazydisk).
+
+// DiskIndexName is the disk stream's entry holding the chunk index of the
+// archived disk name.
+func DiskIndexName(name string) string { return name + ".index" }
+
 // WriteMemory writes mem's chunks to w as skippable frames, w having
 // received offset bytes of the object already, and answers their index and
 // how many bytes of memory it stored, before compression.
 func WriteMemory(w io.Writer, offset int64, mem *os.File) (MemoryIndex, int64, error) {
+	return WriteChunks(w, offset, mem)
+}
+
+// WriteChunks is WriteMemory for any file, a disk image too: chunks in a
+// hole are left out like chunks of zeros, without being read.
+func WriteChunks(w io.Writer, offset int64, mem *os.File) (MemoryIndex, int64, error) {
 	info, err := mem.Stat()
 	if err != nil {
 		return MemoryIndex{}, 0, err
@@ -77,6 +92,10 @@ func WriteMemory(w io.Writer, offset int64, mem *os.File) (MemoryIndex, int64, e
 	var stored int64
 	for pos := int64(0); pos < index.Size; pos += MemoryChunkSize {
 		n := min(MemoryChunkSize, index.Size-pos)
+		if data, err := nextData(mem, pos, index.Size); err == nil && data >= pos+n {
+			index.Chunks = append(index.Chunks, MemoryChunk{})
+			continue
+		}
 		if _, err := mem.ReadAt(buf[:n], pos); err != nil {
 			return index, stored, err
 		}
