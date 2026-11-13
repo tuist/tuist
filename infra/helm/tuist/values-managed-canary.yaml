@@ -924,6 +924,12 @@ runnersController:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
+  # Run the kvm-nri-plugin DaemonSet ahead of exclusive CPUs. It injects
+  # /dev/kvm only into Pods the controller annotates, which it does only for
+  # exclusive-CPU pools, so until then every Pod keeps the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`, minus the
