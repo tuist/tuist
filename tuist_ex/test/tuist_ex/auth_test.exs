@@ -676,6 +676,44 @@ defmodule TuistEx.AuthTest do
              )
   end
 
+  test "retries the OpenID Connect exchange on transient failures", context do
+    {:ok, attempts} = Agent.start_link(fn -> [{:error, :timeout}, {:ok, 502, %{}}] end)
+
+    expect(HTTP, :request, 3, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "identity"}
+
+      Agent.get_and_update(attempts, fn
+        [response | rest] -> {response, rest}
+        [] -> {{:ok, 200, %{"access_token" => "access"}}, []}
+      end)
+    end)
+
+    test_pid = self()
+
+    assert {:ok, "access"} =
+             Auth.token(
+               url: "https://tuist.example",
+               environment: circleci(context),
+               sleep: &send(test_pid, {:slept, &1})
+             )
+
+    assert_received {:slept, 1_000}
+    assert_received {:slept, 2_000}
+  end
+
+  test "gives up on the OpenID Connect exchange after three timeouts", context do
+    expect(HTTP, :request, 3, fn :post, "https://tuist.example/api/auth/oidc/token", _ ->
+      {:error, :timeout}
+    end)
+
+    assert {:error, "OpenID Connect authentication failed: :timeout"} =
+             Auth.token(
+               url: "https://tuist.example",
+               environment: circleci(context),
+               sleep: fn _ -> :ok end
+             )
+  end
+
   test "does not retry the GitHub Actions identity token request on client errors", context do
     expect(HTTP, :request, fn :get, "https://actions.example/token?audience=tuist", nil, _ ->
       {:ok, 403, %{"message" => "Forbidden"}}

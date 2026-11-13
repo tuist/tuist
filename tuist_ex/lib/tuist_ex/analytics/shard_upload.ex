@@ -32,7 +32,8 @@ defmodule TuistEx.Analytics.ShardUpload do
 
   # Runs `request` up to three times, backing off between attempts, while it
   # fails with a network error or a status worth replaying. Shard builds
-  # download through it too, so a storage blip does not fail a shard.
+  # download and shard assignments are fetched through it too, so a storage or
+  # server blip does not fail a shard.
   @doc false
   def retry(request, sleep, attempt \\ 1) do
     result = request.()
@@ -48,6 +49,8 @@ defmodule TuistEx.Analytics.ShardUpload do
   defp retryable?({:error, {:http, status}}), do: status in [408, 429] or status >= 500
   defp retryable?({:error, {:http, status, _}}), do: status in [408, 429] or status >= 500
   defp retryable?({:error, :missing_etag}), do: false
+  # Auth and configuration errors arrive as messages and would fail again.
+  defp retryable?({:error, message}) when is_binary(message), do: false
   defp retryable?({:error, _}), do: true
   defp retryable?(_), do: false
 end

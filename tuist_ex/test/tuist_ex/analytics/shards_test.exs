@@ -435,6 +435,46 @@ defmodule TuistEx.Analytics.ShardsTest do
              {:error, timeout}
   end
 
+  test "retries fetching a shard's assignment when the server times out or fails" do
+    {:ok, responses} =
+      Agent.start_link(fn -> [{:error, :timeout}, {:error, {:http, 503, %{}}}] end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, 3, fn :get,
+                                                           "/tests/shards/run%2F1/0",
+                                                           nil,
+                                                           _ ->
+      Agent.get_and_update(responses, fn
+        [response | rest] -> {response, rest}
+        [] -> {{:ok, %{"modules" => ["AppTest"]}}, []}
+      end)
+    end)
+
+    parent = self()
+
+    assert Shards.fetch("run/1", 0, sleep: &send(parent, {:slept, &1})) ==
+             {:ok, %{"modules" => ["AppTest"]}}
+
+    assert_received {:slept, 500}
+    assert_received {:slept, 1000}
+  end
+
+  test "does not retry fetching a shard's assignment after a client or auth error" do
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :get, _, nil, _ ->
+      {:error, {:http, 404, %{}}}
+    end)
+
+    expect(TuistEx.Analytics.HTTP, :project_request, fn :get, _, nil, _ ->
+      {:error, "Run `mix tuist.login` or set TUIST_TOKEN"}
+    end)
+
+    no_retry = [sleep: fn _ -> flunk("unexpected retry") end]
+
+    assert Shards.fetch("run", 0, no_retry) == {:error, {:http, 404, %{}}}
+
+    assert Shards.fetch("run", 0, no_retry) ==
+             {:error, "Run `mix tuist.login` or set TUIST_TOKEN"}
+  end
+
   test "writes the shard matrix where GitHub Actions reads job outputs", %{directory: directory} do
     output = Path.join(directory, "github_output")
     File.write!(output, "previous=1\n")
