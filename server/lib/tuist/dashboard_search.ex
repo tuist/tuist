@@ -60,6 +60,7 @@ defmodule Tuist.DashboardSearch do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp search_query(projects, query, opts, initial) do
     preferred = Keyword.get(opts, :preferred_project_id)
     scope = query.filters["project"] || Keyword.get(opts, :project)
@@ -130,6 +131,7 @@ defmodule Tuist.DashboardSearch do
   defp exact_only?(query, type),
     do: type in ["build", "test_run"] and is_nil(query.filters["is"]) and not metadata_filter?(query)
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp providers(projects, query, preferred) do
     broad? = Enum.any?(query.terms, &(String.length(&1) >= 3)) or map_size(query.filters) > 0
     uuid? = Enum.any?(query.terms, &uuid?/1)
@@ -173,6 +175,7 @@ defmodule Tuist.DashboardSearch do
     ch ++ pg
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp clickhouse({type, table, id, title, fields, timestamp, route, system}, ids, query, preferred) do
     catalog? = type == "test_case"
     status = if catalog?, do: "''", else: ch_status()

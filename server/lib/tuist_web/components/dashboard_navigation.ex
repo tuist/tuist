@@ -122,6 +122,7 @@ defmodule TuistWeb.DashboardNavigation do
   def project_pages(user, account, project, opts \\ [])
   def project_pages(_user, _account, nil, _opts), do: []
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def project_pages(user, account, project, opts) do
     root = "/#{account.name}/#{project.name}"
     once? = Project.once_project?(project)
@@ -281,6 +282,7 @@ defmodule TuistWeb.DashboardNavigation do
     end)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp project_section(destination) do
     case String.split(destination, "/", trim: true) do
       [] -> dgettext("dashboard", "Build and test insights")
