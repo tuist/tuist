@@ -962,6 +962,10 @@ runnersFleetLinux:
       enabled: true
       # Acceptance uses the default shape; qualify it before widening rollout.
       pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
+    # Canary serves every account, as staging does; production gates accounts
+    # with the `:runner_actions_cache` flag.
+    actionsCache:
+      enabled: true
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0

@@ -1,6 +1,7 @@
 package cachevolumes
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -39,6 +40,9 @@ const (
 	actionsStoreHealthy = 30 * time.Second
 	actionsStoreProbe   = 10 * time.Second
 	actionsCopies       = 4
+	// The health check waits this long for the server to say whether the
+	// caller's account uses the mirror, inside the node shim's 150 ms probe.
+	actionsEnabledWait = 100 * time.Millisecond
 )
 
 // ActionsCaller is the runner Pod a request came from.
@@ -65,6 +69,9 @@ type ActionsUpload struct {
 // ActionsIndex is the server's index of a repository's entries. It scopes
 // every request by the job the caller's runner executes.
 type ActionsIndex interface {
+	// Enabled reports whether the account of the job the caller runs uses this
+	// cache rather than GitHub's.
+	Enabled(ctx context.Context, caller ActionsCaller) (bool, error)
 	Lookup(ctx context.Context, caller ActionsCaller, key string, restoreKeys []string, version string) (*ActionsEntry, error)
 	// Reserve returns ErrConflict when the job's ref already holds key and version.
 	Reserve(ctx context.Context, caller ActionsCaller, id, key, version string) error
@@ -76,9 +83,10 @@ type ActionsIndex interface {
 
 // ActionsCache serves GitHub's cache v2 protocol to runner Pods on this host.
 // Entries live in a store shared by every host: a save is staged here and
-// copied there, a restore is relayed from there. Any failure answers as a miss
-// or a refused save, never an error a client retries, so a job falls back to
-// building what it would have restored.
+// copied there, a restore is relayed from there, and a lookup the mirror
+// misses is asked of GitHub's cache with the job's own token. Any failure
+// answers as a miss or a refused save, never an error a client retries, so a
+// job falls back to building what it would have restored.
 type ActionsCache struct {
 	Index ActionsIndex
 	// Store stages uploads until they are copied to the entry's store.
@@ -98,10 +106,12 @@ type ActionsCache struct {
 
 	once      sync.Once
 	key       []byte
+	upstream  *url.URL
 	proxy     *httputil.ReverseProxy
 	mu        sync.Mutex
 	saves     map[actionsSave]actionsPending
 	remote    map[string]actionsRemote
+	enabled   map[string]*actionsEnabled
 	copies    chan actionsCopy
 	reachable atomic.Int64
 }
@@ -119,6 +129,13 @@ type actionsRemote struct {
 	until time.Time
 }
 
+// actionsEnabled is the server's answer for one runner Pod, closed once known.
+type actionsEnabled struct {
+	done    chan struct{}
+	enabled bool
+	since   time.Time
+}
+
 type actionsCopy struct {
 	id, sha256 string
 	size       int64
@@ -134,6 +151,7 @@ func (c *ActionsCache) init() {
 		if upstream == nil {
 			upstream, _ = url.Parse(GitHubResultsURL)
 		}
+		c.upstream = upstream
 		c.proxy = &httputil.ReverseProxy{
 			Rewrite: func(r *httputil.ProxyRequest) {
 				r.SetURL(upstream)
@@ -143,6 +161,7 @@ func (c *ActionsCache) init() {
 		}
 		c.saves = map[actionsSave]actionsPending{}
 		c.remote = map[string]actionsRemote{}
+		c.enabled = map[string]*actionsEnabled{}
 		c.copies = make(chan actionsCopy, 256)
 	})
 }
@@ -209,7 +228,7 @@ func (c *ActionsCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.init()
 	switch {
 	case r.URL.Path == ActionsHealthPath && (r.Method == http.MethodGet || r.Method == http.MethodHead):
-		if !c.healthy() {
+		if !c.healthy() || !c.allowed(r) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -241,11 +260,18 @@ func (c *ActionsCache) serveTwirp(w http.ResponseWriter, r *http.Request, method
 		RawSize     json.RawMessage `json:"size_bytes"`
 	}
 	answer := map[string]any{"ok": false}
+	body, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+	// A restore the mirror cannot answer is asked of GitHub's cache, which
+	// still holds what the job's repository saved before it used the mirror.
 	defer func() {
+		if method == "GetCacheEntryDownloadURL" && answer["ok"] != true && readErr == nil {
+			c.lookupGitHub(w, r, body)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(answer)
 	}()
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&request); err != nil {
+	if readErr != nil || json.Unmarshal(body, &request) != nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), actionsServerWait)
@@ -354,6 +380,108 @@ func (c *ActionsCache) finalize(ctx context.Context, caller ActionsCaller, key, 
 	c.record("finalize", "ok", size, start)
 	answer["ok"] = true
 	answer["entry_id"] = actionsEntryNumber(pending.id)
+}
+
+// allowed reports whether the caller's account uses the mirror. The answer is
+// kept for the Pod, which runs one job; until the server gave it, the caller
+// stays on GitHub's cache while one check continues past the probe's deadline.
+func (c *ActionsCache) allowed(r *http.Request) bool {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	caller, err := c.Caller(r.Context(), ip)
+	if err != nil {
+		return false
+	}
+	c.mu.Lock()
+	for uid, check := range c.enabled {
+		if time.Since(check.since) > actionsURLTTL {
+			delete(c.enabled, uid)
+		}
+	}
+	check, ok := c.enabled[caller.PodUID]
+	if !ok {
+		check = &actionsEnabled{done: make(chan struct{}), since: time.Now()}
+		c.enabled[caller.PodUID] = check
+		go c.checkEnabled(caller, check)
+	}
+	c.mu.Unlock()
+	timer := time.NewTimer(actionsEnabledWait)
+	defer timer.Stop()
+	select {
+	case <-check.done:
+		return check.enabled
+	case <-timer.C:
+		return false
+	case <-r.Context().Done():
+		return false
+	}
+}
+
+func (c *ActionsCache) checkEnabled(caller ActionsCaller, check *actionsEnabled) {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), actionsServerWait)
+	defer cancel()
+	enabled, err := c.Index.Enabled(ctx, caller)
+	if err != nil {
+		// Without an answer, such as for a job GitHub has not reported yet, the
+		// next probe asks again.
+		c.mu.Lock()
+		if c.enabled[caller.PodUID] == check {
+			delete(c.enabled, caller.PodUID)
+		}
+		c.mu.Unlock()
+		c.fail("enabled", start, err)
+	} else {
+		c.record("enabled", strconv.FormatBool(enabled), 0, start)
+	}
+	check.enabled = enabled && err == nil
+	close(check.done)
+}
+
+// lookupGitHub answers a restore from GitHub's cache with the job's own
+// credentials, as the job would have without the mirror. GitHub's answer goes
+// back unchanged; failing to reach it answers a miss.
+func (c *ActionsCache) lookupGitHub(w http.ResponseWriter, r *http.Request, body []byte) {
+	start := time.Now()
+	result, status, answer := "error", http.StatusOK, []byte(`{"ok":false}`)
+	defer func() {
+		c.record("lookup_github", result, 0, start)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		w.Write(answer)
+	}()
+	ctx, cancel := context.WithTimeout(r.Context(), actionsServerWait)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.upstream.JoinPath(r.URL.Path).String(), bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	for _, header := range []string{"Authorization", "Content-Type", "Accept", "User-Agent"} {
+		if value := r.Header.Get(header); value != "" {
+			request.Header.Set(header, value)
+		}
+	}
+	response, err := c.client().Do(request)
+	if err != nil {
+		logger(c.Log).Warn("actions cache GitHub lookup failed", "error", signedURL.ReplaceAllString(err.Error(), "<url>"))
+		return
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	if err != nil {
+		return
+	}
+	var found struct {
+		OK bool `json:"ok"`
+	}
+	switch {
+	case response.StatusCode != http.StatusOK:
+		result = "status_" + strconv.Itoa(response.StatusCode)
+	case json.Unmarshal(data, &found) == nil && found.OK:
+		result = "hit"
+	default:
+		result = "miss"
+	}
+	status, answer = response.StatusCode, data
 }
 
 // serveBlob implements the parts of Azure Blob Storage the cache clients use:

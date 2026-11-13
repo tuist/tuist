@@ -391,7 +391,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Any failure is a miss (`ok: false`) or a refused save, never a 5xx: clients
   retry those with backoff, which costs more than rebuilding. Blob refusals are
   4xx for the same reason (413 without room). The index call shares a 5-second
-  budget; never wait longer for the server or proxy cache calls to GitHub.
+  budget; never wait longer for the server.
+- A lookup the mirror misses, or cannot answer, is asked of GitHub's cache
+  with the job's own request and token, within the same budget, and GitHub's
+  answer goes back unchanged: an account's first runs still restore what it
+  saved on GitHub. Saves never go to GitHub. An entry GitHub still holds is
+  restored from there, so an exact hit is not saved again; it moves to the
+  mirror once GitHub drops it.
 - Blob links carry an HMAC over operation, entry, expiry and the caller Pod's
   UID, keyed per process, and the caller is resolved again by source address.
   A link never authorizes another Pod or the other operation.
@@ -400,12 +406,19 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   server places them. A restore relays ranged reads from the store's presigned
   URL. `/actions-cache/healthz` fails while the store has not answered for 30
   seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+  It also fails for a Pod until the server says its job's account uses the
+  mirror (`Enabled`), asked once per Pod and kept; the probe waits 100 ms of the
+  shim's 150 ms for it, and the check finishes in the background for the next
+  probe.
 - `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
   filesystem until `Run` copies them to the store (a presigned PUT bound to the
   SHA-256) and the server commits them; a failed copy drops the entry. A block
-  list commits by hard-linking its synced blocks into `parts/` in list order
+  list commits by hard-linking its blocks into `parts/` in list order
   and hashing them; the copy streams the parts. Never reassemble them into one
-  file before answering: the job waits on it, seconds per GB. It writes
-  through the same 16 MiB writeback bound, at most four streams at a time, and
-  admits only above the reserve. Staging never evicts masters; uploads idle for
-  an hour are removed.
+  file before answering: the job waits on it, seconds per GB. Never fsync per
+  block either: buildx sends 1 MiB blocks one at a time, and an fsync on the
+  loop-mounted cache costs 11 ms. Each stream starts writeback every 16 MiB and
+  at its end, and the store fsyncs once all streams staged 16 MiB, which bounds
+  dirty pages the loop device's backing file still charges to the agent. It
+  writes at most four streams at a time and admits only above the reserve.
+  Staging never evicts masters; uploads idle for an hour are removed.
