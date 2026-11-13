@@ -22,8 +22,23 @@ stdout_relay=$!
 exec 2> >(node -e "$relay" >&4 3>&- 4>&-)
 stderr_relay=$!
 exec 3>&- 4>&-
-# Exit only after the relays have passed on the last output, often the error.
-trap 'exec >&- 2>&-; wait "$stdout_relay" "$stderr_relay"' EXIT
+clean_lockfiles=()
+finish() {
+  local status=$?
+  # mise records Linux checksums (and provenance, which the root mise.lock
+  # must never carry) into these lockfiles while installing. Restore them even
+  # when a step fails, so a failed setup does not hand threads a dirty worktree,
+  # and fail an otherwise successful setup when the restore fails, so no
+  # snapshot carries them.
+  if ((${#clean_lockfiles[@]})) && ! git -C "$repo_root" checkout -- "${clean_lockfiles[@]}"; then
+    ((status)) || status=1
+  fi
+  # Exit only after the relays have passed on the last output, often the error.
+  exec >&- 2>&-
+  wait "$stdout_relay" "$stderr_relay" || true
+  exit "$status"
+}
+trap finish EXIT
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -152,10 +167,8 @@ esac
 EOF
 fi
 
-# mise records Linux checksums into these lockfiles while installing. Restore
-# them afterwards so orbs start with a clean worktree, unless they already
-# carried someone's edits.
-clean_lockfiles=()
+# finish restores these lockfiles on exit unless they already carried
+# someone's edits.
 for lockfile in mise.lock server/mise.lock; do
   git diff --quiet -- "$lockfile" && clean_lockfiles+=("$lockfile")
 done
@@ -229,9 +242,6 @@ timed "Creating and migrating the server test databases" env MIX_ENV=test mise e
 step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
 sudo pg_ctlcluster 16 main stop
-
-cd "$repo_root"
-((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
 
 step "Writing orb kubeconfig"
 # Contexts for the kube-orb-<env> gateways. The file holds no credential:
