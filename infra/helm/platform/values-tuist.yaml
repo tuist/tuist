@@ -186,10 +186,6 @@ kura-ap-southeast-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-# The scw-fr-par-runners gateway, retired with its kura-scw-fr-par pool.
-kura-runners-ingress-nginx:
-  enabled: false
-
 # The BER1 rack's cache gateway, on its storage node (values.yaml).
 kura-ber1-runners-ingress-nginx:
   enabled: true

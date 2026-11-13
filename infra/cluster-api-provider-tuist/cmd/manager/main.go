@@ -259,9 +259,7 @@ func main() {
 			"resolves it to an ID (creating the PN from the CIDR if absent), "+
 			"attaches every Mac mini to it, resolves the per-host VLAN, and "+
 			"bootstrap materializes the VLAN interface + VM egress pass + NAT. "+
-			"The same name as the kura fleet's privateNetworkName, so the Macs "+
-			"and the Elastic Metal cache node share one PN per env. Flows from "+
-			"the chart's macosFleet.vmCachePrivateNetwork.name.")
+			"Flows from the chart's macosFleet.vmCachePrivateNetwork.name.")
 	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
 		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
 		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22), "+
@@ -738,8 +736,8 @@ func main() {
 		Minter: ghAppClient,
 	}
 
-	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
-	// resolve the runner-cache Private Network by name to one PN per env.
+	// Resolves the Apple Silicon fleet's runner-cache Private Network by name
+	// to one PN per env.
 	vpcClient, err := scaleway.NewVPCClientFromEnv()
 	if err != nil {
 		setupLog.Error(err, "scaleway vpc client")
@@ -998,33 +996,6 @@ func main() {
 		NodeBinary:          rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
-		os.Exit(1)
-	}
-
-	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
-	// provider, separate reconciler from Apple Silicon: bare-metal servers
-	// ordered through the Baremetal API that pass through an OS-install wait,
-	// attach the PN as a tagged VLAN, then SSH-bootstrap a rendered self-join.
-	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
-	if err != nil {
-		setupLog.Error(err, "scaleway baremetal client")
-		os.Exit(1)
-	}
-	if err := (&linux.ScalewayElasticMetalMachineReconciler{
-		Client:             mgr.GetClient(),
-		APIReader:          mgr.GetAPIReader(),
-		Scheme:             mgr.GetScheme(),
-		ScalewayClient:     baremetalClient,
-		VPC:                vpcClient,
-		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
-		CredentialsManager: credsManager,
-		Kubeconfig:         kubeconfigBuilder,
-		KubernetesMinor:    "v1.34",
-		DefaultOfferType:   "EM-B220E-NVME",
-		DefaultOS:          "ubuntu_noble",
-		DefaultZone:        "fr-par-1",
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
 		os.Exit(1)
 	}
 

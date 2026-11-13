@@ -41,8 +41,6 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - tuistclusters
-      - scalewayelasticmetalmachines
-      - scalewayelasticmetalmachinetemplates
       - ovhdedicatedmachines
       - ovhdedicatedmachinetemplates
       - vultrmachines
@@ -64,8 +62,6 @@ rules:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - tuistclusters/status
-      - scalewayelasticmetalmachines/status
-      - scalewayelasticmetalmachines/finalizers
       - ovhdedicatedmachines/status
       - ovhdedicatedmachines/finalizers
       - vultrmachines/status
@@ -621,9 +617,7 @@ spec:
             {{- end }}
             {{- with .Values.macosFleet.vmCachePrivateNetwork.name }}
             # Name of the Scaleway Private Network carrying the kura
-            # runner-cache NodePort endpoints — the same name the kura
-            # fleet attaches to, so the minis and the Elastic Metal
-            # cache node share one PN per env. The operator resolves it
+            # runner-cache NodePort endpoints, one PN per env. The operator resolves it
             # to an ID, attaches every mini, resolves the per-host VLAN,
             # and bootstrap materializes the VLAN interface + VM egress
             # pass + NAT — the data plane dispatch's node-port

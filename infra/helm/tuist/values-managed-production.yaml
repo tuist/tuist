@@ -264,8 +264,8 @@ server:
     # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
     # rack's minis; only the accounts the runner_site_cache flag enables get a
     # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
-    # fleet, is retired (Tuist.Kura.Regions): the reconciler tears down its
-    # leftovers on the kuraFleet nodes whether or not it is listed here.
+    # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
+    # or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
@@ -1040,14 +1040,6 @@ xcresultProcessor:
     # forwards to Grafana Cloud with the ones it already holds.
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
-
-# The Scaleway Elastic Metal runner-cache pool (kura-scw-fr-par) is retired with
-# the scw-fr-par-runners Kura region (Tuist.Kura.Regions). Disabling the fleet
-# deletes its Machines; the provider releases each box back to the
-# tuist-kura-em- pool (reinstall), and the box stays ordered until it is
-# deleted in the Scaleway console.
-kuraFleet:
-  enabled: false
 
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.
@@ -1937,7 +1929,7 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
